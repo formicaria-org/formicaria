@@ -19,6 +19,7 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
 // (groupBy -> group_by). The single-word ones pass through unchanged.
 export const getBoard = (groupBy: string) => invoke<Board>('board', { groupBy });
 export const getGallery = () => invoke<ObjectMeta[]>('gallery');
+export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
 export const capture = (body: string) => invoke<ObjectMeta>('capture', { body });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });

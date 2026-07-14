@@ -54,3 +54,21 @@ body {
 .column-head[data-value='todo'] .column-label {
   color: var(--accent);
 }
+
+/* Derived-urgency colors for the agenda dot — a theme concern, keyed by the
+   computed bucket, so the renderer stays free of thresholds and hex codes. */
+.row[data-urgency='overdue'] {
+  --urgency: #ff6b6b;
+}
+.row[data-urgency='soon'] {
+  --urgency: #e6aa3c;
+}
+.row[data-urgency='week'] {
+  --urgency: #6cb6ff;
+}
+.row[data-urgency='later'] {
+  --urgency: #77d197;
+}
+.row[data-urgency='none'] {
+  --urgency: var(--muted);
+}

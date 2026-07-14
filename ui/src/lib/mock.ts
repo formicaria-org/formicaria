@@ -29,6 +29,7 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 const notes: ObjectMeta[] = [
   makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
   makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
+  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'] }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
   makeNote({ preview: 'Weekly sync notes', type: 'meeting', due: '2026-07-16' }),
@@ -110,6 +111,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return [...notes]
         .filter((n) => n.type === 'asset')
         .sort((a, b) => b.created.localeCompare(a.created)) as T;
+    case 'agenda':
+      return [...notes]
+        .filter((n) => n.due && n.status !== 'done')
+        .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? '')) as T;
     case 'capture':
       return captureNote(String(args.body)) as T;
     case 'set_property':

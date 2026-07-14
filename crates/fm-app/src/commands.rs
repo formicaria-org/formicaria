@@ -4,8 +4,8 @@
 
 use crate::dto::{value_string, Board, Column, ObjectMeta};
 use fm_core::{apply_property, Store, StoreError};
-use fm_model::{Id, Kind, Object};
-use fm_query::{Filter, Predicate, Query, SortKey};
+use fm_model::{Id, Kind, Object, PropertyValue};
+use fm_query::{Filter, Op, Predicate, Query, SortKey};
 use time::OffsetDateTime;
 
 /// Group every note by `group_by` into board columns, newest card first. The
@@ -41,6 +41,34 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
         filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
         sort: vec![SortKey::desc("created")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
+/// The agenda: the closest-deadline view. Everything with a `due` date that is
+/// not done, soonest first. This is "zero new code" — it is the same engine and
+/// the same `ObjectMeta`, just a different filter and sort; urgency is *derived*
+/// in the card from `due`, never stored (there is no priority field).
+///
+/// "done" is the completion convention: a note with no status is not done, so it
+/// is included (`status != done` keeps nulls). A meeting carries a date, so it
+/// shows up here too. This filter is the one place the string "done" is written;
+/// it stays out of the renderers (a `.view` file could override it).
+pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: Filter::new()
+            .and(Predicate::Prop {
+                key: "due".into(),
+                op: Op::Exists,
+                value: PropertyValue::Null,
+            })
+            .and(Predicate::Prop {
+                key: "status".into(),
+                op: Op::Ne,
+                value: PropertyValue::Text("done".into()),
+            }),
+        sort: vec![SortKey::asc("due")],
         ..Default::default()
     };
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())

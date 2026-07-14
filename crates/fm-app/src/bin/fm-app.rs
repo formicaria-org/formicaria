@@ -27,6 +27,12 @@ fn gallery(state: State<AppState>) -> Result<Vec<ObjectMeta>, String> {
 }
 
 #[tauri::command]
+fn agenda(state: State<AppState>) -> Result<Vec<ObjectMeta>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    fm_app::commands::agenda(&*store).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn capture(state: State<AppState>, body: String) -> Result<ObjectMeta, String> {
     let mut store = state.store.lock().map_err(|e| e.to_string())?;
     fm_app::commands::capture(&mut *store, &body).map_err(|e| e.to_string())
@@ -51,7 +57,7 @@ fn main() {
 
     tauri::Builder::default()
         .manage(AppState { store: Mutex::new(store) })
-        .invoke_handler(tauri::generate_handler![board, gallery, capture, set_property])
+        .invoke_handler(tauri::generate_handler![board, gallery, agenda, capture, set_property])
         .run(tauri::generate_context!())
         .expect("error while running the formicarium window");
 }

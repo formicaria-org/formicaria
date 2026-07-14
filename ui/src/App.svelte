@@ -1,10 +1,12 @@
 <script lang="ts">
   import Board from './renderers/Board.svelte';
   import Gallery from './renderers/Gallery.svelte';
-  import { getBoard, getGallery, capture, setProperty } from './lib/ipc';
+  import Agenda from './renderers/Agenda.svelte';
+  import { getBoard, getGallery, getAgenda, capture, setProperty } from './lib/ipc';
   import type { Board as BoardData, ObjectMeta } from './lib/types';
 
-  let view = $state<'board' | 'gallery'>('board');
+  type View = 'board' | 'gallery' | 'agenda';
+  let view = $state<View>('board');
   let groupBy = $state('status');
   let board = $state<BoardData | null>(null);
   let cards = $state<ObjectMeta[] | null>(null);
@@ -14,7 +16,8 @@
   async function refresh() {
     try {
       if (view === 'board') board = await getBoard(groupBy);
-      else cards = await getGallery();
+      else if (view === 'gallery') cards = await getGallery();
+      else cards = await getAgenda();
       error = null;
     } catch (e) {
       error = String(e);
@@ -63,6 +66,9 @@
       <button class:active={view === 'board'} aria-pressed={view === 'board'} onclick={() => (view = 'board')}>
         Board
       </button>
+      <button class:active={view === 'agenda'} aria-pressed={view === 'agenda'} onclick={() => (view = 'agenda')}>
+        Agenda
+      </button>
       <button class:active={view === 'gallery'} aria-pressed={view === 'gallery'} onclick={() => (view = 'gallery')}>
         Gallery
       </button>
@@ -92,10 +98,12 @@
       {:else}
         <p class="empty">Loading…</p>
       {/if}
-    {:else if cards}
+    {:else if !cards}
+      <p class="empty">Loading…</p>
+    {:else if view === 'gallery'}
       <Gallery {cards} />
     {:else}
-      <p class="empty">Loading…</p>
+      <Agenda {cards} />
     {/if}
   </div>
 </main>
