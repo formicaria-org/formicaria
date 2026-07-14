@@ -26,3 +26,15 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml_ng = "0.10"
 clap = { version = "4", features = ["derive", "env"] }
 anyhow = "1"
+
+# Release profile — the shipped desktop binary. The debug build is ~227 MB
+# (unoptimized + full debuginfo); stripping symbols plus LTO brings a release
+# build down to roughly 10-25 MB. opt-level 3 keeps the pure query engine fast;
+# thin LTO + a single codegen unit trade release compile time for a smaller,
+# faster binary. No behavior change — panics still unwind (Tauri relies on it);
+# we only drop debug symbols and inline across crates.
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+opt-level = 3

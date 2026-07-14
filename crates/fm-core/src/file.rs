@@ -199,8 +199,13 @@ impl Store for FileStore {
     fn reindex(&mut self, _mode: Reindex) -> Result<ReindexStats, StoreError> {
         // S0/S1: always a full rebuild — the index is disposable and cheap at
         // this scale. Incremental (mtime-diff) reindex arrives with external-edit
-        // polling in a later slice.
-        self.db.execute_batch("DELETE FROM objects; DELETE FROM fts;").map_err(sql)?;
+        // polling in a later slice. The whole rebuild runs in ONE transaction:
+        // each note is ~3 statements, and per-statement commits are dominated by
+        // fsync at 10k notes, so a single commit is the cheap scaling win. On any
+        // error we return without committing; the transaction rolls back when the
+        // connection drops (open() propagates the error and discards the store).
+        let tx = self.db.unchecked_transaction().map_err(sql)?;
+        tx.execute_batch("DELETE FROM objects; DELETE FROM fts;").map_err(sql)?;
         let mut scanned = 0usize;
         let mut updated = 0usize;
         for entry in fs::read_dir(&self.notes).map_err(io)? {
@@ -214,6 +219,7 @@ impl Store for FileStore {
             self.index_object(&obj, &path, &content)?;
             updated += 1;
         }
+        tx.commit().map_err(sql)?;
         Ok(ReindexStats { scanned, updated })
     }
 }
