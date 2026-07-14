@@ -5,7 +5,7 @@
 use crate::dto::{value_string, Board, Column, ObjectMeta};
 use fm_core::{apply_property, Store, StoreError};
 use fm_model::{Id, Kind, Object};
-use fm_query::{Query, SortKey};
+use fm_query::{Filter, Predicate, Query, SortKey};
 use time::OffsetDateTime;
 
 /// Group every note by `group_by` into board columns, newest card first. The
@@ -29,6 +29,21 @@ pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
         })
         .collect();
     Ok(Board { group_by: group_by.to_string(), columns })
+}
+
+/// The gallery: every asset, newest first. This is the S4 checkpoint — a
+/// *second* renderer that is nothing but a different query (`type = asset`) over
+/// the same engine and the same `ObjectMeta`. No new query machinery, no new
+/// storage path; if this were expensive, the `Store`/`fm-query` seam would not
+/// be real. Thumbnails and lazy loading arrive with S5's ingest; until a blob
+/// exists, the tile shows the shared "asset not found" placeholder.
+pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
+        sort: vec![SortKey::desc("created")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
 /// Capture a note; the text becomes the body. Returns the new card's meta so the

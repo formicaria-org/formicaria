@@ -33,6 +33,7 @@ const notes: ObjectMeta[] = [
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
   makeNote({ preview: 'Weekly sync notes', type: 'meeting', due: '2026-07-16' }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', props: { project: 'alpha' } }),
+  makeNote({ preview: 'poster_v2.png', type: 'asset', props: { project: 'beta' } }),
 ];
 
 function valueOf(n: ObjectMeta, key: string): string {
@@ -105,6 +106,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
   switch (cmd) {
     case 'board':
       return buildBoard(String(args.groupBy)) as T;
+    case 'gallery':
+      return [...notes]
+        .filter((n) => n.type === 'asset')
+        .sort((a, b) => b.created.localeCompare(a.created)) as T;
     case 'capture':
       return captureNote(String(args.body)) as T;
     case 'set_property':

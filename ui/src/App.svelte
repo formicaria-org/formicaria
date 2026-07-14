@@ -1,26 +1,30 @@
 <script lang="ts">
   import Board from './renderers/Board.svelte';
-  import { getBoard, capture, setProperty } from './lib/ipc';
-  import type { Board as BoardData } from './lib/types';
+  import Gallery from './renderers/Gallery.svelte';
+  import { getBoard, getGallery, capture, setProperty } from './lib/ipc';
+  import type { Board as BoardData, ObjectMeta } from './lib/types';
 
+  let view = $state<'board' | 'gallery'>('board');
   let groupBy = $state('status');
   let board = $state<BoardData | null>(null);
+  let cards = $state<ObjectMeta[] | null>(null);
   let draft = $state('');
   let error = $state<string | null>(null);
 
   async function refresh() {
     try {
-      board = await getBoard(groupBy);
+      if (view === 'board') board = await getBoard(groupBy);
+      else cards = await getGallery();
       error = null;
     } catch (e) {
       error = String(e);
     }
   }
 
-  // Reload whenever the grouping property changes — the same renderer, pointed
-  // at status, type, project, or any property you type.
+  // Reload when the view switches, or (in board view) when the grouping changes.
   $effect(() => {
-    void groupBy;
+    void view;
+    if (view === 'board') void groupBy;
     void refresh();
   });
 
@@ -55,16 +59,26 @@
       <!-- svelte-ignore a11y_autofocus -->
       <input placeholder="Capture a thought…" bind:value={draft} autofocus />
     </form>
-    <label class="group">
-      <span>group by</span>
-      <input list="props" bind:value={groupBy} spellcheck="false" />
-      <datalist id="props">
-        <option value="status"></option>
-        <option value="type"></option>
-        <option value="project"></option>
-        <option value="tags"></option>
-      </datalist>
-    </label>
+    <div class="views" role="group" aria-label="view">
+      <button class:active={view === 'board'} aria-pressed={view === 'board'} onclick={() => (view = 'board')}>
+        Board
+      </button>
+      <button class:active={view === 'gallery'} aria-pressed={view === 'gallery'} onclick={() => (view = 'gallery')}>
+        Gallery
+      </button>
+    </div>
+    {#if view === 'board'}
+      <label class="group">
+        <span>group by</span>
+        <input list="props" bind:value={groupBy} spellcheck="false" />
+        <datalist id="props">
+          <option value="status"></option>
+          <option value="type"></option>
+          <option value="project"></option>
+          <option value="tags"></option>
+        </datalist>
+      </label>
+    {/if}
   </header>
 
   {#if error}
@@ -72,8 +86,14 @@
   {/if}
 
   <div class="stage">
-    {#if board}
-      <Board {board} onmove={onMove} />
+    {#if view === 'board'}
+      {#if board}
+        <Board {board} onmove={onMove} />
+      {:else}
+        <p class="empty">Loading…</p>
+      {/if}
+    {:else if cards}
+      <Gallery {cards} />
     {:else}
       <p class="empty">Loading…</p>
     {/if}
@@ -112,6 +132,24 @@
     background: var(--card-bg);
     color: var(--text);
     font-size: 0.9rem;
+  }
+  .views {
+    display: flex;
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .views button {
+    padding: 0.4rem 0.7rem;
+    background: var(--card-bg);
+    color: var(--muted);
+    border: none;
+    cursor: pointer;
+    font-size: 0.82rem;
+  }
+  .views button.active {
+    background: var(--column-over-bg);
+    color: var(--text);
   }
   .group {
     display: flex;
