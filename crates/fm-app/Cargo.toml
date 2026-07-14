@@ -41,6 +41,11 @@ desktop = [
     "dep:tauri-plugin-opener",
     "dep:tauri-build",
 ]
+# Embed the built ui/dist into the binary and serve it over Tauri's asset
+# protocol, so the window is self-contained — no dev server, no Tauri CLI. This
+# is what `tauri build` turns on; enable it for a bare `cargo run` too:
+#   pnpm -C ui build && cargo run -p fm-app --features desktop,custom-protocol
+custom-protocol = ["desktop", "tauri/custom-protocol"]
 
 [dev-dependencies]
 fm-core = { workspace = true }

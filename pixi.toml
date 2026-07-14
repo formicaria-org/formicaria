@@ -58,6 +58,9 @@ gui = { features = ["gui"] }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
+# Run the desktop app self-contained (embeds the freshly built ui/dist — no dev
+# server needed). Use the gui env: `pixi run -e gui app`.
+app = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-app --features desktop,custom-protocol"
 test = "cargo test --workspace"
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
