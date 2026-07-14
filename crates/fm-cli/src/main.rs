@@ -61,13 +61,13 @@ fn main() -> Result<()> {
             let needle = query.join(" ");
             let q = Query {
                 filter: Filter::new().and(Predicate::Text(needle.clone())),
-                sort: vec![SortKey::desc("created")],
+                sort: vec![SortKey::desc("updated")], // results w/ timestamps: newest first
                 ..Default::default()
             };
             let r = store.query(&q)?;
             println!("{} match(es) for \"{needle}\":", r.total);
             for o in &r.rows {
-                println!("  {}  {}", o.id, first_line(&o.body));
+                println!("  {}  {}  {}", o.id, o.updated.date(), first_line(&o.body));
             }
         }
         Cmd::Reindex => {
