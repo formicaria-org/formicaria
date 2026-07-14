@@ -1,0 +1,24 @@
+# formicarium — Rust workspace.
+#
+# Seam 1 (the query engine never touches the filesystem) is a COMPILE-TIME
+# guarantee: fm-model and fm-query do not depend on rusqlite, std::fs, or any
+# path type, so the engine physically cannot do I/O. Storage backends (FileStore
+# = markdown + SQLite) and the shell (fm-app/Tauri, fm-cli) join the workspace in
+# later slices; they are intentionally absent here to keep the seam fast to build
+# and impossible to breach.
+[workspace]
+resolver = "2"
+members = ["crates/fm-model", "crates/fm-query", "crates/fm-core"]
+
+[workspace.package]
+edition = "2021"
+version = "0.0.0"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+fm-model = { path = "crates/fm-model" }
+fm-query = { path = "crates/fm-query" }
+ulid = "1"
+time = { version = "0.3", features = ["macros"] }
+indexmap = "2"
+thiserror = "2"

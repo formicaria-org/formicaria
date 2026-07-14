@@ -1,0 +1,33 @@
+[project]
+name = "formicarium"
+version = "0.0.0"
+description = "Local-first, single-user research notebook (fm). Full spec: formicarium/MASTERPLAN.md"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+# The umbrella layer: toolchain + version-locked native/subprocess tools.
+# App-level deps live in Cargo.lock (Rust) and pnpm-lock.yaml (JS); pixi.lock
+# pins THIS layer so a 2031 checkout resolves the same rustc and the same
+# pdftotext. See MASTERPLAN "Dependency & environment management".
+[dependencies]
+rust = "*"
+nodejs = "*"
+pnpm = "*"
+poppler = "*"        # provides pdftotext (PDF text -> FTS5, the killer feature)
+libvips = "*"        # provides vipsthumbnail (image/video thumbnails)
+restic = "*"         # backup: dedup + encryption + integrity + bit-rot scrub
+cargo-deny = "*"     # license / advisory gate
+
+# v2 extractors, isolated so the default env stays lean.
+[feature.media.dependencies]
+ffmpeg = "*"
+tesseract = "*"
+
+[environments]
+default = { features = [] }
+media = { features = ["media"] }
+
+[tasks]
+test = "cargo test --workspace"
+seam = "cargo test -p fm-query"          # the zero-I/O seam suite
+deny = "cargo deny check"

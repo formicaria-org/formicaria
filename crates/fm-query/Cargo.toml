@@ -1,0 +1,12 @@
+[package]
+name = "fm-query"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+# NOTE: no rusqlite, no std::fs, no path types here — by design. This crate is
+# the stable core; if it ever gains an I/O dependency, the seam is broken.
+[dependencies]
+fm-model = { workspace = true }
+indexmap = { workspace = true }
+time = { workspace = true }

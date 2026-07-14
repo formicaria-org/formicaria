@@ -1,0 +1,9 @@
+[package]
+name = "fm-model"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+ulid = { workspace = true }
+time = { workspace = true }

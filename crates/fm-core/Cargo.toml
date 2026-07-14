@@ -1,0 +1,16 @@
+[package]
+name = "fm-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+# For now fm-core holds only the pure Store seam + MemoryStore (zero I/O).
+# FileStore (rusqlite + markdown), ingest, verify, history and backup join this
+# crate in later slices, behind their own feature flags so the seam stays lean.
+[dependencies]
+fm-model = { workspace = true }
+fm-query = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+time = { workspace = true }
