@@ -74,17 +74,25 @@ pub fn thumbnail(vault: &Path, hash: &str) -> Result<PathBuf, StoreError> {
     let blob = BlobStore::new(vault).path_for(hash);
     let dir = vault.join("derived").join(hash);
     std::fs::create_dir_all(&dir).map_err(io)?;
-    let thumb = dir.join("thumb.webp");
-    let status = Command::new("vipsthumbnail")
+    // vipsthumbnail resolves a *relative* `-o` against the INPUT file's
+    // directory, which mangles the path when the vault is relative (the default).
+    // Canonicalize to an absolute output path so it lands in derived/ regardless.
+    let thumb = std::fs::canonicalize(&dir).map_err(io)?.join("thumb.webp");
+    // `.output()` (not `.status()`) so vipsthumbnail's stderr never spams the CLI
+    // — thumbnailing is best-effort and its failure only degrades a gallery tile.
+    let out = Command::new("vipsthumbnail")
         .arg(&blob)
         .arg("--size")
         .arg("400x400")
         .arg("-o")
         .arg(format!("{}[Q=80]", thumb.display()))
-        .status()
+        .output()
         .map_err(|e| StoreError::Io(format!("vipsthumbnail: {e}")))?;
-    if !status.success() {
-        return Err(StoreError::Io("vipsthumbnail failed".into()));
+    if !out.status.success() {
+        return Err(StoreError::Io(format!(
+            "vipsthumbnail failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
     }
     Ok(thumb)
 }
