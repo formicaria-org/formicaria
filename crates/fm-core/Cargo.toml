@@ -4,13 +4,17 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# For now fm-core holds only the pure Store seam + MemoryStore (zero I/O).
-# FileStore (rusqlite + markdown), ingest, verify, history and backup join this
-# crate in later slices, behind their own feature flags so the seam stays lean.
+# fm-core is the I/O crate: it MAY depend on rusqlite/std::fs (fm-query may not).
+# rusqlite `bundled` compiles SQLite (incl. FTS5) into the binary — no cgo, no
+# runtime dependency.
 [dependencies]
 fm-model = { workspace = true }
 fm-query = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+serde_yaml_ng = { workspace = true }
+time = { workspace = true }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
 
 [dev-dependencies]
-time = { workspace = true }
+tempfile = "3"

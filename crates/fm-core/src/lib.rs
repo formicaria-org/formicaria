@@ -9,12 +9,18 @@ use fm_query::{run, Query, QueryResult};
 use std::collections::HashMap;
 use thiserror::Error;
 
+pub mod frontmatter;
+mod file;
+pub use file::FileStore;
+
 #[derive(Debug, Error)]
 pub enum StoreError {
     #[error("object not found: {0}")]
     NotFound(Id),
     #[error("io error: {0}")]
     Io(String),
+    #[error("parse error: {0}")]
+    Parse(String),
 }
 
 /// How much of the index to rebuild. `Full` = drop and rebuild from files — the

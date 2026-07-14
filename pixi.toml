@@ -11,6 +11,7 @@ platforms = ["linux-64"]
 # pdftotext. See MASTERPLAN "Dependency & environment management".
 [dependencies]
 rust = "*"
+c-compiler = "*"     # cc for rusqlite's bundled SQLite (and any C build), pinned via conda-forge
 nodejs = "*"
 pnpm = "*"
 poppler = "*"        # provides pdftotext (PDF text -> FTS5, the killer feature)

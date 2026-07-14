@@ -103,6 +103,27 @@ pub struct Object {
 }
 
 impl Object {
+    /// A fresh object: a new ULID and `created == updated == now`. Capture writes
+    /// a new small file per entry, so file mtime behaves like entry mtime.
+    pub fn new(kind: Kind, body: impl Into<String>) -> Self {
+        let now = OffsetDateTime::now_utc();
+        Object {
+            id: Ulid::new(),
+            kind,
+            title: None,
+            status: None,
+            due: None,
+            hard: false,
+            created: now,
+            updated: now,
+            tags: Vec::new(),
+            assets: Vec::new(),
+            code: Vec::new(),
+            body: body.into(),
+            extra: BTreeMap::new(),
+        }
+    }
+
     /// Uniform accessor over well-known fields AND the `extra` map. The query
     /// engine reads *every* property through this and never names a hardcoded
     /// field, which is exactly what makes group-by generic: point a board at

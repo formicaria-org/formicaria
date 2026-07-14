@@ -2,13 +2,12 @@
 #
 # Seam 1 (the query engine never touches the filesystem) is a COMPILE-TIME
 # guarantee: fm-model and fm-query do not depend on rusqlite, std::fs, or any
-# path type, so the engine physically cannot do I/O. Storage backends (FileStore
-# = markdown + SQLite) and the shell (fm-app/Tauri, fm-cli) join the workspace in
-# later slices; they are intentionally absent here to keep the seam fast to build
-# and impossible to breach.
+# path type, so the engine physically cannot do I/O. fm-core holds the I/O
+# (FileStore = markdown + SQLite); fm-cli drives it; the Tauri app (fm-app) joins
+# in a later slice.
 [workspace]
 resolver = "2"
-members = ["crates/fm-model", "crates/fm-query", "crates/fm-core"]
+members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli"]
 
 [workspace.package]
 edition = "2021"
@@ -18,7 +17,12 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 fm-model = { path = "crates/fm-model" }
 fm-query = { path = "crates/fm-query" }
+fm-core = { path = "crates/fm-core" }
 ulid = "1"
-time = { version = "0.3", features = ["macros"] }
+time = { version = "0.3", features = ["macros", "formatting", "parsing"] }
 indexmap = "2"
 thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"

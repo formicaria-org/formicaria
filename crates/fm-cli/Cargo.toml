@@ -1,0 +1,16 @@
+[package]
+name = "fm-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fm"
+path = "src/main.rs"
+
+[dependencies]
+fm-model = { workspace = true }
+fm-query = { workspace = true }
+fm-core = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
