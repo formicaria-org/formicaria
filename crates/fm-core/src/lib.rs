@@ -14,6 +14,10 @@ mod file;
 pub use file::FileStore;
 pub mod edit;
 pub use edit::apply_property;
+pub mod blob;
+pub mod ingest;
+pub use blob::BlobStore;
+pub use ingest::{ingest_file, Ingested};
 
 #[derive(Debug, Error)]
 pub enum StoreError {

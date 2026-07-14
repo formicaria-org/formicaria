@@ -6,7 +6,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use fm_core::{FileStore, Reindex, Store};
-use fm_model::{Id, Kind, Object};
+use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -26,6 +26,9 @@ struct Cli {
 enum Cmd {
     /// Capture a note; the text becomes the note body.
     Capture { text: Vec<String> },
+    /// Ingest a file as an asset: hash it into the blob store (dedup), extract
+    /// searchable text (pdftotext for PDFs), and create an asset note for it.
+    Add { path: PathBuf },
     /// List all notes, newest first.
     List,
     /// Full-text search across all notes.
@@ -62,6 +65,32 @@ fn main() -> Result<()> {
             let id = obj.id;
             store.put(&obj)?;
             println!("captured {id}  ->  {}/notes/{id}.md", cli.vault.display());
+        }
+        Cmd::Add { path } => {
+            let ing = fm_core::ingest_file(&cli.vault, &path)
+                .with_context(|| format!("ingesting {}", path.display()))?;
+            // The asset note: filename as title, blob hash in `assets`, MIME as a
+            // queryable property, and the extracted text as the body so it is
+            // full-text searchable and travels with the notes (not the blob).
+            let mut obj = Object::new(Kind::Asset, ing.text.clone().unwrap_or_default());
+            obj.title = Some(ing.filename.clone());
+            obj.assets = vec![format!("sha256:{}", ing.hash)];
+            obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
+            let id = obj.id;
+            store.put(&obj)?;
+            // Fire-and-forget thumbnail; failure only degrades the gallery tile.
+            let thumbed = fm_core::ingest::thumbnail(&cli.vault, &ing.hash).is_ok();
+            let chars = ing.text.as_deref().map(str::len).unwrap_or(0);
+            println!(
+                "added asset {id}  ({}, sha256:{}…){}",
+                ing.mime,
+                &ing.hash[..12],
+                if ing.deduped { "  [blob deduped]" } else { "" }
+            );
+            println!(
+                "  {chars} searchable char(s){}",
+                if thumbed { ", thumbnail generated" } else { "" }
+            );
         }
         Cmd::List => {
             let q = Query { sort: vec![SortKey::desc("created")], ..Default::default() };
