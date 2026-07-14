@@ -1,0 +1,24 @@
+#!/bin/sh
+# formicarium pre-commit guard: keep the repo text-only.
+#
+# Rejects any staged file larger than 5 MB. Heavy media (figures, decks,
+# recordings, PDFs) belong in the content-addressed blob store on its own
+# volume, never in git — this is what keeps the repo tiny and fast to clone for
+# a decade. The notes vault ships a copy of this hook for the same reason.
+#
+# Enable with:  git config core.hooksPath .githooks   (or: pixi run setup)
+
+limit=$((5 * 1024 * 1024))
+status=0
+
+for f in $(git diff --cached --name-only --diff-filter=AM); do
+    [ -f "$f" ] || continue
+    size=$(wc -c < "$f")
+    if [ "$size" -gt "$limit" ]; then
+        echo "pre-commit reject: $f is $size bytes (> 5 MB)."
+        echo "  Assets belong in the blob store, not the repo."
+        status=1
+    fi
+done
+
+exit $status

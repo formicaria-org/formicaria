@@ -28,6 +28,7 @@ default = { features = [] }
 media = { features = ["media"] }
 
 [tasks]
+setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
 test = "cargo test --workspace"
-seam = "cargo test -p fm-query"          # the zero-I/O seam suite
+seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 deny = "cargo deny check"
