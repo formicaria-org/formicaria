@@ -55,6 +55,12 @@ fn set_property(
     fm_app::commands::set_property(&mut *store, &id, &key, &value).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn update_body(state: State<AppState>, id: String, body: String) -> Result<(), String> {
+    let mut store = state.store.lock().map_err(|e| e.to_string())?;
+    fm_app::commands::update_body(&mut *store, &id, &body).map_err(|e| e.to_string())
+}
+
 fn main() {
     // Opening the vault rebuilds the index from the files on disk — same "reindex
     // on reload" every entry point uses.
@@ -69,7 +75,8 @@ fn main() {
             agenda,
             get,
             capture,
-            set_property
+            set_property,
+            update_body
         ])
         .run(tauri::generate_context!())
         .expect("error while running the formicarium window");

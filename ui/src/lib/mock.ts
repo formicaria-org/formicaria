@@ -123,10 +123,15 @@ const SAMPLE_BODY = [
   '- measure the worst case',
 ].join('\n');
 
+const bodyOverrides = new Map<string, string>();
+
 function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
   const n = notes.find((x) => x.id === id);
   if (!n) return null;
-  return { ...n, body: n.type === 'asset' ? `# ${n.title ?? n.preview}\n\n${n.preview}` : SAMPLE_BODY };
+  const body =
+    bodyOverrides.get(id) ??
+    (n.type === 'asset' ? `# ${n.title ?? n.preview}\n\n${n.preview}` : SAMPLE_BODY);
+  return { ...n, body };
 }
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
@@ -148,6 +153,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'set_property':
       setProp(String(args.id), String(args.key), String(args.value));
       return undefined as T;
+    case 'update_body': {
+      const id = String(args.id);
+      bodyOverrides.set(id, String(args.body));
+      const n = notes.find((x) => x.id === id);
+      if (n) n.updated = new Date().toISOString();
+      return undefined as T;
+    }
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }

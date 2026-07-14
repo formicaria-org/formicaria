@@ -24,3 +24,5 @@ export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
 export const capture = (body: string) => invoke<ObjectMeta>('capture', { body });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
+export const updateBody = (id: string, body: string) =>
+  invoke<void>('update_body', { id, body });

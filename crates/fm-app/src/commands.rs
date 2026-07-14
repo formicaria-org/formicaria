@@ -91,6 +91,19 @@ pub fn capture(store: &mut dyn Store, body: &str) -> Result<ObjectMeta, StoreErr
     Ok(ObjectMeta::from(&obj))
 }
 
+/// Replace a note's body and write it back to disk (bumping `updated`). The
+/// body is stored byte-for-byte — the editor is a plain textarea holding literal
+/// Markdown, so the round-trip (edit -> store -> read) is lossless by
+/// construction, the invariant the whole files-as-truth design rests on.
+pub fn update_body(store: &mut dyn Store, id: &str, body: &str) -> Result<(), StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    obj.body = body.to_string();
+    obj.updated = OffsetDateTime::now_utc();
+    store.put(&obj)?;
+    Ok(())
+}
+
 /// Set one property and write it back to disk (bumping `updated`). This is the
 /// board's drag write-back: dropping a card into a column calls this with the
 /// column's `value`, so a drop and `fm set` change the file identically. An
