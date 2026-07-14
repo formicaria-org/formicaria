@@ -1,0 +1,21 @@
+# CI: runs the whole gate inside the locked pixi environment, so a green build
+# means the same toolchain and tools everywhere. Inert until this repo is pushed
+# to a remote — writing it now costs nothing and commits to nothing. Verify the
+# setup-pixi pin when you first push.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          run-install: true
+      # `ci` = test (incl. the perf budget) + deny (license gate) + checks
+      # (seam + generic-renderer greps). All must pass.
+      - run: pixi run ci

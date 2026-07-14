@@ -1,4 +1,4 @@
-[project]
+[workspace]
 name = "formicarium"
 version = "0.0.0"
 description = "Local-first, single-user research notebook (fm). Full spec: formicarium/MASTERPLAN.md"
@@ -31,4 +31,9 @@ media = { features = ["media"] }
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
 test = "cargo test --workspace"
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
-deny = "cargo deny check"
+perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
+deny = "cargo deny check"                        # license gate (permissive-only)
+checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
+
+[tasks.ci]
+depends-on = ["test", "deny", "checks"]
