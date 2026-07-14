@@ -54,6 +54,28 @@ enum Cmd {
     },
     /// Write manifest.json — the sha256 inventory of the blob store.
     Manifest,
+    /// Back up the vault to a restic repo (created on first run). Password from
+    /// --password or $RESTIC_PASSWORD.
+    Backup {
+        repo: PathBuf,
+        #[arg(long, env = "RESTIC_PASSWORD", hide_env_values = true)]
+        password: String,
+    },
+    /// Restore the latest snapshot into a directory — test your backups.
+    Restore {
+        repo: PathBuf,
+        dest: PathBuf,
+        #[arg(long, env = "RESTIC_PASSWORD", hide_env_values = true)]
+        password: String,
+    },
+    /// Verify a restic repo. --read-data re-reads every pack (off-site scrub).
+    Check {
+        repo: PathBuf,
+        #[arg(long)]
+        read_data: bool,
+        #[arg(long, env = "RESTIC_PASSWORD", hide_env_values = true)]
+        password: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -165,6 +187,18 @@ fn main() -> Result<()> {
             let manifest = fm_core::Manifest::build(&cli.vault)?;
             manifest.write(&cli.vault)?;
             println!("wrote manifest.json: {} blob(s) inventoried", manifest.blobs.len());
+        }
+        Cmd::Backup { repo, password } => {
+            fm_core::backup::backup(&cli.vault, &repo, &password)?;
+            println!("backed up {} -> restic repo {}", cli.vault.display(), repo.display());
+        }
+        Cmd::Restore { repo, dest, password } => {
+            fm_core::backup::restore(&repo, &password, &dest)?;
+            println!("restored latest snapshot -> {}", dest.display());
+        }
+        Cmd::Check { repo, read_data, password } => {
+            fm_core::backup::check(&repo, &password, read_data)?;
+            println!("restic repo OK{}", if read_data { " (data re-read)" } else { "" });
         }
     }
     Ok(())

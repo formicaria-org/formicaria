@@ -22,6 +22,7 @@ pub mod manifest;
 pub mod verify;
 pub use manifest::Manifest;
 pub use verify::{verify, Report, Severity};
+pub mod backup;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
