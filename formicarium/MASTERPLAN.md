@@ -224,7 +224,7 @@ The stack spans three dependency domains, and only two of them have an obvious h
 | Nix / devenv | The gold standard for 10-yr reproducibility (pins webkit too), but the friction is real and this is a solo researcher, not a Nix shop. Kept as the escape hatch if pixi's native coverage ever proves insufficient. |
 | mise / asdf | Manages *toolchain versions* well but **not** system C-libs like poppler/libvips. Insufficient. |
 
-**The one honest caveat — the GUI webview.** Tauri's Linux build needs system `webkit2gtk-4.1` + `libsoup-3.0` + `javascriptcoregtk-4.1` dev libraries. conda-forge's webkitgtk coverage is unreliable against Tauri's expected ABI, so **these stay `apt`-installed** and are documented as the single native dependency pixi does not cleanly own — which is consistent with WebKitGTK already being the top-ranked runtime risk below. Everything *except* the webview is pinned by `pixi.lock`. (`pixi` declares them only as a `[system-requirements]` note + a documented `apt install`; if Nix is ever adopted, this caveat disappears.)
+**The GUI webview — pixi-owned too (revised).** Tauri's Linux build needs `webkit2gtk-4.1` + `libsoup-3.0` + `javascriptcoregtk-4.1`. Earlier drafts assumed conda-forge's coverage was unreliable and left these on `apt`; **that was wrong**. conda-forge ships **`webkit2gtk4.1` 2.48.5** (which provides `javascriptcoregtk-4.1` from the same WebKitGTK build — there is no separate package), **`libsoup` 3.6.6** (the 3.x that Tauri v2 links), **`gtk3` 3.24.52**, and `pkg-config`. They are pinned in `pixi.lock` under a dedicated **`gui` environment**, isolated so backend/CLI builds and CI stay lean (webkit is a large download). webkit needs glibc ≥ 2.34, declared as a workspace platform floor (`platforms = [{ platform = "linux-64", glibc = "2.34" }]` — pixi 0.72 accepts this virtual-package form only workspace-wide, not per-feature, and `[system-requirements]` is deprecated). 2.34 is met by any 2021+ distro (Ubuntu 22.04 ships 2.35), so the lean backend env inherits it at no real cost. **So no apt/system dependency remains — all three dependency domains are pinned**, and the reproducible-in-2031 guarantee now covers the GUI. The residual webview risk is *rendering* (WebKitGTK ≠ Chromium), not *provisioning* — see Risks.
 
 **Sketch (`pixi.toml`, pin at first commit):**
 ```toml
@@ -263,7 +263,7 @@ seam     = "cargo test -p fm-query"          # the zero-I/O seam suite
 **Consequences woven into the rest of the plan:**
 - **First three commits** gain a step: commit `pixi.toml` + `pixi.lock` alongside the workspace scaffolding, and make CI run `pixi run test` / `pixi run seam` / `pixi run lint` so the perf-budget, seam, and `cargo-deny` gates all execute inside the locked environment.
 - **`cargo-deny`** (license gate) and the two CI greps run as pixi tasks — one `pixi install` reproduces the entire dev/CI toolchain.
-- **Longevity:** three lockfiles committed to the app repo mean a 2031 checkout resolves to the same toolchain and the same `pdftotext`; the only unpinned surface is the documented apt webview lib.
+- **Longevity:** three lockfiles committed to the app repo mean a 2031 checkout resolves to the same toolchain and the same `pdftotext` — and, via the `gui` environment, the same webview libs. No unpinned native surface remains.
 
 ---
 
@@ -373,7 +373,7 @@ OCI-style signed integrity manifest (bit-rot inventory) · git loose→packed li
 
 ## Risks (ranked)
 
-1. **Linux WebKitGTK** — the one runtime dep you can't statically bundle *and* the one native dep pixi doesn't cleanly own (stays `apt`); render differs from Chromium. Mitigate: test all CSS on the real target, pin `webkit2gtk-4.1` via `apt`, smoke-test the `.deb` in CI. (Now the top in-scope risk, since the CM6 layer is out of v1.)
+1. **Linux WebKitGTK rendering** — the one runtime dep you can't statically bundle; its render differs from Chromium. *Provisioning is solved:* conda-forge's `webkit2gtk4.1`/`libsoup`/`gtk3` are pinned in the `gui` env (see Dependency management) — the risk is now purely visual, not "will the lib be there." Mitigate: test all CSS on the real target (WebKitGTK itself, not a Chromium devtools preview), rely on `pixi.lock` for the webview libs, smoke-test the `.deb` in CI. (Now the top in-scope risk, since the CM6 layer is out of v1.)
 2. **libvips thread-safety** → subprocess `vipsthumbnail`, never in-process.
 3. **KaTeX cost in math-dense read views** → render once per note view, LRU cache, lazy Mermaid; measure worst case.
 4. **git auto-commit noise / `git add -A` cost past 10k files** → commit on idle/blur only; measure; don't build "commit management."

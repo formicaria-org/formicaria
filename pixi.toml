@@ -3,7 +3,12 @@ name = "formicarium"
 version = "0.0.0"
 description = "Local-first, single-user research notebook (fm). Full spec: formicarium/MASTERPLAN.md"
 channels = ["conda-forge"]
-platforms = ["linux-64"]
+# glibc 2.34 is the gui env's webkit2gtk4.1 floor. pixi 0.72 only accepts this
+# per-platform virtual-package form at the workspace level (not per-feature), and
+# [system-requirements] is deprecated — so the floor is workspace-wide. 2.34 is
+# met by any 2021+ distro (Ubuntu 22.04 ships glibc 2.35), so the lean backend
+# env inherits it at no real cost.
+platforms = [{ platform = "linux-64", glibc = "2.34" }]
 
 # The umbrella layer: toolchain + version-locked native/subprocess tools.
 # App-level deps live in Cargo.lock (Rust) and pnpm-lock.yaml (JS); pixi.lock
@@ -24,9 +29,22 @@ cargo-deny = "*"     # license / advisory gate
 ffmpeg = "*"
 tesseract = "*"
 
+# The Tauri v2 GUI native stack — ALL from conda-forge, so no apt/system deps and
+# the reproducible-in-2031 guarantee covers the GUI too. Isolated in its own
+# environment so backend/CLI builds and CI stay lean (webkit is a large download).
+# webkit2gtk4.1 also provides javascriptcoregtk-4.1 (same WebKitGTK build); libsoup
+# here is 3.x (libsoup-3.0), which is what Tauri v2 links. The glibc 2.34 floor
+# webkit needs is declared on the workspace platform above.
+[feature.gui.dependencies]
+"webkit2gtk4.1" = "*"   # quoted: the dot is part of the package name, not a TOML path
+libsoup = "*"
+gtk3 = "*"
+pkg-config = "*"     # so the tauri/wry build discovers the .pc files in this env
+
 [environments]
 default = { features = [] }
 media = { features = ["media"] }
+gui = { features = ["gui"] }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
