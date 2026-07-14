@@ -62,6 +62,22 @@ fn update_body(state: State<AppState>, id: String, body: String) -> Result<(), S
 }
 
 fn main() {
+    // WebKitGTK paints a blank window on many Linux GPU/driver combos (and inside
+    // VMs) because its accelerated-compositing path renders into a GL/DMABUF
+    // surface the outer window never shows. Two escalating switches fix it, set
+    // before the webview starts; a kanban board needs no GPU compositing, so
+    // turning it off costs nothing. Respect an explicit override if the user set
+    // one. This is the standard Tauri-on-Linux rendering workaround.
+    #[cfg(target_os = "linux")]
+    for (var, val) in [
+        ("WEBKIT_DISABLE_COMPOSITING_MODE", "1"),
+        ("WEBKIT_DISABLE_DMABUF_RENDERER", "1"),
+    ] {
+        if std::env::var_os(var).is_none() {
+            std::env::set_var(var, val);
+        }
+    }
+
     // Opening the vault rebuilds the index from the files on disk — same "reindex
     // on reload" every entry point uses.
     let vault = std::env::var("FM_VAULT").unwrap_or_else(|_| "vault".to_string());

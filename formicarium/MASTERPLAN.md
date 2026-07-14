@@ -371,9 +371,26 @@ OCI-style signed integrity manifest (bit-rot inventory) · git loose→packed li
 
 **Kill criteria:** board not working after 8 weekends → install SilverBullet, you've learned enough · S4 painful → architecture wrong, stop · 2 weeks without opening it during the build → it isn't solving your problem, find out why.
 
+## Build status — what works, what doesn't (as of 2026-07-14)
+
+The whole build order **S0–S6 is implemented and committed on `main`**. What is *verified* vs. *unverified* differs by layer — recorded here honestly so nothing is mistaken for "done":
+
+**Verified working** (exercised end-to-end with the real, pixi-pinned subprocess tools):
+
+- **Backend / CLI (`fm`), S0–S6.** Capture → atomic write → reindex-on-reload; an external Vim edit is picked up on reindex. FTS5 search returns timestamped hits — **including words that appear only inside an ingested PDF** (`pdftotext` → FTS, the killer feature). Properties editable with custom-property round-trip (no silent data loss). Assets: content-addressed blobs with dedup, text extraction, `vipsthumbnail` thumbnails. Durability: `manifest` → `verify --scrub` catches bit-rot (exits non-zero) → `restic backup` → `check --read-data` → `restore` diffs **byte-identical**. Reindex is idempotent (the index is disposable).
+- **Query seam.** `cargo test -p fm-query` passes with **zero filesystem access**; the board renderer is generic (groups by any property; the `todo|doing|done` CI grep stays green).
+- **Frontend SPA in a browser.** `svelte-check` + `vite build` clean; the board/gallery/agenda renderers, the note read/edit view, and inline KaTeX/Mermaid **render correctly in a normal browser** (kanban board confirmed by hand). This proves the UI logic and the IPC *shape* are sound.
+- **Tauri desktop shell — builds, links, launches.** The core library is webkit-free and unit-tested (DTOs, board grouping, property write-back over the `Store` seam). The desktop binary builds and links in the conda-forge `gui` env, opens a window, embeds `ui/dist` via `custom-protocol`, and wires the 7 IPC commands.
+- **CI.** `pixi run ci` is green: workspace tests + `cargo-deny` license/advisory gate + the architectural greps.
+
+**Not verified / not yet working:**
+
+- **Desktop window on-screen rendering (this is Risk #1, below).** In the current headless session — mutter under X11 with **no compositing manager running** (`_NET_WM_CM_S0` unset) — the WebKitGTK webview comes up **blank in screen captures**. The standard Tauri-on-Linux workarounds are now applied in `fm-app` and confirmed to reach the `WebKitWebProcess` (`WEBKIT_DISABLE_COMPOSITING_MODE=1` + `WEBKIT_DISABLE_DMABUF_RENDERER=1`), but the capture is still blank. **This is not conclusive:** `XGetImage`-style capture of a GL-backed WebKitGTK surface with no compositor is known to read blank even when the window paints for a real user. Since the identical frontend renders in a browser, the open question is narrowly *"does WebKitGTK paint on screen on this machine"* — to be settled on a real desktop session with a compositor, or via the planned `.deb` smoke test, **not** from a headless screenshot.
+- **Deferred v1 GUI-interactive bits** (need a real display; not built): global capture hotkey, live asset/thumbnail display via the Tauri asset protocol, `.view` config files, git auto-commit on idle/blur.
+
 ## Risks (ranked)
 
-1. **Linux WebKitGTK rendering** — the one runtime dep you can't statically bundle; its render differs from Chromium. *Provisioning is solved:* conda-forge's `webkit2gtk4.1`/`libsoup`/`gtk3` are pinned in the `gui` env (see Dependency management) — the risk is now purely visual, not "will the lib be there." Mitigate: test all CSS on the real target (WebKitGTK itself, not a Chromium devtools preview), rely on `pixi.lock` for the webview libs, smoke-test the `.deb` in CI. (Now the top in-scope risk, since the CM6 layer is out of v1.)
+1. **Linux WebKitGTK rendering** — the one runtime dep you can't statically bundle; its render differs from Chromium. *Provisioning is solved:* conda-forge's `webkit2gtk4.1`/`libsoup`/`gtk3` are pinned in the `gui` env (see Dependency management) — the risk is now purely visual, not "will the lib be there." Mitigate: test all CSS on the real target (WebKitGTK itself, not a Chromium devtools preview), rely on `pixi.lock` for the webview libs, smoke-test the `.deb` in CI. (Now the top in-scope risk, since the CM6 layer is out of v1.) **Status:** this risk is *live* — the webview renders blank in the current no-compositor headless session; the `WEBKIT_DISABLE_COMPOSITING_MODE`/`WEBKIT_DISABLE_DMABUF_RENDERER` workarounds are in place but on-screen rendering is still **unverified** (see *Build status* above).
 2. **libvips thread-safety** → subprocess `vipsthumbnail`, never in-process.
 3. **KaTeX cost in math-dense read views** → render once per note view, LRU cache, lazy Mermaid; measure worst case.
 4. **git auto-commit noise / `git add -A` cost past 10k files** → commit on idle/blur only; measure; don't build "commit management."
