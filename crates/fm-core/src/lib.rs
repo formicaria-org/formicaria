@@ -18,6 +18,10 @@ pub mod blob;
 pub mod ingest;
 pub use blob::BlobStore;
 pub use ingest::{ingest_file, Ingested};
+pub mod manifest;
+pub mod verify;
+pub use manifest::Manifest;
+pub use verify::{verify, Report, Severity};
 
 #[derive(Debug, Error)]
 pub enum StoreError {

@@ -13,6 +13,7 @@ fm-query = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_yaml_ng = { workspace = true }
+serde_json = "1"   # integrity manifest (manifest.json)
 time = { workspace = true }
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 sha2 = "0.11"      # sha256 content addressing — verifiable with `sha256sum` forever

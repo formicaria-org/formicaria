@@ -40,6 +40,14 @@ impl BlobStore {
         hash.len() >= 4 && self.path_for(hash).exists()
     }
 
+    /// Every blob file under `blobs/sha256`, recursively — the inventory `verify`
+    /// and the manifest walk.
+    pub fn blob_paths(&self) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        walk(&self.root.join("sha256"), &mut out);
+        out
+    }
+
     /// Stream `src` once: hash it while copying to a temp file, then atomically
     /// rename into place. If a blob with that hash already exists, the temp is
     /// discarded and `deduped` is true — the bytes are never written twice.
@@ -74,6 +82,35 @@ impl BlobStore {
         fs::create_dir_all(dest.parent().expect("blob path has a parent")).map_err(io_err)?;
         fs::rename(&tmp, &dest).map_err(io_err)?;
         Ok(Stored { hash, deduped: false })
+    }
+}
+
+/// Re-hash a file's bytes to sha256 hex — the scrub's core: a blob whose content
+/// no longer hashes to its own filename has bit-rotted.
+pub fn sha256_file(path: &Path) -> Result<String, StoreError> {
+    let mut f = File::open(path).map_err(io_err)?;
+    let mut hasher = Sha256::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = f.read(&mut buf).map_err(io_err)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex(&hasher.finalize()))
+}
+
+fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+    if let Ok(entries) = fs::read_dir(dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, out);
+            } else {
+                out.push(p);
+            }
+        }
     }
 }
 

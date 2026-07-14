@@ -46,6 +46,14 @@ enum Cmd {
     Show { id: String },
     /// Rebuild the index from the files on disk.
     Reindex,
+    /// Check vault integrity (report-only, like `git fsck`). `--scrub` re-hashes
+    /// every blob to catch bit-rot. Exits non-zero if any error is found.
+    Verify {
+        #[arg(long)]
+        scrub: bool,
+    },
+    /// Write manifest.json — the sha256 inventory of the blob store.
+    Manifest,
 }
 
 fn main() -> Result<()> {
@@ -131,6 +139,32 @@ fn main() -> Result<()> {
         Cmd::Reindex => {
             let stats = store.reindex(Reindex::Full)?;
             println!("reindexed: {} file(s) scanned, {} indexed", stats.scanned, stats.updated);
+        }
+        Cmd::Verify { scrub } => {
+            let report = fm_core::verify(&cli.vault, scrub)?;
+            for issue in &report.issues {
+                let tag = match issue.severity {
+                    fm_core::Severity::Error => "ERROR",
+                    fm_core::Severity::Warning => "warn ",
+                };
+                println!("  [{tag}] {}: {}", issue.target, issue.message);
+            }
+            println!(
+                "verified {} note(s), {} blob(s){}: {} error(s), {} warning(s)",
+                report.notes,
+                report.blobs,
+                if report.scrubbed { " (scrubbed)" } else { "" },
+                report.errors(),
+                report.warnings()
+            );
+            if !report.ok() {
+                std::process::exit(1);
+            }
+        }
+        Cmd::Manifest => {
+            let manifest = fm_core::Manifest::build(&cli.vault)?;
+            manifest.write(&cli.vault)?;
+            println!("wrote manifest.json: {} blob(s) inventoried", manifest.blobs.len());
         }
     }
     Ok(())
