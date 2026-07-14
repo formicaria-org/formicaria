@@ -1,0 +1,19 @@
+# Rust
+/target/
+**/target/
+
+# Node / frontend
+node_modules/
+ui/dist/
+ui/.svelte-kit/
+
+# pixi (the locked env lives in pixi.lock, which IS tracked; the installed env is not)
+.pixi/
+
+# The knowledge vault is its own independent git repo — never track it from the app repo
+/vault/
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~
