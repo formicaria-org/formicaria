@@ -14,3 +14,4 @@ fm-query = { workspace = true }
 fm-core = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
+time = { workspace = true }   # parse `due` dates and stamp `updated` on edit
