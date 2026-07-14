@@ -2,7 +2,7 @@
 //! seam so it is testable with `MemoryStore` and identical against `FileStore`.
 //! The Tauri binary wraps these; nothing here knows Tauri exists.
 
-use crate::dto::{value_string, Board, Column, ObjectMeta};
+use crate::dto::{value_string, Board, Column, NoteDetail, ObjectMeta};
 use fm_core::{apply_property, Store, StoreError};
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
@@ -72,6 +72,15 @@ pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
         ..Default::default()
     };
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
+/// Fetch one note with its full body — the read view's payload. The list
+/// commands return meta only; the body crosses IPC only when a note is opened.
+pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    Ok(store
+        .get(id)?
+        .map(|o| NoteDetail { meta: ObjectMeta::from(&o), body: o.body.clone() }))
 }
 
 /// Capture a note; the text becomes the body. Returns the new card's meta so the

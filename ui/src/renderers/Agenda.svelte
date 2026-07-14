@@ -5,33 +5,33 @@
   // The closest-deadline view. Cards arrive already filtered (dated, open) and
   // sorted (soonest first) by the query layer; this renderer only paints the
   // derived urgency and flags hard deadlines. No status literal appears here.
-  let { cards }: { cards: ObjectMeta[] } = $props();
+  let { cards, onopen }: { cards: ObjectMeta[]; onopen: (id: string) => void } = $props();
 </script>
 
 <div class="agenda">
   {#if cards.length === 0}
     <p class="empty">Nothing on the horizon — no dated, open items.</p>
   {:else}
-    <ul>
+    <div class="list">
       {#each cards as card (card.id)}
-        <li class="row" data-urgency={urgency(card.due)}>
+        <button class="row" data-urgency={urgency(card.due)} onclick={() => onopen(card.id)}>
           <span class="marker" aria-hidden="true"></span>
-          <div class="what">
+          <span class="what">
             <span class="title">{card.title ?? card.preview ?? card.id}</span>
             {#if card.tags.length}
               <span class="tags">
                 {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
               </span>
             {/if}
-          </div>
-          <div class="when">
+          </span>
+          <span class="when">
             {#if card.hard}<span class="hard" title="hard deadline">◆</span>{/if}
             <span class="date">{card.due}</span>
             <span class="rel">{relativeDue(card.due)}</span>
-          </div>
-        </li>
+          </span>
+        </button>
       {/each}
-    </ul>
+    </div>
   {/if}
 </div>
 
@@ -42,10 +42,8 @@
     padding: 1rem;
     box-sizing: border-box;
   }
-  ul {
-    list-style: none;
+  .list {
     margin: 0 auto;
-    padding: 0;
     max-width: 46rem;
     display: flex;
     flex-direction: column;
@@ -60,6 +58,14 @@
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: 9px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    width: 100%;
+  }
+  .row:hover {
+    border-color: var(--accent);
   }
   /* The urgency dot is colored by [data-urgency] in the theme (app.css). */
   .marker {

@@ -25,3 +25,8 @@ export interface Board {
   group_by: string;
   columns: Column[];
 }
+
+/** A single note with its full body — the read view's payload (`get`). */
+export interface NoteDetail extends ObjectMeta {
+  body: string;
+}

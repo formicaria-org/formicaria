@@ -3,7 +3,7 @@
 //! All behavior lives in the (webkit-free, unit-tested) library; this file only
 //! wires it to a window. Built only with `--features desktop`, in the `gui` env.
 
-use fm_app::dto::{Board, ObjectMeta};
+use fm_app::dto::{Board, NoteDetail, ObjectMeta};
 use fm_core::FileStore;
 use std::sync::Mutex;
 use tauri::State;
@@ -33,6 +33,12 @@ fn agenda(state: State<AppState>) -> Result<Vec<ObjectMeta>, String> {
 }
 
 #[tauri::command]
+fn get(state: State<AppState>, id: String) -> Result<Option<NoteDetail>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    fm_app::commands::get(&*store, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn capture(state: State<AppState>, body: String) -> Result<ObjectMeta, String> {
     let mut store = state.store.lock().map_err(|e| e.to_string())?;
     fm_app::commands::capture(&mut *store, &body).map_err(|e| e.to_string())
@@ -57,7 +63,14 @@ fn main() {
 
     tauri::Builder::default()
         .manage(AppState { store: Mutex::new(store) })
-        .invoke_handler(tauri::generate_handler![board, gallery, agenda, capture, set_property])
+        .invoke_handler(tauri::generate_handler![
+            board,
+            gallery,
+            agenda,
+            get,
+            capture,
+            set_property
+        ])
         .run(tauri::generate_context!())
         .expect("error while running the formicarium window");
 }

@@ -12,6 +12,7 @@
   let cards = $state<ObjectMeta[] | null>(null);
   let draft = $state('');
   let error = $state<string | null>(null);
+  let openId = $state<string | null>(null);
 
   async function refresh() {
     try {
@@ -94,18 +95,26 @@
   <div class="stage">
     {#if view === 'board'}
       {#if board}
-        <Board {board} onmove={onMove} />
+        <Board {board} onmove={onMove} onopen={(id) => (openId = id)} />
       {:else}
         <p class="empty">Loading…</p>
       {/if}
     {:else if !cards}
       <p class="empty">Loading…</p>
     {:else if view === 'gallery'}
-      <Gallery {cards} />
+      <Gallery {cards} onopen={(id) => (openId = id)} />
     {:else}
-      <Agenda {cards} />
+      <Agenda {cards} onopen={(id) => (openId = id)} />
     {/if}
   </div>
+
+  {#if openId}
+    <!-- Lazy: the read view (marked + KaTeX + Mermaid) only loads when a note is
+         opened, so the core bundle stays small. -->
+    {#await import('./lib/NotePanel.svelte') then { default: NotePanel }}
+      <NotePanel id={openId} onclose={() => (openId = null)} />
+    {/await}
+  {/if}
 </main>
 
 <style>

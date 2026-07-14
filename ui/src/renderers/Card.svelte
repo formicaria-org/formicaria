@@ -2,8 +2,10 @@
   import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import type { ObjectMeta } from '../lib/types';
 
-  let { card }: { card: ObjectMeta } = $props();
+  let { card, onopen }: { card: ObjectMeta; onopen: (id: string) => void } = $props();
   let dragging = $state(false);
+  // Suppress the click that trails a drag, so dropping a card never also opens it.
+  let suppressClick = false;
 
   // A card is draggable; its id is the payload the column reads on drop.
   function drag(node: HTMLElement) {
@@ -11,14 +13,33 @@
       destroy: draggable({
         element: node,
         getInitialData: () => ({ id: card.id }),
-        onDragStart: () => (dragging = true),
-        onDrop: () => (dragging = false),
+        onDragStart: () => {
+          dragging = true;
+          suppressClick = true;
+        },
+        onDrop: () => {
+          dragging = false;
+          setTimeout(() => (suppressClick = false), 0);
+        },
       }),
     };
   }
+
+  function open() {
+    if (!suppressClick) onopen(card.id);
+  }
 </script>
 
-<article class="card" class:dragging use:drag data-type={card.type}>
+<div
+  class="card"
+  class:dragging
+  use:drag
+  data-type={card.type}
+  role="button"
+  tabindex="0"
+  onclick={open}
+  onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open())}
+>
   <p class="preview">{card.title ?? card.preview ?? card.id}</p>
   <footer class="meta">
     {#if card.due}
@@ -28,7 +49,7 @@
       <span class="tag">{tag}</span>
     {/each}
   </footer>
-</article>
+</div>
 
 <style>
   .card {

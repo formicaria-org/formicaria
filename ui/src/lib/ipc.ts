@@ -1,4 +1,4 @@
-import type { Board, ObjectMeta } from './types';
+import type { Board, NoteDetail, ObjectMeta } from './types';
 import * as mock from './mock';
 
 // Inside the Tauri window we call the Rust commands over IPC. In a plain browser
@@ -20,6 +20,7 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
 export const getBoard = (groupBy: string) => invoke<Board>('board', { groupBy });
 export const getGallery = () => invoke<ObjectMeta[]>('gallery');
 export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
+export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
 export const capture = (body: string) => invoke<ObjectMeta>('capture', { body });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });

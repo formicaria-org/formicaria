@@ -49,6 +49,15 @@ impl From<&Object> for ObjectMeta {
     }
 }
 
+/// A single note with its full body — the read view's payload. The meta is
+/// flattened, so the frontend receives one flat object (id, type, …, body).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NoteDetail {
+    #[serde(flatten)]
+    pub meta: ObjectMeta,
+    pub body: String,
+}
+
 /// A board column = the distinct value of the grouped property, its display
 /// label, and the cards under it. `value` is the string the frontend echoes
 /// back to `set_property` on drop, so a drop and `fm set` write the same bytes;

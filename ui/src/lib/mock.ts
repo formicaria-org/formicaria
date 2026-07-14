@@ -103,6 +103,32 @@ function captureNote(body: string): ObjectMeta {
   return n;
 }
 
+// A representative body for whichever note is opened, so the read view shows
+// markdown + inline math + a mermaid diagram + a missing asset in browser dev.
+const SAMPLE_BODY = [
+  '# GAE and inner-loop adaptation',
+  '',
+  'The GAE lambda interacts badly with inner-loop adaptation. With $\\lambda = 0.95$',
+  'the advantage estimate leaks across the meta-update boundary:',
+  '',
+  '$$A_t = \\sum_{l=0}^{\\infty} (\\gamma\\lambda)^l \\delta_{t+l}$$',
+  '',
+  '```mermaid',
+  'graph LR; sample --> inner_loop --> meta_update --> sample',
+  '```',
+  '',
+  '![trust-region figure](asset:sha256-deadbeef)',
+  '',
+  '- pin `unicode61 remove_diacritics 2`',
+  '- measure the worst case',
+].join('\n');
+
+function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
+  const n = notes.find((x) => x.id === id);
+  if (!n) return null;
+  return { ...n, body: n.type === 'asset' ? `# ${n.title ?? n.preview}\n\n${n.preview}` : SAMPLE_BODY };
+}
+
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
     case 'board':
@@ -115,6 +141,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return [...notes]
         .filter((n) => n.due && n.status !== 'done')
         .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? '')) as T;
+    case 'get':
+      return noteDetail(String(args.id)) as T;
     case 'capture':
       return captureNote(String(args.body)) as T;
     case 'set_property':

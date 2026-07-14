@@ -3,9 +3,10 @@
   import Card from './Card.svelte';
   import type { Board } from '../lib/types';
 
-  let { board, onmove }: {
+  let { board, onmove, onopen }: {
     board: Board;
     onmove: (id: string, value: string) => void;
+    onopen: (id: string) => void;
   } = $props();
 
   let over = $state<string | null>(null);
@@ -45,7 +46,7 @@
       </header>
       <div class="column-body">
         {#each col.cards as card (card.id)}
-          <Card {card} />
+          <Card {card} {onopen} />
         {/each}
       </div>
     </section>
