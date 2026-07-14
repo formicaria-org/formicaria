@@ -40,6 +40,16 @@ tesseract = "*"
 libsoup = "*"
 gtk3 = "*"
 pkg-config = "*"     # so the tauri/wry build discovers the .pc files in this env
+expat = "*"          # ships expat.pc, which fontconfig.pc's `Requires: expat` needs;
+                     # the webkit/gtk chain otherwise pulls only runtime libexpat (no .pc),
+                     # so pango/webkit fail to resolve at build time without it.
+
+# pixi does not export PKG_CONFIG_PATH on its own, so the conda pkg-config finds
+# nothing and the whole gtk/webkit link fails ("PKG_CONFIG_PATH is not set").
+# Point it at this env's .pc directories so the Tauri build resolves webkit,
+# gtk3, pango, etc. Reproducible in CI and on every machine — no system pkg-config.
+[feature.gui.activation.env]
+PKG_CONFIG_PATH = "$CONDA_PREFIX/lib/pkgconfig:$CONDA_PREFIX/share/pkgconfig"
 
 [environments]
 default = { features = [] }
@@ -51,7 +61,7 @@ setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commi
 test = "cargo test --workspace"
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
-deny = "cargo deny check"                        # license gate (permissive-only)
+deny = "cargo deny --all-features check"         # license gate (permissive-only); --all-features so the optional desktop/Tauri tree is gated too
 checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
 
 [tasks.ci]

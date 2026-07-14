@@ -1,0 +1,56 @@
+/* Design tokens as CSS custom properties — extensibility layer 1 (themes).
+   A theme is one file that overrides these. Column labels and card chips are
+   tinted by *value* through [data-value] selectors, so a theme can color
+   arbitrary enum values while the renderers stay free of any status literal. */
+:root {
+  --bg: #14141b;
+  --panel: #1b1b24;
+  --text: #e7e7ee;
+  --muted: #9a9aac;
+  --accent: #e6aa3c;
+
+  --card-bg: #232330;
+  --card-border: #2f2f3d;
+
+  --column-bg: #191922;
+  --column-border: #2a2a36;
+  --column-over-bg: #20202c;
+  --count-bg: #2a2a38;
+
+  --tag-bg: #2b2b3a;
+  --tag-fg: #c9c9dd;
+  --due-bg: #2b2b3a;
+  --due-fg: #d6d6e6;
+  --due-hard-bg: #5a2330;
+  --due-hard-fg: #ffd7dd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Example value-keyed tints. These are theme concerns living in CSS, never in
+   a renderer — pointing a board at a different property needs no code here. */
+.column-head[data-value='doing'] .column-label {
+  color: #6cb6ff;
+}
+.column-head[data-value='done'] .column-label {
+  color: #77d197;
+}
+.column-head[data-value='todo'] .column-label {
+  color: var(--accent);
+}

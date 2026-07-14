@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "The main window plus the app's own IPC commands (board, capture, set_property).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -12,6 +12,8 @@ use thiserror::Error;
 pub mod frontmatter;
 mod file;
 pub use file::FileStore;
+pub mod edit;
+pub use edit::apply_property;
 
 #[derive(Debug, Error)]
 pub enum StoreError {

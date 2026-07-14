@@ -22,6 +22,38 @@ confidence-threshold = 0.8
 # kamadak-exif=BSD-2, ...). Don't warn about the allowlist running ahead.
 unused-allowed-license = "allow"
 
+[advisories]
+version = 2
+# Every id below is an `unmaintained` advisory — informational, NOT a
+# vulnerability or unsound finding. With the gate now covering the desktop tree
+# (`cargo deny --all-features`), any real vulnerability, unsound advisory, or
+# license violation anywhere in Tauri's tree still fails CI; only these
+# deliberately-accepted, unavoidable "no longer maintained" notices are waived.
+ignore = [
+    # gtk-rs GTK3 bindings, no longer maintained. Unavoidable: Tauri renders the
+    # Linux window through webkit2gtk-4.1, which links the gtk3 Rust bindings.
+    # This is MASTERPLAN Risk #1 (WebKitGTK is the one runtime dep we can't drop).
+    # They fall away if/when Tauri moves the Linux webview off gtk3.
+    "RUSTSEC-2024-0411",
+    "RUSTSEC-2024-0412",
+    "RUSTSEC-2024-0413",
+    "RUSTSEC-2024-0414",
+    "RUSTSEC-2024-0415",
+    "RUSTSEC-2024-0416",
+    "RUSTSEC-2024-0417",
+    "RUSTSEC-2024-0418",
+    "RUSTSEC-2024-0419",
+    "RUSTSEC-2024-0420",
+    # proc-macro-error, unmaintained — a transitive build-time macro helper.
+    "RUSTSEC-2024-0370",
+    # rust-unic crates, unmaintained — transitive unicode tables (via idna/tauri).
+    "RUSTSEC-2025-0075",
+    "RUSTSEC-2025-0080",
+    "RUSTSEC-2025-0081",
+    "RUSTSEC-2025-0098",
+    "RUSTSEC-2025-0100",
+]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"

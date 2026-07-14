@@ -7,7 +7,7 @@
 # in a later slice.
 [workspace]
 resolver = "2"
-members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli"]
+members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli", "crates/fm-app"]
 
 [workspace.package]
 edition = "2021"

@@ -6,12 +6,11 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use fm_core::{FileStore, Reindex, Store};
-use fm_model::{Id, Kind, Object, PropertyValue};
+use fm_model::{Id, Kind, Object};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use std::path::PathBuf;
 use std::str::FromStr;
-use time::macros::format_description;
-use time::{Date, OffsetDateTime};
+use time::OffsetDateTime;
 
 #[derive(Parser)]
 #[command(name = "fm", about = "formicarium — local research notebook")]
@@ -88,7 +87,9 @@ fn main() -> Result<()> {
         Cmd::Set { id, key, value } => {
             let id = Id::from_str(&id).map_err(|_| anyhow!("invalid id: {id}"))?;
             let mut obj = store.get(id)?.ok_or_else(|| anyhow!("no note {id}"))?;
-            apply_property(&mut obj, &key, &value.join(" "))?;
+            // Shared with the app's `set_property` (board drag write-back), so a
+            // dragged card and `fm set` change the file identically.
+            fm_core::apply_property(&mut obj, &key, &value.join(" "))?;
             obj.updated = OffsetDateTime::now_utc();
             store.put(&obj)?;
             println!("set {key} on {id}");
@@ -101,46 +102,6 @@ fn main() -> Result<()> {
         Cmd::Reindex => {
             let stats = store.reindex(Reindex::Full)?;
             println!("reindexed: {} file(s) scanned, {} indexed", stats.scanned, stats.updated);
-        }
-    }
-    Ok(())
-}
-
-/// Parse a string value into the right typed field, the write-side mirror of
-/// `Object::get`: well-known keys become typed fields, anything else a custom
-/// `extra` property. An empty value clears an optional or custom property.
-fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<()> {
-    let raw = raw.trim();
-    let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
-    match key {
-        "status" => obj.status = some(raw),
-        "title" => obj.title = some(raw),
-        "type" | "kind" => obj.kind = Kind::from_str(raw).map_err(|e| anyhow!(e))?,
-        "hard" => obj.hard = matches!(raw, "true" | "yes" | "1"),
-        "due" => {
-            obj.due = match some(raw) {
-                Some(s) => Some(
-                    Date::parse(&s, &format_description!("[year]-[month]-[day]"))
-                        .context("due must be YYYY-MM-DD")?,
-                ),
-                None => None,
-            }
-        }
-        "tags" => {
-            obj.tags = raw
-                .split([',', ' '])
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-                .map(String::from)
-                .collect()
-        }
-        "id" | "created" | "updated" | "schema" => bail!("`{key}` is not editable"),
-        other => {
-            if raw.is_empty() {
-                obj.extra.remove(other);
-            } else {
-                obj.extra.insert(other.to_string(), PropertyValue::Text(raw.to_string()));
-            }
         }
     }
     Ok(())
