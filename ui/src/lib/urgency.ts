@@ -24,6 +24,23 @@ export function urgency(due: string | null): Urgency {
   return 'later';
 }
 
+// Ordered urgency buckets and their section labels. Kept here — not inline in
+// the agenda renderer — so the renderer stays free of any human-readable
+// scheduling literal, mirroring the status-literal rule.
+export const URGENCY_ORDER: Urgency[] = ['overdue', 'soon', 'week', 'later', 'none'];
+
+const URGENCY_LABELS: Record<Urgency, string> = {
+  overdue: 'Overdue',
+  soon: 'Due soon',
+  week: 'This week',
+  later: 'Later',
+  none: 'Someday',
+};
+
+export function urgencyLabel(u: Urgency): string {
+  return URGENCY_LABELS[u];
+}
+
 export function relativeDue(due: string | null): string {
   if (!due) return '';
   const days = daysUntil(due);

@@ -27,6 +27,10 @@ pub struct ObjectMeta {
     pub created: String,
     pub updated: String,
     pub tags: Vec<String>,
+    /// Content-addressed blob references (`sha256:<hex>`) this object points at.
+    /// A gallery tile needs its asset's hash to fetch the thumbnail; carried here
+    /// exactly like `tags` so no extra fetch is required to render a preview.
+    pub assets: Vec<String>,
     /// Every custom property, keyed by name. Flows through untouched.
     pub props: BTreeMap<String, serde_json::Value>,
 }
@@ -44,6 +48,7 @@ impl From<&Object> for ObjectMeta {
             created: o.created.format(&Rfc3339).unwrap_or_default(),
             updated: o.updated.format(&Rfc3339).unwrap_or_default(),
             tags: o.tags.clone(),
+            assets: o.assets.clone(),
             props: o.extra.iter().map(|(k, v)| (k.clone(), prop_to_json(v))).collect(),
         }
     }

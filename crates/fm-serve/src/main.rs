@@ -1,0 +1,305 @@
+//! `fm-serve` — the browser fallback. It exposes the same commands the desktop
+//! window does (the pure functions in `fm_app::commands`, over one shared
+//! `FileStore`) as a tiny localhost HTTP+JSON API, and serves the built UI. The
+//! frontend's `ipc.ts` calls `POST /api/<command>` with the same camelCase args
+//! it hands Tauri, so the identical bundle runs in a browser against the REAL
+//! vault — no webkit involved.
+//!
+//! Localhost only, single user. std-only networking, thread-per-connection.
+
+use fm_app::commands;
+use fm_core::{backup, git, FileStore};
+use serde_json::Value;
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+struct AppState {
+    store: Mutex<FileStore>,
+    vault: PathBuf,
+    dist: PathBuf,
+}
+
+fn main() {
+    let vault = std::env::var("FM_VAULT").unwrap_or_else(|_| "vault".to_string());
+    let dist = std::env::var("FM_UI_DIST").unwrap_or_else(|_| "ui/dist".to_string());
+    let addr = std::env::var("FM_ADDR").unwrap_or_else(|_| "127.0.0.1:8765".to_string());
+
+    let store = FileStore::open(&vault).expect("open vault");
+    let state = Arc::new(AppState {
+        store: Mutex::new(store),
+        vault: PathBuf::from(&vault),
+        dist: PathBuf::from(&dist),
+    });
+
+    if !state.dist.join("index.html").exists() {
+        eprintln!(
+            "warning: {} has no index.html — build the UI first (pnpm -C ui build)",
+            state.dist.display()
+        );
+    }
+
+    let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
+    println!("formicarium is serving the vault at {}", state.vault.display());
+    println!("open  http://{addr}  in your browser");
+
+    // The launcher sets FM_OPEN so a double-click opens the default browser. A
+    // brief delay lets the listener accept before the browser's first request.
+    if std::env::var_os("FM_OPEN").is_some() {
+        let url = format!("http://{addr}");
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(400));
+            let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+        });
+    }
+
+    for stream in listener.incoming().flatten() {
+        let state = Arc::clone(&state);
+        std::thread::spawn(move || {
+            if let Err(e) = handle(stream, &state) {
+                eprintln!("connection error: {e}");
+            }
+        });
+    }
+}
+
+fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
+    let mut reader = BufReader::new(stream.try_clone()?);
+
+    let mut request_line = String::new();
+    if reader.read_line(&mut request_line)? == 0 {
+        return Ok(()); // client closed
+    }
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or("").to_string();
+    let path = parts.next().unwrap_or("/").to_string();
+
+    // Read headers; we only care about the body length.
+    let mut content_length = 0usize;
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line)? == 0 {
+            break;
+        }
+        let line = line.trim_end();
+        if line.is_empty() {
+            break; // end of headers
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some(v) = lower.strip_prefix("content-length:") {
+            content_length = v.trim().parse().unwrap_or(0);
+        }
+    }
+    // Guard against a hostile/oversized upload before allocating the body.
+    if content_length > 512 * 1024 * 1024 {
+        return write_response(&mut stream, "413 Payload Too Large", "text/plain", b"payload too large");
+    }
+    let mut body = vec![0u8; content_length];
+    if content_length > 0 {
+        reader.read_exact(&mut body)?;
+    }
+
+    let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
+        api(&path[5..], &body, state)
+    } else if method == "GET" || method == "HEAD" {
+        static_file(&path, state)
+    } else {
+        ("405 Method Not Allowed", "text/plain".to_string(), b"method not allowed".to_vec())
+    };
+
+    write_response(&mut stream, status, &ctype, &data)
+}
+
+/// Dispatch one API command. Returns raw bytes for `resolve_asset`, JSON for
+/// everything else, and a plain-text 500 body on error (which the UI shows in
+/// its error banner or degrades to the missing-asset placeholder).
+fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u8>) {
+    // Split an optional query string off the command (e.g. `ingest?name=foo.png`).
+    // Every other arm sees the base command, so JSON dispatch is unaffected.
+    let (cmd, query) = cmd.split_once('?').unwrap_or((cmd, ""));
+    let args: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+    let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or("").to_string();
+
+    let result: Result<Vec<u8>, String> = (|| match cmd {
+        "board" => json(commands::board(&*lock(state)?, &s("groupBy")).map_err(err)?),
+        "gallery" => json(commands::gallery(&*lock(state)?).map_err(err)?),
+        "agenda" => json(commands::agenda(&*lock(state)?).map_err(err)?),
+        "get" => json(commands::get(&*lock(state)?, &s("id")).map_err(err)?),
+        "search" => json(commands::search(&*lock(state)?, &s("query")).map_err(err)?),
+        "recent" => json(commands::recent(&*lock(state)?).map_err(err)?),
+        "capture" => json(commands::capture(&mut *lock(state)?, &s("body")).map_err(err)?),
+        "set_property" => {
+            commands::set_property(&mut *lock(state)?, &s("id"), &s("key"), &s("value"))
+                .map_err(err)?;
+            Ok(Vec::new())
+        }
+        "update_body" => {
+            commands::update_body(&mut *lock(state)?, &s("id"), &s("body")).map_err(err)?;
+            Ok(Vec::new())
+        }
+        "asset_status" => json(commands::asset_status(&state.vault, &s("reference")).map_err(err)?),
+        "resolve_asset" => {
+            commands::resolve_asset_bytes(&state.vault, &s("reference"), &s("kind")).map_err(err)
+        }
+        "open_external" => {
+            open_blob(state, &s("reference"))?;
+            Ok(Vec::new())
+        }
+        "commit" => {
+            // Hold the store lock so a commit can't snapshot the vault mid-write
+            // (fm-serve is thread-per-connection). Matches the retired desktop bin.
+            let _guard = lock(state)?;
+            json(git::commit_all(&state.vault, &s("message")).map_err(err)?)
+        }
+        "backup" => {
+            run_backup(state)?;
+            Ok(Vec::new())
+        }
+        // Binary upload: the raw request body IS the file; the name rides in the
+        // query string (`/api/ingest?name=<urlencoded>`).
+        "ingest" => {
+            let name = query_param(query, "name").unwrap_or_else(|| "asset".to_string());
+            json(commands::ingest(&mut *lock(state)?, &state.vault, &name, body).map_err(err)?)
+        }
+        other => Err(format!("unknown command: {other}")),
+    })();
+
+    match result {
+        Ok(bytes) if cmd == "resolve_asset" => {
+            ("200 OK", "application/octet-stream".to_string(), bytes)
+        }
+        Ok(bytes) => ("200 OK", "application/json".to_string(), bytes),
+        Err(msg) => ("500 Internal Server Error", "text/plain; charset=utf-8".to_string(), msg.into_bytes()),
+    }
+}
+
+fn lock(state: &AppState) -> Result<std::sync::MutexGuard<'_, FileStore>, String> {
+    state.store.lock().map_err(|e| e.to_string())
+}
+
+fn err<E: std::fmt::Display>(e: E) -> String {
+    e.to_string()
+}
+
+fn json<T: serde::Serialize>(v: T) -> Result<Vec<u8>, String> {
+    serde_json::to_vec(&v).map_err(|e| e.to_string())
+}
+
+fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
+    let path = commands::blob_path(&state.vault, reference).map_err(err)?;
+    std::process::Command::new("xdg-open")
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("could not open the file: {e}"))
+}
+
+fn run_backup(state: &AppState) -> Result<(), String> {
+    let repo = std::env::var("FM_RESTIC_REPO")
+        .map_err(|_| "set FM_RESTIC_REPO to a restic repository path".to_string())?;
+    let password = std::env::var("RESTIC_PASSWORD")
+        .map_err(|_| "set RESTIC_PASSWORD for the restic repository".to_string())?;
+    backup::backup(&state.vault, Path::new(&repo), &password).map_err(err)
+}
+
+/// Serve a file from the built UI. Unknown non-file paths fall back to
+/// index.html so the single-page app owns client-side routing. Guards against
+/// `..` path traversal.
+fn static_file(path: &str, state: &AppState) -> (&'static str, String, Vec<u8>) {
+    let clean = path.split('?').next().unwrap_or("/");
+    let rel = if clean == "/" { "index.html" } else { clean.trim_start_matches('/') };
+    if rel.split('/').any(|seg| seg == "..") {
+        return ("400 Bad Request", "text/plain".to_string(), b"bad path".to_vec());
+    }
+    let file = state.dist.join(rel);
+    if let Ok(bytes) = std::fs::read(&file) {
+        return ("200 OK", content_type(rel).to_string(), bytes);
+    }
+    match std::fs::read(state.dist.join("index.html")) {
+        Ok(bytes) => ("200 OK", "text/html; charset=utf-8".to_string(), bytes),
+        Err(_) => ("404 Not Found", "text/plain".to_string(), b"not found".to_vec()),
+    }
+}
+
+/// Pull one `key=value` out of a `&`-joined query string, percent-decoded.
+fn query_param(query: &str, key: &str) -> Option<String> {
+    query.split('&').find_map(|kv| {
+        let (k, v) = kv.split_once('=')?;
+        (k == key).then(|| percent_decode(v))
+    })
+}
+
+/// Minimal percent-decode for a query value (`encodeURIComponent` output).
+/// Preserves UTF-8 (a decoded byte sequence is re-read as UTF-8).
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'%' if i + 2 < b.len() => match (hexval(b[i + 1]), hexval(b[i + 2])) {
+                (Some(h), Some(l)) => {
+                    out.push(h * 16 + l);
+                    i += 3;
+                }
+                _ => {
+                    out.push(b'%');
+                    i += 1;
+                }
+            },
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn hexval(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn content_type(name: &str) -> &'static str {
+    match name.rsplit('.').next().unwrap_or("") {
+        "html" => "text/html; charset=utf-8",
+        "js" | "mjs" => "text/javascript; charset=utf-8",
+        "css" => "text/css; charset=utf-8",
+        "json" => "application/json",
+        "svg" => "image/svg+xml",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "woff2" => "font/woff2",
+        "woff" => "font/woff",
+        "wasm" => "application/wasm",
+        _ => "application/octet-stream",
+    }
+}
+
+fn write_response(
+    stream: &mut TcpStream,
+    status: &str,
+    ctype: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
+    let header = format!(
+        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(header.as_bytes())?;
+    stream.write_all(body)?;
+    stream.flush()
+}

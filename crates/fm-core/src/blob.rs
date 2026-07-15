@@ -13,6 +13,11 @@ use sha2::{Digest, Sha256};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+// A per-process counter so concurrent uploads get distinct temp files (fm-serve
+// is thread-per-connection). `put_file` uses the bare pid; `put_bytes` adds this.
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub struct BlobStore {
     root: PathBuf, // vault/blobs
@@ -78,6 +83,30 @@ impl BlobStore {
         if dest.exists() {
             let _ = fs::remove_file(&tmp); // already have these exact bytes
             return Ok(Stored { hash, deduped: true });
+        }
+        fs::create_dir_all(dest.parent().expect("blob path has a parent")).map_err(io_err)?;
+        fs::rename(&tmp, &dest).map_err(io_err)?;
+        Ok(Stored { hash, deduped: false })
+    }
+
+    /// Store a byte slice as a content-addressed blob — the browser-upload path
+    /// (a `File`/`Blob` gives bytes, not a path). Same identity and dedup as
+    /// [`put_file`](Self::put_file): hash first, and if that blob already exists,
+    /// write nothing. We hold the whole slice, so hashing is one shot.
+    pub fn put_bytes(&self, bytes: &[u8]) -> Result<Stored, StoreError> {
+        fs::create_dir_all(&self.root).map_err(io_err)?;
+        let hash = hex(&Sha256::digest(bytes));
+        let dest = self.path_for(&hash);
+        if dest.exists() {
+            return Ok(Stored { hash, deduped: true }); // already have these exact bytes
+        }
+        let tmp = self
+            .root
+            .join(format!(".incoming-{}-{}", std::process::id(), TMP_SEQ.fetch_add(1, Ordering::Relaxed)));
+        {
+            let mut writer = File::create(&tmp).map_err(io_err)?;
+            writer.write_all(bytes).map_err(io_err)?;
+            writer.sync_all().map_err(io_err)?;
         }
         fs::create_dir_all(dest.parent().expect("blob path has a parent")).map_err(io_err)?;
         fs::rename(&tmp, &dest).map_err(io_err)?;

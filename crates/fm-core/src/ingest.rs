@@ -44,6 +44,23 @@ pub fn ingest_file(vault: &Path, src: &Path) -> Result<Ingested, StoreError> {
     Ok(Ingested { hash, deduped, mime, filename, text })
 }
 
+/// Store `bytes` in the vault's blob store and extract what is searchable — the
+/// browser-upload twin of [`ingest_file`]. MIME is sniffed from the bytes (magic
+/// bytes, never the extension); text is extracted from the *stored* blob path so
+/// `pdftotext` still runs on a real file.
+pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingested, StoreError> {
+    let store = BlobStore::new(vault);
+    let Stored { hash, deduped } = store.put_bytes(bytes)?;
+    let blob = store.path_for(&hash);
+
+    let sniffed = infer::get(bytes).map(|t| t.mime_type().to_string());
+    let text = extract_text(&blob, sniffed.as_deref());
+    let mime = sniffed.unwrap_or_else(|| {
+        if text.is_some() { "text/plain".into() } else { "application/octet-stream".into() }
+    });
+    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
+}
+
 fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
     let text = match mime {
         Some("application/pdf") => pdftotext(blob)?,
@@ -67,12 +84,28 @@ fn pdftotext(blob: &Path) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
+/// The derived-thumbnail path for a blob, `vault/derived/<hash>/thumb.webp`.
+/// [`thumbnail`] writes it best-effort; the gallery and read view read it back to
+/// show a preview (falling back to the AssetMissing placeholder when it is
+/// absent). One place owns this layout so writer and reader can never disagree.
+pub fn thumb_path(vault: &Path, hash: &str) -> PathBuf {
+    vault.join("derived").join(hash).join("thumb.webp")
+}
+
+/// Sniff a stored blob's MIME by magic bytes (never the extension) — what the
+/// read view uses to pick an inline element (image / PDF / video / audio).
+/// `infer` reads only the first ~8 KiB, so this is O(1) on any blob size. `None`
+/// for formats with no signature (plain text, SVG, CSV…), rendered as a link.
+pub fn sniff_mime(path: &Path) -> Option<String> {
+    infer::get_from_path(path).ok().flatten().map(|t| t.mime_type().to_string())
+}
+
 /// Best-effort thumbnail via libvips (subprocess). Writes
 /// `vault/derived/<hash>/thumb.webp`. Failure is not fatal — the gallery falls
 /// back to the AssetMissing placeholder. Returns the thumbnail path on success.
 pub fn thumbnail(vault: &Path, hash: &str) -> Result<PathBuf, StoreError> {
     let blob = BlobStore::new(vault).path_for(hash);
-    let dir = vault.join("derived").join(hash);
+    let dir = thumb_path(vault, hash).parent().expect("thumb path has a parent").to_path_buf();
     std::fs::create_dir_all(&dir).map_err(io)?;
     // vipsthumbnail resolves a *relative* `-o` against the INPUT file's
     // directory, which mangles the path when the vault is relative (the default).

@@ -4,20 +4,14 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# The Tauri desktop shell is a THIN layer over a testable core. The core — the
-# serializable DTOs, board grouping, and property write-back over the `Store`
-# seam — is a plain library that compiles WITHOUT webkit, so `cargo test -p
-# fm-app` runs the thesis-critical logic (group by any property; a drop writes
-# the value back to disk) in the lean env. Tauri, the plugins, and the binary
-# sit behind the `desktop` feature and only build in the `gui` pixi environment.
+# The command library: serializable DTOs, board/agenda/gallery/timeline grouping,
+# search, property write-back, and asset resolution over the `Store` seam — all
+# webkit-free and unit-tested. It has no binary of its own; the browser server
+# (`fm-serve`) fronts these functions over HTTP. (The native Tauri window was
+# retired — the browser is the product.)
 [lib]
 name = "fm_app"
 path = "src/lib.rs"
-
-[[bin]]
-name = "fm-app"
-path = "src/bin/fm-app.rs"
-required-features = ["desktop"]
 
 [dependencies]
 fm-model = { workspace = true }
@@ -26,26 +20,6 @@ fm-core = { workspace = true }
 serde = { workspace = true }
 serde_json = "1"
 time = { workspace = true }
-# Desktop-only — gated so the lean lib/tests never pull webkit.
-tauri = { version = "2", optional = true }
-tauri-plugin-global-shortcut = { version = "2", optional = true }
-tauri-plugin-opener = { version = "2", optional = true }
-
-[build-dependencies]
-tauri-build = { version = "2", optional = true }
-
-[features]
-desktop = [
-    "dep:tauri",
-    "dep:tauri-plugin-global-shortcut",
-    "dep:tauri-plugin-opener",
-    "dep:tauri-build",
-]
-# Embed the built ui/dist into the binary and serve it over Tauri's asset
-# protocol, so the window is self-contained — no dev server, no Tauri CLI. This
-# is what `tauri build` turns on; enable it for a bare `cargo run` too:
-#   pnpm -C ui build && cargo run -p fm-app --features desktop,custom-protocol
-custom-protocol = ["desktop", "tauri/custom-protocol"]
 
 [dev-dependencies]
 fm-core = { workspace = true }

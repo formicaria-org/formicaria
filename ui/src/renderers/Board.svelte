@@ -67,11 +67,13 @@
     flex: 0 0 17rem;
     background: var(--column-bg);
     border: 1px solid var(--column-border);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     max-height: 100%;
     display: flex;
     flex-direction: column;
-    transition: border-color 0.12s ease, background 0.12s ease;
+    transition:
+      border-color var(--dur-fast) var(--ease),
+      background var(--dur-fast) var(--ease);
   }
   .column.over {
     border-color: var(--accent);

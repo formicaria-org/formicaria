@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=formicarium
+GenericName=Research notebook
+Comment=Local-first notes — opens in your browser
+Exec=/home/baljinder/formicarium/packaging/formicarium.sh
+Icon=accessories-text-editor
+Terminal=false
+Categories=Office;Utility;
+Keywords=notes;pkm;notebook;

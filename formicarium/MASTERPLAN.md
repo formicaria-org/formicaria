@@ -1,6 +1,6 @@
 # formicarium — master plan
 
-**The single, self-contained specification for formicarium. 2026-07-14.** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
+**The single, self-contained specification for formicarium. Drafted 2026-07-14; revised 2026-07-15 (browser-first: the native Tauri window was removed and the app now runs in the browser via a local `fm-serve`).** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
 
 ---
 
@@ -8,7 +8,7 @@
 
 The user (a researcher) wants one local place to keep notes, ideas, meetings, tasks, and the media/artifacts that go with them — with nice-looking inline math and media, minimal footprint, extensibility, and a 10-year lifespan. An earlier design set (11 docs) reasoned carefully but left forks open and made two questionable calls (plain-textarea editor as the *whole* story; a Go binary justified on the wrong grounds). This plan resolves every fork against *current (mid-2026) evidence*: a critical read of how competitor tools lived and died, cross-domain solutions to the hard sub-problems, and a tool-by-tool stack justification. It is meant to be handed to implementation.
 
-**Resolved decisions:** Build it (rich reading, simple writing) · **Rust + Tauri v2** · **Markdown is the source of truth**; v1 editor = plain-textarea edit + a rendered read view; **CodeMirror 6 live-preview deferred to v2** · files-as-truth, disposable per-machine SQLite index · external edits allowed (poll, never inotify) · agenda-first deadlines with *derived* urgency (no priority field) · **desktop-only v1** (no auth/server) · extensibility via 3 layers, **no plugin API**.
+**Resolved decisions:** Build it (rich reading, simple writing) · **Rust core + a browser UI served by a local `fm-serve`** (the native Tauri v2 window was built and then *removed* — see the reversal table) · **Markdown is the source of truth**; v1 editor = plain-textarea edit + a rendered read view; **CodeMirror 6 live-preview deferred to v2** · files-as-truth, disposable per-machine SQLite index · external edits allowed (poll, never inotify) · agenda-first deadlines with *derived* urgency (no priority field) · **single-user, local-only** (a localhost server, no auth/cloud) · extensibility via 3 layers, **no plugin API**.
 
 ### Key decisions that reversed earlier drafts
 
@@ -22,10 +22,11 @@ An adversarial review of the earlier drafts drove the decisions below. Stated pl
 | blake3 hashing | **sha256** | Verifiable with `sha256sum` forever; universality beats ~1.7 s. |
 | 4-weekend kill criterion | **8 weekends** | The researcher-not-web-dev correction stands. |
 | `Store.query()` left undesigned | **Designed** | Typed `Query`/`Filter`/`Predicate` struct; full-text is just another predicate. See Backend architecture. |
+| Rust + Tauri v2 native window | **Overridden → browser UI via local `fm-serve`** (2026-07-15) | The WebKitGTK window never painted reliably (blank/gray; Risk #1). Rather than keep fighting it, the window was removed and the app now runs in the user's real browser, served by a tiny std-only HTTP server (`fm-serve`) fronting the same command functions. The webview's advantages (global hotkey, asset protocol) went with it; none were load-bearing. `fm-app` is now a command *library*. |
 
 ## What it is
 
-A local desktop tool: capture ideas fast, retrieve them years later, see the closest deadline, and keep every figure/deck/paper/recording attached to the thought that produced it. Binary: `fm`.
+A local, browser-based tool (a localhost server + your browser): capture ideas fast, retrieve them years later, see the closest deadline, and keep every figure/deck/paper/recording attached to the thought that produced it. Binaries: `fm` (CLI) and `fm-serve` (the local server); the UI is served to your browser.
 
 **The name.** A formicarium is the apparatus you build so that an emergent structure becomes observable — you provide the medium and the glass, the colony digs the tunnels. Notes accumulate; views reveal the structure that formed. Don't impose the taxonomy — build the glass. The binary is `fm` (not `formica` — that's a countertop; and never `ant` — Apache Ant has owned that command for twenty-five years).
 
@@ -67,8 +68,8 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 ## Architecture — three seams, and nothing else matters
 
 ```
- UI renderers   stream · board · gallery · agenda        ← cheap, swappable (a query + a renderer)
-      │
+ Browser UI     board · agenda/calendar · timeline · gallery · search  ← cheap, swappable (a query + a renderer)
+      │  transport: fm-serve HTTP /api/<cmd>  (prod)  ·  in-memory mock  (dev/test)
  query engine   filter · sort · generic group-by         ← THE STABLE CORE. Touches no filesystem, ever.
    ── Store seam ─────────────────────────────────────   ← SEAM 1 (compile-time guarded)
       ├─ MemoryStore  (tests, zero I/O)
@@ -224,7 +225,7 @@ The stack spans three dependency domains, and only two of them have an obvious h
 | Nix / devenv | The gold standard for 10-yr reproducibility (pins webkit too), but the friction is real and this is a solo researcher, not a Nix shop. Kept as the escape hatch if pixi's native coverage ever proves insufficient. |
 | mise / asdf | Manages *toolchain versions* well but **not** system C-libs like poppler/libvips. Insufficient. |
 
-**The GUI webview — pixi-owned too (revised).** Tauri's Linux build needs `webkit2gtk-4.1` + `libsoup-3.0` + `javascriptcoregtk-4.1`. Earlier drafts assumed conda-forge's coverage was unreliable and left these on `apt`; **that was wrong**. conda-forge ships **`webkit2gtk4.1` 2.48.5** (which provides `javascriptcoregtk-4.1` from the same WebKitGTK build — there is no separate package), **`libsoup` 3.6.6** (the 3.x that Tauri v2 links), **`gtk3` 3.24.52**, and `pkg-config`. They are pinned in `pixi.lock` under a dedicated **`gui` environment**, isolated so backend/CLI builds and CI stay lean (webkit is a large download). webkit needs glibc ≥ 2.34, declared as a workspace platform floor (`platforms = [{ platform = "linux-64", glibc = "2.34" }]` — pixi 0.72 accepts this virtual-package form only workspace-wide, not per-feature, and `[system-requirements]` is deprecated). 2.34 is met by any 2021+ distro (Ubuntu 22.04 ships 2.35), so the lean backend env inherits it at no real cost. **So no apt/system dependency remains — all three dependency domains are pinned**, and the reproducible-in-2031 guarantee now covers the GUI. The residual webview risk is *rendering* (WebKitGTK ≠ Chromium), not *provisioning* — see Risks.
+**The GUI webview — SUPERSEDED (2026-07-15).** The native Tauri window (and its `gui` pixi environment with `webkit2gtk4.1`/`libsoup`/`gtk3`) was removed after the WebKitGTK surface never painted reliably. The app now runs in the user's own browser, served by `fm-serve` (std-only, no webview to provision), so there is **no GUI native stack to pin** — the default env builds and runs everything. The glibc 2.34 platform floor is kept only because it's harmless and met everywhere.
 
 **Sketch (`pixi.toml`, pin at first commit):**
 ```toml
@@ -251,8 +252,8 @@ default = { features = [] }
 media   = { features = ["media"] }
 
 [tasks]
-dev      = "cargo tauri dev"
-build    = "pnpm -C ui build && cargo tauri build"
+serve    = "pnpm -C ui build && cargo run -p fm-serve"   # build + serve the browser app (FM_OPEN opens it)
+docs     = "mdbook build docs"                            # render the manual (also in `ci`)
 test     = { cmd = "cargo test --workspace && pnpm -C ui test" }
 lint     = "cargo deny check && cargo clippy -- -D warnings"
 seam     = "cargo test -p fm-query"          # the zero-I/O seam suite
@@ -263,7 +264,7 @@ seam     = "cargo test -p fm-query"          # the zero-I/O seam suite
 **Consequences woven into the rest of the plan:**
 - **First three commits** gain a step: commit `pixi.toml` + `pixi.lock` alongside the workspace scaffolding, and make CI run `pixi run test` / `pixi run seam` / `pixi run lint` so the perf-budget, seam, and `cargo-deny` gates all execute inside the locked environment.
 - **`cargo-deny`** (license gate) and the two CI greps run as pixi tasks — one `pixi install` reproduces the entire dev/CI toolchain.
-- **Longevity:** three lockfiles committed to the app repo mean a 2031 checkout resolves to the same toolchain and the same `pdftotext` — and, via the `gui` environment, the same webview libs. No unpinned native surface remains.
+- **Longevity:** three lockfiles committed to the app repo mean a 2031 checkout resolves to the same toolchain and the same `pdftotext`. With the webview gone there is no GUI native surface to pin — the lean default env builds and runs everything.
 
 ---
 
@@ -274,7 +275,7 @@ Three crates so seam 1 is a compile-time guarantee:
 - **`fm-model`** — pure: `Object`, `Kind`, `PropertyValue`, `schema.rs` (SCHEMA_VERSION + `migrate()`). No fs, no db.
 - **`fm-query`** — pure query engine: `Query`/`Filter`/`Predicate`/`SortKey`, `engine::run`, generic `group()`. No fs, no db.
 - **`fm-core`** — everything with I/O: `Store` trait, `MemoryStore`, `FileStore` (frontmatter + atomic write + SQLite/FTS5 index + reindex), `ingest`, `blob`, `verify` + manifest, `history` (git), `backup` (restic), `view`, `script` (mlua, `#[cfg(feature="lua")]`).
-- Plus **`fm-cli`** (`fm add|reindex|verify|manifest|backup`) and **`fm-app`** (Tauri window, global-shortcut, IPC).
+- Plus **`fm-cli`** (`fm add|reindex|verify|manifest|backup`), **`fm-app`** (the command *library* — `commands` + DTOs), and **`fm-serve`** (the std-only HTTP server that fronts those commands to the browser).
 
 **The seam:**
 ```rust
@@ -319,17 +320,18 @@ pub trait Store {
 - **READ (render component):** a Svelte view that parses the Markdown (pulldown-cmark or a small TS Markdown lib) and renders it nicely: inline **KaTeX** for `$…$`/`$$…$$`, **Mermaid** (lazy) for diagram blocks, and `WidgetType`-free HTML widgets for image/video/audio/pdf/excalidraw via the `asset:` resolver, each falling back to the shared **`AssetMissing`** placeholder. This is where "looks nice" lives in v1, and it is far lower risk than editing-surface decorations.
 - **Round-trip invariant + CI test:** `read → store → read === bytes`. It holds trivially for the textarea and re-applies unchanged when CM6 arrives in v2 (`read → mount in CM6 → toString() === bytes`). Build each read-view widget one element at a time, each gated by a round-trip fixture.
 
-**Four generic renderers = query + `.view` config:**
+**Five generic renderers = query + a renderer** (`.view` config files remain planned):
 | Renderer | Query | Behavior |
 |---|---|---|
-| **stream** | all, created desc | home; virtualized cards |
-| **board** | any | columns from distinct values of `groupBy` (**any** property); Pragmatic DnD drop → `set_property(id, key, value)`. **Renderer must not contain `todo`/`doing`/`done` — CI greps `src/renderers/**` and fails the build if found.** |
-| **gallery** | `type=asset` | virtual grid of lazy thumbnails |
-| **agenda** | `status!=done AND due!=null`, sort due asc | the "closest deadline" view — **zero new code**; urgency computed in the card, `hard` flagged |
+| **board** | any | columns from distinct values of `groupBy` (**any** property); Pragmatic DnD drop → `set_property(id, key, value)`. **Renderer must not contain `todo`/`doing`/`done` — CI greps `ui/src/renderers/**` and fails the build if found.** |
+| **agenda** | `status!=done AND due!=null`, sort due asc | the "closest deadline" view; a **Month/Week calendar** or a list. Urgency computed in the card, `hard` flagged — **zero new query code** |
+| **timeline** | all, created desc | a Logseq-style journal grouped by creation day |
+| **gallery** | `type=asset` | grid of thumbnails |
+| **search** | `Text` predicate (FTS5) | full-text results across notes + extracted PDF text |
 
-**IPC** (query engine stays in Rust; frontend sends a `Query` struct, never SQL): `capture`, `query`→meta-only, `get`, `update_body` (500 ms debounce, atomic write, mtime check), `set_property`, `ingest`, `asset_status` (batched presence+URLs), `resolve_asset`, `open_asset`, `list_views`, `reindex`, `verify`, `commit`. `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
+**Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is **14**: `board`, `gallery`, `agenda`, `recent`, `search`, `get`, `capture`, `set_property`, `update_body`, `ingest` (binary upload → asset note), `resolve_asset`, `asset_status`, `open_external`, `commit`, `backup`. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
 
-**Asset resolution + graceful absence:** `asset:sha256-…` → Tauri asset-protocol URL (with range support for video). `asset_status` may return `present:false` (not synced yet) → shared `AssetMissing` placeholder everywhere; `throwOnError:false`/try-catch in every renderer. Nothing crashes.
+**Asset resolution + graceful absence:** `asset:sha256-…` → bytes fetched over `/api/resolve_asset`, wrapped in a typed object URL. The read view renders by sniffed MIME with **native browser elements** — `<img>`, a scrollable `<iframe>` for PDF, `<video>`/`<audio>` — no JS media libraries. `asset_status` reports `has_blob:false` (not synced yet) → shared `AssetMissing` placeholder; try/catch in the resolver. Nothing crashes. Authoring: drag a file into the editor or type `/` to search-and-insert an asset.
 
 **Extensibility, layer 1 = CSS themes:** design tokens as CSS custom properties; pill/urgency colors via `data-value` attribute selectors, so themes color arbitrary enum values while renderer code stays literal-free. A theme is one CSS file. Layer 2 = `.view` files (shared with backend). Layer 3 = the optional Lua hatch.
 
@@ -380,19 +382,19 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 - **Backend / CLI (`fm`), S0–S6.** Capture → atomic write → reindex-on-reload; an external Vim edit is picked up on reindex. FTS5 search returns timestamped hits — **including words that appear only inside an ingested PDF** (`pdftotext` → FTS, the killer feature). Properties editable with custom-property round-trip (no silent data loss). Assets: content-addressed blobs with dedup, text extraction, `vipsthumbnail` thumbnails. Durability: `manifest` → `verify --scrub` catches bit-rot (exits non-zero) → `restic backup` → `check --read-data` → `restore` diffs **byte-identical**. Reindex is idempotent (the index is disposable).
 - **Query seam.** `cargo test -p fm-query` passes with **zero filesystem access**; the board renderer is generic (groups by any property; the `todo|doing|done` CI grep stays green).
 - **Frontend SPA in a browser.** `svelte-check` + `vite build` clean; the board/gallery/agenda renderers, the note read/edit view, and inline KaTeX/Mermaid **render correctly in a normal browser** (kanban board confirmed by hand). This proves the UI logic and the IPC *shape* are sound.
-- **Tauri desktop shell — builds, links, launches.** The core library is webkit-free and unit-tested (DTOs, board grouping, property write-back over the `Store` seam). The desktop binary builds and links in the conda-forge `gui` env, opens a window, embeds `ui/dist` via `custom-protocol`, and wires the 7 IPC commands.
+- **Browser app via `fm-serve` — this is the product.** The command library (DTOs, board/agenda/timeline/gallery/search, property write-back, asset resolution over the `Store` seam) is unit-tested and webkit-free; a std-only HTTP server fronts it to the browser and serves `ui/dist`. The real command surface is **14** (not the earlier 7). The native Tauri window was removed (see the reversal table).
 - **CI.** `pixi run ci` is green: workspace tests + `cargo-deny` license/advisory gate + the architectural greps.
 
 **Not verified / not yet working:**
 
-- **Desktop window on-screen rendering (this is Risk #1, below).** In the current headless session — mutter under X11 with **no compositing manager running** (`_NET_WM_CM_S0` unset) — the WebKitGTK webview comes up **blank in screen captures**. The standard Tauri-on-Linux workarounds are now applied in `fm-app` and confirmed to reach the `WebKitWebProcess` (`WEBKIT_DISABLE_COMPOSITING_MODE=1` + `WEBKIT_DISABLE_DMABUF_RENDERER=1`), but the capture is still blank. **This is not conclusive:** `XGetImage`-style capture of a GL-backed WebKitGTK surface with no compositor is known to read blank even when the window paints for a real user. Since the identical frontend renders in a browser, the open question is narrowly *"does WebKitGTK paint on screen on this machine"* — to be settled on a real desktop session with a compositor, or via the planned `.deb` smoke test, **not** from a headless screenshot.
+- **On-screen rendering — no longer a question.** The blank-window problem was retired by dropping the WebKitGTK webview: the UI now renders in the user's real browser (Chromium/Firefox/…), which paints reliably and gives native inline media (scrollable PDF `<iframe>`, `<video>`/`<audio>`) for free. Former Risk #1 is closed.
 - **Deferred v1 GUI-interactive bits** (need a real display; not built): global capture hotkey, live asset/thumbnail display via the Tauri asset protocol, `.view` config files, git auto-commit on idle/blur.
 
 ## Resource weight & framework choice (reassessed 2026-07-14)
 
 **Verdict: light at this scale; the architecture is sound.** Boot loads a **72 KB** entry chunk; a plain note adds ~135 KB; KaTeX and Mermaid are *doubly* lazy — behind the note-panel dynamic import **and** feature-gated (no `$` → no KaTeX; no ` ```mermaid ` → no Mermaid). There are **no background threads, timers, watchers, or polling** — zero idle CPU from our code. The Rust working set is tens of MB.
 
-**The dominant runtime cost is WebKitGTK's ~150–300 MB idle RAM — inherent to Tauri, and accepted.** That is the honest answer to "is it heavy": the embedded browser engine is, by design (this is Risk #1). But **Tauri is already the *light* choice** — it uses the OS system webview (no bundled Chromium), so binaries are single-digit MB and RAM is a fraction of Electron. For contrast, Logseq/Obsidian are Electron (150–300 MB idle, 100 MB+ binaries); Logseq in particular routinely hits **1–2 GB RAM and 100% idle CPU**. The only genuinely-lighter path is leaving the webview for a native Rust GUI (egui/Slint/iced/GPUI/Floem) — tens of MB, but it means **rewriting the whole Svelte + KaTeX + Mermaid read view** and abandoning the "looks-nice" rendering this project deliberately chose. Not worth it. (Wails, Neutralino, and Dioxus-desktop all use WebKitGTK on Linux too — same floor.) **Decision: stay on Tauri; trim what we control.**
+**Superseded by the move to a browser app (2026-07-15).** The old worry here was WebKitGTK's ~150–300 MB idle RAM from the embedded webview. That cost is gone: formicarium no longer ships a webview. The server (`fm-serve`) is std-only — no HTTP framework, no bundled browser — so its resident set is tens of MB; the UI runs in a browser the user already has open. The single-digit-MB Rust binaries and the lazy KaTeX/Mermaid budgets still hold. **Decision: the browser is the product; keep the server tiny.**
 
 **Tuning applied (this pass):**
 - **Mermaid gated to a lightweight set** — the cytoscape-backed `architecture`/`mindmap` diagrams are aliased out of the bundle (`ui/vite.config.ts` → `ui/src/lib/cytoscape-stub.ts`), dropping ~0.6 MB of graph libraries (`ui/dist` 5.1 MB → 4.5 MB). Everyday diagrams (flowchart, sequence, gantt, class, state, ER, pie, …) use dagre and are unaffected; a dropped type fails gracefully to its code fence (`render.ts` per-block `try/catch`).
@@ -403,7 +405,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 
 ## Risks (ranked)
 
-1. **Linux WebKitGTK rendering** — the one runtime dep you can't statically bundle; its render differs from Chromium. *Provisioning is solved:* conda-forge's `webkit2gtk4.1`/`libsoup`/`gtk3` are pinned in the `gui` env (see Dependency management) — the risk is now purely visual, not "will the lib be there." Mitigate: test all CSS on the real target (WebKitGTK itself, not a Chromium devtools preview), rely on `pixi.lock` for the webview libs, smoke-test the `.deb` in CI. (Now the top in-scope risk, since the CM6 layer is out of v1.) **Status:** this risk is *live* — the webview renders blank in the current no-compositor headless session; the `WEBKIT_DISABLE_COMPOSITING_MODE`/`WEBKIT_DISABLE_DMABUF_RENDERER` workarounds are in place but on-screen rendering is still **unverified** (see *Build status* above).
+1. **~~Linux WebKitGTK rendering~~ — RESOLVED by removal (2026-07-15).** This was the top risk: the WebKitGTK window rendered blank and on-screen rendering stayed unverified. It is retired — the native window was removed and the UI now runs in the user's real browser, which renders reliably and is what the user actually uses. No webview, no risk. (The remaining risks below stand: libvips subprocess robustness, KaTeX cost, git auto-commit noise, cross-store tokenizer drift, and CM6 in v2.)
 2. **libvips thread-safety** → subprocess `vipsthumbnail`, never in-process.
 3. **KaTeX cost in math-dense read views** → render once per note view, LRU cache, lazy Mermaid; measure worst case.
 4. **git auto-commit noise / `git add -A` cost past 10k files** → commit on idle/blur only; measure; don't build "commit management."
@@ -421,7 +423,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 
 ## Deferred (v2+)
 
-**CM6 live-preview editing surface** (the decoration layer — the biggest single build risk) · Wikilink *backlinks panel* · month-grid calendar renderer (agenda is the daily driver) · watched inbox · OCR (tesseract) · pptx/docx extraction (pandoc) · video posters (ffmpeg) · GC (report+quarantine only) · phone/remote access (server+auth) · MathLive equation editor · semantic search.
+**CM6 live-preview editing surface** (the decoration layer — the biggest single build risk) · Wikilink *backlinks panel* · `.view` config files (layer-2 extensibility; the renderers are hardcoded for now) · ⌘K command palette polish · watched inbox · OCR (tesseract) · pptx/docx extraction (pandoc) · GC (report+quarantine only) · phone/remote access (auth) · MathLive equation editor · semantic search. *(Shipped since this list was written: the month/week calendar, the timeline/journal, search, the properties editor, asset drag/slash authoring, inline PDF/video/audio, one-click backup + git auto-commit.)*
 
 ---
 

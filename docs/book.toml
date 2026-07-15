@@ -1,0 +1,14 @@
+[book]
+title = "formicarium"
+authors = ["formicarium"]
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+no-section-label = false
+
+[output.html.fold]
+enable = true
+level = 1

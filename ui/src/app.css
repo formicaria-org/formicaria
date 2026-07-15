@@ -1,28 +1,117 @@
-/* Design tokens as CSS custom properties — extensibility layer 1 (themes).
-   A theme is one file that overrides these. Column labels and card chips are
-   tinted by *value* through [data-value] selectors, so a theme can color
-   arbitrary enum values while the renderers stay free of any status literal. */
+/* Design system — three layers, so a theme is one file and renderers stay
+   literal-free. (1) Theme-agnostic scales. (2) Semantic tokens per theme (dark
+   default + warm light). (3) Legacy aliases: every token name the renderers
+   already use points at a semantic token, so re-skinning needs zero renderer
+   edits. Value/urgency tints are keyed by [data-value]/[data-urgency]. */
+
+/* ---- (1) Scales — theme-agnostic ---- */
 :root {
-  --bg: #14141b;
-  --panel: #1b1b24;
-  --text: #e7e7ee;
-  --muted: #9a9aac;
-  --accent: #e6aa3c;
+  /* spacing, 4px base */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
 
-  --card-bg: #232330;
-  --card-border: #2f2f3d;
+  /* type scale (~1.2) + line-heights */
+  --text-xs: 0.75rem;    --lh-xs: 1.4;
+  --text-sm: 0.8125rem;  --lh-sm: 1.45;
+  --text-base: 0.9375rem;--lh-base: 1.55;
+  --text-md: 1rem;       --lh-md: 1.7;
+  --text-lg: 1.125rem;   --lh-lg: 1.4;
+  --text-xl: 1.375rem;   --lh-xl: 1.3;
+  --text-2xl: 1.75rem;   --lh-2xl: 1.2;
+  --measure: 68ch;
 
-  --column-bg: #191922;
-  --column-border: #2a2a36;
-  --column-over-bg: #20202c;
-  --count-bg: #2a2a38;
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
 
-  --tag-bg: #2b2b3a;
-  --tag-fg: #c9c9dd;
-  --due-bg: #2b2b3a;
-  --due-fg: #d6d6e6;
-  --due-hard-bg: #5a2330;
-  --due-hard-fg: #ffd7dd;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms; --dur-med: 200ms;
+
+  --rail-w: 15rem;
+  --header-h: 3rem;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---- (2) Semantic tokens — dark (default) ---- */
+:root,
+:root[data-theme='dark'] {
+  --bg: #16161d;
+  --surface: #1c1c25;
+  --surface-elevated: #23232e;
+  --surface-hover: #2a2a37;
+  --border: #2c2c39;
+  --border-strong: #3a3a4a;
+
+  --text: #e9e9f1;
+  --text-muted: #a2a2b5;
+  --text-subtle: #6f6f83;
+
+  --accent: #e8ad42;
+  --accent-hover: #f0bb5c;
+  --accent-contrast: #1a1205;
+  --accent-subtle: #2a2418;
+  --link: #e8ad42;
+  --focus-ring: #e8ad42;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.30);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.50);
+
+  --tint-a: #6cb6ff; --tint-b: #77d197; --tint-c: #e8ad42;
+  --u-overdue: #ff6b6b; --u-soon: #e8ad42; --u-week: #6cb6ff;
+  --u-later: #77d197;   --u-none: var(--text-muted);
+  --danger-bg: #5a2330; --danger-fg: #ffd7dd;
+  --ok-bg: #23402c;     --ok-fg: #c9f3d6;
+}
+
+/* ---- (2) Semantic tokens — warm light ---- */
+:root[data-theme='light'] {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-hover: #efeee9;
+  --border: #e6e5e0;
+  --border-strong: #d5d4cd;
+
+  --text: #1d1d22;
+  --text-muted: #5b5b66;
+  --text-subtle: #8a8a94;
+
+  --accent: #c98a1e;
+  --accent-hover: #b07716;
+  --accent-contrast: #ffffff;
+  --accent-subtle: #f6ecd8;
+  --link: #b0761a;
+  --focus-ring: #b0761a;
+
+  --shadow-sm: 0 1px 2px rgb(20 20 30 / 0.06);
+  --shadow-md: 0 4px 12px rgb(20 20 30 / 0.10);
+  --shadow-lg: 0 16px 48px rgb(20 20 30 / 0.18);
+
+  --tint-a: #2f6fd0; --tint-b: #2f8a52; --tint-c: #b07716;
+  --u-overdue: #d23b3b; --u-soon: #b07716; --u-week: #2f6fd0;
+  --u-later: #2f8a52;   --u-none: var(--text-muted);
+  --danger-bg: #fbe3e6; --danger-fg: #8a1f2b;
+  --ok-bg: #e2f3e8;     --ok-fg: #1f5a33;
+}
+
+/* ---- (3) Legacy aliases: renderers reference these; they map to semantics,
+        so migration is incremental and a re-skin needs no renderer edits. ---- */
+:root {
+  --panel: var(--surface);
+  --muted: var(--text-muted);
+  --card-bg: var(--surface-elevated);
+  --card-border: var(--border);
+  --column-bg: var(--surface);
+  --column-border: var(--border);
+  --column-over-bg: var(--surface-hover);
+  --count-bg: var(--surface-hover);
+  --tag-bg: var(--surface-hover);
+  --tag-fg: var(--text-muted);
+  --due-bg: var(--surface-hover);
+  --due-fg: var(--text);
+  --due-hard-bg: var(--danger-bg);
+  --due-hard-fg: var(--danger-fg);
 }
 
 * {
@@ -38,90 +127,102 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--lh-base);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Example value-keyed tints. These are theme concerns living in CSS, never in
-   a renderer — pointing a board at a different property needs no code here. */
+/* Value-keyed column tints — a theme concern, keyed by the property value, so
+   renderers stay free of any status literal. */
 .column-head[data-value='doing'] .column-label {
-  color: #6cb6ff;
+  color: var(--tint-a);
 }
 .column-head[data-value='done'] .column-label {
-  color: #77d197;
+  color: var(--tint-b);
 }
 .column-head[data-value='todo'] .column-label {
-  color: var(--accent);
+  color: var(--tint-c);
 }
 
-/* Derived-urgency colors for the agenda dot — a theme concern, keyed by the
-   computed bucket, so the renderer stays free of thresholds and hex codes. */
-.row[data-urgency='overdue'] {
-  --urgency: #ff6b6b;
+/* Derived-urgency colors — keyed by the computed bucket so any renderer (the
+   agenda list, the calendar's event pills) stays free of thresholds and hex. */
+[data-urgency='overdue'] { --urgency: var(--u-overdue); }
+[data-urgency='soon']    { --urgency: var(--u-soon); }
+[data-urgency='week']    { --urgency: var(--u-week); }
+[data-urgency='later']   { --urgency: var(--u-later); }
+[data-urgency='none']    { --urgency: var(--u-none); }
+
+/* One focus ring for every interactive element (replaces the removed outlines). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
-.row[data-urgency='soon'] {
-  --urgency: #e6aa3c;
-}
-.row[data-urgency='week'] {
-  --urgency: #6cb6ff;
-}
-.row[data-urgency='later'] {
-  --urgency: #77d197;
-}
-.row[data-urgency='none'] {
-  --urgency: var(--muted);
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Read view. The body is injected as HTML, so its typography is styled globally
    (Svelte's scoped styles don't reach innerHTML content). */
+.read {
+  font-size: var(--text-md);
+  line-height: var(--lh-md);
+}
 .read h1 {
-  font-size: 1.4rem;
-  line-height: 1.25;
+  font-size: var(--text-xl);
+  line-height: var(--lh-xl);
 }
 .read h2 {
-  font-size: 1.2rem;
-  line-height: 1.3;
+  font-size: var(--text-lg);
+  line-height: var(--lh-lg);
 }
 .read h3 {
-  font-size: 1.05rem;
+  font-size: var(--text-md);
 }
 .read p {
-  margin: 0.6rem 0;
+  margin: var(--space-3) 0;
 }
 .read a {
-  color: var(--accent);
+  color: var(--link);
 }
 .read :not(pre) > code {
   background: var(--card-bg);
   padding: 0.1em 0.35em;
   border-radius: 4px;
   font-size: 0.9em;
+  font-family: var(--font-mono);
 }
 .read pre {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
   overflow-x: auto;
 }
 .read blockquote {
-  margin: 0.6rem 0;
-  padding-left: 0.9rem;
-  border-left: 3px solid var(--column-border);
+  margin: var(--space-3) 0;
+  padding-left: var(--space-4);
+  border-left: 3px solid var(--border);
   color: var(--muted);
 }
 .read img {
   max-width: 100%;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .read table {
   border-collapse: collapse;
 }
 .read th,
 .read td {
-  border: 1px solid var(--column-border);
-  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  padding: var(--space-1) var(--space-2);
 }
 .read ul,
 .read ol {
@@ -129,7 +230,7 @@ body {
 }
 .read hr {
   border: none;
-  border-top: 1px solid var(--column-border);
+  border-top: 1px solid var(--border);
 }
 .katex-display {
   overflow-x: auto;
@@ -138,7 +239,7 @@ body {
 .mermaid-diagram {
   display: flex;
   justify-content: center;
-  margin: 0.9rem 0;
+  margin: var(--space-4) 0;
 }
 .mermaid-diagram svg {
   max-width: 100%;
@@ -149,7 +250,44 @@ body {
   align-items: center;
   padding: 0.15rem 0.5rem;
   border: 1px dashed var(--card-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
+}
+
+/* Inline media, rendered with native browser elements (no JS libraries). */
+.read .asset-pdf {
+  width: 100%;
+  height: 70vh;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: #fff; /* PDF pages assume white — avoids a dark gutter */
+  resize: vertical;
+}
+.read .asset-video,
+.read video {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+.read .asset-audio,
+.read audio {
+  width: 100%;
+}
+.read .asset-figure {
+  margin: var(--space-4) 0;
+}
+.read .asset-figure figcaption {
+  margin-top: var(--space-1);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.read .asset-file {
+  display: inline-block;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text);
+  text-decoration: none;
 }

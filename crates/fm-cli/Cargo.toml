@@ -15,3 +15,6 @@ fm-core = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 time = { workspace = true }   # parse `due` dates and stamp `updated` on edit
+
+[dev-dependencies]
+tempfile = "3"   # throwaway --vault for the CLI integration tests

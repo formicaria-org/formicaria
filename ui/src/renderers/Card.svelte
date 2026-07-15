@@ -55,14 +55,18 @@
   .card {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     padding: 0.6rem 0.7rem;
-    box-shadow: 0 1px 2px rgb(0 0 0 / 0.18);
+    box-shadow: var(--shadow-sm);
     cursor: grab;
-    transition: box-shadow 0.12s ease, transform 0.12s ease;
+    transition:
+      box-shadow var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease),
+      transform var(--dur-fast) var(--ease);
   }
   .card:hover {
-    box-shadow: 0 3px 10px rgb(0 0 0 / 0.28);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
   }
   .card.dragging {
     opacity: 0.4;

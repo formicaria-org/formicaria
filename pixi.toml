@@ -3,11 +3,8 @@ name = "formicarium"
 version = "0.0.0"
 description = "Local-first, single-user research notebook (fm). Full spec: formicarium/MASTERPLAN.md"
 channels = ["conda-forge"]
-# glibc 2.34 is the gui env's webkit2gtk4.1 floor. pixi 0.72 only accepts this
-# per-platform virtual-package form at the workspace level (not per-feature), and
-# [system-requirements] is deprecated — so the floor is workspace-wide. 2.34 is
-# met by any 2021+ distro (Ubuntu 22.04 ships glibc 2.35), so the lean backend
-# env inherits it at no real cost.
+# One platform floor, harmless and met by any 2021+ distro (Ubuntu 22.04 ships
+# glibc 2.35). It cost nothing to keep after the webkit stack was removed.
 platforms = [{ platform = "linux-64", glibc = "2.34" }]
 
 # The umbrella layer: toolchain + version-locked native/subprocess tools.
@@ -23,49 +20,31 @@ poppler = "*"        # provides pdftotext (PDF text -> FTS5, the killer feature)
 libvips = "*"        # provides vipsthumbnail (image/video thumbnails)
 restic = "*"         # backup: dedup + encryption + integrity + bit-rot scrub
 cargo-deny = "*"     # license / advisory gate
+mdbook = "*"         # renders docs/ to a static site; built in CI
 
 # v2 extractors, isolated so the default env stays lean.
 [feature.media.dependencies]
 ffmpeg = "*"
 tesseract = "*"
 
-# The Tauri v2 GUI native stack — ALL from conda-forge, so no apt/system deps and
-# the reproducible-in-2031 guarantee covers the GUI too. Isolated in its own
-# environment so backend/CLI builds and CI stay lean (webkit is a large download).
-# webkit2gtk4.1 also provides javascriptcoregtk-4.1 (same WebKitGTK build); libsoup
-# here is 3.x (libsoup-3.0), which is what Tauri v2 links. The glibc 2.34 floor
-# webkit needs is declared on the workspace platform above.
-[feature.gui.dependencies]
-"webkit2gtk4.1" = "*"   # quoted: the dot is part of the package name, not a TOML path
-libsoup = "*"
-gtk3 = "*"
-pkg-config = "*"     # so the tauri/wry build discovers the .pc files in this env
-expat = "*"          # ships expat.pc, which fontconfig.pc's `Requires: expat` needs;
-                     # the webkit/gtk chain otherwise pulls only runtime libexpat (no .pc),
-                     # so pango/webkit fail to resolve at build time without it.
-
-# pixi does not export PKG_CONFIG_PATH on its own, so the conda pkg-config finds
-# nothing and the whole gtk/webkit link fails ("PKG_CONFIG_PATH is not set").
-# Point it at this env's .pc directories so the Tauri build resolves webkit,
-# gtk3, pango, etc. Reproducible in CI and on every machine — no system pkg-config.
-[feature.gui.activation.env]
-PKG_CONFIG_PATH = "$CONDA_PREFIX/lib/pkgconfig:$CONDA_PREFIX/share/pkgconfig"
-
 [environments]
 default = { features = [] }
 media = { features = ["media"] }
-gui = { features = ["gui"] }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
-# Run the desktop app self-contained (embeds the freshly built ui/dist — no dev
-# server needed). Use the gui env: `pixi run -e gui app`.
-app = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-app --features desktop,custom-protocol"
 test = "cargo test --workspace"
+# Run the app in your browser against the REAL vault — this is how formicarium
+# runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
+# and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
+# env, no webkit: `pixi run serve`, then open http://127.0.0.1:8765.
+serve = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve"
+test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
-deny = "cargo deny --all-features check"         # license gate (permissive-only); --all-features so the optional desktop/Tauri tree is gated too
+deny = "cargo deny --all-features check"         # license / advisory gate (permissive-only)
 checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
+docs = "mdbook build docs"                       # render the manual; broken links fail the build
 
 [tasks.ci]
-depends-on = ["test", "deny", "checks"]
+depends-on = ["test", "test-ui", "deny", "checks", "docs"]

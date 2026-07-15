@@ -76,6 +76,30 @@ fn ingesting_a_text_file_makes_its_contents_searchable() {
     assert_eq!(hits.rows[0].kind, Kind::Asset);
 }
 
+#[test]
+fn put_bytes_dedups_and_ingest_bytes_sniffs_mime() {
+    let dir = tempdir().unwrap();
+    let store = BlobStore::new(dir.path());
+    // PNG magic bytes — `infer` recognizes image/png from the signature alone.
+    let png: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    let first = store.put_bytes(png).unwrap();
+    let second = store.put_bytes(png).unwrap();
+    assert_eq!(first.hash, second.hash, "same bytes → same hash");
+    assert!(!first.deduped, "first write stores the bytes");
+    assert!(second.deduped, "second is a dedup, not a rewrite");
+    assert!(store.exists(&first.hash));
+
+    let ing = fm_core::ingest::ingest_bytes(dir.path(), "poster.png", png).unwrap();
+    assert_eq!(ing.mime, "image/png", "MIME sniffed from magic bytes, not the name");
+    assert_eq!(ing.filename, "poster.png");
+    assert_eq!(
+        fm_core::ingest::sniff_mime(&store.path_for(&ing.hash)).as_deref(),
+        Some("image/png"),
+        "sniff_mime reads the stored blob"
+    );
+}
+
 fn walk_count(dir: &std::path::Path) -> usize {
     let mut n = 0;
     if let Ok(entries) = fs::read_dir(dir) {

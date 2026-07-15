@@ -21,6 +21,7 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
     created: stamp,
     updated: stamp,
     tags: [],
+    assets: [],
     props: {},
     ...partial,
   };
@@ -33,9 +34,17 @@ const notes: ObjectMeta[] = [
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
   makeNote({ preview: 'Weekly sync notes', type: 'meeting', due: '2026-07-16' }),
-  makeNote({ preview: 'figure_3_final.pdf', type: 'asset', props: { project: 'alpha' } }),
-  makeNote({ preview: 'poster_v2.png', type: 'asset', props: { project: 'beta' } }),
+  makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
+  makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
 ];
+
+// A deterministic 64-hex string from a name, so re-ingesting the same file name
+// yields the same reference (mock stand-in for content-addressing).
+function fakeHash(name: string): string {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h.toString(16).padStart(8, '0').repeat(8);
+}
 
 function valueOf(n: ObjectMeta, key: string): string {
   switch (key) {
@@ -105,7 +114,9 @@ function captureNote(body: string): ObjectMeta {
 
 // A representative body for whichever note is opened, so the read view shows
 // markdown + inline math + a mermaid diagram + a missing asset in browser dev.
-const SAMPLE_BODY = [
+// Exported so the render test suite can assert against the exact body that ships
+// in `pnpm dev`, keeping the test tied to what a user actually sees.
+export const SAMPLE_BODY = [
   '# GAE and inner-loop adaptation',
   '',
   'The GAE lambda interacts badly with inner-loop adaptation. With $\\lambda = 0.95$',
@@ -160,6 +171,37 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       if (n) n.updated = new Date().toISOString();
       return undefined as T;
     }
+    case 'search': {
+      const q = String(args.query ?? '').trim().toLowerCase();
+      if (!q) return [] as T;
+      return notes
+        .filter((n) =>
+          [n.preview, n.title ?? '', n.tags.join(' ')].join(' ').toLowerCase().includes(q),
+        )
+        .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
+    }
+    case 'recent':
+      return [...notes].sort((a, b) => b.created.localeCompare(a.created)) as T;
+    case 'ingest': {
+      // No vault in the browser/test: synthesize an asset note so the editor can
+      // insert a reference. Deterministic hash so re-adding the same name "dedups".
+      const name = String(args.name ?? 'asset');
+      const n = makeNote({ preview: name, type: 'asset', title: name, assets: [`sha256:${fakeHash(name)}`] });
+      notes.unshift(n);
+      return n as T;
+    }
+    // No vault in the browser/test: assets can't be resolved (callers fall back
+    // to the missing placeholder), and durability commands are inert no-ops.
+    case 'resolve_asset':
+      return null as T;
+    case 'asset_status':
+      return { has_blob: false, has_thumb: false, mime: null } as T;
+    case 'open_external':
+      return undefined as T;
+    case 'commit':
+      return false as T;
+    case 'backup':
+      return undefined as T;
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }

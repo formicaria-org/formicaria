@@ -3,9 +3,11 @@
 //! The Tauri binary wraps these; nothing here knows Tauri exists.
 
 use crate::dto::{value_string, Board, Column, NoteDetail, ObjectMeta};
-use fm_core::{apply_property, Store, StoreError};
+use fm_core::{apply_property, ingest, BlobStore, Store, StoreError};
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
+use serde::Serialize;
+use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 
 /// Group every note by `group_by` into board columns, newest card first. The
@@ -120,4 +122,117 @@ pub fn set_property(
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;
     Ok(())
+}
+
+/// Full-text search across every note, newest-updated first. This is "zero new
+/// code" again — the same engine and `ObjectMeta`, just a `Text` predicate. In
+/// `FileStore` that predicate is answered by SQLite FTS5 (prefix terms, ranked);
+/// in `MemoryStore` by a substring scan — so the one command works identically
+/// against both, exactly as the CLI's `fm search` does. An empty needle returns
+/// nothing rather than dumping the whole vault.
+pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreError> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let q = Query {
+        filter: Filter::new().and(Predicate::Text(query.to_string())),
+        sort: vec![SortKey::desc("updated")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
+/// Every note, newest-created first — the timeline/journal feed. Zero new
+/// machinery again: no filter, just a sort, the same shape as the CLI's `fm
+/// list`. The renderer groups these by creation day into a Logseq-style journal.
+pub fn recent(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query { sort: vec![SortKey::desc("created")], ..Default::default() };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
+/// Normalize an asset reference to its blob hash. Notes, the gallery, and the
+/// mock all spell the same blob differently — stored as `sha256:<hex>`, written
+/// in Markdown as `asset:sha256-<hex>`, or passed bare — so every asset path
+/// funnels through here to one lowercase hex hash.
+fn parse_ref(reference: &str) -> Result<String, StoreError> {
+    let r = reference.trim();
+    let r = r.strip_prefix("asset:").unwrap_or(r);
+    let r = r.strip_prefix("sha256:").or_else(|| r.strip_prefix("sha256-")).unwrap_or(r);
+    let hash = r.trim();
+    if hash.len() < 4 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(StoreError::Parse(format!("not an asset reference: {reference}")));
+    }
+    Ok(hash.to_ascii_lowercase())
+}
+
+/// Read the bytes of a referenced asset for display in the webview. `kind`
+/// selects the derived thumbnail (`"thumb"`, what the gallery and inline preview
+/// show) or the full blob (anything else). Returning bytes over IPC needs no
+/// asset-protocol scope or capability entry — the caller wraps them in an object
+/// URL. A missing blob is an ordinary `Err`, which the UI degrades to the
+/// "asset not available" placeholder (media absence is a warning, never a crash).
+pub fn resolve_asset_bytes(vault: &Path, reference: &str, kind: &str) -> Result<Vec<u8>, StoreError> {
+    let hash = parse_ref(reference)?;
+    let path = match kind {
+        "thumb" => ingest::thumb_path(vault, &hash),
+        _ => BlobStore::new(vault).path_for(&hash),
+    };
+    std::fs::read(&path).map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
+}
+
+/// Whether a referenced asset can be shown: is the blob present locally, and has
+/// a thumbnail been generated? The UI uses this to choose between a real preview,
+/// an "open externally" affordance, and the missing-asset placeholder.
+#[derive(Clone, Debug, Serialize)]
+pub struct AssetStatus {
+    pub has_blob: bool,
+    pub has_thumb: bool,
+    /// Sniffed MIME of the blob (magic bytes) — the read view picks its inline
+    /// element from this. `None` when the blob is absent or has no signature.
+    pub mime: Option<String>,
+}
+
+pub fn asset_status(vault: &Path, reference: &str) -> Result<AssetStatus, StoreError> {
+    let hash = parse_ref(reference)?;
+    let store = BlobStore::new(vault);
+    let has_blob = store.exists(&hash);
+    Ok(AssetStatus {
+        has_blob,
+        has_thumb: ingest::thumb_path(vault, &hash).exists(),
+        mime: has_blob.then(|| ingest::sniff_mime(&store.path_for(&hash))).flatten(),
+    })
+}
+
+/// Ingest an uploaded file: store its bytes as a content-addressed blob, extract
+/// searchable text, and create an asset note pointing at it — the GUI twin of
+/// `fm add`. Returns the new asset's meta so the editor can insert a reference
+/// (`![title](asset:sha256-<hash>)`) without a refetch.
+pub fn ingest(
+    store: &mut dyn Store,
+    vault: &Path,
+    filename: &str,
+    bytes: &[u8],
+) -> Result<ObjectMeta, StoreError> {
+    let ing = ingest::ingest_bytes(vault, filename, bytes)?;
+    let mut obj = Object::new(Kind::Asset, ing.text.clone().unwrap_or_default());
+    obj.title = Some(ing.filename.clone());
+    obj.assets = vec![format!("sha256:{}", ing.hash)];
+    obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
+    store.put(&obj)?;
+    // Best-effort thumbnail, like `fm add`: a missing vipsthumbnail (or failure)
+    // only degrades a gallery tile, never the ingest.
+    let _ = ingest::thumbnail(vault, &ing.hash);
+    Ok(ObjectMeta::from(&obj))
+}
+
+/// The on-disk path of a referenced blob, for handing to the OS default app.
+/// Errors if the reference is malformed or the blob is not present locally (it
+/// may live only in a backup/remote) — the caller surfaces that as a warning.
+pub fn blob_path(vault: &Path, reference: &str) -> Result<PathBuf, StoreError> {
+    let hash = parse_ref(reference)?;
+    let store = BlobStore::new(vault);
+    if !store.exists(&hash) {
+        return Err(StoreError::Io(format!("blob not present locally: {hash}")));
+    }
+    Ok(store.path_for(&hash))
 }

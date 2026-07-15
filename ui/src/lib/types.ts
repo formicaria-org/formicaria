@@ -11,6 +11,9 @@ export interface ObjectMeta {
   created: string;
   updated: string;
   tags: string[];
+  /** Content-addressed blob refs (`sha256:<hex>`) — a gallery tile fetches its
+   *  thumbnail from the first one. */
+  assets: string[];
   props: Record<string, unknown>;
 }
 
@@ -29,4 +32,11 @@ export interface Board {
 /** A single note with its full body — the read view's payload (`get`). */
 export interface NoteDetail extends ObjectMeta {
   body: string;
+}
+
+/** Whether a referenced asset can be shown, and its sniffed MIME. */
+export interface AssetStatus {
+  has_blob: boolean;
+  has_thumb: boolean;
+  mime: string | null;
 }
