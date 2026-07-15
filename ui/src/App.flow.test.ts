@@ -35,10 +35,14 @@ describe('the app, driven end to end as a user', () => {
     // 1. The board renders cards on load.
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
 
-    // 2. Capture a new note; it lands on the board.
-    const capture = screen.getByPlaceholderText(/Capture a note/);
-    await fireEvent.input(capture, { target: { value: 'a freshly captured thought' } });
-    await fireEvent.submit(capture.closest('form')!);
+    // 2. Create a new note; "New note" opens it straight in the editor. Type a
+    //    body, leave edit mode (flushes the write), close — it lands on the board
+    //    with its first line as the card preview.
+    await fireEvent.click(screen.getByText('New note'));
+    const body = await screen.findByLabelText('note body (Markdown)');
+    await fireEvent.input(body, { target: { value: 'a freshly captured thought' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Saving|Done/ }));
+    await fireEvent.click(screen.getByLabelText('close note'));
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
     // 3. Switch views: Agenda (due items), back to Board.

@@ -57,20 +57,19 @@ describe('v2: property editing, timeline, delete', () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
 
-    // Capture a throwaway note and open it (avoids mutating the shared seed).
-    const capture = screen.getByPlaceholderText(/Capture a note/);
-    await fireEvent.input(capture, { target: { value: 'delete me please' } });
-    await fireEvent.submit(capture.closest('form')!);
-    await fireEvent.click(await screen.findByText('delete me please'));
+    // Create a throwaway note — "New note" opens it straight in the panel — so we
+    // exercise delete without mutating the shared seed.
+    await fireEvent.click(screen.getByText('New note'));
+    await screen.findByLabelText('note body (Markdown)'); // panel open in edit mode
 
-    // First click only arms the confirmation — the note is still there.
+    // First click only arms the confirmation — the panel is still open.
     await fireEvent.click(await screen.findByLabelText('delete note'));
     await screen.findByText(/permanently/i);
-    expect(screen.queryByText('delete me please')).not.toBeNull();
+    expect(screen.queryByLabelText('close note')).not.toBeNull();
 
     // The confirm button's accessible name is "Delete" (the header button uses
     // the aria-label "delete note"), so this targets the second, final click.
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(screen.queryByText('delete me please')).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText('close note')).toBeNull());
   });
 });

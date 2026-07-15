@@ -27,7 +27,6 @@
   let cards = $state<ObjectMeta[] | null>(null);
   let results = $state<ObjectMeta[]>([]);
   let searchQuery = $state('');
-  let draft = $state('');
   let error = $state<string | null>(null);
   let notice = $state<string | null>(null);
   let openId = $state<string | null>(null);
@@ -75,7 +74,7 @@
 
   let railCollapsed = $state(false);
   let paletteOpen = $state(false);
-  let captureEl = $state<HTMLInputElement | undefined>(undefined);
+  let searchEl = $state<HTMLInputElement | undefined>(undefined);
   const VIEW_TITLES: Record<View, string> = {
     board: 'Board',
     agenda: 'Agenda',
@@ -89,15 +88,14 @@
     { label: 'Go to Board', run: () => (view = 'board') },
     { label: 'Go to Agenda', run: () => (view = 'agenda') },
     { label: 'Go to Timeline', run: () => (view = 'timeline') },
-    { label: 'Search notes', run: () => (view = 'search') },
+    { label: 'Search notes', run: () => { view = 'search'; searchEl?.focus(); } },
     { label: 'New note', run: onNew },
     { label: 'New board', run: onNewBoard },
-    { label: 'Capture a note', run: () => captureEl?.focus() },
     { label: 'Toggle theme', run: toggleTheme },
     { label: 'Back up the vault', run: onBackup },
   ]);
 
-  // Keyboard map: ⌘K palette · ⌘\ toggle rail · 1–4 views · / search · c capture · Esc close.
+  // Keyboard map: ⌘K palette · ⌘\ toggle rail · 1–3 views · / search · c new note · Esc close.
   function onGlobalKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'k') {
@@ -117,14 +115,15 @@
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
     if (openId) return; // the note panel owns keys while open
-    const views: View[] = ['board', 'agenda', 'timeline', 'search'];
+    const views: View[] = ['board', 'agenda', 'timeline'];
     if (e.key === '/') {
       e.preventDefault();
       view = 'search';
+      searchEl?.focus();
     } else if (e.key === 'c') {
       e.preventDefault();
-      captureEl?.focus();
-    } else if (e.key >= '1' && e.key <= '4') {
+      void onNew();
+    } else if (e.key >= '1' && e.key <= '3') {
       view = views[Number(e.key) - 1];
     }
   }
@@ -178,20 +177,6 @@
     const id = setInterval(() => void ping().catch(() => {}), 3000);
     return () => clearInterval(id);
   });
-
-  async function onCapture(e: Event) {
-    e.preventDefault();
-    const body = draft.trim();
-    if (!body) return;
-    draft = '';
-    try {
-      await capture(body);
-      await refresh();
-      scheduleCommit();
-    } catch (err) {
-      error = String(err);
-    }
-  }
 
   // "New note": create a blank note and open it straight in the editor (property
   // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
@@ -302,22 +287,28 @@
       <span class="wordmark">formicarium</span>
     </div>
 
-    <form class="composer" onsubmit={onCapture}>
-      <!-- svelte-ignore a11y_autofocus -->
-      <input bind:this={captureEl} placeholder="Capture a note…" bind:value={draft} autofocus />
-      <div class="composer-row">
-        <button type="button" class="new-btn" onclick={onNew} title="Create a note and open the editor">
-          <Icon name="plus" size={15} /> <span class="label">New note</span>
-        </button>
-        <button type="button" class="new-btn" onclick={onNewBoard} title="Create a whiteboard (Excalidraw canvas)">
-          <Icon name="pen" size={15} /> <span class="label">New board</span>
-        </button>
-      </div>
-    </form>
-
-    <button class="nav-item find" class:active={view === 'search'} onclick={() => (view = 'search')}>
-      <Icon name="search" /> <span class="label">Search</span>
-    </button>
+    <div class="create">
+      <label class="searchfield">
+        <Icon name="search" size={16} />
+        <input
+          bind:this={searchEl}
+          class="sidebar-search"
+          type="search"
+          placeholder="Search notes…"
+          bind:value={searchQuery}
+          oninput={onSearchInput}
+          onfocus={() => (view = 'search')}
+          spellcheck="false"
+          aria-label="search notes"
+        />
+      </label>
+      <button type="button" class="new-btn" onclick={onNew} title="Create a note and open the editor">
+        <Icon name="plus" size={15} /> <span class="label">New note</span>
+      </button>
+      <button type="button" class="new-btn secondary" onclick={onNewBoard} title="Create a whiteboard (Excalidraw canvas)">
+        <Icon name="pen" size={15} /> <span class="label">New board</span>
+      </button>
+    </div>
 
     <ul class="nav">
       <li>
@@ -370,16 +361,6 @@
             <button class:active={agendaMode === 'week'} aria-pressed={agendaMode === 'week'} onclick={() => (agendaMode = 'week')}>Week</button>
             <button class:active={agendaMode === 'list'} aria-pressed={agendaMode === 'list'} onclick={() => (agendaMode = 'list')}>List</button>
           </div>
-        {:else if view === 'search'}
-          <!-- svelte-ignore a11y_autofocus -->
-          <input
-            class="searchbox"
-            placeholder="Search notes, tasks, documents…"
-            bind:value={searchQuery}
-            oninput={onSearchInput}
-            spellcheck="false"
-            autofocus
-          />
         {/if}
       </div>
     </header>
@@ -467,32 +448,41 @@
     flex: none;
   }
 
-  /* Composer: the create surface, visually distinct from Search (owner's #1 ask). */
-  .composer {
+  /* Create surface: the primary Search field over the two create buttons. */
+  .create {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
-    padding: var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-elevated);
   }
-  .composer input {
-    width: 100%;
-    box-sizing: border-box;
+  .searchfield {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    background: var(--bg);
+    background: var(--surface-elevated);
+    color: var(--text-muted);
+  }
+  .searchfield:focus-within {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .sidebar-search {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
     color: var(--text);
     font-size: var(--text-sm);
+    outline: none;
   }
-  .composer-row {
-    display: flex;
-    gap: var(--space-2);
+  .sidebar-search::placeholder {
+    color: var(--text-muted);
   }
   .new-btn {
-    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -509,6 +499,16 @@
   }
   .new-btn:hover {
     background: var(--accent-hover);
+  }
+  .new-btn.secondary {
+    background: var(--surface-elevated);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .new-btn.secondary:hover {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   /* Nav items: quiet by default, tinted when active. */
@@ -554,10 +554,6 @@
     color: var(--accent);
     font-weight: 600;
   }
-  .find {
-    margin-top: var(--space-1);
-  }
-
   .sidebar-foot {
     margin-top: auto;
     display: flex;
@@ -604,7 +600,7 @@
 
   /* Collapsed rail: icons only. */
   .rail-collapsed .wordmark,
-  .rail-collapsed .composer,
+  .rail-collapsed .create,
   .rail-collapsed .label {
     display: none;
   }
@@ -647,15 +643,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-  }
-  .searchbox {
-    width: min(28rem, 40vw);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--surface-elevated);
-    color: var(--text);
-    font-size: var(--text-sm);
   }
   .group {
     display: flex;
@@ -726,7 +713,7 @@
       grid-template-columns: 3.25rem 1fr;
     }
     .wordmark,
-    .composer,
+    .create,
     .nav-item .label,
     .backup .label {
       display: none;

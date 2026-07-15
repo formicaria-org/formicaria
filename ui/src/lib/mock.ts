@@ -182,9 +182,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return undefined as T;
     case 'update_body': {
       const id = String(args.id);
-      bodyOverrides.set(id, String(args.body));
+      const body = String(args.body);
+      bodyOverrides.set(id, body);
       const n = notes.find((x) => x.id === id);
-      if (n) n.updated = new Date().toISOString();
+      if (n) {
+        n.updated = new Date().toISOString();
+        // Mirror the real backend: a plain note's card preview is derived from its
+        // body (first non-empty line, minus a leading Markdown heading marker). A
+        // board's body is scene JSON — never surface that, it keeps its title.
+        if (n.props.view !== 'board') {
+          const firstLine = body.split('\n').map((l) => l.trim()).find((l) => l) ?? '';
+          n.preview = firstLine.replace(/^#+\s+/, '') || n.preview;
+        }
+      }
       return undefined as T;
     }
     case 'delete': {

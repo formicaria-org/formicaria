@@ -9,8 +9,10 @@ _Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
 by default, red brand accent matching the app icon, launcher UX (release icon,
 reopen, close-tab-quits), and **board notes** (freeform Excalidraw whiteboard,
 lazy-loaded) — now **treated exactly like notes** (a "Details" props editor over
-the canvas → agenda/calendar/board-trackable). Gallery removed. On top of
-note-delete, media copy-notice, column reorder, SVG fix._
+the canvas → agenda/calendar/board-trackable). **Sidebar is search-first**: the
+persistent Search field is the primary input, with New note / New board buttons
+below (quick-capture box removed). Gallery removed. On top of note-delete, media
+copy-notice, column reorder, SVG fix._
 
 ## What formicarium is
 
@@ -91,7 +93,7 @@ auto-shutdown)
 - **Board notes (whiteboard)** — a note with `view: board` whose body is an
   **Excalidraw** scene (JSON). `NotePanel` renders the canvas (`Whiteboard.svelte`,
   which lazily imports Excalidraw/React — a separate ~744 KB-gz chunk, loaded only
-  when a board opens). "New board" is both a command-palette entry and a composer
+  when a board opens). "New board" is both a command-palette entry and a sidebar
   button. No new `Kind`, no backend change — files-as-truth via the `.excalidraw`
   JSON. A board is **treated exactly like a note**: its header Edit button opens a
   **"Details"** panel with the same props editor (Status/Start/Due/Hard/Title/Tags)
