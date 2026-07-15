@@ -36,13 +36,15 @@ FM_OPEN=1 ./target/release/fm-serve      # optimized, opens the browser
 ```
 
 `serve`/`serve-release` rebuild the UI every run; `build`/`build-debug` stop at the
-compiled artifacts so you can package or wire them into a launcher. Config is via
-env: `FM_VAULT` (default `vault`), `FM_UI_DIST` (default `ui/dist`), `FM_ADDR`
-(default `127.0.0.1:8765`), `FM_OPEN` (set → open the browser). The release
-profile lives in [`Cargo.toml`](Cargo.toml) (`[profile.release]`).
+compiled artifacts. `pixi run app` runs the already-built release binary **without
+rebuilding** (instant start). Config is via env: `FM_VAULT` (default `vault`),
+`FM_UI_DIST` (default `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN`
+(set → open the browser). The release profile lives in [`Cargo.toml`](Cargo.toml)
+(`[profile.release]`).
 
-> The [`packaging/`](packaging/README.md) `.desktop` launcher runs `pixi run
-> serve` (debug) by default; point it at `serve-release` for the optimized build.
+> The [`packaging/`](packaging/README.md) `.desktop` launcher runs `pixi run app`
+> — the **prebuilt release**, no rebuild, so a double-click is instant. It reflects
+> your last `pixi run build`; rebuild to update what the icon launches.
 
 ## Documentation
 

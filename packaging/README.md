@@ -1,14 +1,30 @@
 # Launching formicarium
 
-formicarium runs as a local web app: a tiny server (`fm-serve`) builds and serves
-the UI and fronts the vault over `http://127.0.0.1:8765`, which it opens in your
-default browser.
+formicarium runs as a local web app: a tiny server (`fm-serve`) serves the UI and
+fronts the vault over `http://127.0.0.1:8765`, which it opens in your default
+browser.
 
-## Terminal
+## The double-click icon runs the latest release (instantly)
+
+The desktop launcher (`formicarium.sh`) runs the **pre-built release binary**
+(`target/release/fm-serve`) — it does **not** rebuild on launch, so a double-click
+starts instantly. It always reflects the last build you made; to update what the
+icon runs, rebuild explicitly:
 
 ```sh
-pixi run serve          # build + serve; open the printed URL
+pixi run build          # → target/release/fm-serve (2.7 MB) + ui/dist
+```
+
+The only time the launcher builds for you is the **first** launch (or the first
+after a `cargo clean`), when no binary exists yet.
+
+## Terminal (dev loop — rebuilds each run)
+
+```sh
+pixi run serve          # DEBUG build + serve; open the printed URL
+pixi run serve-release  # RELEASE build + serve (optimized)
 FM_OPEN=1 pixi run serve # also opens your browser automatically
+pixi run app            # run the already-built release binary (what the icon does)
 ```
 
 ## App-menu icon + Ubuntu dock (GNOME)
@@ -39,9 +55,9 @@ the desktop entry, then pin it to the dock.
      "${current%]*}, 'formicarium.desktop']"
    ```
 
-Clicking the icon runs `packaging/formicarium.sh` → builds + serves + opens the
-browser. The server keeps running in the background; stop it with
-`pkill -x fm-serve` when you're done.
+Clicking the icon runs `packaging/formicarium.sh` → runs the prebuilt release
+binary + opens the browser (no rebuild). The server keeps running in the
+background; stop it with `pkill -x fm-serve` when you're done.
 
 ### Troubleshooting
 

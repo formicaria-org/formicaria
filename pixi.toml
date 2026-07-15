@@ -52,6 +52,12 @@ build = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-s
 # `target/debug/fm-serve` (fast to compile, large + slow) for stepping through
 # the server. Pairs with the same `ui/dist`.
 build-debug = "pnpm -C ui install && pnpm -C ui build && cargo build -p fm-serve"
+# Run the ALREADY-BUILT release binary — NO rebuild — inside the activated env
+# (so `pdftotext`/`vipsthumbnail` are on PATH for ingest). This is what the
+# desktop launcher runs, so a double-click starts instantly; update what it runs
+# by rebuilding explicitly with `pixi run build`. Assumes `pixi run build` has
+# produced `target/release/fm-serve` + `ui/dist`.
+app = "target/release/fm-serve"
 test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
