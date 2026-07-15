@@ -12,6 +12,7 @@
     search,
   } from './ipc';
   import { renderInto, type ResolvedAsset } from './render';
+  import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
 
   let {
@@ -158,6 +159,26 @@
       await updateBody(note.id, draft);
       note = { ...note, body: draft };
       saved = true;
+      onsaved?.();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  // A board note carries `view: board`; its body is an Excalidraw scene (JSON),
+  // edited on a canvas instead of as text. Detection is a plain property check —
+  // no new Kind (the model resists that).
+  let isBoard = $derived(note?.props?.view === 'board');
+  let boardTheme: 'dark' | 'light' = $derived(
+    document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
+  );
+
+  // The canvas persists the same way the textarea does: write the body bytes.
+  async function saveBoard(json: string) {
+    if (!note) return;
+    try {
+      await updateBody(note.id, json);
+      note = { ...note, body: json };
       onsaved?.();
     } catch (e) {
       error = String(e);
@@ -354,9 +375,11 @@
         </button>
       {/if}
       {#if note}
-        <button class="edit" onclick={toggleEdit}>
-          {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
-        </button>
+        {#if !isBoard}
+          <button class="edit" onclick={toggleEdit}>
+            {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
+          </button>
+        {/if}
         <button class="edit danger" onclick={() => (confirmingDelete = true)} aria-label="delete note" title="Delete this note">
           Delete
         </button>
@@ -382,7 +405,9 @@
       <p class="note-notice">{notice}</p>
     {/if}
     {#if note}
-      {#if editing}
+      {#if isBoard}
+        <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
+      {:else if editing}
         <div class="props">
           <label class="field">
             <span>Status</span>

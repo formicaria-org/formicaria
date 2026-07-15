@@ -37,6 +37,7 @@ const notes: ObjectMeta[] = [
   makeNote({ preview: 'Weekly sync notes', due: '2026-07-16', tags: ['meeting'] }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
   makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
+  makeNote({ preview: 'Architecture sketch', title: 'Architecture sketch', props: { view: 'board', project: 'alpha' } }),
 ];
 
 // A deterministic 64-hex string from a name, so re-ingesting the same file name
@@ -140,6 +141,11 @@ export const SAMPLE_BODY = [
   '- measure the worst case',
 ].join('\n');
 
+// A blank Excalidraw scene — what a board note's body looks like before anything
+// is drawn (the real backend stores the same shape).
+const EMPTY_BOARD =
+  '{"type":"excalidraw","version":2,"source":"formicarium","elements":[],"appState":{},"files":{}}';
+
 const bodyOverrides = new Map<string, string>();
 
 function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
@@ -147,7 +153,11 @@ function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
   if (!n) return null;
   const body =
     bodyOverrides.get(id) ??
-    (n.type === 'asset' ? `# ${n.title ?? n.preview}\n\n${n.preview}` : SAMPLE_BODY);
+    (n.props.view === 'board'
+      ? EMPTY_BOARD
+      : n.type === 'asset'
+        ? `# ${n.title ?? n.preview}\n\n${n.preview}`
+        : SAMPLE_BODY);
   return { ...n, body };
 }
 

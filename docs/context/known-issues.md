@@ -32,6 +32,16 @@ _Last verified: 2026-07-15 (uncommitted follow-ups on commit `067e80b`)._
   doesn't sync across machines. Intentional; the vault-side `.view` file would
   change that (still deferred). Column DnD is mouse-only (like card DnD).
 
+- **Whiteboard (Excalidraw) caveats.** (1) Excalidraw fetches its hand-drawn
+  fonts from a CDN unless `window.EXCALIDRAW_ASSET_PATH` points at locally-served
+  copies — offline, boards still work but fall back to system fonts. Local-font
+  bundling (copy `@excalidraw/excalidraw/dist/prod/fonts` into the build, ~14 MB,
+  mostly CJK) is **deferred**. (2) The canvas renders only in a real browser, so
+  it's **unverified in headless CI** (build, code-split, and the board round-trip
+  are tested; the visual editor is not). (3) Board notes have no props/tags editor
+  yet (the panel shows only the canvas); rename/tag a board via the board view or
+  a future affordance.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

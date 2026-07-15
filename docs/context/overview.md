@@ -7,8 +7,9 @@ the code, the code wins — fix this file.
 _Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
 `start`+`due` dates (no defaults), calendar bars start→due, note panel full-screen
 by default, red brand accent matching the app icon, launcher UX (release icon,
-reopen, close-tab-quits). Gallery removed. On top of note-delete, media
-copy-notice, column reorder, SVG fix._
+reopen, close-tab-quits), and **board notes** (freeform Excalidraw whiteboard,
+lazy-loaded). Gallery removed. On top of note-delete, media copy-notice, column
+reorder, SVG fix._
 
 ## What formicarium is
 
@@ -86,6 +87,11 @@ auto-shutdown)
   (`clampRangeToWeek`/`assignLanes` in `calendar.ts`) do the geometry.
 - **Timeline** — Logseq-style journal by creation day
 - **Search** — FTS5 (also indexes extracted PDF text)
+- **Board notes (whiteboard)** — a note with `view: board` whose body is an
+  **Excalidraw** scene (JSON). `NotePanel` renders the canvas (`Whiteboard.svelte`,
+  which lazily imports Excalidraw/React — a separate ~744 KB-gz chunk, loaded only
+  when a board opens). "New board" is a command-palette entry. No new `Kind`, no
+  backend change — files-as-truth via the `.excalidraw` JSON.
 
 There is **no user-facing note "type"** (meeting/task/note): everything is a
 **note**, differentiated by **tags**. The only surviving `Kind` distinction is

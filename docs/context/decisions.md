@@ -5,6 +5,22 @@ why — consequence**. The canonical, fuller spec is
 [`formicarium/MASTERPLAN.md`](../../formicarium/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## Whiteboard = embedded Excalidraw, lazy-loaded (2026-07-15)
+**Why:** the owner wanted a real "drawio but simpler" freeform canvas, not a
+diagrams-as-code stand-in, and chose full-featured-fast over build-it-minimal.
+**Consequence:** a deliberate reversal of "no new UI runtime dependency" —
+`@excalidraw/excalidraw` + `react`/`react-dom` are now deps. Mitigations keep the
+base app lean: the editor is **lazily imported** in `Whiteboard.svelte` (React
+root mounted via `createElement`, no JSX → no build plugin), so it's a separate
+~744 KB-gz chunk that downloads **only when a board opens** — base `index.js`
+stays ~34 KB gz (same discipline as KaTeX/Mermaid). **A board is just a note**
+with a `view: board` property whose **body is the Excalidraw scene JSON** — no new
+`Kind`, no backend change, files-as-truth intact (the `.excalidraw` JSON is plain
+text on disk). **Caveats:** Excalidraw fetches fonts from a CDN unless
+`EXCALIDRAW_ASSET_PATH` is set — offline it degrades to fallback fonts (local-font
+bundling deferred); and the canvas only renders in a real browser, so it's
+**unverified in headless CI** (build + code-split + round-trip are verified).
+
 ## Browser is the product; the native window is removed (2026-07-15)
 **Why:** the Tauri/WebKitGTK window never painted reliably on the developer's
 box (blank/gray; mutter/X11 with no compositor). The same SPA rendered correctly

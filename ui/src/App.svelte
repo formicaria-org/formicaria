@@ -91,6 +91,7 @@
     { label: 'Go to Timeline', run: () => (view = 'timeline') },
     { label: 'Search notes', run: () => (view = 'search') },
     { label: 'New note', run: onNew },
+    { label: 'New board', run: onNewBoard },
     { label: 'Capture a note', run: () => captureEl?.focus() },
     { label: 'Toggle theme', run: toggleTheme },
     { label: 'Back up the vault', run: onBackup },
@@ -198,6 +199,25 @@
     try {
       const meta = await capture('');
       startEditing = true;
+      openId = meta.id;
+      await refresh();
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  // A board is a note whose body is an Excalidraw scene, flagged `view: board`.
+  // Create it empty, mark it, give it a title, then open it (the panel renders the
+  // canvas for board notes). No new command or Kind — just a property.
+  async function onNewBoard() {
+    try {
+      const scene =
+        '{"type":"excalidraw","version":2,"source":"formicarium","elements":[],"appState":{},"files":{}}';
+      const meta = await capture(scene);
+      await setProperty(meta.id, 'view', 'board');
+      await setProperty(meta.id, 'title', 'Untitled board');
+      startEditing = false;
       openId = meta.id;
       await refresh();
       scheduleCommit();
