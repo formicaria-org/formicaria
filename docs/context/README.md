@@ -39,3 +39,31 @@ Keep this folder **true and small** — a stale synthesis is worse than none.
    If a note names a file/function/flag, verify it still exists before relying
    on it.
 4. **No secrets, no vault content** — this ships in the repo.
+
+### Worked example
+
+Say you added a streaming `GET /api/blob/<hash>` route and deleted the
+whole-blob-in-memory workaround. Before ending the session:
+
+1. **Add a session entry** — `sessions/2026-08-02-blob-streaming.md`:
+   ```markdown
+   # 2026-08-02 — Blob streaming
+
+   **Outcome:** `GET /api/blob/<hash>` in fm-serve (Content-Type via sniff_mime,
+   Accept-Ranges, honors Range). `<video>`/`<iframe>` now range-request instead
+   of buffering the whole file. Commit `abc1234`; `pixi run ci` green.
+
+   ## Why
+   Large PDFs/video buffered the entire blob into a Blob object URL (see the old
+   known-issues entry). Range requests fix seeking + memory.
+
+   ## Left not-working
+   Thumbnails still eager. `render.ts` resolver unchanged for images (fine).
+   ```
+2. **Reconcile the top-level files** — in `known-issues.md`, *delete* the
+   "Inline media buffers whole blobs" bullet; in `overview.md`, add `blob` to the
+   command/route list and bump `_Last verified: 2026-08-02 (commit abc1234)_`. If
+   it changed a design rule, add/adjust a `decisions.md` entry.
+
+That's the whole loop: **append to `sessions/`, prune the three current-state
+files, bump the verified line.**

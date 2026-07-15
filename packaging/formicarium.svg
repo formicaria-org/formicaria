@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="formicarium">
+  <rect width="512" height="512" rx="112" fill="#e8ad42"/>
+  <g fill="none" stroke="#1a1205" stroke-width="18" stroke-linecap="round">
+    <!-- antennae -->
+    <path d="M240 122 C 212 88, 198 76, 178 66"/>
+    <path d="M272 122 C 300 88, 314 76, 334 66"/>
+    <!-- left legs -->
+    <path d="M232 214 C 188 196, 150 196, 118 214"/>
+    <path d="M228 240 C 180 240, 140 252, 110 278"/>
+    <path d="M232 266 C 190 286, 156 308, 138 338"/>
+    <!-- right legs -->
+    <path d="M280 214 C 324 196, 362 196, 394 214"/>
+    <path d="M284 240 C 332 240, 372 252, 402 278"/>
+    <path d="M280 266 C 322 286, 356 308, 374 338"/>
+  </g>
+  <g fill="#1a1205">
+    <circle cx="256" cy="150" r="40"/>
+    <circle cx="256" cy="232" r="32"/>
+    <ellipse cx="256" cy="346" rx="54" ry="66"/>
+  </g>
+</svg>
