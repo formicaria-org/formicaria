@@ -4,9 +4,11 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-15 (uncommitted — notes+tags (no user "type"), full-screen
-note panel, multi-day calendar bars, Gallery view removed; on top of note-delete,
-media copy-notice, column reorder, and the SVG inline-render fix)._
+_Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
+`start`+`due` dates (no defaults), calendar bars start→due, note panel full-screen
+by default, red brand accent matching the app icon, launcher UX (release icon,
+reopen, close-tab-quits). Gallery removed. On top of note-delete, media
+copy-notice, column reorder, SVG fix._
 
 ## What formicarium is
 
@@ -64,22 +66,24 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
 The SQLite index (FTS5) is **disposable**, rebuilt from the files on open. Git
 versioning of the notes + restic backup provide durability.
 
-## The 16 API commands
+## The 17 API commands
 
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
-`open_external` · `commit` · `backup` · `ingest`
+`open_external` · `commit` · `backup` · `ingest` · `ping` (liveness heartbeat →
+auto-shutdown)
 
 ## Views (all generic renderers over the same query layer)
 
 - **Board** — kanban, group-by-*any*-property, drag a card to another column to
   set that property (status), drag column headers to reorder (persisted per
   group-by in `localStorage`)
-- **Agenda** — Calendar (month/week) + a List grouped under urgency bands. The
-  calendar draws each note as a **multi-day bar** from its creation day (start)
-  to its due day (end), split into flat-ended segments across week rows; pure
-  helpers (`isoDate`/`clampRangeToWeek`/`assignLanes` in `calendar.ts`) do the
-  geometry.
+- **Agenda** — Calendar (month/week) + a List grouped under urgency bands. A note
+  carries an optional **`start`** and **`due`** date (both unset by default, both
+  user-settable); the calendar draws it as a bar from `start`→`due`, or a
+  single-day marker on `due` when there's no start (creation date is never assumed
+  as a start). Bars split into flat-ended segments across week rows; pure helpers
+  (`clampRangeToWeek`/`assignLanes` in `calendar.ts`) do the geometry.
 - **Timeline** — Logseq-style journal by creation day
 - **Search** — FTS5 (also indexes extracted PDF text)
 
@@ -113,8 +117,9 @@ live serve smoke). Everything in "Views" above works, plus: note read view
 round-trip), asset ingest + drag-drop + `/` slash-insert + inline media
 (img/PDF/video/audio, incl. SVG via a content sniff), one-click restic backup
 (tested restore), verify/manifest (bit-rot), debounced git auto-commit, a
-design-token system (dark+light), the sidebar shell, the side-sheet NotePanel
-(**toggles to full screen**), note delete (double-confirm), a ⌘K command palette,
+design-token system (dark+light), the sidebar shell, the NotePanel
+(**full screen by default**, toggle to a docked side-sheet; remembered per
+browser), note delete (double-confirm), a ⌘K command palette,
 an mdBook manual, and a `.desktop` launcher.
 
 See [known-issues.md](./known-issues.md) for what is **not** working / deferred,

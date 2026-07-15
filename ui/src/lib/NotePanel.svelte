@@ -36,8 +36,26 @@
   // Transient success line (e.g. after a drag-drop copy). Auto-clears.
   let notice = $state<string | null>(null);
   let editing = $state(false);
-  // Docked side-sheet by default; "Open wide" expands to a centered page (Craft/Notion).
-  let wide = $state(false);
+  // Full screen by default (the preferred reading/writing mode); the toggle
+  // shrinks to a docked side-sheet, and the choice is remembered per-browser like
+  // the theme. Anything other than the stored '0' (incl. unset) means full screen.
+  // Guard storage access — it's absent in the test env and in private mode.
+  function readWidePref(): boolean {
+    try {
+      return localStorage.getItem('fm-note-wide') !== '0';
+    } catch {
+      return true;
+    }
+  }
+  let wide = $state(readWidePref());
+  function toggleWide() {
+    wide = !wide;
+    try {
+      localStorage.setItem('fm-note-wide', wide ? '1' : '0');
+    } catch {
+      /* private mode / storage disabled — the default (full screen) still applies */
+    }
+  }
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
@@ -51,6 +69,7 @@
   // field — notes are differentiated by tags, and `asset` is set only by ingest.
   let pTitle = $state('');
   let pStatus = $state('');
+  let pStart = $state('');
   let pDue = $state('');
   let pHard = $state(false);
   let pTags = $state('');
@@ -104,6 +123,7 @@
         if (n) {
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';
+          pStart = n.start ?? '';
           pDue = n.due ?? '';
           pHard = n.hard;
           pTags = n.tags.join(', ');
@@ -167,6 +187,7 @@
     if (key === 'title') note = { ...note, title: value || null };
     else if (key === 'status') note = { ...note, status: value || null };
     else if (key === 'due') note = { ...note, due: value || null };
+    else if (key === 'start') note = { ...note, start: value || null };
     else if (key === 'hard') note = { ...note, hard: value === 'true' };
     else if (key === 'tags')
       note = { ...note, tags: value ? value.split(/[,\s]+/).filter(Boolean) : [] };
@@ -340,7 +361,7 @@
           Delete
         </button>
       {/if}
-      <button class="icon-toggle" onclick={() => (wide = !wide)} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
+      <button class="icon-toggle" onclick={toggleWide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
         {wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
@@ -376,6 +397,15 @@
             <datalist id="np-statuses">
               {#each statuses as st (st)}<option value={st}></option>{/each}
             </datalist>
+          </label>
+          <label class="field">
+            <span>Start</span>
+            <input
+              aria-label="start"
+              type="date"
+              bind:value={pStart}
+              onchange={() => setProp('start', pStart)}
+            />
           </label>
           <label class="field">
             <span>Due</span>

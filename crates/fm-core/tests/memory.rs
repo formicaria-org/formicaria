@@ -15,6 +15,7 @@ fn note(id: &str, status: &str, body: &str) -> Object {
         title: None,
         status: Some(status.to_string()),
         due: None,
+        start: None,
         hard: false,
         created: datetime!(2026-07-14 09:00 UTC),
         updated: datetime!(2026-07-14 09:00 UTC),

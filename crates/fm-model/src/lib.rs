@@ -86,7 +86,12 @@ pub struct Object {
     pub kind: Kind,
     pub title: Option<String>,
     pub status: Option<String>,
+    /// Optional deadline (end of the calendar bar). No default — a fresh note has
+    /// none until the user sets one.
     pub due: Option<Date>,
+    /// Optional start of the work (left end of the calendar bar). Distinct from
+    /// `created` (the creation timestamp) and, like `due`, unset by default.
+    pub start: Option<Date>,
     pub hard: bool,
     pub created: OffsetDateTime,
     pub updated: OffsetDateTime,
@@ -108,6 +113,7 @@ impl Object {
             title: None,
             status: None,
             due: None,
+            start: None,
             hard: false,
             created: now,
             updated: now,
@@ -130,6 +136,7 @@ impl Object {
             "title" => opt_text(&self.title),
             "status" => opt_text(&self.status),
             "due" => self.due.map(PropertyValue::Date).unwrap_or(PropertyValue::Null),
+            "start" => self.start.map(PropertyValue::Date).unwrap_or(PropertyValue::Null),
             "hard" => PropertyValue::Bool(self.hard),
             "created" => PropertyValue::DateTime(self.created),
             "updated" => PropertyValue::DateTime(self.updated),

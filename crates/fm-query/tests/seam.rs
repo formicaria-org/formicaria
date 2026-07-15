@@ -25,6 +25,7 @@ fn obj(
         title: None,
         status: status.map(str::to_string),
         due,
+        start: None,
         hard: false,
         created: datetime!(2026-07-14 09:00 UTC),
         updated: datetime!(2026-07-14 09:00 UTC),

@@ -17,6 +17,7 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
     title: null,
     status: null,
     due: null,
+    start: null,
     hard: false,
     created: stamp,
     updated: stamp,
@@ -29,7 +30,7 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 
 const notes: ObjectMeta[] = [
   makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
-  makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
+  makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: '2026-07-16', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
   makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'] }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
@@ -57,6 +58,8 @@ function valueOf(n: ObjectMeta, key: string): string {
       return n.title ?? '';
     case 'due':
       return n.due ?? '';
+    case 'start':
+      return n.start ?? '';
     case 'tags':
       return n.tags.join(', ');
     default: {
@@ -95,6 +98,9 @@ function setProp(id: string, key: string, value: string): void {
       break;
     case 'due':
       n.due = value || null;
+      break;
+    case 'start':
+      n.start = value || null;
       break;
     case 'tags':
       n.tags = value ? value.split(/[,\s]+/).filter(Boolean) : [];

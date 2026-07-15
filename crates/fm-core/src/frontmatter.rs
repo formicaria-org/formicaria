@@ -60,6 +60,10 @@ pub fn to_file(obj: &Object) -> Result<String, ParseError> {
     if let Some(s) = &obj.status {
         map.insert("status".into(), Value::from(s.clone()));
     }
+    if let Some(d) = obj.start {
+        let s = d.format(&date_fmt!()).map_err(|e| ParseError::Field(e.to_string()))?;
+        map.insert("start".into(), Value::from(s));
+    }
     if let Some(d) = obj.due {
         let s = d.format(&date_fmt!()).map_err(|e| ParseError::Field(e.to_string()))?;
         map.insert("due".into(), Value::from(s));
@@ -110,6 +114,7 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
     let mut title = None;
     let mut status = None;
     let mut due = None;
+    let mut start = None;
     let mut hard = false;
     let mut created = None;
     let mut updated = None;
@@ -130,6 +135,7 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
             "title" => title = as_string(v),
             "status" => status = as_string(v),
             "due" => due = as_string(v),
+            "start" => start = as_string(v),
             "hard" => hard = matches!(v, Value::Bool(true)),
             "created" => created = as_string(v),
             "updated" => updated = as_string(v),
@@ -155,6 +161,13 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
         due: match due {
             Some(s) => Some(
                 Date::parse(&s, &date_fmt!()).map_err(|e| ParseError::Field(format!("due: {e}")))?,
+            ),
+            None => None,
+        },
+        start: match start {
+            Some(s) => Some(
+                Date::parse(&s, &date_fmt!())
+                    .map_err(|e| ParseError::Field(format!("start: {e}")))?,
             ),
             None => None,
         },
@@ -234,6 +247,7 @@ mod tests {
     fn roundtrip_is_lossless_for_known_fields() {
         let mut o = Object::new(Kind::Note, "trust region clipping\n\nmore body");
         o.status = Some("doing".into());
+        o.start = Some(time::macros::date!(2026 - 07 - 16));
         o.due = Some(time::macros::date!(2026 - 07 - 20));
         o.hard = true;
         o.tags = vec!["meta-rl".into()];
@@ -245,6 +259,7 @@ mod tests {
         assert_eq!(back.id, o.id);
         assert_eq!(back.kind, o.kind);
         assert_eq!(back.status, o.status);
+        assert_eq!(back.start, o.start);
         assert_eq!(back.due, o.due);
         assert_eq!(back.hard, o.hard);
         assert_eq!(back.tags, o.tags);

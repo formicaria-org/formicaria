@@ -8,7 +8,6 @@
     ymd,
     dayOfMonth,
     addDays,
-    isoDate,
     clampRangeToWeek,
     assignLanes,
     type Day,
@@ -47,14 +46,16 @@
   }
 
   // Every dated card that touches this week, packed into non-overlapping lanes.
-  // Start = creation day, end = due day; a due that predates creation (shouldn't
-  // happen, but guard) collapses to a single day so the bar never runs backwards.
+  // The bar runs from the note's optional `start` to its `due`. With no start it
+  // collapses to a single day on the due date (a plain deadline) — creation date
+  // is never assumed as a start. A start after the due (shouldn't happen) is
+  // clamped so the bar never runs backwards.
   function barsForWeek(week: Day[]): (BarSeg & { lane: number })[] {
     const segs: BarSeg[] = [];
     for (const c of cards) {
       if (!c.due) continue;
       const end = c.due.slice(0, 10);
-      let start = c.created ? isoDate(c.created) : end;
+      let start = c.start ? c.start.slice(0, 10) : end;
       if (start > end) start = end;
       const span = clampRangeToWeek(start, end, week);
       if (span) segs.push({ card: c, ...span });

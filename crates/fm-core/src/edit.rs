@@ -33,6 +33,15 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
                 None => None,
             }
         }
+        "start" => {
+            obj.start = match some(raw) {
+                Some(s) => Some(
+                    Date::parse(&s, &format_description!("[year]-[month]-[day]"))
+                        .map_err(|e| StoreError::Parse(format!("start must be YYYY-MM-DD: {e}")))?,
+                ),
+                None => None,
+            }
+        }
         "tags" => {
             obj.tags = raw
                 .split([',', ' '])

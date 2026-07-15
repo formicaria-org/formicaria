@@ -7,6 +7,7 @@ export interface ObjectMeta {
   preview: string;
   status: string | null;
   due: string | null;
+  start: string | null;
   hard: boolean;
   created: string;
   updated: string;

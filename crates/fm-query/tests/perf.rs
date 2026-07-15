@@ -18,6 +18,7 @@ fn synth(n: usize) -> Vec<Object> {
             title: None,
             status: Some(if i % 2 == 0 { "doing" } else { "done" }.to_string()),
             due: None,
+            start: None,
             hard: false,
             created: datetime!(2026-07-14 09:00 UTC),
             updated: datetime!(2026-07-14 09:00 UTC),

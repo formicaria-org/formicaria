@@ -46,12 +46,14 @@
   --text-muted: #a2a2b5;
   --text-subtle: #6f6f83;
 
-  --accent: #e8ad42;
-  --accent-hover: #f0bb5c;
-  --accent-contrast: #1a1205;
-  --accent-subtle: #2a2418;
-  --link: #e8ad42;
-  --focus-ring: #e8ad42;
+  /* Brand accent = the app icon's red (#dc2626, red-600). A brighter red-500
+     reads better as interactive text/rings on the dark background. */
+  --accent: #dc2626;
+  --accent-hover: #ef4444;
+  --accent-contrast: #ffffff;
+  --accent-subtle: #2a1618;
+  --link: #ef4444;
+  --focus-ring: #ef4444;
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.30);
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.35);
@@ -77,12 +79,14 @@
   --text-muted: #5b5b66;
   --text-subtle: #8a8a94;
 
-  --accent: #c98a1e;
-  --accent-hover: #b07716;
+  /* Brand accent = the app icon's red. On white, a darker red-700 for links/rings
+     keeps text legible while buttons use the exact icon red. */
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
   --accent-contrast: #ffffff;
-  --accent-subtle: #f6ecd8;
-  --link: #b0761a;
-  --focus-ring: #b0761a;
+  --accent-subtle: #fbe3e6;
+  --link: #b91c1c;
+  --focus-ring: #b91c1c;
 
   --shadow-sm: 0 1px 2px rgb(20 20 30 / 0.06);
   --shadow-md: 0 4px 12px rgb(20 20 30 / 0.10);
