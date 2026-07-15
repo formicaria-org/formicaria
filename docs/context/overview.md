@@ -8,8 +8,9 @@ _Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
 `start`+`due` dates (no defaults), calendar bars start→due, note panel full-screen
 by default, red brand accent matching the app icon, launcher UX (release icon,
 reopen, close-tab-quits), and **board notes** (freeform Excalidraw whiteboard,
-lazy-loaded). Gallery removed. On top of note-delete, media copy-notice, column
-reorder, SVG fix._
+lazy-loaded) — now **treated exactly like notes** (a "Details" props editor over
+the canvas → agenda/calendar/board-trackable). Gallery removed. On top of
+note-delete, media copy-notice, column reorder, SVG fix._
 
 ## What formicarium is
 
@@ -90,8 +91,12 @@ auto-shutdown)
 - **Board notes (whiteboard)** — a note with `view: board` whose body is an
   **Excalidraw** scene (JSON). `NotePanel` renders the canvas (`Whiteboard.svelte`,
   which lazily imports Excalidraw/React — a separate ~744 KB-gz chunk, loaded only
-  when a board opens). "New board" is a command-palette entry. No new `Kind`, no
-  backend change — files-as-truth via the `.excalidraw` JSON.
+  when a board opens). "New board" is both a command-palette entry and a composer
+  button. No new `Kind`, no backend change — files-as-truth via the `.excalidraw`
+  JSON. A board is **treated exactly like a note**: its header Edit button opens a
+  **"Details"** panel with the same props editor (Status/Start/Due/Hard/Title/Tags)
+  above the live canvas, so a dated board shows up in Agenda/Calendar and a
+  statused board groups on the Board — it's a first-class note that happens to draw.
 
 There is **no user-facing note "type"** (meeting/task/note): everything is a
 **note**, differentiated by **tags**. The only surviving `Kind` distinction is

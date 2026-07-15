@@ -29,8 +29,16 @@ after this.
   KaTeX/Mermaid, so the ~744 KB-gz editor is a separate chunk loaded only when a
   board opens (base `index.js` stays ~34 KB gz).
 - **`NotePanel`** — `isBoard = note.props.view === 'board'` renders `Whiteboard`
-  instead of the textarea/read-view; the Edit toggle is hidden for boards (the
-  canvas is always live); Delete/full-screen/close stay. Theme passed through.
+  instead of the textarea/read-view; the canvas is always live. Delete/full-screen/
+  close stay. Theme passed through.
+- **A board is treated exactly like a note** (owner ask): the header Edit button
+  becomes **"Details"** for a board and opens the *same* props editor a note gets
+  — Status / Start / Due / Hard / Title / Tags — rendered **above** the live
+  canvas. So a board is agenda-trackable (set a Due → it shows in Agenda/Calendar),
+  kanban-groupable (Status), and timeline-listed (creation day), just like any
+  note. The toggle is guarded — leaving "Details" on a board does **not**
+  flush the textarea `draft` over the canvas-owned body (`if (editing && !isBoard)
+  await save()`); the canvas autosaves itself via `saveBoard`/`onSave`.
 - **"New board"** — a command-palette entry: `capture` an empty scene →
   `set_property view=board` + a title → open. `mock.ts` returns a blank scene for
   board notes and seeds one ("Architecture sketch") for `pnpm dev`.

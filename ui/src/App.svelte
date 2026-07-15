@@ -309,6 +309,9 @@
         <button type="button" class="new-btn" onclick={onNew} title="Create a note and open the editor">
           <Icon name="plus" size={15} /> <span class="label">New note</span>
         </button>
+        <button type="button" class="new-btn" onclick={onNewBoard} title="Create a whiteboard (Excalidraw canvas)">
+          <Icon name="pen" size={15} /> <span class="label">New board</span>
+        </button>
       </div>
     </form>
 

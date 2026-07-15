@@ -215,7 +215,9 @@
   }
 
   async function toggleEdit() {
-    if (editing) await save(); // leaving edit mode flushes any pending change
+    // A board's body is the canvas scene (autosaved by Whiteboard); the textarea
+    // `draft` is stale for it, so flushing it here would clobber the drawing.
+    if (editing && !isBoard) await save(); // leaving edit mode flushes the textarea
     editing = !editing;
   }
 
@@ -375,11 +377,13 @@
         </button>
       {/if}
       {#if note}
-        {#if !isBoard}
-          <button class="edit" onclick={toggleEdit}>
+        <button class="edit" onclick={toggleEdit}>
+          {#if isBoard}
+            {editing ? 'Done' : 'Details'}
+          {:else}
             {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
-          </button>
-        {/if}
+          {/if}
+        </button>
         <button class="edit danger" onclick={() => (confirmingDelete = true)} aria-label="delete note" title="Delete this note">
           Delete
         </button>
@@ -405,9 +409,7 @@
       <p class="note-notice">{notice}</p>
     {/if}
     {#if note}
-      {#if isBoard}
-        <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
-      {:else if editing}
+      {#if editing}
         <div class="props">
           <label class="field">
             <span>Status</span>
@@ -466,6 +468,10 @@
             />
           </label>
         </div>
+      {/if}
+      {#if isBoard}
+        <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
+      {:else if editing}
         <div class="editor-wrap">
           <textarea
             class="editor"
