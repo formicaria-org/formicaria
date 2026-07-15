@@ -240,6 +240,16 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
 }
+/* A formula KaTeX couldn't parse: keep the raw source readable (monospace) with a
+   dotted underline and a `title` tooltip carrying the KaTeX message — visible and
+   diagnosable, never a silent red blob. */
+.math-error {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  text-decoration: underline dotted var(--danger, #dc2626);
+  text-underline-offset: 3px;
+  cursor: help;
+}
 .mermaid-diagram {
   display: flex;
   justify-content: center;

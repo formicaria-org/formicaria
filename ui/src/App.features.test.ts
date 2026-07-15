@@ -6,13 +6,13 @@ import App from './App.svelte';
 // properties from the panel (round-tripped through the mock backend), the
 // day-grouped Timeline view, and delete-with-confirm. Same hermetic setup as the
 // flow test — jsdom + the in-memory mock, with the heavy lazy upgrades stubbed.
-const { mermaidInit, mermaidRender, katexAutoRender } = vi.hoisted(() => ({
+const { mermaidInit, mermaidRender, katexRender } = vi.hoisted(() => ({
   mermaidInit: vi.fn(),
   mermaidRender: vi.fn(),
-  katexAutoRender: vi.fn(),
+  katexRender: vi.fn((tex: string) => `<span class="katex">${tex}</span>`),
 }));
 vi.mock('mermaid', () => ({ default: { initialize: mermaidInit, render: mermaidRender } }));
-vi.mock('katex/dist/contrib/auto-render.js', () => ({ default: katexAutoRender }));
+vi.mock('katex', () => ({ default: { renderToString: katexRender } }));
 vi.mock('katex/dist/katex.min.css', () => ({}));
 
 beforeEach(() => {

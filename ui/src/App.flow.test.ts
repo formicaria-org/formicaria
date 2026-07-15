@@ -9,13 +9,13 @@ import App from './App.svelte';
 // shape Layer 1 pins against the real Rust DTOs. The only things stubbed are the
 // two heavy lazy upgrades (KaTeX, Mermaid), exactly as in render.test.ts, so the
 // read view renders hermetically.
-const { mermaidInit, mermaidRender, katexAutoRender } = vi.hoisted(() => ({
+const { mermaidInit, mermaidRender, katexRender } = vi.hoisted(() => ({
   mermaidInit: vi.fn(),
   mermaidRender: vi.fn(),
-  katexAutoRender: vi.fn(),
+  katexRender: vi.fn((tex: string) => `<span class="katex">${tex}</span>`),
 }));
 vi.mock('mermaid', () => ({ default: { initialize: mermaidInit, render: mermaidRender } }));
-vi.mock('katex/dist/contrib/auto-render.js', () => ({ default: katexAutoRender }));
+vi.mock('katex', () => ({ default: { renderToString: katexRender } }));
 vi.mock('katex/dist/katex.min.css', () => ({}));
 
 beforeEach(() => {
@@ -66,7 +66,7 @@ describe('the app, driven end to end as a user', () => {
     // These upgrades run in sequence after the markdown is in the DOM, so wait for
     // each rather than assuming it fired the instant the heading appeared.
     await waitFor(() => expect(container.querySelector('.asset-missing-inline')).not.toBeNull());
-    await waitFor(() => expect(katexAutoRender).toHaveBeenCalled());
+    await waitFor(() => expect(katexRender).toHaveBeenCalled());
     await waitFor(() => expect(mermaidRender).toHaveBeenCalled());
 
     // 6. Edit the body → leave edit mode (which flushes the save) → the read view

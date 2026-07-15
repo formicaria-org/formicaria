@@ -18,11 +18,86 @@ export async function renderInto(
   body: string,
   resolveAsset: AssetResolver,
 ): Promise<void> {
+  // Math is pulled out of the source *before* Markdown so the parser can never
+  // mangle a formula (underscores, backslashes, asterisks) and a stray `$` can't
+  // mis-pair the delimiters — the two ways `$…$` breaks when Markdown runs first.
+  // Each formula leaves an empty <span data-math=i> that survives marked untouched;
+  // renderMath fills them with KaTeX afterwards.
+  const { text, math } = extractMath(body);
   // Markdown → HTML. Fenced ```mermaid becomes <pre><code class="language-mermaid">.
-  el.innerHTML = marked.parse(body, { async: false, gfm: true }) as string;
+  el.innerHTML = marked.parse(text, { async: false, gfm: true }) as string;
   await resolveAssets(el, resolveAsset);
-  await renderMath(el);
+  await renderMath(el, math);
   await renderMermaid(el);
+}
+
+export interface MathSpan {
+  tex: string;
+  display: boolean;
+}
+
+/** Pull `$$…$$` (display) and `$…$` (inline) math out of Markdown *source*,
+ *  replacing each with an empty `<span data-math=i>` placeholder (returned in
+ *  `math`, in order). Display `$$` is matched first as unambiguous pairs; inline
+ *  `$` is deliberately conservative — it won't open on whitespace or a digit (so
+ *  `$5` currency stays literal), won't cross a `$$`, and won't span a blank line.
+ *  Backslash escapes (`\$`) and code spans/fences are copied through verbatim so a
+ *  `$` inside them is never treated as math. Pure + synchronous, so it's unit-tested
+ *  without a DOM. */
+export function extractMath(src: string): { text: string; math: MathSpan[] } {
+  const math: MathSpan[] = [];
+  const place = (tex: string, display: boolean): string => {
+    math.push({ tex, display });
+    return `<span data-math="${math.length - 1}"></span>`;
+  };
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    // A backslash escapes the next char (`\$` is a literal dollar) — copy the pair
+    // through so it can't open a formula.
+    if (ch === '\\') {
+      out += ch + (src[i + 1] ?? '');
+      i += 2;
+      continue;
+    }
+    // Code span / fence — copy through untouched so a `$` inside code isn't grabbed.
+    if (ch === '`') {
+      const run = /^`+/.exec(src.slice(i))![0];
+      const close = src.indexOf(run, i + run.length);
+      const end = close === -1 ? i + run.length : close + run.length;
+      out += src.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (ch === '$' && src[i + 1] === '$') {
+      const close = src.indexOf('$$', i + 2);
+      if (close !== -1) {
+        out += place(src.slice(i + 2, close), true);
+        i = close + 2;
+        continue;
+      }
+    } else if (ch === '$') {
+      const next = src[i + 1];
+      if (next && !/[\s\d]/.test(next)) {
+        let j = i + 1;
+        for (; j < src.length; j++) {
+          const c = src[j];
+          if (c === '\n' && src[j + 1] === '\n') { j = -1; break; } // never span a blank line
+          if (c === '$' && src[j + 1] === '$') { j = -1; break; } // never cross a $$ display
+          if (c === '$' && !/\s/.test(src[j - 1]) && !/\d/.test(src[j + 1] ?? '')) break;
+        }
+        if (j > i && j < src.length) {
+          out += place(src.slice(i + 1, j), false);
+          i = j + 1;
+          continue;
+        }
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return { text: out, math };
 }
 
 /** Resolve `asset:`/`sha256:` refs to inline media by MIME, or a placeholder. */
@@ -104,21 +179,39 @@ function replaceWithFigure(img: HTMLImageElement, media: HTMLElement, alt: strin
   img.replaceWith(fig);
 }
 
-/** KaTeX, lazily. Auto-render walks text nodes and skips code/pre by default. */
-async function renderMath(el: HTMLElement): Promise<void> {
-  if (!(el.textContent ?? '').includes('$')) return; // cheap gate
+/** Fill each `<span data-math=i>` placeholder with KaTeX, lazily. A formula that
+ *  fails to parse keeps its raw `$…$` source with the KaTeX message as a tooltip
+ *  (and a console warning) instead of a silent red blob — so a bad formula is
+ *  visible *and* diagnosable, and the note never blanks. */
+async function renderMath(el: HTMLElement, math: MathSpan[]): Promise<void> {
+  if (math.length === 0) return; // exact gate — no formulas, no import
+  const hosts = Array.from(el.querySelectorAll<HTMLElement>('span[data-math]'));
+  if (hosts.length === 0) return;
+  const raw = (s: MathSpan) => (s.display ? `$$${s.tex}$$` : `$${s.tex}$`);
+  let mod: typeof import('katex');
   try {
-    const renderMathInElement = (await import('katex/dist/contrib/auto-render.js')).default;
+    mod = await import('katex');
     await import('katex/dist/katex.min.css');
-    renderMathInElement(el, {
-      delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '$', right: '$', display: false },
-      ],
-      throwOnError: false,
-    });
   } catch {
-    // KaTeX unavailable — leave the raw $…$ text untouched.
+    // KaTeX chunk unavailable — show the raw source rather than an empty span.
+    for (const host of hosts) {
+      const s = math[Number(host.dataset.math)];
+      if (s) host.textContent = raw(s);
+    }
+    return;
+  }
+  const katex = mod.default;
+  for (const host of hosts) {
+    const s = math[Number(host.dataset.math)];
+    if (!s) continue;
+    try {
+      host.innerHTML = katex.renderToString(s.tex, { displayMode: s.display, throwOnError: true });
+    } catch (e) {
+      host.className = 'math-error';
+      host.textContent = raw(s);
+      host.title = e instanceof Error ? e.message : String(e);
+      console.warn('KaTeX could not render:', raw(s), e);
+    }
   }
 }
 

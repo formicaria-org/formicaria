@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderInto, type ResolvedAsset } from './render';
+import { renderInto, extractMath, type ResolvedAsset } from './render';
 import { SAMPLE_BODY } from './mock';
 
 // The two heavy upgrades (KaTeX math, Mermaid diagrams) are lazily imported by
@@ -8,16 +8,18 @@ import { SAMPLE_BODY } from './mock';
 // that matter — the upgrade succeeds, or it fails and the note degrades to its
 // raw text. `vi.hoisted` builds the spies before the hoisted `vi.mock` factories
 // run, and lets the tests reach them without importing the untyped module paths.
-const { mermaidInit, mermaidRender, katexAutoRender } = vi.hoisted(() => ({
+const { mermaidInit, mermaidRender, katexRender } = vi.hoisted(() => ({
   mermaidInit: vi.fn(),
   mermaidRender: vi.fn(),
-  katexAutoRender: vi.fn(),
+  // render.ts fills each math placeholder with katex.renderToString; the spy
+  // returns a marker so tests can see the formula reached KaTeX.
+  katexRender: vi.fn((tex: string) => `<span class="katex">${tex}</span>`),
 }));
 
 vi.mock('mermaid', () => ({
   default: { initialize: mermaidInit, render: mermaidRender },
 }));
-vi.mock('katex/dist/contrib/auto-render.js', () => ({ default: katexAutoRender }));
+vi.mock('katex', () => ({ default: { renderToString: katexRender } }));
 // render.ts pulls the stylesheet in for its side effect; a no-op module is plenty.
 vi.mock('katex/dist/katex.min.css', () => ({}));
 
@@ -157,17 +159,33 @@ describe('renderInto — assets degrade gracefully', () => {
 });
 
 describe('renderInto — math and diagrams upgrade or fall back', () => {
-  it('invokes KaTeX when the body contains math', async () => {
+  it('renders each formula through KaTeX into its placeholder', async () => {
     const el = pane();
     await renderInto(el, 'Euler: $e^{i\\pi} + 1 = 0$ and $$a^2 + b^2 = c^2$$', noAsset);
-    expect(katexAutoRender).toHaveBeenCalledOnce();
-    expect(katexAutoRender.mock.calls[0][0]).toBe(el); // rendered against our pane
+    // One inline + one display formula → two KaTeX calls, display flag preserved.
+    expect(katexRender).toHaveBeenCalledTimes(2);
+    expect(katexRender).toHaveBeenCalledWith('e^{i\\pi} + 1 = 0', expect.objectContaining({ displayMode: false }));
+    expect(katexRender).toHaveBeenCalledWith('a^2 + b^2 = c^2', expect.objectContaining({ displayMode: true }));
+    // Placeholders are gone (filled), and no raw `$` leaks into the pane.
+    expect(el.querySelector('span[data-math]')?.innerHTML).toContain('katex');
   });
 
-  it('skips the KaTeX import entirely when there is no `$` (the cheap gate)', async () => {
+  it('skips the KaTeX import entirely when there is no math (the cheap gate)', async () => {
     const el = pane();
     await renderInto(el, 'no math here, just prose.', noAsset);
-    expect(katexAutoRender).not.toHaveBeenCalled();
+    expect(katexRender).not.toHaveBeenCalled();
+  });
+
+  it('keeps a broken formula visible with the error as a tooltip, not a blank pane', async () => {
+    katexRender.mockImplementationOnce(() => {
+      throw new Error("Undefined control sequence: \\nope");
+    });
+    const el = pane();
+    await renderInto(el, 'Bad: $$ \\nope{x} $$', noAsset);
+    const host = el.querySelector('span.math-error') as HTMLElement | null;
+    expect(host).not.toBeNull();
+    expect(host?.textContent).toBe('$$ \\nope{x} $$'); // raw source preserved
+    expect(host?.title).toContain('Undefined control sequence');
   });
 
   it('replaces a mermaid fence with an inline diagram when it parses', async () => {
@@ -195,7 +213,7 @@ describe('renderInto — characterization of the real sample note', () => {
     await expect(renderInto(el, SAMPLE_BODY, noAsset)).resolves.toBeUndefined();
     expect(el.querySelector('h1')?.textContent).toBe('GAE and inner-loop adaptation');
     expect(el.querySelectorAll('ul > li').length).toBeGreaterThan(0);
-    expect(katexAutoRender).toHaveBeenCalled(); // the $…$ / $$…$$ math
+    expect(katexRender).toHaveBeenCalled(); // the $…$ / $$…$$ math
     expect(mermaidRender).toHaveBeenCalled(); // the ```mermaid block
     expect(el.querySelector('.asset-missing-inline')).not.toBeNull(); // the asset: image
   });
@@ -209,5 +227,49 @@ describe('renderInto — characterization of the real sample note', () => {
     await renderInto(el, 'text <b>injected</b> and <img src="z" onerror="danger()">', noAsset);
     expect(el.querySelector('b')?.textContent).toBe('injected');
     expect(el.querySelector('img[onerror]')).not.toBeNull();
+  });
+});
+
+// The pure heart of the fix: math is lifted out of the Markdown *source* before
+// the parser runs, so a formula can never be mangled (underscores, backslashes)
+// and a stray `$` can't mis-pair the delimiters. These pin the tricky cases the
+// old auto-render-after-markdown path got wrong.
+describe('extractMath — pulls formulas out before Markdown, dodging its traps', () => {
+  const tex = (s: string) => extractMath(s).math.map((m) => `${m.display ? 'D' : 'I'}:${m.tex}`);
+
+  it('lifts display and inline math, leaving numbered placeholders', () => {
+    const { text, math } = extractMath('a $x_i$ b $$y_j$$ c');
+    expect(text).toBe('a <span data-math="0"></span> b <span data-math="1"></span> c');
+    expect(math).toEqual([
+      { tex: 'x_i', display: false },
+      { tex: 'y_j', display: true },
+    ]);
+  });
+
+  it('preserves subscripts and backslashes verbatim (Markdown would eat them)', () => {
+    expect(tex('$$ P(\\theta_t|u_t,m) $$')).toEqual(['D: P(\\theta_t|u_t,m) ']);
+  });
+
+  it('leaves a lone currency amount alone — `$` before a digit never opens math', () => {
+    expect(tex('It costs $5 today.')).toEqual([]);
+    expect(tex('From $5 to $10 is a range.')).toEqual([]);
+  });
+
+  it('renders the real math even when a stray `$` shares the line', () => {
+    expect(tex('costs $5 but $$E=mc^2$$ holds and $x$ too')).toEqual(['D:E=mc^2', 'I:x']);
+  });
+
+  it('never grabs a `$` inside code spans or fences', () => {
+    expect(tex('run `echo $PATH` then $$a$$')).toEqual(['D:a']);
+    expect(tex('```\n$not math$\n```\n$b$')).toEqual(['I:b']);
+  });
+
+  it('treats an escaped \\$ as a literal dollar, not a delimiter', () => {
+    expect(tex('a \\$5 and \\$6 literal')).toEqual([]);
+  });
+
+  it('does not let an unterminated `$` swallow the rest of the note', () => {
+    // No closing `$` on the line → left as literal text, zero formulas.
+    expect(extractMath('an $unterminated dollar\n\nnext para').math).toEqual([]);
   });
 });
