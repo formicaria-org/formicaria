@@ -29,20 +29,24 @@ pixi run app            # run the already-built release binary (what the icon do
 
 ## App-menu icon + Ubuntu dock (GNOME)
 
-The launcher ships its own icon (`formicarium.svg`, an ant — *formica*). Install
-the desktop entry, then pin it to the dock.
+The launcher ships its own icon (`formicarium.svg`, an ant — *formica*).
 
-1. Make the launcher executable (once):
+1. Install the desktop entry **and** the themed icon in one step:
    ```sh
-   chmod +x packaging/formicarium.sh
+   bash packaging/install.sh
    ```
-2. Install the desktop entry so it appears in **Activities → search**:
-   ```sh
-   cp packaging/formicarium.desktop ~/.local/share/applications/
-   update-desktop-database ~/.local/share/applications 2>/dev/null || true
-   ```
-   The `Exec=` and `Icon=` lines use absolute paths — if you move the repo, edit
-   them in the `.desktop` file first (both point at this `packaging/` folder).
+   This copies the icon into your icon theme *by name*
+   (`~/.local/share/icons/hicolor/scalable/apps/formicarium.svg`) and installs the
+   `.desktop` entry with `Icon=formicarium`. A **named, themed** icon is what GNOME
+   Shell resolves reliably — an absolute path to an SVG in `Icon=` often shows a
+   generic ("yellow") fallback instead. The `Exec=` line still uses an absolute
+   path, so edit it if you move the repo.
+2. **Refresh the shell so the new icon shows.** GNOME caches app icons in the
+   running shell:
+   - **Wayland** (Ubuntu's default): **log out and back in** — the shell can't
+     hot-reload.
+   - **X11:** press <kbd>Alt</kbd>+<kbd>F2</kbd>, type `r`, <kbd>Enter</kbd> (or
+     log out/in).
 3. **Pin it to the panel/dock:** press <kbd>Super</kbd>, type "formicarium",
    right-click the result → **Add to Favorites**. It now stays on the Ubuntu
    dock; click it to launch.
@@ -55,15 +59,29 @@ the desktop entry, then pin it to the dock.
      "${current%]*}, 'formicarium.desktop']"
    ```
 
-Clicking the icon runs `packaging/formicarium.sh` → runs the prebuilt release
-binary + opens the browser (no rebuild). The server keeps running in the
-background; stop it with `pkill -x fm-serve` when you're done.
+Clicking the icon runs `packaging/formicarium.sh`, which:
+- **first click** → starts the prebuilt release binary (no rebuild) and opens the
+  browser once it's up;
+- **click again while it's running** → detects the server and just opens a fresh
+  browser tab (it does *not* start a second server).
+
+**Closing the tab closes the app.** The page sends a heartbeat while it's open;
+when you close the tab the heartbeat stops and the server exits on its own a few
+seconds later — nothing keeps running in the background. (A page *reload* is
+covered by a short grace window, so refreshing doesn't kill it.) This
+auto-shutdown is on only for the launcher — `pixi run serve`/`serve-release` in a
+terminal stay up until Ctrl-C.
 
 ### Troubleshooting
 
-- **Generic/blank icon.** GNOME caches icons — log out/in, or (X11 only)
-  `killall -HUP gnome-shell`. Confirm the entry is valid with
+- **Generic/"yellow" icon.** GNOME resolves a *named, themed* icon reliably, not
+  an absolute path — run `bash packaging/install.sh` (installs the icon into the
+  hicolor theme as `Icon=formicarium`), then **log out and back in** (Wayland
+  can't hot-reload the shell). Confirm the entry is valid with
   `desktop-file-validate ~/.local/share/applications/formicarium.desktop`.
+- **Clicking again doesn't reopen it.** Fixed: the launcher now reopens a tab
+  against the running server. If it still misbehaves, an old server may be stuck —
+  `pkill -x fm-serve`, then click again.
 - **Launching from a Desktop copy** (not the app menu) needs the file marked
   trusted: `gio set ~/Desktop/formicarium.desktop metadata::trusted true` and
   `chmod +x` it.

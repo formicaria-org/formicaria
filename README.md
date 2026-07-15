@@ -44,7 +44,10 @@ rebuilding** (instant start). Config is via env: `FM_VAULT` (default `vault`),
 
 > The [`packaging/`](packaging/README.md) `.desktop` launcher runs `pixi run app`
 > — the **prebuilt release**, no rebuild, so a double-click is instant. It reflects
-> your last `pixi run build`; rebuild to update what the icon launches.
+> your last `pixi run build`; rebuild to update what the icon launches. **Closing
+> the tab quits the app** (the server auto-stops when the last tab's heartbeat
+> stops — enabled by `FM_AUTO_SHUTDOWN`, which the launcher sets; a plain `pixi run
+> serve` stays up until Ctrl-C).
 
 ## Documentation
 

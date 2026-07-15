@@ -75,3 +75,8 @@ export async function ingestFile(file: File): Promise<ObjectMeta> {
 // commit was made), and snapshot it to restic (repo + password from the env).
 export const commit = (message: string) => invoke<boolean>('commit', { message });
 export const backup = () => invoke<void>('backup');
+
+// Liveness heartbeat. When launched from the desktop icon the server auto-shuts
+// down once the tab stops pinging, so closing the tab closes the app. A no-op in
+// the dev/test mock backend.
+export const ping = () => invoke<void>('ping');

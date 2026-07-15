@@ -13,12 +13,20 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 struct AppState {
     store: Mutex<FileStore>,
     vault: PathBuf,
     dist: PathBuf,
+    /// When the last request arrived — the browser's heartbeat refreshes it, so
+    /// the auto-shutdown watchdog can tell an open tab from a closed one.
+    last_seen: Mutex<Instant>,
+    /// Set once the first request lands, so we grant a longer grace for a cold
+    /// browser to make contact before the idle timeout applies.
+    connected: AtomicBool,
 }
 
 fn main() {
@@ -31,6 +39,8 @@ fn main() {
         store: Mutex::new(store),
         vault: PathBuf::from(&vault),
         dist: PathBuf::from(&dist),
+        last_seen: Mutex::new(Instant::now()),
+        connected: AtomicBool::new(false),
     });
 
     if !state.dist.join("index.html").exists() {
@@ -49,9 +59,16 @@ fn main() {
     if std::env::var_os("FM_OPEN").is_some() {
         let url = format!("http://{addr}");
         std::thread::spawn(move || {
-            std::thread::sleep(std::time::Duration::from_millis(400));
+            std::thread::sleep(Duration::from_millis(400));
             let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
         });
+    }
+
+    // The launcher also sets FM_AUTO_SHUTDOWN so that closing the browser tab
+    // closes the app — no server left running in the background. `pixi run serve`
+    // does NOT set it, so the dev loop keeps the server up until Ctrl-C.
+    if std::env::var_os("FM_AUTO_SHUTDOWN").is_some() {
+        spawn_watchdog(Arc::clone(&state));
     }
 
     for stream in listener.incoming().flatten() {
@@ -64,6 +81,25 @@ fn main() {
     }
 }
 
+/// Auto-shutdown: exit the process when no browser tab is talking to us anymore.
+/// The UI sends a heartbeat (`POST /api/ping`) every few seconds; when the last
+/// tab closes the heartbeats stop and, after a short idle window, we quit — so
+/// closing the tab closes the app. The idle window is longer than a page reload
+/// (which briefly pauses the heartbeat), so a refresh doesn't kill the server.
+/// Before the very first request a longer grace covers a cold browser start.
+fn spawn_watchdog(state: Arc<AppState>) {
+    const IDLE: Duration = Duration::from_secs(10);
+    const STARTUP: Duration = Duration::from_secs(60);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(2));
+        let idle = state.last_seen.lock().map(|t| t.elapsed()).unwrap_or_default();
+        let limit = if state.connected.load(Ordering::Relaxed) { IDLE } else { STARTUP };
+        if idle > limit {
+            std::process::exit(0);
+        }
+    });
+}
+
 fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
 
@@ -74,6 +110,13 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let mut parts = request_line.split_whitespace();
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("/").to_string();
+
+    // Liveness for the auto-shutdown watchdog: any request (asset load, API call,
+    // or the heartbeat ping) means a tab is open right now.
+    if let Ok(mut t) = state.last_seen.lock() {
+        *t = Instant::now();
+    }
+    state.connected.store(true, Ordering::Relaxed);
 
     // Read headers; we only care about the body length.
     let mut content_length = 0usize;
@@ -160,6 +203,9 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             run_backup(state)?;
             Ok(Vec::new())
         }
+        // The browser heartbeat — the request itself already refreshed liveness
+        // in `handle`, so this only needs to answer 200 so the tab knows we're up.
+        "ping" => Ok(Vec::new()),
         // Binary upload: the raw request body IS the file; the name rides in the
         // query string (`/api/ingest?name=<urlencoded>`).
         "ingest" => {

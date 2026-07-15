@@ -15,6 +15,7 @@
     search as ipcSearch,
     commit,
     backup,
+    ping,
   } from './lib/ipc';
   import type { Board as BoardData, ObjectMeta } from './lib/types';
 
@@ -163,6 +164,18 @@
     void view;
     if (view === 'board') void groupBy;
     void refresh();
+  });
+
+  // Liveness heartbeat: while this tab is open, ping the server every few seconds
+  // so its auto-shutdown watchdog knows someone is here. When the tab closes the
+  // pings stop and the server exits — closing the tab closes the app, with no
+  // background process left over. Only in the served build (the mock has no
+  // server); a reload's brief gap stays under the server's idle window.
+  $effect(() => {
+    if (!import.meta.env.PROD) return;
+    void ping().catch(() => {});
+    const id = setInterval(() => void ping().catch(() => {}), 3000);
+    return () => clearInterval(id);
   });
 
   async function onCapture(e: Event) {

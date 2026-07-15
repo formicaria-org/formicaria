@@ -30,6 +30,14 @@ the `fm_app::commands` over `POST /api/<cmd>` (JSON, or raw bytes for
 There is **no native window** and no cloud/account. The browser is the product
 (see [decisions.md](./decisions.md) for why the Tauri window was removed).
 
+The **desktop icon** (`packaging/`) runs `pixi run app` — the prebuilt release
+binary, no rebuild, so it starts instantly and reflects your last `pixi run
+build`. The launcher sets `FM_OPEN` (open the browser) and `FM_AUTO_SHUTDOWN`
+(the UI heartbeats `POST /api/ping` every 3s; when the last tab closes, the
+server's watchdog exits after a ~10s idle window that still survives a reload).
+So **closing the tab closes the app** — no lingering daemon. A terminal `pixi run
+serve` sets neither, so it stays up until Ctrl-C.
+
 `ui/src/lib/ipc.ts` has two backends: `import.meta.env.PROD` → HTTP;
 otherwise the in-memory `mock.ts` (used by `pnpm dev` and Vitest).
 

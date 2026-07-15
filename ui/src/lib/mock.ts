@@ -205,6 +205,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { has_blob: false, has_thumb: false, mime: null } as T;
     case 'open_external':
       return undefined as T;
+    case 'ping':
+      return undefined as T;
     case 'commit':
       return false as T;
     case 'backup':
