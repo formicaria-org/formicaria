@@ -8,14 +8,20 @@
     ymd,
     dayOfMonth,
     addDays,
+    isoDate,
+    clampRangeToWeek,
+    assignLanes,
+    type Day,
   } from '../lib/calendar';
   import { urgency } from '../lib/urgency';
   import type { ObjectMeta } from '../lib/types';
 
   // A renderer over the same agenda cards (dated, open) the list view uses — a
-  // month or week grid instead of a list. `range` picks the granularity; a single
-  // cursor date drives both. Events are tinted by *derived* urgency, never a
-  // stored priority. No status literal appears here.
+  // month or week grid instead of a list. Each note is a *bar* from its creation
+  // day (start) to its due day (end), like a multi-day calendar event; a bar that
+  // crosses a week boundary is split into one flat-ended segment per week row.
+  // `range` picks the granularity; a single cursor date drives both. Bars are
+  // tinted by *derived* urgency, never a stored priority. No status literal here.
   let {
     cards,
     onopen,
@@ -32,18 +38,29 @@
   let weeks = $derived(range === 'week' ? [weekOf(cursor)] : monthGrid(year, month));
   let label = $derived(range === 'week' ? weekLabel(weekOf(cursor)) : monthLabel(year, month));
 
-  // Bucket cards onto their due day (YYYY-MM-DD).
-  let byDay = $derived.by(() => {
-    const m = new Map<string, ObjectMeta[]>();
+  interface BarSeg {
+    card: ObjectMeta;
+    startCol: number;
+    endCol: number;
+    continuesLeft: boolean;
+    continuesRight: boolean;
+  }
+
+  // Every dated card that touches this week, packed into non-overlapping lanes.
+  // Start = creation day, end = due day; a due that predates creation (shouldn't
+  // happen, but guard) collapses to a single day so the bar never runs backwards.
+  function barsForWeek(week: Day[]): (BarSeg & { lane: number })[] {
+    const segs: BarSeg[] = [];
     for (const c of cards) {
       if (!c.due) continue;
-      const key = c.due.slice(0, 10);
-      const arr = m.get(key);
-      if (arr) arr.push(c);
-      else m.set(key, [c]);
+      const end = c.due.slice(0, 10);
+      let start = c.created ? isoDate(c.created) : end;
+      if (start > end) start = end;
+      const span = clampRangeToWeek(start, end, week);
+      if (span) segs.push({ card: c, ...span });
     }
-    return m;
-  });
+    return assignLanes(segs);
+  }
 
   function prev() {
     cursor = range === 'week' ? addDays(cursor, -7) : ymd(new Date(year, month - 1, 1));
@@ -64,24 +81,35 @@
     <button class="jump" onclick={today}>Today</button>
   </header>
   <div class="grid" class:week={range === 'week'}>
-    {#each WEEKDAYS as wd (wd)}<span class="weekday">{wd}</span>{/each}
+    <div class="weekday-row">
+      {#each WEEKDAYS as wd (wd)}<span class="weekday">{wd}</span>{/each}
+    </div>
     {#each weeks as week, w (w)}
-      {#each week as day (day.date)}
-        <div class="cell" class:dim={!day.inMonth} class:is-today={day.date === todayIso}>
-          <span class="num">{dayOfMonth(day.date)}</span>
-          {#each byDay.get(day.date) ?? [] as card (card.id)}
+      <div class="week-row">
+        <div class="day-nums">
+          {#each week as day (day.date)}
+            <span class="num-cell" class:dim={!day.inMonth} class:is-today={day.date === todayIso}>
+              <span class="num">{dayOfMonth(day.date)}</span>
+            </span>
+          {/each}
+        </div>
+        <div class="bars">
+          {#each barsForWeek(week) as bar (bar.card.id)}
             <button
               class="event"
-              data-urgency={urgency(card.due)}
-              onclick={() => onopen(card.id)}
-              title={card.title ?? card.preview ?? ''}
+              class:cont-left={bar.continuesLeft}
+              class:cont-right={bar.continuesRight}
+              data-urgency={urgency(bar.card.due)}
+              style="grid-column: {bar.startCol + 1} / {bar.endCol + 2}; grid-row: {bar.lane + 1};"
+              onclick={() => onopen(bar.card.id)}
+              title={bar.card.title ?? bar.card.preview ?? ''}
             >
-              {#if card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
-              <span class="ev-title">{card.title ?? card.preview ?? card.id}</span>
+              {#if bar.card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
+              <span class="ev-title">{bar.card.title ?? bar.card.preview ?? bar.card.id}</span>
             </button>
           {/each}
         </div>
-      {/each}
+      </div>
     {/each}
   </div>
 </div>
@@ -125,21 +153,20 @@
   .grid {
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    grid-auto-rows: minmax(4.5rem, 1fr);
-    gap: 1px;
-    background: var(--column-border);
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
     border: 1px solid var(--column-border);
     border-radius: 8px;
     overflow: hidden;
   }
-  /* One tall row for the week view. */
-  .grid.week {
-    grid-auto-rows: minmax(0, 1fr);
+  .weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--column-bg);
+    border-bottom: 1px solid var(--column-border);
   }
   .weekday {
-    background: var(--column-bg);
     color: var(--muted);
     font-size: 0.7rem;
     text-transform: uppercase;
@@ -147,36 +174,61 @@
     padding: 0.3rem 0.4rem;
     text-align: center;
   }
-  .cell {
-    background: var(--panel);
-    padding: 0.25rem;
+  .week-row {
+    flex: 1;
+    min-height: 4.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    overflow-y: auto;
-    min-height: 0;
+    border-bottom: 1px solid var(--column-border);
+    overflow: hidden;
   }
-  .cell.dim {
-    background: var(--column-bg);
+  .week-row:last-child {
+    border-bottom: none;
   }
-  .cell.dim .num {
-    color: var(--muted);
-    opacity: 0.5;
+  .day-nums {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+  .num-cell {
+    padding: 0.2rem 0.35rem;
+    text-align: right;
+    border-right: 1px solid var(--column-border);
+  }
+  .num-cell:last-child {
+    border-right: none;
   }
   .num {
     font-size: 0.72rem;
     color: var(--muted);
-    align-self: flex-end;
   }
-  .cell.is-today .num {
+  .num-cell.dim .num {
+    opacity: 0.45;
+  }
+  .num-cell.is-today .num {
     color: var(--bg);
     background: var(--accent);
     border-radius: 999px;
-    width: 1.2rem;
-    height: 1.2rem;
-    display: grid;
-    place-items: center;
+    padding: 0.05rem 0.35rem;
     font-weight: 700;
+  }
+  /* Bars share the same 7 columns as the day numbers, so a span lines up under
+     the days it covers. Column guides run the full height behind the bars. */
+  .bars {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: 1.4rem;
+    row-gap: 2px;
+    padding-bottom: 0.25rem;
+    overflow-y: auto;
+    background: repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(100% / 7 - 1px),
+      var(--column-border) calc(100% / 7 - 1px),
+      var(--column-border) calc(100% / 7)
+    );
   }
   .event {
     display: flex;
@@ -189,12 +241,26 @@
     border: 1px solid var(--card-border);
     border-left: 3px solid var(--urgency, var(--muted));
     border-radius: 5px;
-    padding: 0.12rem 0.3rem;
+    padding: 0.05rem 0.35rem;
+    margin: 0 3px;
     color: var(--text);
-    width: 100%;
+    min-width: 0;
+    overflow: hidden;
   }
   .event:hover {
     border-color: var(--accent);
+  }
+  /* Flatten the edge where the bar runs off into an adjacent week. */
+  .event.cont-left {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left-width: 0;
+    margin-left: 0;
+  }
+  .event.cont-right {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    margin-right: 0;
   }
   .ev-title {
     font-size: 0.72rem;

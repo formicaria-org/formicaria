@@ -41,11 +41,9 @@ describe('the app, driven end to end as a user', () => {
     await fireEvent.submit(capture.closest('form')!);
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
-    // 3. Switch views: Agenda (due items), Gallery (assets), back to Board.
+    // 3. Switch views: Agenda (due items), back to Board.
     await fireEvent.click(screen.getByRole('button', { name: 'Agenda' }));
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Gallery' }));
-    expect(await screen.findByText(/figure_3_final\.pdf/)).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Board' }));
     await screen.findByText(/GAE lambda interacts badly/);
 

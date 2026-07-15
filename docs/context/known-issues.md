@@ -4,7 +4,7 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-15 (commit `e57793f`)._
+_Last verified: 2026-07-15 (uncommitted follow-ups on commit `067e80b`)._
 
 ## Known gaps / not fully working
 
@@ -18,7 +18,7 @@ _Last verified: 2026-07-15 (commit `e57793f`)._
   server). The `mtime_ns` column and an `Incremental` variant exist but are
   **unused**. O(n), fine now; gate an incremental path behind a perf-budget test
   before the vault reaches ~1–2k notes.
-- **No per-view object cache.** Board/Gallery/Agenda each YAML-parse the whole
+- **No per-view object cache.** Board/Agenda/Timeline each YAML-parse the whole
   corpus via `load_all` per request. Same scale caveat as above.
 - **Inline media buffers whole blobs into memory.** `resolve_asset` returns full
   bytes → a typed `Blob` object URL. Fine for local single-user. Planned
@@ -27,13 +27,16 @@ _Last verified: 2026-07-15 (commit `e57793f`)._
   range-request instead of buffering.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
+- **Board column order is client-side** (`localStorage['fm-board-order']`, keyed
+  by group-by) — a view preference, per-browser, **not** in the vault, so it
+  doesn't sync across machines. Intentional; the vault-side `.view` file would
+  change that (still deferred). Column DnD is mouse-only (like card DnD).
 
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
 - `.view` declarative config files (layer-2 extensibility; the renderers are
   hardcoded commands for now).
-- Gallery virtualization (only matters at scale).
 - Optional mlua scripting hatch.
 - **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
   posters, semantic search.

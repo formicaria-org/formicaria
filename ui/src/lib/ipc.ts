@@ -33,7 +33,6 @@ async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
 // Argument keys are camelCase; fm-serve maps them to the Rust snake_case params
 // (groupBy -> group_by). The single-word ones pass through unchanged.
 export const getBoard = (groupBy: string) => invoke<Board>('board', { groupBy });
-export const getGallery = () => invoke<ObjectMeta[]>('gallery');
 export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
 export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
 export const capture = (body: string) => invoke<ObjectMeta>('capture', { body });
@@ -41,6 +40,9 @@ export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
 export const updateBody = (id: string, body: string) =>
   invoke<void>('update_body', { id, body });
+// Destructive: unlink the note's file + index rows. Named `deleteNote` because
+// `delete` is a reserved word; the wire command is still `delete`.
+export const deleteNote = (id: string) => invoke<void>('delete', { id });
 export const search = (query: string) => invoke<ObjectMeta[]>('search', { query });
 export const recent = () => invoke<ObjectMeta[]>('recent');
 

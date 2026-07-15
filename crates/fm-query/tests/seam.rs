@@ -38,9 +38,9 @@ fn obj(
 
 fn fixtures() -> Vec<Object> {
     vec![
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA0", Kind::Task, Some("doing"), Some(date!(2026 - 07 - 20)), &["meta-rl"], "trust region clipping"),
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA1", Kind::Task, Some("todo"), Some(date!(2026 - 07 - 25)), &["meta-rl", "exploration"], "advantage estimator"),
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA2", Kind::Task, Some("done"), None, &["writing"], "draft intro section"),
+        obj("01ARZ3NDEKTSV4RRFFQ69G5FA0", Kind::Asset, Some("doing"), Some(date!(2026 - 07 - 20)), &["meta-rl"], "trust region clipping"),
+        obj("01ARZ3NDEKTSV4RRFFQ69G5FA1", Kind::Asset, Some("todo"), Some(date!(2026 - 07 - 25)), &["meta-rl", "exploration"], "advantage estimator"),
+        obj("01ARZ3NDEKTSV4RRFFQ69G5FA2", Kind::Asset, Some("done"), None, &["writing"], "draft intro section"),
         obj("01ARZ3NDEKTSV4RRFFQ69G5FA3", Kind::Note, None, None, &["meta-rl"], "idea about GAE lambda"),
     ]
 }
@@ -95,7 +95,7 @@ fn group_by_is_generic() {
     assert!(groups.iter().any(|g| g.label == "doing" && g.rows.len() == 1));
     assert!(groups.iter().any(|g| g.label == "(none)" && g.rows.len() == 1));
 
-    // Point the SAME engine at `type` and get a board of note/task — no special
+    // Point the SAME engine at `type` and get a board of note/asset — no special
     // casing, no `todo`/`doing`/`done` anywhere.
     let by_type = run(
         &Query { group_by: Some("type".into()), ..Default::default() },
@@ -103,7 +103,7 @@ fn group_by_is_generic() {
     );
     let groups = by_type.groups.expect("grouped");
     assert_eq!(groups.len(), 2);
-    assert!(groups.iter().any(|g| g.label == "task" && g.rows.len() == 3));
+    assert!(groups.iter().any(|g| g.label == "asset" && g.rows.len() == 3));
     assert!(groups.iter().any(|g| g.label == "note" && g.rows.len() == 1));
 }
 
@@ -130,14 +130,14 @@ fn agenda_is_a_query() {
 fn sort_desc_and_paginate() {
     let objs = fixtures();
     let q = Query {
-        filter: Filter::new().and(Predicate::Kind(vec![Kind::Task])),
+        filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
         sort: vec![SortKey { key: "status".into(), dir: Dir::Desc }],
         limit: Some(2),
         offset: 1,
         ..Default::default()
     };
     let r = run(&q, &objs);
-    assert_eq!(r.total, 3); // three tasks match
+    assert_eq!(r.total, 3); // three assets match
     assert_eq!(r.rows.len(), 2); // page of 2 after skipping 1
 }
 

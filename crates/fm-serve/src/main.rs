@@ -138,6 +138,10 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             commands::update_body(&mut *lock(state)?, &s("id"), &s("body")).map_err(err)?;
             Ok(Vec::new())
         }
+        "delete" => {
+            commands::delete(&mut *lock(state)?, &s("id")).map_err(err)?;
+            Ok(Vec::new())
+        }
         "asset_status" => json(commands::asset_status(&state.vault, &s("reference")).map_err(err)?),
         "resolve_asset" => {
             commands::resolve_asset_bytes(&state.vault, &s("reference"), &s("kind")).map_err(err)

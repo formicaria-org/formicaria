@@ -11,13 +11,13 @@ pub mod schema;
 /// at ids, never filenames — this is what kills the rename problem outright.
 pub type Id = Ulid;
 
-/// The deliberately-small set of object types. A `Task` is a `Note` with a
-/// `status` and optionally a `due`; resist adding types — add properties instead.
+/// The two object kinds. Everything the user writes is a `Note`; an `Asset` is a
+/// note that catalogs an ingested file (its blob + extracted text). There is no
+/// task/meeting distinction — differentiate notes with **tags**, not a type.
+/// Resist adding kinds — add properties instead.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub enum Kind {
     Note,
-    Task,
-    Meeting,
     Asset,
 }
 
@@ -25,8 +25,6 @@ impl Kind {
     pub fn as_str(&self) -> &'static str {
         match self {
             Kind::Note => "note",
-            Kind::Task => "task",
-            Kind::Meeting => "meeting",
             Kind::Asset => "asset",
         }
     }
@@ -34,14 +32,11 @@ impl Kind {
 
 impl std::str::FromStr for Kind {
     type Err = String;
+    /// Lenient by design: only `asset` is a distinct kind; every other value
+    /// (including legacy `task`/`meeting` frontmatter) collapses to `Note`, so
+    /// old vault notes migrate silently on load.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "note" => Ok(Kind::Note),
-            "task" => Ok(Kind::Task),
-            "meeting" => Ok(Kind::Meeting),
-            "asset" => Ok(Kind::Asset),
-            other => Err(format!("unknown kind: {other}")),
-        }
+        Ok(if s == "asset" { Kind::Asset } else { Kind::Note })
     }
 }
 

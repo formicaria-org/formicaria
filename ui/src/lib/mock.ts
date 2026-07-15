@@ -33,7 +33,7 @@ const notes: ObjectMeta[] = [
   makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'] }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
-  makeNote({ preview: 'Weekly sync notes', type: 'meeting', due: '2026-07-16' }),
+  makeNote({ preview: 'Weekly sync notes', due: '2026-07-16', tags: ['meeting'] }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
   makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
 ];
@@ -169,6 +169,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       bodyOverrides.set(id, String(args.body));
       const n = notes.find((x) => x.id === id);
       if (n) n.updated = new Date().toISOString();
+      return undefined as T;
+    }
+    case 'delete': {
+      const id = String(args.id);
+      const i = notes.findIndex((x) => x.id === id);
+      if (i >= 0) notes.splice(i, 1);
+      bodyOverrides.delete(id);
       return undefined as T;
     }
     case 'search': {

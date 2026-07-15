@@ -1,20 +1,25 @@
 <script lang="ts">
-  import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+  import {
+    draggable,
+    dropTargetForElements,
+  } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import Card from './Card.svelte';
   import type { Board } from '../lib/types';
 
-  let { board, onmove, onopen }: {
+  let { board, onmove, onreorder, onopen }: {
     board: Board;
     onmove: (id: string, value: string) => void;
+    /** Reposition a column (`fromValue`) before/after another (`toValue`). */
+    onreorder: (fromValue: string, toValue: string, before: boolean) => void;
     onopen: (id: string) => void;
   } = $props();
 
   let over = $state<string | null>(null);
 
   // Each column is a drop target. Its identity is the grouped property's value —
-  // an opaque string this renderer never inspects. On drop it hands the card id
-  // and that value to the parent, which calls set_property(id, groupBy, value).
-  // There is no reference here to any particular property or status name.
+  // an opaque string this renderer never inspects. A drop carries either a card
+  // id (move the card → parent calls set_property(id, groupBy, value)) or a
+  // columnValue (reorder the columns). No particular property/status name here.
   function column(node: HTMLElement, value: string) {
     let current = value;
     const cleanup = dropTargetForElements({
@@ -24,11 +29,35 @@
       onDragLeave: () => {
         if (over === current) over = null;
       },
-      onDrop: ({ source }) => {
+      onDrop: ({ source, location }) => {
         over = null;
         const id = source.data.id;
-        if (typeof id === 'string') onmove(id, current);
+        if (typeof id === 'string') {
+          onmove(id, current);
+          return;
+        }
+        // Column reorder: insert before/after this column based on which half of
+        // it the pointer is over (self-computed edge — no hitbox dependency).
+        const from = source.data.columnValue;
+        if (typeof from === 'string' && from !== current) {
+          const rect = node.getBoundingClientRect();
+          const before = location.current.input.clientX < rect.left + rect.width / 2;
+          onreorder(from, current, before);
+        }
       },
+    });
+    return {
+      update: (v: string) => (current = v),
+      destroy: cleanup,
+    };
+  }
+
+  // The column header is the drag handle for reordering the whole column.
+  function columnDrag(node: HTMLElement, value: string) {
+    let current = value;
+    const cleanup = draggable({
+      element: node,
+      getInitialData: () => ({ columnValue: current }),
     });
     return {
       update: (v: string) => (current = v),
@@ -40,7 +69,12 @@
 <div class="board">
   {#each board.columns as col (col.value)}
     <section class="column" class:over={over === col.value} use:column={col.value}>
-      <header class="column-head" data-value={col.value}>
+      <header
+        class="column-head"
+        data-value={col.value}
+        use:columnDrag={col.value}
+        title="Drag to reorder"
+      >
         <span class="column-label">{col.label}</span>
         <span class="count">{col.cards.length}</span>
       </header>
@@ -87,6 +121,11 @@
     border-bottom: 1px solid var(--column-border);
     font-weight: 600;
     font-size: 0.85rem;
+    cursor: grab;
+    user-select: none;
+  }
+  .column-head:active {
+    cursor: grabbing;
   }
   /* The label pill is colored by the value via a data attribute, so a theme can
      tint arbitrary enum values without this renderer knowing any of them. */

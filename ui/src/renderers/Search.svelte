@@ -2,8 +2,9 @@
   import type { ObjectMeta } from '../lib/types';
 
   // Results renderer for full-text search. The same ObjectMeta every other view
-  // receives; it paints a type chip, the title/preview, and tags, and opens the
-  // note on click. No status literal appears here (the CI grep forbids them in
+  // receives; it paints the title/preview and tags, an "asset" chip only when the
+  // hit is an ingested file (plain notes carry no redundant type label), and opens
+  // the note on click. No status literal appears here (the CI grep forbids them in
   // renderers) — it only reads generic card fields.
   let {
     cards,
@@ -14,16 +15,18 @@
 
 <div class="results">
   {#if !query.trim()}
-    <p class="empty">Search your notes, tasks, meetings, and ingested documents.</p>
+    <p class="empty">Search your notes and ingested documents.</p>
   {:else if cards.length === 0}
     <p class="empty">No matches for “{query}”.</p>
   {:else}
     <div class="list">
       {#each cards as card (card.id)}
         <button class="row" data-type={card.type} onclick={() => onopen(card.id)}>
-          <span class="type" data-type={card.type}>{card.type}</span>
           <span class="what">
-            <span class="title">{card.title ?? card.preview ?? card.id}</span>
+            <span class="title">
+              {#if card.type === 'asset'}<span class="type">asset</span>{/if}
+              {card.title ?? card.preview ?? card.id}
+            </span>
             {#if card.title && card.preview}<span class="preview">{card.preview}</span>{/if}
             {#if card.tags.length}
               <span class="tags">
@@ -52,10 +55,7 @@
     gap: 0.4rem;
   }
   .row {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: start;
-    gap: 0.7rem;
+    display: block;
     padding: 0.55rem 0.8rem;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
@@ -70,6 +70,7 @@
     border-color: var(--accent);
   }
   .type {
+    display: inline-block;
     font-size: 0.66rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -77,7 +78,8 @@
     border: 1px solid var(--card-border);
     border-radius: 999px;
     padding: 0.05rem 0.45rem;
-    margin-top: 0.1rem;
+    margin-right: 0.4rem;
+    vertical-align: middle;
   }
   .what {
     min-width: 0;

@@ -1,7 +1,7 @@
 //! S3: the board is a query + a generic renderer. These tests prove the whole
 //! thesis without a webview: group by *any* property; a drop writes the column's
 //! value back to disk exactly like `fm set`; and pointing the same code at
-//! `type` instead of `status` yields a board of note/task/asset (the
+//! `type` instead of `status` yields a board of note/asset (the
 //! falsifiability test the MASTERPLAN calls for). MemoryStore covers the logic;
 //! one FileStore test proves the write-back actually hits the file and survives
 //! a reindex.
@@ -34,15 +34,17 @@ fn board_groups_by_status_into_columns() {
 #[test]
 fn the_same_board_grouped_by_type_falsifies_the_thesis() {
     // If grouping is truly generic, pointing it at `type` needs zero new code.
+    // `type` now carries exactly two values — a plain note vs an ingested asset —
+    // and the same board code groups on it with no special casing.
     let mut s = MemoryStore::new();
     let _n = capture(&mut s, "a note").unwrap().id;
-    let t = capture(&mut s, "a task").unwrap().id;
-    set_property(&mut s, &t, "type", "task").unwrap();
+    let a = capture(&mut s, "an ingested file").unwrap().id;
+    set_property(&mut s, &a, "type", "asset").unwrap();
 
     let b = board(&s, "type").unwrap();
     let labels: HashSet<&str> = b.columns.iter().map(|c| c.label.as_str()).collect();
     assert!(labels.contains("note"), "got {labels:?}");
-    assert!(labels.contains("task"), "got {labels:?}");
+    assert!(labels.contains("asset"), "got {labels:?}");
 }
 
 #[test]

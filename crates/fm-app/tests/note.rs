@@ -4,7 +4,7 @@
 //! it never mutates the bytes), which is the frontend half of the byte
 //! round-trip invariant.
 
-use fm_app::commands::{capture, get, update_body};
+use fm_app::commands::{capture, delete, get, update_body};
 use fm_core::{FileStore, MemoryStore};
 use tempfile::tempdir;
 
@@ -50,4 +50,37 @@ fn edit_body_round_trips_byte_for_byte_through_disk() {
     let s2 = FileStore::open(dir.path()).unwrap();
     let note = get(&s2, &id).unwrap().unwrap();
     assert_eq!(note.body, tricky, "the edited body round-trips exactly");
+}
+
+#[test]
+fn delete_removes_the_note_file_and_survives_reopen() {
+    // Delete must unlink the .md and drop the index rows — and stay gone after a
+    // fresh open (which rebuilds the index from the files on disk).
+    let dir = tempdir().unwrap();
+    let id = {
+        let mut s = FileStore::open(dir.path()).unwrap();
+        let id = capture(&mut s, "doomed note").unwrap().id;
+        assert!(dir.path().join(format!("notes/{id}.md")).exists());
+        delete(&mut s, &id).unwrap();
+        assert!(get(&s, &id).unwrap().is_none(), "gone from the live store");
+        assert!(
+            !dir.path().join(format!("notes/{id}.md")).exists(),
+            "the .md file is unlinked"
+        );
+        id
+    };
+    let s2 = FileStore::open(dir.path()).unwrap();
+    assert!(get(&s2, &id).unwrap().is_none(), "still gone after reopen");
+}
+
+#[test]
+fn delete_is_an_error_for_a_missing_note() {
+    let mut s = MemoryStore::new();
+    assert!(delete(&mut s, "00000000000000000000000000").is_err());
+}
+
+#[test]
+fn delete_rejects_a_malformed_id() {
+    let mut s = MemoryStore::new();
+    assert!(delete(&mut s, "not-a-ulid").is_err());
 }

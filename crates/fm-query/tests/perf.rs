@@ -14,7 +14,7 @@ fn synth(n: usize) -> Vec<Object> {
     (0..n)
         .map(|i| Object {
             id: Id::from_parts((i as u64) + 1, i as u128),
-            kind: if i % 3 == 0 { Kind::Task } else { Kind::Note },
+            kind: if i % 3 == 0 { Kind::Asset } else { Kind::Note },
             title: None,
             status: Some(if i % 2 == 0 { "doing" } else { "done" }.to_string()),
             due: None,

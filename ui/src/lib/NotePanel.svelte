@@ -4,6 +4,7 @@
     getNote,
     updateBody,
     setProperty,
+    deleteNote,
     resolveAsset as ipcResolveAsset,
     assetStatus,
     openExternal,
@@ -32,19 +33,22 @@
   let note = $state<NoteDetail | null>(null);
   let content = $state<HTMLElement | undefined>(undefined);
   let error = $state<string | null>(null);
+  // Transient success line (e.g. after a drag-drop copy). Auto-clears.
+  let notice = $state<string | null>(null);
   let editing = $state(false);
   // Docked side-sheet by default; "Open wide" expands to a centered page (Craft/Notion).
   let wide = $state(false);
+  // Deleting is destructive + irreversible, so the button arms a confirm strip
+  // (a second, deliberate click) rather than firing on the first press.
+  let confirmingDelete = $state(false);
   let draft = $state('');
   let saved = $state(true);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Editable property fields, initialized from the note when it loads. Each maps
-  // to exactly what `apply_property` (via set_property) accepts — see the value
-  // formats in the plan: type is a fixed kind, due is YYYY-MM-DD, hard is a bool,
-  // tags are comma/space separated.
-  const KINDS = ['note', 'task', 'meeting', 'asset'];
-  let pType = $state('note');
+  // to exactly what `apply_property` (via set_property) accepts: due is
+  // YYYY-MM-DD, hard is a bool, tags are comma/space separated. There is no type
+  // field — notes are differentiated by tags, and `asset` is set only by ingest.
   let pTitle = $state('');
   let pStatus = $state('');
   let pDue = $state('');
@@ -98,7 +102,6 @@
         note = n;
         draft = n?.body ?? '';
         if (n) {
-          pType = n.type;
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';
           pDue = n.due ?? '';
@@ -161,8 +164,7 @@
   }
   function applyLocal(key: string, value: string) {
     if (!note) return;
-    if (key === 'type') note = { ...note, type: value };
-    else if (key === 'title') note = { ...note, title: value || null };
+    if (key === 'title') note = { ...note, title: value || null };
     else if (key === 'status') note = { ...note, status: value || null };
     else if (key === 'due') note = { ...note, due: value || null };
     else if (key === 'hard') note = { ...note, hard: value === 'true' };
@@ -173,6 +175,25 @@
   async function toggleEdit() {
     if (editing) await save(); // leaving edit mode flushes any pending change
     editing = !editing;
+  }
+
+  // Delete, confirmed. Removes the note file + index rows, then schedules the
+  // git auto-commit of the removal and closes the panel (which refreshes the view).
+  async function confirmDelete() {
+    if (!note) return;
+    try {
+      await deleteNote(note.id);
+      onsaved?.();
+      onclose();
+    } catch (e) {
+      error = String(e);
+      confirmingDelete = false;
+    }
+  }
+
+  function flashNotice(msg: string) {
+    notice = msg;
+    setTimeout(() => (notice = null), 3000);
   }
 
   // ---- Editor: caret insert, drag-drop ingest, and the slash-menu ----
@@ -209,12 +230,21 @@
     e.preventDefault();
     adding = true;
     error = null;
+    const copied: string[] = [];
     try {
       for (const f of files) {
         const meta = await ingestFile(f);
         await insertAtCaret(assetRef(meta) + '\n');
+        copied.push(meta.title ?? f.name);
       }
       onsaved?.();
+      // The bytes are copied into the vault's blob store; the original file on
+      // disk is untouched. Confirm that plainly, as the user asked.
+      flashNotice(
+        copied.length === 1
+          ? `Copied ${copied[0]} into the vault`
+          : `Copied ${copied.length} files into the vault`,
+      );
     } catch (err) {
       error = String(err);
     } finally {
@@ -292,7 +322,7 @@
   <button class="backdrop" aria-label="close note" onclick={onclose}></button>
   <article class="panel" class:wide>
     <header>
-      {#if note}<span class="type" data-type={note.type}>{note.type}</span>{/if}
+      {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
       <h2>{note?.title ?? 'note'}</h2>
       {#if note && note.type === 'asset' && note.assets.length}
         <button
@@ -306,24 +336,33 @@
         <button class="edit" onclick={toggleEdit}>
           {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
         </button>
+        <button class="edit danger" onclick={() => (confirmingDelete = true)} aria-label="delete note" title="Delete this note">
+          Delete
+        </button>
       {/if}
-      <button class="icon-toggle" onclick={() => (wide = !wide)} aria-pressed={wide} aria-label="open wide" title={wide ? 'Dock to the side' : 'Open wide'}>
-        {wide ? '⇥' : '⤢'}
+      <button class="icon-toggle" onclick={() => (wide = !wide)} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
+        {wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
     </header>
+    {#if confirmingDelete}
+      <div class="confirm" role="alertdialog" aria-label="confirm delete">
+        <span>Delete this note permanently? This can't be undone.</span>
+        <div class="confirm-actions">
+          <button class="edit" onclick={() => (confirmingDelete = false)}>Cancel</button>
+          <button class="edit danger solid" onclick={confirmDelete}>Delete</button>
+        </div>
+      </div>
+    {/if}
     {#if error}
       <p class="err">{error}</p>
+    {/if}
+    {#if notice}
+      <p class="note-notice">{notice}</p>
     {/if}
     {#if note}
       {#if editing}
         <div class="props">
-          <label class="field">
-            <span>Type</span>
-            <select aria-label="type" bind:value={pType} onchange={() => setProp('type', pType)}>
-              {#each KINDS as k (k)}<option value={k}>{k}</option>{/each}
-            </select>
-          </label>
           <label class="field">
             <span>Status</span>
             <input
@@ -423,10 +462,9 @@
     z-index: 50;
   }
   .overlay.wide {
-    justify-content: center;
-    align-items: flex-start;
-    padding: 4vh var(--space-4);
-    overflow-y: auto;
+    justify-content: stretch;
+    align-items: stretch;
+    padding: 0;
   }
   /* A full-area button behind the panel: clicking outside closes, with no
      stopPropagation and no listeners on non-interactive elements. */
@@ -461,13 +499,14 @@
       opacity: 1;
     }
   }
-  /* "Open wide": a centered page instead of a side dock. */
+  /* Full screen: the panel fills the viewport. The reading column below stays
+     capped at --measure and centered, so prose is still comfortable. */
   .panel.wide {
-    height: auto;
-    max-height: 92vh;
-    width: min(60rem, 100%);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    border: none;
+    border-radius: 0;
     animation-name: page-in;
   }
   @keyframes page-in {
@@ -518,6 +557,45 @@
   .edit:hover {
     border-color: var(--accent);
   }
+  /* Destructive actions: quiet danger tint on the outline, filled on the final
+     confirm button so the irreversible click is unmistakable. */
+  .edit.danger {
+    color: var(--danger-fg);
+  }
+  .edit.danger:hover {
+    border-color: var(--danger-fg);
+  }
+  .edit.danger.solid {
+    background: var(--danger-fg);
+    border-color: var(--danger-fg);
+    color: var(--danger-bg);
+    font-weight: 600;
+  }
+  /* The two-step delete confirmation strip. */
+  .confirm {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--border);
+  }
+  .confirm-actions {
+    display: flex;
+    gap: var(--space-2);
+    flex: none;
+  }
+  /* Transient success line (copied a file in), styled like App's .banner.notice. */
+  .note-notice {
+    margin: 0;
+    padding: var(--space-2) var(--space-4);
+    background: var(--ok-bg);
+    color: var(--ok-fg);
+    font-size: var(--text-sm);
+  }
   .icon-toggle {
     display: grid;
     place-items: center;
@@ -559,8 +637,7 @@
     align-self: end;
     padding-bottom: var(--space-1);
   }
-  .field input,
-  .field select {
+  .field input {
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);

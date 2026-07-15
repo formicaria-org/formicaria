@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn roundtrip_is_lossless_for_known_fields() {
-        let mut o = Object::new(Kind::Task, "trust region clipping\n\nmore body");
+        let mut o = Object::new(Kind::Note, "trust region clipping\n\nmore body");
         o.status = Some("doing".into());
         o.due = Some(time::macros::date!(2026 - 07 - 20));
         o.hard = true;
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn serialization_is_idempotent_byte_for_byte() {
-        let mut o = Object::new(Kind::Task, "line one\n---\nafter a fence line\ncafé ☕\n");
+        let mut o = Object::new(Kind::Note, "line one\n---\nafter a fence line\ncafé ☕\n");
         o.title = Some("Idempotence".into());
         o.status = Some("doing".into());
         o.due = Some(time::macros::date!(2026 - 07 - 20));

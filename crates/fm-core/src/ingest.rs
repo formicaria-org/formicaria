@@ -32,8 +32,12 @@ pub fn ingest_file(vault: &Path, src: &Path) -> Result<Ingested, StoreError> {
     let Stored { hash, deduped } = store.put_file(src)?;
     let blob = store.path_for(&hash);
 
-    // Sniff on the original bytes; magic-byte detection, never the extension.
-    let sniffed = infer::get_from_path(src).map_err(io)?.map(|t| t.mime_type().to_string());
+    // Sniff by content, never the extension. SVG (which infer misreads/misses)
+    // wins over the magic-byte guess; otherwise fall back to infer.
+    let sniffed = std::fs::read(src)
+        .ok()
+        .and_then(|b| sniff_svg(&b).map(str::to_string))
+        .or_else(|| infer::get_from_path(src).ok().flatten().map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
         // No known signature: call it text if it parsed as UTF-8, else opaque.
@@ -53,12 +57,29 @@ pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingest
     let Stored { hash, deduped } = store.put_bytes(bytes)?;
     let blob = store.path_for(&hash);
 
-    let sniffed = infer::get(bytes).map(|t| t.mime_type().to_string());
+    // SVG first: infer reports prologue SVGs as text/xml and prologue-less ones as
+    // None — but both must be image/svg+xml for an <img> to draw them.
+    let sniffed = sniff_svg(bytes)
+        .map(str::to_string)
+        .or_else(|| infer::get(bytes).map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
         if text.is_some() { "text/plain".into() } else { "application/octet-stream".into() }
     });
     Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
+}
+
+/// `infer` is magic-byte only, so it misses SVG — a prologue-less SVG signatures
+/// as nothing, and an `<?xml>`-prologue one signatures as `text/xml`. Either way
+/// an SVG *must* be served as `image/svg+xml` or an `<img>` refuses to draw it,
+/// so this head-check for an `<svg` root takes precedence over infer. Only SVG is
+/// special-cased; other signature-less formats stay `None` (link/plain text).
+fn sniff_svg(bytes: &[u8]) -> Option<&'static str> {
+    let head = &bytes[..bytes.len().min(1024)];
+    String::from_utf8_lossy(head)
+        .to_ascii_lowercase()
+        .contains("<svg")
+        .then_some("image/svg+xml")
 }
 
 fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
@@ -94,9 +115,19 @@ pub fn thumb_path(vault: &Path, hash: &str) -> PathBuf {
 
 /// Sniff a stored blob's MIME by magic bytes (never the extension) — what the
 /// read view uses to pick an inline element (image / PDF / video / audio).
-/// `infer` reads only the first ~8 KiB, so this is O(1) on any blob size. `None`
-/// for formats with no signature (plain text, SVG, CSV…), rendered as a link.
+/// `infer` reads only the first ~8 KiB, so this is O(1) on any blob size. Falls
+/// back to an SVG head-check (`infer` can't see XML text); still `None` for other
+/// signature-less formats (plain text, CSV…), which render as a link.
 pub fn sniff_mime(path: &Path) -> Option<String> {
+    // Read the head once; an SVG (infer misreads it as text/xml, or misses it) must
+    // win over the magic-byte guess so the read view serves image/svg+xml.
+    let mut head = [0u8; 1024];
+    let n = std::fs::File::open(path)
+        .and_then(|mut f| std::io::Read::read(&mut f, &mut head))
+        .unwrap_or(0);
+    if let Some(svg) = sniff_svg(&head[..n]) {
+        return Some(svg.to_string());
+    }
     infer::get_from_path(path).ok().flatten().map(|t| t.mime_type().to_string())
 }
 

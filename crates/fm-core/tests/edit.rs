@@ -15,7 +15,7 @@ fn set_property_is_written_to_disk_and_survives_reload() {
     let dir = tempdir().unwrap();
     let id = {
         let mut s = FileStore::open(dir.path()).unwrap();
-        let mut o = Object::new(Kind::Task, "ship S2");
+        let mut o = Object::new(Kind::Note, "ship S2");
         let id = o.id;
         s.put(&o).unwrap();
 

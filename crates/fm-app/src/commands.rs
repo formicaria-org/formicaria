@@ -12,7 +12,7 @@ use time::OffsetDateTime;
 
 /// Group every note by `group_by` into board columns, newest card first. The
 /// property is opaque: pass `"status"` for a status board, `"type"` to falsify
-/// the thesis (a board of note/task/asset), or any custom key — no code changes.
+/// the thesis (a board of note/asset), or any custom key — no code changes.
 pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
     let q = Query {
         group_by: Some(group_by.to_string()),
@@ -104,6 +104,15 @@ pub fn update_body(store: &mut dyn Store, id: &str, body: &str) -> Result<(), St
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;
     Ok(())
+}
+
+/// Delete a note: remove its Markdown file and drop it from the index. The
+/// destructive counterpart of `capture` — `Store::delete` already unlinks the
+/// `.md` and both index rows, and returns `NotFound` for an unknown id, so this
+/// is a thin, id-parsing wrapper (the UI gates it behind a second confirmation).
+pub fn delete(store: &mut dyn Store, id: &str) -> Result<(), StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    store.delete(id)
 }
 
 /// Set one property and write it back to disk (bumping `updated`). This is the

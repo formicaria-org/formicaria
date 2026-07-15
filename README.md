@@ -15,6 +15,35 @@ FM_OPEN=1 pixi run serve
 
 A double-click launcher for Linux is in [`packaging/`](packaging/README.md).
 
+## Build & run (debug vs release)
+
+The app is a production UI bundle (`ui/dist`) plus the `fm-serve` binary. There's
+no separate "install" — you run the binary from the repo root and it serves the
+bundle and your vault.
+
+```sh
+# Run it (builds + serves in one step):
+pixi run serve            # DEBUG build — fast to compile, unoptimized runtime (dev loop)
+pixi run serve-release    # RELEASE build — optimized (~3 MB, faster); what you'd use daily
+
+# Or just build the artifacts, without running:
+pixi run build            # → target/release/fm-serve  (stripped + thin-LTO)  + ui/dist
+pixi run build-debug      # → target/debug/fm-serve    (full debuginfo)       + ui/dist
+
+# Then run a pre-built binary yourself (from the repo root, so it finds ui/dist):
+FM_OPEN=1 ./target/release/fm-serve      # optimized, opens the browser
+./target/debug/fm-serve                  # debug, prints the URL to open
+```
+
+`serve`/`serve-release` rebuild the UI every run; `build`/`build-debug` stop at the
+compiled artifacts so you can package or wire them into a launcher. Config is via
+env: `FM_VAULT` (default `vault`), `FM_UI_DIST` (default `ui/dist`), `FM_ADDR`
+(default `127.0.0.1:8765`), `FM_OPEN` (set → open the browser). The release
+profile lives in [`Cargo.toml`](Cargo.toml) (`[profile.release]`).
+
+> The [`packaging/`](packaging/README.md) `.desktop` launcher runs `pixi run
+> serve` (debug) by default; point it at `serve-release` for the optimized build.
+
 ## Documentation
 
 The full manual (user + developer guide, including **how to add a feature**) is

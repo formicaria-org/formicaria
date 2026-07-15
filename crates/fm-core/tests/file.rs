@@ -7,10 +7,10 @@ use fm_query::{Filter, Predicate, Query, SortKey};
 use tempfile::tempdir;
 
 fn seed(store: &mut dyn Store) {
-    let mut a = Object::new(Kind::Task, "trust region clipping");
+    let mut a = Object::new(Kind::Note, "trust region clipping");
     a.status = Some("doing".into());
     a.tags = vec!["meta-rl".into()];
-    let mut b = Object::new(Kind::Task, "advantage estimator");
+    let mut b = Object::new(Kind::Note, "advantage estimator");
     b.status = Some("done".into());
     let c = Object::new(Kind::Note, "idea about GAE lambda");
     store.put(&a).unwrap();

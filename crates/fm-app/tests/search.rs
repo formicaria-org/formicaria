@@ -31,7 +31,7 @@ fn recent_returns_every_note_newest_created_first() {
     // Distinct created timestamps so the ordering is unambiguous.
     let mut older = Object::new(Kind::Note, "older note");
     older.created = OffsetDateTime::from_unix_timestamp(1_600_000_000).unwrap();
-    let mut newer = Object::new(Kind::Task, "newer task");
+    let mut newer = Object::new(Kind::Note, "newer note");
     newer.created = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
     store.put(&older).unwrap();
     store.put(&newer).unwrap();

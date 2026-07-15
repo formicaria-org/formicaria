@@ -100,6 +100,25 @@ fn put_bytes_dedups_and_ingest_bytes_sniffs_mime() {
     );
 }
 
+#[test]
+fn svg_is_sniffed_as_image_even_though_infer_misses_it() {
+    // SVG is XML text with no magic bytes, so `infer` returns None — but the read
+    // view must get `image/svg+xml` or an <img> won't draw it. Both the ingest
+    // path and the stored-blob sniff must agree.
+    let dir = tempdir().unwrap();
+    let store = BlobStore::new(dir.path());
+    let svg = br#"<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>"#;
+
+    let ing = fm_core::ingest::ingest_bytes(dir.path(), "logo.svg", svg).unwrap();
+    assert_eq!(ing.mime, "image/svg+xml", "ingest sniffs SVG by its <svg> head");
+
+    assert_eq!(
+        fm_core::ingest::sniff_mime(&store.path_for(&ing.hash)).as_deref(),
+        Some("image/svg+xml"),
+        "asset_status re-sniffs the stored blob as SVG too"
+    );
+}
+
 fn walk_count(dir: &std::path::Path) -> usize {
     let mut n = 0;
     if let Ok(entries) = fs::read_dir(dir) {

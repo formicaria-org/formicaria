@@ -39,6 +39,19 @@ test = "cargo test --workspace"
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
 # env, no webkit: `pixi run serve`, then open http://127.0.0.1:8765.
 serve = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve"
+# Same, but the RELEASE build (the [profile.release] in Cargo.toml: stripped +
+# thin-LTO, ~3 MB, faster runtime). Slower to compile; what you'd run daily.
+serve-release = "pnpm -C ui install && pnpm -C ui build && cargo run --release -p fm-serve"
+# Produce the shippable artifacts WITHOUT running them: the optimized binary at
+# `target/release/fm-serve` plus the production UI bundle at `ui/dist`. The two
+# together ARE the app — run the binary from the repo root (it defaults
+# FM_UI_DIST to ui/dist), or point FM_UI_DIST elsewhere. This is what you
+# distribute or wire the .desktop launcher to.
+build = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve"
+# The debug counterpart: an unoptimized binary with full debuginfo at
+# `target/debug/fm-serve` (fast to compile, large + slow) for stepping through
+# the server. Pairs with the same `ui/dist`.
+build-debug = "pnpm -C ui install && pnpm -C ui build && cargo build -p fm-serve"
 test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget

@@ -83,6 +83,64 @@ export function weekLabel(days: Day[]): string {
   return `${a} – ${b}`;
 }
 
+/** Normalize a timestamp to a local calendar date (YYYY-MM-DD). A full RFC3339
+ *  datetime (the `created` field) is parsed through `Date` so it lands on the
+ *  viewer's local day; a value that is *already* a bare date is returned as-is,
+ *  never round-tripped through `Date` (which would read it as UTC midnight and
+ *  can shift it a day west of UTC). */
+export function isoDate(stamp: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(stamp)) return stamp;
+  return ymd(new Date(stamp));
+}
+
+/** Where a bar sits within one Monday–Sunday week, in 0-based columns. `null`
+ *  when the `[start, end]` day range (inclusive, `start <= end`) doesn't touch
+ *  this week at all. `continuesLeft/Right` mark a bar that runs off the row into
+ *  an adjacent week, so the renderer can flatten that end instead of rounding it.
+ *  ISO date strings compare lexicographically, so no Date math is needed. */
+export interface WeekSpan {
+  startCol: number;
+  endCol: number;
+  continuesLeft: boolean;
+  continuesRight: boolean;
+}
+
+export function clampRangeToWeek(start: string, end: string, week: Day[]): WeekSpan | null {
+  if (week.length === 0) return null;
+  const weekStart = week[0].date;
+  const weekEnd = week[week.length - 1].date;
+  if (end < weekStart || start > weekEnd) return null; // disjoint from this row
+  const clampedStart = start < weekStart ? weekStart : start;
+  const clampedEnd = end > weekEnd ? weekEnd : end;
+  return {
+    startCol: week.findIndex((d) => d.date === clampedStart),
+    endCol: week.findIndex((d) => d.date === clampedEnd),
+    continuesLeft: start < weekStart,
+    continuesRight: end > weekEnd,
+  };
+}
+
+/** Greedy lane packing: give each segment the lowest lane (row) in which it
+ *  doesn't overlap an already-placed segment's columns, so overlapping bars in a
+ *  week stack instead of colliding. Segments are returned sorted by start column
+ *  (then end), each annotated with its `lane`. */
+export function assignLanes<T extends { startCol: number; endCol: number }>(
+  segments: T[],
+): (T & { lane: number })[] {
+  const laneEnds: number[] = []; // the last occupied endCol in each lane
+  const sorted = [...segments].sort((a, b) => a.startCol - b.startCol || a.endCol - b.endCol);
+  return sorted.map((seg) => {
+    let lane = laneEnds.findIndex((end) => end < seg.startCol);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(seg.endCol);
+    } else {
+      laneEnds[lane] = seg.endCol;
+    }
+    return { ...seg, lane };
+  });
+}
+
 /** A journal day heading relative to today: "Today" / "Yesterday" / "Mon 14 Jul
  *  2026". Used to group the timeline. */
 export function dayHeading(dateIso: string): string {

@@ -1,14 +1,13 @@
 <script lang="ts">
   import Board from './renderers/Board.svelte';
-  import Gallery from './renderers/Gallery.svelte';
   import Agenda from './renderers/Agenda.svelte';
   import Calendar from './renderers/Calendar.svelte';
   import Timeline from './renderers/Timeline.svelte';
   import Search from './renderers/Search.svelte';
   import Icon from './lib/Icon.svelte';
+  import { orderColumns, moveValue } from './lib/boardOrder';
   import {
     getBoard,
-    getGallery,
     getAgenda,
     recent,
     capture,
@@ -19,11 +18,10 @@
   } from './lib/ipc';
   import type { Board as BoardData, ObjectMeta } from './lib/types';
 
-  type View = 'board' | 'agenda' | 'timeline' | 'gallery' | 'search';
+  type View = 'board' | 'agenda' | 'timeline' | 'search';
   let view = $state<View>('board');
   let groupBy = $state('status');
   let agendaMode = $state<'month' | 'week' | 'list'>('month');
-  let newType = $state('note');
   let board = $state<BoardData | null>(null);
   let cards = $state<ObjectMeta[] | null>(null);
   let results = $state<ObjectMeta[]>([]);
@@ -47,6 +45,33 @@
     localStorage.setItem('fm-theme', theme);
   }
 
+  // User-chosen column order, per group-by, persisted client-side (like the
+  // theme). A view preference, not note data — so it lives in localStorage, not
+  // the vault. Reconciled against live columns by orderColumns (new columns
+  // appear, deleted ones are ignored).
+  function loadOrders(): Record<string, string[]> {
+    try {
+      return JSON.parse(localStorage.getItem('fm-board-order') ?? '{}');
+    } catch {
+      return {};
+    }
+  }
+  let orders = $state<Record<string, string[]>>(loadOrders());
+  // The board with columns arranged by the saved order for the current grouping.
+  let displayBoard = $derived(
+    board ? { ...board, columns: orderColumns(board.columns, orders[groupBy] ?? []) } : null,
+  );
+  function onReorder(fromValue: string, toValue: string, before: boolean) {
+    if (!board) return;
+    const current = orderColumns(board.columns, orders[groupBy] ?? []).map((c) => c.value);
+    orders = { ...orders, [groupBy]: moveValue(current, fromValue, toValue, before) };
+    try {
+      localStorage.setItem('fm-board-order', JSON.stringify(orders));
+    } catch {
+      /* private mode / quota — order just won't persist */
+    }
+  }
+
   let railCollapsed = $state(false);
   let paletteOpen = $state(false);
   let captureEl = $state<HTMLInputElement | undefined>(undefined);
@@ -54,7 +79,6 @@
     board: 'Board',
     agenda: 'Agenda',
     timeline: 'Timeline',
-    gallery: 'Gallery',
     search: 'Search',
   };
   let viewTitle = $derived(VIEW_TITLES[view]);
@@ -64,7 +88,6 @@
     { label: 'Go to Board', run: () => (view = 'board') },
     { label: 'Go to Agenda', run: () => (view = 'agenda') },
     { label: 'Go to Timeline', run: () => (view = 'timeline') },
-    { label: 'Go to Gallery', run: () => (view = 'gallery') },
     { label: 'Search notes', run: () => (view = 'search') },
     { label: 'New note', run: onNew },
     { label: 'Capture a note', run: () => captureEl?.focus() },
@@ -72,7 +95,7 @@
     { label: 'Back up the vault', run: onBackup },
   ]);
 
-  // Keyboard map: ⌘K palette · ⌘\ toggle rail · 1–5 views · / search · c capture · Esc close.
+  // Keyboard map: ⌘K palette · ⌘\ toggle rail · 1–4 views · / search · c capture · Esc close.
   function onGlobalKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'k') {
@@ -92,14 +115,14 @@
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
     if (openId) return; // the note panel owns keys while open
-    const views: View[] = ['board', 'agenda', 'timeline', 'gallery', 'search'];
+    const views: View[] = ['board', 'agenda', 'timeline', 'search'];
     if (e.key === '/') {
       e.preventDefault();
       view = 'search';
     } else if (e.key === 'c') {
       e.preventDefault();
       captureEl?.focus();
-    } else if (e.key >= '1' && e.key <= '5') {
+    } else if (e.key >= '1' && e.key <= '4') {
       view = views[Number(e.key) - 1];
     }
   }
@@ -121,9 +144,6 @@
       if (view === 'board') {
         board = await getBoard(groupBy);
         learnStatuses(board.columns.flatMap((c) => c.cards));
-      } else if (view === 'gallery') {
-        cards = await getGallery();
-        learnStatuses(cards);
       } else if (view === 'timeline') {
         cards = await recent();
         learnStatuses(cards);
@@ -151,8 +171,7 @@
     if (!body) return;
     draft = '';
     try {
-      const meta = await capture(body);
-      if (newType !== 'note') await setProperty(meta.id, 'type', newType);
+      await capture(body);
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -160,12 +179,11 @@
     }
   }
 
-  // "New note": create a blank note of the chosen type and open it straight in
-  // the editor (properties form + empty body), Obsidian/Notion style.
+  // "New note": create a blank note and open it straight in the editor (property
+  // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
   async function onNew() {
     try {
       const meta = await capture('');
-      if (newType !== 'note') await setProperty(meta.id, 'type', newType);
       startEditing = true;
       openId = meta.id;
       await refresh();
@@ -255,13 +273,8 @@
       <!-- svelte-ignore a11y_autofocus -->
       <input bind:this={captureEl} placeholder="Capture a note…" bind:value={draft} autofocus />
       <div class="composer-row">
-        <select class="newtype" bind:value={newType} aria-label="new note type" title="new note type">
-          <option value="note">note</option>
-          <option value="task">task</option>
-          <option value="meeting">meeting</option>
-        </select>
         <button type="button" class="new-btn" onclick={onNew} title="Create a note and open the editor">
-          <Icon name="plus" size={15} /> <span class="label">New</span>
+          <Icon name="plus" size={15} /> <span class="label">New note</span>
         </button>
       </div>
     </form>
@@ -284,11 +297,6 @@
       <li>
         <button class="nav-item" class:active={view === 'timeline'} aria-current={view === 'timeline' ? 'page' : undefined} onclick={() => (view = 'timeline')}>
           <Icon name="timeline" /> <span class="label">Timeline</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item" class:active={view === 'gallery'} aria-current={view === 'gallery' ? 'page' : undefined} onclick={() => (view = 'gallery')}>
-          <Icon name="gallery" /> <span class="label">Gallery</span>
         </button>
       </li>
     </ul>
@@ -316,7 +324,6 @@
             <input list="props" bind:value={groupBy} spellcheck="false" />
             <datalist id="props">
               <option value="status"></option>
-              <option value="type"></option>
               <option value="project"></option>
               <option value="tags"></option>
             </datalist>
@@ -346,8 +353,8 @@
 
     <div class="stage">
       {#if view === 'board'}
-        {#if board}
-          <Board {board} onmove={onMove} onopen={openNote} />
+        {#if displayBoard}
+          <Board board={displayBoard} onmove={onMove} onreorder={onReorder} onopen={openNote} />
         {:else}
           <p class="empty">Loading…</p>
         {/if}
@@ -355,8 +362,6 @@
         <Search cards={results} query={searchQuery} onopen={openNote} />
       {:else if !cards}
         <p class="empty">Loading…</p>
-      {:else if view === 'gallery'}
-        <Gallery {cards} onopen={openNote} />
       {:else if view === 'timeline'}
         <Timeline {cards} onopen={openNote} />
       {:else if agendaMode === 'list'}
@@ -450,22 +455,13 @@
     display: flex;
     gap: var(--space-2);
   }
-  .newtype {
-    flex: 1;
-    min-width: 0;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: var(--text-xs);
-    cursor: pointer;
-  }
   .new-btn {
+    flex: 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: var(--space-1);
-    padding: var(--space-1) var(--space-3);
+    padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
     background: var(--accent);

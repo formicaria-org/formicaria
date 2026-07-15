@@ -11,7 +11,7 @@ use time::macros::datetime;
 fn note(id: &str, status: &str, body: &str) -> Object {
     Object {
         id: id.parse::<Id>().expect("valid ULID"),
-        kind: Kind::Task,
+        kind: Kind::Note,
         title: None,
         status: Some(status.to_string()),
         due: None,

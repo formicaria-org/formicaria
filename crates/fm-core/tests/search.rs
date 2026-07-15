@@ -49,10 +49,10 @@ fn search_composes_with_structured_predicates() {
     let dir = tempdir().unwrap();
     let mut s = FileStore::open(dir.path()).unwrap();
 
-    let mut task = Object::new(Kind::Task, "review the gradient paper");
-    task.status = Some("doing".into());
+    let mut asset = Object::new(Kind::Asset, "review the gradient paper");
+    asset.status = Some("doing".into());
     let note = Object::new(Kind::Note, "gradient descent notes");
-    s.put(&task).unwrap();
+    s.put(&asset).unwrap();
     s.put(&note).unwrap();
 
     // FTS narrows to both 'gradient' hits; the pure engine then applies Kind —
@@ -60,12 +60,12 @@ fn search_composes_with_structured_predicates() {
     let q = Query {
         filter: Filter::new()
             .and(Predicate::Text("gradient".into()))
-            .and(Predicate::Kind(vec![Kind::Task])),
+            .and(Predicate::Kind(vec![Kind::Asset])),
         ..Default::default()
     };
     let r = s.query(&q).unwrap();
     assert_eq!(r.total, 1);
-    assert_eq!(r.rows[0].id, task.id);
+    assert_eq!(r.rows[0].id, asset.id);
 }
 
 #[test]

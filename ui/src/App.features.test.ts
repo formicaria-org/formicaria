@@ -1,11 +1,11 @@
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 
-// Covers the v2 additions on top of App.flow.test.ts: creating a note with a
-// chosen type, editing its properties from the note panel (round-tripped through
-// the mock backend), and the day-grouped Timeline view. Same hermetic setup as
-// the flow test — jsdom + the in-memory mock, with the heavy lazy upgrades stubbed.
+// Covers the v2 additions on top of App.flow.test.ts: editing a note's
+// properties from the panel (round-tripped through the mock backend), the
+// day-grouped Timeline view, and delete-with-confirm. Same hermetic setup as the
+// flow test — jsdom + the in-memory mock, with the heavy lazy upgrades stubbed.
 const { mermaidInit, mermaidRender, katexAutoRender } = vi.hoisted(() => ({
   mermaidInit: vi.fn(),
   mermaidRender: vi.fn(),
@@ -19,40 +19,28 @@ beforeEach(() => {
   mermaidRender.mockResolvedValue({ svg: '<svg data-mock-mermaid="1"></svg>' });
 });
 
-describe('v2: create-with-type, property editing, timeline', () => {
-  it('captures a note as a meeting and the panel shows the meeting label', async () => {
-    render(App);
-    await screen.findByText(/GAE lambda interacts badly/);
-
-    // Choose the type in the capture bar, then capture.
-    await fireEvent.change(screen.getByLabelText('new note type'), { target: { value: 'meeting' } });
-    const capture = screen.getByPlaceholderText(/Capture a note/);
-    await fireEvent.input(capture, { target: { value: 'sync with the lab' } });
-    await fireEvent.submit(capture.closest('form')!);
-
-    // Open it and enter edit mode; the Type field reflects the meeting label
-    // (create → set_property type → get all round-tripped through the mock).
-    await fireEvent.click(await screen.findByText('sync with the lab'));
-    await fireEvent.click(await screen.findByText('Edit'));
-    const typeField = (await screen.findByLabelText('type')) as HTMLSelectElement;
-    expect(typeField.value).toBe('meeting');
-  });
-
+describe('v2: property editing, timeline, delete', () => {
   it('edits a property in the panel and it persists on reopen', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
 
-    // Open the GAE note, edit, change its type to task (an immediate write).
+    // Open the GAE note, edit, set a due date (an immediate write — the `due`
+    // field is not debounced). Notes carry no user-settable type anymore; tags
+    // differentiate them, so the round-trip is proven on a plain property.
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
     await fireEvent.click(await screen.findByText('Edit'));
-    await fireEvent.change(await screen.findByLabelText('type'), { target: { value: 'task' } });
+    // A date input syncs `bind:value` on `input` and writes on `change`; a real
+    // date-picker fires both, so simulate both (change alone would write '').
+    const dueField = await screen.findByLabelText('due');
+    await fireEvent.input(dueField, { target: { value: '2026-08-01' } });
+    await fireEvent.change(dueField, { target: { value: '2026-08-01' } });
 
     // Close the panel, then reopen the same note — the change survived the round trip.
     await fireEvent.click(screen.getByLabelText('close note'));
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await fireEvent.click(await screen.findByText('Edit'));
-    const reopened = (await screen.findByLabelText('type')) as HTMLSelectElement;
-    expect(reopened.value).toBe('task');
+    const reopened = (await screen.findByLabelText('due')) as HTMLInputElement;
+    expect(reopened.value).toBe('2026-08-01');
   });
 
   it('shows notes grouped by day in the Timeline view', async () => {
@@ -63,5 +51,26 @@ describe('v2: create-with-type, property editing, timeline', () => {
     // The seeded mock notes are created "now", so they land under Today.
     expect(await screen.findByText('Today')).toBeTruthy();
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
+  });
+
+  it('deletes a note only after the second confirmation', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+
+    // Capture a throwaway note and open it (avoids mutating the shared seed).
+    const capture = screen.getByPlaceholderText(/Capture a note/);
+    await fireEvent.input(capture, { target: { value: 'delete me please' } });
+    await fireEvent.submit(capture.closest('form')!);
+    await fireEvent.click(await screen.findByText('delete me please'));
+
+    // First click only arms the confirmation — the note is still there.
+    await fireEvent.click(await screen.findByLabelText('delete note'));
+    await screen.findByText(/permanently/i);
+    expect(screen.queryByText('delete me please')).not.toBeNull();
+
+    // The confirm button's accessible name is "Delete" (the header button uses
+    // the aria-label "delete note"), so this targets the second, final click.
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByText('delete me please')).toBeNull());
   });
 });
