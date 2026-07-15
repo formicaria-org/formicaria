@@ -30,6 +30,28 @@ describe('urgency', () => {
   it.each(cases)('classifies %s as %s', (due, expected) => {
     expect(urgency(due)).toBe(expected);
   });
+
+  // Regression: `daysUntil` used to build `${due}T00:00:00` by concatenation, so
+  // a timed due produced `2026-07-16T14:30T00:00:00` -> NaN -> 'none'. The note
+  // then dropped out of every agenda band silently. Bands are day-granular, so a
+  // timed stamp must classify exactly like its bare day.
+  const timed: Array<[string, string]> = [
+    ['2026-07-10T09:00', 'overdue'],
+    ['2026-07-14T23:59', 'soon'],
+    ['2026-07-16T14:30', 'soon'],
+    ['2026-07-21T08:00', 'week'],
+    ['2026-07-25T18:00', 'later'],
+  ];
+  it.each(timed)('classifies the timed %s as %s, same as its bare day', (due, expected) => {
+    expect(urgency(due)).toBe(expected);
+    expect(urgency(due)).toBe(urgency(due.slice(0, 10)));
+  });
+
+  it('never lets a time move an item across a band boundary', () => {
+    // A 00:00 and a 23:59 item on the same day belong to the same band — the
+    // clock is presentation, urgency is about which DAY needs attention.
+    expect(urgency('2026-07-17T00:00')).toBe(urgency('2026-07-17T23:59'));
+  });
 });
 
 describe('relativeDue', () => {

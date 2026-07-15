@@ -1,6 +1,9 @@
 // Pure calendar helpers, unit-testable like urgency.ts. Days are treated as
 // local calendar dates (a bare YYYY-MM-DD), matching how `due` is interpreted
-// everywhere else — no timezone math beyond the viewer's local calendar.
+// everywhere else — no timezone math beyond the viewer's local calendar. A
+// `start`/`due` may carry a time; the grid is day-granular, so every value is
+// narrowed with `dayOf` before it reaches the geometry below.
+import { dayOf } from './stamp';
 
 export interface Day {
   date: string; // YYYY-MM-DD
@@ -83,15 +86,16 @@ export function weekLabel(days: Day[]): string {
   return `${a} – ${b}`;
 }
 
-/** Normalize a timestamp to a local calendar date (YYYY-MM-DD). A full RFC3339
- *  datetime (the `created` field) is parsed through `Date` so it lands on the
- *  viewer's local day; a value that is *already* a bare date is returned as-is,
- *  never round-tripped through `Date` (which would read it as UTC midnight and
- *  can shift it a day west of UTC). */
+/** Normalize a timestamp to a local calendar date (YYYY-MM-DD). Three cases:
+ *  a bare date and a naive `start`/`due` stamp (`2026-07-20T14:30`) already name
+ *  their day, so their day is taken literally — never round-tripped through
+ *  `Date`, which would risk a timezone shift on a value that has no timezone. An
+ *  offset-aware RFC3339 instant (the `created` field, `...Z`) is genuinely a
+ *  point in time, so it IS converted to the viewer's local day. */
 export function isoDate(stamp: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(stamp)) return stamp;
-  return ymd(new Date(stamp));
+  return dayOf(stamp) || ymd(new Date(stamp));
 }
+
 
 /** Where a bar sits within one Monday–Sunday week, in 0-based columns. `null`
  *  when the `[start, end]` day range (inclusive, `start <= end`) doesn't touch

@@ -10,10 +10,8 @@
 //! column clears the grouped property).
 
 use crate::StoreError;
-use fm_model::{Kind, Object, PropertyValue};
+use fm_model::{Kind, Object, PropertyValue, Stamp};
 use std::str::FromStr;
-use time::macros::format_description;
-use time::Date;
 
 /// Apply `raw` to property `key` on `obj`. Callers stamp `updated` and `put`.
 pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), StoreError> {
@@ -24,24 +22,10 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
         "title" => obj.title = some(raw),
         "type" | "kind" => obj.kind = Kind::from_str(raw).map_err(StoreError::Parse)?,
         "hard" => obj.hard = matches!(raw, "true" | "yes" | "1"),
-        "due" => {
-            obj.due = match some(raw) {
-                Some(s) => Some(
-                    Date::parse(&s, &format_description!("[year]-[month]-[day]"))
-                        .map_err(|e| StoreError::Parse(format!("due must be YYYY-MM-DD: {e}")))?,
-                ),
-                None => None,
-            }
-        }
-        "start" => {
-            obj.start = match some(raw) {
-                Some(s) => Some(
-                    Date::parse(&s, &format_description!("[year]-[month]-[day]"))
-                        .map_err(|e| StoreError::Parse(format!("start must be YYYY-MM-DD: {e}")))?,
-                ),
-                None => None,
-            }
-        }
+        // `Stamp` owns the format on both sides now, so the date literal is no
+        // longer duplicated across crates — and an optional time comes for free.
+        "due" => obj.due = parse_stamp("due", some(raw))?,
+        "start" => obj.start = parse_stamp("start", some(raw))?,
         "tags" => {
             obj.tags = raw
                 .split([',', ' '])
@@ -62,4 +46,13 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
         }
     }
     Ok(())
+}
+
+fn parse_stamp(key: &str, raw: Option<String>) -> Result<Option<Stamp>, StoreError> {
+    match raw {
+        Some(s) => Stamp::from_str(&s).map(Some).map_err(|e| {
+            StoreError::Parse(format!("{key} must be YYYY-MM-DD or YYYY-MM-DDTHH:MM: {e}"))
+        }),
+        None => Ok(None),
+    }
 }

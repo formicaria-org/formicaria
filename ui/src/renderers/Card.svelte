@@ -1,5 +1,6 @@
 <script lang="ts">
   import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+  import { formatStamp } from '../lib/stamp';
   import type { ObjectMeta } from '../lib/types';
 
   let { card, onopen }: { card: ObjectMeta; onopen: (id: string) => void } = $props();
@@ -43,7 +44,7 @@
   <p class="preview">{card.title ?? card.preview ?? card.id}</p>
   <footer class="meta">
     {#if card.due}
-      <span class="due" class:hard={card.hard}>{card.due}</span>
+      <span class="due" class:hard={card.hard} title={card.due}>{formatStamp(card.due)}</span>
     {/if}
     {#each card.tags as tag (tag)}
       <span class="tag">{tag}</span>

@@ -162,9 +162,11 @@ fn eval_prop(actual: &PropertyValue, op: Op, expected: &PropertyValue) -> bool {
     }
 }
 
+/// Day-granular: a `DateRange` asks "which calendar days", so a stamp's optional
+/// time and a timestamp's clock are both narrowed to their day before comparing.
 fn in_date_range(actual: &PropertyValue, from: &Option<Date>, to: &Option<Date>) -> bool {
     let d = match actual {
-        PropertyValue::Date(d) => *d,
+        PropertyValue::Stamp(s) => s.date,
         PropertyValue::DateTime(dt) => dt.date(),
         _ => return false,
     };

@@ -2,12 +2,24 @@
 // field. overdue > soon > this-week > later. Computed against today in the
 // viewer's local time, so nudging `due` forward is the whole reprioritization
 // gesture.
+//
+// Bands are DAY-granular even though `due` may now carry a time: "due soon"
+// answers which days need attention, and a 14:00 meeting shouldn't jump bands at
+// 14:01. The time is presentation (see `formatStamp`), not urgency.
+import { dayOf } from './stamp';
+
 export type Urgency = 'overdue' | 'soon' | 'week' | 'later' | 'none';
 
 const DAY = 86_400_000;
 
 function daysUntil(due: string): number | null {
-  const d = new Date(`${due}T00:00:00`);
+  // Take the day off the stamp before building a Date. The old code appended
+  // `T00:00:00` to the raw value, which for a timed `due` produced the nonsense
+  // `2026-07-20T14:30T00:00:00` -> NaN -> urgency 'none' -> the note vanished
+  // from every agenda band with no error anywhere.
+  const day = dayOf(due);
+  if (!day) return null;
+  const d = new Date(`${day}T00:00:00`);
   if (Number.isNaN(d.getTime())) return null;
   const today = new Date();
   today.setHours(0, 0, 0, 0);

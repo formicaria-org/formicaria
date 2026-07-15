@@ -19,6 +19,13 @@ beforeEach(() => {
   mermaidRender.mockResolvedValue({ svg: '<svg data-mock-mermaid="1"></svg>' });
 });
 
+// A date/time input syncs `bind:value` on `input` and writes on `change`; a real
+// picker fires both, so simulate both (change alone would write '').
+async function setDate(el: HTMLElement, value: string): Promise<void> {
+  await fireEvent.input(el, { target: { value } });
+  await fireEvent.change(el, { target: { value } });
+}
+
 describe('v2: property editing, timeline, delete', () => {
   it('edits a property in the panel and it persists on reopen', async () => {
     render(App);
@@ -41,6 +48,56 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(await screen.findByText('Edit'));
     const reopened = (await screen.findByLabelText('due')) as HTMLInputElement;
     expect(reopened.value).toBe('2026-08-01');
+  });
+
+  it('sets a due time beside the date and reloads it into both inputs', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+
+    await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
+    await fireEvent.click(await screen.findByText('Edit'));
+
+    // Establish the starting state rather than assuming it — the mock backend is
+    // module-level state that earlier tests in this file have already written to.
+    const due = await screen.findByLabelText('due');
+    await setDate(due, '');
+
+    // The time input is inert until there's a date to hang it on — a time with
+    // no day isn't a point on any calendar.
+    const dueTime = (await screen.findByLabelText('due time')) as HTMLInputElement;
+    await waitFor(() => expect(dueTime.disabled).toBe(true));
+
+    await setDate(due, '2026-08-01');
+    await waitFor(() =>
+      expect((screen.getByLabelText('due time') as HTMLInputElement).disabled).toBe(false),
+    );
+
+    await setDate(dueTime, '14:30');
+
+    // Round-trip: the two inputs recombine into one wire value, and split again.
+    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
+    await fireEvent.click(await screen.findByText('Edit'));
+    expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('2026-08-01');
+    expect(((await screen.findByLabelText('due time')) as HTMLInputElement).value).toBe('14:30');
+  });
+
+  it('clearing the date clears the whole stamp, not just the day', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
+    await fireEvent.click(await screen.findByText('Edit'));
+
+    const due = await screen.findByLabelText('due');
+    await setDate(due, '2026-08-01');
+    await setDate(await screen.findByLabelText('due time'), '14:30');
+    await setDate(due, ''); // clearing the day must take the orphaned time with it
+
+    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
+    await fireEvent.click(await screen.findByText('Edit'));
+    expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('');
+    expect(((await screen.findByLabelText('due time')) as HTMLInputElement).value).toBe('');
   });
 
   it('shows notes grouped by day in the Timeline view', async () => {

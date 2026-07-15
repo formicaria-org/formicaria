@@ -4,7 +4,18 @@
 // column order) so what you see in the browser matches the real window. This
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
+import { parseStamp } from './stamp';
 import type { Board, Column, ObjectMeta } from './types';
+
+/** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
+ *  is stored verbatim (the canonical form is what the server would write back),
+ *  and garbage throws the way `apply_property` returns an error. */
+function parseStampOrThrow(key: string, value: string): string | null {
+  if (!value) return null;
+  const s = parseStamp(value);
+  if (!s) throw new Error(`${key} must be YYYY-MM-DD or YYYY-MM-DDTHH:MM: ${value}`);
+  return s.time ? `${s.day}T${s.time}` : s.day;
+}
 
 let seq = 0;
 function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMeta {
@@ -34,7 +45,7 @@ const notes: ObjectMeta[] = [
   makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'] }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
-  makeNote({ preview: 'Weekly sync notes', due: '2026-07-16', tags: ['meeting'] }),
+  makeNote({ preview: 'Weekly sync notes', start: '2026-07-16T14:30', due: '2026-07-16T15:00', tags: ['meeting'] }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
   makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
   makeNote({ preview: 'Architecture sketch', title: 'Architecture sketch', props: { view: 'board', project: 'alpha' } }),
@@ -97,11 +108,14 @@ function setProp(id: string, key: string, value: string): void {
     case 'title':
       n.title = value || null;
       break;
+    // Mirror `apply_property`: a stamp is `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`,
+    // empty clears, and anything else is REJECTED. The mock has to refuse what
+    // the Rust refuses, or the UI tests pass against a backend that doesn't exist.
     case 'due':
-      n.due = value || null;
+      n.due = parseStampOrThrow('due', value);
       break;
     case 'start':
-      n.start = value || null;
+      n.start = parseStampOrThrow('start', value);
       break;
     case 'tags':
       n.tags = value ? value.split(/[,\s]+/).filter(Boolean) : [];

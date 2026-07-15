@@ -5,14 +5,16 @@ mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
 _Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
-`start`+`due` dates (no defaults), calendar bars start→due, note panel full-screen
+`start`+`due` **stamps that now carry an optional time** (`2026-07-20T14:30`), so
+a meeting is expressible; calendar bars start→due, note panel full-screen
 by default, red brand accent matching the app icon, launcher UX (release icon,
 reopen, close-tab-quits), and **board notes** (freeform Excalidraw whiteboard,
 lazy-loaded) — now **treated exactly like notes** (a "Details" props editor over
 the canvas → agenda/calendar/board-trackable). **Sidebar is search-first**: the
 persistent Search field is the primary input, with New note / New board buttons
 below (quick-capture box removed). Gallery removed. On top of note-delete, media
-copy-notice, column reorder, SVG fix._
+copy-notice, column reorder, SVG fix. Next work is planned in
+[roadmap.md](./roadmap.md) (calendar sync, whiteboard-in-note + PDF)._
 
 ## What formicarium is
 
@@ -83,11 +85,17 @@ auto-shutdown)
   set that property (status), drag column headers to reorder (persisted per
   group-by in `localStorage`)
 - **Agenda** — Calendar (month/week) + a List grouped under urgency bands. A note
-  carries an optional **`start`** and **`due`** date (both unset by default, both
-  user-settable); the calendar draws it as a bar from `start`→`due`, or a
+  carries an optional **`start`** and **`due`** *stamp* — a day plus an **optional
+  wall-clock time** (`2026-07-20` or `2026-07-20T14:30`; both unset by default,
+  both user-settable). The calendar draws a bar from `start`→`due`, or a
   single-day marker on `due` when there's no start (creation date is never assumed
   as a start). Bars split into flat-ended segments across week rows; pure helpers
-  (`clampRangeToWeek`/`assignLanes` in `calendar.ts`) do the geometry.
+  (`clampRangeToWeek`/`assignLanes` in `calendar.ts`) do the geometry, and a bar
+  with times on both ends is labelled with its window (`14:30–15:00`).
+  **The grid and the urgency bands are day-granular**: a time is presentation, not
+  priority. `stamp.ts` (`parseStamp`/`dayOf`/`toStamp`/`formatStamp`) is the only
+  UI module that knows the wire format — see [decisions.md](./decisions.md) for
+  why a `Stamp` and not a `Date`/`DateTime` pair.
 - **Timeline** — Logseq-style journal by creation day
 - **Search** — FTS5 (also indexes extracted PDF text)
 - **Board notes (whiteboard)** — a note with `view: board` whose body is an

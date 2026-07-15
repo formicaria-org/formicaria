@@ -2,10 +2,13 @@
 //! part of the compile-time guarantee that the query engine never touches I/O.
 
 use std::collections::BTreeMap;
-use time::{Date, OffsetDateTime};
+use time::OffsetDateTime;
 use ulid::Ulid;
 
 pub mod schema;
+pub mod stamp;
+
+pub use stamp::Stamp;
 
 /// Stable object identity. A ULID: time-sortable and rename-proof. Links point
 /// at ids, never filenames — this is what kills the rename problem outright.
@@ -45,13 +48,19 @@ impl std::str::FromStr for Kind {
 /// Ordering and hashing are *derived* (variant order, then inner value), so a
 /// value can be a group-by map key and a sort key with no bespoke logic. There
 /// is deliberately no float variant, which keeps `Ord`/`Eq`/`Hash` total.
+///
+/// Because `Ord` compares the *variant* before the inner value, two variants
+/// that both mean "a moment" would sort as two disjoint blocks — which is why
+/// scheduling points are a single `Stamp` (day + optional time) rather than a
+/// `Date`/`DateTime` pair. `DateTime` here is only ever an instant we stamped
+/// ourselves (`created`/`updated`), never a user-set deadline.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
 pub enum PropertyValue {
     Null,
     Bool(bool),
     Int(i64),
     Text(String),
-    Date(Date),
+    Stamp(Stamp),
     DateTime(OffsetDateTime),
     List(Vec<PropertyValue>),
 }
@@ -64,7 +73,10 @@ impl PropertyValue {
             PropertyValue::Bool(b) => b.to_string(),
             PropertyValue::Int(i) => i.to_string(),
             PropertyValue::Text(s) => s.clone(),
-            PropertyValue::Date(d) => d.to_string(),
+            // Lossless on purpose — `display()` is what the board's drag
+            // write-back feeds back into `apply_property`, so dropping the time
+            // here would erase a meeting's time on every drag.
+            PropertyValue::Stamp(s) => s.to_string(),
             PropertyValue::DateTime(dt) => dt.date().to_string(),
             PropertyValue::List(v) => {
                 v.iter().map(PropertyValue::display).collect::<Vec<_>>().join(", ")
@@ -87,11 +99,12 @@ pub struct Object {
     pub title: Option<String>,
     pub status: Option<String>,
     /// Optional deadline (end of the calendar bar). No default — a fresh note has
-    /// none until the user sets one.
-    pub due: Option<Date>,
+    /// none until the user sets one. Carries an optional time (see [`Stamp`]), so
+    /// a 15:00 meeting end and an all-day deadline are the same field.
+    pub due: Option<Stamp>,
     /// Optional start of the work (left end of the calendar bar). Distinct from
     /// `created` (the creation timestamp) and, like `due`, unset by default.
-    pub start: Option<Date>,
+    pub start: Option<Stamp>,
     pub hard: bool,
     pub created: OffsetDateTime,
     pub updated: OffsetDateTime,
@@ -135,8 +148,8 @@ impl Object {
             "type" | "kind" => PropertyValue::Text(self.kind.as_str().to_string()),
             "title" => opt_text(&self.title),
             "status" => opt_text(&self.status),
-            "due" => self.due.map(PropertyValue::Date).unwrap_or(PropertyValue::Null),
-            "start" => self.start.map(PropertyValue::Date).unwrap_or(PropertyValue::Null),
+            "due" => self.due.map(PropertyValue::Stamp).unwrap_or(PropertyValue::Null),
+            "start" => self.start.map(PropertyValue::Stamp).unwrap_or(PropertyValue::Null),
             "hard" => PropertyValue::Bool(self.hard),
             "created" => PropertyValue::DateTime(self.created),
             "updated" => PropertyValue::DateTime(self.updated),

@@ -5,6 +5,30 @@ why — consequence**. The canonical, fuller spec is
 [`formicarium/MASTERPLAN.md`](../../formicarium/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## `start`/`due` are a `Stamp` (day + OPTIONAL time), not a Date/DateTime pair (2026-07-15)
+**Why:** the owner needs meeting times ("a time option beyond the date"), but an
+all-day deadline must stay expressible and must not churn on disk. Two obvious
+designs were rejected:
+1. **Reuse `PropertyValue::Date` + `DateTime`.** `PropertyValue` derives `Ord`
+   from **variant order first**, so every all-day item would sort before every
+   timed item regardless of the actual day — silently wrecking agenda order,
+   `Op::Lt/Gt`, and group bucketing. This is a trap, not a preference.
+2. **Make `due` an `OffsetDateTime`.** RFC 3339 demands an offset; a wall-clock
+   intention doesn't have one. It would also force a time on every deadline.
+
+**Consequence:** `fm_model::Stamp { date, time: Option<Time> }` — naive (no
+offset: 14:30 means 14:30 where you are, and the file is the truth), minute
+granular, one `PropertyValue::Stamp` variant. `Display`/`FromStr` are **inverses**,
+which is load-bearing twice over: it keeps `to_file` byte-idempotent (a bare date
+in, a bare date out — no vault-wide churn), and it keeps the board's drag
+write-back lossless (`value_string` → `display()` → `apply_property`; the old
+`DateTime` display dropped the time, so a drag would have erased it). `Stamp` owns
+the format on both sides, so the date literal is no longer duplicated across
+crates. **Urgency stays day-granular** — a time is presentation, not priority.
+`created`/`updated` are unchanged: they are *instants*, so they stay
+`OffsetDateTime`/RFC 3339, and the UI's `parseStamp` is anchored so it can never
+match one and hand back a UTC day.
+
 ## Whiteboard = embedded Excalidraw, lazy-loaded (2026-07-15)
 **Why:** the owner wanted a real "drawio but simpler" freeform canvas, not a
 diagrams-as-code stand-in, and chose full-featured-fast over build-it-minimal.

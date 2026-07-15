@@ -1,5 +1,6 @@
 <script lang="ts">
   import { urgency, relativeDue, urgencyLabel, URGENCY_ORDER } from '../lib/urgency';
+  import { formatStamp } from '../lib/stamp';
   import type { ObjectMeta } from '../lib/types';
 
   // The closest-deadline view. Cards arrive already filtered (dated, open) and
@@ -44,7 +45,7 @@
               </span>
               <span class="when">
                 {#if card.hard}<span class="hard" title="hard deadline">◆</span>{/if}
-                <span class="date">{card.due}</span>
+                <span class="date">{formatStamp(card.due)}</span>
                 <span class="rel">{relativeDue(card.due)}</span>
               </span>
             </button>

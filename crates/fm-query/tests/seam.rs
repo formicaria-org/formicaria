@@ -5,7 +5,7 @@
 //! behaviour. If it ever needs a filesystem to pass, the seam is already gone —
 //! fix the code, not the test.
 
-use fm_model::{Id, Kind, Object, PropertyValue};
+use fm_model::{Id, Kind, Object, PropertyValue, Stamp};
 use fm_query::{run, Dir, Filter, Op, Predicate, Query, SortKey};
 use std::collections::BTreeMap;
 use time::macros::{date, datetime};
@@ -24,7 +24,7 @@ fn obj(
         kind,
         title: None,
         status: status.map(str::to_string),
-        due,
+        due: due.map(Stamp::day),
         start: None,
         hard: false,
         created: datetime!(2026-07-14 09:00 UTC),

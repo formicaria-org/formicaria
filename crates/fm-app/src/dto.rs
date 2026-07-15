@@ -86,7 +86,9 @@ pub struct Board {
 
 /// The settable string for a grouped value. `Null` becomes empty (the clear
 /// gesture); every other value uses its human display, which for text/int/bool/
-/// date is also exactly what `apply_property` parses back.
+/// stamp is also exactly what `apply_property` parses back — `Stamp`'s `Display`
+/// keeps its time for exactly this reason (a lossy one would erase the time of
+/// any timed note dragged between columns).
 pub fn value_string(v: &PropertyValue) -> String {
     match v {
         PropertyValue::Null => String::new(),
@@ -110,7 +112,7 @@ fn prop_to_json(p: &PropertyValue) -> serde_json::Value {
         PropertyValue::Bool(b) => Value::Bool(*b),
         PropertyValue::Int(i) => Value::Number((*i).into()),
         PropertyValue::Text(s) => Value::String(s.clone()),
-        PropertyValue::Date(d) => Value::String(d.to_string()),
+        PropertyValue::Stamp(s) => Value::String(s.to_string()),
         PropertyValue::DateTime(dt) => {
             Value::String(dt.format(&Rfc3339).unwrap_or_default())
         }

@@ -22,6 +22,7 @@ authoritative design document; these files are the fast-recall layer over it.
 | [overview.md](./overview.md) | the 5-minute mental model: what it is, how it runs, architecture, seams, status. **Always read first.** |
 | [decisions.md](./decisions.md) | *why* something is the way it is before you change it (pivots, reversals, load-bearing constraints). |
 | [known-issues.md](./known-issues.md) | what's broken/rough/deferred, and the traps (toolchain, sandbox, CI greps) that will bite you. |
+| [roadmap.md](./roadmap.md) | what we intend to build next and *why not the obvious alternative* — the only file here describing things that do **not** exist yet. |
 | [sessions/](./sessions/) | the narrative history — one append-only entry per working session, newest kept. |
 
 ## Update discipline

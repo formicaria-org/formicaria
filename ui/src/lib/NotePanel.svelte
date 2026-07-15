@@ -12,6 +12,7 @@
     search,
   } from './ipc';
   import { renderInto, type ResolvedAsset } from './render';
+  import { parseStamp, toStamp } from './stamp';
   import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
 
@@ -65,13 +66,20 @@
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   // Editable property fields, initialized from the note when it loads. Each maps
-  // to exactly what `apply_property` (via set_property) accepts: due is
-  // YYYY-MM-DD, hard is a bool, tags are comma/space separated. There is no type
-  // field — notes are differentiated by tags, and `asset` is set only by ingest.
+  // to exactly what `apply_property` (via set_property) accepts: hard is a bool,
+  // tags are comma/space separated. There is no type field — notes are
+  // differentiated by tags, and `asset` is set only by ingest.
+  //
+  // start/due are split across two inputs because the model's time is OPTIONAL:
+  // a single `datetime-local` would force a time on every deadline and make
+  // "sometime Tuesday" unexpressible. The date holds the stamp; the time refines
+  // it. `toStamp` recombines them into the single wire value.
   let pTitle = $state('');
   let pStatus = $state('');
   let pStart = $state('');
+  let pStartTime = $state('');
   let pDue = $state('');
+  let pDueTime = $state('');
   let pHard = $state(false);
   let pTags = $state('');
   let propTimers: Record<string, ReturnType<typeof setTimeout>> = {};
@@ -124,8 +132,12 @@
         if (n) {
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';
-          pStart = n.start ?? '';
-          pDue = n.due ?? '';
+          const start = parseStamp(n.start);
+          const due = parseStamp(n.due);
+          pStart = start?.day ?? '';
+          pStartTime = start?.time ?? '';
+          pDue = due?.day ?? '';
+          pDueTime = due?.time ?? '';
           pHard = n.hard;
           pTags = n.tags.join(', ');
           if (startEditing) editing = true; // "New note" opens straight in the editor
@@ -202,6 +214,19 @@
   function setPropDebounced(key: string, value: string) {
     clearTimeout(propTimers[key]);
     propTimers[key] = setTimeout(() => setProp(key, value), 400);
+  }
+
+  // Write a start/due from its date+time pair. Clearing the DATE clears the whole
+  // property (and drops the now-orphaned time), because a time with no day isn't
+  // a point on any calendar.
+  function setStamp(key: 'start' | 'due') {
+    const day = key === 'start' ? pStart : pDue;
+    const time = key === 'start' ? pStartTime : pDueTime;
+    if (!day) {
+      if (key === 'start') pStartTime = '';
+      else pDueTime = '';
+    }
+    void setProp(key, toStamp(day, time));
   }
   function applyLocal(key: string, value: string) {
     if (!note) return;
@@ -427,16 +452,36 @@
           </label>
           <label class="field">
             <span>Start</span>
-            <input
-              aria-label="start"
-              type="date"
-              bind:value={pStart}
-              onchange={() => setProp('start', pStart)}
-            />
+            <span class="when">
+              <input
+                aria-label="start"
+                type="date"
+                bind:value={pStart}
+                onchange={() => setStamp('start')}
+              />
+              <input
+                aria-label="start time"
+                type="time"
+                bind:value={pStartTime}
+                onchange={() => setStamp('start')}
+                disabled={!pStart}
+                title={pStart ? 'Optional — leave empty for an all-day item' : 'Set a start date first'}
+              />
+            </span>
           </label>
           <label class="field">
             <span>Due</span>
-            <input aria-label="due" type="date" bind:value={pDue} onchange={() => setProp('due', pDue)} />
+            <span class="when">
+              <input aria-label="due" type="date" bind:value={pDue} onchange={() => setStamp('due')} />
+              <input
+                aria-label="due time"
+                type="time"
+                bind:value={pDueTime}
+                onchange={() => setStamp('due')}
+                disabled={!pDue}
+                title={pDue ? 'Optional — leave empty for an all-day item' : 'Set a due date first'}
+              />
+            </span>
           </label>
           <label class="field checkbox">
             <input
@@ -690,6 +735,25 @@
   }
   .field.wide {
     grid-column: 1 / -1;
+  }
+  /* Date + optional time: the date takes the room it needs, the time is a narrow
+     refinement beside it, and it dims until there's a date to attach it to. */
+  .when {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .when input[type='date'] {
+    flex: 1;
+    min-width: 0;
+  }
+  .when input[type='time'] {
+    flex: 0 0 auto;
+    width: 6.5em;
+  }
+  .when input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
   .field.checkbox {
     flex-direction: row;

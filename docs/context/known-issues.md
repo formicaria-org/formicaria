@@ -4,7 +4,7 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-15 (uncommitted follow-ups on commit `067e80b`)._
+_Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
 
 ## Known gaps / not fully working
 
@@ -38,9 +38,9 @@ _Last verified: 2026-07-15 (uncommitted follow-ups on commit `067e80b`)._
   bundling (copy `@excalidraw/excalidraw/dist/prod/fonts` into the build, ~14 MB,
   mostly CJK) is **deferred**. (2) The canvas renders only in a real browser, so
   it's **unverified in headless CI** (build, code-split, and the board round-trip
-  are tested; the visual editor is not). (3) Board notes have no props/tags editor
-  yet (the panel shows only the canvas); rename/tag a board via the board view or
-  a future affordance.
+  are tested; the visual editor is not). (3) A board can't yet be **embedded in a
+  note** — it's a standalone note you open on its own. Planned in
+  [roadmap.md](./roadmap.md).
 
 ## Deferred (intentionally not built yet)
 
@@ -50,6 +50,9 @@ _Last verified: 2026-07-15 (uncommitted follow-ups on commit `067e80b`)._
 - Optional mlua scripting hatch.
 - **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
   posters, semantic search.
+- **Calendar sync, whiteboard-in-a-note + PDF export, and the `Source`/local-model
+  ingest module** are *planned, with the design decided* — see
+  [roadmap.md](./roadmap.md) rather than re-deriving them.
 
 ## Historical / no longer relevant
 

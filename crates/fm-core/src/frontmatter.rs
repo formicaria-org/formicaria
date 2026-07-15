@@ -12,23 +12,17 @@
 //! fm wrote, parsed and re-serialized, is byte-identical.
 //!
 //! Dates carry as strings at the YAML layer to sidestep `time`'s serde wiring;
-//! typed conversion happens at this boundary.
+//! typed conversion happens at this boundary. `start`/`due` go through
+//! [`fm_model::Stamp`], whose `Display`/`FromStr` are inverses — that is what
+//! keeps a bare `due: 2026-07-20` from being rewritten as a timed one (which
+//! would break the byte-idempotence invariant above).
 
-use fm_model::{Id, Kind, Object, PropertyValue};
+use fm_model::{Id, Kind, Object, PropertyValue, Stamp};
 use serde_yaml_ng::{Mapping, Value};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use time::format_description::well_known::Rfc3339;
-use time::macros::format_description;
-use time::{Date, OffsetDateTime};
-
-// ISO date (`YYYY-MM-DD`) for the `due` property. Inlined at each use site to
-// avoid naming time's format-item type (which churns across versions).
-macro_rules! date_fmt {
-    () => {
-        format_description!("[year]-[month]-[day]")
-    };
-}
+use time::OffsetDateTime;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -61,12 +55,10 @@ pub fn to_file(obj: &Object) -> Result<String, ParseError> {
         map.insert("status".into(), Value::from(s.clone()));
     }
     if let Some(d) = obj.start {
-        let s = d.format(&date_fmt!()).map_err(|e| ParseError::Field(e.to_string()))?;
-        map.insert("start".into(), Value::from(s));
+        map.insert("start".into(), Value::from(d.to_string()));
     }
     if let Some(d) = obj.due {
-        let s = d.format(&date_fmt!()).map_err(|e| ParseError::Field(e.to_string()))?;
-        map.insert("due".into(), Value::from(s));
+        map.insert("due".into(), Value::from(d.to_string()));
     }
     if obj.hard {
         map.insert("hard".into(), Value::from(true));
@@ -159,16 +151,15 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
         title,
         status,
         due: match due {
-            Some(s) => Some(
-                Date::parse(&s, &date_fmt!()).map_err(|e| ParseError::Field(format!("due: {e}")))?,
-            ),
+            Some(s) => {
+                Some(Stamp::from_str(&s).map_err(|e| ParseError::Field(format!("due: {e}")))?)
+            }
             None => None,
         },
         start: match start {
-            Some(s) => Some(
-                Date::parse(&s, &date_fmt!())
-                    .map_err(|e| ParseError::Field(format!("start: {e}")))?,
-            ),
+            Some(s) => {
+                Some(Stamp::from_str(&s).map_err(|e| ParseError::Field(format!("start: {e}")))?)
+            }
             None => None,
         },
         hard,
@@ -214,7 +205,7 @@ fn prop_to_yaml(p: &PropertyValue) -> Value {
         PropertyValue::Bool(b) => Value::from(*b),
         PropertyValue::Int(i) => Value::from(*i),
         PropertyValue::Text(s) => Value::from(s.clone()),
-        PropertyValue::Date(d) => Value::from(d.to_string()),
+        PropertyValue::Stamp(s) => Value::from(s.to_string()),
         PropertyValue::DateTime(dt) => Value::from(dt.format(&Rfc3339).unwrap_or_default()),
         PropertyValue::List(v) => Value::Sequence(v.iter().map(prop_to_yaml).collect()),
     }
@@ -247,8 +238,8 @@ mod tests {
     fn roundtrip_is_lossless_for_known_fields() {
         let mut o = Object::new(Kind::Note, "trust region clipping\n\nmore body");
         o.status = Some("doing".into());
-        o.start = Some(time::macros::date!(2026 - 07 - 16));
-        o.due = Some(time::macros::date!(2026 - 07 - 20));
+        o.start = Some(Stamp::day(time::macros::date!(2026 - 07 - 16)));
+        o.due = Some(Stamp::day(time::macros::date!(2026 - 07 - 20)));
         o.hard = true;
         o.tags = vec!["meta-rl".into()];
 
@@ -264,6 +255,57 @@ mod tests {
         assert_eq!(back.hard, o.hard);
         assert_eq!(back.tags, o.tags);
         assert_eq!(back.body, o.body);
+    }
+
+    #[test]
+    fn a_time_on_start_and_due_survives_the_disk_round_trip() {
+        let mut o = Object::new(Kind::Note, "supervision meeting");
+        o.start = Some(Stamp::at(time::macros::date!(2026 - 07 - 20), time::macros::time!(14:30)));
+        o.due = Some(Stamp::at(time::macros::date!(2026 - 07 - 20), time::macros::time!(15:00)));
+
+        let text = to_file(&o).unwrap();
+        let back = from_file(&text).unwrap();
+        assert_eq!(back.start, o.start);
+        assert_eq!(back.due, o.due);
+    }
+
+    #[test]
+    fn an_all_day_date_is_never_rewritten_as_a_timed_one() {
+        // The idempotence invariant in this module's header, applied to the new
+        // optional time: a bare date must survive as a bare date, or every note
+        // in the vault churns on first load.
+        let mut o = Object::new(Kind::Note, "body");
+        o.due = Some(Stamp::day(time::macros::date!(2026 - 07 - 20)));
+
+        let bytes1 = to_file(&o).unwrap();
+        assert!(bytes1.contains("due: 2026-07-20\n"), "unexpected on-disk form:\n{bytes1}");
+        let bytes2 = to_file(&from_file(&bytes1).unwrap()).unwrap();
+        assert_eq!(bytes1, bytes2);
+    }
+
+    #[test]
+    fn a_timed_stamp_is_idempotent_on_disk_too() {
+        let mut o = Object::new(Kind::Note, "body");
+        o.due = Some(Stamp::at(time::macros::date!(2026 - 07 - 20), time::macros::time!(14:30)));
+
+        let bytes1 = to_file(&o).unwrap();
+        let bytes2 = to_file(&from_file(&bytes1).unwrap()).unwrap();
+        assert_eq!(bytes1, bytes2, "to_file must stay a fixed point for timed stamps");
+    }
+
+    #[test]
+    fn a_hand_written_time_is_accepted_and_normalized() {
+        // Editing the file in Vim is a supported way to use the vault, so the
+        // spellings a human reaches for must parse — and then canonicalize.
+        for raw in ["2026-07-20T14:30", "2026-07-20 14:30", "2026-07-20T14:30:00"] {
+            let text = format!(
+                "---\nschema: 1\nid: 01ARZ3NDEKTSV4RRFFQ69G5FAV\ntype: note\n\
+                 due: {raw}\ncreated: 2026-07-14T09:00:00Z\nupdated: 2026-07-14T09:00:00Z\n---\nbody"
+            );
+            let o = from_file(&text).unwrap_or_else(|e| panic!("{raw:?} should parse: {e}"));
+            let due = o.due.unwrap_or_else(|| panic!("{raw:?} parsed but dropped `due`"));
+            assert_eq!(due.to_string(), "2026-07-20T14:30", "failed on {raw:?}");
+        }
     }
 
     #[test]
@@ -294,7 +336,7 @@ mod tests {
         let mut o = Object::new(Kind::Note, "line one\n---\nafter a fence line\ncafé ☕\n");
         o.title = Some("Idempotence".into());
         o.status = Some("doing".into());
-        o.due = Some(time::macros::date!(2026 - 07 - 20));
+        o.due = Some(Stamp::day(time::macros::date!(2026 - 07 - 20)));
         o.hard = true;
         o.tags = vec!["a".into(), "b".into()];
         o.extra.insert("project".into(), PropertyValue::Text("alpha".into()));

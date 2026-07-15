@@ -4,11 +4,11 @@
 //! also the precondition for "board by ANY property" in S3.
 
 use fm_core::{frontmatter, FileStore, Store};
-use fm_model::{Kind, Object, PropertyValue};
+use fm_model::{Kind, Object, PropertyValue, Stamp};
 use fm_query::Query;
 use std::fs;
 use tempfile::tempdir;
-use time::macros::{date, datetime};
+use time::macros::{date, datetime, time};
 
 #[test]
 fn set_property_is_written_to_disk_and_survives_reload() {
@@ -21,7 +21,7 @@ fn set_property_is_written_to_disk_and_survives_reload() {
 
         // Edit: set status + due, stamp updated (what `fm set` does).
         o.status = Some("doing".into());
-        o.due = Some(date!(2026 - 08 - 01));
+        o.due = Some(Stamp::day(date!(2026 - 08 - 01)));
         o.updated = datetime!(2026-07-20 9:00 UTC);
         s.put(&o).unwrap();
         id
@@ -36,8 +36,45 @@ fn set_property_is_written_to_disk_and_survives_reload() {
     let s2 = FileStore::open(dir.path()).unwrap();
     let got = s2.get(id).unwrap().unwrap();
     assert_eq!(got.status.as_deref(), Some("doing"));
-    assert_eq!(got.due, Some(date!(2026 - 08 - 01)));
+    assert_eq!(got.due, Some(Stamp::day(date!(2026 - 08 - 01))));
     assert!(got.updated > got.created, "editing bumped updated past created");
+}
+
+#[test]
+fn setting_a_due_time_writes_it_to_disk_and_reads_it_back() {
+    // The `set_property` path the UI's time input and `fm set` both take — the
+    // time has to reach the file as text and come back typed.
+    let dir = tempdir().unwrap();
+    let mut s = FileStore::open(dir.path()).unwrap();
+    let mut o = Object::new(Kind::Note, "supervision");
+    let id = o.id;
+    s.put(&o).unwrap();
+
+    fm_core::edit::apply_property(&mut o, "start", "2026-08-01T14:30").unwrap();
+    fm_core::edit::apply_property(&mut o, "due", "2026-08-01T15:00").unwrap();
+    s.put(&o).unwrap();
+
+    let raw = fs::read_to_string(dir.path().join(format!("notes/{id}.md"))).unwrap();
+    assert!(raw.contains("start: 2026-08-01T14:30"), "start carries its time:\n{raw}");
+    assert!(raw.contains("due: 2026-08-01T15:00"), "due carries its time:\n{raw}");
+
+    let got = FileStore::open(dir.path()).unwrap().get(id).unwrap().unwrap();
+    assert_eq!(got.start, Some(Stamp::at(date!(2026 - 08 - 01), time!(14:30))));
+    assert_eq!(got.due, Some(Stamp::at(date!(2026 - 08 - 01), time!(15:00))));
+}
+
+#[test]
+fn clearing_and_rejecting_a_due_value_both_still_work() {
+    let mut o = Object::new(Kind::Note, "body");
+    fm_core::edit::apply_property(&mut o, "due", "2026-08-01T15:00").unwrap();
+
+    // An empty value clears (the "drag to (none)" gesture).
+    fm_core::edit::apply_property(&mut o, "due", "").unwrap();
+    assert_eq!(o.due, None);
+
+    // Garbage is refused rather than silently dropped or defaulted to today.
+    assert!(fm_core::edit::apply_property(&mut o, "due", "next tuesday").is_err());
+    assert_eq!(o.due, None, "a rejected write must not mutate the field");
 }
 
 #[test]

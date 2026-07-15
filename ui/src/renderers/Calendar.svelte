@@ -13,6 +13,7 @@
     type Day,
   } from '../lib/calendar';
   import { urgency } from '../lib/urgency';
+  import { dayOf, timeRange } from '../lib/stamp';
   import type { ObjectMeta } from '../lib/types';
 
   // A renderer over the same agenda cards (dated, open) the list view uses — a
@@ -54,8 +55,10 @@
     const segs: BarSeg[] = [];
     for (const c of cards) {
       if (!c.due) continue;
-      const end = c.due.slice(0, 10);
-      let start = c.start ? c.start.slice(0, 10) : end;
+      // The grid is day-granular: narrow both ends to their calendar day. A time,
+      // when present, shows in the bar's label rather than moving its geometry.
+      const end = dayOf(c.due);
+      let start = dayOf(c.start) || end;
       if (start > end) start = end;
       const span = clampRangeToWeek(start, end, week);
       if (span) segs.push({ card: c, ...span });
@@ -106,6 +109,9 @@
               title={bar.card.title ?? bar.card.preview ?? ''}
             >
               {#if bar.card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
+              {#if !bar.continuesLeft && timeRange(bar.card.start, bar.card.due)}
+                <span class="ev-time">{timeRange(bar.card.start, bar.card.due)}</span>
+              {/if}
               <span class="ev-title">{bar.card.title ?? bar.card.preview ?? bar.card.id}</span>
             </button>
           {/each}
@@ -268,6 +274,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* The clock leads the label, like every other calendar. Tabular figures keep
+     the titles aligned down a column of bars; it never shrinks away. */
+  .ev-time {
+    flex: 0 0 auto;
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
   }
   .hard {
     color: var(--due-hard-fg);
