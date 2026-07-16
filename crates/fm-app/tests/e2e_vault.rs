@@ -56,10 +56,12 @@ fn board_groups_the_real_notes_by_status_and_by_a_custom_property() {
     assert_eq!(col("doing").unwrap().cards.len(), 1, "doing = rich");
     assert_eq!(col("todo").unwrap().cards.len(), 2, "todo = task + custom");
     assert_eq!(col("done").unwrap().cards.len(), 1, "done = unicode");
-    // The asset carries no status, so it lands in the empty-valued "(none)" column.
-    let none = b.columns.iter().find(|c| c.value.is_empty()).unwrap();
-    assert_eq!(none.label, "(none)");
-    assert_eq!(none.cards[0].id, ASSET);
+    // The asset gets no card at all — not even a "(none)" one for its missing
+    // status. It is a blob the notes reference; `gallery`/`search` still see it.
+    assert!(
+        b.columns.iter().flat_map(|c| c.cards.iter()).all(|m| m.id != ASSET),
+        "the asset leaked onto the board",
+    );
 
     // Grouping by a user-invented key needs no backend change; props flow through.
     let pb = board(&store, "project").unwrap();

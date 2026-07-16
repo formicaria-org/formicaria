@@ -10,8 +10,15 @@
 
 ## Editing a note
 
-Click any card to open it. It shows the rendered read view. Click **Edit** to
-switch to the source editor, where you also get a **properties form**:
+Click any card to open it. It shows the rendered read view. To edit it, either
+click **Edit** in the header or **double-click anywhere in the note** — the
+shortcut saves you the trip to the header, and both land in the same place.
+**Ctrl+S** saves and drops you back to the read view, as does Escape or the
+**Done** button (your typing is autosaved either way). Double-clicking a
+reference chip, a link, or embedded media does what that element does instead of
+opening the editor.
+
+The editor also gives you a **properties form**:
 
 | Field   | What it sets              | Format                                   |
 |---------|---------------------------|------------------------------------------|
@@ -21,6 +28,12 @@ switch to the source editor, where you also get a **properties form**:
 | Hard    | a hard deadline           | a checkbox                               |
 | Title   | an optional title         | free text                                |
 | Tags    | tags                      | comma- or space-separated                |
+
+**Status has a shortcut.** The chip beside the note's title — and on every board
+and timeline card — rotates through the statuses your vault already uses, then
+through "no status", one click at a time. Use it to set a status you already have
+without opening the editor; use the form's Status field to invent a new one (it
+joins the rotation as soon as a note carries it).
 
 Every change writes back to the note's YAML frontmatter immediately. The body is
 plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render in

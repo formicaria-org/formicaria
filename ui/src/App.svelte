@@ -6,7 +6,7 @@
   import Timeline from './renderers/Timeline.svelte';
   import Search from './renderers/Search.svelte';
   import Icon from './lib/Icon.svelte';
-  import { orderColumns, moveValue } from './lib/boardOrder';
+  import { arrange, orderColumns, moveValue, placeValue } from './lib/boardOrder';
   import {
     getBoard,
     getAgenda,
@@ -83,19 +83,45 @@
     }
   }
   let orders = $state<Record<string, string[]>>(loadOrders());
-  // The board with columns arranged by the saved order for the current grouping.
+
+  // Card order *within* a column — where you dropped it, not when it was created.
+  // Same reasoning and same storage as the column order above: a view preference,
+  // per group-by, keyed by column value → the note ids in the order you chose.
+  function loadCardOrders(): Record<string, Record<string, string[]>> {
+    try {
+      return JSON.parse(localStorage.getItem('fm-card-order') ?? '{}');
+    } catch {
+      return {};
+    }
+  }
+  let cardOrders = $state<Record<string, Record<string, string[]>>>(loadCardOrders());
+
+  // The board with columns arranged by the saved order for the current grouping,
+  // and each column's cards arranged by the saved drop order.
   let displayBoard = $derived(
-    board ? { ...board, columns: orderColumns(board.columns, orders[groupBy] ?? []) } : null,
+    board
+      ? {
+          ...board,
+          columns: orderColumns(board.columns, orders[groupBy] ?? []).map((c) => ({
+            ...c,
+            cards: arrange(c.cards, cardOrders[groupBy]?.[c.value] ?? [], (n) => n.id),
+          })),
+        }
+      : null,
   );
+  function persistOrders() {
+    try {
+      localStorage.setItem('fm-board-order', JSON.stringify(orders));
+      localStorage.setItem('fm-card-order', JSON.stringify(cardOrders));
+    } catch {
+      /* private mode / quota — order just won't persist */
+    }
+  }
   function onReorder(fromValue: string, toValue: string, before: boolean) {
     if (!board) return;
     const current = orderColumns(board.columns, orders[groupBy] ?? []).map((c) => c.value);
     orders = { ...orders, [groupBy]: moveValue(current, fromValue, toValue, before) };
-    try {
-      localStorage.setItem('fm-board-order', JSON.stringify(orders));
-    } catch {
-      /* private mode / quota — order just won't persist */
-    }
+    persistOrders();
   }
 
   let railCollapsed = $state(false);
@@ -263,10 +289,33 @@
     openIds = openIds.slice(0, i);
   }
 
-  async function onMove(id: string, value: string) {
+  async function onMove(id: string, value: string, beforeId: string | null) {
     // The drag write-back: set the grouped property to the target column's value.
+    // The card's place *within* the column is a view preference, so it is saved
+    // client-side rather than written to the note. Save it first: it is keyed by
+    // id, so the refresh below re-reads it and the card lands where it was
+    // dropped — including when the drag crossed into a different column.
+    const column = displayBoard?.columns.find((c) => c.value === value);
+    const ids = column?.cards.map((n) => n.id) ?? [];
+    cardOrders = {
+      ...cardOrders,
+      [groupBy]: { ...cardOrders[groupBy], [value]: placeValue(ids, id, beforeId) },
+    };
+    persistOrders();
     try {
       await setProperty(id, groupBy, value);
+      await refresh();
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  // Rotate a note's status from a card or the open note's header. Same write path
+  // as a board drag, but always on `status` — the board may be grouped by anything.
+  async function onSetStatus(id: string, value: string | null) {
+    try {
+      await setProperty(id, 'status', value ?? '');
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -417,7 +466,14 @@
     <div class="stage">
       {#if view === 'board'}
         {#if displayBoard}
-          <Board board={displayBoard} onmove={onMove} onreorder={onReorder} onopen={openNote} />
+          <Board
+            board={displayBoard}
+            onmove={onMove}
+            onreorder={onReorder}
+            onopen={openNote}
+            statuses={knownStatuses}
+            onstatus={onSetStatus}
+          />
         {:else}
           <p class="empty">Loading…</p>
         {/if}
@@ -426,7 +482,7 @@
       {:else if !cards}
         <p class="empty">Loading…</p>
       {:else if view === 'timeline'}
-        <Timeline {cards} onopen={openNote} />
+        <Timeline {cards} onopen={openNote} statuses={knownStatuses} onstatus={onSetStatus} />
       {:else if agendaMode === 'list'}
         <Agenda {cards} onopen={openNote} />
       {:else}

@@ -11,10 +11,16 @@ use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
 
 /// Group every note by `group_by` into board columns, newest card first. The
-/// property is opaque: pass `"status"` for a status board, `"type"` to falsify
-/// the thesis (a board of note/asset), or any custom key — no code changes.
+/// property is opaque: pass `"status"` for a status board, or any custom key —
+/// no code changes.
+///
+/// Assets are excluded: an asset is a blob a note *references*, not something you
+/// plan, so it has no place in a column. Find one via `search` (its extracted
+/// text is indexed) or via the note that references it. Same rule in [`agenda`]
+/// and [`recent`]; `search` and [`gallery`] deliberately still see assets.
 pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
     let q = Query {
+        filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
         group_by: Some(group_by.to_string()),
         sort: vec![SortKey::desc("created")],
         ..Default::default()
@@ -60,6 +66,7 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
         filter: Filter::new()
+            .and(Predicate::Kind(vec![Kind::Note]))
             .and(Predicate::Prop {
                 key: "due".into(),
                 op: Op::Exists,
@@ -151,11 +158,16 @@ pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreEr
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
-/// Every note, newest-created first — the timeline/journal feed. Zero new
-/// machinery again: no filter, just a sort, the same shape as the CLI's `fm
-/// list`. The renderer groups these by creation day into a Logseq-style journal.
+/// Every note, newest-created first — the timeline/journal feed, and the
+/// suggestion list behind a bare `/` in the editor. Assets are excluded (see
+/// [`board`]); the renderer groups the rest by creation day into a Logseq-style
+/// journal.
 pub fn recent(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
-    let q = Query { sort: vec![SortKey::desc("created")], ..Default::default() };
+    let q = Query {
+        filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
+        sort: vec![SortKey::desc("created")],
+        ..Default::default()
+    };
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 

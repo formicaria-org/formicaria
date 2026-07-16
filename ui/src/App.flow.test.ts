@@ -22,6 +22,15 @@ beforeEach(() => {
   mermaidRender.mockResolvedValue({ svg: '<svg data-mock-mermaid="1"></svg>' });
 });
 
+// The two gestures that replaced the Edit/Done button: double-click the read
+// view to start editing, Ctrl+S to flush the write and go back to reading.
+async function openEditor(): Promise<void> {
+  await fireEvent.dblClick(await screen.findByTitle('Double-click to edit'));
+}
+async function saveWithCtrlS(): Promise<void> {
+  await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
+}
+
 describe('the app, driven end to end as a user', () => {
   it('loads the board with real cards from the backend', async () => {
     render(App);
@@ -41,7 +50,7 @@ describe('the app, driven end to end as a user', () => {
     await fireEvent.click(screen.getByText('New note'));
     const body = await screen.findByLabelText('note body (Markdown)');
     await fireEvent.input(body, { target: { value: 'a freshly captured thought' } });
-    await fireEvent.click(screen.getByRole('button', { name: /Saving|Done/ }));
+    await saveWithCtrlS();
     await fireEvent.click(screen.getByLabelText('close note'));
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
@@ -69,14 +78,14 @@ describe('the app, driven end to end as a user', () => {
     await waitFor(() => expect(katexRender).toHaveBeenCalled());
     await waitFor(() => expect(mermaidRender).toHaveBeenCalled());
 
-    // 6. Edit the body → leave edit mode (which flushes the save) → the read view
-    //    re-renders the new content.
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    // 6. Double-click the read view to edit the body → Ctrl+S (which flushes the
+    //    save and leaves edit mode) → the read view re-renders the new content.
+    await openEditor();
     const editor = screen.getByLabelText(/note body/);
     await fireEvent.input(editor, {
       target: { value: '# Edited in the window\n\nbrand new prose.' },
     });
-    await fireEvent.click(screen.getByRole('button', { name: /Done|Saving/ }));
+    await saveWithCtrlS();
     expect(await screen.findByRole('heading', { name: 'Edited in the window' })).toBeTruthy();
 
     // 7. Close the panel; the read view goes away.

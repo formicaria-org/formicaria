@@ -10,9 +10,12 @@
     openExternal,
     ingestFile,
     search,
+    recent,
   } from './ipc';
   import { renderInto, type ResolvedAsset, type ResolvedNote } from './render';
   import { parseStamp, toStamp } from './stamp';
+  import { caretXY, clamp } from './caret';
+  import StatusChip from './StatusChip.svelte';
   import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
 
@@ -82,10 +85,29 @@
   let editorEl = $state<HTMLTextAreaElement | undefined>(undefined);
   let adding = $state(false);
 
-  // Slash-menu (Notion-style `/` → insert an asset) state.
-  type SlashState = { open: boolean; from: number; query: string; results: ObjectMeta[]; active: number };
-  let slash = $state<SlashState>({ open: false, from: -1, query: '', results: [], active: 0 });
+  // Slash-menu (Notion-style `/` → insert a note or asset reference) state.
+  // `at` is where the popup sits: the caret's pixel position within the editor,
+  // so the menu opens under what you are typing rather than at a fixed corner.
+  type SlashState = {
+    open: boolean;
+    from: number;
+    query: string;
+    results: ObjectMeta[];
+    active: number;
+    at: { top: number; left: number };
+  };
+  let slash = $state<SlashState>({
+    open: false,
+    from: -1,
+    query: '',
+    results: [],
+    active: 0,
+    at: { top: 0, left: 0 },
+  });
   let slashTimer: ReturnType<typeof setTimeout> | undefined;
+  // The pane's root, so a global key (Ctrl+S) can tell whether *this* pane in the
+  // trail is the one being typed in.
+  let paneEl = $state<HTMLElement | undefined>(undefined);
 
   // Object URLs minted for inline assets, revoked when the note changes or the
   // panel closes so the blobs don't leak.
@@ -257,6 +279,57 @@
     editing = !editing;
   }
 
+  // Double-click the read view to edit it — there is no Edit button any more.
+  async function startEdit(e: MouseEvent) {
+    // Skip the targets that already mean something: a reference chip navigates, a
+    // link follows, media has its own controls, and double-clicking to select a
+    // word inside them should not throw you into the editor.
+    if ((e.target as HTMLElement | null)?.closest('.note-chip, a, button, video, audio, iframe')) {
+      return;
+    }
+    await openEditor();
+  }
+  async function openEditor() {
+    editing = true;
+    await tick();
+    editorEl?.focus();
+  }
+
+  /** Does the keyboard focus live in *this* pane? */
+  const focused = () => !!paneEl?.contains(document.activeElement);
+
+  // Every pane in the trail mounts this window listener, so a key press is heard
+  // by all of them. When focus is inside *some* pane, only that pane may act —
+  // otherwise Escape in pane 2's editor would also fire pane 1's close. With
+  // focus outside every pane, they all act, which is the old behavior.
+  function ownsKeys(): boolean {
+    const active = document.activeElement as HTMLElement | null;
+    return focused() || !active?.closest?.('.panel');
+  }
+
+  function onPaneKey(e: KeyboardEvent) {
+    if (!ownsKeys()) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 's') {
+      // The app owns Ctrl+S while a note is open — suppress the browser's own
+      // "save page" dialog even in the read view, where there is nothing to flush.
+      e.preventDefault();
+      if (editing) void toggleEdit(); // flush, then back to the read view
+      return;
+    }
+    if (e.key !== 'Escape') return;
+    // While editing, Escape leaves the editor rather than closing the pane —
+    // otherwise Ctrl+S is the only way out, which is a trap if you don't know it.
+    // The 500 ms debounced autosave means nothing is lost either way. The slash
+    // menu consumes Escape first (onEditorKeydown), so this never fights it.
+    if (editing && !slash.open) {
+      e.preventDefault();
+      void toggleEdit();
+      return;
+    }
+    onclose();
+  }
+
   // Delete, confirmed. Removes the note file + index rows, then schedules the
   // git auto-commit of the removal and closes the panel (which refreshes the view).
   async function confirmDelete() {
@@ -378,20 +451,38 @@
     if (i !== 0 && !/\s/.test(draft[i - 1])) return closeSlash();
     const query = draft.slice(i + 1, caret);
     if (/\s/.test(query)) return closeSlash();
-    slash = { ...slash, open: true, from: i, query, active: 0 };
+    slash = { ...slash, open: true, from: i, query, active: 0, at: slashAnchor(el, i) };
     clearTimeout(slashTimer);
     slashTimer = setTimeout(runSlashSearch, 150);
   }
+
+  // Put the menu just under the `/` you typed. Measured against the textarea and
+  // clamped to it, so a `/` near the right or bottom edge doesn't push the popup
+  // out of the pane. Where there is no layout engine (jsdom) caretXY reports
+  // zeros and this degrades to the editor's top-left — never a crash.
+  function slashAnchor(el: HTMLTextAreaElement, from: number): { top: number; left: number } {
+    const { top, left, lineHeight } = caretXY(el, from);
+    const MENU_W = 256; // 16rem, the popup's min-width
+    const MENU_H = 224; // 14rem, its max-height
+    const below = top + lineHeight;
+    // No room underneath? Flip above the caret line rather than clamp onto it.
+    const flip = below + MENU_H > el.clientHeight && top - MENU_H >= 0;
+    return {
+      top: flip ? top - MENU_H : clamp(below, MENU_H, el.clientHeight),
+      left: clamp(left, MENU_W, el.clientWidth),
+    };
+  }
+
   async function runSlashSearch() {
     const q = slash.query.trim();
-    if (!q) {
-      slash = { ...slash, results: [] };
-      return;
-    }
     try {
-      // Notes and assets both — the type decides the syntax at insert. Drop this
-      // note itself: a self-reference is never what the `/` menu is for.
-      const all = await search(q);
+      // A bare `/` suggests your most recent notes — the overwhelmingly common
+      // link target, and it makes the menu useful before you know what to type.
+      // Typing switches to FTS across the whole vault, which (unlike `recent`)
+      // still includes assets, so `/` remains the way to insert one.
+      // The type decides the syntax at insert. Drop this note itself: a
+      // self-reference is never what the `/` menu is for.
+      const all = q ? await search(q) : await recent();
       slash = { ...slash, results: all.filter((n) => n.id !== id).slice(0, 8), active: 0 };
     } catch {
       slash = { ...slash, results: [] };
@@ -415,12 +506,21 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
+<svelte:window onkeydown={onPaneKey} />
 
-<article class="panel" class:wide class:solo>
+<article class="panel" class:wide class:solo bind:this={paneEl}>
     <header>
       {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
       <h2>{note?.title ?? 'note'}</h2>
+      {#if note}
+        <!-- Always visible, no edit mode needed: rotating status is the most
+             frequent edit a note gets. Typing a brand-new value is Details' job. -->
+        <StatusChip
+          status={note.status}
+          {statuses}
+          onchange={(next) => setProp('status', next ?? '')}
+        />
+      {/if}
       {#if note && note.type === 'asset' && note.assets.length}
         <button
           class="edit"
@@ -430,6 +530,10 @@
         </button>
       {/if}
       {#if note}
+        <!-- The button is the discoverable way in and stays on every note.
+             Double-clicking the read view is the same action without the trip to
+             the header (a board's canvas owns double-click, so there the button is
+             the only way — hence "Details" rather than "Edit"). -->
         <button class="edit" onclick={toggleEdit}>
           {#if isBoard}
             {editing ? 'Done' : 'Details'}
@@ -560,7 +664,12 @@
           ></textarea>
           {#if adding}<span class="adding">Adding…</span>{/if}
           {#if slash.open && slash.results.length}
-            <ul class="slash-menu" role="listbox" aria-label="insert asset">
+            <ul
+              class="slash-menu"
+              role="listbox"
+              aria-label="insert a link"
+              style="top: {slash.at.top}px; left: {slash.at.left}px"
+            >
               {#each slash.results as r, i (r.id)}
                 <li
                   role="option"
@@ -578,16 +687,38 @@
             </ul>
           {/if}
         </div>
-        <p class="editor-hint">Drag files in to attach · type <kbd>/</kbd> to link a note or asset</p>
+        <p class="editor-hint">
+          Drag files in to attach · type <kbd>/</kbd> to link a note or asset ·
+          <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
+        </p>
       {:else}
         <!-- Chips are built by render.ts, so one delegated listener beats
              re-binding per chip on every render. The handler only acts on a
              .note-chip, and each chip is a real <button> — so the keyboard path
              works natively and this stays a click-target shortcut, not the only
-             way in. -->
+             way in.
+             Double-click anywhere else here opens the editor; there is no Edit
+             button any more. dblclick has no keyboard equivalent, so the view is
+             focusable and Enter does the same job — otherwise dropping the button
+             would leave the keyboard with no way in at all. -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="read" bind:this={content} onclick={onReadClick}></div>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+        <div
+          class="read"
+          bind:this={content}
+          tabindex="0"
+          onclick={onReadClick}
+          ondblclick={startEdit}
+          onkeydown={(e) => {
+            // Only when the view itself has focus — never when a chip inside it does.
+            if (e.key === 'Enter' && e.target === content) {
+              e.preventDefault();
+              void openEditor();
+            }
+          }}
+          title="Double-click to edit"
+        ></div>
       {/if}
     {:else if !error}
       <p class="loading">Loading…</p>
@@ -832,10 +963,13 @@
     font-size: var(--text-xs);
     color: var(--accent);
   }
+  /* Anchored to the caret: `top`/`left` are set inline from caretXY on open, so
+     the menu appears under what you are typing. The values here are only the
+     fallback for a browser that never ran the measurement. */
   .slash-menu {
     position: absolute;
-    top: 2.4rem;
-    left: var(--space-5);
+    top: 0;
+    left: 0;
     z-index: 60;
     margin: 0;
     padding: var(--space-1);
@@ -895,6 +1029,11 @@
     padding: var(--space-4) var(--space-5) var(--space-6);
     box-sizing: border-box;
     color: var(--text);
+    /* Fill the panel below the text, not just the text: `.panel` is a 100vh flex
+       column, so without this a short note leaves a tall dead zone that looks
+       like the note but isn't — double-clicking there would hit nothing. Basis
+       stays `auto` so long content still sizes itself and the panel scrolls. */
+    flex: 1 0 auto;
   }
   .loading,
   .err {

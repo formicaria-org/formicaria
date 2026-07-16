@@ -4,7 +4,7 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
+_Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Known gaps / not fully working
 
@@ -27,10 +27,16 @@ _Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
   range-request instead of buffering.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
-- **Board column order is client-side** (`localStorage['fm-board-order']`, keyed
-  by group-by) — a view preference, per-browser, **not** in the vault, so it
-  doesn't sync across machines. Intentional; the vault-side `.view` file would
+- **Board column *and card* order are client-side** (`localStorage['fm-board-order']`
+  and `['fm-card-order']`, both keyed by group-by; card order additionally by
+  column value) — view preferences, per-browser, **not** in the vault, so they
+  don't sync across machines. Intentional; the vault-side `.view` file would
   change that (still deferred). Column DnD is mouse-only (like card DnD).
+- **The caret-anchored `/` menu is unverified in headless.** `caret.ts` measures
+  with a mirror div, and **jsdom has no layout** — `caretXY` returns zeros there,
+  so the menu degrades to the editor's top-left and the tests can't see the real
+  placement. Only a real browser proves it; re-check by eye after touching the
+  editor's font/padding, since the mirror clones exactly those properties.
 
 - **Whiteboard (Excalidraw) caveats.** (1) Excalidraw fetches its hand-drawn
   fonts from a CDN unless `window.EXCALIDRAW_ASSET_PATH` points at locally-served
@@ -67,6 +73,14 @@ _Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
 
 - **Sandboxed Bash fails** in this environment with a seccomp/`setgroups`
   error. Run shell commands with `dangerouslyDisableSandbox: true`.
+- **The desktop launcher runs a PREBUILT binary and never recompiles.**
+  `pixi run app` execs `target/release/fm-serve` + the built `ui/dist` as they are
+  on disk — that's what makes the icon start instantly. So a backend change you
+  just made is **invisible** to the owner until someone runs `pixi run build`
+  (this bit us on 2026-07-16: a query-layer filter looked unimplemented for an
+  hour). `pixi run serve` rebuilds debug and hides the trap. **Run `pixi run build`
+  before asking the owner to verify anything**, and check
+  `stat target/release/fm-serve` against your edit when a fix "didn't work".
 - **Toolchain is not on PATH.** `cargo/node/pnpm/mdbook/restic` live in
   `.pixi/envs/default/bin`. Use `pixi run <task>` or
   `pixi run -e default <cmd>`; a bare `cargo`/`pnpm` in a background shell will
@@ -78,6 +92,15 @@ _Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
   `curl --path-as-is` (plain curl normalizes `../` client-side and hides it).
 - **Renderers:** no `todo/doing/done`, no scheduling literals — CI grep
   (`ci/checks.sh`) will fail the build.
+- **Every NotePanel pane mounts its own `<svelte:window onkeydown>`**, so a key
+  press is heard by *all* panes in the trail. Pane-scoped shortcuts must go
+  through `ownsKeys()` (focus inside some pane → only that pane acts), or you get
+  the bug Escape-exits-edit had: pane 1 closing the trail while you leave pane 2's
+  editor.
+- **Assets are excluded from `board`/`agenda`/`recent`** (`Predicate::Kind`), so a
+  board grouped by `type` has only a `note` column *by design* — don't "fix" it.
+  Keep `search`/`gallery` seeing assets: search is the only way to find a PDF by
+  its extracted text, and the `/` menu's asset insertion rides on it.
 - **`pixi run ci` does NOT typecheck Svelte.** It is `test, test-ui, deny,
   checks, docs` — no `svelte-check`, and no `vite build` either. A `.svelte` file
   can be type-broken with CI green. After component work run

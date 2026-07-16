@@ -1,4 +1,5 @@
 <script lang="ts">
+  import StatusChip from '../lib/StatusChip.svelte';
   import { dayHeading } from '../lib/calendar';
   import type { ObjectMeta } from '../lib/types';
 
@@ -6,7 +7,12 @@
   // first. Cards arrive already sorted newest-created-first (the `recent` query),
   // so same-day notes are contiguous and we just partition them into day buckets
   // in order. No status literal here — renderer-safe.
-  let { cards, onopen }: { cards: ObjectMeta[]; onopen: (id: string) => void } = $props();
+  let { cards, onopen, statuses = [], onstatus }: {
+    cards: ObjectMeta[];
+    onopen: (id: string) => void;
+    statuses?: string[];
+    onstatus?: (id: string, value: string | null) => void;
+  } = $props();
 
   let days = $derived.by(() => {
     const out: { key: string; heading: string; items: ObjectMeta[] }[] = [];
@@ -36,8 +42,28 @@
           </h2>
           <div class="items">
             {#each day.items as card (card.id)}
-              <button class="row" data-type={card.type} onclick={() => onopen(card.id)}>
-                <span class="type" data-type={card.type}>{card.type}</span>
+              <!-- A div, not a button: the status chip nested here is itself a
+                   button, and a button inside a button is invalid HTML. Same
+                   role/tabindex pattern the board's Card already uses. -->
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+              <div
+                class="row"
+                data-type={card.type}
+                role="button"
+                tabindex="0"
+                onclick={() => onopen(card.id)}
+                onkeydown={(e) =>
+                  (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onopen(card.id))}
+              >
+                {#if onstatus}
+                  <StatusChip
+                    status={card.status}
+                    {statuses}
+                    onchange={(next) => onstatus?.(card.id, next)}
+                  />
+                {:else}
+                  <span class="type" data-type={card.type}>{card.type}</span>
+                {/if}
                 <span class="what">
                   <span class="title">{card.title ?? card.preview ?? card.id}</span>
                   {#if card.title && card.preview}<span class="preview">{card.preview}</span>{/if}
@@ -47,7 +73,7 @@
                     </span>
                   {/if}
                 </span>
-              </button>
+              </div>
             {/each}
           </div>
         </section>

@@ -6,15 +6,40 @@
   import Card from './Card.svelte';
   import type { Board } from '../lib/types';
 
-  let { board, onmove, onreorder, onopen }: {
+  let { board, onmove, onreorder, onopen, statuses = [], onstatus }: {
     board: Board;
-    onmove: (id: string, value: string) => void;
+    /**
+     * Drop a card into a column: set the grouped property to `value`, and place
+     * the card immediately before `beforeId` (null = at the end of the column).
+     */
+    onmove: (id: string, value: string, beforeId: string | null) => void;
     /** Reposition a column (`fromValue`) before/after another (`toValue`). */
     onreorder: (fromValue: string, toValue: string, before: boolean) => void;
     onopen: (id: string) => void;
+    statuses?: string[];
+    onstatus?: (id: string, value: string | null) => void;
   } = $props();
 
   let over = $state<string | null>(null);
+
+  /**
+   * Which card does a drop at `clientY` land above? The first card whose vertical
+   * midpoint is below the pointer — i.e. the one that gets pushed down. Null when
+   * the pointer is past every card, meaning "append". Self-measured from the DOM,
+   * the same way the column-reorder branch below computes its edge, so there is
+   * no hitbox registry to keep in sync. The dragged card is skipped: it is still
+   * in the DOM at its old place, and measuring it would let a card block itself.
+   */
+  function dropBefore(node: HTMLElement, clientY: number, dragged: string): string | null {
+    const cards = node.querySelectorAll<HTMLElement>('[data-card-id]');
+    for (const el of cards) {
+      const id = el.dataset.cardId;
+      if (!id || id === dragged) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return id;
+    }
+    return null;
+  }
 
   // Each column is a drop target. Its identity is the grouped property's value —
   // an opaque string this renderer never inspects. A drop carries either a card
@@ -33,7 +58,7 @@
         over = null;
         const id = source.data.id;
         if (typeof id === 'string') {
-          onmove(id, current);
+          onmove(id, current, dropBefore(node, location.current.input.clientY, id));
           return;
         }
         // Column reorder: insert before/after this column based on which half of
@@ -80,7 +105,7 @@
       </header>
       <div class="column-body">
         {#each col.cards as card (card.id)}
-          <Card {card} {onopen} />
+          <Card {card} {onopen} {statuses} {onstatus} />
         {/each}
       </div>
     </section>

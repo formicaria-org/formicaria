@@ -5,6 +5,36 @@ why — consequence**. The canonical, fuller spec is
 [`formicarium/MASTERPLAN.md`](../../formicarium/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## Assets are query-layer-excluded from the planning views (2026-07-16)
+**Why:** an asset is a blob a note *references*, not a thing you plan; a PDF
+getting its own board card and timeline entry was noise. Filtering in each
+renderer was rejected — it must be repeated per view and silently forgotten by
+the next one. **Consequence:** `board`/`agenda`/`recent` carry
+`Predicate::Kind(vec![Kind::Note])`; `FileStore` delegates structured predicates
+to `fm_query::run`, so this cost no storage-layer change. **`search` and `gallery`
+still see assets on purpose** — search (which indexes extracted PDF text) is the
+only way to *find* an asset, and it is what backs the `/` menu's asset insertion,
+so filtering it too would make ingested files unreachable. Two knock-ons: a board
+grouped by `type` can now only answer `note` (the old
+"falsifies-the-thesis" test was rewritten to pin the new rule; the generic
+group-by claim still lives in `board_by_a_custom_property_…`), and the timeline's
+type pill became dead — the status chip took its slot.
+
+## Status rotates through the vault's own values; card order is a view preference (2026-07-16)
+**Why:** setting a status meant entering edit mode and *typing* it. The obvious
+fix — a `<select>` of `todo/doing/done` — would hardcode one workflow's enum into
+the UI, which "generic, literal-free renderers" exists to prevent.
+**Consequence:** `status.ts`'s `nextStatus(current, known)` cycles the statuses
+`App.learnStatuses` already collects from fetched data, plus unset (so rotating
+can always clear, with no separate control) — the chip renders any workflow and
+the CI literal grep stays green. Typing a *new* value stays the Details editor's
+job; it joins the cycle once a note carries it.
+Separately, a card's **position within a column** is remembered in
+`localStorage['fm-card-order']`, not in the note. **Rejected:** an `order`
+property in frontmatter — it would rewrite a note file on every drag, and where a
+card sits on your board is a view preference, not knowledge. Same reasoning, and
+the same per-browser no-sync caveat, as the existing column order.
+
 ## `start`/`due` are a `Stamp` (day + OPTIONAL time), not a Date/DateTime pair (2026-07-15)
 **Why:** the owner needs meeting times ("a time option beyond the date"), but an
 all-day deadline must stay expressible and must not churn on disk. Two obvious

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveValue, orderColumns } from './boardOrder';
+import { moveValue, orderColumns, placeValue } from './boardOrder';
 
 const cols = (...values: string[]) => values.map((value) => ({ value, label: value }));
 const vals = (columns: { value: string }[]) => columns.map((c) => c.value);
@@ -49,5 +49,37 @@ describe('moveValue', () => {
   it('is a no-op when the target is absent', () => {
     const v = ['a', 'b'];
     expect(moveValue(v, 'a', 'zzz', true)).toBe(v);
+  });
+});
+
+// Where a dragged card lands inside a column: the drop position the user chose,
+// not the backend's created-desc order.
+describe('placeValue', () => {
+  it('inserts before the named card', () => {
+    expect(placeValue(['a', 'b', 'c'], 'c', 'b')).toEqual(['a', 'c', 'b']);
+  });
+
+  it('appends when there is no card to land before (dropped past the last one)', () => {
+    expect(placeValue(['a', 'b', 'c'], 'a', null)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('inserts a card dragged in from another column', () => {
+    // The id need not already be in the list — this is the cross-column drop, and
+    // it is why one function covers both moving and arriving.
+    expect(placeValue(['a', 'b'], 'z', 'b')).toEqual(['a', 'z', 'b']);
+    expect(placeValue(['a', 'b'], 'z', null)).toEqual(['a', 'b', 'z']);
+  });
+
+  it('appends rather than dropping the card when the target is unknown', () => {
+    expect(placeValue(['a', 'b'], 'a', 'gone')).toEqual(['b', 'a']);
+  });
+
+  it('never duplicates the card it moved', () => {
+    expect(placeValue(['a', 'b', 'c'], 'b', 'a')).toEqual(['b', 'a', 'c']);
+  });
+
+  it('holds still when dropped before itself, rather than sliding to the end', () => {
+    const v = ['a', 'b', 'c'];
+    expect(placeValue(v, 'b', 'b')).toBe(v);
   });
 });

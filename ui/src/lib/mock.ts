@@ -81,8 +81,14 @@ function valueOf(n: ObjectMeta, key: string): string {
   }
 }
 
+// The board/agenda/recent commands filter to `Kind::Note` in the query layer —
+// an asset is a blob a note references, not something you plan. Mirror that here
+// so the mock backend answers like the real one. `search`/`gallery` still see
+// assets, which is how you find one (and how the `/` menu inserts a reference).
+const isNote = (n: ObjectMeta) => n.type !== 'asset';
+
 function buildBoard(groupBy: string): Board {
-  const sorted = [...notes].sort((a, b) => b.created.localeCompare(a.created));
+  const sorted = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
   const cols = new Map<string, Column>();
   for (const n of sorted) {
     const value = valueOf(n, groupBy);
@@ -188,8 +194,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .filter((n) => n.type === 'asset')
         .sort((a, b) => b.created.localeCompare(a.created)) as T;
     case 'agenda':
-      return [...notes]
-        .filter((n) => n.due && n.status !== 'done')
+      return notes
+        .filter((n) => isNote(n) && n.due && n.status !== 'done')
         .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? '')) as T;
     case 'get':
       return noteDetail(String(args.id)) as T;
@@ -232,7 +238,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
     }
     case 'recent':
-      return [...notes].sort((a, b) => b.created.localeCompare(a.created)) as T;
+      return notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created)) as T;
     case 'ingest': {
       // No vault in the browser/test: synthesize an asset note so the editor can
       // insert a reference. Deterministic hash so re-adding the same name "dedups".

@@ -4,7 +4,16 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-16 — **notes reference notes**: `[Title](note:<ulid>)`
+_Last verified: 2026-07-16 — **five UX fixes** (see the session note): assets are
+filtered out of `board`/`agenda`/`recent` **in the query layer** (`search`/`gallery`
+still see them — that is how you find a PDF, and how `/` inserts one); a
+**StatusChip** rotates status through the vault's own values from a card or the
+open note; a dropped board card **keeps its position** in the column
+(`fm-card-order` in localStorage, like column order); the `/` menu opens **at the
+caret** and seeds with **recent notes**; and a note opens its editor on
+**double-click** as well as from the **Edit button** (which stays on every note —
+the gesture is a shortcut, not a replacement), with **Ctrl+S** to save. Before
+that: **notes reference notes**: `[Title](note:<ulid>)`
 (deliberately *not* `[[wikilinks]]` — see the session note), inserted by the same
 `/` menu as assets, rendered as a live title+status chip, and clicking one opens
 the target as a **pane to the right** so the trail you followed stays on screen
@@ -87,8 +96,10 @@ auto-shutdown)
 ## Views (all generic renderers over the same query layer)
 
 - **Board** — kanban, group-by-*any*-property, drag a card to another column to
-  set that property (status), drag column headers to reorder (persisted per
-  group-by in `localStorage`)
+  set that property (status) **and to a chosen position within it** (the drop
+  index is self-measured from the card rects in `Board.svelte`); drag column
+  headers to reorder. Both orders persist per group-by in `localStorage`
+  (`fm-board-order` / `fm-card-order`) — view preferences, not vault data.
 - **Agenda** — Calendar (month/week) + a List grouped under urgency bands. A note
   carries an optional **`start`** and **`due`** *stamp* — a day plus an **optional
   wall-clock time** (`2026-07-20` or `2026-07-20T14:30`; both unset by default,
@@ -121,6 +132,13 @@ The standalone **Gallery view was removed** — assets open from the notes that
 reference them (the `gallery` command still exists server-side but is unused by
 the UI).
 
+**Assets appear in no view.** `board`/`agenda`/`recent` filter to
+`Predicate::Kind(vec![Kind::Note])` — an asset is a blob a note *references*, not
+something you plan. `search` and `gallery` still see assets deliberately: search
+is how you find a PDF (its extracted text is indexed), and it is what backs the
+`/` menu's asset insertion. Because grouping is generic, a board grouped by `type`
+can now only answer `note` — that is the pinned behavior, not a bug.
+
 Renderers must contain **no status literals** (`todo/doing/done`) and no
 scheduling literals — value/urgency styling is keyed by data attributes in the
 theme, and labels live in helpers (`urgency.ts`). CI greps enforce this.
@@ -139,11 +157,18 @@ uses `[profile.release]` in `Cargo.toml` (strip + thin-LTO → ~3 MB, vs ~34 MB 
 
 Browser-first **v2 is implemented and green** (`pixi run ci` exit 0, prod build,
 live serve smoke). Everything in "Views" above works, plus: note read view
-(marked→HTML, lazy KaTeX/Mermaid), a properties editor + body edit (byte
-round-trip), asset ingest + drag-drop + inline media
+(marked→HTML, lazy KaTeX/Mermaid) that you edit via the header **Edit** button or
+by **double-clicking** it (**Ctrl+S** saves and returns to reading, Escape leaves
+the editor, and the view is focusable so Enter is the keyboard equivalent; `.read`
+is `flex: 1 0 auto` so the gesture works in the whitespace under a short note,
+not just on the text), a properties editor +
+body edit (byte round-trip), a **click-to-rotate status chip** on cards and in the
+note header (`status.ts`'s `nextStatus` over the vault's own values — no literal),
+asset ingest + drag-drop + inline media
 (img/PDF/video/audio, incl. SVG via a content sniff), **note→note references**
 (`[Title](note:<ulid>)` → a title+status chip → opens a pane in the trail),
-a `/` slash-insert menu that covers **both notes and assets**, one-click restic backup
+a `/` slash-insert menu **anchored at the caret** (`caret.ts`, mirror-div) that
+seeds with `recent` notes and searches **both notes and assets**, one-click restic backup
 (tested restore), verify/manifest (bit-rot), debounced git auto-commit, a
 design-token system (dark+light), the sidebar shell, the NotePanel
 (**full screen by default**, toggle to a docked side-sheet; remembered per

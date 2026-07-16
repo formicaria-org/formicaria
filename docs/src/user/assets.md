@@ -11,9 +11,12 @@ In a note's editor you have two fast paths:
 - **Drag a file in.** Drop it onto the editor; formicarium ingests it (hashing,
   MIME sniffing, text extraction, thumbnail) and inserts a reference at your
   cursor.
-- **Type `/`.** A menu searches by name (and extracted text); pick a result to
-  insert its reference. The menu lists **notes and assets together** and labels
-  each with its type — see [Linking notes](./notes.md#linking-notes-together).
+- **Type `/`.** A menu opens at your cursor listing your **most recent notes**;
+  keep typing to search by name (and extracted text) across everything. The
+  search covers **notes and assets together** and labels each with its type — see
+  [Linking notes](./notes.md#linking-notes-together). Assets appear once you type
+  a query, which is also the only place they show up: they get no card of their
+  own in the Board, Agenda or Timeline.
 
 Both insert a Markdown image reference like:
 

@@ -1,10 +1,9 @@
 //! S3: the board is a query + a generic renderer. These tests prove the whole
-//! thesis without a webview: group by *any* property; a drop writes the column's
-//! value back to disk exactly like `fm set`; and pointing the same code at
-//! `type` instead of `status` yields a board of note/asset (the
-//! falsifiability test the MASTERPLAN calls for). MemoryStore covers the logic;
-//! one FileStore test proves the write-back actually hits the file and survives
-//! a reindex.
+//! thesis without a webview: group by *any* property (a user-invented key needs
+//! zero new code — the falsifiability test the MASTERPLAN calls for); a drop
+//! writes the column's value back to disk exactly like `fm set`; and only notes
+//! get cards. MemoryStore covers the logic; one FileStore test proves the
+//! write-back actually hits the file and survives a reindex.
 
 use fm_app::commands::{board, capture, set_property};
 use fm_core::{FileStore, MemoryStore, Store};
@@ -32,10 +31,10 @@ fn board_groups_by_status_into_columns() {
 }
 
 #[test]
-fn the_same_board_grouped_by_type_falsifies_the_thesis() {
-    // If grouping is truly generic, pointing it at `type` needs zero new code.
-    // `type` now carries exactly two values — a plain note vs an ingested asset —
-    // and the same board code groups on it with no special casing.
+fn the_board_shows_notes_only_never_assets() {
+    // An asset is a blob a note *references*, not something you plan, so it has
+    // no card. Grouping by `type` is the sharpest way to ask: even pointed
+    // straight at the kind, the board can only ever answer "note".
     let mut s = MemoryStore::new();
     let _n = capture(&mut s, "a note").unwrap().id;
     let a = capture(&mut s, "an ingested file").unwrap().id;
@@ -44,7 +43,12 @@ fn the_same_board_grouped_by_type_falsifies_the_thesis() {
     let b = board(&s, "type").unwrap();
     let labels: HashSet<&str> = b.columns.iter().map(|c| c.label.as_str()).collect();
     assert!(labels.contains("note"), "got {labels:?}");
-    assert!(labels.contains("asset"), "got {labels:?}");
+    assert!(!labels.contains("asset"), "assets are excluded from the board, got {labels:?}");
+
+    // The asset is gone from every column, not merely from its own.
+    let carded: HashSet<&str> =
+        b.columns.iter().flat_map(|c| c.cards.iter()).map(|m| m.id.as_str()).collect();
+    assert!(!carded.contains(a.as_str()), "the asset still has a card");
 }
 
 #[test]

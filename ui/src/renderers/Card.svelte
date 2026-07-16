@@ -1,9 +1,17 @@
 <script lang="ts">
   import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+  import StatusChip from '../lib/StatusChip.svelte';
   import { formatStamp } from '../lib/stamp';
   import type { ObjectMeta } from '../lib/types';
 
-  let { card, onopen }: { card: ObjectMeta; onopen: (id: string) => void } = $props();
+  // `statuses`/`onstatus` are optional: a view that doesn't offer status
+  // rotation just omits them and the chip disappears.
+  let { card, onopen, statuses = [], onstatus }: {
+    card: ObjectMeta;
+    onopen: (id: string) => void;
+    statuses?: string[];
+    onstatus?: (id: string, value: string | null) => void;
+  } = $props();
   let dragging = $state(false);
   // Suppress the click that trails a drag, so dropping a card never also opens it.
   let suppressClick = false;
@@ -35,6 +43,7 @@
   class="card"
   class:dragging
   use:drag
+  data-card-id={card.id}
   data-type={card.type}
   role="button"
   tabindex="0"
@@ -43,6 +52,13 @@
 >
   <p class="preview">{card.title ?? card.preview ?? card.id}</p>
   <footer class="meta">
+    {#if onstatus}
+      <StatusChip
+        status={card.status}
+        {statuses}
+        onchange={(next) => onstatus?.(card.id, next)}
+      />
+    {/if}
     {#if card.due}
       <span class="due" class:hard={card.hard} title={card.due}>{formatStamp(card.due)}</span>
     {/if}
