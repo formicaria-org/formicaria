@@ -85,4 +85,72 @@ describe('the app, driven end to end as a user', () => {
       expect(screen.queryByRole('heading', { name: 'Edited in the window' })).toBeNull(),
     );
   });
+
+  // The mock backend keeps its body overrides in module state, which outlives a
+  // single test — so these open the Muesli note rather than the GAE one the edit
+  // walk above rewrites. Every plain mock note shares SAMPLE_BODY, and that body
+  // carries the note reference under test.
+  it('follows a note reference into a second pane, keeping the first', async () => {
+    const { container } = render(App);
+    const panes = () => container.querySelectorAll('.panel');
+
+    // Open a note whose body references another note.
+    await fireEvent.click(await screen.findByText(/Read the Muesli paper/));
+    await screen.findByRole('heading', { name: /GAE and inner-loop adaptation/ });
+
+    // The reference resolved to a chip carrying the target's live status.
+    const chip = await waitFor(() => {
+      const c = container.querySelector<HTMLElement>('.note-chip');
+      expect(c).not.toBeNull();
+      return c!;
+    });
+    // The chip shows the *target's* live status, not this note's.
+    expect(chip.textContent).toContain('the clipping ablation');
+    expect(chip.querySelector('.note-chip-status')?.textContent).toBe('todo');
+    expect(panes()).toHaveLength(1);
+
+    // Following it opens a second pane, and the note we came from stays put.
+    // Every mock note shares SAMPLE_BODY, so "both panes rendered" reads as the
+    // heading appearing twice — one per pane.
+    await fireEvent.click(chip);
+    await waitFor(() => expect(panes()).toHaveLength(2));
+    await waitFor(() =>
+      expect(screen.getAllByRole('heading', { name: /GAE and inner-loop adaptation/ })).toHaveLength(
+        2,
+      ),
+    );
+
+    // Closing the second pane truncates the trail back to the first.
+    const closes = screen.getAllByRole('button', { name: 'close' });
+    await fireEvent.click(closes[closes.length - 1]);
+    await waitFor(() => expect(panes()).toHaveLength(1));
+    expect(screen.getAllByRole('heading', { name: /GAE and inner-loop adaptation/ })).toHaveLength(
+      1,
+    );
+  });
+
+  it('re-following an already-open note truncates rather than duplicating it', async () => {
+    const { container } = render(App);
+    const panes = () => container.querySelectorAll('.panel');
+
+    await fireEvent.click(await screen.findByText(/Read the Muesli paper/));
+    const chip = await waitFor(() => {
+      const c = container.querySelector<HTMLElement>('.note-chip');
+      expect(c).not.toBeNull();
+      return c!;
+    });
+    await fireEvent.click(chip);
+    await waitFor(() => expect(panes()).toHaveLength(2));
+
+    // The second pane shows the same SAMPLE_BODY, so it carries a chip pointing at
+    // itself — the note already at the end of the trail. Following that must not
+    // open a third pane: two panes over one file would be two editors over it.
+    const chips = await waitFor(() => {
+      const found = container.querySelectorAll<HTMLElement>('.note-chip');
+      expect(found).toHaveLength(2); // one per pane, each resolved independently
+      return found;
+    });
+    await fireEvent.click(chips[1]);
+    await waitFor(() => expect(panes()).toHaveLength(2));
+  });
 });

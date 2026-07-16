@@ -151,6 +151,10 @@ export const SAMPLE_BODY = [
   '',
   '![trust-region figure](asset:sha256-deadbeef)',
   '',
+  // A reference to another note, alongside the asset reference above — the two
+  // are deliberately the same shape. `MOCK…0001` is the clipping-ablation note.
+  'Follow-up on [the clipping ablation](note:MOCK0000000000000000000001).',
+  '',
   '- pin `unicode61 remove_diacritics 2`',
   '- measure the worst case',
 ].join('\n');

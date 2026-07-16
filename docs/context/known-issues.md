@@ -49,7 +49,9 @@ _Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
   hardcoded commands for now).
 - Optional mlua scripting hatch.
 - **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
-  posters, semantic search.
+  posters, semantic search. (Forward note references + the sliding-pane trail
+  **shipped 2026-07-16**; only the *backlinks* half is still deferred, and it
+  needs a link index — see [roadmap.md](./roadmap.md).)
 - **Calendar sync, whiteboard-in-a-note + PDF export, and the `Source`/local-model
   ingest module** are *planned, with the design decided* — see
   [roadmap.md](./roadmap.md) rather than re-deriving them.
@@ -76,6 +78,18 @@ _Last verified: 2026-07-15 (time-on-stamps, on commit `822afab`)._
   `curl --path-as-is` (plain curl normalizes `../` client-side and hides it).
 - **Renderers:** no `todo/doing/done`, no scheduling literals — CI grep
   (`ci/checks.sh`) will fail the build.
+- **`pixi run ci` does NOT typecheck Svelte.** It is `test, test-ui, deny,
+  checks, docs` — no `svelte-check`, and no `vite build` either. A `.svelte` file
+  can be type-broken with CI green. After component work run
+  `pixi run pnpm -C ui check` (and `pixi run pnpm -C ui build`) by hand.
+- **`mock.ts` state leaks across tests in a file.** `bodyOverrides` and the `seq`
+  counter are module-scope, and vitest isolates per *file*, not per test — so
+  `App.flow.test.ts`'s edit walk rewrites the GAE note's body for every test
+  after it. Anchor a later test to a note the walk doesn't touch, or add a reset.
+- **jsdom has no layout.** `scrollTo`/`getBoundingClientRect`/`IntersectionObserver`
+  are absent or stubs, so guard them (`el?.scrollTo?.(…)`) the way the
+  `localStorage` reads are guarded — an unguarded call is an unhandled rejection
+  in the suite and a real crash in any browser that lags the API.
 - **Do not add fs/db to `fm-query`** — compile-time + CI enforced.
 - **Commit discipline:** solo repo, work on `main`, no branch/PR ceremony — but
   commit **only when the user asks**.

@@ -11,7 +11,7 @@
     ingestFile,
     search,
   } from './ipc';
-  import { renderInto, type ResolvedAsset } from './render';
+  import { renderInto, type ResolvedAsset, type ResolvedNote } from './render';
   import { parseStamp, toStamp } from './stamp';
   import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
@@ -20,12 +20,26 @@
     id,
     onclose,
     onsaved,
+    onnavigate,
+    ontogglewide,
+    wide = true,
+    solo = true,
     statuses = [],
     startEditing = false,
   }: {
     id: string;
     onclose: () => void;
     onsaved?: () => void;
+    /** A note chip in the read view was clicked — push it onto the trail. */
+    onnavigate?: (id: string) => void;
+    /** The full-screen toggle lives in this header but the state is the whole
+     *  trail's, so App owns it. */
+    ontogglewide?: () => void;
+    wide?: boolean;
+    /** The only pane in the trail. A solo wide pane fills the viewport (the
+     *  reading default); once there are siblings, panes keep their column width
+     *  so the trail stays visible. */
+    solo?: boolean;
     /** Known status values, for the status field's datalist (data-driven). */
     statuses?: string[];
     /** Open a fresh note straight into edit mode (the "New note" flow). */
@@ -38,26 +52,6 @@
   // Transient success line (e.g. after a drag-drop copy). Auto-clears.
   let notice = $state<string | null>(null);
   let editing = $state(false);
-  // Full screen by default (the preferred reading/writing mode); the toggle
-  // shrinks to a docked side-sheet, and the choice is remembered per-browser like
-  // the theme. Anything other than the stored '0' (incl. unset) means full screen.
-  // Guard storage access — it's absent in the test env and in private mode.
-  function readWidePref(): boolean {
-    try {
-      return localStorage.getItem('fm-note-wide') !== '0';
-    } catch {
-      return true;
-    }
-  }
-  let wide = $state(readWidePref());
-  function toggleWide() {
-    wide = !wide;
-    try {
-      localStorage.setItem('fm-note-wide', wide ? '1' : '0');
-    } catch {
-      /* private mode / storage disabled — the default (full screen) still applies */
-    }
-  }
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
@@ -152,9 +146,26 @@
   $effect(() => {
     if (note && content && !editing) {
       revokeAssets();
-      renderInto(content, note.body, resolveAsset).catch((e) => (error = String(e)));
+      renderInto(content, note.body, resolveAsset, resolveNote).catch((e) => (error = String(e)));
     }
   });
+
+  // A `note:` chip needs the target's live title/status. `get` already returns
+  // them (it over-fetches the body, which a chip ignores — not worth a second IPC
+  // command until it measures). A missing note resolves to null and the chip
+  // degrades to a placeholder.
+  async function resolveNote(refId: string): Promise<ResolvedNote | null> {
+    const n = await getNote(refId);
+    return n && { id: n.id, type: n.type, title: n.title, status: n.status };
+  }
+
+  // One delegated listener for every chip in the pane — chips are created by
+  // render.ts, so binding per-chip would mean re-binding on every render.
+  function onReadClick(e: MouseEvent) {
+    const chip = (e.target as HTMLElement | null)?.closest<HTMLElement>('.note-chip');
+    const target = chip?.dataset.noteId;
+    if (target) onnavigate?.(target);
+  }
 
   // Debounced save: typing stops -> 500 ms -> atomic write via update_body.
   // Also re-evaluate the slash-menu trigger against the new caret.
@@ -279,12 +290,29 @@
     el.focus();
   }
 
-  // The Markdown reference for an ingested asset. The URL half is pure hex, so
-  // only the alt text can break link syntax — escape `\`, `[`, `]`.
+  /** Escape the label half of a Markdown link — the URL half is always a pure
+   *  hash or ULID, so only this can break the syntax. */
+  function escapeLabel(text: string): string {
+    return text.replace(/\\/g, '\\\\').replace(/[[\]]/g, '\\$&');
+  }
+
+  // The Markdown reference for an ingested asset.
   function assetRef(meta: ObjectMeta): string {
-    const alt = (meta.title ?? 'asset').replace(/\\/g, '\\\\').replace(/[[\]]/g, '\\$&');
     const hash = meta.assets[0]?.replace(/^sha256:/, '') ?? '';
-    return `![${alt}](asset:sha256-${hash})`;
+    return `![${escapeLabel(meta.title ?? 'asset')}](asset:sha256-${hash})`;
+  }
+
+  // The Markdown reference for another note. Deliberately the same shape as
+  // assetRef: an ordinary Markdown link on a custom scheme, so marked needs no
+  // help and the raw file still reads as prose. The ULID (not the title) is the
+  // target, so retitling the other note never breaks this link.
+  function noteRef(meta: ObjectMeta): string {
+    return `[${escapeLabel(meta.title ?? 'note')}](note:${meta.id})`;
+  }
+
+  /** Both kinds insert through the `/` menu; the type picks the syntax. */
+  function refFor(meta: ObjectMeta): string {
+    return meta.type === 'asset' ? assetRef(meta) : noteRef(meta);
   }
 
   function onDragOver(e: DragEvent) {
@@ -339,7 +367,7 @@
   }
 
   // Detect a `/query` token at the caret (line-start or after whitespace); a
-  // space dismisses. Debounced FTS on the query, filtered to assets.
+  // space dismisses. Debounced FTS on the query.
   function detectSlash() {
     const el = editorEl;
     if (!el) return closeSlash();
@@ -361,8 +389,10 @@
       return;
     }
     try {
+      // Notes and assets both — the type decides the syntax at insert. Drop this
+      // note itself: a self-reference is never what the `/` menu is for.
       const all = await search(q);
-      slash = { ...slash, results: all.filter((n) => n.type === 'asset').slice(0, 8), active: 0 };
+      slash = { ...slash, results: all.filter((n) => n.id !== id).slice(0, 8), active: 0 };
     } catch {
       slash = { ...slash, results: [] };
     }
@@ -374,7 +404,7 @@
     const el = editorEl;
     if (!el) return;
     const caret = el.selectionStart;
-    const ref = assetRef(meta);
+    const ref = refFor(meta);
     draft = draft.slice(0, slash.from) + ref + draft.slice(caret);
     closeSlash();
     onInput();
@@ -387,9 +417,7 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && onclose()} />
 
-<div class="overlay" class:wide>
-  <button class="backdrop" aria-label="close note" onclick={onclose}></button>
-  <article class="panel" class:wide>
+<article class="panel" class:wide class:solo>
     <header>
       {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
       <h2>{note?.title ?? 'note'}</h2>
@@ -413,7 +441,7 @@
           Delete
         </button>
       {/if}
-      <button class="icon-toggle" onclick={toggleWide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
+      <button class="icon-toggle" onclick={ontogglewide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
         {wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
@@ -543,45 +571,33 @@
                     chooseSlash(r);
                   }}
                 >
-                  {r.title ?? r.preview}
+                  <span class="slash-type" data-type={r.type}>{r.type}</span>
+                  <span class="slash-title">{r.title ?? r.preview}</span>
                 </li>
               {/each}
             </ul>
           {/if}
         </div>
-        <p class="editor-hint">Drag files in to attach · type <kbd>/</kbd> to insert an asset</p>
+        <p class="editor-hint">Drag files in to attach · type <kbd>/</kbd> to link a note or asset</p>
       {:else}
-        <div class="read" bind:this={content}></div>
+        <!-- Chips are built by render.ts, so one delegated listener beats
+             re-binding per chip on every render. The handler only acts on a
+             .note-chip, and each chip is a real <button> — so the keyboard path
+             works natively and this stays a click-target shortcut, not the only
+             way in. -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <div class="read" bind:this={content} onclick={onReadClick}></div>
       {/if}
     {:else if !error}
       <p class="loading">Loading…</p>
     {/if}
-  </article>
-</div>
+</article>
 
 <style>
-  .overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    justify-content: flex-end;
-    z-index: 50;
-  }
-  .overlay.wide {
-    justify-content: stretch;
-    align-items: stretch;
-    padding: 0;
-  }
-  /* A full-area button behind the panel: clicking outside closes, with no
-     stopPropagation and no listeners on non-interactive elements. */
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    border: none;
-    background: rgb(0 0 0 / 0.5);
-    cursor: default;
-  }
-  /* Right-docked reading/editing sheet (Notion side-peek). */
+  /* Right-docked reading/editing sheet (Notion side-peek). The overlay and
+     backdrop live in App.svelte — a pane is one column of a trail, and only the
+     trail as a whole is modal. */
   .panel {
     position: relative;
     display: flex;
@@ -589,6 +605,8 @@
     height: 100vh;
     width: clamp(32rem, 42vw, 44rem);
     max-width: 100%;
+    flex: none; /* a trail column keeps its width; the row scrolls instead */
+    scroll-snap-align: end;
     background: var(--surface);
     border-left: 1px solid var(--border);
     box-shadow: var(--shadow-lg);
@@ -605,9 +623,11 @@
       opacity: 1;
     }
   }
-  /* Full screen: the panel fills the viewport. The reading column below stays
-     capped at --measure and centered, so prose is still comfortable. */
-  .panel.wide {
+  /* Full screen: a *solo* pane fills the viewport. The reading column below stays
+     capped at --measure and centered, so prose is still comfortable. Once a
+     second pane joins the trail, panes fall back to their column width — the
+     whole point of following a link is seeing where you came from. */
+  .panel.wide.solo {
     width: 100vw;
     height: 100vh;
     max-width: none;
@@ -829,17 +849,31 @@
     box-shadow: var(--shadow-md);
   }
   .slash-menu li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
     padding: var(--space-1) var(--space-2);
     border-radius: var(--radius-sm);
     font-size: var(--text-sm);
     color: var(--text);
     cursor: pointer;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .slash-menu li.active {
     background: var(--surface-hover);
+  }
+  /* The menu lists notes and assets together, so each row says which it is —
+     that's what tells you whether you're about to embed or link. */
+  .slash-type {
+    flex: none;
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+    text-transform: lowercase;
+  }
+  .slash-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .editor-hint {
     margin: 0;

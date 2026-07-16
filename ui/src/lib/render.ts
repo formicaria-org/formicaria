@@ -12,11 +12,24 @@ export interface ResolvedAsset {
 }
 export type AssetResolver = (ref: string) => Promise<ResolvedAsset | null>;
 
-/** Render `body` into `el`, then upgrade math, diagrams, and asset images. */
+/** What a `note:` chip needs to draw itself — the live fields, not the body. */
+export interface ResolvedNote {
+  id: string;
+  type: string;
+  title: string | null;
+  status: string | null;
+}
+export type NoteResolver = (id: string) => Promise<ResolvedNote | null>;
+
+/** Render `body` into `el`, then upgrade math, diagrams, asset images, and
+ *  `note:` references. `resolveNote` is optional: without it a note reference
+ *  stays the plain link marked produced, which is what the unit tests and any
+ *  caller that has no vault handle want. */
 export async function renderInto(
   el: HTMLElement,
   body: string,
   resolveAsset: AssetResolver,
+  resolveNote?: NoteResolver,
 ): Promise<void> {
   // Math is pulled out of the source *before* Markdown so the parser can never
   // mangle a formula (underscores, backslashes, asterisks) and a stray `$` can't
@@ -27,6 +40,7 @@ export async function renderInto(
   // Markdown → HTML. Fenced ```mermaid becomes <pre><code class="language-mermaid">.
   el.innerHTML = marked.parse(text, { async: false, gfm: true }) as string;
   await resolveAssets(el, resolveAsset);
+  if (resolveNote) await resolveNotes(el, resolveNote);
   await renderMath(el, math);
   await renderMermaid(el);
 }
@@ -177,6 +191,61 @@ function replaceWithFigure(img: HTMLImageElement, media: HTMLElement, alt: strin
   cap.textContent = alt;
   fig.appendChild(cap);
   img.replaceWith(fig);
+}
+
+/** Resolve `note:<id>` links into live chips. Mirrors resolveAssets: marked has
+ *  already made each reference an ordinary `<a href="note:…">`, so we only have
+ *  to recognise the scheme afterwards — no Markdown parser to extend. An id that
+ *  no longer resolves degrades to a visible placeholder keeping the link text,
+ *  so a stale reference is obvious but never blanks the pane. */
+async function resolveNotes(el: HTMLElement, resolveNote: NoteResolver): Promise<void> {
+  const links = Array.from(el.querySelectorAll('a'));
+  for (const a of links) {
+    const href = a.getAttribute('href') ?? '';
+    if (!href.startsWith('note:')) continue;
+    const text = a.textContent ?? '';
+    const note = await resolveNote(href.slice('note:'.length)).catch(() => null);
+    if (!note) {
+      const ph = document.createElement('span');
+      ph.className = 'note-missing-inline';
+      ph.textContent = text || 'note not available';
+      a.replaceWith(ph);
+      continue;
+    }
+    a.replaceWith(noteChip(note, text));
+  }
+}
+
+/** The chip for a resolved note reference: title + live status, keyed by type.
+ *  A `<button>` rather than an `<a>` — there is nothing for a `note:` href to
+ *  navigate to, and a real href would send the webview to a dead scheme if the
+ *  click handler ever missed. A button is focusable and Enter/Space activate it
+ *  natively, so the keyboard path costs nothing.
+ *
+ *  Built from createElement + textContent only, never innerHTML: a note's title
+ *  or status is user text, and this keeps it text. `data-type` is the styling
+ *  hook (same trick as Card.svelte:38) so no type→icon map lives in JS. */
+function noteChip(note: ResolvedNote, text: string): HTMLElement {
+  const chip = document.createElement('button');
+  chip.type = 'button';
+  chip.className = 'note-chip';
+  chip.dataset.noteId = note.id;
+  chip.dataset.type = note.type;
+
+  const title = document.createElement('span');
+  title.className = 'note-chip-title';
+  // The link text is the author's own wording for the target; prefer it, and
+  // fall back to the live title only when the reference was left untitled.
+  title.textContent = text || note.title || note.id;
+  chip.appendChild(title);
+
+  if (note.status) {
+    const status = document.createElement('span');
+    status.className = 'note-chip-status';
+    status.textContent = note.status;
+    chip.appendChild(status);
+  }
+  return chip;
 }
 
 /** Fill each `<span data-math=i>` placeholder with KaTeX, lazily. A formula that

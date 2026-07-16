@@ -113,8 +113,12 @@ Roughly by value-per-effort:
 
 - **Meeting template** — a calendar-imported note opens with attendees/agenda/
   decisions/actions ready to type into. Pairs directly with #2.
-- **`[[wikilinks]]` + backlinks** — connect a meeting note to its project. Already
-  on the deferred list; it's the main thing between *notes* and *knowledge*.
+- **Backlinks** — "what links *here*". The forward half **shipped 2026-07-16** as
+  `[Title](note:<ulid>)` references + the sliding-pane trail (see
+  [sessions/2026-07-16-note-references-sliding-panes.md](./sessions/2026-07-16-note-references-sliding-panes.md));
+  note that we **did not build `[[wikilinks]]`** and the syntax is settled — that
+  entry explains why. What's left is the reverse index: scan bodies on reindex, or
+  a `links` table in `index.sqlite`. It's the rest of what makes notes *knowledge*.
 - **Time-of-day week view** — unlocked by #1; the calendar is still day-granular.
 - **"Open today"** — the Timeline exists but nothing jumps to now.
 - **Audio capture + transcription** — the `media` env already has ffmpeg; Whisper

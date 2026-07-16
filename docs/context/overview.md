@@ -4,7 +4,12 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-15 — notes+tags (no user "type"), optional settable
+_Last verified: 2026-07-16 — **notes reference notes**: `[Title](note:<ulid>)`
+(deliberately *not* `[[wikilinks]]` — see the session note), inserted by the same
+`/` menu as assets, rendered as a live title+status chip, and clicking one opens
+the target as a **pane to the right** so the trail you followed stays on screen
+(`openIds: string[]`; the overlay/backdrop moved from NotePanel up to App).
+Backlinks are still not built. Before that: notes+tags (no user "type"), optional settable
 `start`+`due` **stamps that now carry an optional time** (`2026-07-20T14:30`), so
 a meeting is expressible; calendar bars start→due, note panel full-screen
 by default, red brand accent matching the app icon, launcher UX (release icon,
@@ -130,13 +135,15 @@ running), `test`, `test-ui`, `deny`, `checks`, `docs`, and **`ci`** (runs
 test + test-ui + deny + checks + docs; the single CI gate). The shipped binary
 uses `[profile.release]` in `Cargo.toml` (strip + thin-LTO → ~3 MB, vs ~34 MB debug).
 
-## Current status (2026-07-15)
+## Current status (2026-07-16)
 
 Browser-first **v2 is implemented and green** (`pixi run ci` exit 0, prod build,
 live serve smoke). Everything in "Views" above works, plus: note read view
 (marked→HTML, lazy KaTeX/Mermaid), a properties editor + body edit (byte
-round-trip), asset ingest + drag-drop + `/` slash-insert + inline media
-(img/PDF/video/audio, incl. SVG via a content sniff), one-click restic backup
+round-trip), asset ingest + drag-drop + inline media
+(img/PDF/video/audio, incl. SVG via a content sniff), **note→note references**
+(`[Title](note:<ulid>)` → a title+status chip → opens a pane in the trail),
+a `/` slash-insert menu that covers **both notes and assets**, one-click restic backup
 (tested restore), verify/manifest (bit-rot), debounced git auto-commit, a
 design-token system (dark+light), the sidebar shell, the NotePanel
 (**full screen by default**, toggle to a docked side-sheet; remembered per

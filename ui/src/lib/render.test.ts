@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderInto, extractMath, type ResolvedAsset } from './render';
+import { renderInto, extractMath, type ResolvedAsset, type ResolvedNote } from './render';
 import { SAMPLE_BODY } from './mock';
 
 // The two heavy upgrades (KaTeX math, Mermaid diagrams) are lazily imported by
@@ -271,5 +271,94 @@ describe('extractMath — pulls formulas out before Markdown, dodging its traps'
   it('does not let an unterminated `$` swallow the rest of the note', () => {
     // No closing `$` on the line → left as literal text, zero formulas.
     expect(extractMath('an $unterminated dollar\n\nnext para').math).toEqual([]);
+  });
+});
+
+describe('renderInto — note references become chips', () => {
+  const ID = '01KXGCF248QC70Z7NB4E22A9QJ';
+  const ref = `See [Q3 planning](note:${ID}) for context.`;
+  /** A resolver standing in for the vault, like NotePanel's real one. */
+  const resolveAs = (note: Partial<ResolvedNote> = {}) =>
+    vi.fn(
+      async (id: string): Promise<ResolvedNote> => ({
+        id,
+        type: 'meeting',
+        title: 'Q3 planning',
+        status: 'doing',
+        ...note,
+      }),
+    );
+  const noNote = async (): Promise<ResolvedNote | null> => null;
+
+  // The whole `note:` syntax rests on marked passing an unknown URL scheme
+  // through to the href untouched. If this ever fails, the reference never
+  // reaches resolveNotes and every other test here is meaningless — so assert it
+  // directly rather than only inferring it from the chips.
+  it('marked passes the `note:` scheme through to the href', async () => {
+    const el = pane();
+    await renderInto(el, ref, noAsset);
+    expect(el.querySelector('a')?.getAttribute('href')).toBe(`note:${ID}`);
+  });
+
+  it('replaces the link with a chip carrying the id, type, and live status', async () => {
+    const el = pane();
+    const resolve = resolveAs();
+    await renderInto(el, ref, noAsset, resolve);
+
+    expect(resolve).toHaveBeenCalledWith(ID);
+    const chip = el.querySelector<HTMLElement>('button.note-chip');
+    expect(chip?.dataset.noteId).toBe(ID);
+    expect(chip?.dataset.type).toBe('meeting');
+    expect(chip?.querySelector('.note-chip-title')?.textContent).toBe('Q3 planning');
+    expect(chip?.querySelector('.note-chip-status')?.textContent).toBe('doing');
+    expect(el.querySelector('a')).toBeNull(); // the raw link is gone
+  });
+
+  it('omits the status span for a note that has no status', async () => {
+    const el = pane();
+    await renderInto(el, ref, noAsset, resolveAs({ status: null }));
+    expect(el.querySelector('.note-chip-status')).toBeNull();
+    expect(el.querySelector('.note-chip-title')?.textContent).toBe('Q3 planning');
+  });
+
+  it('degrades a stale reference to a placeholder, keeping the link text', async () => {
+    const el = pane();
+    await renderInto(el, ref, noAsset, noNote);
+    const ph = el.querySelector('.note-missing-inline');
+    expect(ph?.textContent).toBe('Q3 planning');
+    expect(el.querySelector('.note-chip')).toBeNull();
+    expect(el.textContent).toContain('for context.'); // the note still renders
+  });
+
+  it('survives a resolver that throws', async () => {
+    const el = pane();
+    await renderInto(el, ref, noAsset, async () => {
+      throw new Error('vault unreachable');
+    });
+    expect(el.querySelector('.note-missing-inline')?.textContent).toBe('Q3 planning');
+  });
+
+  it('leaves ordinary links alone', async () => {
+    const el = pane();
+    await renderInto(el, '[the spec](https://example.com/spec)', noAsset, resolveAs());
+    expect(el.querySelector('a')?.getAttribute('href')).toBe('https://example.com/spec');
+    expect(el.querySelector('.note-chip')).toBeNull();
+  });
+
+  it('falls back to the live title when the reference has no link text', async () => {
+    const el = pane();
+    await renderInto(el, `See [](note:${ID}) for context.`, noAsset, resolveAs());
+    expect(el.querySelector('.note-chip-title')?.textContent).toBe('Q3 planning');
+  });
+
+  // Title and status are user text, and the chip is built right next to an
+  // innerHTML sink. textContent is the only thing keeping them text.
+  it('never lets a title or status become markup', async () => {
+    const el = pane();
+    const evil = '<img src=x onerror=alert(1)>';
+    await renderInto(el, `[](note:${ID})`, noAsset, resolveAs({ title: evil, status: evil }));
+    expect(el.querySelector('.note-chip img')).toBeNull();
+    expect(el.querySelector('.note-chip-title')?.textContent).toBe(evil);
+    expect(el.querySelector('.note-chip-status')?.textContent).toBe(evil);
   });
 });

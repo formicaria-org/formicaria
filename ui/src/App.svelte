@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import Board from './renderers/Board.svelte';
   import Agenda from './renderers/Agenda.svelte';
   import Calendar from './renderers/Calendar.svelte';
@@ -29,8 +30,33 @@
   let searchQuery = $state('');
   let error = $state<string | null>(null);
   let notice = $state<string | null>(null);
-  let openId = $state<string | null>(null);
+  // The open notes, left to right: a trail, not a single note. Opening from a
+  // view starts a fresh one; following a note reference pushes onto it, so the
+  // note you came from stays on screen. Empty = nothing open.
+  let openIds = $state<string[]>([]);
   let startEditing = $state(false);
+  let trailEl = $state<HTMLElement | undefined>(undefined);
+
+  // Full screen by default (the preferred reading/writing mode); the toggle
+  // shrinks to a docked side-sheet, and the choice is remembered per-browser like
+  // the theme. Anything other than the stored '0' (incl. unset) means full screen.
+  // Guard storage access — it's absent in the test env and in private mode.
+  function readWidePref(): boolean {
+    try {
+      return localStorage.getItem('fm-note-wide') !== '0';
+    } catch {
+      return true;
+    }
+  }
+  let wide = $state(readWidePref());
+  function toggleWide() {
+    wide = !wide;
+    try {
+      localStorage.setItem('fm-note-wide', wide ? '1' : '0');
+    } catch {
+      /* private mode / storage disabled — the default (full screen) still applies */
+    }
+  }
   // Distinct status values seen so far — feeds the note panel's status datalist,
   // so the picker is data-driven (no hardcoded status literal anywhere).
   let knownStatuses = $state<string[]>([]);
@@ -114,7 +140,7 @@
     }
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
-    if (openId) return; // the note panel owns keys while open
+    if (openIds.length) return; // the note panel owns keys while open
     const views: View[] = ['board', 'agenda', 'timeline'];
     if (e.key === '/') {
       e.preventDefault();
@@ -184,7 +210,7 @@
     try {
       const meta = await capture('');
       startEditing = true;
-      openId = meta.id;
+      openIds = [meta.id];
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -203,7 +229,7 @@
       await setProperty(meta.id, 'view', 'board');
       await setProperty(meta.id, 'title', 'Untitled board');
       startEditing = false;
-      openId = meta.id;
+      openIds = [meta.id];
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -212,9 +238,29 @@
   }
 
   // Open an existing note in read mode (never inherit a stale startEditing).
+  // Opening from a view starts a new trail — the old one was a different thought.
   function openNote(id: string) {
     startEditing = false;
-    openId = id;
+    openIds = [id];
+  }
+
+  // Follow a note reference: push the target onto the trail. Re-following a note
+  // already open truncates back to it rather than opening a second copy — two
+  // panes of one note would be two editors over one file.
+  async function pushNote(id: string) {
+    const at = openIds.indexOf(id);
+    openIds = at === -1 ? [...openIds, id] : openIds.slice(0, at + 1);
+    await tick(); // let the new pane mount before scrolling to it
+    // Guarded like the localStorage access above: scrollTo is absent in jsdom,
+    // and failing to scroll must never break the navigation itself.
+    trailEl?.scrollTo?.({ left: trailEl.scrollWidth, behavior: 'smooth' });
+  }
+
+  // Close one pane and everything downstream of it — the trail past it was
+  // reached *through* it, so it no longer has a path.
+  function closeFrom(i: number) {
+    if (i === 0) return closeNote();
+    openIds = openIds.slice(0, i);
   }
 
   async function onMove(id: string, value: string) {
@@ -265,7 +311,7 @@
   // Editing a note's properties can change its type/status, so refresh the
   // current view when the panel closes.
   function closeNote() {
-    openId = null;
+    openIds = [];
     startEditing = false;
     void refresh();
   }
@@ -389,12 +435,31 @@
     </div>
   </div>
 
-  {#if openId}
-    <!-- Lazy: the read view (marked + KaTeX + Mermaid) only loads when a note is
-         opened, so the core bundle stays small. -->
-    {#await import('./lib/NotePanel.svelte') then { default: NotePanel }}
-      <NotePanel id={openId} {startEditing} statuses={knownStatuses} onclose={closeNote} onsaved={scheduleCommit} />
-    {/await}
+  {#if openIds.length}
+    <!-- The trail is modal as a whole: one overlay and one backdrop for all of
+         it, however many panes deep it runs. Lazy: the read view (marked +
+         KaTeX + Mermaid) only loads when a note is opened, so the core bundle
+         stays small — and the import resolves once, not once per pane. -->
+    <div class="overlay" class:wide>
+      <button class="backdrop" aria-label="close note" onclick={closeNote}></button>
+      <div class="trail" bind:this={trailEl}>
+        {#await import('./lib/NotePanel.svelte') then { default: NotePanel }}
+          {#each openIds as id, i (id)}
+            <NotePanel
+              {id}
+              {wide}
+              solo={openIds.length === 1}
+              startEditing={i === openIds.length - 1 && startEditing}
+              statuses={knownStatuses}
+              onclose={() => closeFrom(i)}
+              onnavigate={pushNote}
+              ontogglewide={toggleWide}
+              onsaved={scheduleCommit}
+            />
+          {/each}
+        {/await}
+      </div>
+    </div>
   {/if}
 
   {#if paletteOpen}
@@ -405,6 +470,44 @@
 </div>
 
 <style>
+  /* ── The note trail: the modal surface holding one or more open panes ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: flex-end;
+    z-index: 50;
+  }
+  .overlay.wide {
+    justify-content: stretch;
+    align-items: stretch;
+    padding: 0;
+  }
+  /* A full-area button behind the panes: clicking outside closes, with no
+     stopPropagation and no listeners on non-interactive elements. */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    border: none;
+    background: rgb(0 0 0 / 0.5);
+    cursor: default;
+  }
+  /* Panes sit left-to-right in the order they were opened. The row scrolls
+     rather than squeezing them, so a long trail stays readable; each pane snaps
+     so you land on a note, not between two. `justify-content: flex-end` keeps a
+     short trail docked right, where the single sheet has always been. */
+  .trail {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    margin-left: auto;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+
   /* ── Shell: recessive left rail + main column (Linear/Things-style) ── */
   .app {
     display: grid;
