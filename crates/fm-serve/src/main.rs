@@ -569,8 +569,10 @@ struct VaultStatus {
     /// restic repo, which is not an error: a restic repo is per repository, so a set of
     /// vaults needs one each, and you may well not want one for all of them.
     restic_repo: Option<String>,
-    /// This vault's media could actually be backed up right now: it has a repo *and*
-    /// `RESTIC_PASSWORD` is set.
+    /// This vault's media could actually be backed up **right now**: restic is installed,
+    /// this vault has a repo, and `RESTIC_PASSWORD` is set. All three, because "ready"
+    /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
+    /// and then fails on a machine with no restic.
     restic_ready: bool,
 }
 
@@ -591,12 +593,19 @@ struct BackupStatus {
     /// the panel invite you to type a remote into a tier that cannot run. Per machine, not
     /// per vault: git is either installed or it isn't.
     git: bool,
+    /// Whether this machine has restic. Per machine for the same reason as `git`. Split
+    /// from `restic_ready` on purpose: "no restic installed" and "restic installed but this
+    /// vault has no repo" are different sentences to say to someone.
+    restic: bool,
 }
 
 fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
     // One password for every repo. A per-vault password would have to live somewhere,
     // and the one place it must never live is the config file next to the paths.
     let has_password = std::env::var("RESTIC_PASSWORD").is_ok();
+    // The tool itself. Media backup is an optional *feature*: no restic, no feature — but
+    // the notebook is untouched, and the panel has to say which of those it is.
+    let has_restic = backup::available();
     let vaults = state
         .vaults
         .iter()
@@ -607,11 +616,11 @@ fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
             identity: git::identity(&v.path),
             remote_moved: git::remote_moved(&v.path).unwrap_or(None),
             conflicts: git::conflicts(&v.path).unwrap_or_default(),
-            restic_ready: v.restic.is_some() && has_password,
+            restic_ready: has_restic && v.restic.is_some() && has_password,
             restic_repo: v.restic.clone(),
         })
         .collect();
-    Ok(BackupStatus { vaults, git: git::available() })
+    Ok(BackupStatus { vaults, git: git::available(), restic: has_restic })
 }
 
 /// The media tier, for **one** vault — snapshot it into *its own* restic repo.

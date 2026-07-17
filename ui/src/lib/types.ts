@@ -76,8 +76,9 @@ export interface VaultStatus {
    *  this vault has no restic repo, which is not an error: a restic repo is per
    *  repository, so a set of vaults needs one each. */
   restic_repo: string | null;
-  /** This vault's media could actually be backed up now: it has a repo and the password
-   *  is set. */
+  /** This vault's media could actually be backed up **now**: restic is installed, this
+   *  vault has a repo, and the password is set. All three — "ready" has to mean
+   *  "will work", not "is configured". */
   restic_ready: boolean;
 }
 
@@ -94,6 +95,10 @@ export interface BackupStatus {
    *  identity: null`, which reads exactly like "not set up yet" — so the panel has to be
    *  told, or it would invite you to configure a tier that cannot run. */
   git: boolean;
+  /** Whether this machine has restic. Distinct from a vault's `restic_ready`: "no restic
+   *  installed" and "restic installed but this vault has no repo" are different things to
+   *  tell someone. */
+  restic: boolean;
 }
 
 /** What a pull did. Conflicts are a result, not a failure. */

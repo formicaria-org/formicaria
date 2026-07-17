@@ -12,6 +12,27 @@ use crate::StoreError;
 use std::path::Path;
 use std::process::{Command, Output};
 
+/// Is restic on this machine?
+///
+/// **An optional feature's dependency, declared rather than assumed** — the same shape as
+/// [`crate::git::available`]. The core (notes, scheduling, board, search) is `FileStore`
+/// over Markdown files and spawns nothing; media backup is a *feature*, and a feature
+/// whose tool is absent should simply not be offered. Without this the panel gates its
+/// checkbox on "repo configured and password set" — which is not the same claim as "this
+/// can run", so it enables, you tick it, and restic isn't there.
+///
+/// Cached: restic does not appear mid-run, and this is asked on every status read.
+pub fn available() -> bool {
+    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        Command::new("restic")
+            .arg("version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
+}
+
 fn restic(repo: &Path, password: &str) -> Command {
     let mut c = Command::new("restic");
     c.arg("--repo").arg(repo).env("RESTIC_PASSWORD", password);

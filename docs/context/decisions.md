@@ -23,6 +23,31 @@ matched **by value**, and a vault's `.git/config` is per-machine, so changing it
 hands every vault still on the old value a "real" identity and reopens the hole Phase 0
 closed. Safe once, while every vault was the author's. Not twice.
 
+## The core is note-taking + scheduling on one PC; every external tool is an optional feature (2026-07-17)
+**Why:** the owner's ruling, and it settles a class of question rather than one case: *the
+core should let you take notes and schedule tasks on a local PC with nothing installed. If
+you want PDFs rendered nicely, you install that dependency. A missing dep means that
+feature doesn't work — the core still does.* **Consequence:** the core is `FileStore` over
+Markdown files and **spawns nothing**. Verified against a machine with an empty `PATH` — no
+git, no restic, no pdftotext, no vipsthumbnail: capture, `due` scheduling, agenda, board,
+search and edit all work. Everything external is a *feature* with a *declared capability*:
+
+| tool | feature it buys | without it |
+|---|---|---|
+| **git** | history (local undo past this session), backup, collaboration | `git::available()` → the tab stops the 5s auto-commit and says so once; the panel says git isn't installed |
+| **restic** | media (blob) backup | `backup::available()` → `restic_ready` is false, the checkbox is off and says why |
+| **pdftotext** | a PDF's text is searchable | blob still stored and rendered; extraction returns `None` — no text, no error |
+| **vipsthumbnail** | gallery thumbnails | tile falls back to the missing-asset placeholder |
+| **xdg-open** | "open in the OS app" | that one action errors |
+
+**The rule that generalises:** a capability must mean *"this will work"*, never *"this is
+configured"*. `restic_ready` broke it — it meant "repo set + password set", so on a machine
+with no restic the checkbox enabled, you ticked it, and it failed. Configuration is not
+capability. **And absence must be stated, not swallowed:** the notebook working while a
+feature silently doesn't is how you discover on the day you need it. **Rejected:** treating
+any of these as hard requirements (the core demonstrably needs none); bundling them into
+the binary (they are subprocesses — see the packaging note in `plan.md`).
+
 ## Git is a capability, not a dependency (2026-07-17)
 **Why:** the owner pushed back that formicaria runs on vaults on a single PC and should not
 be tightly coupled to git — git is for backup and collaboration. Tested: **true, and the

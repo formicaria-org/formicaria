@@ -319,6 +319,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           restic_ready: false,
         })),
         git: true,
+        restic: true,
       };
       return status as T;
     }

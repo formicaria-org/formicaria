@@ -48,6 +48,9 @@
   // Tickable if *anyone* can take media. Vaults without a restic repo are not a reason to
   // grey out the ones that have one — they are a reason to say their media stayed put.
   const anyRestic = $derived(vaults.some((v) => v.restic_ready));
+  // "restic isn't installed" and "you haven't given this vault a repo" are different
+  // problems with different fixes, so never say one when you mean the other.
+  const noRestic = $derived(!!status && !status.restic);
   // Something to push somewhere. A vault with no remote isn't a failure, it just has
   // nowhere to go yet.
   const canRun = $derived(!busy && !noGit && vaults.some((v) => !!v.remote));
@@ -381,7 +384,12 @@
       <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
       <span>
         Include media — restic backup
-        {#if status && !anyRestic}
+        {#if noRestic}
+          <span class="muted">
+            (unavailable: restic isn't installed on this machine — media backup is an
+            optional feature, and your notes don't need it)
+          </span>
+        {:else if status && !anyRestic}
           <span class="muted">
             (unavailable: no vault has a <code>restic</code> repo in your vault list, or
             <code>RESTIC_PASSWORD</code> isn't set — then restart)
