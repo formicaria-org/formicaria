@@ -105,7 +105,11 @@ nonexistent command, took the non-zero exit as "conflict", and handed back `%A`
 *untouched* — i.e. ours, with **no markers** — so the user resolves a normal-looking file
 and silently deletes their collaborator's edit. `merge_command()` returns `None` unless an
 `fm` binary really sits beside the running one, and no driver at all degrades safely to
-git's built-in text merge. **Rejected:** a bare `fm` on PATH (PATH at `git pull` time is
+git's built-in text merge. **The corollary bit later:** `pixi run build` shipped only
+`fm-serve`, so in a release install there *was* no `fm` beside it and the driver silently
+never installed — the centrepiece of Phase 1, absent, with every test green (the tests
+build `fm-cli` themselves). Found by a clean release build, not by CI. The build task now
+builds both and says why. **Rejected:** a bare `fm` on PATH (PATH at `git pull` time is
 not PATH now, and being wrong is data loss); resolving field conflicts by `updated`
 last-writer-wins (fiat, i.e. the CRDT mistake decision 1 rules out).
 

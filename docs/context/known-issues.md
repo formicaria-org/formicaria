@@ -97,6 +97,15 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **`pixi run build` must build `fm`, not just `fm-serve`.** `ensure_repo` installs the
+  `.md` merge driver by pointing git at the `fm` binary **beside the running one**, and
+  deliberately installs nothing when it can't find one. So a build task that ships only
+  `fm-serve` makes the merge driver silently never install — every concurrent edit then
+  conflicts on the `updated:` line, i.e. the single thing Phase 1 exists to prevent, with
+  no error anywhere. It was like this for a whole phase and every test passed, because the
+  tests build `fm-cli` themselves. **Only a clean release build finds this.** If you ever
+  split the workspace or trim the build task, this is what breaks first and quietest.
+
 - **Sandboxed Bash fails** in this environment with a seccomp/`setgroups`
   error. Run shell commands with `dangerouslyDisableSandbox: true`.
 - **The desktop launcher runs a PREBUILT binary and never recompiles.**
