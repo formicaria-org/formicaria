@@ -107,6 +107,20 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN` (xdg-open the
   browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (the **media** backup tier only —
   the notes tier needs neither).
+- **One malformed `.md` bricks startup.** `reindex` propagates a frontmatter parse
+  error, so `FileStore::open` fails and the app will not launch — which contradicts
+  files-as-truth's own degrade-gracefully stance. Found by the 2026-07-17 audit;
+  not fixed.
+- **`fm-serve` has no tests at all.** The entire production transport is unverified,
+  and every UI test runs against `mock.ts` — so the real HTTP path is only ever
+  exercised by hand. Found by the 2026-07-17 audit.
+- **A backgrounded tab can shut the app down.** The heartbeat is 3s
+  (`App.svelte:229`) but browsers throttle background timers to ~1/min, while the
+  watchdog idles out at 10s (`main.rs:91`). Only bites with `FM_AUTO_SHUTDOWN`
+  (i.e. the desktop launcher). Found by the 2026-07-17 audit.
+- **SQLite has no `busy_timeout`/WAL**, and every `fm` CLI command takes an
+  exclusive write lock — so the CLI races a running server. Found by the
+  2026-07-17 audit.
 - **The API silently accepts malformed JSON.** `api()` does
   `serde_json::from_slice(body).unwrap_or(Value::Null)` (`fm-serve/src/main.rs:164`)
   and `s(k)` then `unwrap_or("")`, so a client bug arrives as an **empty-string

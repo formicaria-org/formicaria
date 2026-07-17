@@ -38,6 +38,12 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     // is the *only* correct probe here: `git rev-parse` walks upward and would
     // report the parent repo when the vault is nested inside one.
     if vault.join(".git").exists() {
+        // A repo we did not create — `git init`ed by hand — still needs the ignore
+        // rules, or the very next `commit_all` (`git add -A`) sweeps `blobs/` and
+        // the index into history, and a push then ships every PDF and video to the
+        // remote. Idempotent: `write_gitignore` only writes when the file is absent,
+        // so a cloned vault's own tracked `.gitignore` is left alone.
+        write_gitignore(vault)?;
         return Ok(false);
     }
     std::fs::create_dir_all(vault).map_err(io)?;
@@ -132,6 +138,14 @@ pub fn set_remote(vault: &Path, url: &str) -> Result<(), StoreError> {
     Ok(())
 }
 
+fn rev_parse(vault: &Path, rev: &str) -> Result<String, StoreError> {
+    let out = git(vault).args(["rev-parse", rev]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git rev-parse", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
 fn branch(vault: &Path) -> Result<String, StoreError> {
     let out = git(vault).args(["rev-parse", "--abbrev-ref", "HEAD"]).output().map_err(spawn)?;
     if !out.status.success() {
@@ -197,6 +211,9 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
             "no remote configured — set one to push your notes off this machine".into(),
         ));
     }
+    // Where the history stood before we collapsed it. The squash is a bet that the
+    // push lands; if it doesn't, this is what we put back.
+    let head_before = rev_parse(vault, "HEAD").ok();
     let squashed = match tracking(vault)? {
         // The first push. Here "unpushed" means the *entire* history, and
         // destroying history that has never left the machine is exactly
@@ -233,6 +250,17 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
     // above possible at all.
     let out = git(vault).args(["push", "-u", REMOTE, "HEAD"]).output().map_err(spawn)?;
     if !out.status.success() {
+        // The squash was a bet that the push would land. It didn't — most likely
+        // the remote moved and rejected us, which is the very case this function
+        // exists to make safe. Put the history back: leaving it collapsed would
+        // charge the user their granular undo for a backup that never happened.
+        // `--soft` restores HEAD without touching the index, which already holds
+        // this tree, so the working tree is untouched either way.
+        if squashed > 0 {
+            if let Some(h) = &head_before {
+                let _ = git(vault).args(["reset", "--soft", h]).output();
+            }
+        }
         return Err(failed("git push", &out));
     }
     Ok(squashed)

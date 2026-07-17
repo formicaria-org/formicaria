@@ -66,9 +66,11 @@ edited yourself. From the CLI you also get `fm backup`, `fm restore`, and `fm ch
 (the last re-reads every pack to catch silent bit-rot).
 
 If you only ever push notes, **restore what you can and check what you lost**: a
-git-only restore brings back every note plus `manifest.json`, the blob inventory —
-so `fm verify` will name exactly which media is missing rather than leave you
-guessing.
+git-only restore brings back every note, and `fm verify` then reads the notes' own
+`asset:` references and names exactly which media is missing — so you know what to
+re-fetch rather than having to guess. (`manifest.json` adds bit-rot detection on
+top of that, but only the `fm manifest` command writes it; the app never does, so
+don't count on it being current.)
 
 ## Integrity
 

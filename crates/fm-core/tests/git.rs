@@ -75,6 +75,78 @@ fn log_count(repo: &std::path::Path) -> usize {
 }
 
 #[test]
+fn a_repo_we_did_not_create_still_gets_the_ignore_rules() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    // A vault someone `git init`ed by hand. Without the ignore rules the next
+    // `add -A` would sweep blobs/ and the index into history, and a push would
+    // ship every PDF to the remote — the light tier would silently be heavy.
+    let vault = tempdir().unwrap();
+    assert!(Command::new("git")
+        .arg("init")
+        .arg(vault.path())
+        .output()
+        .unwrap()
+        .status
+        .success());
+
+    assert!(!git::ensure_repo(vault.path()).unwrap(), "already a repo — we did not create it");
+
+    let ignore = fs::read_to_string(vault.path().join(".gitignore")).unwrap();
+    assert!(ignore.contains("blobs/"), "heavy blobs ignored even in a hand-made repo");
+    assert!(ignore.contains("index.sqlite"), "per-machine index ignored");
+}
+
+#[test]
+fn a_rejected_push_restores_the_history_it_squashed() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let bare = tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+
+    // Our vault, with one push behind it so a tracking ref exists.
+    let vault = tempdir().unwrap();
+    write_and_commit(vault.path(), "01.md", "one\n");
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    // Another machine pushes, so the real remote is now ahead of our stale
+    // tracking ref — the divergence this whole design fails safe on.
+    let other = tempdir().unwrap();
+    Command::new("git").arg("clone").arg(bare.path()).arg(other.path()).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["config", "user.email", "t@t"]).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["config", "user.name", "t"]).output().unwrap();
+    fs::write(other.path().join("theirs.md"), "from elsewhere\n").unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["add", "-A"]).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["commit", "-m", "theirs"]).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["push", "origin", "HEAD"]).output().unwrap();
+
+    // Two commits here, so the push squashes before it tries — and gets rejected.
+    write_and_commit(vault.path(), "02.md", "two\n");
+    write_and_commit(vault.path(), "03.md", "three\n");
+    let before = log_count(vault.path());
+
+    assert!(git::push_squashed(vault.path(), "backup: second").is_err(), "diverged → rejected");
+
+    // The squash is a bet on the push landing. It didn't, so the granular history
+    // must be back: charging the user their undo for a backup that never happened
+    // is the worst of both outcomes.
+    assert_eq!(log_count(vault.path()), before, "history restored, not left collapsed");
+    let files = Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["ls-tree", "-r", "--name-only", "HEAD"])
+        .output()
+        .unwrap();
+    let files = String::from_utf8_lossy(&files.stdout);
+    assert!(files.contains("notes/03.md"), "and the work itself survived: {files}");
+}
+
+#[test]
 fn set_remote_is_idempotent_and_the_last_url_wins() {
     if !have_git() {
         eprintln!("skipping git test: git not on PATH");

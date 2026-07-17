@@ -21,6 +21,9 @@ struct AppState {
     store: Mutex<FileStore>,
     vault: PathBuf,
     dist: PathBuf,
+    /// The origins our own page can be served from. Any other origin on an API
+    /// call is some site the user merely visited, reaching for their vault.
+    origins: Vec<String>,
     /// When the last request arrived — the browser's heartbeat refreshes it, so
     /// the auto-shutdown watchdog can tell an open tab from a closed one.
     last_seen: Mutex<Instant>,
@@ -34,11 +37,17 @@ fn main() {
     let dist = std::env::var("FM_UI_DIST").unwrap_or_else(|_| "ui/dist".to_string());
     let addr = std::env::var("FM_ADDR").unwrap_or_else(|_| "127.0.0.1:8765".to_string());
 
+    // Both spellings of "us": a browser sends whichever hostname the user typed.
+    let port = addr.rsplit(':').next().unwrap_or("8765").to_string();
+    let origins =
+        vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
+
     let store = FileStore::open(&vault).expect("open vault");
     let state = Arc::new(AppState {
         store: Mutex::new(store),
         vault: PathBuf::from(&vault),
         dist: PathBuf::from(&dist),
+        origins,
         last_seen: Mutex::new(Instant::now()),
         connected: AtomicBool::new(false),
     });
@@ -118,8 +127,9 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     }
     state.connected.store(true, Ordering::Relaxed);
 
-    // Read headers; we only care about the body length.
+    // Read headers; we care about the body length and who is calling.
     let mut content_length = 0usize;
+    let mut origin: Option<String> = None;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -132,6 +142,10 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
         let lower = line.to_ascii_lowercase();
         if let Some(v) = lower.strip_prefix("content-length:") {
             content_length = v.trim().parse().unwrap_or(0);
+        } else if let Some(v) = lower.strip_prefix("origin:") {
+            // Lowercased with the rest of the line, which is harmless: an origin is
+            // scheme + host + port, none of which are case-sensitive.
+            origin = Some(v.trim().to_string());
         }
     }
     // Guard against a hostile/oversized upload before allocating the body.
@@ -141,6 +155,28 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let mut body = vec![0u8; content_length];
     if content_length > 0 {
         reader.read_exact(&mut body)?;
+    }
+
+    // The vault is reachable at a fixed localhost port with no authentication, so
+    // any page the user happens to visit could POST to it — and a `text/plain`
+    // body skips the CORS preflight, so the browser hides the *response* while the
+    // side effect (a delete, a write) still lands. Browsers send `Origin` on every
+    // POST, same-origin included, so a mismatch is exactly that attack.
+    //
+    // No `Origin` at all means a non-browser client — curl, a script, a test.
+    // That is not a CSRF vector (there are no ambient credentials to abuse) and
+    // refusing it would break every command-line workflow, so it passes.
+    if method == "POST" && path.starts_with("/api/") {
+        if let Some(o) = &origin {
+            if !state.origins.iter().any(|allowed| allowed == o) {
+                return write_response(
+                    &mut stream,
+                    "403 Forbidden",
+                    "text/plain",
+                    b"cross-origin request refused",
+                );
+            }
+        }
     }
 
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
