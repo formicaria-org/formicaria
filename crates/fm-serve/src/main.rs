@@ -338,7 +338,10 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         // case and quiet is a stat per file.
         "ping" => {
             let changed = lock(state)?.reindex(Reindex::Incremental).map_err(err)?;
-            json(Ping { changed: changed.updated > 0 || changed.removed > 0 })
+            json(Ping {
+                changed: changed.updated > 0 || changed.removed > 0,
+                git: git::available(),
+            })
         }
         // Binary upload: the raw request body IS the file; the name rides in the
         // query string (`/api/ingest?name=<urlencoded>`).
@@ -521,6 +524,11 @@ fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
 #[derive(serde::Serialize)]
 struct Ping {
     changed: bool,
+    /// Whether this machine has git at all. **Not a dependency — a capability.** The tab
+    /// uses it to stop firing an auto-commit every 5s at a binary that isn't there, and
+    /// to say so once instead of failing silently forever. Rides the heartbeat because
+    /// the check is cached and the tab already beats.
+    git: bool,
 }
 
 /// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have
@@ -578,6 +586,11 @@ struct BackupStatus {
     /// Every vault, in configured order; the first is the default. A single-vault
     /// install is a list of one, so the panel needs no separate shape for it.
     vaults: Vec<VaultStatus>,
+    /// Whether this machine has git. Without it every vault below reports `remote: null,
+    /// identity: null` — which is indistinguishable from "not set up yet", and would have
+    /// the panel invite you to type a remote into a tier that cannot run. Per machine, not
+    /// per vault: git is either installed or it isn't.
+    git: bool,
 }
 
 fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
@@ -598,7 +611,7 @@ fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
             restic_repo: v.restic.clone(),
         })
         .collect();
-    Ok(BackupStatus { vaults })
+    Ok(BackupStatus { vaults, git: git::available() })
 }
 
 /// The media tier, for **one** vault — snapshot it into *its own* restic repo.

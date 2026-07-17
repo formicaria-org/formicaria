@@ -48,6 +48,32 @@ pub struct Identity {
     pub email: String,
 }
 
+/// Is git on this machine at all?
+///
+/// **Git is optional, and this is the function that says so out loud.** A vault is a
+/// directory of Markdown files; everything that makes formicaria a notebook — capture,
+/// edit, board, agenda, search — is `FileStore` over those files and never spawns git.
+/// Someone with no git has a complete, working, single-PC notebook. What they do not have
+/// is **history**: the local undo that reaches past this session, and the backup and
+/// collaboration built on top of it.
+///
+/// So git is a **capability to declare, not a dependency to assume**. Without this the
+/// debounced auto-commit spawns git every five seconds forever, fails, and is swallowed —
+/// leaving a vault quietly unversioned, which you discover on the day you need the history
+/// and it is not there.
+///
+/// Cached: git does not appear halfway through a run, and this is asked on the heartbeat.
+pub fn available() -> bool {
+    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        Command::new("git")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    })
+}
+
 fn git(vault: &Path) -> Command {
     let mut c = Command::new("git");
     c.arg("-C").arg(vault);

@@ -108,7 +108,9 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
 // Liveness heartbeat. When launched from the desktop icon the server auto-shuts
 // down once the tab stops pinging, so closing the tab closes the app. A no-op in
 // the dev/test mock backend.
-/** Liveness heartbeat *and* the local poll: `changed` is true when the vault moved
- *  on disk under us (a pull, a merge driver, an editor), which the views cannot see
- *  on their own because they are served from the index. */
-export const ping = () => invoke<{ changed: boolean }>('ping');
+/** Liveness heartbeat, the local poll, and one capability. `changed` is true when the
+ *  vault moved on disk under us (a pull, a merge driver, an editor), which the views
+ *  cannot see on their own because they are served from the index. `git` says whether this
+ *  machine has git at all — **not a dependency, a capability**: the notebook works without
+ *  it, only history does not. */
+export const ping = () => invoke<{ changed: boolean; git: boolean }>('ping');

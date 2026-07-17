@@ -23,6 +23,26 @@ matched **by value**, and a vault's `.git/config` is per-machine, so changing it
 hands every vault still on the old value a "real" identity and reopens the hole Phase 0
 closed. Safe once, while every vault was the author's. Not twice.
 
+## Git is a capability, not a dependency (2026-07-17)
+**Why:** the owner pushed back that formicaria runs on vaults on a single PC and should not
+be tightly coupled to git — git is for backup and collaboration. Tested: **true, and the
+code already agreed.** With no git on the machine at all (empty `PATH`), the server starts
+and capture / board / agenda / search / edit all work. Files-as-truth means the notebook is
+a directory of Markdown files; `FileStore` never spawns git. **But it was optional in fact
+and not in design**: the 5 s auto-commit spawned git, failed, and the UI swallowed it —
+forever — while `backup_status` reported `remote: null, identity: null`, which is
+indistinguishable from "you haven't set it up yet". A vault quietly unversioned, discovered
+on the day you need the history. **Consequence:** `git::available()` (cached — git does not
+appear mid-run), reported on the heartbeat (`ping.git`) and in `backup_status.git`. The tab
+**stops scheduling** the auto-commit when there is no git and says so **once**; the backup
+panel says *"git isn't installed — your notes are safe, they're files on disk, but nothing
+on this panel can run"* instead of inviting you to type a remote into a tier that cannot
+run. **One nuance the framing missed:** git is not *only* backup and collaboration — it is
+also **local history**, the undo that outlives the session, on a single PC with no remote.
+So: optional, and worth having. Which is exactly why its absence must be stated rather than
+swallowed. **Rejected:** making git a hard requirement (the notebook demonstrably doesn't
+need it); reimplementing versioning (that is what shelling out to git buys us).
+
 ## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17)
 **Why:** multi-vault forced three questions the plan had collapsed into "wiring", and each
 has a wrong answer that loses data quietly. **Consequences, in order of how badly the

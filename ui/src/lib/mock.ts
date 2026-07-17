@@ -5,7 +5,7 @@
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
 import { parseStamp } from './stamp';
-import type { Board, Column, ObjectMeta } from './types';
+import type { BackupStatus, Board, Column, ObjectMeta } from './types';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -293,14 +293,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'open_external':
       return undefined as T;
     case 'ping':
-      // Nothing writes this vault but us, so it never moves under the app.
-      return { changed: false } as T;
+      // Nothing writes this vault but us, so it never moves under the app. `git: true`
+      // because the mock models a working machine; the no-git path is exercised for real.
+      return { changed: false, git: true } as T;
     case 'commit':
       return false as T;
     case 'backup':
       return undefined as T;
-    case 'backup_status':
-      return {
+    case 'backup_status': {
+      // `satisfies` and not a bare `as T`: this file's whole job is to answer exactly
+      // what the Rust answers, and a plain cast lets it drift silently — which it had,
+      // still carrying a top-level restic long after restic became per vault.
+      const status: BackupStatus = {
         vaults: gitVaults.map((v) => ({
           name: v.name,
           remote: v.remote,
@@ -308,10 +312,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           identity: v.identity,
           remote_moved: v.remote ? false : null,
           conflicts: [],
+          // Per vault, like the real backend: a restic repo is per repository. Null here
+          // because the mock has no vault to snapshot, which also puts the "this vault's
+          // media has nowhere to go" wording on screen under `pnpm dev`.
+          restic_repo: null,
+          restic_ready: false,
         })),
-        restic_repo: null,
-        restic_ready: false,
-      } as T;
+        git: true,
+      };
+      return status as T;
+    }
     case 'set_git_remote': {
       const v = mockVault(args.vault);
       const name = String(args.name ?? '').trim();

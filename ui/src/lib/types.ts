@@ -90,6 +90,10 @@ export interface BackupStatus {
   /** Every vault, in configured order; the first is the default for new notes. A
    *  single-vault install is a list of one. */
   vaults: VaultStatus[];
+  /** Whether this machine has git. Without it every vault reports `remote: null,
+   *  identity: null`, which reads exactly like "not set up yet" — so the panel has to be
+   *  told, or it would invite you to configure a tier that cannot run. */
+  git: boolean;
 }
 
 /** What a pull did. Conflicts are a result, not a failure. */

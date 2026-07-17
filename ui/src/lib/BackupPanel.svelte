@@ -40,19 +40,24 @@
   let verdict = $state<string | null>(null);
   let error = $state<string | null>(null);
 
+  // Git is a capability this machine may simply not have. Without it every vault reads
+  // `remote: null, identity: null`, which looks exactly like "not set up yet" — so the
+  // panel would cheerfully invite you to configure a tier that cannot run.
+  const noGit = $derived(!!status && !status.git);
   const vaults = $derived(status?.vaults ?? []);
   // Tickable if *anyone* can take media. Vaults without a restic repo are not a reason to
   // grey out the ones that have one — they are a reason to say their media stayed put.
   const anyRestic = $derived(vaults.some((v) => v.restic_ready));
   // Something to push somewhere. A vault with no remote isn't a failure, it just has
   // nowhere to go yet.
-  const canRun = $derived(!busy && vaults.some((v) => !!v.remote));
+  const canRun = $derived(!busy && !noGit && vaults.some((v) => !!v.remote));
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
   const needsIdentity = (v: VaultStatus) => v.identity === null;
   const canSaveRemote = (v: VaultStatus) =>
     !busy &&
+    !noGit &&
     !!remoteDrafts[v.name]?.trim() &&
     (!needsIdentity(v) || (!!nameDrafts[v.name]?.trim() && !!emailDrafts[v.name]?.trim()));
 
@@ -237,6 +242,18 @@
   ></button>
   <div class="panel" role="dialog" aria-label="back up">
     <h2>Back up</h2>
+
+    {#if noGit}
+      <!-- Say what is actually wrong. Every vault below reports no remote and no identity,
+           which reads as "unconfigured" — but nothing here can work until git exists, and
+           inviting someone to type a remote into it would be a lie. The notebook itself is
+           unaffected, and that is worth saying in the same breath. -->
+      <p class="error">
+        <strong>git isn't installed on this machine.</strong> Your notes are safe — they're
+        Markdown files on disk and the app works normally — but nothing on this panel can
+        run without git: no history, no backup, no sharing. Install git and reopen.
+      </p>
+    {/if}
 
     <!-- One block per vault: each is its own repo, its own remote, its own audience.
          A single-vault install is a list of one and reads exactly as it always did. -->

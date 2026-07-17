@@ -35,6 +35,11 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   range-request instead of buffering.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
+- **The mock can drift from the real contract silently.** `mock.ts` returns `… as T`,
+  which casts the type check away — so it kept a top-level `restic_repo` long after restic
+  became per-vault, and `tsc` said nothing. `backup_status` now builds a typed
+  `BackupStatus` first; the other arms are still bare casts. If a UI test passes against a
+  shape the Rust doesn't send, this is why.
 - **Auto-commit is best-effort and silent** (audited 2026-07-17). `scheduleCommit`
   (`App.svelte:342`) debounces 5s and every GUI write reaches it (4 App call sites
   + `onsaved` from NotePanel's five write paths), but: it **swallows every error**

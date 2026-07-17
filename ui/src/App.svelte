@@ -60,6 +60,12 @@
   // so the picker is data-driven (no hardcoded status literal anywhere).
   let knownStatuses = $state<string[]>([]);
 
+  // Does this machine have git? `null` until the first heartbeat answers — unknown is not
+  // "no", so nothing is claimed before we know. Git is optional (see `scheduleCommit`);
+  // this exists so its absence is *stated once* rather than swallowed every 5 seconds.
+  let gitAvailable = $state<boolean | null>(null);
+  let saidNoGit = false;
+
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let commitTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -278,6 +284,16 @@
     if (!import.meta.env.PROD) return;
     const beat = async () => {
       const r = await ping().catch(() => null);
+      if (r) {
+        gitAvailable = r.git;
+        // Once, not every beat. The notebook is fine; be accurate about what isn't.
+        if (!r.git && !saidNoGit) {
+          saidNoGit = true;
+          notice =
+            'git isn\'t installed — your notes are saved as files, but not versioned. ' +
+            'Install git for history, backup and sharing.';
+        }
+      }
       if (r?.changed) await refresh();
     };
     void beat();
@@ -394,7 +410,16 @@
 
   // Debounced auto-commit after any successful write. Best-effort — a clean tree
   // is a no-op and a missing git binary must never block editing.
+  // Git is a **capability, not a dependency**. Your notes are Markdown files and the
+  // whole notebook — capture, board, agenda, search, edit — works with no git installed
+  // at all. What git adds is history: local undo that outlives this session, and the
+  // backup and collaboration built on it.
+  //
+  // So when there's no git, don't schedule: firing this every 5s at a binary that isn't
+  // there, and swallowing the failure, is how a vault ends up quietly unversioned and you
+  // find out on the day you needed the history.
   function scheduleCommit() {
+    if (gitAvailable === false) return;
     clearTimeout(commitTimer);
     commitTimer = setTimeout(() => {
       commit(`auto: ${new Date().toISOString()}`).catch(() => {});
