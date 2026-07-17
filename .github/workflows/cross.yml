@@ -6,10 +6,11 @@
 # the working memory) costs 12x for a change that cannot break a compile. So: only when
 # something that could actually differ per-platform moves.
 #
-# Not a soft target. The first Windows run found that `from_file` was LF-only, so on a
-# CRLF checkout every note failed to parse — and because the loader is deliberately
-# tolerant, they didn't error, they vanished, and the vault came up empty. Linux could
-# never have shown that.
+# Not a soft target, and it has already paid for itself: the first Windows run found that
+# `from_file` was LF-only, so on a CRLF checkout every note failed to parse — and because
+# the loader is deliberately tolerant they didn't error, they vanished, and the vault came
+# up empty. Linux could never have shown that. (The `.md` merge driver, which everyone
+# expected to be the Windows casualty, passes there untouched.)
 name: cross
 
 on:
