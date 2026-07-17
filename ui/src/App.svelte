@@ -305,11 +305,7 @@
   async function onNewBoard() {
     try {
       const scene =
-        // `source` stays `formicarium` on purpose — do NOT rename it to match the
-        // wordmark. Excalidraw writes this field into every board's JSON **on disk**, so
-        // changing it rewrites every board file the next time it is saved: churn in git,
-        // for a string no user ever sees. Migrate deliberately or leave it.
-        '{"type":"excalidraw","version":2,"source":"formicarium","elements":[],"appState":{},"files":{}}';
+        '{"type":"excalidraw","version":2,"source":"formicaria","elements":[],"appState":{},"files":{}}';
       const meta = await capture(scene);
       await setProperty(meta.id, 'view', 'board');
       await setProperty(meta.id, 'title', 'Untitled board');

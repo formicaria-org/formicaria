@@ -60,30 +60,22 @@ and owns your data. Thin if our UI is thin; a moat if it's good.
 ## The name — **done** (landed 2026-07-17 with Phase 2)
 
 A *formicarium* is one colony's nest; *formicaria* is the plural — a **set** of vaults,
-one per audience, coordinating through git rather than a hub. The singular names the tool
-today; the plural names what it became. The rule was **rename when multi-vault (Phase 2)
-ships and the plural is literally true — not before**, or the docs promise something that
-doesn't exist. Phase 2 shipped on 2026-07-17 and **the rename went with it**, as its own
-commit. Kept below because the two traps are permanent, not historical.
+one per audience, coordinating through git rather than a hub. The rule was to rename only
+once the plural was literally true; Phase 2 made it true and the rename went with it, as
+its own commit. No code identifiers moved (every crate was already `fm-*`, and `fm`
+abbreviates either name).
 
-**Cost was low and known.** Every crate was already `fm-*` and the binary is `fm`, which
-abbreviates either name — **no code identifiers moved.** The blast radius was ~6
-user-facing strings + `docs/` + `packaging/` + the `formicaria/MASTERPLAN.md` directory:
+**Nothing is called formicarium any more.** The two literals originally held back —
+`git.rs`'s placeholder identity and Excalidraw's `source` — were kept only for backward
+compatibility, and there was none to keep: the author is the only user and no vault was
+running on the placeholder. Both moved.
 
-- `crates/fm-cli/src/main.rs:16` (the CLI `about`)
-- `crates/fm-serve/src/main.rs:63` (the serve banner)
-- `ui/src/App.svelte` wordmark
-- the `"source":"formicarium"` literals in `ui/src/App.svelte` and `ui/src/lib/mock.ts`
-
-Two cautions, both **traps for a careless rename**: the Excalidraw `source` field is
-written into **every board's JSON on disk** — leave it or migrate deliberately, don't
-churn every file to rename it; and `crates/fm-core/src/git.rs`'s `formicarium@localhost`
-is **not** a rename target either. Phase 0 kept it deliberately as a *sentinel*: a vault
-with no audience still needs some committer, and `git::identity()` recognises this exact
-literal and reports it as "nobody", which is what makes `set_remote` ask. Rename the
-string and every vault already running on the old placeholder silently becomes a
-"real" identity called *formicaria* — the exact provenance hole Phase 0 closed, reopened
-by a find-and-replace. Leave the literal alone.
+**One rule survives the rename.** `PLACEHOLDER_EMAIL` is a **sentinel matched by value**:
+`identity()` compares `user.email` against it to decide "nobody real signs this vault", and
+a vault's `.git/config` is per-machine, so we cannot migrate the ones we cannot see. It was
+safe to change *once*, while every vault in the world was the author's. Change it again and
+every vault still carrying the old value silently acquires a real identity, `set_remote`
+stops asking, and the provenance hole Phase 0 closed is open. Don't.
 
 ## Two rulings the owner has now made
 

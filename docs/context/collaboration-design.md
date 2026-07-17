@@ -23,7 +23,7 @@ different repo. **Resist every urge to add a fourth thing.** The moment scheduli
 gets its own store, or messages get their own format, the tool has three products
 to maintain and the atom stops paying rent.
 
-### The name: formicarium → formicaria *(done — landed 2026-07-17 with Phase 2)*
+### The name: formicarium → formicaria *(done — landed 2026-07-17 with Phase 2; nothing carries the old name)*
 
 A *formicarium* is one ant colony's nest. The plural is the architecture: a set of
 vaults, one per audience (3), each served by its own instance, coordinating through
@@ -35,14 +35,14 @@ exist.
 **Cost: low, and known.** Every crate is already `fm-*` and the binary is `fm`,
 which abbreviates either name — so **no code identifiers move**. The blast radius is
 six user-facing strings (`fm-cli/src/main.rs:16`, `fm-serve/src/main.rs:63`,
-`App.svelte:378`'s wordmark, and the `"source":"formicarium"` literal in
+`App.svelte`'s wordmark, and the Excalidraw `source` literal in
 `App.svelte:253` / `mock.ts:171`), plus `docs/` and `packaging/`. Two cautions: the
 Excalidraw `source` field is **written into every board's JSON on disk**, so
 changing it changes files — leave it or migrate deliberately; and
-`git.rs`'s `formicarium@localhost` is not a rename target. *(Updated: the audit called it a
-bug to delete; Phase 0 found deleting it breaks committing on any non-FQDN host, so it was
-kept as a **sentinel** `identity()` matches by value. The rename landed 2026-07-17 and
-deliberately left this literal alone.)*
+`git.rs`'s placeholder identity. *(Updated: the audit called it a bug to delete; Phase 0
+found deleting it breaks committing on any non-FQDN host, so it was kept as a **sentinel**
+`identity()` matches by value. It moved to `formicaria@localhost` with the rename — safe
+once, because no vault was on it. Changing it again is not safe: see `decisions.md`.)*
 
 ## Principles this plan is held to
 
@@ -108,7 +108,7 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
 | The `Store` trait is the seam | **True**, 5 methods (`fm-core/src/lib.rs:54`). But `load_all` is a **private inherent method on `FileStore`** (`file.rs:107`), not on the trait — Phase 2's "add `load_all` to the trait" is a real change, and the wrong one. See Phase 2. |
 | *(new)* `FileStore::get` reads **SQLite, not the file** | `file.rs:140`. `reindex` runs only at `open()`. A `git pull` is therefore **invisible** to a running app — the local poll isn't a Vim nicety, it is the only thing that makes a pull observable at all. |
 | *(new)* `reindex` ignores its `_mode` and always rebuilds fully | `file.rs:199`. A 3 s poll would re-parse the entire vault every 3 s. The incremental path is a **dependency** of the poll, not a later nicety. |
-| *(new)* `ensure_identity` writes `formicarium@localhost` repo-locally | **Was true; fixed in Phase 0.** A user with no global git config attributed **every** commit in a shared vault to the same fake identity, gutting the provenance decisions 2 and 14 are built on. Now: the placeholder is kept only for a vault with no remote, `git::identity()` reports it as nobody, and `set_remote` refuses while it stands. The audit's implied fix — *delete the fake* — was wrong: git cannot auto-detect an identity on a non-FQDN host, so a fresh vault would fail to commit, silently (the auto-commit swallows errors). |
+| *(new)* `ensure_identity` writes a placeholder identity repo-locally | **Was true; fixed in Phase 0.** A user with no global git config attributed **every** commit in a shared vault to the same fake identity, gutting the provenance decisions 2 and 14 are built on. Now: the placeholder is kept only for a vault with no remote, `git::identity()` reports it as nobody, and `set_remote` refuses while it stands. The audit's implied fix — *delete the fake* — was wrong: git cannot auto-detect an identity on a non-FQDN host, so a fresh vault would fail to commit, silently (the auto-commit swallows errors). |
 
 ## Converged decisions
 
@@ -236,7 +236,7 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
     ago" is a `git log` query and beats any lock. Honest limit: git knows only
     *pushed* state — true presence needs the peer. **Second honest limit, new:** it
     also needs everyone to *have a name*. `ensure_identity` (`git.rs:62-72`) writes
-    `formicarium <formicarium@localhost>` repo-locally whenever `git config user.email`
+    the placeholder identity repo-locally whenever `git config user.email`
     is unset — which is the default state of a researcher who never configured git. The
     app must **ask for an identity when a vault gains a remote**, or every "who touched
     this" answer in the product is the same fake name. Phase 0.
@@ -305,7 +305,7 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
 — see [`sessions/2026-07-17-phase-0.md`](./sessions/2026-07-17-phase-0.md) and the
 identity entry in [`decisions.md`](./decisions.md). The detail is deleted per this file's
 own rule; what remains worth carrying: the tolerant loader's *report* half is only stderr
-(the in-app list is Phase 1's conflict surfacing), and `formicarium@localhost` was **not**
+(the in-app list is Phase 1's conflict surfacing), and the placeholder identity was **not**
 deleted as 14 assumed but kept as a sentinel `identity()` matches by value — git cannot
 invent an identity on a non-FQDN host, so deleting the fallback would have stopped a fresh
 vault committing at all. **The gate is open.**

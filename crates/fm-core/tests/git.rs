@@ -90,7 +90,7 @@ fn identify(vault: &std::path::Path) {
 /// developer's own identity and prove nothing.
 fn no_identity(vault: &std::path::Path) {
     git::ensure_repo(vault).unwrap();
-    for (k, v) in [("user.email", "formicarium@localhost"), ("user.name", "formicarium")] {
+    for (k, v) in [("user.email", "formicaria@localhost"), ("user.name", "formicaria")] {
         Command::new("git").arg("-C").arg(vault).args(["config", k, v]).output().unwrap();
     }
 }
@@ -277,7 +277,7 @@ fn set_remote_is_idempotent_and_the_last_url_wins() {
 
 /// The provenance hole: a researcher who never configured git gets the placeholder
 /// committer, and without this guard every commit they ever push to a shared vault
-/// is attributed to `formicarium` — so "who touched this note?", the question the
+/// is attributed to `formicaria` — so "who touched this note?", the question the
 /// whole awareness-over-enforcement design rests on, has one answer for everybody.
 /// A remote is the moment to ask, because it is the moment a name starts mattering.
 #[test]
@@ -356,7 +356,7 @@ fn an_identity_needs_a_name_and_something_that_is_actually_an_email() {
     // The mistake worth catching: it is invisible once committed, and forever.
     assert!(git::set_identity(vault.path(), "Ravi", "Ravi").is_err(), "a name in the email box");
     // Our own stand-in must never be settable as if it were a person.
-    assert!(git::set_identity(vault.path(), "x", "formicarium@localhost").is_err(), "the fake");
+    assert!(git::set_identity(vault.path(), "x", "formicaria@localhost").is_err(), "the fake");
 
     assert_eq!(git::identity(vault.path()), None, "nothing broken got stored");
 }

@@ -485,20 +485,7 @@ fn vault_list_path() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
         .ok()?;
-    let current = base.join("formicaria").join("vaults.json");
-    if current.exists() {
-        return Some(current);
-    }
-    // The rename moved this path. A config left at the old one would otherwise fall
-    // through to the single-vault default — i.e. the other vaults would silently vanish
-    // from every view, which looks exactly like data loss and isn't. Read it if it's
-    // there; the window is small (the config is days old) but the failure isn't.
-    let legacy = base.join("formicarium").join("vaults.json");
-    if legacy.exists() {
-        eprintln!("note: reading {} — move it to {}", legacy.display(), current.display());
-        return Some(legacy);
-    }
-    Some(current)
+    Some(base.join("formicaria").join("vaults.json"))
 }
 
 /// `~` in a config file is what a human writes; nothing else expands it for us.

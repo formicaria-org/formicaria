@@ -22,9 +22,10 @@ the permission*; the **`candidates` seam** so `Store::query` is a default method
 federates for free; `MultiStore`; the vault list at `~/.config/formicaria/vaults.json`;
 **per-vault git** — the backup panel is a list, not a form; **blobs searched across
 vaults**; badges + a vault filter). **And the rename landed with it: the tool is
-`formicaria` now**, the plural being the architecture. Two literals deliberately still say
-`formicarium` and are commented as such — `git.rs`'s placeholder identity (a sentinel
-matched by value) and Excalidraw's `source` (written into every board on disk).
+`formicaria` now**, the plural being the architecture, and nothing carries the old name.
+One rule outlives it: `git.rs`'s `PLACEHOLDER_EMAIL` is a sentinel matched **by value**, so
+changing it again would hand every vault still on the old value a "real" identity and
+reopen the provenance hole Phase 0 closed (`decisions.md`).
 Before that, **Phase 0 made the app survive a merge**: four fixes, each a single-user bug today and data loss the moment a vault is
 shared: `reindex` **skips an unreadable note** instead of failing
 `FileStore::open` (one conflicted `.md` used to brick startup — `fm-serve` names it on
@@ -33,9 +34,8 @@ mid-merge** rather than committing `<<<<<<<` as a note's content; `push_squashed
 **squashes only onto an ancestor**, closing a silent data-loss path that opens the moment
 anything fetches; and a vault needs a **real committer identity before it can gain a
 remote** — the backup panel asks for a name and email, but only of people git has never met
-(`git::identity`, `backup_status.identity`). The `formicarium@localhost` placeholder
-survives **as a sentinel** for audience-less vaults and must not be renamed
-(`decisions.md`). Before that, the **forward plan was consolidated** into [plan.md](./plan.md) (the program:
+(`git::identity`, `backup_status.identity`). The `formicaria@localhost` placeholder is a
+**sentinel** for audience-less vaults, matched by value (`decisions.md`). Before that, the **forward plan was consolidated** into [plan.md](./plan.md) (the program:
 Track S single-user + Track C collaboration; `roadmap.md` folded in,
 `collaboration-design.md` kept as its audit). Before that,
 **backup is now two tiers** (`BackupPanel.svelte`):

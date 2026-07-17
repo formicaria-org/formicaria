@@ -15,12 +15,13 @@ lives in [plan.md](./plan.md) (Track S single-user + Track C collaboration), wit
 only once it was true:** `formicarium`→`formicaria` (the plural = a *set* of vaults) waited
 for multi-vault to ship, and landed with it on 2026-07-17 as its own commit — a rename
 should read as "only strings moved". No code identifiers moved (`fm-*`/`fm` fit either
-name). **Two literals still say `formicarium` on purpose**, and are commented in place
-because they now look like a missed rename: `git.rs`'s placeholder identity is a *sentinel
-matched by value* (renaming it hands every vault still on the placeholder a "real"
-identity and silently reopens the hole Phase 0 closed — see the identity entry below), and
-Excalidraw's `source` field is written into **every board's JSON on disk**, so renaming it
-would rewrite every board file for a string nobody sees.
+name). Nothing carries the old name now: the two literals initially held back (the
+placeholder identity, Excalidraw's `source`) were held back *for backward compatibility*,
+and there was none to keep — the author is the only user and no vault ran on the
+placeholder. **The rule that outlives the rename:** `PLACEHOLDER_EMAIL` is a sentinel
+matched **by value**, and a vault's `.git/config` is per-machine, so changing it again
+hands every vault still on the old value a "real" identity and reopens the hole Phase 0
+closed. Safe once, while every vault was the author's. Not twice.
 
 ## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17)
 **Why:** multi-vault forced three questions the plan had collapsed into "wiring", and each
@@ -109,7 +110,7 @@ not PATH now, and being wrong is data loss); resolving field conflicts by `updat
 last-writer-wins (fiat, i.e. the CRDT mistake decision 1 rules out).
 
 ## A vault gains an identity when it gains an audience, not before (2026-07-17)
-**Why:** `ensure_identity` wrote `formicarium <formicarium@localhost>` whenever
+**Why:** `ensure_identity` wrote a placeholder committer (`formicaria@localhost`) whenever
 `user.email` was unset — the default state of a researcher who never configured git. In a
 shared vault that attributes *everyone's* commits to the same fake name, gutting the
 provenance that "awareness over enforcement" (no locks; "Ravi pushed 2 min ago" is a `git
@@ -123,7 +124,7 @@ remote is precisely the moment a name starts travelling into someone else's clon
 history is forever. So the question is asked **once**, in the backup panel, at the only
 moment the answer matters — and anyone whose git is already configured never sees it. Two
 consequences worth keeping: the sentinel is **load-bearing**, so renaming
-`formicarium@localhost` would turn every vault running on it into a "real" identity and
+`PLACEHOLDER_EMAIL` would turn every vault running on it into a "real" identity and
 silently reopen the hole; and detection is by-value, so a vault that has been on the
 placeholder for months **heals itself** the moment the user answers. Identity is written
 **repo-locally** — a vault is an audience, so the name on a lab repo need not be the one

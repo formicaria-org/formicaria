@@ -169,11 +169,8 @@ export const SAMPLE_BODY = [
 
 // A blank Excalidraw scene — what a board note's body looks like before anything
 // is drawn (the real backend stores the same shape).
-// `source` stays `formicarium` on purpose — see App.svelte. It is written into every
-// board's JSON on disk, so renaming it would rewrite every board file for a string
-// nobody sees. The mock must match the real shape, so it keeps the old value too.
 const EMPTY_BOARD =
-  '{"type":"excalidraw","version":2,"source":"formicarium","elements":[],"appState":{},"files":{}}';
+  '{"type":"excalidraw","version":2,"source":"formicaria","elements":[],"appState":{},"files":{}}';
 
 const bodyOverrides = new Map<string, string>();
 

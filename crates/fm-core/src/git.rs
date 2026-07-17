@@ -28,18 +28,17 @@ const REMOTE: &str = "origin";
 /// answer matters — and it lets a vault that has been running on the placeholder for
 /// months heal itself the moment the user answers.
 ///
-/// # Do not rename this to `formicaria`
+/// # This is a sentinel matched by value — changing it has consequences
 ///
-/// It says `formicarium` in a project called *formicaria*, and it must keep saying so.
-/// This is a **sentinel matched by value**, not a brand: [`identity`] compares against
-/// this exact string to decide "nobody real signs this vault". Every vault already
-/// running on the old placeholder still has `formicarium@localhost` in its
-/// `.git/config`, and a vault's config is per-machine — we cannot migrate what we
-/// cannot see. Rename the literal and every one of those vaults silently acquires a
-/// "real" identity called *formicaria*, `set_remote` stops asking, and the provenance
-/// hole this was written to close is quietly open again.
-const PLACEHOLDER_NAME: &str = "formicarium";
-const PLACEHOLDER_EMAIL: &str = "formicarium@localhost";
+/// [`identity`] compares `user.email` against this exact string to decide "nobody real
+/// signs this vault". A vault's `.git/config` is per-machine, so we cannot migrate the
+/// ones we cannot see: if this literal ever changes again, every vault still carrying the
+/// old value silently acquires a *real* identity, [`set_remote`] stops asking who they
+/// are, and the provenance hole this exists to close is quietly open. It was safe to
+/// change once, while the only vaults in the world were the author's and none were on the
+/// placeholder. That will not be true a second time.
+const PLACEHOLDER_NAME: &str = "formicaria";
+const PLACEHOLDER_EMAIL: &str = "formicaria@localhost";
 
 /// Who a vault's commits are attributed to — the name a collaborator sees when they
 /// ask who touched a note.
@@ -180,7 +179,7 @@ fn config(vault: &Path, key: &str) -> Option<String> {
 /// Who this vault's commits are attributed to, or `None` when nobody real is —
 /// either git has no identity at all, or it still holds our placeholder. Reporting
 /// our own stand-in as absent is deliberate: it is the difference between a vault
-/// that asks once and a vault that quietly signs a shared history `formicarium`.
+/// that asks once and a vault that quietly signs a shared history `formicaria`.
 pub fn identity(vault: &Path) -> Option<Identity> {
     if !vault.join(".git").exists() {
         return None;
