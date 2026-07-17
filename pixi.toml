@@ -5,7 +5,7 @@ description = "Local-first, single-user research notebook (fm). Full spec: formi
 channels = ["conda-forge"]
 # One platform floor, harmless and met by any 2021+ distro (Ubuntu 22.04 ships
 # glibc 2.35). It cost nothing to keep after the webkit stack was removed.
-platforms = [{ platform = "linux-64", glibc = "2.34" }]
+platforms = [{ platform = "linux-64", glibc = "2.34" }, "osx-arm64", "osx-64", "win-64"]
 
 # The umbrella layer: toolchain + version-locked native/subprocess tools.
 # App-level deps live in Cargo.lock (Rust) and pnpm-lock.yaml (JS); pixi.lock

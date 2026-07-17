@@ -1,7 +1,14 @@
-# CI: runs the whole gate inside the locked pixi environment, so a green build
-# means the same toolchain and tools everywhere. Inert until this repo is pushed
-# to a remote — writing it now costs nothing and commits to nothing. Verify the
-# setup-pixi pin when you first push.
+# CI: runs the whole gate inside the locked pixi environment, on every OS we claim to
+# support, so a green build means the same toolchain and the same tools everywhere.
+#
+# Why a matrix: the core is one self-contained binary (the UI is baked in by
+# `fm-serve/build.rs`) and everything external is an optional feature found on PATH — so
+# there is nothing platform-specific left *by design*. A matrix is how that claim gets
+# checked rather than asserted. Windows is the interesting one: the `.md` merge driver is
+# installed as a quoted absolute path that git runs through its bundled `sh`, and a
+# `C:\...\fm.exe` inside sh single-quotes is not obviously executable. If anything goes red
+# first, expect it to be that (`crates/fm-cli/tests/merge.rs`) — and it matters, because a
+# driver git cannot exec is read as a conflict and hands back ours with no markers.
 name: ci
 
 on:
@@ -10,12 +17,58 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    name: gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never fail-fast: the point is to learn *which* platforms are broken, and cancelling
+      # the others the moment one goes red hides exactly that.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: prefix-dev/setup-pixi@v0.8.1
         with:
           run-install: true
-      # `ci` = test (incl. the perf budget) + deny (license gate) + checks
-      # (seam + generic-renderer greps). All must pass.
+      # `ci` = test (incl. the perf budget) + test-ui + deny (license gate) + checks
+      # (seam + generic-renderer greps) + docs. All must pass.
       - run: pixi run ci
+
+      # The shippable artifacts. `fm` is NOT optional beside `fm-serve`: `ensure_repo`
+      # installs the `.md` merge driver by pointing git at the `fm` binary *beside the
+      # running one*, and installs nothing when it cannot find one — so a bundle carrying
+      # only fm-serve silently loses the merge driver. Both, always.
+      - run: pixi run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formicaria-${{ matrix.os }}
+          if-no-files-found: error
+          # The glob covers both spellings; only one exists per OS.
+          path: |
+            target/release/fm-serve
+            target/release/fm
+            target/release/fm-serve.exe
+            target/release/fm.exe
+
+  release:
+    name: attach binaries to the tag
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      # One zip per OS: the two binaries travel together, for the reason above.
+      - name: package
+        run: |
+          cd dist
+          for os in */; do
+            (cd "$os" && zip -qr "../${os%/}.zip" .)
+          done
+          ls -la ./*.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
