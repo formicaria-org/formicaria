@@ -20,3 +20,9 @@ docs/book/
 .DS_Store
 *.swp
 *~
+
+# Excalidraw's fonts, copied out of node_modules by ui/scripts/copy-excalidraw-fonts.mjs
+# on every build. Generated, so never committed: a checked-in copy is one that silently
+# goes stale the moment @excalidraw/excalidraw is bumped, and stale fonts are drift nobody
+# notices. Any build regenerates them.
+ui/public/fonts/
