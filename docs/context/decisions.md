@@ -23,7 +23,32 @@ matched **by value**, and a vault's `.git/config` is per-machine, so changing it
 hands every vault still on the old value a "real" identity and reopens the hole Phase 0
 closed. Safe once, while every vault was the author's. Not twice.
 
-## The core is note-taking + scheduling on one PC; every external tool is an optional feature (2026-07-17)
+## The core ships as one file; pixi is the only package manager; deps come from wherever (2026-07-17)
+**Why:** the owner's ruling. *pixi is the only package manager, including for generating
+the executables. CI emits a binary per OS as an artifact, and those binaries work with the
+optional deps installed however the user prefers — pixi being one way.* **Consequence:**
+`fm-serve/build.rs` bakes `ui/dist` into the binary (hand-rolled `include_bytes!` table —
+~40 lines against a dependency, in a crate that is deliberately std-only networking), so
+the binary alone *is* the app. Verified: alone in an empty directory, empty `PATH`, no
+`ui/dist`, no pixi — it serves the UI, its JS, the SPA fallback and the API. `FM_UI_DIST`
+has **no default**: set explicitly it reads from disk (the dev loop keeps its speed — a
+`.svelte` edit needs no Rust rebuild), unset it serves itself. The Linux-only assumptions
+went with it (`open_native()` knows macOS's `open` and Windows' `cmd /C start ""`;
+`config_dir()`/`home()` know `Application Support`, `%APPDATA%`, `USERPROFILE`) — hand-rolled
+over the `dirs` crate, since it is three env lookups. `pixi.toml` covers linux-64 /
+osx-64 / osx-arm64 / win-64, and **all of it resolves**, including restic, poppler, libvips
+and vs2022 for rusqlite's bundled SQLite — so the default env stays flat and the `media`
+feature split was not needed. CI gates on all three OSes (not fail-fast: the point is to
+learn *which* is broken) and uploads `fm-serve` + `fm` per platform; a tag attaches a zip
+each. **`fm` is never optional beside `fm-serve`** — `ensure_repo` installs the merge driver
+by pointing git at the binary beside the running one. **The binary does not care how the
+optional tools got onto `PATH`** — pixi, apt, brew — which is what makes one artifact serve
+every user. **Rejected:** installing tools system-wide as a prerequisite (that is the
+user's choice, not ours); baking the pixi env's path into the launcher (re-couples the very
+thing this removed); musl-static (the binary already runs with no pixi env; glibc 2.34 is
+met by any 2021+ distro).
+
+## Every external tool is an optional feature that declares itself (2026-07-17)
 **Why:** the owner's ruling, and it settles a class of question rather than one case: *the
 core should let you take notes and schedule tasks on a local PC with nothing installed. If
 you want PDFs rendered nicely, you install that dependency. A missing dep means that

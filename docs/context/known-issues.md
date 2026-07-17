@@ -102,6 +102,13 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **`.desktop` has no relative `Exec`** — it must be absolute, so the entry cannot be a
+  static file in the repo. It was one, carrying `/home/baljinder/...`, which meant every
+  clone got a launcher into a stranger's home *and* a rename silently rewrote the path to
+  somewhere that didn't exist (the file looked right and launched nothing).
+  `packaging/install.sh` now **generates** it from the real checkout path. Moving the repo
+  = re-run `install.sh`; there is no fixing it from inside the file.
+
 - **`pixi run build` must build `fm`, not just `fm-serve`.** `ensure_repo` installs the
   `.md` merge driver by pointing git at the `fm` binary **beside the running one**, and
   deliberately installs nothing when it can't find one. So a build task that ships only
