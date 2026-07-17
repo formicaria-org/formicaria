@@ -34,6 +34,11 @@ pub struct ObjectMeta {
     pub assets: Vec<String>,
     /// Every custom property, keyed by name. Flows through untouched.
     pub props: BTreeMap<String, serde_json::Value>,
+    /// Which vault — i.e. which audience — this note belongs to. Derived from where
+    /// the file is, never from what it says, so the UI can badge a card "lab" and be
+    /// telling the truth about who can see it. Empty in a single-vault setup, where
+    /// there is no boundary to draw.
+    pub vault: String,
 }
 
 impl From<&Object> for ObjectMeta {
@@ -52,6 +57,7 @@ impl From<&Object> for ObjectMeta {
             tags: o.tags.clone(),
             assets: o.assets.clone(),
             props: o.extra.iter().map(|(k, v)| (k.clone(), prop_to_json(v))).collect(),
+            vault: o.vault.clone(),
         }
     }
 }

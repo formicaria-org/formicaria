@@ -5,6 +5,102 @@ why — consequence**. The canonical, fuller spec is
 [`formicarium/MASTERPLAN.md`](../../formicarium/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## formicaria: three pillars, one atom; rename deferred to Phase 2 (2026-07-17)
+**Why:** the tool grows into *knowledge management + task scheduling + collaboration*
+without becoming three products. **Consequence:** those are three **views of one Markdown
+file** — a task is a note with a `due`, a message a note with a target, a shared note a
+note in a different repo — so *resist adding a fourth thing*. The full sequenced program
+lives in [plan.md](./plan.md) (Track S single-user + Track C collaboration), with
+[collaboration-design.md](./collaboration-design.md) as its code audit. **The name changes
+only when it is true:** `formicarium`→`formicaria` (the plural = a *set* of vaults) is a
+Phase-2 change, when multi-vault ships. No code identifiers move (`fm-*`/`fm` fit either
+name); the blast radius is ~6 user-facing strings + `docs/`/`packaging/`. The
+`formicarium@localhost` git identity is **not** a rename target — see the identity entry
+below for why renaming that literal would silently reopen a hole Phase 0 closed.
+
+## Notes merge through a driver that shells out for the body — and is never installed unless it can run (2026-07-17)
+**Why:** `updated:` is rewritten on every save, so *any* two concurrent edits to one note
+collide on that line even when the two people touched different paragraphs — and git's
+markers land inside the YAML fence, where `from_file` rightly refuses them and the note
+drops out of the vault. Every concurrent edit, by construction, for a reason that is
+entirely our own doing. **Consequence:** `fm-core/src/merge.rs` + `fm merge-md`, wired up
+by `.gitattributes` (`*.md merge=fm`) and `merge.fm.driver`. It resolves structurally what
+is mechanically resolvable — `updated` = the later reading (a clock, not an opinion),
+`id`/`created` = base, `tags`/`assets`/`code` = union, any field only one side touched
+takes that side — and **hands the body to `git merge-file`**: a 3-way text merge is a
+solved problem and shelling out is the house rule (no diff3 to get wrong, no new dep).
+*The property that pays for the whole thing:* frontmatter is always emitted whole and
+valid, so **a conflict lands in the body** — the note still parses, still indexes, and
+still opens in the editor with the markers in the textarea. That is what makes conflict
+surfacing possible at all, and it is why "resolve markers in the textarea" is a feature
+rather than a wish. A genuinely divergent *field* (both sides set `status` differently)
+falls back to a whole-file merge rather than picking a winner: resolving by fiat is the
+silent loss this phase exists to stop. **Two traps, both load-bearing.** (1) The
+`merge.fm.driver` definition lives in `.git/config` and deliberately does **not** travel —
+git will not let a repo ship a command that runs on your machine — so `ensure_repo`
+installs it on every open, exactly as it writes `.gitignore` and the identity; only
+`.gitattributes` travels. (2) **Never install a driver we cannot point at.** Found the
+hard way: pointing at a bare `fm` and hoping PATH would answer meant git ran a
+nonexistent command, took the non-zero exit as "conflict", and handed back `%A`
+*untouched* — i.e. ours, with **no markers** — so the user resolves a normal-looking file
+and silently deletes their collaborator's edit. `merge_command()` returns `None` unless an
+`fm` binary really sits beside the running one, and no driver at all degrades safely to
+git's built-in text merge. **Rejected:** a bare `fm` on PATH (PATH at `git pull` time is
+not PATH now, and being wrong is data loss); resolving field conflicts by `updated`
+last-writer-wins (fiat, i.e. the CRDT mistake decision 1 rules out).
+
+## A vault gains an identity when it gains an audience, not before (2026-07-17)
+**Why:** `ensure_identity` wrote `formicarium <formicarium@localhost>` whenever
+`user.email` was unset — the default state of a researcher who never configured git. In a
+shared vault that attributes *everyone's* commits to the same fake name, gutting the
+provenance that "awareness over enforcement" (no locks; "Ravi pushed 2 min ago" is a `git
+log` query) is built on. But simply deleting the fallback is worse, not better: git cannot
+invent an identity on a host without a FQDN, so a fresh vault would fail to commit at all
+— and the auto-commit swallows its errors, so the notes would silently stop being
+versioned. **Consequence:** the placeholder stays, scoped to what it is honest for — a
+vault **nobody else can see**. `git::identity()` reports that exact literal as `None`
+("nobody real signs this"), and `git::set_remote` refuses while it stands, because a
+remote is precisely the moment a name starts travelling into someone else's clone and git
+history is forever. So the question is asked **once**, in the backup panel, at the only
+moment the answer matters — and anyone whose git is already configured never sees it. Two
+consequences worth keeping: the sentinel is **load-bearing**, so renaming
+`formicarium@localhost` would turn every vault running on it into a "real" identity and
+silently reopen the hole; and detection is by-value, so a vault that has been on the
+placeholder for months **heals itself** the moment the user answers. Identity is written
+**repo-locally** — a vault is an audience, so the name on a lab repo need not be the one
+on your personal notes, and this app has no business editing anyone's global git config.
+Enforced at `set_remote` only: `commit_all` cannot refuse (a silent stop is worse than a
+fake name on a private commit), so an already-remote'd vault is nudged by the panel, which
+shows the question whenever `backup_status.identity` is null.
+
+## Inline meeting actions become their own note, never a per-block atom (2026-07-17)
+**Why:** an owner types `- [ ] Ravi to send the draft` mid-meeting and wants it to show up
+in the agenda — but making inline checkboxes first-class agenda items needs **per-block
+identity**, which *the atom is the file* forbids (`MASTERPLAN.md:456`: it "voids this
+plan"). **Consequence:** a checkbox stays **plain Markdown in the body** (an interactive
+toggle that rewrites the body bytes, no id), and does **not** auto-appear in any planning
+view. A deliberate gesture — a `/promote` slash entry or a per-line button — **extracts the
+line into its own note file** (a task note with `status`/`due`, back-linked via
+`[Title](note:<ulid>)`), which then flows into board/agenda as a normal atom. Friction stays
+at "type `- [ ]`"; scheduling is an explicit promotion. **Rejected:** a body-scan
+"checkboxes → agenda" pass — it manufactures second-class items that don't round-trip and
+re-pollutes the exact views the assets decision below cleaned up. **Rejected:** per-block
+ids/timestamps — voids the plan.
+
+## Board images strip to the content-addressed blob store on save (2026-07-17)
+**Why:** Excalidraw's `serializeAsJSON(…, 'local')` embeds a pasted image as a **base64
+data URL inside the note body** (`BinaryFileData.dataURL`), and `Whiteboard.svelte`
+re-serializes the whole scene on every debounced `onChange` — so a 2 MB screenshot becomes
+~2.7 MB of **git churn per pointer move**, routing bulk binary through the note body and
+breaking the "blobs are already out of git" premise (the two-tier-backup decision). This is
+latent today and unbounded the moment boards are shared. **Consequence:** on board save,
+**strip the scene's inline `files` into the blob store** (reuse `BlobStore::put_bytes` +
+ingest's MIME sniff, dedup by sha256), leaving only blob references in the `.excalidraw`
+JSON; **rehydrate on load** via `resolve_asset` / the planned `GET /api/blob/<hash>`. Reuses
+the existing blob seam rather than adding one, and must land **before** the `.excalidraw`
+merge driver shares boards (plan.md Track C Phase 3). **Rejected:** accept-and-document —
+untenable once boards sync.
+
 ## Assets are query-layer-excluded from the planning views (2026-07-16)
 **Why:** an asset is a blob a note *references*, not a thing you plan; a PDF
 getting its own board card and timeline entry was noise. Filtering in each

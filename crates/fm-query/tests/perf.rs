@@ -27,6 +27,8 @@ fn synth(n: usize) -> Vec<Object> {
             code: vec![],
             body: format!("note {i} about trust region clipping and advantage estimation"),
             extra: BTreeMap::new(),
+            // Not from any store: no audience stated.
+            vault: String::new(),
         })
         .collect()
 }

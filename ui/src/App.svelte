@@ -218,15 +218,27 @@
     void refresh();
   });
 
-  // Liveness heartbeat: while this tab is open, ping the server every few seconds
-  // so its auto-shutdown watchdog knows someone is here. When the tab closes the
-  // pings stop and the server exits — closing the tab closes the app, with no
-  // background process left over. Only in the served build (the mock has no
-  // server); a reload's brief gap stays under the server's idle window.
+  // Liveness heartbeat, and the local poll — one beat, two jobs.
+  //
+  // Liveness: while this tab is open, ping the server every few seconds so its
+  // auto-shutdown watchdog knows someone is here. When the tab closes the pings stop
+  // and the server exits — closing the tab closes the app, with no background process
+  // left over. Only in the served build (the mock has no server); a reload's brief gap
+  // stays under the server's idle window.
+  //
+  // The poll: the same request tells us whether the vault moved under us. It has to,
+  // because the views are served from SQLite, so an edit made by anything else — a
+  // `git pull`, a merge driver, Vim — is otherwise invisible until the app restarts.
+  // Refresh only when something actually changed: re-running the query every 3s would
+  // fight the user's own scrolling and drag state for no reason.
   $effect(() => {
     if (!import.meta.env.PROD) return;
-    void ping().catch(() => {});
-    const id = setInterval(() => void ping().catch(() => {}), 3000);
+    const beat = async () => {
+      const r = await ping().catch(() => null);
+      if (r?.changed) await refresh();
+    };
+    void beat();
+    const id = setInterval(() => void beat(), 3000);
     return () => clearInterval(id);
   });
 

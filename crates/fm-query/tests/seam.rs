@@ -34,6 +34,8 @@ fn obj(
         code: vec![],
         body: body.to_string(),
         extra: BTreeMap::new(),
+        // Not from any store: no audience stated.
+        vault: String::new(),
     }
 }
 

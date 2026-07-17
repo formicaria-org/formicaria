@@ -189,6 +189,9 @@ function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
 // remembered so the setup flow stays exercisable under `pnpm dev`: save a URL and
 // watch the panel change what it promises.
 let gitRemote: string | null = null;
+// Starts null, like a vault on a machine with no git config, so `pnpm dev` shows
+// the identity question rather than the path only configured users ever see.
+let gitIdentity: { name: string; email: string } | null = null;
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
@@ -261,7 +264,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'open_external':
       return undefined as T;
     case 'ping':
-      return undefined as T;
+      // Nothing writes this vault but us, so it never moves under the app.
+      return { changed: false } as T;
     case 'commit':
       return false as T;
     case 'backup':
@@ -272,12 +276,28 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         unpushed: gitRemote ? 2 : null,
         restic_repo: null,
         restic_ready: false,
+        identity: gitIdentity,
+        remote_moved: gitRemote ? false : null,
+        conflicts: [],
       } as T;
-    case 'set_git_remote':
+    case 'set_git_remote': {
+      const name = String(args.name ?? '').trim();
+      const email = String(args.email ?? '').trim();
+      if (name && email) gitIdentity = { name, email };
+      // The same rule fm-core enforces: a vault gains an audience only once
+      // someone real owns it. Mirrored here so the mock cannot drift into
+      // promising a flow the real backend refuses.
+      if (!gitIdentity) {
+        throw new Error('tell us who you are first — your name and email sign every commit you share');
+      }
       gitRemote = String(args.url ?? '').trim() || null;
       return undefined as T;
+    }
     case 'push':
       return 2 as T;
+    case 'pull':
+      // Nothing to pull from: there is no vault and no remote here.
+      return { merged: 0, conflicts: [] } as T;
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }

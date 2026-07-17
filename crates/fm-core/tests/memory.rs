@@ -24,6 +24,8 @@ fn note(id: &str, status: &str, body: &str) -> Object {
         code: vec![],
         body: body.to_string(),
         extra: BTreeMap::new(),
+        // Not from any store: no audience stated.
+        vault: String::new(),
     }
 }
 

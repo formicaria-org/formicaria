@@ -1,7 +1,7 @@
 //! FileStore proves S0's pipeline (write -> disk -> reindex -> read) and that it
 //! honours the SAME `Store` contract as `MemoryStore`.
 
-use fm_core::{FileStore, MemoryStore, Store};
+use fm_core::{FileStore, MemoryStore, Reindex, Store, StoreError};
 use fm_model::{Kind, Object};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use tempfile::tempdir;
@@ -55,6 +55,202 @@ fn index_is_disposable() {
     let s = FileStore::open(vault).unwrap();
     let r = s.query(&Query::default()).unwrap();
     assert_eq!(r.total, 3);
+}
+
+/// One unreadable note must never stop the vault from opening.
+///
+/// This is the shape a merge conflict *always* takes here: `updated:` is rewritten
+/// on every save, so any two concurrent edits to one note collide on that line, and
+/// git's markers land inside the YAML fence where `from_file` rightly refuses them.
+/// Before the tolerant loader that single file failed `FileStore::open` — so the
+/// first conflict in a shared vault bricked the app for everyone, and a vault that
+/// will not open is one whose conflict UI can never render to fix it.
+#[test]
+fn a_conflicted_note_is_skipped_and_named_rather_than_fatal() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+
+    let good = {
+        let mut s = FileStore::open(vault).unwrap();
+        let o = Object::new(Kind::Note, "every other note in the vault");
+        let id = o.id;
+        s.put(&o).unwrap();
+        id
+    };
+
+    // Exactly what git leaves on disk when two people saved the same note.
+    std::fs::write(
+        vault.join("notes/conflicted.md"),
+        "---\n\
+         id: 01JQ0000000000000000000000\n\
+         type: note\n\
+         title: two people saved this\n\
+         created: 2026-07-17T10:00:00Z\n\
+         <<<<<<< HEAD\n\
+         updated: 2026-07-17T11:00:00Z\n\
+         =======\n\
+         updated: 2026-07-17T11:05:00Z\n\
+         >>>>>>> theirs\n\
+         ---\n\
+         \n\
+         the body survived; the frontmatter did not\n",
+    )
+    .unwrap();
+
+    let mut s = FileStore::open(vault).expect("the vault opens despite the conflict");
+    assert!(s.get(good).unwrap().is_some(), "and every readable note still serves");
+
+    let stats = s.reindex(Reindex::Full).unwrap();
+    assert_eq!(stats.scanned, 2, "both files were looked at");
+    assert_eq!(stats.updated, 1, "only the readable one indexed");
+    assert_eq!(stats.skipped.len(), 1, "the conflict was skipped, not fatal");
+    assert!(
+        stats.skipped[0].contains("conflicted.md"),
+        "and named, so the user can be told which file to fix: {:?}",
+        stats.skipped,
+    );
+}
+
+/// **Location is the permission.** A vault is one repo, one remote, one collaborator
+/// list, so where a note *is* decides who can see it — and git history is forever, so a
+/// permission you could typo would be permanent disclosure to everyone who ever cloned.
+/// `Object.vault` therefore has to be derived and never serialized. The plan asks for
+/// this test before anything else in Phase 2: `vault:` must never appear in a `.md`.
+#[test]
+fn vault_is_derived_from_location_and_never_written_to_a_file() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path().join("lab-notes");
+    let mut s = FileStore::named(&vault, "lab").unwrap();
+
+    let mut o = Object::new(Kind::Note, "a shared finding");
+    // Someone tries to grant themselves an audience by typing it, or an agent does it
+    // by mistake. Neither can work: the field is not content.
+    o.extra.insert("vault".into(), fm_model::PropertyValue::Text("personal".into()));
+    let id = o.id;
+    s.put(&o).unwrap();
+
+    let raw = std::fs::read_to_string(vault.join(format!("notes/{id}.md"))).unwrap();
+    assert!(!raw.contains("vault:"), "the permission never reaches the file:\n{raw}");
+
+    // What the store says is what the location says — not what anyone typed.
+    let got = s.get(id).unwrap().unwrap();
+    assert_eq!(got.vault, "lab", "derived from where it lives");
+    assert_eq!(got.get("vault"), fm_model::PropertyValue::Text("lab".into()), "and queries agree");
+
+    // A hand-typed `vault:` in a file on disk is stripped, not honoured and not kept.
+    let hand_typed = raw.replace("---\n\n", "vault: everyone\n---\n\n");
+    std::fs::write(vault.join(format!("notes/{id}.md")), &hand_typed).unwrap();
+    let mut s2 = FileStore::named(&vault, "lab").unwrap();
+    let got = s2.get(id).unwrap().unwrap();
+    assert_eq!(got.vault, "lab", "a file cannot talk its way into another audience");
+
+    // And it does not survive a rewrite: no permission-shaped string left implying it
+    // means something.
+    s2.put(&got).unwrap();
+    let rewritten = std::fs::read_to_string(vault.join(format!("notes/{id}.md"))).unwrap();
+    assert!(!rewritten.contains("vault:"), "stripped, not round-tripped:\n{rewritten}");
+}
+
+/// An incremental reindex re-reads only what changed — the thing that makes a 3 s
+/// poll affordable rather than a full re-parse of the vault every 3 seconds. It must
+/// see the whole story an external writer can tell: a change, an addition, and a
+/// deletion (all three are what a `git pull` does).
+#[test]
+fn an_incremental_reindex_sees_external_changes_without_re_reading_the_vault() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    let mut s = FileStore::open(vault).unwrap();
+    seed(&mut s);
+
+    // Nothing has moved: three files looked at, none re-parsed.
+    let quiet = s.reindex(Reindex::Incremental).unwrap();
+    assert_eq!(quiet.scanned, 3, "every file is still checked — that part is a stat");
+    assert_eq!(quiet.updated, 0, "but nothing was re-read: this is the poll's common case");
+
+    // Now a "pull": one note rewritten, one added, one removed — none of it through
+    // the app, which is the whole point.
+    let ids: Vec<_> = s.query(&Query::default()).unwrap().rows.iter().map(|o| o.id).collect();
+    let changed = vault.join(format!("notes/{}.md", ids[0]));
+    let removed = vault.join(format!("notes/{}.md", ids[1]));
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let text = std::fs::read_to_string(&changed).unwrap();
+    std::fs::write(&changed, text.replace("trust region clipping", "their better paragraph"))
+        .unwrap();
+    std::fs::remove_file(&removed).unwrap();
+    std::fs::write(
+        vault.join("notes/01JQ2222222222222222222222.md"),
+        "---\nid: 01JQ2222222222222222222222\ntype: note\ntitle: theirs\ncreated: 2026-07-17T10:00:00Z\nupdated: 2026-07-17T10:00:00Z\n---\n\narrived in a pull\n",
+    )
+    .unwrap();
+
+    let after = s.reindex(Reindex::Incremental).unwrap();
+    assert_eq!(after.updated, 2, "only the changed and the new file were re-read");
+
+    // And the index now agrees with the disk, which is what a pull has to become
+    // visible through: `get`/`query` serve SQLite, never the file.
+    assert_eq!(s.get(ids[1]).unwrap(), None, "the deleted note is gone from the index");
+    assert!(
+        s.get(ids[0]).unwrap().unwrap().body.contains("their better paragraph"),
+        "the external edit is visible",
+    );
+    assert!(
+        s.query(&Query::default()).unwrap().rows.iter().any(|o| o.title.as_deref() == Some("theirs")),
+        "and so is the note that arrived",
+    );
+}
+
+/// *The* lost-update bug. `get` serves SQLite, not the file, so once anything else
+/// writes a note — a `git pull`, a merge driver, Vim — every writer above `put` is
+/// holding a stale copy and would rewrite the whole file from it. Refusing is the
+/// only safe answer: the caller must re-read and decide.
+#[test]
+fn a_note_that_changed_on_disk_refuses_the_write_that_would_erase_it() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    let mut s = FileStore::open(vault).unwrap();
+
+    let mut o = Object::new(Kind::Note, "my half of the note");
+    let id = o.id;
+    s.put(&o).unwrap();
+
+    // Someone else writes the file — a pull landing a collaborator's paragraph. The
+    // app never sees it: `get` reads the index, and reindex only runs at `open`.
+    let path = vault.join(format!("notes/{id}.md"));
+    let theirs = std::fs::read_to_string(&path).unwrap().replace(
+        "my half of the note",
+        "my half of the note\n\ntheir hard-won paragraph",
+    );
+    // A distinct mtime, without depending on the clock ticking between two writes.
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::fs::write(&path, &theirs).unwrap();
+
+    // Our stale copy tries to go back. This is the board-drag shape too: the caller
+    // only meant to change a property, and would have taken the body down with it.
+    o.status = Some("doing".into());
+    let err = s.put(&o).unwrap_err();
+    assert!(matches!(err, StoreError::Conflict(c) if c == id), "refused as a conflict: {err}");
+
+    // The whole point: their paragraph is still on disk.
+    let on_disk = std::fs::read_to_string(&path).unwrap();
+    assert!(on_disk.contains("their hard-won paragraph"), "their work survived");
+    assert!(!on_disk.contains("status: doing"), "and ours did not land");
+}
+
+/// The guard must not cost the ordinary path anything: a note nobody else touched
+/// saves as many times as you like, and a brand-new note has nothing to conflict
+/// with.
+#[test]
+fn ordinary_repeated_saves_are_unaffected_by_the_guard() {
+    let dir = tempdir().unwrap();
+    let mut s = FileStore::open(dir.path()).unwrap();
+
+    let mut o = Object::new(Kind::Note, "first");
+    s.put(&o).expect("a brand-new note has nothing on disk to lose");
+    for body in ["second", "third", "fourth"] {
+        o.body = body.into();
+        s.put(&o).expect("our own last write is what the index holds");
+    }
+    assert_eq!(s.get(o.id).unwrap().unwrap().body, "fourth");
 }
 
 /// FileStore and MemoryStore honour one contract: the same queries return the

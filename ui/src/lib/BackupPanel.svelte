@@ -11,7 +11,7 @@
   // outcome — including whether the data left this machine at all, which a local
   // path for a remote or a restic repo quietly does not.
   import { onMount } from 'svelte';
-  import { backup, backupStatus, commit, push, setGitRemote } from './ipc';
+  import { backup, backupStatus, commit, pull, push, setGitRemote } from './ipc';
   import { reachOf, shortDest } from './destination';
   import type { BackupStatus } from './types';
 
@@ -21,6 +21,8 @@
 
   let status = $state<BackupStatus | null>(null);
   let remoteDraft = $state('');
+  let nameDraft = $state('');
+  let emailDraft = $state('');
   let heavy = $state(false);
   let busy = $state(false);
   let steps = $state<Step[]>([]);
@@ -30,6 +32,14 @@
   const notesReach = $derived(reachOf(status?.remote));
   const mediaReach = $derived(reachOf(status?.restic_repo));
   const canPush = $derived(!!status?.remote && !busy);
+  // Only the people git has never met get asked. Loaded status first, so the
+  // question doesn't flash up before we know the answer.
+  const needsIdentity = $derived(!!status && status.identity === null);
+  const canSaveRemote = $derived(
+    !busy &&
+      !!remoteDraft.trim() &&
+      (!needsIdentity || (!!nameDraft.trim() && !!emailDraft.trim())),
+  );
 
   const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
   const leaves = (r: string) => (r === 'remote' ? 'leaves this machine' : 'stays on this machine');
@@ -50,12 +60,44 @@
     const url = remoteDraft.trim();
     if (!url || busy) return;
     error = null;
+    const name = nameDraft.trim();
+    const email = emailDraft.trim();
     try {
-      await setGitRemote(url);
+      await setGitRemote(url, needsIdentity ? { name, email } : undefined);
       await load();
     } catch (e) {
       error = msg(e);
     }
+  }
+
+  // Bring their work home. Separate from "Back up" on purpose: pushing and pulling are
+  // different intentions, and a button that quietly did both would be a button nobody
+  // could predict. Commit first for the same reason `run()` does — the 5s auto-commit
+  // is best-effort, and git will not merge over uncommitted edits.
+  async function bringDown() {
+    if (busy) return;
+    busy = true;
+    steps = [];
+    verdict = null;
+    error = null;
+    try {
+      await commit(`auto: ${new Date().toISOString()}`).catch(() => false);
+      const r = await pull();
+      if (r.conflicts.length) {
+        steps.push({
+          text: `Merged, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${r.conflicts.join(', ')}. Open each one — the two versions are marked in the text.`,
+          ok: false,
+        });
+      } else if (r.merged) {
+        steps.push({ text: `Pulled ${r.merged} commit${r.merged === 1 ? '' : 's'} — merged cleanly.`, ok: true });
+      } else {
+        steps.push({ text: 'Already up to date.', ok: true });
+      }
+    } catch (e) {
+      steps.push({ text: `Could not pull: ${msg(e)}`, ok: false });
+    }
+    await load();
+    busy = false;
   }
 
   async function run() {
@@ -134,14 +176,42 @@
         <!-- svelte-ignore a11y_autofocus -->
         <input
           bind:value={remoteDraft}
-          onkeydown={(e) => e.key === 'Enter' && saveRemote()}
+          onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
           placeholder="git@github.com:you/notes.git"
           spellcheck="false"
           disabled={busy}
         />
-        <button onclick={saveRemote} disabled={busy || !remoteDraft.trim()}>Save</button>
+        <button onclick={saveRemote} disabled={!canSaveRemote}>Save</button>
       </div>
     </label>
+
+    {#if needsIdentity}
+      <!-- Asked once, at the only moment it matters: pushing is when your notes
+           start carrying your name to someone else, and git history is permanent.
+           Anyone who has ever configured git never sees this. -->
+      <div class="identity">
+        <p class="why">
+          Every commit you push is signed with a name. Yours isn't set yet — without
+          it, your collaborators can't tell who changed what.
+        </p>
+        <div class="row">
+          <input
+            bind:value={nameDraft}
+            onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
+            placeholder="Your name"
+            spellcheck="false"
+            disabled={busy}
+          />
+          <input
+            bind:value={emailDraft}
+            onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
+            placeholder="you@example.org"
+            spellcheck="false"
+            disabled={busy}
+          />
+        </div>
+      </div>
+    {/if}
 
     {#if steps.length === 0}
       <ul class="promise">
@@ -152,6 +222,9 @@
             Notes → <strong>{shortDest(status?.remote ?? '')}</strong> — {leaves(notesReach)}.
             {#if status?.unpushed}
               <span class="muted">{status.unpushed} commit{status.unpushed === 1 ? '' : 's'} not pushed.</span>
+            {/if}
+            {#if status?.identity}
+              <span class="muted">Signed as {status.identity.name} &lt;{status.identity.email}&gt;.</span>
             {/if}
           {/if}
         </li>
@@ -185,10 +258,25 @@
       </span>
     </label>
 
+    {#if status?.conflicts.length}
+      <!-- The one state a user must be told about by name: these notes have both
+           versions in them and are waiting for a person. The merge driver keeps the
+           markers in the body, so each one still opens in the editor. -->
+      <p class="error">
+        {status.conflicts.length} note{status.conflicts.length === 1 ? '' : 's'} still need
+        you: {status.conflicts.join(', ')}. Open each and keep the text you want.
+      </p>
+    {:else if status?.remote_moved}
+      <p class="moved">Someone has pushed work you don't have yet.</p>
+    {/if}
+
     {#if error}<p class="error">{error}</p>{/if}
 
     <div class="actions">
       <button onclick={onclose} disabled={busy}>Close</button>
+      <button onclick={bringDown} disabled={!canPush} class:primary={status?.remote_moved}>
+        {busy ? 'Working…' : 'Get their changes'}
+      </button>
       <button class="primary" onclick={run} disabled={!canPush}>
         {busy ? 'Backing up…' : heavy ? 'Back up notes + media' : 'Back up notes'}
       </button>
@@ -241,6 +329,29 @@
   .row {
     display: flex;
     gap: var(--space-2);
+  }
+  .identity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--accent-subtle);
+  }
+  .why {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .moved {
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--accent-subtle);
+    color: var(--text);
+    font-size: var(--text-sm);
   }
   input[type='text'],
   .row input {

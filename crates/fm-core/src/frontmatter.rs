@@ -76,6 +76,14 @@ pub fn to_file(obj: &Object) -> Result<String, ParseError> {
     }
     // Custom properties, in BTreeMap (sorted) order, after the well-known keys.
     for (k, v) in &obj.extra {
+        // Except `vault`, ever. It is *location*, not content: the audience a note
+        // belongs to is decided by which repo holds it, and a permission you can type
+        // is a permission you can typo — permanently, because git history is forever.
+        // `from_file` strips it on the way in, but an Object assembled in memory can
+        // still carry one, and this is the last gate before it becomes bytes.
+        if k == "vault" {
+            continue;
+        }
         map.insert(Value::from(k.clone()), prop_to_yaml(v));
     }
 
@@ -122,6 +130,14 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
         };
         match key.as_str() {
             "schema" => {} // presence validated implicitly; Object carries no schema field
+            // Dropped on the floor, deliberately. `Object.vault` is derived from where
+            // the file *is*, never from what it says — location is the permission. Without
+            // this arm a hand-typed `vault: lab` would land in `extra`, and `to_file`
+            // would then write it back forever: a permission-shaped string living in
+            // content, which is exactly the forgeable label this design refuses. It
+            // cannot grant anything (the store overwrites `vault` on load), but it would
+            // sit in the file implying it does.
+            "vault" => {}
             "id" => id = as_string(v),
             "type" => kind = as_string(v),
             "title" => title = as_string(v),
@@ -172,6 +188,9 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
         code,
         body: body.to_string(),
         extra,
+        // A file cannot say which vault it is in — only where it *is* can say that. The
+        // store that read it stamps this immediately; parsing alone never knows.
+        vault: String::new(),
     })
 }
 

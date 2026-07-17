@@ -17,6 +17,27 @@ use std::process::{Command, Output};
 /// ordinary repo that behaves as expected in a terminal.
 const REMOTE: &str = "origin";
 
+/// The stand-in committer written for a vault nobody else can see. Git refuses to
+/// commit without *some* identity and cannot invent one on a machine whose hostname
+/// is not a FQDN — which is most of them — so without this a researcher who never
+/// configured git could not save a note at all.
+///
+/// It is deliberately **not a person**: [`identity`] reports it as absent and
+/// [`set_remote`] refuses to give a vault an audience while it stands. That is what
+/// turns "no git config" into a single question, asked once, at the only moment the
+/// answer matters — and it lets a vault that has been running on the placeholder for
+/// months heal itself the moment the user answers.
+const PLACEHOLDER_NAME: &str = "formicarium";
+const PLACEHOLDER_EMAIL: &str = "formicarium@localhost";
+
+/// Who a vault's commits are attributed to — the name a collaborator sees when they
+/// ask who touched a note.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Identity {
+    pub name: String,
+    pub email: String,
+}
+
 fn git(vault: &Path) -> Command {
     let mut c = Command::new("git");
     c.arg("-C").arg(vault);
@@ -38,12 +59,15 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     // is the *only* correct probe here: `git rev-parse` walks upward and would
     // report the parent repo when the vault is nested inside one.
     if vault.join(".git").exists() {
-        // A repo we did not create — `git init`ed by hand — still needs the ignore
-        // rules, or the very next `commit_all` (`git add -A`) sweeps `blobs/` and
-        // the index into history, and a push then ships every PDF and video to the
-        // remote. Idempotent: `write_gitignore` only writes when the file is absent,
-        // so a cloned vault's own tracked `.gitignore` is left alone.
+        // A repo we did not create — `git init`ed by hand, or **cloned from a
+        // collaborator** — still needs the ignore rules, or the very next
+        // `commit_all` (`git add -A`) sweeps `blobs/` and the index into history, and
+        // a push then ships every PDF and video to the remote. Idempotent:
+        // `write_gitignore` only writes when the file is absent, so a cloned vault's
+        // own tracked `.gitignore` is left alone.
         write_gitignore(vault)?;
+        write_gitattributes(vault)?;
+        install_merge_driver(vault)?;
         return Ok(false);
     }
     std::fs::create_dir_all(vault).map_err(io)?;
@@ -53,22 +77,133 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     }
     ensure_identity(vault);
     write_gitignore(vault)?;
+    write_gitattributes(vault)?;
+    install_merge_driver(vault)?;
     Ok(true)
 }
 
-/// Set a repo-local committer identity when none is configured, so the first
-/// commit never fails on a fresh machine with no global git config. Repo-local,
-/// so it never touches the user's global settings. Best-effort.
+/// Ask git to merge notes through us. Tracked, so it travels to every clone — which
+/// is exactly half the job, and the half that is *not* enough (see
+/// [`install_merge_driver`]). Idempotent like `.gitignore`: a cloned vault's own
+/// tracked copy is left alone.
+fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
+    let path = vault.join(".gitattributes");
+    if path.exists() {
+        return Ok(());
+    }
+    std::fs::write(&path, "*.md merge=fm\n").map_err(io)
+}
+
+/// Teach *this clone* what `merge=fm` actually runs.
+///
+/// The trap: `.gitattributes` is tracked and travels, but the `merge.fm.driver`
+/// **definition** lives in `.git/config`, which deliberately does not — git will not
+/// let a repo ship a command line that then executes on your machine. So a
+/// collaborator who clones and never runs this app silently falls back to git's
+/// built-in text merge and gets the `updated:` conflict on every concurrent edit,
+/// with no sign that anything was meant to prevent it. Install it on every
+/// `ensure_repo`, exactly as we already write `.gitignore` and the identity.
+///
+/// Install nothing unless we can name a binary that **exists**, because a driver that
+/// fails to run is far worse than no driver at all: git takes any non-zero exit as
+/// "conflict", and the `%A` it hands back is untouched — i.e. *our* version, with no
+/// markers in it. The user sees a conflict, opens a file that looks completely normal,
+/// resolves it, and has silently deleted their collaborator's edit. An undefined
+/// driver, by contrast, degrades to git's built-in text merge: uglier, and correct.
+fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
+    let Some(exe) = merge_command() else { return Ok(()) };
+    for (key, value) in [
+        ("merge.fm.name", "formicarium frontmatter-aware note merge".to_string()),
+        // %O base, %A ours (and where the answer goes), %B theirs, %L marker size.
+        ("merge.fm.driver", format!("'{exe}' merge-md %O %A %B %L")),
+    ] {
+        let out = git(vault).args(["config", &key, &value]).output().map_err(spawn)?;
+        if !out.status.success() {
+            return Err(failed("git config", &out));
+        }
+    }
+    Ok(())
+}
+
+/// An absolute path to the `fm` binary, or `None` if we cannot find one.
+///
+/// The one beside whatever is running now: the release bundle ships `fm` and
+/// `fm-serve` side by side, so this resolves without asking the user to put anything
+/// on PATH — they launch from a desktop icon and have no PATH we chose. **Never a bare
+/// `fm` hoping PATH will answer**: PATH at `git pull` time is not PATH now, and being
+/// wrong about that is the silent-data-loss case above. If it isn't there, say so and
+/// let git merge the way it always has.
+fn merge_command() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let fm = exe.parent()?.join(if cfg!(windows) { "fm.exe" } else { "fm" });
+    fm.exists().then(|| fm.to_string_lossy().into_owned())
+}
+
+/// Give a brand-new vault the [placeholder](PLACEHOLDER_EMAIL) committer when the
+/// user has no git config of their own, so the first commit never fails on a fresh
+/// machine. Repo-local, so it never touches the user's global settings, and
+/// best-effort: a vault that cannot be configured will surface that at commit time
+/// with git's own message, which is better than ours.
 fn ensure_identity(vault: &Path) {
-    let missing = |k: &str| {
-        !git(vault).arg("config").arg(k).output().map(|o| o.status.success()).unwrap_or(false)
-    };
+    let missing = |k: &str| config(vault, k).is_none();
     if missing("user.email") {
-        let _ = git(vault).args(["config", "user.email", "formicarium@localhost"]).output();
+        let _ = git(vault).args(["config", "user.email", PLACEHOLDER_EMAIL]).output();
     }
     if missing("user.name") {
-        let _ = git(vault).args(["config", "user.name", "formicarium"]).output();
+        let _ = git(vault).args(["config", "user.name", PLACEHOLDER_NAME]).output();
     }
+}
+
+/// One effective git config value — local, global or system, resolved exactly as
+/// git itself would for a commit made in this vault. `None` for unset *and* empty:
+/// a key set to nothing is not an answer.
+fn config(vault: &Path, key: &str) -> Option<String> {
+    let out = git(vault).args(["config", key]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+/// Who this vault's commits are attributed to, or `None` when nobody real is —
+/// either git has no identity at all, or it still holds our placeholder. Reporting
+/// our own stand-in as absent is deliberate: it is the difference between a vault
+/// that asks once and a vault that quietly signs a shared history `formicarium`.
+pub fn identity(vault: &Path) -> Option<Identity> {
+    if !vault.join(".git").exists() {
+        return None;
+    }
+    let email = config(vault, "user.email")?;
+    if email == PLACEHOLDER_EMAIL {
+        return None;
+    }
+    Some(Identity { name: config(vault, "user.name")?, email })
+}
+
+/// Record who the user is, repo-locally — the answer to the question
+/// [`set_remote`] asks. Scoped to this vault because a vault is an audience: the
+/// name you push to a lab repo need not be the one on your personal notes, and this
+/// app has no business editing anyone's global git config.
+pub fn set_identity(vault: &Path, name: &str, email: &str) -> Result<(), StoreError> {
+    let (name, email) = (name.trim(), email.trim());
+    if name.is_empty() || email.is_empty() {
+        return Err(StoreError::Io("a git identity needs both a name and an email".into()));
+    }
+    // Not validation — git does none either, and an address this app rejects is an
+    // address the user cannot use. This catches only the mistake that is invisible
+    // afterwards: a name typed into the email box, signed into history forever.
+    if !email.contains('@') || email == PLACEHOLDER_EMAIL {
+        return Err(StoreError::Io(format!("'{email}' is not an email address")));
+    }
+    ensure_repo(vault)?;
+    for (key, value) in [("user.name", name), ("user.email", email)] {
+        let out = git(vault).args(["config", key, value]).output().map_err(spawn)?;
+        if !out.status.success() {
+            return Err(failed("git config", &out));
+        }
+    }
+    Ok(())
 }
 
 fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
@@ -91,6 +226,15 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
         return Err(failed("git status", &status));
     }
     if status.stdout.is_empty() {
+        return Ok(false);
+    }
+    // Never commit during a conflicted merge. `add -A` would stage the conflict
+    // markers, which git reads as "the human resolved it", and the commit would
+    // enshrine `<<<<<<<` as the note's content and push it. The auto-commit is
+    // debounced 5s after any write, so a pull that conflicts hits this within
+    // seconds — it is the default path, not an edge case. Not an error: "nothing
+    // committed" is exactly what the caller already handles.
+    if String::from_utf8_lossy(&status.stdout).lines().any(unmerged) {
         return Ok(false);
     }
     let add = git(vault).arg("add").arg("-A").output().map_err(spawn)?;
@@ -130,6 +274,17 @@ pub fn set_remote(vault: &Path, url: &str) -> Result<(), StoreError> {
         return Err(StoreError::Io("a remote needs a URL".into()));
     }
     ensure_repo(vault)?;
+    // A remote is the moment this vault stops being private: from here on every
+    // commit carries a name to somebody else's clone, and git history is forever.
+    // If that name is still the placeholder, then every "who touched this?" the
+    // product can ever answer is the same fake — so ask now, once, while a human is
+    // looking at the panel that sent us here. Anyone whose git is already configured
+    // never sees this.
+    if identity(vault).is_none() {
+        return Err(StoreError::Io(
+            "tell us who you are first — your name and email sign every commit you share".into(),
+        ));
+    }
     let sub = if remote(vault)?.is_some() { "set-url" } else { "add" };
     let out = git(vault).args(["remote", sub, REMOTE]).arg(url).output().map_err(spawn)?;
     if !out.status.success() {
@@ -157,12 +312,6 @@ fn branch(vault: &Path) -> Result<String, StoreError> {
 /// The remote-tracking ref for the current branch — `Some` only once we have
 /// pushed at least once. `None` therefore means "never pushed", which is the
 /// signal [`push_squashed`] uses to refuse to squash.
-///
-/// This ref is updated only by fetch and push, and **nothing here ever fetches**.
-/// That is deliberate: it means a remote another machine has moved stays ahead of
-/// our stale ref, so our push is rejected and the user is told. Fetch first and
-/// the squash below would rebase onto their tip and silently overwrite their
-/// content with our tree.
 fn tracking(vault: &Path) -> Result<Option<String>, StoreError> {
     // An unborn HEAD (no commits yet) has no branch to track.
     let Ok(b) = branch(vault) else { return Ok(None) };
@@ -173,6 +322,21 @@ fn tracking(vault: &Path) -> Result<Option<String>, StoreError> {
         .map(|o| o.status.success())
         .unwrap_or(false);
     Ok(ok.then_some(r))
+}
+
+/// Does `maybe_ancestor` lead to `descendant`? The one question that separates
+/// "we are simply ahead" from "our histories have forked".
+fn is_ancestor(vault: &Path, maybe_ancestor: &str, descendant: &str) -> Result<bool, StoreError> {
+    let out = git(vault)
+        .args(["merge-base", "--is-ancestor", maybe_ancestor, descendant])
+        .output()
+        .map_err(spawn)?;
+    // Exit 1 means "no"; anything else is a real failure we should not read as "no".
+    match out.status.code() {
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(failed("git merge-base", &out)),
+    }
 }
 
 fn count_ahead(vault: &Path, base: &str) -> Result<u32, StoreError> {
@@ -220,6 +384,20 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
         // backwards — send it as it stands. Every later push collapses to one.
         None => 0,
         Some(base) => {
+            // Squash ONLY when the remote's tip is an ancestor of ours — i.e. we
+            // hold everything it holds. Otherwise someone else's commits are on
+            // that ref (something fetched), and `reset --soft` onto it would put
+            // *their* tip under *our* tree: a commit that deletes their work and
+            // then pushes as a clean fast-forward. Nothing rejects it.
+            //
+            // A count of unpushed commits cannot catch this — it is >0 in exactly
+            // the divergent case, so it reads as "normal". Ancestry is the question;
+            // "how many" never was.
+            if !is_ancestor(vault, &base, "HEAD")? {
+                return Err(StoreError::Io(
+                    "the remote has changes you don't have — pull first, then back up".into(),
+                ));
+            }
             let n = count_ahead(vault, &base)?;
             if n > 1 {
                 // --soft moves HEAD alone: the index still holds every squashed
@@ -264,6 +442,136 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
         return Err(failed("git push", &out));
     }
     Ok(squashed)
+}
+
+/// What a [`pull`] did. Every arm is a thing the user needs told differently, which is
+/// why this is not a bool.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Pulled {
+    /// The remote had nothing we don't. The overwhelmingly common case.
+    UpToDate,
+    /// Their work arrived and merged, cleanly. `0` when we simply fast-forwarded.
+    Merged(u32),
+    /// Their work arrived and genuinely disagrees with ours. The named notes have
+    /// conflict markers in them and are waiting for a human. Thanks to the `.md` merge
+    /// driver those markers are in the *body*, so the notes still open in the editor.
+    Conflicted(Vec<String>),
+}
+
+/// Has the remote moved? A `ls-remote` against the configured remote, compared with our
+/// tracking ref — one cheap network round-trip that touches no refs and writes nothing,
+/// so it is safe to ask on a timer.
+///
+/// `None` when there is nothing to compare (no remote, or never pushed). Deliberately
+/// **not** a fetch: fetching is what advances the tracking ref, and an advanced tracking
+/// ref is what [`push_squashed`]'s ancestry guard exists to survive. Ask first, fetch on
+/// purpose.
+pub fn remote_moved(vault: &Path) -> Result<Option<bool>, StoreError> {
+    if !vault.join(".git").exists() || remote(vault)?.is_none() {
+        return Ok(None);
+    }
+    let Ok(b) = branch(vault) else { return Ok(None) };
+    let Some(track) = tracking(vault)? else { return Ok(None) };
+
+    let out = git(vault).args(["ls-remote", REMOTE, &format!("refs/heads/{b}")]).output().map_err(spawn)?;
+    if !out.status.success() {
+        // Offline, or no such branch there yet. Not knowing is not an error: this runs
+        // on a timer and a laptop that sleeps must not show the user a failure.
+        return Ok(None);
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let Some(theirs) = stdout.split_whitespace().next() else { return Ok(Some(false)) };
+    Ok(Some(rev_parse(vault, &track).map(|ours| ours != theirs).unwrap_or(false)))
+}
+
+/// Fetch and merge the remote's work into ours — the other half of a shared vault, and
+/// the reason every guard above it had to land first.
+///
+/// Merging runs the `.md` driver installed by [`ensure_repo`], so two people editing
+/// different paragraphs of one note is a non-event rather than a conflict on the
+/// `updated:` line we rewrite on every save.
+pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
+    ensure_repo(vault)?;
+    if remote(vault)?.is_none() {
+        return Err(StoreError::Io(
+            "no remote configured — set one before pulling anyone's work".into(),
+        ));
+    }
+    if unmerged_paths(vault)?.is_some() {
+        return Err(StoreError::Io(
+            "there is already a merge to finish here — resolve the conflicts first".into(),
+        ));
+    }
+    let out = git(vault).args(["fetch", REMOTE]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git fetch", &out));
+    }
+    let Some(track) = tracking(vault)? else {
+        // Nothing of ours is up there yet, so there is nothing of theirs to merge into.
+        return Ok(Pulled::UpToDate);
+    };
+    // Already hold everything they have: no merge, no commit, nothing to say.
+    if is_ancestor(vault, &track, "HEAD")? {
+        return Ok(Pulled::UpToDate);
+    }
+    let incoming = count_range(vault, "HEAD", &track)?;
+
+    let out = git(vault).args(["merge", "--no-edit", &track]).output().map_err(spawn)?;
+    if out.status.success() {
+        return Ok(Pulled::Merged(incoming));
+    }
+    // A merge that stopped is either a real conflict — which is a *result*, not a
+    // failure — or something else entirely, which is.
+    match unmerged_paths(vault)? {
+        Some(files) => Ok(Pulled::Conflicted(files)),
+        None => Err(failed("git merge", &out)),
+    }
+}
+
+/// How many commits `to` has that `from` does not.
+fn count_range(vault: &Path, from: &str, to: &str) -> Result<u32, StoreError> {
+    let out = git(vault)
+        .args(["rev-list", "--count", &format!("{from}..{to}")])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git rev-list", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0))
+}
+
+/// The paths git considers unmerged, or `None` when the tree is not mid-conflict.
+/// `pub` because the conflict list is something the product has to be able to show:
+/// a note with markers in it is the one state a user must be told about by name.
+pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    Ok(unmerged_paths(vault)?.unwrap_or_default())
+}
+
+fn unmerged_paths(vault: &Path) -> Result<Option<Vec<String>>, StoreError> {
+    let status = git(vault).args(["status", "--porcelain"]).output().map_err(spawn)?;
+    if !status.status.success() {
+        return Err(failed("git status", &status));
+    }
+    let files: Vec<String> = String::from_utf8_lossy(&status.stdout)
+        .lines()
+        .filter(|l| unmerged(l))
+        .map(|l| l[3..].trim().to_string())
+        .collect();
+    Ok((!files.is_empty()).then_some(files))
+}
+
+/// Is this `status --porcelain` line an unmerged path? The seven conflict codes
+/// are `DD AU UD UA DU AA UU` — every one has a `U`, except the two doubles.
+fn unmerged(line: &str) -> bool {
+    let mut c = line.chars();
+    match (c.next(), c.next()) {
+        (Some('U'), _) | (Some(_), Some('U')) => true,
+        (Some('A'), Some('A')) | (Some('D'), Some('D')) => true,
+        _ => false,
+    }
 }
 
 fn spawn(e: std::io::Error) -> StoreError {

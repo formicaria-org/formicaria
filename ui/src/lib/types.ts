@@ -42,6 +42,12 @@ export interface AssetStatus {
   mime: string | null;
 }
 
+/** Who a vault's commits are signed by — the name a collaborator sees in `git log`. */
+export interface Identity {
+  name: string;
+  email: string;
+}
+
 /** What each backup tier could do right now (`backup_status`). */
 export interface BackupStatus {
   /** Where the notes push to, or null when no remote is set yet. */
@@ -52,4 +58,21 @@ export interface BackupStatus {
   restic_repo: string | null;
   /** Both restic env vars present, i.e. a full backup could actually run. */
   restic_ready: boolean;
+  /** Null when nobody real signs this vault's commits — either git has no identity
+   *  configured, or it still holds the placeholder. A remote cannot be set while
+   *  this is null, because git history is forever and an unattributed shared vault
+   *  cannot answer "who touched this?". */
+  identity: Identity | null;
+  /** Someone else has pushed work we don't have. Null when unknowable: no remote,
+   *  never pushed, or simply offline — a sleeping laptop is not an error. */
+  remote_moved: boolean | null;
+  /** Notes with conflict markers in them, waiting for a human. The `.md` merge driver
+   *  keeps markers out of the frontmatter, so these still open in the editor. */
+  conflicts: string[];
+}
+
+/** What a pull did. Conflicts are a result, not a failure. */
+export interface PullResult {
+  merged: number;
+  conflicts: string[];
 }

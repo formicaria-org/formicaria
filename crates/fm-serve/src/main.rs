@@ -8,7 +8,7 @@
 //! Localhost only, single user. std-only networking, thread-per-connection.
 
 use fm_app::commands;
-use fm_core::{backup, git, FileStore};
+use fm_core::{backup, git, FileStore, Reindex, Store};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -43,6 +43,18 @@ fn main() {
         vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
 
     let store = FileStore::open(&vault).expect("open vault");
+    // The vault opens even when a note is unreadable — a conflicted merge is the
+    // usual cause, and refusing to start would take away the very app you need to
+    // fix it. But those notes are now absent from every view, so say which ones:
+    // silently serving an incomplete vault is the one outcome worse than not
+    // starting at all.
+    if !store.skipped().is_empty() {
+        eprintln!("warning: {} note(s) could not be read and are missing from every view:", store.skipped().len());
+        for note in store.skipped() {
+            eprintln!("  {note}");
+        }
+        eprintln!("  (a conflicted merge? resolve the markers and reload.)");
+    }
     let state = Arc::new(AppState {
         store: Mutex::new(store),
         vault: PathBuf::from(&vault),
@@ -242,7 +254,16 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         // What the two backup tiers would actually do right now — the panel needs
         // this to promise the user only what it can deliver.
         "backup_status" => json(backup_status(state)?),
+        // The identity rides along because this is the one moment it is worth
+        // asking for: a vault gaining a remote is a vault gaining an audience, and
+        // from here on every commit carries a name into somebody else's clone.
+        // Empty means "don't touch it" — a user whose git is already configured is
+        // never asked, so the panel sends nothing.
         "set_git_remote" => {
+            let (name, email) = (s("name"), s("email"));
+            if !name.is_empty() || !email.is_empty() {
+                git::set_identity(&state.vault, &name, &email).map_err(err)?;
+            }
             git::set_remote(&state.vault, &s("url")).map_err(err)?;
             Ok(Vec::new())
         }
@@ -251,9 +272,35 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             let _guard = lock(state)?;
             json(git::push_squashed(&state.vault, &s("message")).map_err(err)?)
         }
-        // The browser heartbeat — the request itself already refreshed liveness
-        // in `handle`, so this only needs to answer 200 so the tab knows we're up.
-        "ping" => Ok(Vec::new()),
+        // Bring a collaborator's work home. Holds the store lock for the same reason
+        // push does — a merge rewrites notes under the app's feet, and the very next
+        // incremental reindex is what makes them visible.
+        "pull" => {
+            let mut store = lock(state)?;
+            let outcome = git::pull(&state.vault).map_err(err)?;
+            // The merge just wrote files behind the index's back. Re-read now rather
+            // than leave the user staring at pre-pull content until the next heartbeat.
+            store.reindex(Reindex::Incremental).map_err(err)?;
+            json(match outcome {
+                git::Pulled::UpToDate => PullResult { merged: 0, conflicts: Vec::new() },
+                git::Pulled::Merged(n) => PullResult { merged: n, conflicts: Vec::new() },
+                git::Pulled::Conflicted(f) => PullResult { merged: 0, conflicts: f },
+            })
+        }
+        // The browser heartbeat, which doubles as **the local poll**. Liveness was
+        // already refreshed by `handle` before dispatch, so the answer here is the
+        // other half: has the vault moved under us?
+        //
+        // `get`/`query` serve SQLite, and a full reindex only runs at `open` — so
+        // without this a `git pull`, a merge driver, or an edit in Vim is *invisible*
+        // to a running app. The tab already beats every 3s for the watchdog, which is
+        // exactly the cadence a local poll wants, so it costs one incremental reindex
+        // rather than a second timer and a second round-trip. Quiet is the common
+        // case and quiet is a stat per file.
+        "ping" => {
+            let changed = lock(state)?.reindex(Reindex::Incremental).map_err(err)?;
+            json(Ping { changed: changed.updated > 0 || changed.removed > 0 })
+        }
         // Binary upload: the raw request body IS the file; the name rides in the
         // query string (`/api/ingest?name=<urlencoded>`).
         "ingest" => {
@@ -293,6 +340,22 @@ fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
         .map_err(|e| format!("could not open the file: {e}"))
 }
 
+/// The heartbeat's answer: did anything change on disk that the tab is not showing?
+/// A bool, not a count — the UI's only choice is whether to re-run its query.
+#[derive(serde::Serialize)]
+struct Ping {
+    changed: bool,
+}
+
+/// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have
+/// markers in their body (the `.md` driver keeps them out of the frontmatter), so they
+/// still open in the editor for a human to settle.
+#[derive(serde::Serialize)]
+struct PullResult {
+    merged: u32,
+    conflicts: Vec<String>,
+}
+
 /// What each backup tier can do right now. fm-core stays free of environment and
 /// configuration concerns, so the env-derived half is assembled here.
 #[derive(serde::Serialize)]
@@ -306,6 +369,17 @@ struct BackupStatus {
     restic_repo: Option<String>,
     /// Both restic env vars present, i.e. a full backup could actually run.
     restic_ready: bool,
+    /// Who this vault's commits are signed by, or null when nobody real is — the
+    /// panel asks for a name only when this is null, so anyone whose git is already
+    /// configured never sees the question.
+    identity: Option<git::Identity>,
+    /// Someone else has pushed work we don't have. Null when unknowable (no remote,
+    /// never pushed, or offline — a sleeping laptop is not an error). One `ls-remote`,
+    /// which moves no refs: knowing must not itself be the thing that puts the vault
+    /// in the state the ancestry guard has to survive.
+    remote_moved: Option<bool>,
+    /// Notes with conflict markers sitting in them, waiting for a human.
+    conflicts: Vec<String>,
 }
 
 fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
@@ -315,6 +389,9 @@ fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
         unpushed: git::unpushed(&state.vault).map_err(err)?,
         restic_ready: restic_repo.is_some() && std::env::var("RESTIC_PASSWORD").is_ok(),
         restic_repo,
+        identity: git::identity(&state.vault),
+        remote_moved: git::remote_moved(&state.vault).unwrap_or(None),
+        conflicts: git::conflicts(&state.vault).unwrap_or_default(),
     })
 }
 

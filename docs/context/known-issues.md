@@ -13,11 +13,19 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   note body reaches the DOM. A characterization test pins this *current*
   behavior. Accepted as low-risk for a single-user local tool; adding a
   sanitizer is a filed follow-up, not done.
-- **Reindex is always a full rebuild.** `fm-core::file::reindex` ignores its
-  `_mode` arg and re-reads/re-parses **every** note on each process open (CLI +
-  server). The `mtime_ns` column and an `Incremental` variant exist but are
-  **unused**. O(n), fine now; gate an incremental path behind a perf-budget test
-  before the vault reaches ~1–2k notes.
+- **You are only told someone pushed if you open the backup panel.** `git::remote_moved`
+  (one `ls-remote`, moves no refs) is computed in `backup_status`, so nothing surfaces
+  "Ravi pushed" on its own. The plan's automatic 15–30 s poll needs a timer and somewhere
+  in the chrome to show it. Same for conflicted notes: `backup_status.conflicts` lists them,
+  but only in that panel — though the `.md` driver does put markers in the note *body*, so
+  a conflicted note opens and resolves in the ordinary editor.
+- **Reindex still stats every file, every 3 s.** `Reindex::Incremental` now re-*reads*
+  only what moved (Phase 1), but the scan itself is still O(n) `stat`s, and the `ping`
+  heartbeat runs it on every beat. Fine at this scale and far cheaper than the full
+  re-parse it replaced; if the vault reaches ~10k notes, gate it behind a perf-budget test
+  before reaching for a watcher (inotify) — a watcher is a dependency and a per-platform
+  behaviour, which is why polling won on the way in. `FileStore::open` is still a **full**
+  rebuild by design (the disposable-index escape hatch).
 - **No per-view object cache.** Board/Agenda/Timeline each YAML-parse the whole
   corpus via `load_all` per request. Same scale caveat as above.
 - **Inline media buffers whole blobs into memory.** `resolve_asset` returns full
@@ -64,7 +72,7 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   it's **unverified in headless CI** (build, code-split, and the board round-trip
   are tested; the visual editor is not). (3) A board can't yet be **embedded in a
   note** — it's a standalone note you open on its own. Planned in
-  [roadmap.md](./roadmap.md).
+  [plan.md](./plan.md) (Track S #4).
 
 ## Deferred (intentionally not built yet)
 
@@ -75,10 +83,10 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 - **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
   posters, semantic search. (Forward note references + the sliding-pane trail
   **shipped 2026-07-16**; only the *backlinks* half is still deferred, and it
-  needs a link index — see [roadmap.md](./roadmap.md).)
+  needs a link index — see [plan.md](./plan.md) (Track C, Phase 3).)
 - **Calendar sync, whiteboard-in-a-note + PDF export, and the `Source`/local-model
   ingest module** are *planned, with the design decided* — see
-  [roadmap.md](./roadmap.md) rather than re-deriving them.
+  [plan.md](./plan.md) (Track S) rather than re-deriving them.
 
 ## Historical / no longer relevant
 
@@ -107,10 +115,11 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN` (xdg-open the
   browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (the **media** backup tier only —
   the notes tier needs neither).
-- **One malformed `.md` bricks startup.** `reindex` propagates a frontmatter parse
-  error, so `FileStore::open` fails and the app will not launch — which contradicts
-  files-as-truth's own degrade-gracefully stance. Found by the 2026-07-17 audit;
-  not fixed.
+- **An unreadable `.md` disappears from the app with only a stderr line.** Since
+  Phase 0 the vault opens and serves the rest (`FileStore::skipped()`, warned about
+  at `fm-serve` startup), which is the right trade — but a user in the browser sees
+  the note **silently missing**, and the terminal is the only place that says why.
+  The in-app list is Phase 1's "conflict surfacing" (`plan.md`).
 - **`fm-serve` has no tests at all.** The entire production transport is unverified,
   and every UI test runs against `mock.ts` — so the real HTTP path is only ever
   exercised by hand. Found by the 2026-07-17 audit.

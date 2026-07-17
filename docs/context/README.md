@@ -22,7 +22,8 @@ authoritative design document; these files are the fast-recall layer over it.
 | [overview.md](./overview.md) | the 5-minute mental model: what it is, how it runs, architecture, seams, status. **Always read first.** |
 | [decisions.md](./decisions.md) | *why* something is the way it is before you change it (pivots, reversals, load-bearing constraints). |
 | [known-issues.md](./known-issues.md) | what's broken/rough/deferred, and the traps (toolchain, sandbox, CI greps) that will bite you. |
-| [roadmap.md](./roadmap.md) | what we intend to build next and *why not the obvious alternative* — the only file here describing things that do **not** exist yet. |
+| [plan.md](./plan.md) | **the forward program** — the sequenced formicarium→formicaria plan (knowledge + scheduling + collaboration) and *why not the obvious alternative*. The file here describing things that do **not** exist yet. |
+| [collaboration-design.md](./collaboration-design.md) | the line-by-line **code audit** behind `plan.md`'s Track C — the receipts (the `candidates` seam, the `reconcileElements` autopsy, the `push_squashed` trap). Read it when `plan.md` sends you for detail. |
 | [sessions/](./sessions/) | the narrative history — one append-only entry per working session, newest kept. |
 
 ## Update discipline

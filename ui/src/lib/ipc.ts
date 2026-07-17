@@ -1,4 +1,4 @@
-import type { AssetStatus, BackupStatus, Board, NoteDetail, ObjectMeta } from './types';
+import type { AssetStatus, BackupStatus, Board, NoteDetail, ObjectMeta, PullResult } from './types';
 import * as mock from './mock';
 
 // Two backends, one contract:
@@ -79,11 +79,22 @@ export async function ingestFile(file: File): Promise<ObjectMeta> {
 export const commit = (message: string) => invoke<boolean>('commit', { message });
 export const backup = () => invoke<void>('backup');
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
-export const setGitRemote = (url: string) => invoke<void>('set_git_remote', { url });
+/** Point the vault at a remote. `name`/`email` are sent only when the vault has no
+ *  identity yet — sharing a vault is what makes the committer name matter, so it is
+ *  the one moment worth asking. */
+export const setGitRemote = (url: string, identity?: { name: string; email: string }) =>
+  invoke<void>('set_git_remote', { url, ...identity });
 /** Squashes the unpushed commits into one; returns how many were squashed. */
 export const push = (message: string) => invoke<number>('push', { message });
+/** Bring a collaborator's work home. Merges through the `.md` driver, so two people
+ *  editing different paragraphs of one note is a non-event; a genuine disagreement
+ *  comes back in `conflicts` with the markers in the note's body. */
+export const pull = () => invoke<PullResult>('pull');
 
 // Liveness heartbeat. When launched from the desktop icon the server auto-shuts
 // down once the tab stops pinging, so closing the tab closes the app. A no-op in
 // the dev/test mock backend.
-export const ping = () => invoke<void>('ping');
+/** Liveness heartbeat *and* the local poll: `changed` is true when the vault moved
+ *  on disk under us (a pull, a merge driver, an editor), which the views cannot see
+ *  on their own because they are served from the index. */
+export const ping = () => invoke<{ changed: boolean }>('ping');

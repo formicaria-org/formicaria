@@ -5,13 +5,15 @@
 //! backend change, not a rewrite.
 
 use fm_model::{Id, Object};
-use fm_query::{run, Query, QueryResult};
+use fm_query::{Filter, Query, QueryResult};
 use std::collections::HashMap;
 use thiserror::Error;
 
 pub mod frontmatter;
 mod file;
 pub use file::FileStore;
+mod multi;
+pub use multi::MultiStore;
 pub mod edit;
 pub use edit::apply_property;
 pub mod blob;
@@ -24,6 +26,7 @@ pub use manifest::Manifest;
 pub use verify::{verify, Report, Severity};
 pub mod backup;
 pub mod git;
+pub mod merge;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -33,6 +36,12 @@ pub enum StoreError {
     Io(String),
     #[error("parse error: {0}")]
     Parse(String),
+    /// The note changed on disk since we last read it, so the copy the caller is
+    /// writing back is stale and would silently discard whoever made that change.
+    /// Not retryable: the caller must re-read and decide, which is why this is its
+    /// own variant rather than an `Io` string.
+    #[error("this note changed on disk since you opened it — reload before saving")]
+    Conflict(Id),
 }
 
 /// How much of the index to rebuild. `Full` = drop and rebuild from files — the
@@ -43,10 +52,23 @@ pub enum Reindex {
     Full,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReindexStats {
     pub scanned: usize,
     pub updated: usize,
+    /// Notes whose file vanished since we last indexed it — deleted by a pull, or
+    /// an `rm`. Counted only for [`Reindex::Incremental`]: a `Full` rebuild drops
+    /// every row by construction, so "removed" would mean nothing there.
+    ///
+    /// Kept separate from a *failed* parse on purpose. A note that fails to parse is
+    /// re-read on every poll and never succeeds, so counting it as a change would
+    /// tell the UI the vault moved every 3 seconds, forever.
+    pub removed: usize,
+    /// Notes that could not be read, as `filename: why`. Never an error: a vault
+    /// that refuses to open because one file is malformed is a vault you cannot
+    /// use to fix that file — and once several people share it, a conflicted merge
+    /// makes this the *expected* state, not a rarity. Report and carry on.
+    pub skipped: Vec<String>,
 }
 
 /// The seam. Exactly five methods; nothing filesystem-shaped leaks through — no
@@ -55,8 +77,35 @@ pub trait Store {
     fn get(&self, id: Id) -> Result<Option<Object>, StoreError>;
     fn put(&mut self, obj: &Object) -> Result<(), StoreError>;
     fn delete(&mut self, id: Id) -> Result<(), StoreError>;
-    fn query(&self, q: &Query) -> Result<QueryResult, StoreError>;
     fn reindex(&mut self, mode: Reindex) -> Result<ReindexStats, StoreError>;
+
+    /// Everything that *could* match `filter`, plus **what of the filter is left to
+    /// apply**. This is the seam that federates.
+    ///
+    /// A store is allowed to narrow — `FileStore` answers a `Text` predicate with an
+    /// FTS5 `MATCH` and loads only the hits — and returns the residual so the pure
+    /// engine knows what it already did. **The residual is load-bearing, not
+    /// bookkeeping:** FTS5 here is pinned to `remove_diacritics 2` and the engine's
+    /// substring scan is not, so re-running `Text` over FTS hits would quietly drop
+    /// every diacritic-folded match. A store that cannot narrow simply hands back
+    /// everything and the filter untouched.
+    ///
+    /// **Why not `load_all`.** A federating store cannot implement `query` by asking
+    /// each child to `query` and merging: you cannot union results that are already
+    /// sorted, grouped and paginated and recover `sort`/`group_by`/`limit`/`total`
+    /// from them — the winner of a `limit: 10` across two vaults is not the union of
+    /// each vault's top 10. Narrowing is the only part that is per-store; ranking is
+    /// global. So children return candidates, a `MultiStore` concatenates them, and
+    /// [`Store::query`] runs the engine **once** over the union. FTS federates for
+    /// free and `fm-query` still never learns that storage exists.
+    fn candidates(&self, filter: &Filter) -> Result<(Vec<Object>, Filter), StoreError>;
+
+    /// Narrow, then rank — once, over everything. Not worth overriding: the whole
+    /// point of `candidates` is that this half is identical for every store.
+    fn query(&self, q: &Query) -> Result<QueryResult, StoreError> {
+        let (objects, residual) = self.candidates(&q.filter)?;
+        Ok(fm_query::run(&Query { filter: residual, ..q.clone() }, &objects))
+    }
 }
 
 /// In-memory store — no filesystem, no database. The store *is* the index, so
@@ -92,13 +141,23 @@ impl Store for MemoryStore {
         self.objects.remove(&id).map(|_| ()).ok_or(StoreError::NotFound(id))
     }
 
-    fn query(&self, q: &Query) -> Result<QueryResult, StoreError> {
-        let objs: Vec<Object> = self.objects.values().cloned().collect();
-        Ok(run(q, &objs))
+    /// Nothing to narrow with: hand back everything and the filter untouched, and let
+    /// the engine do all of it. This is the reference behaviour `FileStore` must stay
+    /// equivalent to — its FTS path is an optimisation, never a different answer.
+    fn candidates(&self, filter: &Filter) -> Result<(Vec<Object>, Filter), StoreError> {
+        Ok((self.objects.values().cloned().collect(), filter.clone()))
     }
 
     fn reindex(&mut self, _mode: Reindex) -> Result<ReindexStats, StoreError> {
         // Nothing to (re)index in memory; the map is already canonical.
-        Ok(ReindexStats { scanned: self.objects.len(), updated: 0 })
+        // Nothing to skip or remove: a MemoryStore holds parsed objects, so there is
+        // no file that could fail to parse or vanish. The fields exist for
+        // FileStore's sake.
+        Ok(ReindexStats {
+            scanned: self.objects.len(),
+            updated: 0,
+            removed: 0,
+            skipped: Vec::new(),
+        })
     }
 }

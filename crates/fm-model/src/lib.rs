@@ -113,6 +113,19 @@ pub struct Object {
     pub code: Vec<String>,
     pub body: String,
     pub extra: BTreeMap<String, PropertyValue>,
+    /// Which vault this note lives in — i.e. **who can see it**.
+    ///
+    /// Derived from location by the store that loaded it, and **never serialized**:
+    /// `to_file` has no arm for it and `from_file` strips it, so it cannot be typed
+    /// into a file. That is the whole point. A vault is one repo, one remote, one
+    /// collaborator list, so *location is the permission*; a frontmatter `access:`
+    /// label would have zero enforcement power, and since git history is forever, one
+    /// typo would be permanent disclosure to everyone who ever cloned. Making this a
+    /// content field would make the permission forgeable — by a typo, or by an agent.
+    ///
+    /// Empty for an object that came from nowhere in particular (`Object::new`, a
+    /// `MemoryStore`): "no audience stated", never "all audiences".
+    pub vault: String,
 }
 
 impl Object {
@@ -135,6 +148,8 @@ impl Object {
             code: Vec::new(),
             body: body.into(),
             extra: BTreeMap::new(),
+            // Not yet anywhere. The store that writes it is what gives it an audience.
+            vault: String::new(),
         }
     }
 
@@ -156,6 +171,11 @@ impl Object {
             "tags" => list_text(&self.tags),
             "assets" => list_text(&self.assets),
             "code" => list_text(&self.code),
+            // Explicit, and above the `extra` fallback on purpose: without an arm here a
+            // hand-typed `vault:` in someone's frontmatter would answer this query, and
+            // the permission would be whatever the file claimed. `Predicate::Prop`
+            // reaches this, which is what makes "filter/group by vault" free.
+            "vault" => PropertyValue::Text(self.vault.clone()),
             other => self.extra.get(other).cloned().unwrap_or(PropertyValue::Null),
         }
     }

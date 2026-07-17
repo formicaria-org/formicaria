@@ -9,9 +9,55 @@ the outcome into `overview.md` / `decisions.md`._
 
 ## Goal
 
-Multiple people collaborate on **artifacts** (notes, boards, any file) and on
-**task scheduling**, with personal and shared knowledge kept apart, and full
-control over the files. Simplicity and efficiency over power.
+**formicaria**: knowledge management, task scheduling, and collaboration, on files
+you own. Multiple people work on **artifacts** (notes, boards, any file) and on
+**schedules**, with personal and shared knowledge kept apart. Simplicity and
+efficiency over power.
+
+### Three pillars, one atom
+
+Knowledge, scheduling, and collaboration are not three subsystems — they are three
+views of one Markdown file. That is the whole reason this stays small: a task is a
+note with a `due`; a message is a note with a target; a shared note is a note in a
+different repo. **Resist every urge to add a fourth thing.** The moment scheduling
+gets its own store, or messages get their own format, the tool has three products
+to maintain and the atom stops paying rent.
+
+### The name: formicarium → formicaria
+
+A *formicarium* is one ant colony's nest. The plural is the architecture: a set of
+vaults, one per audience (3), each served by its own instance, coordinating through
+git rather than through a hub (2, 6). The singular name describes the old
+single-user tool; the plural describes what it becomes. Rename when Phase 2 lands
+and the plural is true — not before, or the docs promise something that doesn't
+exist.
+
+**Cost: low, and known.** Every crate is already `fm-*` and the binary is `fm`,
+which abbreviates either name — so **no code identifiers move**. The blast radius is
+six user-facing strings (`fm-cli/src/main.rs:16`, `fm-serve/src/main.rs:63`,
+`App.svelte:378`'s wordmark, and the `"source":"formicarium"` literal in
+`App.svelte:253` / `mock.ts:171`), plus `docs/` and `packaging/`. Two cautions: the
+Excalidraw `source` field is **written into every board's JSON on disk**, so
+changing it changes files — leave it or migrate deliberately; and
+`git.rs:67-70`'s `formicarium@localhost` is not a rename target but a **bug to
+delete** (Phase 0 asks for a real identity instead).
+
+## Principles this plan is held to
+
+- **The UI is the product, not the plan's afterthought.** Git does the heavy lifting
+  precisely so the interface can be the thing we actually build. A correct backend
+  with a developer's interface is what GitHub already is, and the reason nobody uses
+  it for notes. Every phase below must land with the UI that makes it usable — a
+  phase that ships only Rust is a phase that shipped nothing.
+- **Bounded dependencies.** Lean on tools that already solve a problem completely
+  (git, restic, Excalidraw, KaTeX) and shell out rather than reimplement. But each
+  new dependency must earn its weight and be *replaceable*: the seams exist so the
+  answer to "can we swap this?" is always yes. No CRDT library, no sync framework,
+  no plugin API — those are the ones that would own us.
+- **Reusable over clever.** Every feature here that is nearly free is nearly free
+  because an existing seam pays for it: `Predicate::Prop` gives vault filtering,
+  ULIDs give cross-vault links, backlinks give comments, the `Store` trait gives
+  federation. If a proposal needs a new seam, that is the signal to re-read it.
 
 ## The strategic conclusion (read this first)
 
@@ -60,7 +106,7 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
 | The `Store` trait is the seam | **True**, 5 methods (`fm-core/src/lib.rs:54`). But `load_all` is a **private inherent method on `FileStore`** (`file.rs:107`), not on the trait — Phase 2's "add `load_all` to the trait" is a real change, and the wrong one. See Phase 2. |
 | *(new)* `FileStore::get` reads **SQLite, not the file** | `file.rs:140`. `reindex` runs only at `open()`. A `git pull` is therefore **invisible** to a running app — the local poll isn't a Vim nicety, it is the only thing that makes a pull observable at all. |
 | *(new)* `reindex` ignores its `_mode` and always rebuilds fully | `file.rs:199`. A 3 s poll would re-parse the entire vault every 3 s. The incremental path is a **dependency** of the poll, not a later nicety. |
-| *(new)* `ensure_identity` writes `formicarium@localhost` repo-locally | `git.rs:62-72`, called from `ensure_repo` on every `commit_all`. A user with no global git config attributes **every** commit in a shared vault to the same fake identity — which silently guts the provenance decisions 2 and 14 are built on. |
+| *(new)* `ensure_identity` writes `formicarium@localhost` repo-locally | **Was true; fixed in Phase 0.** A user with no global git config attributed **every** commit in a shared vault to the same fake identity, gutting the provenance decisions 2 and 14 are built on. Now: the placeholder is kept only for a vault with no remote, `git::identity()` reports it as nobody, and `set_remote` refuses while it stands. The audit's implied fix — *delete the fake* — was wrong: git cannot auto-detect an identity on a non-FQDN host, so a fresh vault would fail to commit, silently (the auto-commit swallows errors). |
 
 ## Converged decisions
 
@@ -253,25 +299,14 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
 
 ## Sequencing (do not reorder)
 
-**Phase 0 — stop the app from dying on a merge.** New, and it blocks everything
-including Phase 1. Each of these is a live fault the moment a second person exists;
-none is a UI problem.
-- **`reindex` must survive a bad note.** `from_file` → `ParseError` → `reindex`
-  propagates (`file.rs:218`) → `FileStore::open` fails (`file.rs:39`) → **the app
-  will not launch**. Since a frontmatter conflict is the *guaranteed* shape of a
-  concurrent edit (decision 20), the first merge conflict bricks the app for
-  everyone — and the "conflict surfacing" UI below can never render, because there is
-  no app. Skip-and-report, surface the file, keep serving the rest. `known-issues.md`
-  already flags this as contradicting files-as-truth; collaboration makes it fatal.
-  Multi-vault multiplies the blast radius by the number of clones.
-- **Auto-commit must refuse to run mid-merge.** `commit_all` is `git add -A` +
-  `commit` (`git.rs:96-100`). During a conflicted merge that **stages the markers,
-  marking the conflict resolved, and commits them** — 5 s after the pull, silently
-  (the UI swallows commit errors; see `known-issues.md`). Gate on `.git/MERGE_HEAD` /
-  unmerged paths.
-- **Ask for a git identity when a vault gains a remote.** See 14.
-- **Fix `push_squashed`'s ancestry guard *before* anything can fetch.** See 19. This
-  one is ordered strictly before the remote poll, not alongside it.
+**Phase 0 — stop the app from dying on a merge. ✅ SHIPPED 2026-07-17**, all four items
+— see [`sessions/2026-07-17-phase-0.md`](./sessions/2026-07-17-phase-0.md) and the
+identity entry in [`decisions.md`](./decisions.md). The detail is deleted per this file's
+own rule; what remains worth carrying: the tolerant loader's *report* half is only stderr
+(the in-app list is Phase 1's conflict surfacing), and `formicarium@localhost` was **not**
+deleted as 14 assumed but kept as a sentinel `identity()` matches by value — git cannot
+invent an identity on a non-FQDN host, so deleting the fallback would have stopped a fresh
+vault committing at all. **The gate is open.**
 
 **Phase 1 — make one shared vault trustworthy.** Nothing else matters until this
 is done; multi-vault on top of it is prettier navigation over data that silently

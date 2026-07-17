@@ -5,7 +5,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
-use fm_core::{FileStore, Reindex, Store};
+use fm_core::{merge, FileStore, Reindex, Store};
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use std::path::PathBuf;
@@ -76,10 +76,42 @@ enum Cmd {
         #[arg(long, env = "RESTIC_PASSWORD", hide_env_values = true)]
         password: String,
     },
+    /// Git's merge driver for notes — git calls this, you don't. Merges frontmatter
+    /// structurally (`updated` = the later, `tags` unite, `id`/`created` never move)
+    /// so two people editing different paragraphs of one note don't conflict on the
+    /// `updated:` line we rewrite on every save. Installed by `ensure_repo`; exits 1
+    /// on a real conflict, as git's driver contract requires.
+    #[command(hide = true)]
+    MergeMd {
+        /// %O — the common ancestor.
+        base: PathBuf,
+        /// %A — our version, and where git expects the answer written.
+        ours: PathBuf,
+        /// %B — their version.
+        theirs: PathBuf,
+        /// %L — conflict marker length.
+        #[arg(default_value_t = 7)]
+        marker_size: usize,
+    },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // The merge driver runs inside git's plumbing, on three temp files, with no vault
+    // anywhere in sight — and `--vault` defaults to `./vault`, so opening one below
+    // would have a `git pull` silently create a vault directory and an index as a side
+    // effect. Answer before the store exists.
+    if let Cmd::MergeMd { base, ours, theirs, marker_size } = &cli.cmd {
+        return match merge::merge_files(base, ours, theirs, *marker_size)? {
+            merge::Merged::Clean => Ok(()),
+            // Not an error: git's contract is that a non-zero exit means "I left you a
+            // conflict in %A", which is a merge outcome, not a failure. Saying so on
+            // stderr would print noise on a perfectly normal pull.
+            merge::Merged::Conflicted => std::process::exit(1),
+        };
+    }
+
     // Opening the vault rebuilds the index from files — this IS "reindex on
     // reload": every invocation reads the current on-disk truth.
     let mut store = FileStore::open(&cli.vault)
@@ -200,6 +232,8 @@ fn main() -> Result<()> {
             fm_core::backup::check(&repo, &password, read_data)?;
             println!("restic repo OK{}", if read_data { " (data re-read)" } else { "" });
         }
+        // Answered above, before the vault was opened.
+        Cmd::MergeMd { .. } => unreachable!("handled before the store is opened"),
     }
     Ok(())
 }

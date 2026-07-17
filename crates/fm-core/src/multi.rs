@@ -1,0 +1,132 @@
+//! A set of vaults behind one [`Store`] — *formicaria*, the plural.
+//!
+//! **Vaults are audiences.** One vault = one repo = one remote = one collaborator list.
+//! Not one shared vault with labels on the notes: a frontmatter `access:` field has zero
+//! enforcement power, and git history is forever, so one typo would be permanent
+//! disclosure to everyone who ever cloned. Location is the permission, and this type is
+//! what lets you *see* across a boundary you cannot accidentally cross.
+//!
+//! It is deliberately thin, because the seams already paid for it:
+//!
+//! - **Reading across vaults** is [`Store::candidates`] concatenated. Each child narrows
+//!   its own FTS; the engine ranks the union once. Grouping, sorting and pagination stay
+//!   correct because they were never per-child to begin with.
+//! - **Filtering and grouping by vault** needed no query-engine change at all:
+//!   `Predicate::Prop` is generic and `Object::get("vault")` answers it.
+//! - **Cross-vault links** are free: ULIDs are globally unique, so a `note:<ulid>` in one
+//!   vault resolves to a note in another with no URI scheme to invent.
+//!
+//! **Writing never fans out.** `put` routes by `obj.vault` and goes to exactly one child.
+//! That is the only place in the system where a note crosses a boundary, and it is one
+//! line, on purpose.
+
+use crate::{FileStore, Reindex, ReindexStats, Store, StoreError};
+use fm_model::{Id, Object};
+use fm_query::Filter;
+use std::path::Path;
+
+pub struct MultiStore {
+    vaults: Vec<FileStore>,
+}
+
+impl MultiStore {
+    /// Open every vault in the list. The **first is the default**: a note that names no
+    /// vault (anything from `Object::new`, i.e. every fresh capture) lands there, so the
+    /// first entry should be the personal one. Empty is refused — a store over no vaults
+    /// answers every query with silence, which reads exactly like an empty vault and is
+    /// the kind of thing you debug for an hour.
+    pub fn open<P: AsRef<Path>>(vaults: &[(String, P)]) -> Result<Self, StoreError> {
+        if vaults.is_empty() {
+            return Err(StoreError::Io("no vaults configured".into()));
+        }
+        let mut open = Vec::new();
+        for (name, path) in vaults {
+            open.push(FileStore::named(path, name.clone())?);
+        }
+        Ok(MultiStore { vaults: open })
+    }
+
+    /// The audiences, in configured order. The first is the default for new notes.
+    pub fn names(&self) -> Vec<&str> {
+        self.vaults.iter().map(|v| v.name()).collect()
+    }
+
+    /// Notes no vault could read, prefixed with the vault they were in — otherwise
+    /// "conflicted.md" names a file the user has three of.
+    pub fn skipped(&self) -> Vec<String> {
+        self.vaults
+            .iter()
+            .flat_map(|v| v.skipped().iter().map(|s| format!("{}: {s}", v.name())))
+            .collect()
+    }
+
+    /// The child a note belongs to. An unnamed vault means "not from a store yet" — a
+    /// fresh capture — and gets the default rather than an error: refusing to save a new
+    /// note because nobody told it its audience would be absurd.
+    fn route(&mut self, vault: &str) -> Result<&mut FileStore, StoreError> {
+        if vault.is_empty() {
+            return Ok(&mut self.vaults[0]);
+        }
+        self.vaults
+            .iter_mut()
+            .find(|v| v.name() == vault)
+            .ok_or_else(|| StoreError::Io(format!("no vault named '{vault}'")))
+    }
+}
+
+impl Store for MultiStore {
+    /// First hit wins, and there can only be one: ULIDs are globally unique, so an id
+    /// identifies a note across every vault without a scheme to disambiguate it.
+    fn get(&self, id: Id) -> Result<Option<Object>, StoreError> {
+        for v in &self.vaults {
+            if let Some(o) = v.get(id)? {
+                return Ok(Some(o));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Routed, never fanned out — the one place a note crosses an audience boundary.
+    fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
+        self.route(&obj.vault.clone())?.put(obj)
+    }
+
+    /// Delete from whichever vault holds it. `NotFound` only when nobody does.
+    fn delete(&mut self, id: Id) -> Result<(), StoreError> {
+        for v in &mut self.vaults {
+            match v.delete(id) {
+                Err(StoreError::NotFound(_)) => continue,
+                other => return other,
+            }
+        }
+        Err(StoreError::NotFound(id))
+    }
+
+    /// Concatenate. Every child narrows its own FTS index and reports the same residual
+    /// — `candidates` derives it from the filter alone, so children cannot disagree, and
+    /// they must not: one residual is applied to the whole union, so a child that had
+    /// already applied `Text` mixed with one that hadn't would give both false positives
+    /// and dropped matches.
+    fn candidates(&self, filter: &Filter) -> Result<(Vec<Object>, Filter), StoreError> {
+        let mut all = Vec::new();
+        let mut residual = filter.clone();
+        for v in &self.vaults {
+            let (objs, r) = v.candidates(filter)?;
+            all.extend(objs);
+            residual = r;
+        }
+        Ok((all, residual))
+    }
+
+    fn reindex(&mut self, mode: Reindex) -> Result<ReindexStats, StoreError> {
+        let mut total = ReindexStats::default();
+        for v in &mut self.vaults {
+            let s = v.reindex(mode)?;
+            total.scanned += s.scanned;
+            total.updated += s.updated;
+            total.removed += s.removed;
+            total.skipped.extend(s.skipped);
+        }
+        Ok(total)
+    }
+}

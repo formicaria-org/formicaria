@@ -74,6 +74,27 @@ fn log_count(repo: &std::path::Path) -> usize {
     String::from_utf8_lossy(&out.stdout).lines().count()
 }
 
+/// Answer the question `set_remote` asks. A vault only gains a remote once someone
+/// real is attached to it, so every push test below has to be somebody.
+fn identify(vault: &std::path::Path) {
+    git::set_identity(vault, "Ravi Test", "ravi@example.org").unwrap();
+}
+
+/// The state `ensure_repo` leaves a vault in on a machine with no git config at
+/// all: committing works — the notes are the point — but on the placeholder rather
+/// than a person.
+///
+/// Written repo-locally and explicitly, because local beats global: on a machine
+/// that *does* have a `~/.gitconfig` (every developer's), `ensure_identity` finds it
+/// and writes no placeholder, so leaving this implicit would silently test the
+/// developer's own identity and prove nothing.
+fn no_identity(vault: &std::path::Path) {
+    git::ensure_repo(vault).unwrap();
+    for (k, v) in [("user.email", "formicarium@localhost"), ("user.name", "formicarium")] {
+        Command::new("git").arg("-C").arg(vault).args(["config", k, v]).output().unwrap();
+    }
+}
+
 #[test]
 fn a_repo_we_did_not_create_still_gets_the_ignore_rules() {
     if !have_git() {
@@ -111,6 +132,7 @@ fn a_rejected_push_restores_the_history_it_squashed() {
     // Our vault, with one push behind it so a tracking ref exists.
     let vault = tempdir().unwrap();
     write_and_commit(vault.path(), "01.md", "one\n");
+    identify(vault.path());
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 
@@ -146,6 +168,94 @@ fn a_rejected_push_restores_the_history_it_squashed() {
     assert!(files.contains("notes/03.md"), "and the work itself survived: {files}");
 }
 
+/// The landmine Phase 1's `pull` would have armed: once anything fetches, the
+/// tracking ref holds a collaborator's tip, and squashing onto it would commit our
+/// tree with their commit as parent — deleting their work in a push that
+/// fast-forwards cleanly, so nothing rejects it. A count of unpushed commits reads
+/// as "normal" in exactly that case; ancestry is the real question.
+#[test]
+fn a_fetched_remote_that_moved_refuses_the_squash_instead_of_eating_it() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let bare = tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+
+    let vault = tempdir().unwrap();
+    write_and_commit(vault.path(), "01.md", "one\n");
+    identify(vault.path());
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    // A collaborator pushes work we do not have.
+    let other = tempdir().unwrap();
+    Command::new("git").arg("clone").arg(bare.path()).arg(other.path()).output().unwrap();
+    for (k, v) in [("user.email", "t@t"), ("user.name", "t")] {
+        Command::new("git").arg("-C").arg(other.path()).args(["config", k, v]).output().unwrap();
+    }
+    fs::write(other.path().join("precious.md"), "their unpublished work\n").unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["add", "-A"]).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["commit", "-m", "theirs"]).output().unwrap();
+    Command::new("git").arg("-C").arg(other.path()).args(["push", "origin", "HEAD"]).output().unwrap();
+
+    // *** The fetch. *** Our tracking ref now points at their tip, so it is no
+    // longer an ancestor of ours — this is what Phase 1's poll/pull will do.
+    Command::new("git").arg("-C").arg(vault.path()).arg("fetch").output().unwrap();
+
+    write_and_commit(vault.path(), "02.md", "two\n");
+    write_and_commit(vault.path(), "03.md", "three\n");
+
+    let err = git::push_squashed(vault.path(), "backup: second").unwrap_err().to_string();
+    assert!(err.contains("pull first"), "refused with a message that says what to do: {err}");
+
+    // Their commit must still be the remote's tip: unreached, unrewritten.
+    let head = Command::new("git")
+        .arg("-C")
+        .arg(bare.path())
+        .args(["log", "-1", "--pretty=%s"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&head.stdout).trim(), "theirs", "their work survived");
+}
+
+/// The auto-commit fires 5s after any write, so a conflicted pull reaches it within
+/// seconds. `add -A` would stage the markers — which git reads as "resolved" — and
+/// commit `<<<<<<<` as the note's content, then push it.
+#[test]
+fn auto_commit_refuses_to_enshrine_conflict_markers() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    write_and_commit(vault.path(), "01.md", "shared line\n");
+
+    let g = |args: &[&str]| {
+        Command::new("git").arg("-C").arg(vault.path()).args(args).output().unwrap()
+    };
+    // Two branches touching the same line — the shape every concurrent note edit
+    // takes, since `updated:` is rewritten on every save.
+    g(&["checkout", "-b", "theirs"]);
+    fs::write(vault.path().join("notes/01.md"), "their line\n").unwrap();
+    assert!(git::commit_all(vault.path(), "theirs").unwrap());
+    g(&["checkout", "-"]);
+    fs::write(vault.path().join("notes/01.md"), "our line\n").unwrap();
+    assert!(git::commit_all(vault.path(), "ours").unwrap());
+
+    let merge = g(&["merge", "theirs"]);
+    assert!(!merge.status.success(), "the merge really did conflict");
+    let before = log_count(vault.path());
+
+    assert!(
+        !git::commit_all(vault.path(), "auto: 5s later").unwrap(),
+        "mid-merge → nothing committed, and not an error"
+    );
+    assert_eq!(log_count(vault.path()), before, "no commit was made");
+    let on_disk = fs::read_to_string(vault.path().join("notes/01.md")).unwrap();
+    assert!(on_disk.contains("<<<<<<<"), "markers still there for the human to resolve");
+}
+
 #[test]
 fn set_remote_is_idempotent_and_the_last_url_wins() {
     if !have_git() {
@@ -154,6 +264,7 @@ fn set_remote_is_idempotent_and_the_last_url_wins() {
     }
     let vault = tempdir().unwrap();
     assert_eq!(git::remote(vault.path()).unwrap(), None, "a fresh vault has no remote");
+    identify(vault.path());
 
     git::set_remote(vault.path(), "/tmp/first.git").unwrap();
     assert_eq!(git::remote(vault.path()).unwrap().as_deref(), Some("/tmp/first.git"));
@@ -162,6 +273,92 @@ fn set_remote_is_idempotent_and_the_last_url_wins() {
     // just saves whatever the user typed.
     git::set_remote(vault.path(), "/tmp/second.git").unwrap();
     assert_eq!(git::remote(vault.path()).unwrap().as_deref(), Some("/tmp/second.git"));
+}
+
+/// The provenance hole: a researcher who never configured git gets the placeholder
+/// committer, and without this guard every commit they ever push to a shared vault
+/// is attributed to `formicarium` — so "who touched this note?", the question the
+/// whole awareness-over-enforcement design rests on, has one answer for everybody.
+/// A remote is the moment to ask, because it is the moment a name starts mattering.
+#[test]
+fn a_vault_cannot_gain_a_remote_until_someone_real_owns_it() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    no_identity(vault.path());
+    write_and_commit(vault.path(), "01.md", "a private note\n");
+    assert_eq!(git::identity(vault.path()), None, "the placeholder is nobody");
+
+    let err = git::set_remote(vault.path(), "/tmp/shared.git").unwrap_err().to_string();
+    assert!(err.contains("who you are"), "asks, and says why: {err}");
+    assert_eq!(git::remote(vault.path()).unwrap(), None, "and the vault stayed private");
+
+    // Answer once, and the vault can be shared.
+    git::set_identity(vault.path(), "Ravi Patel", "ravi@example.org").unwrap();
+    assert_eq!(
+        git::identity(vault.path()),
+        Some(git::Identity { name: "Ravi Patel".into(), email: "ravi@example.org".into() }),
+    );
+    git::set_remote(vault.path(), "/tmp/shared.git").unwrap();
+    assert_eq!(git::remote(vault.path()).unwrap().as_deref(), Some("/tmp/shared.git"));
+
+    // And it is the identity git actually commits with, not just something we stored.
+    write_and_commit(vault.path(), "02.md", "a shared note\n");
+    let who = Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["log", "-1", "--pretty=%an <%ae>"])
+        .output()
+        .unwrap();
+    assert_eq!(String::from_utf8_lossy(&who.stdout).trim(), "Ravi Patel <ravi@example.org>");
+}
+
+/// A user whose git is already configured is never asked — the guard exists for the
+/// people who have no identity, and must be invisible to everyone else.
+#[test]
+fn an_existing_git_identity_is_accepted_as_is() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    // As if it came from the user's global config, before we ever looked.
+    Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["config", "user.email", "already@configured.dev"])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["config", "user.name", "Already Configured"])
+        .output()
+        .unwrap();
+
+    git::set_remote(vault.path(), "/tmp/shared.git").expect("no question asked");
+}
+
+#[test]
+fn an_identity_needs_a_name_and_something_that_is_actually_an_email() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    no_identity(vault.path());
+
+    assert!(git::set_identity(vault.path(), "", "ravi@example.org").is_err(), "no name");
+    assert!(git::set_identity(vault.path(), "Ravi", "  ").is_err(), "no email");
+    // The mistake worth catching: it is invisible once committed, and forever.
+    assert!(git::set_identity(vault.path(), "Ravi", "Ravi").is_err(), "a name in the email box");
+    // Our own stand-in must never be settable as if it were a person.
+    assert!(git::set_identity(vault.path(), "x", "formicarium@localhost").is_err(), "the fake");
+
+    assert_eq!(git::identity(vault.path()), None, "nothing broken got stored");
 }
 
 #[test]
@@ -213,6 +410,7 @@ fn push_sends_history_whole_the_first_time_then_squashes_each_later_push() {
     write_and_commit(vault.path(), "01.md", "one\n");
     write_and_commit(vault.path(), "02.md", "two\n");
     write_and_commit(vault.path(), "03.md", "three\n");
+    identify(vault.path());
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
 
     // Nothing has ever been pushed, so there is no tracking ref to measure
@@ -253,6 +451,7 @@ fn a_single_unpushed_commit_is_pushed_as_is() {
     Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
 
     write_and_commit(vault.path(), "01.md", "one\n");
+    identify(vault.path());
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 

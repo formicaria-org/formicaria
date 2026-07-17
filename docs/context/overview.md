@@ -4,7 +4,37 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-17 — **backup is now two tiers** (`BackupPanel.svelte`):
+_Last verified: 2026-07-17 — **Track C Phases 0 and 1 shipped: a shared vault works**
+(`sessions/2026-07-17-phase-1.md`). Two people can now edit different paragraphs of the
+same note and the merge is **clean** — verified as a real round trip through the API, not
+just in tests. Phase 1 added: the **`FileStore::put` staleness guard**
+(`StoreError::Conflict` — *the* lost-update bug, where a board drag rewrote the whole file
+from a stale copy); **incremental reindex** + a **3 s local poll** folded into the existing
+`ping` heartbeat (without it a `git pull` is invisible, because the views are served from
+SQLite); **`git::remote_moved`** (one `ls-remote`, moves no refs) and **`pull`**; and the
+**`.md` merge driver** (`fm-core/src/merge.rs`, `fm merge-md`, installed by `ensure_repo`)
+which resolves `updated:`/`tags` structurally and hands the body to `git merge-file` — so a
+conflict lands **in the body**, leaving the note parseable and editable. **Phase 2's core
+also landed** — `Object.vault` (derived from location, never serialized: *location is the
+permission*), the **`candidates` seam** (`Store::query` is now a default method; FTS5
+federates for free) and **`MultiStore`** — but its product half is **blocked on two
+decisions the plan never made** (every git command and every blob lookup is per-vault; see
+`plan.md`), so **multi-vault is not usable yet and nothing but tests construct a
+`MultiStore`**. Before that, **Phase 0 made the app survive a merge**: four fixes, each a single-user bug today and data loss the moment a vault is
+shared: `reindex` **skips an unreadable note** instead of failing
+`FileStore::open` (one conflicted `.md` used to brick startup — `fm-serve` names it on
+stderr, though it is still invisible in-app: see known-issues); `commit_all` **refuses
+mid-merge** rather than committing `<<<<<<<` as a note's content; `push_squashed`
+**squashes only onto an ancestor**, closing a silent data-loss path that opens the moment
+anything fetches; and a vault needs a **real committer identity before it can gain a
+remote** — the backup panel asks for a name and email, but only of people git has never met
+(`git::identity`, `backup_status.identity`). The `formicarium@localhost` placeholder
+survives **as a sentinel** for audience-less vaults and must not be renamed
+(`decisions.md`). **The collaboration gate is open; Phase 1 is next.** Before that, the
+**forward plan was consolidated** into [plan.md](./plan.md) (the formicarium→formicaria
+program: Track S single-user + Track C collaboration; `roadmap.md` folded in,
+`collaboration-design.md` kept as its audit). Before that,
+**backup is now two tiers** (`BackupPanel.svelte`):
 the button opens a panel that sets the vault's **git remote in-app** and pushes
 the **notes** by default (no app-held secret — ambient ssh/credential-helper),
 squashing the unpushed window into one `backup:` commit; **restic (media
@@ -39,7 +69,8 @@ the canvas → agenda/calendar/board-trackable). **Sidebar is search-first**: th
 persistent Search field is the primary input, with New note / New board buttons
 below (quick-capture box removed). Gallery removed. On top of note-delete, media
 copy-notice, column reorder, SVG fix. Next work is planned in
-[roadmap.md](./roadmap.md) (calendar sync, whiteboard-in-note + PDF)._
+[plan.md](./plan.md) — the sequenced formicarium→formicaria program (Track S:
+calendar sync, whiteboard-in-note + PDF; Track C: collaboration)._
 
 ## What formicarium is
 
@@ -79,7 +110,7 @@ otherwise the in-memory `mock.ts` (used by `pnpm dev` and Vitest).
 ```
 fm-model   data types (Object, Kind, PropertyValue, frontmatter)
 fm-query   PURE query engine — NO std::fs, NO db crate, NO paths  ← seam 1
-fm-core    FileStore + BlobStore + ingest/verify/backup/git       ← seam 2 (Store trait)
+fm-core    FileStore/MultiStore + BlobStore + ingest/verify/backup/git/merge  ← seam 2
 fm-app     command library (commands.rs + dto.rs) over the Store  ← seam 3 (UI ⇄ core)
 fm-serve   std-only HTTP server; fronts fm-app commands over /api
 fm-cli     the `fm` binary (add/verify/manifest/backup/restore/check/set/show)
@@ -90,7 +121,11 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
   `rusqlite`/`std::fs`/paths. Enforced at compile time *and* by a CI grep
   (`ci/checks.sh`). The pure engine is what keeps the app testable and portable.
 - **Seam 2:** everything is written against the `Store` trait; `FileStore` and
-  `MemoryStore` stay behavior-equivalent (tested).
+  `MemoryStore` stay behavior-equivalent (tested). A backend implements **`candidates`**
+  (narrow + the residual filter), not `query` — `query` is a default method that runs the
+  pure engine **once** over the result. That is what lets `MultiStore` federate by
+  concatenating: you cannot union already-sorted/grouped/paginated results and recover
+  `sort`/`limit`/`total` from them.
 - **Seam 3:** the UI only knows `POST /api/<cmd>`. Adding a command touches
   **4 places** — see [adding a feature](../src/dev/adding-features.md).
 
@@ -102,7 +137,9 @@ versioning of the notes + restic backup provide durability.
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
 `open_external` · `commit` · `push` · `backup` · `backup_status` ·
-`set_git_remote` · `ingest` · `ping` (liveness heartbeat → auto-shutdown)
+`set_git_remote` · `ingest` · `pull` · `ping` (liveness heartbeat → auto-shutdown **and
+the 3 s local poll**: its `{changed}` is how a `git pull` or a Vim edit ever becomes
+visible, since every view is served from the index)
 
 ## Views (all generic renderers over the same query layer)
 
