@@ -41,3 +41,15 @@ export interface AssetStatus {
   has_thumb: boolean;
   mime: string | null;
 }
+
+/** What each backup tier could do right now (`backup_status`). */
+export interface BackupStatus {
+  /** Where the notes push to, or null when no remote is set yet. */
+  remote: string | null;
+  /** Commits made here but not on the remote; null when never pushed. */
+  unpushed: number | null;
+  /** The restic repo — a path or URL, never the password. */
+  restic_repo: string | null;
+  /** Both restic env vars present, i.e. a full backup could actually run. */
+  restic_ready: boolean;
+}

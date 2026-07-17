@@ -138,3 +138,42 @@ Chromium; ~9.6 MB release binary) — lighter than Electron (Logseq/Obsidian run
 1–2 GB). **Consequence:** the only genuinely-lighter path (egui/Slint/iced) would
 mean rewriting the entire Svelte + KaTeX + Mermaid read view — not worth it.
 Now moot (browser), but do not propose a framework rewrite.
+
+## Backup is two tiers: git push (default) + restic (opt-in)
+**Why:** the vault holds two data classes with nothing in common. Notes are
+small, plain, mergeable → git carries them anywhere, authenticated by the user's
+own ssh-agent/credential-helper, so **the app stores no secret**. Blobs are heavy
+and git-ignored → only restic sees them. The button used to run restic
+unconditionally, which was *broken-by-default*: it needs `FM_RESTIC_REPO` +
+`RESTIC_PASSWORD` and `packaging/formicarium.sh` never sets them, so every
+desktop-icon launch errored. This is the settled split elsewhere (Zotero syncs
+metadata and file attachments as separate tiers; git-annex/git-LFS put a pointer
+in git and content in special remotes; photo managers back up a small catalog and
+hand bulk originals to a file tool). **Consequence:** `BackupPanel.svelte` owns
+the vault's remote (stored in the vault's own `.git/config` — no new config
+file, and decoupled from the app's source remote by construction). **A push
+carries notes only**: media is off-sited only when the box is ticked, stated in
+the panel rather than tracked. `manifest.json` is git-tracked, so a git-only
+restore still knows its blob inventory and `fm verify` names what is missing.
+`destination.ts` classifies both a git URL and a restic repo as local/remote —
+a local path is a legitimate destination but must never be reported as "off this
+machine".
+
+## Squash-on-push — a deliberate reversal of "don't build commit management"
+**Why:** `MASTERPLAN.md:411,447` accept thousands of `auto:` commits as the price
+of undo and say *don't build commit management*. That holds for the **local**
+repo, but the remote is a different audience: auto-commit fires every few seconds
+of editing, so pushing raw would make the GitHub history unreadable.
+**Consequence:** `git::push_squashed` collapses the unpushed window into one
+`backup:` commit (`reset --soft <tracking-ref>` + commit). Two constraints are
+load-bearing:
+- **Never squash the first push.** With no tracking ref, "unpushed" means the
+  *entire* history — destroying history that has never left the machine is
+  exactly backwards. First push sends it whole; every later push is one commit.
+- **Never fetch in this flow.** The tracking ref is stale on purpose: a remote
+  another machine moved then stays ahead of it, so our push is *rejected* and the
+  user is told (verified). Fetch first and the `reset --soft` would rebase onto
+  their tip and silently overwrite their content with our tree.
+
+**Accepted cost:** granular undo only reaches back to the last push; before that
+each push is one step. This narrows (does not remove) the undo auto-commit buys.

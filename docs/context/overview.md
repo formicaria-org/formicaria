@@ -4,7 +4,17 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-16 — **five UX fixes** (see the session note): assets are
+_Last verified: 2026-07-17 — **backup is now two tiers** (`BackupPanel.svelte`):
+the button opens a panel that sets the vault's **git remote in-app** and pushes
+the **notes** by default (no app-held secret — ambient ssh/credential-helper),
+squashing the unpushed window into one `backup:` commit; **restic (media
+included) is an opt-in checkbox**. The panel states what each tier does and does
+**not** carry, and reports whether the data actually **left the machine**
+(`destination.ts` — a local path is a legitimate destination but must never be
+called off-site). Before that, a **double-click in the read view opens the editor
+with the caret on the word you clicked** (`locate.ts` maps by word *ordinal*, not
+by source positions — see the session note for why). Before that,
+**five UX fixes**: assets are
 filtered out of `board`/`agenda`/`recent` **in the query layer** (`search`/`gallery`
 still see them — that is how you find a PDF, and how `/` inserts one); a
 **StatusChip** rotates status through the vault's own values from a card or the
@@ -12,7 +22,8 @@ open note; a dropped board card **keeps its position** in the column
 (`fm-card-order` in localStorage, like column order); the `/` menu opens **at the
 caret** and seeds with **recent notes**; and a note opens its editor on
 **double-click** as well as from the **Edit button** (which stays on every note —
-the gesture is a shortcut, not a replacement), with **Ctrl+S** to save. Before
+the gesture is a shortcut, not a replacement), with **Ctrl+S** to save. The
+double-click now **lands the caret on the word you clicked** (`locate.ts`). Before
 that: **notes reference notes**: `[Title](note:<ulid>)`
 (deliberately *not* `[[wikilinks]]` — see the session note), inserted by the same
 `/` menu as assets, rendered as a live title+status chip, and clicking one opens
@@ -86,12 +97,12 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
 The SQLite index (FTS5) is **disposable**, rebuilt from the files on open. Git
 versioning of the notes + restic backup provide durability.
 
-## The 17 API commands
+## The 20 API commands
 
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
-`open_external` · `commit` · `backup` · `ingest` · `ping` (liveness heartbeat →
-auto-shutdown)
+`open_external` · `commit` · `push` · `backup` · `backup_status` ·
+`set_git_remote` · `ingest` · `ping` (liveness heartbeat → auto-shutdown)
 
 ## Views (all generic renderers over the same query layer)
 
@@ -153,23 +164,27 @@ running), `test`, `test-ui`, `deny`, `checks`, `docs`, and **`ci`** (runs
 test + test-ui + deny + checks + docs; the single CI gate). The shipped binary
 uses `[profile.release]` in `Cargo.toml` (strip + thin-LTO → ~3 MB, vs ~34 MB debug).
 
-## Current status (2026-07-16)
+## Current status (2026-07-17)
 
 Browser-first **v2 is implemented and green** (`pixi run ci` exit 0, prod build,
 live serve smoke). Everything in "Views" above works, plus: note read view
 (marked→HTML, lazy KaTeX/Mermaid) that you edit via the header **Edit** button or
-by **double-clicking** it (**Ctrl+S** saves and returns to reading, Escape leaves
-the editor, and the view is focusable so Enter is the keyboard equivalent; `.read`
-is `flex: 1 0 auto` so the gesture works in the whitespace under a short note,
-not just on the text), a properties editor +
+by **double-clicking** it — which opens the editor **with the caret on the word
+you clicked**, scrolled into view (**Ctrl+S** saves and returns to reading, Escape
+leaves the editor, and the view is focusable so Enter is the keyboard equivalent,
+opening at the top; `.read` is `flex: 1 0 auto` so the gesture works in the
+whitespace under a short note, not just on the text — which lands the caret at the
+**end**, i.e. append), a properties editor +
 body edit (byte round-trip), a **click-to-rotate status chip** on cards and in the
 note header (`status.ts`'s `nextStatus` over the vault's own values — no literal),
 asset ingest + drag-drop + inline media
 (img/PDF/video/audio, incl. SVG via a content sniff), **note→note references**
 (`[Title](note:<ulid>)` → a title+status chip → opens a pane in the trail),
 a `/` slash-insert menu **anchored at the caret** (`caret.ts`, mirror-div) that
-seeds with `recent` notes and searches **both notes and assets**, one-click restic backup
-(tested restore), verify/manifest (bit-rot), debounced git auto-commit, a
+seeds with `recent` notes and searches **both notes and assets**, **two-tier backup**
+(push notes by default / tick to add restic media; tested restore),
+verify/manifest (bit-rot), debounced git auto-commit (**best-effort and silent —
+see known-issues**), a
 design-token system (dark+light), the sidebar shell, the NotePanel
 (**full screen by default**, toggle to a docked side-sheet; remembered per
 browser), note delete (double-confirm), a ⌘K command palette,

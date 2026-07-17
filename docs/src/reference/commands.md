@@ -1,8 +1,10 @@
 # Commands
 
 The frontend calls these over `POST /api/<cmd>` (JSON args, camelCase). Each is a
-function in `crates/fm-app/src/commands.rs` (except `commit`/`backup`, which the
-server calls on `fm-core` directly). Args map to Rust snake_case.
+function in `crates/fm-app/src/commands.rs` (except the git/restic ones —
+`commit`, `push`, `backup`, `backup_status`, `set_git_remote` — which are the OS
+seam, not `Store` operations, so the server calls `fm-core` directly). Args map to
+Rust snake_case.
 
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
@@ -20,7 +22,10 @@ server calls on `fm-core` directly). Args map to Rust snake_case.
 | `asset_status`   | `reference`                  | `{has_blob,has_thumb,mime}` | sniffed MIME |
 | `open_external`  | `reference`                  | —                      | opens the blob in the OS default app |
 | `commit`         | `message`                    | `bool`                 | git-commit the vault; `false` if clean |
-| `backup`         | —                            | —                      | restic snapshot (env repo/password) |
+| `push`           | `message`                    | `u32`                  | squash the unpushed window → push; returns commits squashed (0 on the first push) |
+| `backup_status`  | —                            | `BackupStatus`         | `{remote, unpushed, restic_repo, restic_ready}` — never the restic password |
+| `set_git_remote` | `url`                        | —                      | sets the vault's `origin`; blank URL refused |
+| `backup`         | —                            | —                      | restic snapshot, media included (env repo/password) |
 
 ## Property values (`set_property`)
 

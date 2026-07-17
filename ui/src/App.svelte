@@ -15,7 +15,6 @@
     setProperty,
     search as ipcSearch,
     commit,
-    backup,
     ping,
   } from './lib/ipc';
   import type { Board as BoardData, ObjectMeta } from './lib/types';
@@ -126,6 +125,7 @@
 
   let railCollapsed = $state(false);
   let paletteOpen = $state(false);
+  let backupOpen = $state(false);
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
   const VIEW_TITLES: Record<View, string> = {
     board: 'Board',
@@ -346,15 +346,11 @@
     }, 5000);
   }
 
-  async function onBackup() {
-    notice = null;
-    try {
-      await backup();
-      notice = 'Backed up.';
-      setTimeout(() => (notice = null), 3000);
-    } catch (e) {
-      error = String(e);
-    }
+  // Backing up is a conversation, not a fire-and-forget: the panel owns setting
+  // the remote, choosing whether media rides along, and reporting what actually
+  // left the machine.
+  function onBackup() {
+    backupOpen = true;
   }
 
   // Editing a note's properties can change its type/status, so refresh the
@@ -430,7 +426,7 @@
       <button class="icon-btn" onclick={toggleTheme} aria-label="toggle theme" title="Toggle light/dark">
         <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
       </button>
-      <button class="backup" onclick={onBackup} title="Snapshot the vault with restic">
+      <button class="backup" onclick={onBackup} title="Push your notes; optionally snapshot media">
         <Icon name="backup" size={15} /> <span class="label">Back up</span>
       </button>
     </div>
@@ -521,6 +517,12 @@
   {#if paletteOpen}
     {#await import('./lib/CommandPalette.svelte') then { default: CommandPalette }}
       <CommandPalette {commands} onclose={() => (paletteOpen = false)} />
+    {/await}
+  {/if}
+
+  {#if backupOpen}
+    {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
+      <BackupPanel onclose={() => (backupOpen = false)} />
     {/await}
   {/if}
 </div>

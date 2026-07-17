@@ -133,3 +133,36 @@ explicitly rejects — *the atom is the file*. So either actions become their ow
 note files (clean, but friction mid-meeting), or the agenda gains a second-class
 "scan bodies for checkboxes" pass that doesn't round-trip. **Undecided — the
 owner should rule on this deliberately, not discover it later.**
+
+## An append-only blob mirror — the third backup tier
+
+Media is off-sited only by restic today, and only when the user ticks the box. The
+natural next tier exploits something the blob store already guarantees: **blobs are
+content-addressed and immutable**. A blob named by its own sha256 never changes —
+it only comes into existence. So backing up media is an *append-only mirror*
+problem, not a snapshot problem:
+
+```sh
+rclone copy vault/blobs remote:blobs     # only new hashes transfer, idempotent
+```
+
+Two arguments for it over restic-for-media:
+
+1. **Restic re-discovers what the hash tree already knows.** It re-walks the tree
+   and CDC-chunks every file to dedup content that ingest already deduped by hash.
+2. **Files-as-truth cuts both ways.** A restic repo is opaque — readable only with
+   restic and its password. A mirror of `blobs/sha256/ab/cd/<hash>` is restorable
+   with `cp`, forever, by anyone. The notes are held to "must survive as plain text
+   without this app"; it is odd that the media is not.
+
+Restic still earns its place for what a mirror cannot do: encryption (for a target
+you don't trust), retention/versioning, and `check --read-data`. Though note
+`fm verify --scrub` already re-hashes blobs against their own filenames, which is
+the same bit-rot scrub.
+
+**Why not yet:** it is a genuine architectural addition — a third tier, a second
+remote to configure, and `MASTERPLAN.md:350` currently assigns media off-siting to
+Syncthing + restic. Worth a deliberate ruling, not a drive-by. The pieces are
+already in place: `manifest.json` is git-tracked, so after a git-only restore
+`fm verify` names exactly which blobs to re-fetch — which is git-annex's location
+tracking, most of the way built.

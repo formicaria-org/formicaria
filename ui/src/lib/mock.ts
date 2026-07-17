@@ -185,6 +185,11 @@ function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
   return { ...n, body };
 }
 
+// Backing up is inert here — there is no vault to push — but the remote is
+// remembered so the setup flow stays exercisable under `pnpm dev`: save a URL and
+// watch the panel change what it promises.
+let gitRemote: string | null = null;
+
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
     case 'board':
@@ -261,6 +266,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return false as T;
     case 'backup':
       return undefined as T;
+    case 'backup_status':
+      return {
+        remote: gitRemote,
+        unpushed: gitRemote ? 2 : null,
+        restic_repo: null,
+        restic_ready: false,
+      } as T;
+    case 'set_git_remote':
+      gitRemote = String(args.url ?? '').trim() || null;
+      return undefined as T;
+    case 'push':
+      return 2 as T;
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }

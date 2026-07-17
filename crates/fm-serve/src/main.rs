@@ -203,6 +203,18 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             run_backup(state)?;
             Ok(Vec::new())
         }
+        // What the two backup tiers would actually do right now — the panel needs
+        // this to promise the user only what it can deliver.
+        "backup_status" => json(backup_status(state)?),
+        "set_git_remote" => {
+            git::set_remote(&state.vault, &s("url")).map_err(err)?;
+            Ok(Vec::new())
+        }
+        "push" => {
+            // Same reason as `commit`: don't let a push snapshot the vault mid-write.
+            let _guard = lock(state)?;
+            json(git::push_squashed(&state.vault, &s("message")).map_err(err)?)
+        }
         // The browser heartbeat — the request itself already refreshed liveness
         // in `handle`, so this only needs to answer 200 so the tab knows we're up.
         "ping" => Ok(Vec::new()),
@@ -243,6 +255,31 @@ fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
         .spawn()
         .map(|_| ())
         .map_err(|e| format!("could not open the file: {e}"))
+}
+
+/// What each backup tier can do right now. fm-core stays free of environment and
+/// configuration concerns, so the env-derived half is assembled here.
+#[derive(serde::Serialize)]
+struct BackupStatus {
+    /// Where the notes push to (`origin`), or null when unset.
+    remote: Option<String>,
+    /// Commits made here but not on the remote; null when never pushed.
+    unpushed: Option<u32>,
+    /// The restic repo — a path or URL, so the UI can say whether media would
+    /// leave this machine. Never the password.
+    restic_repo: Option<String>,
+    /// Both restic env vars present, i.e. a full backup could actually run.
+    restic_ready: bool,
+}
+
+fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
+    let restic_repo = std::env::var("FM_RESTIC_REPO").ok().filter(|s| !s.is_empty());
+    Ok(BackupStatus {
+        remote: git::remote(&state.vault).map_err(err)?,
+        unpushed: git::unpushed(&state.vault).map_err(err)?,
+        restic_ready: restic_repo.is_some() && std::env::var("RESTIC_PASSWORD").is_ok(),
+        restic_repo,
+    })
 }
 
 fn run_backup(state: &AppState) -> Result<(), String> {

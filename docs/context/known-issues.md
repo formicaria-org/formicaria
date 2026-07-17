@@ -27,6 +27,24 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   range-request instead of buffering.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
+- **Auto-commit is best-effort and silent** (audited 2026-07-17). `scheduleCommit`
+  (`App.svelte:342`) debounces 5s and every GUI write reaches it (4 App call sites
+  + `onsaved` from NotePanel's five write paths), but: it **swallows every error**
+  (`commit(...).catch(() => {})`), the timer is a browser `setTimeout` that **dies
+  with the tab** — and with `FM_AUTO_SHUTDOWN` closing the tab *is* how you quit,
+  so "edit, then close" skips that commit — and **`fm-cli`/Vim writes never
+  commit** (no `fm commit` subcommand). Nothing surfaces "you have uncommitted
+  edits". Saving grace: `commit_all` is `git add -A`, so a missed change rides
+  along in the next commit, and files are already on disk via atomic temp+rename.
+  So: **files are never at risk; commits can lag.** Don't restate this as "history
+  is always safe" — it isn't. Also, the spec (`MASTERPLAN.md:350`) says
+  "500 ms→disk, 30 s/blur→commit": the code is 5 s with **no blur handler**, and
+  `MASTERPLAN.md:391` still lists auto-commit as *not built* while `:426` lists it
+  as shipped.
+- **A backup destination may be local and that is not an error.** A git remote can
+  be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
+  (`destination.ts`) classifies both; the panel must keep saying which. Never
+  report a local destination as "off this machine".
 - **Board column *and card* order are client-side** (`localStorage['fm-board-order']`
   and `['fm-card-order']`, both keyed by group-by; card order additionally by
   column value) — view preferences, per-browser, **not** in the vault, so they
@@ -87,7 +105,15 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   be "command not found".
 - **`fm-serve` env vars:** `FM_VAULT` (default `vault`), `FM_UI_DIST` (default
   `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN` (xdg-open the
-  browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (backup).
+  browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (the **media** backup tier only —
+  the notes tier needs neither).
+- **The API silently accepts malformed JSON.** `api()` does
+  `serde_json::from_slice(body).unwrap_or(Value::Null)` (`fm-serve/src/main.rs:164`)
+  and `s(k)` then `unwrap_or("")`, so a client bug arrives as an **empty-string
+  arg**, not an error. This bit during verification (a bad test body became
+  `set_git_remote("")`, and `git remote add origin ""` *succeeds*, leaving a
+  remote whose `get-url` reports its own name). `set_remote` now refuses a blank
+  URL; other commands are still exposed to this.
 - **Path traversal** on the static route is rejected with 400 — verify with
   `curl --path-as-is` (plain curl normalizes `../` client-side and hides it).
 - **Renderers:** no `todo/doing/done`, no scheduling literals — CI grep

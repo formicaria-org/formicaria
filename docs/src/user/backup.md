@@ -1,36 +1,74 @@
 # Backup & versioning
 
-formicarium keeps your notes safe in two complementary ways.
+Your vault holds two very different kinds of thing, so it is backed up in two
+tiers. **Back up** does the light one by default; the heavy one is a box you tick.
 
-## Git versioning (automatic)
+| | What it carries | Where |
+|---|---|---|
+| **Notes** (default) | your notes, views, themes, `manifest.json` — plain text | git → your remote |
+| **Media** (tick to include) | all of the above **plus** `blobs/`: images, PDFs, video | restic |
 
-Your vault is its **own git repository** (separate from the app's source). On
-first edit, formicarium initializes it (with a `.gitignore` that excludes the
-index, thumbnails, and blobs) and then **auto-commits** a few seconds after each
-change. Every edit is therefore in history, and you can push the vault repo to
-GitHub for an off-site copy of your notes as plain text:
+The split is not an accident. Your notes are small, plain, and mergeable, so git
+carries them anywhere for free. Your media is heavy and is deliberately kept out
+of git (`blobs/` is in the vault's `.gitignore`), which is what keeps the notes
+repo small and clonable forever — but it also means **pushing your notes does not
+back up your media**. The panel says so every time, and tells you afterwards
+exactly what left the machine.
 
-```sh
-cd vault
-git remote add origin <your-repo-url>
-git push -u origin main
-```
+## Setting up (once)
 
-## Restic backup (on demand)
+Click **Back up** and paste your vault's git remote — for example
+`git@github.com:you/notes.git`. That is the only setup the light tier needs.
 
-The **Back up** button snapshots the whole vault (notes + blobs + manifest,
-excluding the disposable index and thumbnails) to a
-[restic](https://restic.net) repository — dedup, encryption, integrity, and
-off-site remotes, none of which formicarium reimplements. Set these before
-launching:
+Your vault is its **own git repository**, independent of the app's source: its
+remote is yours to choose and has nothing to do with where formicarium's code
+lives. formicarium initializes the repo on first edit and **auto-commits** a few
+seconds after each change, so your history is local from the start; the remote is
+just where you send it.
+
+**Authentication is your existing git setup** — an ssh-agent key or a credential
+helper, exactly as a `git push` in a terminal would use. formicarium stores no
+password or token of its own. If you have never pushed from this machine before,
+set up an SSH key with your host first; the app cannot prompt you for one (there
+is nowhere to type it), so it will report an auth failure instead of hanging.
+
+## Backing up
+
+Click **Back up**, then **Back up notes**. It commits anything outstanding, pushes,
+and reports what happened — including whether your remote is genuinely off this
+machine. (A remote can be a local path or a `file://` URL, which is a fine way to
+back up to an external drive but does not survive the drive; the panel labels that
+honestly rather than calling it backed up.)
+
+**Your remote gets one commit per backup.** Auto-commit fires every few seconds
+while you work, so pushing them raw would bury your remote in thousands of `auto:`
+commits. Everything since your last push is squashed into a single `backup:` commit
+instead. The trade: locally you can step back through individual edits only as far
+as your last push — before that, each push is one step. Your *first* push is never
+squashed, since squashing history that has never been backed up would destroy the
+only copy of it.
+
+## Including media (restic)
+
+Tick **Include media** to also snapshot the whole vault — blobs and all — to a
+[restic](https://restic.net) repository: dedup, encryption, integrity, and
+off-site remotes, none of which formicarium reimplements. It needs two environment
+variables set before you launch:
 
 ```sh
 export FM_RESTIC_REPO=/path/or/remote/for/restic
 export RESTIC_PASSWORD=…            # keep this safe — it encrypts the repo
 ```
 
-Then click **Back up**. From the CLI you also get `fm backup`, `fm restore`, and
-`fm check` (the last re-reads every pack to catch silent bit-rot).
+Without them the checkbox is disabled and says so. Note that the desktop launcher
+does not set them — this tier is for a terminal launch, or for a launcher you have
+edited yourself. From the CLI you also get `fm backup`, `fm restore`, and `fm check`
+(the last re-reads every pack to catch silent bit-rot).
+
+If you only ever push notes, **restore what you can and check what you lost**: a
+git-only restore brings back every note plus `manifest.json`, the blob inventory —
+so `fm verify` will name exactly which media is missing rather than leave you
+guessing.
 
 ## Integrity
 

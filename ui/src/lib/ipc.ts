@@ -1,4 +1,4 @@
-import type { AssetStatus, Board, NoteDetail, ObjectMeta } from './types';
+import type { AssetStatus, BackupStatus, Board, NoteDetail, ObjectMeta } from './types';
 import * as mock from './mock';
 
 // Two backends, one contract:
@@ -71,10 +71,17 @@ export async function ingestFile(file: File): Promise<ObjectMeta> {
   return mock.handle<ObjectMeta>('ingest', { name: file.name });
 }
 
-// Durability: commit the vault's notes to its own git repo (returns true if a
-// commit was made), and snapshot it to restic (repo + password from the env).
+// Durability, in two tiers. Light: commit the vault's notes to its own git repo
+// (returns true if a commit was made) and push them to its remote — text only,
+// no media. Heavy: snapshot the whole vault, blobs included, to restic (repo +
+// password from the env). `backupStatus` reports what each tier could do right
+// now, so the panel promises only what it can deliver.
 export const commit = (message: string) => invoke<boolean>('commit', { message });
 export const backup = () => invoke<void>('backup');
+export const backupStatus = () => invoke<BackupStatus>('backup_status');
+export const setGitRemote = (url: string) => invoke<void>('set_git_remote', { url });
+/** Squashes the unpushed commits into one; returns how many were squashed. */
+export const push = (message: string) => invoke<number>('push', { message });
 
 // Liveness heartbeat. When launched from the desktop icon the server auto-shuts
 // down once the tab stops pinging, so closing the tab closes the app. A no-op in

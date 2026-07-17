@@ -13,9 +13,19 @@ use crate::StoreError;
 use std::path::Path;
 use std::process::{Command, Output};
 
+/// The one remote we manage. Git's own default name, so a vault stays an
+/// ordinary repo that behaves as expected in a terminal.
+const REMOTE: &str = "origin";
+
 fn git(vault: &Path) -> Command {
     let mut c = Command::new("git");
     c.arg("-C").arg(vault);
+    // Never let git stop to ask a human. fm-serve is thread-per-connection and
+    // has no TTY, so a credential or host-key prompt would hang the request
+    // forever rather than fail. Authentication is whatever the user's ssh-agent
+    // or credential helper already provides — this app holds no secret of its own.
+    c.env("GIT_TERMINAL_PROMPT", "0");
+    c.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
     c
 }
 
@@ -86,6 +96,146 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
         return Err(failed("git commit", &out));
     }
     Ok(true)
+}
+
+/// Where the vault pushes to, or None when no remote is configured yet. Absence
+/// is the normal state of a fresh vault, never an error.
+pub fn remote(vault: &Path) -> Result<Option<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(None);
+    }
+    let out = git(vault).args(["remote", "get-url", REMOTE]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Ok(None); // "no such remote" is absence, not failure
+    }
+    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    Ok((!url.is_empty()).then_some(url))
+}
+
+/// Point `origin` at `url`, creating it when it doesn't exist yet. Idempotent,
+/// so the panel can simply save whatever the user typed.
+pub fn set_remote(vault: &Path, url: &str) -> Result<(), StoreError> {
+    // `git remote add origin ""` *succeeds*, and the resulting remote then
+    // reports its own name as its URL — so an empty value would leave the vault
+    // claiming a push destination it does not have. Refuse it here: a backup that
+    // lies about where it went is the one failure worth being strict about.
+    let url = url.trim();
+    if url.is_empty() {
+        return Err(StoreError::Io("a remote needs a URL".into()));
+    }
+    ensure_repo(vault)?;
+    let sub = if remote(vault)?.is_some() { "set-url" } else { "add" };
+    let out = git(vault).args(["remote", sub, REMOTE]).arg(url).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git remote", &out));
+    }
+    Ok(())
+}
+
+fn branch(vault: &Path) -> Result<String, StoreError> {
+    let out = git(vault).args(["rev-parse", "--abbrev-ref", "HEAD"]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git rev-parse", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// The remote-tracking ref for the current branch — `Some` only once we have
+/// pushed at least once. `None` therefore means "never pushed", which is the
+/// signal [`push_squashed`] uses to refuse to squash.
+///
+/// This ref is updated only by fetch and push, and **nothing here ever fetches**.
+/// That is deliberate: it means a remote another machine has moved stays ahead of
+/// our stale ref, so our push is rejected and the user is told. Fetch first and
+/// the squash below would rebase onto their tip and silently overwrite their
+/// content with our tree.
+fn tracking(vault: &Path) -> Result<Option<String>, StoreError> {
+    // An unborn HEAD (no commits yet) has no branch to track.
+    let Ok(b) = branch(vault) else { return Ok(None) };
+    let r = format!("refs/remotes/{REMOTE}/{b}");
+    let ok = git(vault)
+        .args(["rev-parse", "--verify", "--quiet", &r])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    Ok(ok.then_some(r))
+}
+
+fn count_ahead(vault: &Path, base: &str) -> Result<u32, StoreError> {
+    let out =
+        git(vault).args(["rev-list", "--count", &format!("{base}..HEAD")]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git rev-list", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().parse().unwrap_or(0))
+}
+
+/// How many commits exist here but not on the remote. `None` when there is
+/// nothing to compare against (no repo, no commits, or never pushed) — the
+/// caller shows a count only when there is a real one.
+pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(None);
+    }
+    match tracking(vault)? {
+        None => Ok(None),
+        Some(base) => Ok(Some(count_ahead(vault, &base)?)),
+    }
+}
+
+/// Collapse the not-yet-pushed commits into one and push. Returns how many were
+/// squashed (0 when there was nothing to squash, or on the first push).
+///
+/// Auto-commit produces a `auto:` commit every few seconds of editing; without
+/// this the remote would accrue thousands of them. Squashing costs the granular
+/// undo for the squashed window — after a push you can only step back to that
+/// push — which is the accepted trade (see docs/context/decisions.md).
+pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
+    ensure_repo(vault)?;
+    if remote(vault)?.is_none() {
+        return Err(StoreError::Io(
+            "no remote configured — set one to push your notes off this machine".into(),
+        ));
+    }
+    let squashed = match tracking(vault)? {
+        // The first push. Here "unpushed" means the *entire* history, and
+        // destroying history that has never left the machine is exactly
+        // backwards — send it as it stands. Every later push collapses to one.
+        None => 0,
+        Some(base) => {
+            let n = count_ahead(vault, &base)?;
+            if n > 1 {
+                // --soft moves HEAD alone: the index still holds every squashed
+                // change, so the commit below reproduces the same tree.
+                let out = git(vault).args(["reset", "--soft", &base]).output().map_err(spawn)?;
+                if !out.status.success() {
+                    return Err(failed("git reset", &out));
+                }
+                // A net-zero window (write something, then undo it) leaves an
+                // index identical to the remote's tree. Committing that would
+                // fail and strand HEAD mid-squash, so skip it: we are already at
+                // the remote's state and the push below is simply a no-op.
+                let status = git(vault).args(["status", "--porcelain"]).output().map_err(spawn)?;
+                if !status.stdout.is_empty() {
+                    let out =
+                        git(vault).arg("commit").arg("-m").arg(message).output().map_err(spawn)?;
+                    if !out.status.success() {
+                        return Err(failed("git commit", &out));
+                    }
+                }
+                n
+            } else {
+                0
+            }
+        }
+    };
+    // -u so the tracking ref exists next time, which is what makes the squash
+    // above possible at all.
+    let out = git(vault).args(["push", "-u", REMOTE, "HEAD"]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git push", &out));
+    }
+    Ok(squashed)
 }
 
 fn spawn(e: std::io::Error) -> StoreError {
