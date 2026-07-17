@@ -8,11 +8,19 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Known gaps / not fully working
 
-- **Unsanitized `innerHTML` in `render.ts`.** The read view sets `el.innerHTML`
-  from `marked.parse()` with **no DOMPurify** — raw HTML / `<img onerror>` in a
-  note body reaches the DOM. A characterization test pins this *current*
-  behavior. Accepted as low-risk for a single-user local tool; adding a
-  sanitizer is a filed follow-up, not done.
+- **Unsanitized `innerHTML` in `render.ts` — and its excuse expired.** The read view sets
+  `el.innerHTML` from `marked.parse()` with **no DOMPurify**, so raw HTML / `<img onerror>`
+  in a note body reaches the DOM. A characterization test pins this *current* behavior.
+  It was "accepted as low-risk for a single-user local tool" — **and the 2026-07-17
+  collaboration work made that premise false.** Note bodies now arrive from other people,
+  merged in cleanly by the `.md` driver. The chain is complete: their note runs script in
+  our origin, and `fm-serve`'s CSRF guard deliberately allows requests with no `Origin`
+  ("there are no ambient credentials to abuse" — `main.rs`), so that script can call any
+  `/api/*` — read every note, delete them, or set a git remote and push a private vault
+  somewhere. Same-origin, so nothing stops it. **This is now the top security item**, not a
+  filed follow-up, and the owner's bar is production-grade + everyone can use it. Fixing it
+  means a sanitizer and re-reading `fm-serve`'s "Localhost only, single user" header, which
+  is also no longer true of the design.
 - **You are only told someone pushed if you open the backup panel.** `git::remote_moved`
   (one `ls-remote`, moves no refs) is computed in `backup_status`, so nothing surfaces
   "Ravi pushed" on its own. The plan's automatic 15–30 s poll needs a timer and somewhere

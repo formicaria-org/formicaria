@@ -1,0 +1,65 @@
+# macOS + Windows: the "everyone can use it" gate, and the release binaries.
+#
+# Split from `ci.yml` and **path-filtered on purpose**. This is a private repo, so minutes
+# are billed with a multiplier — Linux 1x, Windows 2x, **macOS 10x**. Running these on
+# every push means a docs-only commit (which this repo makes constantly; `docs/context/` is
+# the working memory) costs 12x for a change that cannot break a compile. So: only when
+# something that could actually differ per-platform moves.
+#
+# Not a soft target. The first Windows run found that `from_file` was LF-only, so on a
+# CRLF checkout every note failed to parse — and because the loader is deliberately
+# tolerant, they didn't error, they vanished, and the vault came up empty. Linux could
+# never have shown that.
+name: cross
+
+on:
+  push:
+    paths:
+      - 'crates/**'
+      - 'ui/**'
+      - 'ci/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - '.gitattributes'
+      - '.github/workflows/cross.yml'
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'ui/**'
+      - 'ci/**'
+      - 'Cargo.*'
+      - 'pixi.*'
+  workflow_dispatch:
+
+concurrency:
+  group: cross-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never fail-fast: the point is to learn *which* platform is broken, and cancelling
+      # the others the moment one goes red hides exactly that.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+      - name: cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: ui/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+      - run: pixi run ci

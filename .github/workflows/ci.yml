@@ -1,74 +1,52 @@
-# CI: runs the whole gate inside the locked pixi environment, on every OS we claim to
-# support, so a green build means the same toolchain and the same tools everywhere.
+# The gate, on Linux, for every push. Cheap and always-on.
 #
-# Why a matrix: the core is one self-contained binary (the UI is baked in by
-# `fm-serve/build.rs`) and everything external is an optional feature found on PATH — so
-# there is nothing platform-specific left *by design*. A matrix is how that claim gets
-# checked rather than asserted. Windows is the interesting one: the `.md` merge driver is
-# installed as a quoted absolute path that git runs through its bundled `sh`, and a
-# `C:\...\fm.exe` inside sh single-quotes is not obviously executable. If anything goes red
-# first, expect it to be that (`crates/fm-cli/tests/merge.rs`) — and it matters, because a
-# driver git cannot exec is read as a conflict and hands back ours with no markers.
+# macOS and Windows live in `cross.yml`, which is path-filtered — this is a private repo,
+# so minutes are billed and GitHub multiplies them: Linux 1x, Windows 2x, **macOS 10x**.
+# Running all three on every push is a 13x multiplier, and a large share of this repo's
+# commits touch only `docs/context/` (it is the project's working memory and is updated
+# every session). Those cannot break a Windows build, so they must not pay for one.
 name: ci
 
 on:
   push:
   pull_request:
 
+# Pushing twice in a minute shouldn't pay twice. Supersede the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  check:
-    name: gate (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      # Never fail-fast: the point is to learn *which* platforms are broken, and cancelling
-      # the others the moment one goes red hides exactly that.
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+  gate:
+    name: gate (linux)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Caches the solved env by pixi.lock — otherwise every run re-downloads and relinks
+      # ~2.5 GB of conda packages.
       - uses: prefix-dev/setup-pixi@v0.8.1
         with:
           run-install: true
+          cache: true
+
+      # ~/.cargo + target/. rusqlite compiles bundled SQLite from C on every cold build,
+      # which is the single slowest thing here.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      - name: cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: ui/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
       # `ci` = test (incl. the perf budget) + test-ui + deny (license gate) + checks
       # (seam + generic-renderer greps) + docs. All must pass.
+      #
+      # Deliberately NOT followed by `pixi run build`: that is a second, full, release-mode
+      # compile of the same code, and nothing consumes the result on an ordinary push.
+      # Release binaries are built once, on a tag, in `cross.yml`.
       - run: pixi run ci
-
-      # The shippable artifacts. `fm` is NOT optional beside `fm-serve`: `ensure_repo`
-      # installs the `.md` merge driver by pointing git at the `fm` binary *beside the
-      # running one*, and installs nothing when it cannot find one — so a bundle carrying
-      # only fm-serve silently loses the merge driver. Both, always.
-      - run: pixi run build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: formicaria-${{ matrix.os }}
-          if-no-files-found: error
-          # The glob covers both spellings; only one exists per OS.
-          path: |
-            target/release/fm-serve
-            target/release/fm
-            target/release/fm-serve.exe
-            target/release/fm.exe
-
-  release:
-    name: attach binaries to the tag
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-      # One zip per OS: the two binaries travel together, for the reason above.
-      - name: package
-        run: |
-          cd dist
-          for os in */; do
-            (cd "$os" && zip -qr "../${os%/}.zip" .)
-          done
-          ls -la ./*.zip
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*.zip
