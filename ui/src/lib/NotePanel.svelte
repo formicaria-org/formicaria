@@ -15,6 +15,7 @@
   import { renderInto, type ResolvedAsset, type ResolvedNote } from './render';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
+  import { countOf, nthIndexOf } from './locate';
   import StatusChip from './StatusChip.svelte';
   import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
@@ -287,12 +288,43 @@
     if ((e.target as HTMLElement | null)?.closest('.note-chip, a, button, video, audio, iframe')) {
       return;
     }
-    await openEditor();
+    await openEditor(clickedOffset());
   }
-  async function openEditor() {
+
+  /**
+   * Which source offset did the double-click land on? The gesture has already
+   * selected the word under the pointer, so we count which occurrence of that
+   * word it is in the rendered text and find the same one in the source — the
+   * HTML carries no source positions to consult (see locate.ts).
+   *
+   * Must run *before* `editing` flips: the swap destroys the rendered DOM this
+   * reads. Falls back to the end of the note, which is what a double-click in
+   * the whitespace under a short note means anyway.
+   */
+  function clickedOffset(): number {
+    const sel = window.getSelection();
+    const word = sel?.toString().trim() ?? '';
+    if (!word || !sel?.anchorNode || !content) return draft.length;
+    const before = document.createRange();
+    before.selectNodeContents(content);
+    try {
+      before.setEnd(sel.anchorNode, sel.anchorOffset);
+    } catch {
+      return draft.length; // selection escaped the read view — no ordinal to count
+    }
+    const hit = nthIndexOf(draft, word, countOf(before.toString(), word));
+    return hit >= 0 ? hit : draft.length;
+  }
+
+  async function openEditor(at?: number) {
     editing = true;
     await tick();
     editorEl?.focus();
+    if (at === undefined || !editorEl) return;
+    editorEl.selectionStart = editorEl.selectionEnd = at;
+    // focus() alone scrolls to the top, not to the caret — centre it by hand.
+    const { top } = caretXY(editorEl, at);
+    editorEl.scrollTop += top - editorEl.clientHeight / 2;
   }
 
   /** Does the keyboard focus live in *this* pane? */
