@@ -1,70 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" role="img" aria-labelledby="t d">
   <title id="t">formicaria</title>
-  <desc id="d">Three ant colonies, each circling its own nest, joined by routes along which ants travel in both directions — a set of vaults, each its own repo and audience, coordinating through git rather than through a hub.</desc>
+  <desc id="d">Three ant colonies, each circling its own nest, joined by two-lane trails carrying ants in both directions at once — a set of vaults, each its own repo and audience, coordinating through git rather than a hub.</desc>
   <defs>
     <g id="ant" fill="#1a1205">
-      <ellipse cx="-7" cy="0" rx="6.4" ry="4.5"/>
-      <circle cx="1.5" cy="0" r="3.3"/>
-      <circle cx="8.4" cy="0" r="4.1"/>
-      <g fill="none" stroke="#1a1205" stroke-width="1.5" stroke-linecap="round">
-        <path d="M1,-2 C -2,-6 -5,-8 -9,-9"/><path d="M2,-2 C 2,-7 3,-9 5,-11"/>
-        <path d="M2,-2 C 5,-6 8,-7 11,-7"/>
-        <path d="M1,2 C -2,6 -5,8 -9,9"/><path d="M2,2 C 2,7 3,9 5,11"/>
-        <path d="M2,2 C 5,6 8,7 11,7"/>
+      <ellipse cx="-7" cy="0" rx="6.4" ry="4.5"/><circle cx="1.5" cy="0" r="3.3"/><circle cx="8.4" cy="0" r="4.1"/>
+      <g fill="none" stroke="#1a1205" stroke-width="1.6" stroke-linecap="round">
+        <path d="M1,-2 C -2,-6 -5,-8 -9,-9"/><path d="M2,-2 C 2,-7 3,-9 5,-11"/><path d="M2,-2 C 5,-6 8,-7 11,-7"/>
+        <path d="M1,2 C -2,6 -5,8 -9,9"/><path d="M2,2 C 2,7 3,9 5,11"/><path d="M2,2 C 5,6 8,7 11,7"/>
         <path d="M11,-2.5 C 15,-6 17,-8 20,-9"/><path d="M11,2.5 C 15,6 17,8 20,9"/>
       </g>
     </g>
-    <radialGradient id="glow">
-      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.30"/>
-      <stop offset="62%" stop-color="#dc2626" stop-opacity="0.13"/>
-      <stop offset="100%" stop-color="#dc2626" stop-opacity="0"/>
-    </radialGradient>
+    <radialGradient id="field"><stop offset="0%" stop-color="#dc2626" stop-opacity="0.20"/><stop offset="60%" stop-color="#dc2626" stop-opacity="0.07"/><stop offset="100%" stop-color="#dc2626" stop-opacity="0"/></radialGradient>
+    <radialGradient id="mound" cx="38%" cy="34%"><stop offset="0%" stop-color="#ef8b6b"/><stop offset="62%" stop-color="#dc2626"/><stop offset="100%" stop-color="#7f1d1d"/></radialGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0%" stop-color="#f6efe3"/><stop offset="100%" stop-color="#ecdcc4"/></linearGradient>
   </defs>
-  <rect width="1200" height="380" rx="28" fill="#f3e9db"/>
-  <g fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" opacity="0.45" stroke-dasharray="1 10">
-    <path d="M232,206 Q424.0,102.0 616,126"/>
-    <path d="M616,126 Q792.0,130.0 968,242"/>
-    <path d="M232,206 Q600.0,356.0 968,242"/>
-  </g>
-  <circle cx="232" cy="206" r="116" fill="url(#glow)"/>
-  <circle cx="232" cy="206" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
-  <circle cx="232" cy="206" r="15" fill="#dc2626"/>
-  <circle cx="232" cy="206" r="6" fill="#1a1205" opacity="0.8"/>
-  <circle cx="616" cy="126" r="97" fill="url(#glow)"/>
-  <circle cx="616" cy="126" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
-  <circle cx="616" cy="126" r="15" fill="#dc2626"/>
-  <circle cx="616" cy="126" r="6" fill="#1a1205" opacity="0.8"/>
-  <circle cx="968" cy="242" r="108" fill="url(#glow)"/>
-  <circle cx="968" cy="242" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
-  <circle cx="968" cy="242" r="15" fill="#dc2626"/>
-  <circle cx="968" cy="242" r="6" fill="#1a1205" opacity="0.8"/>
-  <use href="#ant" transform="translate(330.6,198.4) rotate(90) scale(0.9)"/>
-  <use href="#ant" transform="translate(272.2,251.0) rotate(152) scale(0.9)"/>
-  <use href="#ant" transform="translate(206.6,259.8) rotate(205) scale(0.9)"/>
-  <use href="#ant" transform="translate(170.9,238.4) rotate(240) scale(0.9)"/>
-  <use href="#ant" transform="translate(153.7,186.2) rotate(295) scale(0.9)"/>
-  <use href="#ant" transform="translate(218.6,152.1) rotate(356) scale(0.9)"/>
-  <use href="#ant" transform="translate(283.6,153.7) rotate(402) scale(0.9)"/>
-  <use href="#ant" transform="translate(686.6,134.5) rotate(105) scale(0.9)"/>
-  <use href="#ant" transform="translate(656.8,167.3) rotate(150) scale(0.9)"/>
-  <use href="#ant" transform="translate(570.4,171.4) rotate(223) scale(0.9)"/>
-  <use href="#ant" transform="translate(539.7,133.0) rotate(269) scale(0.9)"/>
-  <use href="#ant" transform="translate(576.3,83.7) rotate(331) scale(0.9)"/>
-  <use href="#ant" transform="translate(659.1,82.4) rotate(402) scale(0.9)"/>
-  <use href="#ant" transform="translate(1033.9,234.3) rotate(87) scale(0.9)"/>
-  <use href="#ant" transform="translate(1015.9,294.6) rotate(152) scale(0.9)"/>
-  <use href="#ant" transform="translate(956.7,293.9) rotate(195) scale(0.9)"/>
-  <use href="#ant" transform="translate(904.1,269.2) rotate(246) scale(0.9)"/>
-  <use href="#ant" transform="translate(896.5,219.7) rotate(299) scale(0.9)"/>
-  <use href="#ant" transform="translate(963.9,182.7) rotate(363) scale(0.9)"/>
-  <use href="#ant" transform="translate(1015.2,200.6) rotate(406) scale(0.9)"/>
-  <use href="#ant" transform="translate(354.9,152.5) rotate(-18) scale(1.0)"/>
-  <use href="#ant" transform="translate(424.0,134.0) rotate(168) scale(1.0)"/>
-  <use href="#ant" transform="translate(493.1,123.7) rotate(-5) scale(1.0)"/>
-  <use href="#ant" transform="translate(728.6,139.6) rotate(12) scale(1.0)"/>
-  <use href="#ant" transform="translate(792.0,157.0) rotate(198) scale(1.0)"/>
-  <use href="#ant" transform="translate(855.4,181.4) rotate(24) scale(1.0)"/>
-  <use href="#ant" transform="translate(467.5,275.0) rotate(10) scale(1.0)"/>
-  <use href="#ant" transform="translate(600.0,290.0) rotate(183) scale(1.0)"/>
-  <use href="#ant" transform="translate(732.5,287.9) rotate(-5) scale(1.0)"/>
+  <rect width="1200" height="400" rx="30" fill="url(#bg)"/>
+  <path d="M229.2,208.7 L237.3,204.5 L245.5,200.5 L253.7,196.5 L261.8,192.7 L270.0,188.9 L278.2,185.2 L286.4,181.6 L294.5,178.2 L302.7,174.8 L310.9,171.5 L319.1,168.3 L327.3,165.2 L335.4,162.2 L343.6,159.3 L351.8,156.5 L360.0,153.7 L368.2,151.1 L376.4,148.6 L384.6,146.1 L392.8,143.8 L401.0,141.6 L409.2,139.4 L417.4,137.4 L425.6,135.4 L433.8,133.5 L442.0,131.8 L450.2,130.1 L458.4,128.5 L466.6,127.0 L474.8,125.6 L483.0,124.3 L491.3,123.1 L499.5,122.0 L507.7,121.0 L515.9,120.1 L524.1,119.3 L532.3,118.6 L540.5,118.0 L548.8,117.4 L557.0,117.0 L565.2,116.7 L573.4,116.4 L581.6,116.3 L589.8,116.2 L598.0,116.3 L606.3,116.4 L614.5,116.7 L622.7,117.0" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M229.2,208.7 L237.3,204.5 L245.5,200.5 L253.7,196.5 L261.8,192.7 L270.0,188.9 L278.2,185.2 L286.4,181.6 L294.5,178.2 L302.7,174.8 L310.9,171.5 L319.1,168.3 L327.3,165.2 L335.4,162.2 L343.6,159.3 L351.8,156.5 L360.0,153.7 L368.2,151.1 L376.4,148.6 L384.6,146.1 L392.8,143.8 L401.0,141.6 L409.2,139.4 L417.4,137.4 L425.6,135.4 L433.8,133.5 L442.0,131.8 L450.2,130.1 L458.4,128.5 L466.6,127.0 L474.8,125.6 L483.0,124.3 L491.3,123.1 L499.5,122.0 L507.7,121.0 L515.9,120.1 L524.1,119.3 L532.3,118.6 L540.5,118.0 L548.8,117.4 L557.0,117.0 L565.2,116.7 L573.4,116.4 L581.6,116.3 L589.8,116.2 L598.0,116.3 L606.3,116.4 L614.5,116.7 L622.7,117.0" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <path d="M242.8,235.3 L250.8,231.3 L258.7,227.4 L266.6,223.6 L274.5,219.8 L282.4,216.2 L290.3,212.7 L298.2,209.2 L306.1,205.8 L314.0,202.6 L321.9,199.4 L329.8,196.3 L337.7,193.3 L345.6,190.4 L353.5,187.6 L361.4,184.9 L369.3,182.3 L377.2,179.7 L385.1,177.3 L393.0,174.9 L400.9,172.7 L408.8,170.5 L416.6,168.5 L424.5,166.5 L432.4,164.6 L440.3,162.8 L448.2,161.1 L456.0,159.5 L463.9,158.0 L471.8,156.6 L479.7,155.2 L487.5,154.0 L495.4,152.9 L503.3,151.8 L511.2,150.8 L519.0,150.0 L526.9,149.2 L534.8,148.5 L542.6,147.9 L550.5,147.4 L558.4,147.0 L566.2,146.7 L574.1,146.4 L582.0,146.3 L589.8,146.2 L597.7,146.3 L605.6,146.4 L613.4,146.7 L621.3,147.0" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M242.8,235.3 L250.8,231.3 L258.7,227.4 L266.6,223.6 L274.5,219.8 L282.4,216.2 L290.3,212.7 L298.2,209.2 L306.1,205.8 L314.0,202.6 L321.9,199.4 L329.8,196.3 L337.7,193.3 L345.6,190.4 L353.5,187.6 L361.4,184.9 L369.3,182.3 L377.2,179.7 L385.1,177.3 L393.0,174.9 L400.9,172.7 L408.8,170.5 L416.6,168.5 L424.5,166.5 L432.4,164.6 L440.3,162.8 L448.2,161.1 L456.0,159.5 L463.9,158.0 L471.8,156.6 L479.7,155.2 L487.5,154.0 L495.4,152.9 L503.3,151.8 L511.2,150.8 L519.0,150.0 L526.9,149.2 L534.8,148.5 L542.6,147.9 L550.5,147.4 L558.4,147.0 L566.2,146.7 L574.1,146.4 L582.0,146.3 L589.8,146.2 L597.7,146.3 L605.6,146.4 L613.4,146.7 L621.3,147.0" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <path d="M623.4,117.1 L630.9,117.8 L638.4,118.6 L645.9,119.5 L653.5,120.4 L661.0,121.4 L668.5,122.5 L676.0,123.7 L683.6,125.0 L691.1,126.3 L698.6,127.8 L706.1,129.3 L713.6,130.8 L721.2,132.5 L728.7,134.2 L736.2,136.0 L743.7,137.9 L751.2,139.9 L758.8,141.9 L766.3,144.0 L773.8,146.2 L781.3,148.5 L788.8,150.9 L796.3,153.3 L803.8,155.8 L811.3,158.4 L818.8,161.0 L826.3,163.8 L833.8,166.6 L841.3,169.5 L848.8,172.5 L856.3,175.5 L863.8,178.6 L871.3,181.8 L878.8,185.1 L886.3,188.5 L893.8,191.9 L901.3,195.4 L908.8,199.0 L916.3,202.6 L923.8,206.4 L931.2,210.2 L938.7,214.1 L946.2,218.1 L953.7,222.1 L961.2,226.2 L968.6,230.4 L976.1,234.7 L983.6,239.1" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M623.4,117.1 L630.9,117.8 L638.4,118.6 L645.9,119.5 L653.5,120.4 L661.0,121.4 L668.5,122.5 L676.0,123.7 L683.6,125.0 L691.1,126.3 L698.6,127.8 L706.1,129.3 L713.6,130.8 L721.2,132.5 L728.7,134.2 L736.2,136.0 L743.7,137.9 L751.2,139.9 L758.8,141.9 L766.3,144.0 L773.8,146.2 L781.3,148.5 L788.8,150.9 L796.3,153.3 L803.8,155.8 L811.3,158.4 L818.8,161.0 L826.3,163.8 L833.8,166.6 L841.3,169.5 L848.8,172.5 L856.3,175.5 L863.8,178.6 L871.3,181.8 L878.8,185.1 L886.3,188.5 L893.8,191.9 L901.3,195.4 L908.8,199.0 L916.3,202.6 L923.8,206.4 L931.2,210.2 L938.7,214.1 L946.2,218.1 L953.7,222.1 L961.2,226.2 L968.6,230.4 L976.1,234.7 L983.6,239.1" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <path d="M620.6,146.9 L627.9,147.6 L635.1,148.4 L642.3,149.2 L649.5,150.1 L656.8,151.1 L664.0,152.2 L671.2,153.3 L678.4,154.6 L685.7,155.8 L692.9,157.2 L700.1,158.7 L707.4,160.2 L714.6,161.8 L721.8,163.4 L729.0,165.2 L736.3,167.0 L743.5,168.9 L750.7,170.8 L758.0,172.9 L765.2,175.0 L772.5,177.2 L779.7,179.4 L786.9,181.8 L794.2,184.2 L801.4,186.7 L808.7,189.3 L815.9,191.9 L823.2,194.6 L830.4,197.4 L837.7,200.3 L844.9,203.2 L852.2,206.3 L859.4,209.4 L866.7,212.5 L873.9,215.8 L881.2,219.1 L888.5,222.5 L895.7,226.0 L903.0,229.5 L910.2,233.2 L917.5,236.9 L924.8,240.7 L932.0,244.5 L939.3,248.4 L946.6,252.5 L953.9,256.5 L961.1,260.7 L968.4,264.9" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M620.6,146.9 L627.9,147.6 L635.1,148.4 L642.3,149.2 L649.5,150.1 L656.8,151.1 L664.0,152.2 L671.2,153.3 L678.4,154.6 L685.7,155.8 L692.9,157.2 L700.1,158.7 L707.4,160.2 L714.6,161.8 L721.8,163.4 L729.0,165.2 L736.3,167.0 L743.5,168.9 L750.7,170.8 L758.0,172.9 L765.2,175.0 L772.5,177.2 L779.7,179.4 L786.9,181.8 L794.2,184.2 L801.4,186.7 L808.7,189.3 L815.9,191.9 L823.2,194.6 L830.4,197.4 L837.7,200.3 L844.9,203.2 L852.2,206.3 L859.4,209.4 L866.7,212.5 L873.9,215.8 L881.2,219.1 L888.5,222.5 L895.7,226.0 L903.0,229.5 L910.2,233.2 L917.5,236.9 L924.8,240.7 L932.0,244.5 L939.3,248.4 L946.6,252.5 L953.9,256.5 L961.1,260.7 L968.4,264.9" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <path d="M241.3,208.0 L256.5,213.6 L271.8,219.0 L287.0,224.2 L302.2,229.2 L317.5,233.9 L332.7,238.5 L347.9,242.8 L363.2,246.9 L378.4,250.9 L393.6,254.6 L408.8,258.0 L424.1,261.3 L439.3,264.4 L454.5,267.2 L469.7,269.9 L484.9,272.3 L500.1,274.5 L515.4,276.5 L530.6,278.3 L545.8,279.8 L561.0,281.2 L576.2,282.4 L591.4,283.3 L606.6,284.0 L621.8,284.5 L637.0,284.8 L652.2,284.9 L667.4,284.8 L682.6,284.4 L697.9,283.9 L713.1,283.1 L728.3,282.1 L743.5,281.0 L758.7,279.6 L773.9,277.9 L789.1,276.1 L804.3,274.1 L819.5,271.8 L834.8,269.4 L850.0,266.7 L865.2,263.8 L880.4,260.7 L895.6,257.4 L910.9,253.9 L926.1,250.1 L941.3,246.2 L956.5,242.0 L971.8,237.6" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M241.3,208.0 L256.5,213.6 L271.8,219.0 L287.0,224.2 L302.2,229.2 L317.5,233.9 L332.7,238.5 L347.9,242.8 L363.2,246.9 L378.4,250.9 L393.6,254.6 L408.8,258.0 L424.1,261.3 L439.3,264.4 L454.5,267.2 L469.7,269.9 L484.9,272.3 L500.1,274.5 L515.4,276.5 L530.6,278.3 L545.8,279.8 L561.0,281.2 L576.2,282.4 L591.4,283.3 L606.6,284.0 L621.8,284.5 L637.0,284.8 L652.2,284.9 L667.4,284.8 L682.6,284.4 L697.9,283.9 L713.1,283.1 L728.3,282.1 L743.5,281.0 L758.7,279.6 L773.9,277.9 L789.1,276.1 L804.3,274.1 L819.5,271.8 L834.8,269.4 L850.0,266.7 L865.2,263.8 L880.4,260.7 L895.6,257.4 L910.9,253.9 L926.1,250.1 L941.3,246.2 L956.5,242.0 L971.8,237.6" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <path d="M230.7,236.0 L246.3,241.8 L261.9,247.3 L277.5,252.6 L293.1,257.7 L308.7,262.6 L324.3,267.3 L339.9,271.7 L355.5,275.9 L371.1,280.0 L386.7,283.8 L402.3,287.3 L417.9,290.7 L433.6,293.8 L449.2,296.7 L464.8,299.5 L480.4,301.9 L496.0,304.2 L511.6,306.3 L527.3,308.1 L542.9,309.7 L558.5,311.1 L574.1,312.3 L589.8,313.2 L605.4,314.0 L621.0,314.5 L636.6,314.8 L652.3,314.9 L667.9,314.8 L683.5,314.4 L699.1,313.9 L714.8,313.1 L730.4,312.1 L746.0,310.9 L761.6,309.4 L777.3,307.8 L792.9,305.9 L808.5,303.8 L824.1,301.5 L839.7,298.9 L855.4,296.2 L871.0,293.2 L886.6,290.1 L902.2,286.7 L917.8,283.0 L933.4,279.2 L949.0,275.1 L964.6,270.9 L980.2,266.4" fill="none" stroke="#7f1d1d" stroke-width="13" opacity="0.05" stroke-linecap="round"/>
+  <path d="M230.7,236.0 L246.3,241.8 L261.9,247.3 L277.5,252.6 L293.1,257.7 L308.7,262.6 L324.3,267.3 L339.9,271.7 L355.5,275.9 L371.1,280.0 L386.7,283.8 L402.3,287.3 L417.9,290.7 L433.6,293.8 L449.2,296.7 L464.8,299.5 L480.4,301.9 L496.0,304.2 L511.6,306.3 L527.3,308.1 L542.9,309.7 L558.5,311.1 L574.1,312.3 L589.8,313.2 L605.4,314.0 L621.0,314.5 L636.6,314.8 L652.3,314.9 L667.9,314.8 L683.5,314.4 L699.1,313.9 L714.8,313.1 L730.4,312.1 L746.0,310.9 L761.6,309.4 L777.3,307.8 L792.9,305.9 L808.5,303.8 L824.1,301.5 L839.7,298.9 L855.4,296.2 L871.0,293.2 L886.6,290.1 L902.2,286.7 L917.8,283.0 L933.4,279.2 L949.0,275.1 L964.6,270.9 L980.2,266.4" fill="none" stroke="#7f1d1d" stroke-width="1.3" opacity="0.28" stroke-dasharray="1 8" stroke-linecap="round"/>
+  <circle cx="236" cy="222" r="151" fill="url(#field)"/>
+  <ellipse cx="236" cy="236.9" rx="37.4" ry="13.5" fill="#1a1205" opacity="0.10"/>
+  <circle cx="236" cy="222" r="29.9" fill="url(#mound)"/>
+  <circle cx="236" cy="222" r="9.0" fill="#1a1205" opacity="0.9"/>
+  <circle cx="622" cy="132" r="122" fill="url(#field)"/>
+  <ellipse cx="622" cy="143.2" rx="27.9" ry="10.1" fill="#1a1205" opacity="0.10"/>
+  <circle cx="622" cy="132" r="22.4" fill="url(#mound)"/>
+  <circle cx="622" cy="132" r="6.7" fill="#1a1205" opacity="0.9"/>
+  <circle cx="976" cy="252" r="139" fill="url(#field)"/>
+  <ellipse cx="976" cy="265.3" rx="33.1" ry="11.9" fill="#1a1205" opacity="0.10"/>
+  <circle cx="976" cy="252" r="26.5" fill="url(#mound)"/>
+  <circle cx="976" cy="252" r="8.0" fill="#1a1205" opacity="0.9"/>
+  <use href="#ant" transform="translate(332.9,222.1) rotate(96) scale(1.04)"/>
+  <use href="#ant" transform="translate(282.1,287.2) rotate(160) scale(1.18)"/>
+  <use href="#ant" transform="translate(184.8,273.3) rotate(221) scale(1.04)"/>
+  <use href="#ant" transform="translate(149.4,217.9) rotate(280) scale(1.05)"/>
+  <use href="#ant" transform="translate(200.6,156.0) rotate(345) scale(1.22)"/>
+  <use href="#ant" transform="translate(273.0,175.9) rotate(395) scale(1.22)"/>
+  <use href="#ant" transform="translate(700.2,120.9) rotate(85) scale(1.22)"/>
+  <use href="#ant" transform="translate(630.0,182.1) rotate(180) scale(1.24)"/>
+  <use href="#ant" transform="translate(558.6,154.9) rotate(249) scale(1.25)"/>
+  <use href="#ant" transform="translate(572.1,95.0) rotate(323) scale(1.25)"/>
+  <use href="#ant" transform="translate(631.9,88.0) rotate(375) scale(1.22)"/>
+  <use href="#ant" transform="translate(1041.7,244.7) rotate(87) scale(1.05)"/>
+  <use href="#ant" transform="translate(1010.8,311.5) rotate(164) scale(1.07)"/>
+  <use href="#ant" transform="translate(951.1,305.4) rotate(204) scale(1.16)"/>
+  <use href="#ant" transform="translate(899.0,251.7) rotate(276) scale(1.24)"/>
+  <use href="#ant" transform="translate(931.6,209.6) rotate(330) scale(1.17)"/>
+  <use href="#ant" transform="translate(1016.9,209.5) rotate(400) scale(1.25)"/>
+  <use href="#ant" transform="translate(339.0,160.9) rotate(-20) scale(1.05)"/>
+  <use href="#ant" transform="translate(425.6,135.4) rotate(-13) scale(1.05)"/>
+  <use href="#ant" transform="translate(512.3,120.5) rotate(-6) scale(1.05)"/>
+  <use href="#ant" transform="translate(349.1,189.2) rotate(160) scale(1.05)"/>
+  <use href="#ant" transform="translate(432.4,164.6) rotate(167) scale(1.05)"/>
+  <use href="#ant" transform="translate(515.6,150.3) rotate(174) scale(1.05)"/>
+  <use href="#ant" transform="translate(724.5,133.2) rotate(13) scale(1.05)"/>
+  <use href="#ant" transform="translate(803.8,155.8) rotate(19) scale(1.05)"/>
+  <use href="#ant" transform="translate(883.0,187.0) rotate(24) scale(1.05)"/>
+  <use href="#ant" transform="translate(717.8,162.5) rotate(193) scale(1.05)"/>
+  <use href="#ant" transform="translate(794.2,184.2) rotate(199) scale(1.05)"/>
+  <use href="#ant" transform="translate(870.7,214.3) rotate(204) scale(1.05)"/>
+  <use href="#ant" transform="translate(446.0,265.7) rotate(11) scale(1.05)"/>
+  <use href="#ant" transform="translate(606.6,284.0) rotate(2) scale(1.05)"/>
+  <use href="#ant" transform="translate(767.2,278.7) rotate(-6) scale(1.05)"/>
+  <use href="#ant" transform="translate(440.4,295.1) rotate(191) scale(1.05)"/>
+  <use href="#ant" transform="translate(605.4,314.0) rotate(182) scale(1.05)"/>
+  <use href="#ant" transform="translate(770.4,308.5) rotate(174) scale(1.05)"/>
 </svg>
