@@ -1,5 +1,5 @@
 #!/bin/sh
-# formicarium pre-commit guard: keep the repo text-only.
+# formicaria pre-commit guard: keep the repo text-only.
 #
 # Rejects any staged file larger than 5 MB. Heavy media (figures, decks,
 # recordings, PDFs) belong in the content-addressed blob store on its own

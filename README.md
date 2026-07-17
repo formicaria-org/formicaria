@@ -1,4 +1,4 @@
-# formicarium
+# formicaria
 
 A local-first, single-user research notebook. Your notes are plain Markdown files
 you own, search, organize, and back up; heavy media are content-addressed blobs
@@ -59,7 +59,7 @@ pixi run docs         # renders docs/ to docs/book/ (also run in CI)
 ```
 
 Start with `docs/src/introduction.md`, or the design spec in
-[`formicarium/MASTERPLAN.md`](formicarium/MASTERPLAN.md).
+[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md).
 
 ## Development
 

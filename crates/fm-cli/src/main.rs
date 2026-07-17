@@ -1,4 +1,4 @@
-//! `fm` — the CLI that drives formicarium's core without the GUI. Enough to
+//! `fm` — the CLI that drives formicaria's core without the GUI. Enough to
 //! exercise each slice end-to-end: capture notes to disk, rebuild the index from
 //! the files, search, and edit properties. The desktop app (fm-app) reuses the
 //! same core.
@@ -13,7 +13,7 @@ use std::str::FromStr;
 use time::OffsetDateTime;
 
 #[derive(Parser)]
-#[command(name = "fm", about = "formicarium — local research notebook")]
+#[command(name = "fm", about = "formicaria — local research notebook")]
 struct Cli {
     /// Vault directory (notes + index). Defaults to ./vault or $FM_VAULT.
     #[arg(long, global = true, env = "FM_VAULT", default_value = "vault")]

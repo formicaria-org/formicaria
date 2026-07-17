@@ -8,7 +8,7 @@ from notes. Identical files are stored once; the hash *is* the identity.
 
 In a note's editor you have two fast paths:
 
-- **Drag a file in.** Drop it onto the editor; formicarium ingests it (hashing,
+- **Drag a file in.** Drop it onto the editor; formicaria ingests it (hashing,
   MIME sniffing, text extraction, thumbnail) and inserts a reference at your
   cursor.
 - **Type `/`.** A menu opens at your cursor listing your **most recent notes**;

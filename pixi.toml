@@ -1,7 +1,7 @@
 [workspace]
-name = "formicarium"
+name = "formicaria"
 version = "0.0.0"
-description = "Local-first, single-user research notebook (fm). Full spec: formicarium/MASTERPLAN.md"
+description = "Local-first, single-user research notebook (fm). Full spec: formicaria/MASTERPLAN.md"
 channels = ["conda-forge"]
 # One platform floor, harmless and met by any 2021+ distro (Ubuntu 22.04 ships
 # glibc 2.35). It cost nothing to keep after the webkit stack was removed.
@@ -34,7 +34,7 @@ media = { features = ["media"] }
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
 test = "cargo test --workspace"
-# Run the app in your browser against the REAL vault — this is how formicarium
+# Run the app in your browser against the REAL vault — this is how formicaria
 # runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
 # env, no webkit: `pixi run serve`, then open http://127.0.0.1:8765.

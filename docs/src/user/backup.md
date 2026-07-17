@@ -21,13 +21,13 @@ Click **Back up** and paste your vault's git remote — for example
 `git@github.com:you/notes.git`. That is the only setup the light tier needs.
 
 Your vault is its **own git repository**, independent of the app's source: its
-remote is yours to choose and has nothing to do with where formicarium's code
-lives. formicarium initializes the repo on first edit and **auto-commits** a few
+remote is yours to choose and has nothing to do with where formicaria's code
+lives. formicaria initializes the repo on first edit and **auto-commits** a few
 seconds after each change, so your history is local from the start; the remote is
 just where you send it.
 
 **Authentication is your existing git setup** — an ssh-agent key or a credential
-helper, exactly as a `git push` in a terminal would use. formicarium stores no
+helper, exactly as a `git push` in a terminal would use. formicaria stores no
 password or token of its own. If you have never pushed from this machine before,
 set up an SSH key with your host first; the app cannot prompt you for one (there
 is nowhere to type it), so it will report an auth failure instead of hanging.
@@ -52,7 +52,7 @@ only copy of it.
 
 Tick **Include media** to also snapshot the whole vault — blobs and all — to a
 [restic](https://restic.net) repository: dedup, encryption, integrity, and
-off-site remotes, none of which formicarium reimplements. It needs two environment
+off-site remotes, none of which formicaria reimplements. It needs two environment
 variables set before you launch:
 
 ```sh

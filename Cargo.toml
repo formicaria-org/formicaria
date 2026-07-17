@@ -1,4 +1,4 @@
-# formicarium — Rust workspace.
+# formicaria — Rust workspace.
 #
 # Seam 1 (the query engine never touches the filesystem) is a COMPILE-TIME
 # guarantee: fm-model and fm-query do not depend on rusqlite, std::fs, or any

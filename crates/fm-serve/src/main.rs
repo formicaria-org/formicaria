@@ -77,7 +77,7 @@ fn main() {
 
     let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
     for (name, path) in &state.vaults {
-        println!("formicarium is serving {name} at {}", path.display());
+        println!("formicaria is serving {name} at {}", path.display());
     }
     println!("open  http://{addr}  in your browser");
 
@@ -389,7 +389,7 @@ impl AppState {
 /// `FM_VAULT` is a single path. Breaking that principle on purpose, in one place, beats
 /// breaking it by accident later.
 ///
-/// `FM_VAULTS` points at the file; otherwise `$XDG_CONFIG_HOME/formicarium/vaults.json`.
+/// `FM_VAULTS` points at the file; otherwise `$XDG_CONFIG_HOME/formicaria/vaults.json`.
 /// Absent means the single-vault setup — `FM_VAULT`, named after its own directory —
 /// which is every install that exists today. Nothing to migrate, and a list of one
 /// behaves exactly like the old single vault.
@@ -448,7 +448,20 @@ fn vault_list_path() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
         .ok()?;
-    Some(base.join("formicarium").join("vaults.json"))
+    let current = base.join("formicaria").join("vaults.json");
+    if current.exists() {
+        return Some(current);
+    }
+    // The rename moved this path. A config left at the old one would otherwise fall
+    // through to the single-vault default — i.e. the other vaults would silently vanish
+    // from every view, which looks exactly like data loss and isn't. Read it if it's
+    // there; the window is small (the config is days old) but the failure isn't.
+    let legacy = base.join("formicarium").join("vaults.json");
+    if legacy.exists() {
+        eprintln!("note: reading {} — move it to {}", legacy.display(), current.display());
+        return Some(legacy);
+    }
+    Some(current)
 }
 
 /// `~` in a config file is what a human writes; nothing else expands it for us.

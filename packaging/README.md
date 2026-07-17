@@ -1,12 +1,12 @@
-# Launching formicarium
+# Launching formicaria
 
-formicarium runs as a local web app: a tiny server (`fm-serve`) serves the UI and
+formicaria runs as a local web app: a tiny server (`fm-serve`) serves the UI and
 fronts the vault over `http://127.0.0.1:8765`, which it opens in your default
 browser.
 
 ## The double-click icon runs the latest release (instantly)
 
-The desktop launcher (`formicarium.sh`) runs the **pre-built release binary**
+The desktop launcher (`formicaria.sh`) runs the **pre-built release binary**
 (`target/release/fm-serve`) — it does **not** rebuild on launch, so a double-click
 starts instantly. It always reflects the last build you made; to update what the
 icon runs, rebuild explicitly:
@@ -29,15 +29,15 @@ pixi run app            # run the already-built release binary (what the icon do
 
 ## App-menu icon + Ubuntu dock (GNOME)
 
-The launcher ships its own icon (`formicarium.svg`, an ant — *formica*).
+The launcher ships its own icon (`formicaria.svg`, an ant — *formica*).
 
 1. Install the desktop entry **and** the themed icon in one step:
    ```sh
    bash packaging/install.sh
    ```
    This copies the icon into your icon theme *by name*
-   (`~/.local/share/icons/hicolor/scalable/apps/formicarium.svg`) and installs the
-   `.desktop` entry with `Icon=formicarium`. A **named, themed** icon is what GNOME
+   (`~/.local/share/icons/hicolor/scalable/apps/formicaria.svg`) and installs the
+   `.desktop` entry with `Icon=formicaria`. A **named, themed** icon is what GNOME
    Shell resolves reliably — an absolute path to an SVG in `Icon=` often shows a
    generic ("yellow") fallback instead. The `Exec=` line still uses an absolute
    path, so edit it if you move the repo.
@@ -47,19 +47,19 @@ The launcher ships its own icon (`formicarium.svg`, an ant — *formica*).
      hot-reload.
    - **X11:** press <kbd>Alt</kbd>+<kbd>F2</kbd>, type `r`, <kbd>Enter</kbd> (or
      log out/in).
-3. **Pin it to the panel/dock:** press <kbd>Super</kbd>, type "formicarium",
+3. **Pin it to the panel/dock:** press <kbd>Super</kbd>, type "formicaria",
    right-click the result → **Add to Favorites**. It now stays on the Ubuntu
    dock; click it to launch.
 
    Prefer the terminal? Add it to the dock declaratively:
    ```sh
-   # append formicarium to the current favourites list
+   # append formicaria to the current favourites list
    current=$(gsettings get org.gnome.shell favorite-apps)
    gsettings set org.gnome.shell favorite-apps \
-     "${current%]*}, 'formicarium.desktop']"
+     "${current%]*}, 'formicaria.desktop']"
    ```
 
-Clicking the icon runs `packaging/formicarium.sh`, which:
+Clicking the icon runs `packaging/formicaria.sh`, which:
 - **first click** → starts the prebuilt release binary (no rebuild) and opens the
   browser once it's up;
 - **click again while it's running** → detects the server and just opens a fresh
@@ -76,14 +76,14 @@ terminal stay up until Ctrl-C.
 
 - **Generic/"yellow" icon.** GNOME resolves a *named, themed* icon reliably, not
   an absolute path — run `bash packaging/install.sh` (installs the icon into the
-  hicolor theme as `Icon=formicarium`), then **log out and back in** (Wayland
+  hicolor theme as `Icon=formicaria`), then **log out and back in** (Wayland
   can't hot-reload the shell). Confirm the entry is valid with
-  `desktop-file-validate ~/.local/share/applications/formicarium.desktop`.
+  `desktop-file-validate ~/.local/share/applications/formicaria.desktop`.
 - **Clicking again doesn't reopen it.** Fixed: the launcher now reopens a tab
   against the running server. If it still misbehaves, an old server may be stuck —
   `pkill -x fm-serve`, then click again.
 - **Launching from a Desktop copy** (not the app menu) needs the file marked
-  trusted: `gio set ~/Desktop/formicarium.desktop metadata::trusted true` and
+  trusted: `gio set ~/Desktop/formicaria.desktop metadata::trusted true` and
   `chmod +x` it.
 - **Nothing opens.** `pixi` may be off the launcher's minimal PATH; the script
   falls back to `~/.pixi/bin/pixi`. Run `pixi run serve` in a terminal once to

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Launch formicarium: open it in your browser, starting the local server only if
-# it isn't already running. Double-clicked via formicarium.desktop, or run
+# Launch formicaria: open it in your browser, starting the local server only if
+# it isn't already running. Double-clicked via formicaria.desktop, or run
 # directly from a terminal.
 #
 # Behaviour:

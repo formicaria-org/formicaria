@@ -1,6 +1,6 @@
 # How to add a feature
 
-formicarium is designed to be extended along its seams, without a plugin API.
+formicaria is designed to be extended along its seams, without a plugin API.
 Here are the common recipes.
 
 ## Add a command (backend function the UI can call)

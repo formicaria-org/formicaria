@@ -1,4 +1,4 @@
-# Plan — formicarium → formicaria, one sequenced program
+# Plan — formicaria, one sequenced program
 
 The single **forward** document: what we intend to build next, in order, and *why not
 the obvious alternative*. It supersedes and folds in the old `roadmap.md` (near-term
@@ -57,18 +57,18 @@ has the substrate and shows a knowledge worker a diff. Obsidian's Git plugin is 
 wrapper with no review, no blob story, no vault-aware views. Notion has the multiplayer
 and owns your data. Thin if our UI is thin; a moat if it's good.
 
-## The name — **cleared to land** (Phase 2 shipped 2026-07-17)
+## The name — **done** (landed 2026-07-17 with Phase 2)
 
 A *formicarium* is one colony's nest; *formicaria* is the plural — a **set** of vaults,
 one per audience, coordinating through git rather than a hub. The singular names the tool
-today; the plural names what it becomes. The rule was **rename when multi-vault (Phase 2)
+today; the plural names what it became. The rule was **rename when multi-vault (Phase 2)
 ships and the plural is literally true — not before**, or the docs promise something that
-doesn't exist. **Phase 2 shipped on 2026-07-17, so the plural is true and this is cleared
-to land** — as its own commit, so it reads as "only strings moved".
+doesn't exist. Phase 2 shipped on 2026-07-17 and **the rename went with it**, as its own
+commit. Kept below because the two traps are permanent, not historical.
 
-**Cost is low and known.** Every crate is already `fm-*` and the binary is `fm`, which
-abbreviates either name — **no code identifiers move.** The blast radius is ~6 user-facing
-strings + `docs/` + `packaging/`:
+**Cost was low and known.** Every crate was already `fm-*` and the binary is `fm`, which
+abbreviates either name — **no code identifiers moved.** The blast radius was ~6
+user-facing strings + `docs/` + `packaging/` + the `formicaria/MASTERPLAN.md` directory:
 
 - `crates/fm-cli/src/main.rs:16` (the CLI `about`)
 - `crates/fm-serve/src/main.rs:63` (the serve banner)
@@ -207,7 +207,7 @@ untouched; and a typo'd vault name is refused, not defaulted.
 writing it back on its **first run**), the **`candidates`** seam (`Store::query` is now a
 default method; FTS5 federates for free — 10 accent-folded hits across two vaults, an
 answer only the index can give), **`MultiStore`**, the **vault-list config file**
-(`~/.config/formicarium/vaults.json`; absent = the single vault, so nothing to migrate),
+(`~/.config/formicaria/vaults.json`; absent = the single vault, so nothing to migrate),
 per-vault git, badges, and a vault filter. Filter/group by vault needed **no**
 query-engine change, exactly as decision 5 predicted.
 
@@ -219,13 +219,14 @@ vault**, because content-addressing makes that correct rather than merely conven
 where vault-scoping references would re-couple notes to locations and break the
 cross-vault links ULIDs give for free.
 
-**⬜ The rename is the one thing left, and its trigger is now met.** The plural is
-literally true, so `formicarium` → `formicaria` can land — as **its own commit**, so it
-stays reviewable as "only strings moved" rather than hiding inside a feature diff. Blast
-radius and the two things that must **not** change are under "The name" above. Re-read it
-first: `formicarium@localhost` is a sentinel `git::identity()` matches **by value**, and
-renaming it hands every vault still running on the placeholder a "real" identity —
-silently reopening the provenance hole Phase 0 closed.
+**✅ And the rename landed with it** (2026-07-17, its own commit — a rename should read as
+"only strings moved"). The tool is **formicaria**. Both booby traps survived contact and
+are now commented *in the code*, because after the rename they look like a missed one:
+`git.rs`'s placeholder identity is a sentinel matched **by value**, and Excalidraw's
+`source` is written into every board's JSON on disk. The `~/.config/formicaria/vaults.json`
+path moved too, with a one-release fallback to the old location — a config left behind
+would otherwise fall through to the single vault and look exactly like the other vaults
+vanishing.
 
 **Phase 3 — the differentiators.**
 
@@ -267,7 +268,7 @@ silently reopening the provenance hole Phase 0 closed.
 
 ## The code wins — stale lines to distrust in MASTERPLAN
 
-`formicarium/MASTERPLAN.md` is the canonical *spec* but has drifted from the code; per this
+`formicaria/MASTERPLAN.md` is the canonical *spec* but has drifted from the code; per this
 folder's own rule, **the code wins**. Known-stale, left uncorrected in the spec on purpose
 (flagged here instead of churning a 51 KB doc):
 

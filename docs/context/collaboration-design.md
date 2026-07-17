@@ -23,7 +23,7 @@ different repo. **Resist every urge to add a fourth thing.** The moment scheduli
 gets its own store, or messages get their own format, the tool has three products
 to maintain and the atom stops paying rent.
 
-### The name: formicarium → formicaria
+### The name: formicarium → formicaria *(done — landed 2026-07-17 with Phase 2)*
 
 A *formicarium* is one ant colony's nest. The plural is the architecture: a set of
 vaults, one per audience (3), each served by its own instance, coordinating through
@@ -39,8 +39,10 @@ six user-facing strings (`fm-cli/src/main.rs:16`, `fm-serve/src/main.rs:63`,
 `App.svelte:253` / `mock.ts:171`), plus `docs/` and `packaging/`. Two cautions: the
 Excalidraw `source` field is **written into every board's JSON on disk**, so
 changing it changes files — leave it or migrate deliberately; and
-`git.rs:67-70`'s `formicarium@localhost` is not a rename target but a **bug to
-delete** (Phase 0 asks for a real identity instead).
+`git.rs`'s `formicarium@localhost` is not a rename target. *(Updated: the audit called it a
+bug to delete; Phase 0 found deleting it breaks committing on any non-FQDN host, so it was
+kept as a **sentinel** `identity()` matches by value. The rename landed 2026-07-17 and
+deliberately left this literal alone.)*
 
 ## Principles this plan is held to
 

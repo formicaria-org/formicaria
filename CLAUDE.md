@@ -4,12 +4,12 @@
 and then [`docs/context/overview.md`](./docs/context/overview.md).**
 
 `docs/context/` is this project's working memory — a compact synthesis of what
-formicarium is, what we built and *why*, and what is *not* working. It exists so
+formicaria is, what we built and *why*, and what is *not* working. It exists so
 you can reconstruct the repo's context **without a large context window**. Skim
 the file there that matches your task (`decisions.md` before you change a design,
 `known-issues.md` for gaps + toolchain traps) before you start.
 
-The canonical design spec is [`formicarium/MASTERPLAN.md`](./formicarium/MASTERPLAN.md);
+The canonical design spec is [`formicaria/MASTERPLAN.md`](./formicaria/MASTERPLAN.md);
 `docs/src/` is the mdBook **user** manual. `docs/context/` is the fast-recall
 maintainer layer over both.
 

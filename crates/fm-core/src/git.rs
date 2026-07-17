@@ -27,6 +27,17 @@ const REMOTE: &str = "origin";
 /// turns "no git config" into a single question, asked once, at the only moment the
 /// answer matters — and it lets a vault that has been running on the placeholder for
 /// months heal itself the moment the user answers.
+///
+/// # Do not rename this to `formicaria`
+///
+/// It says `formicarium` in a project called *formicaria*, and it must keep saying so.
+/// This is a **sentinel matched by value**, not a brand: [`identity`] compares against
+/// this exact string to decide "nobody real signs this vault". Every vault already
+/// running on the old placeholder still has `formicarium@localhost` in its
+/// `.git/config`, and a vault's config is per-machine — we cannot migrate what we
+/// cannot see. Rename the literal and every one of those vaults silently acquires a
+/// "real" identity called *formicaria*, `set_remote` stops asking, and the provenance
+/// hole this was written to close is quietly open again.
 const PLACEHOLDER_NAME: &str = "formicarium";
 const PLACEHOLDER_EMAIL: &str = "formicarium@localhost";
 
@@ -113,7 +124,7 @@ fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
 fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
     let Some(exe) = merge_command() else { return Ok(()) };
     for (key, value) in [
-        ("merge.fm.name", "formicarium frontmatter-aware note merge".to_string()),
+        ("merge.fm.name", "formicaria frontmatter-aware note merge".to_string()),
         // %O base, %A ours (and where the answer goes), %B theirs, %L marker size.
         ("merge.fm.driver", format!("'{exe}' merge-md %O %A %B %L")),
     ] {

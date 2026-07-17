@@ -1,6 +1,6 @@
-# Running formicarium
+# Running formicaria
 
-formicarium runs in your browser, served by a small local process. Everything is
+formicaria runs in your browser, served by a small local process. Everything is
 pinned through [pixi](https://pixi.sh), so the toolchain and subprocess tools
 (`pdftotext`, `vipsthumbnail`, `restic`) are reproducible.
 
@@ -28,8 +28,8 @@ FM_VAULT=~/notes pixi run serve
 A desktop launcher is provided in `packaging/`:
 
 ```sh
-chmod +x packaging/formicarium.sh
-cp packaging/formicarium.desktop ~/.local/share/applications/
+chmod +x packaging/formicaria.sh
+cp packaging/formicaria.desktop ~/.local/share/applications/
 ```
 
 Double-clicking it runs the launcher (which sets `FM_OPEN=1`) and opens your

@@ -2,21 +2,25 @@
 
 Condensed, load-bearing decisions and reversals. Each entry is: **decision —
 why — consequence**. The canonical, fuller spec is
-[`formicarium/MASTERPLAN.md`](../../formicarium/MASTERPLAN.md); this is the
+[`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
-## formicaria: three pillars, one atom; rename deferred to Phase 2 (2026-07-17)
+## formicaria: three pillars, one atom; renamed when the plural became true (2026-07-17)
 **Why:** the tool grows into *knowledge management + task scheduling + collaboration*
 without becoming three products. **Consequence:** those are three **views of one Markdown
 file** — a task is a note with a `due`, a message a note with a target, a shared note a
 note in a different repo — so *resist adding a fourth thing*. The full sequenced program
 lives in [plan.md](./plan.md) (Track S single-user + Track C collaboration), with
-[collaboration-design.md](./collaboration-design.md) as its code audit. **The name changes
-only when it is true:** `formicarium`→`formicaria` (the plural = a *set* of vaults) is a
-Phase-2 change, when multi-vault ships. No code identifiers move (`fm-*`/`fm` fit either
-name); the blast radius is ~6 user-facing strings + `docs/`/`packaging/`. The
-`formicarium@localhost` git identity is **not** a rename target — see the identity entry
-below for why renaming that literal would silently reopen a hole Phase 0 closed.
+[collaboration-design.md](./collaboration-design.md) as its code audit. **The name changed
+only once it was true:** `formicarium`→`formicaria` (the plural = a *set* of vaults) waited
+for multi-vault to ship, and landed with it on 2026-07-17 as its own commit — a rename
+should read as "only strings moved". No code identifiers moved (`fm-*`/`fm` fit either
+name). **Two literals still say `formicarium` on purpose**, and are commented in place
+because they now look like a missed rename: `git.rs`'s placeholder identity is a *sentinel
+matched by value* (renaming it hands every vault still on the placeholder a "real"
+identity and silently reopens the hole Phase 0 closed — see the identity entry below), and
+Excalidraw's `source` field is written into **every board's JSON on disk**, so renaming it
+would rewrite every board file for a string nobody sees.
 
 ## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17)
 **Why:** multi-vault forced three questions the plan had collapsed into "wiring", and each
@@ -281,7 +285,7 @@ small, plain, mergeable → git carries them anywhere, authenticated by the user
 own ssh-agent/credential-helper, so **the app stores no secret**. Blobs are heavy
 and git-ignored → only restic sees them. The button used to run restic
 unconditionally, which was *broken-by-default*: it needs `FM_RESTIC_REPO` +
-`RESTIC_PASSWORD` and `packaging/formicarium.sh` never sets them, so every
+`RESTIC_PASSWORD` and `packaging/formicaria.sh` never sets them, so every
 desktop-icon launch errored. This is the settled split elsewhere (Zotero syncs
 metadata and file attachments as separate tiers; git-annex/git-LFS put a pointer
 in git and content in special remotes; photo managers back up a small catalog and

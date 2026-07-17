@@ -1,6 +1,6 @@
 # Architecture
 
-formicarium is a small Rust workspace behind a browser UI. The design is built
+formicaria is a small Rust workspace behind a browser UI. The design is built
 on three seams so that each layer can change without breaking the others.
 
 ## The three seams

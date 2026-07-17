@@ -4,7 +4,7 @@
 
 # User guide
 
-- [Running formicarium](./user/running.md)
+- [Running formicaria](./user/running.md)
 - [Views](./user/views.md)
 - [Creating & organizing notes](./user/notes.md)
 - [Assets & media](./user/assets.md)

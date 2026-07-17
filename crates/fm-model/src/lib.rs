@@ -1,4 +1,4 @@
-//! Pure data model for formicarium. No filesystem, no database — this crate is
+//! Pure data model for formicaria. No filesystem, no database — this crate is
 //! part of the compile-time guarantee that the query engine never touches I/O.
 
 use std::collections::BTreeMap;

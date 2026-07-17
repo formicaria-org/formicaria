@@ -1,6 +1,6 @@
-# formicarium — master plan
+# formicaria — master plan
 
-**The single, self-contained specification for formicarium. Drafted 2026-07-14; revised 2026-07-15 (browser-first: the native Tauri window was removed and the app now runs in the browser via a local `fm-serve`).** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
+**The single, self-contained specification for formicaria. Drafted 2026-07-14; revised 2026-07-15 (browser-first: the native Tauri window was removed and the app now runs in the browser via a local `fm-serve`).** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
 
 ---
 
@@ -28,7 +28,7 @@ An adversarial review of the earlier drafts drove the decisions below. Stated pl
 
 A local, browser-based tool (a localhost server + your browser): capture ideas fast, retrieve them years later, see the closest deadline, and keep every figure/deck/paper/recording attached to the thought that produced it. Binaries: `fm` (CLI) and `fm-serve` (the local server); the UI is served to your browser.
 
-**The name.** A formicarium is the apparatus you build so that an emergent structure becomes observable — you provide the medium and the glass, the colony digs the tunnels. Notes accumulate; views reveal the structure that formed. Don't impose the taxonomy — build the glass. The binary is `fm` (not `formica` — that's a countertop; and never `ant` — Apache Ant has owned that command for twenty-five years).
+**The name.** A formicaria is the apparatus you build so that an emergent structure becomes observable — you provide the medium and the glass, the colony digs the tunnels. Notes accumulate; views reveal the structure that formed. Don't impose the taxonomy — build the glass. The binary is `fm` (not `formica` — that's a countertop; and never `ant` — Apache Ant has owned that command for twenty-five years).
 
 **Success:** used daily for three months without wanting to leave. **It can fail only two ways: capture is slow, or retrieval fails.** Everything else is decoration — optimize against those two above all.
 
@@ -38,7 +38,7 @@ A local, browser-based tool (a localhost server + your browser): capture ideas f
 
 The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, desktop) structurally avoids the four deadliest recurring killers and consciously accepts the rest.
 
-| Recurring failure mode | Who it killed / hurt | formicarium's answer |
+| Recurring failure mode | Who it killed / hurt | formicaria's answer |
 |---|---|---|
 | Cloud / proprietary lock-in, weak offline, lossy export | Notion (CSV-not-MD export, CDN images break), Evernote (ENEX loss), Roam, Tana | **Files-as-truth in open Markdown+YAML.** Nothing to export; offline by construction; "leave anytime" is free. |
 | Plugin / ecosystem rot + plugin security holes | Obsidian (Kanban/Projects/Dataview abandoned; community plugins run **unsandboxed with full filesystem + network access to your entire corpus** — a structural supply-chain attack surface) | **No third-party plugin API.** Extension = modular Rust core + declarative `.view` files + a personal Lua hatch. No external maintainers to abandon you; no unsandboxed attack surface. |
@@ -126,7 +126,7 @@ Everything queryable is a property; everything heavy is a pointer. Six months la
 The application folder holds the app; the knowledge is a subfolder (its own independent git repo; the app's `.gitignore` excludes it). Vault path is configurable (default `./vault`).
 
 ```
-formicarium/                    # the application (Rust workspace + frontend) — app's own git repo
+formicaria/                    # the application (Rust workspace + frontend) — app's own git repo
 └── vault/                      # THE KNOWLEDGE — a separate git repo
     ├── notes/                  # *.md — git-TRACKED text (the truth)
     ├── views/*.view            # declarative views (TOML) — git-tracked
@@ -230,7 +230,7 @@ The stack spans three dependency domains, and only two of them have an obvious h
 **Sketch (`pixi.toml`, pin at first commit):**
 ```toml
 [project]
-name = "formicarium"
+name = "formicaria"
 channels = ["conda-forge"]
 platforms = ["linux-64"]          # desktop-only v1; add osx-arm64 when a Mac build is wanted
 
@@ -394,7 +394,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 
 **Verdict: light at this scale; the architecture is sound.** Boot loads a **72 KB** entry chunk; a plain note adds ~135 KB; KaTeX and Mermaid are *doubly* lazy — behind the note-panel dynamic import **and** feature-gated (no `$` → no KaTeX; no ` ```mermaid ` → no Mermaid). There are **no background threads, timers, watchers, or polling** — zero idle CPU from our code. The Rust working set is tens of MB.
 
-**Superseded by the move to a browser app (2026-07-15).** The old worry here was WebKitGTK's ~150–300 MB idle RAM from the embedded webview. That cost is gone: formicarium no longer ships a webview. The server (`fm-serve`) is std-only — no HTTP framework, no bundled browser — so its resident set is tens of MB; the UI runs in a browser the user already has open. The single-digit-MB Rust binaries and the lazy KaTeX/Mermaid budgets still hold. **Decision: the browser is the product; keep the server tiny.**
+**Superseded by the move to a browser app (2026-07-15).** The old worry here was WebKitGTK's ~150–300 MB idle RAM from the embedded webview. That cost is gone: formicaria no longer ships a webview. The server (`fm-serve`) is std-only — no HTTP framework, no bundled browser — so its resident set is tens of MB; the UI runs in a browser the user already has open. The single-digit-MB Rust binaries and the lazy KaTeX/Mermaid budgets still hold. **Decision: the browser is the product; keep the server tiny.**
 
 **Tuning applied (this pass):**
 - **Mermaid gated to a lightweight set** — the cytoscape-backed `architecture`/`mindmap` diagrams are aliased out of the bundle (`ui/vite.config.ts` → `ui/src/lib/cytoscape-stub.ts`), dropping ~0.6 MB of graph libraries (`ui/dist` 5.1 MB → 4.5 MB). Everyday diagrams (flowchart, sequence, gantt, class, state, ER, pie, …) use dagre and are unaffected; a dropped type fails gracefully to its code fence (`render.ts` per-block `try/catch`).

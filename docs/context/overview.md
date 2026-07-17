@@ -19,10 +19,12 @@ conflict lands **in the body**, leaving the note parseable and editable. **Phase
 too: the plural is now true** — a *set* of vaults, each its own repo and audience, under
 one set of views (`Object.vault` derived from location and never serialized — *location is
 the permission*; the **`candidates` seam** so `Store::query` is a default method and FTS5
-federates for free; `MultiStore`; the vault list at `~/.config/formicarium/vaults.json`;
+federates for free; `MultiStore`; the vault list at `~/.config/formicaria/vaults.json`;
 **per-vault git** — the backup panel is a list, not a form; **blobs searched across
-vaults**; badges + a vault filter). **The rename (`formicarium`→`formicaria`) is the one
-thing left and is finally cleared to land** — read `plan.md`'s "The name" first, twice.
+vaults**; badges + a vault filter). **And the rename landed with it: the tool is
+`formicaria` now**, the plural being the architecture. Two literals deliberately still say
+`formicarium` and are commented as such — `git.rs`'s placeholder identity (a sentinel
+matched by value) and Excalidraw's `source` (written into every board on disk).
 Before that, **Phase 0 made the app survive a merge**: four fixes, each a single-user bug today and data loss the moment a vault is
 shared: `reindex` **skips an unreadable note** instead of failing
 `FileStore::open` (one conflicted `.md` used to brick startup — `fm-serve` names it on
@@ -33,8 +35,8 @@ anything fetches; and a vault needs a **real committer identity before it can ga
 remote** — the backup panel asks for a name and email, but only of people git has never met
 (`git::identity`, `backup_status.identity`). The `formicarium@localhost` placeholder
 survives **as a sentinel** for audience-less vaults and must not be renamed
-(`decisions.md`). Before that, the **forward plan was consolidated** into [plan.md](./plan.md) (the formicarium→formicaria
-program: Track S single-user + Track C collaboration; `roadmap.md` folded in,
+(`decisions.md`). Before that, the **forward plan was consolidated** into [plan.md](./plan.md) (the program:
+Track S single-user + Track C collaboration; `roadmap.md` folded in,
 `collaboration-design.md` kept as its audit). Before that,
 **backup is now two tiers** (`BackupPanel.svelte`):
 the button opens a panel that sets the vault's **git remote in-app** and pushes
@@ -71,10 +73,10 @@ the canvas → agenda/calendar/board-trackable). **Sidebar is search-first**: th
 persistent Search field is the primary input, with New note / New board buttons
 below (quick-capture box removed). Gallery removed. On top of note-delete, media
 copy-notice, column reorder, SVG fix. Next work is planned in
-[plan.md](./plan.md) — the sequenced formicarium→formicaria program (Track S:
+[plan.md](./plan.md) — the sequenced program (Track S:
 calendar sync, whiteboard-in-note + PDF; Track C: collaboration)._
 
-## What formicarium is
+## What formicaria is
 
 A **local-first research notebook / PKM**, single-user by default and shareable per
 vault. Guiding principle:
