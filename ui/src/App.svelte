@@ -95,6 +95,45 @@
   }
   let cardOrders = $state<Record<string, Record<string, string[]>>>(loadCardOrders());
 
+  // Which audiences to show. A **view preference**, like the column order — it lives in
+  // localStorage and never in a vault, because what you are currently looking at is not
+  // knowledge and would embarrass you in five years. Hiding a vault hides its notes from
+  // the views; it does not, and must not, mean anything about who can see them. That is
+  // decided by which repo holds the file, and nothing in this browser can change it.
+  let hiddenVaults = $state<string[]>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem('fm-hidden-vaults') ?? '[]');
+      } catch {
+        return [];
+      }
+    })(),
+  );
+  // Derived from the *unfiltered* data, so hiding the last vault does not also hide the
+  // chip you would use to bring it back.
+  const allVaults = $derived(
+    [
+      ...new Set(
+        [...(board?.columns.flatMap((c) => c.cards) ?? []), ...(cards ?? [])]
+          .map((n) => n.vault)
+          .filter(Boolean),
+      ),
+    ].sort(),
+  );
+  const shown = (n: ObjectMeta) => !n.vault || !hiddenVaults.includes(n.vault);
+  const visibleCards = $derived(cards?.filter(shown) ?? null);
+
+  function toggleVault(name: string) {
+    hiddenVaults = hiddenVaults.includes(name)
+      ? hiddenVaults.filter((v) => v !== name)
+      : [...hiddenVaults, name];
+    try {
+      localStorage.setItem('fm-hidden-vaults', JSON.stringify(hiddenVaults));
+    } catch {
+      // A browser that won't remember the preference still honours it this session.
+    }
+  }
+
   // The board with columns arranged by the saved order for the current grouping,
   // and each column's cards arranged by the saved drop order.
   let displayBoard = $derived(
@@ -103,7 +142,11 @@
           ...board,
           columns: orderColumns(board.columns, orders[groupBy] ?? []).map((c) => ({
             ...c,
-            cards: arrange(c.cards, cardOrders[groupBy]?.[c.value] ?? [], (n) => n.id),
+            cards: arrange(
+              c.cards.filter(shown),
+              cardOrders[groupBy]?.[c.value] ?? [],
+              (n) => n.id,
+            ),
           })),
         }
       : null,
@@ -431,6 +474,25 @@
       </li>
     </ul>
 
+    <!-- Only when there is a boundary to draw. One vault means no audiences to tell
+         apart, and a filter with one chip is furniture. -->
+    {#if allVaults.length > 1 && !railCollapsed}
+      <div class="vaults">
+        <span class="vaults-label">Vaults</span>
+        {#each allVaults as v (v)}
+          <button
+            class="vault-chip"
+            class:off={hiddenVaults.includes(v)}
+            aria-pressed={!hiddenVaults.includes(v)}
+            onclick={() => toggleVault(v)}
+            title={hiddenVaults.includes(v) ? `Show ${v}` : `Hide ${v}`}
+          >
+            {v}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     <div class="sidebar-foot">
       <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
         <Icon name="command" />
@@ -487,14 +549,14 @@
         {/if}
       {:else if view === 'search'}
         <Search cards={results} query={searchQuery} onopen={openNote} />
-      {:else if !cards}
+      {:else if !visibleCards}
         <p class="empty">Loading…</p>
       {:else if view === 'timeline'}
-        <Timeline {cards} onopen={openNote} statuses={knownStatuses} onstatus={onSetStatus} />
+        <Timeline cards={visibleCards} onopen={openNote} statuses={knownStatuses} onstatus={onSetStatus} />
       {:else if agendaMode === 'list'}
-        <Agenda {cards} onopen={openNote} />
+        <Agenda cards={visibleCards} onopen={openNote} />
       {:else}
-        <Calendar {cards} range={agendaMode === 'week' ? 'week' : 'month'} onopen={openNote} />
+        <Calendar cards={visibleCards} range={agendaMode === 'week' ? 'week' : 'month'} onopen={openNote} />
       {/if}
     </div>
   </div>
@@ -726,6 +788,39 @@
     background: var(--accent-subtle);
     color: var(--accent);
     font-weight: 600;
+  }
+  /* Hiding a vault is a view preference and nothing more — it changes what is on
+     screen, never who can see a note. The chips are quiet on purpose: they must not
+     read like a permission control. */
+  .vaults {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0 var(--space-3) var(--space-3);
+    align-items: center;
+  }
+  .vaults-label {
+    width: 100%;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.2rem;
+  }
+  .vault-chip {
+    font-size: 0.68rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+  }
+  .vault-chip.off {
+    color: var(--text-muted);
+    opacity: 0.5;
+    text-decoration: line-through;
   }
   .sidebar-foot {
     margin-top: auto;

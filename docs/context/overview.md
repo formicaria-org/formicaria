@@ -4,9 +4,10 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-17 — **Track C Phases 0 and 1 shipped: a shared vault works**
-(`sessions/2026-07-17-phase-1.md`). Two people can now edit different paragraphs of the
-same note and the merge is **clean** — verified as a real round trip through the API, not
+_Last verified: 2026-07-17 — **Track C Phases 0, 1 and 2 shipped: a shared vault works, and
+the plural is true** (`sessions/2026-07-17-phase-{0,1,2}.md`). Two people can now edit
+different paragraphs of the same note and the merge is **clean**, across a *set* of vaults
+each with its own repo and audience — verified as a real round trip through the API, not
 just in tests. Phase 1 added: the **`FileStore::put` staleness guard**
 (`StoreError::Conflict` — *the* lost-update bug, where a board drag rewrote the whole file
 from a stale copy); **incremental reindex** + a **3 s local poll** folded into the existing
@@ -14,13 +15,15 @@ from a stale copy); **incremental reindex** + a **3 s local poll** folded into t
 SQLite); **`git::remote_moved`** (one `ls-remote`, moves no refs) and **`pull`**; and the
 **`.md` merge driver** (`fm-core/src/merge.rs`, `fm merge-md`, installed by `ensure_repo`)
 which resolves `updated:`/`tags` structurally and hands the body to `git merge-file` — so a
-conflict lands **in the body**, leaving the note parseable and editable. **Phase 2's core
-also landed** — `Object.vault` (derived from location, never serialized: *location is the
-permission*), the **`candidates` seam** (`Store::query` is now a default method; FTS5
-federates for free) and **`MultiStore`** — but its product half is **blocked on two
-decisions the plan never made** (every git command and every blob lookup is per-vault; see
-`plan.md`), so **multi-vault is not usable yet and nothing but tests construct a
-`MultiStore`**. Before that, **Phase 0 made the app survive a merge**: four fixes, each a single-user bug today and data loss the moment a vault is
+conflict lands **in the body**, leaving the note parseable and editable. **Phase 2 shipped
+too: the plural is now true** — a *set* of vaults, each its own repo and audience, under
+one set of views (`Object.vault` derived from location and never serialized — *location is
+the permission*; the **`candidates` seam** so `Store::query` is a default method and FTS5
+federates for free; `MultiStore`; the vault list at `~/.config/formicarium/vaults.json`;
+**per-vault git** — the backup panel is a list, not a form; **blobs searched across
+vaults**; badges + a vault filter). **The rename (`formicarium`→`formicaria`) is the one
+thing left and is finally cleared to land** — read `plan.md`'s "The name" first, twice.
+Before that, **Phase 0 made the app survive a merge**: four fixes, each a single-user bug today and data loss the moment a vault is
 shared: `reindex` **skips an unreadable note** instead of failing
 `FileStore::open` (one conflicted `.md` used to brick startup — `fm-serve` names it on
 stderr, though it is still invisible in-app: see known-issues); `commit_all` **refuses
@@ -30,8 +33,7 @@ anything fetches; and a vault needs a **real committer identity before it can ga
 remote** — the backup panel asks for a name and email, but only of people git has never met
 (`git::identity`, `backup_status.identity`). The `formicarium@localhost` placeholder
 survives **as a sentinel** for audience-less vaults and must not be renamed
-(`decisions.md`). **The collaboration gate is open; Phase 1 is next.** Before that, the
-**forward plan was consolidated** into [plan.md](./plan.md) (the formicarium→formicaria
+(`decisions.md`). Before that, the **forward plan was consolidated** into [plan.md](./plan.md) (the formicarium→formicaria
 program: Track S single-user + Track C collaboration; `roadmap.md` folded in,
 `collaboration-design.md` kept as its audit). Before that,
 **backup is now two tiers** (`BackupPanel.svelte`):
@@ -74,7 +76,8 @@ calendar sync, whiteboard-in-note + PDF; Track C: collaboration)._
 
 ## What formicarium is
 
-A **local-first, single-user research notebook / PKM**. Guiding principle:
+A **local-first research notebook / PKM**, single-user by default and shareable per
+vault. Guiding principle:
 **files-as-truth** — a note *is* a Markdown file with YAML frontmatter, one note
 per file, that the user owns. In the worst case the notes survive as plain text
 on disk/GitHub, readable without this app. Heavy media (images, PDFs, video) are

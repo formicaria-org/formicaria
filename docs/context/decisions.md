@@ -18,6 +18,46 @@ name); the blast radius is ~6 user-facing strings + `docs/`/`packaging/`. The
 `formicarium@localhost` git identity is **not** a rename target — see the identity entry
 below for why renaming that literal would silently reopen a hole Phase 0 closed.
 
+## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17)
+**Why:** multi-vault forced three questions the plan had collapsed into "wiring", and each
+has a wrong answer that loses data quietly. **Consequences, in order of how badly the
+wrong answer bites:**
+
+**Git is per-vault, so the backup panel is a list, not a form.** One vault = one repo =
+one remote = one collaborator list, so `commit`/`push`/`pull`/`set_git_remote`/
+`set_identity` each take a vault, and `backup_status` returns one entry per vault: N
+remotes, N identities, N unpushed counts, N "someone pushed". There is no honest way to
+collapse those — a single "unpushed" across a set of vaults is a number about nothing. The
+tempting shortcut, letting `push` mean "the first vault", is exactly the overstatement
+`destination.ts` was written to prevent: a backup that silently skips the lab vault. The
+verdict names the vaults that did **not** make it, because "your notes are backed up"
+while one sat still is the one sentence this panel must never say. An **unknown** vault
+name is an error, never a fallback: writing a lab note into personal is a disclosure git
+history makes permanent, and the reverse loses it. *Identity is per-vault too* — a vault is
+an audience, so the name on a lab repo need not be the one on your personal notes.
+
+**Blob resolution searches every vault.** A `sha256:` reference deliberately does not say
+which vault holds the bytes, and it must not: that is what keeps a cross-vault `note:`/
+`asset:` link free and lets ULIDs stay the only identifier anyone needs. Searching is not
+a shortcut, it is *correct* — content-addressing means whichever vault answers, the bytes
+hash to the reference, so they are the same bytes. **Rejected:** vault-scoping references,
+which would re-couple a note to a location and break the links Phase 2 gets for nothing.
+*Ingest is the exception and takes an explicit vault*: a blob should land beside the notes
+that will reference it, never in an audience that shouldn't have it.
+
+**restic does not respect vault boundaries, and says so.** One repo, one password, every
+vault — because restic is *backup*, not distribution: a snapshot is disaster recovery for
+the person who owns all these vaults anyway, so mirroring git's boundaries into it would
+buy nothing and cost a repo and a password per vault. The asymmetry with the git tier is
+real, so the panel states it rather than implying otherwise with a per-vault checkbox that
+doesn't exist.
+
+**Hiding a vault is a view preference, not a permission.** The filter lives in
+localStorage next to the column order, and filters client-side. It changes what is on
+screen and nothing else; who can see a note is decided by which repo holds the file, and
+nothing in a browser can change that. The chips are styled quiet so they never read like
+an access control.
+
 ## Notes merge through a driver that shells out for the body — and is never installed unless it can run (2026-07-17)
 **Why:** `updated:` is rewritten on every save, so *any* two concurrent edits to one note
 collide on that line even when the two people touched different paragraphs — and git's

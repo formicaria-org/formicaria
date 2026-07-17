@@ -9,11 +9,12 @@ sequence and the rulings; that file carries the receipts.
 Like the collaboration doc, most of what's below does **not exist yet**. When a line
 ships, delete it here and fold the outcome into `overview.md` / `decisions.md`.
 
-_Last updated: 2026-07-17, after **Track C Phases 0 and 1 shipped** — one shared vault now
-works end-to-end (two people, one note, clean merge, round trip) — and **Phase 2's core
-landed** (`Object.vault`, the `candidates` federation seam, `MultiStore`). **Phase 2's
-product half is blocked on two decisions this file never made — see Phase 2.** Everything
-else here still describes things that do not exist._
+_Last updated: 2026-07-17, after **Track C Phases 0, 1 and 2 shipped**: a shared vault
+works end-to-end (two people, one note, clean merge, round trip) and **the plural is now
+literally true** — a set of vaults, each its own repo and audience, under one set of views.
+**The rename is the next thing, and its trigger is finally met** (see Phase 2 and "The
+name"). After that, Phase 3. Everything else here still describes things that do not
+exist._
 
 ## The vision — *formicaria*
 
@@ -56,12 +57,14 @@ has the substrate and shows a knowledge worker a diff. Obsidian's Git plugin is 
 wrapper with no review, no blob story, no vault-aware views. Notion has the multiplayer
 and owns your data. Thin if our UI is thin; a moat if it's good.
 
-## The name — rename is **deferred to Phase 2**
+## The name — **cleared to land** (Phase 2 shipped 2026-07-17)
 
 A *formicarium* is one colony's nest; *formicaria* is the plural — a **set** of vaults,
 one per audience, coordinating through git rather than a hub. The singular names the tool
-today; the plural names what it becomes. **Rename when multi-vault (Phase 2) ships and the
-plural is literally true — not before**, or the docs promise something that doesn't exist.
+today; the plural names what it becomes. The rule was **rename when multi-vault (Phase 2)
+ships and the plural is literally true — not before**, or the docs promise something that
+doesn't exist. **Phase 2 shipped on 2026-07-17, so the plural is true and this is cleared
+to land** — as its own commit, so it reads as "only strings moved".
 
 **Cost is low and known.** Every crate is already `fm-*` and the binary is `fm`, which
 abbreviates either name — **no code identifiers move.** The blast radius is ~6 user-facing
@@ -193,45 +196,36 @@ without asking) is not wired. Conflicted notes are listed by name in that panel,
 driver puts markers in the **body** so they open in the editor — but there is no
 list outside the panel. `FileStore::skipped()` is still stderr-only.
 
-**Phase 2 — multi-vault** *(and the rename lands here).* **Half built** — the core landed
-2026-07-17 ([`sessions/2026-07-17-phase-2-core.md`](./sessions/2026-07-17-phase-2-core.md)),
-the product half is **blocked on a decision this plan never made** (below).
+**Phase 2 — multi-vault. ✅ SHIPPED 2026-07-17** —
+[`sessions/2026-07-17-phase-2.md`](./sessions/2026-07-17-phase-2.md). Verified against two
+real vaults through the API: a capture with no vault named lands in the default; the board
+spans both with each note badged by where it actually lives; `vault:` appears in **zero**
+files; `backup_status` is a per-vault list; a remote set on `lab` leaves `personal`
+untouched; and a typo'd vault name is refused, not defaulted.
 
-- ✅ **`Object.vault`** — a real field, explicit `get()` arm, nothing in `to_file`,
-  stripped by `from_file`. The trap was real and the byte round-trip test caught it on its
-  first run: `to_file` writes every `extra` key back, so a `vault` in `extra` *did*
-  serialize into frontmatter until `to_file` learned to skip it. *Location is the
-  permission, never a content field.*
-- ✅ **The `candidates(&Filter) → (Vec<Object>, residual Filter)` seam.** `Store::query` is
-  now a default method running `fm_query::run` once over the union. FTS5 federates for
-  free (proven: 10 accent-folded hits across two vaults — an answer only the index can
-  give), grouping/pagination stay correct, `fm-query` never learned storage exists.
-- ✅ **`MultiStore`** (`fm-core/src/multi.rs`) over local clones. Filter/group by vault
-  needed **no** query-engine change, exactly as decision 5 predicted. Writes route by
-  `obj.vault` to exactly one child; an unknown vault is refused, not defaulted.
-- ❌ **The product half**: the vault-list config file, badges + the vault filter, the
-  rename.
+`Object.vault` (derived, never serialized — the byte round-trip test caught `to_file`
+writing it back on its **first run**), the **`candidates`** seam (`Store::query` is now a
+default method; FTS5 federates for free — 10 accent-folded hits across two vaults, an
+answer only the index can give), **`MultiStore`**, the **vault-list config file**
+(`~/.config/formicarium/vaults.json`; absent = the single vault, so nothing to migrate),
+per-vault git, badges, and a vault filter. Filter/group by vault needed **no**
+query-engine change, exactly as decision 5 predicted.
 
-**The unmade decision — read before starting.** `MultiStore` slots behind the `Store`
-trait, so *reading* is done. But **all 16 of `fm-serve`'s `state.vault` uses are
-per-vault**, and they are two different problems this plan collapsed into one:
+**The two decisions this file never made, now made** (full entries in `decisions.md`): git
+is per-vault, so the backup panel became a **list, not a form** — N remotes, N identities,
+N "someone pushed" — because a `push` that quietly meant "the first vault" is the
+overstatement `destination.ts` exists to prevent; and **blob resolution searches every
+vault**, because content-addressing makes that correct rather than merely convenient,
+where vault-scoping references would re-couple notes to locations and break the
+cross-vault links ULIDs give for free.
 
-1. **Git is per-vault by definition** — one vault = one repo = one remote = one
-   collaborator list. So `commit`/`push`/`pull`/`set_git_remote`/`set_identity`/
-   `backup_status` each need a vault argument, and the backup panel becomes a per-vault
-   surface (*N* remotes, *N* identities, *N* unpushed counts, *N* "someone pushed"). This
-   is not wiring; it is the panel's whole shape. **Do not let `push` quietly mean "the
-   first vault"** — a backup that silently skips the lab vault is the exact
-   overstatement `destination.ts` exists to prevent.
-2. **Blobs are per-vault too** — `resolve_asset`/`asset_status`/`ingest`/`blob_path` take
-   a vault path, and a lab PDF lives in the lab vault's `blobs/`. A `sha256:` reference in
-   a note does not say which vault holds the bytes. Either resolution searches every vault
-   (cheap, and *correct* — content-addressing means identical bytes whichever vault
-   answers) or references get vault-scoped. **Searching is probably right; decide it,
-   don't discover it.**
-
-Neither is hard. Both are decisions, and Phase 2's UI cannot be designed until they are
-made.
+**⬜ The rename is the one thing left, and its trigger is now met.** The plural is
+literally true, so `formicarium` → `formicaria` can land — as **its own commit**, so it
+stays reviewable as "only strings moved" rather than hiding inside a feature diff. Blast
+radius and the two things that must **not** change are under "The name" above. Re-read it
+first: `formicarium@localhost` is a sentinel `git::identity()` matches **by value**, and
+renaming it hands every vault still running on the placeholder a "real" identity —
+silently reopening the provenance hole Phase 0 closed.
 
 **Phase 3 — the differentiators.**
 

@@ -76,20 +76,27 @@ export async function ingestFile(file: File): Promise<ObjectMeta> {
 // no media. Heavy: snapshot the whole vault, blobs included, to restic (repo +
 // password from the env). `backupStatus` reports what each tier could do right
 // now, so the panel promises only what it can deliver.
-export const commit = (message: string) => invoke<boolean>('commit', { message });
+// Git is per vault — one vault is one repo, one remote, one collaborator list — so
+// every command below names the vault it acts on. An empty/absent name means the
+// default (the first configured vault), which is what a single-vault install always is.
+export const commit = (message: string, vault = '') =>
+  invoke<boolean>('commit', { message, vault });
 export const backup = () => invoke<void>('backup');
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
 /** Point the vault at a remote. `name`/`email` are sent only when the vault has no
  *  identity yet — sharing a vault is what makes the committer name matter, so it is
  *  the one moment worth asking. */
-export const setGitRemote = (url: string, identity?: { name: string; email: string }) =>
-  invoke<void>('set_git_remote', { url, ...identity });
+export const setGitRemote = (
+  url: string,
+  identity?: { name: string; email: string },
+  vault = '',
+) => invoke<void>('set_git_remote', { url, vault, ...identity });
 /** Squashes the unpushed commits into one; returns how many were squashed. */
-export const push = (message: string) => invoke<number>('push', { message });
+export const push = (message: string, vault = '') => invoke<number>('push', { message, vault });
 /** Bring a collaborator's work home. Merges through the `.md` driver, so two people
  *  editing different paragraphs of one note is a non-event; a genuine disagreement
  *  comes back in `conflicts` with the markers in the note's body. */
-export const pull = () => invoke<PullResult>('pull');
+export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
 
 // Liveness heartbeat. When launched from the desktop icon the server auto-shuts
 // down once the tab stops pinging, so closing the tab closes the app. A no-op in

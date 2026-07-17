@@ -13,6 +13,10 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   note body reaches the DOM. A characterization test pins this *current*
   behavior. Accepted as low-risk for a single-user local tool; adding a
   sanitizer is a filed follow-up, not done.
+- **A file dropped onto a lab note lands in the personal vault.** `ingest` takes a
+  `?vault=` query param and defaults to the default vault; the UI never sends one. The
+  blob ends up beside the wrong audience's notes — recoverable (blobs are content-addressed
+  and resolution searches every vault, so the note still renders) but wrong, and quietly so.
 - **You are only told someone pushed if you open the backup panel.** `git::remote_moved`
   (one `ls-remote`, moves no refs) is computed in `backup_status`, so nothing surfaces
   "Ravi pushed" on its own. The plan's automatic 15–30 s poll needs a timer and somewhere

@@ -4,66 +4,85 @@
   // Light (the default): commit + push the notes. Text only — small, plain, and
   // authenticated by whatever ssh-agent or credential helper the user already
   // has, so this app stores no secret.
-  // Heavy (tick to include): restic over the whole vault, blobs and all.
+  // Heavy (tick to include): restic over every vault, blobs and all.
   //
   // The panel's whole job is to never overstate. It says what each tier will and
   // will not carry *before* you act, and afterwards reports each tier's real
   // outcome — including whether the data left this machine at all, which a local
   // path for a remote or a restic repo quietly does not.
+  //
+  // **It is a list, not a form.** Git is per vault by definition — one vault is one
+  // repo, one remote, one collaborator list — so each vault gets its own destination,
+  // its own identity, its own unpushed count and its own "someone pushed". Collapsing
+  // them into one "Back up" that silently meant the first vault is exactly the
+  // overstatement this panel exists to prevent. Restic is the exception, and says so:
+  // one repo for the whole set, because a snapshot is disaster recovery, not sharing.
   import { onMount } from 'svelte';
   import { backup, backupStatus, commit, pull, push, setGitRemote } from './ipc';
   import { reachOf, shortDest } from './destination';
-  import type { BackupStatus } from './types';
+  import type { BackupStatus, VaultStatus } from './types';
 
   let { onclose }: { onclose: () => void } = $props();
 
   type Step = { text: string; ok: boolean };
 
   let status = $state<BackupStatus | null>(null);
-  let remoteDraft = $state('');
-  let nameDraft = $state('');
-  let emailDraft = $state('');
+  // Per vault, keyed by name — a shared draft would put your lab remote in your
+  // personal vault the moment you looked away.
+  let remoteDrafts = $state<Record<string, string>>({});
+  let nameDrafts = $state<Record<string, string>>({});
+  let emailDrafts = $state<Record<string, string>>({});
   let heavy = $state(false);
   let busy = $state(false);
   let steps = $state<Step[]>([]);
   let verdict = $state<string | null>(null);
   let error = $state<string | null>(null);
 
-  const notesReach = $derived(reachOf(status?.remote));
+  const vaults = $derived(status?.vaults ?? []);
   const mediaReach = $derived(reachOf(status?.restic_repo));
-  const canPush = $derived(!!status?.remote && !busy);
-  // Only the people git has never met get asked. Loaded status first, so the
-  // question doesn't flash up before we know the answer.
-  const needsIdentity = $derived(!!status && status.identity === null);
-  const canSaveRemote = $derived(
+  // Something to push somewhere. A vault with no remote isn't a failure, it just has
+  // nowhere to go yet.
+  const canRun = $derived(!busy && vaults.some((v) => !!v.remote));
+  // Only the people git has never met get asked, and only about the vault they are
+  // sharing: a vault is an audience, so the name on a lab repo need not be the one on
+  // your personal notes.
+  const needsIdentity = (v: VaultStatus) => v.identity === null;
+  const canSaveRemote = (v: VaultStatus) =>
     !busy &&
-      !!remoteDraft.trim() &&
-      (!needsIdentity || (!!nameDraft.trim() && !!emailDraft.trim())),
-  );
+    !!remoteDrafts[v.name]?.trim() &&
+    (!needsIdentity(v) || (!!nameDrafts[v.name]?.trim() && !!emailDrafts[v.name]?.trim()));
 
   const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
   const leaves = (r: string) => (r === 'remote' ? 'leaves this machine' : 'stays on this machine');
   const left = (r: string) => (r === 'remote' ? 'off this machine' : 'still on this machine');
+  // A single vault has no boundary to talk about, so don't name it at every turn.
+  const plural = $derived(vaults.length > 1);
+  const of = (v: VaultStatus) => (plural ? ` (${v.name})` : '');
 
   onMount(load);
 
   async function load() {
     try {
       status = await backupStatus();
-      remoteDraft = status.remote ?? '';
+      for (const v of status.vaults) {
+        remoteDrafts[v.name] ??= v.remote ?? '';
+        nameDrafts[v.name] ??= '';
+        emailDrafts[v.name] ??= '';
+      }
     } catch (e) {
       error = msg(e);
     }
   }
 
-  async function saveRemote() {
-    const url = remoteDraft.trim();
+  async function saveRemote(v: VaultStatus) {
+    const url = remoteDrafts[v.name]?.trim();
     if (!url || busy) return;
     error = null;
-    const name = nameDraft.trim();
-    const email = emailDraft.trim();
     try {
-      await setGitRemote(url, needsIdentity ? { name, email } : undefined);
+      const identity = needsIdentity(v)
+        ? { name: nameDrafts[v.name].trim(), email: emailDrafts[v.name].trim() }
+        : undefined;
+      await setGitRemote(url, identity, v.name);
       await load();
     } catch (e) {
       error = msg(e);
@@ -74,27 +93,30 @@
   // different intentions, and a button that quietly did both would be a button nobody
   // could predict. Commit first for the same reason `run()` does — the 5s auto-commit
   // is best-effort, and git will not merge over uncommitted edits.
-  async function bringDown() {
+  async function bringDown(v: VaultStatus) {
     if (busy) return;
     busy = true;
     steps = [];
     verdict = null;
     error = null;
     try {
-      await commit(`auto: ${new Date().toISOString()}`).catch(() => false);
-      const r = await pull();
+      await commit(`auto: ${new Date().toISOString()}`, v.name).catch(() => false);
+      const r = await pull(v.name);
       if (r.conflicts.length) {
         steps.push({
-          text: `Merged, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${r.conflicts.join(', ')}. Open each one — the two versions are marked in the text.`,
+          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${r.conflicts.join(', ')}. Open each one — both versions are marked in the text.`,
           ok: false,
         });
       } else if (r.merged) {
-        steps.push({ text: `Pulled ${r.merged} commit${r.merged === 1 ? '' : 's'} — merged cleanly.`, ok: true });
+        steps.push({
+          text: `Pulled ${r.merged} commit${r.merged === 1 ? '' : 's'}${of(v)} — merged cleanly.`,
+          ok: true,
+        });
       } else {
-        steps.push({ text: 'Already up to date.', ok: true });
+        steps.push({ text: `Already up to date${of(v)}.`, ok: true });
       }
     } catch (e) {
-      steps.push({ text: `Could not pull: ${msg(e)}`, ok: false });
+      steps.push({ text: `Could not pull${of(v)}: ${msg(e)}`, ok: false });
     }
     await load();
     busy = false;
@@ -107,39 +129,48 @@
     verdict = null;
     error = null;
     const now = new Date().toISOString();
-    let notesOff = false;
+    const off: string[] = [];
+    const stuck: string[] = [];
     let mediaOff = false;
 
-    // Flush whatever the 5s auto-commit debounce has not written yet: it is
-    // best-effort and swallows its errors, so never assume it has run.
-    try {
-      const made = await commit(`auto: ${now}`);
-      steps.push({ text: made ? 'Committed your latest changes.' : 'Nothing new to commit.', ok: true });
-    } catch (e) {
-      steps.push({ text: `Could not commit: ${msg(e)}`, ok: false });
+    // Every vault gets its own commit + push, and its own line in the report. A vault
+    // that fails must not cancel the others — and must not be quietly folded into a
+    // cheerful summary either.
+    for (const v of status.vaults) {
+      if (!v.remote) {
+        stuck.push(v.name);
+        steps.push({ text: `No remote set${of(v)} — those notes cannot leave this machine.`, ok: false });
+        continue;
+      }
+      const reach = reachOf(v.remote);
+      // Flush whatever the 5s auto-commit debounce has not written yet: it is
+      // best-effort and swallows its errors, so never assume it has run.
+      try {
+        await commit(`auto: ${now}`, v.name);
+      } catch (e) {
+        steps.push({ text: `Could not commit${of(v)}: ${msg(e)}`, ok: false });
+      }
+      try {
+        const squashed = await push(`backup: ${now}`, v.name);
+        if (squashed > 1) steps.push({ text: `Squashed ${squashed} commits into one${of(v)}.`, ok: true });
+        steps.push({
+          text: `Notes${of(v)} pushed to ${shortDest(v.remote)} — ${left(reach)}.`,
+          ok: true,
+        });
+        (reach === 'remote' ? off : stuck).push(v.name);
+      } catch (e) {
+        steps.push({ text: `Notes${of(v)} NOT pushed: ${msg(e)}`, ok: false });
+        stuck.push(v.name);
+      }
     }
 
     // The tiers are independent — a failed push must not cancel a full backup,
     // and each reports its own fate.
-    try {
-      const squashed = await push(`backup: ${now}`);
-      if (squashed > 1) {
-        steps.push({ text: `Squashed ${squashed} commits into one.`, ok: true });
-      }
-      steps.push({
-        text: `Notes pushed to ${shortDest(status.remote ?? '')} — ${left(notesReach)}.`,
-        ok: true,
-      });
-      notesOff = notesReach === 'remote';
-    } catch (e) {
-      steps.push({ text: `Notes NOT pushed: ${msg(e)}`, ok: false });
-    }
-
     if (heavy) {
       try {
         await backup();
         steps.push({
-          text: `Full backup, media included → ${shortDest(status.restic_repo ?? '')} — ${left(mediaReach)}.`,
+          text: `Full backup of every vault, media included → ${shortDest(status.restic_repo ?? '')} — ${left(mediaReach)}.`,
           ok: true,
         });
         mediaOff = mediaReach === 'remote';
@@ -148,8 +179,15 @@
       }
     }
 
+    // Name the vaults that did not make it. "Your notes are backed up" while the lab
+    // vault sat still is the one sentence this panel must never say.
     verdict =
-      `Your notes are ${notesOff ? 'off' : 'still on'} this machine. ` +
+      (stuck.length === 0
+        ? 'Your notes are off this machine.'
+        : off.length === 0
+          ? 'Your notes are still on this machine.'
+          : `Off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
+      ' ' +
       (heavy
         ? `Your media is ${mediaOff ? 'off' : 'still on'} this machine.`
         : 'Your media was not included.');
@@ -170,69 +208,105 @@
   <div class="panel" role="dialog" aria-label="back up">
     <h2>Back up</h2>
 
-    <label class="remote">
-      <span>Your notes' git remote</span>
-      <div class="row">
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          bind:value={remoteDraft}
-          onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
-          placeholder="git@github.com:you/notes.git"
-          spellcheck="false"
-          disabled={busy}
-        />
-        <button onclick={saveRemote} disabled={!canSaveRemote}>Save</button>
-      </div>
-    </label>
+    <!-- One block per vault: each is its own repo, its own remote, its own audience.
+         A single-vault install is a list of one and reads exactly as it always did. -->
+    {#each vaults as v (v.name)}
+      <div class="vault">
+        {#if plural}<h3>{v.name}</h3>{/if}
 
-    {#if needsIdentity}
-      <!-- Asked once, at the only moment it matters: pushing is when your notes
-           start carrying your name to someone else, and git history is permanent.
-           Anyone who has ever configured git never sees this. -->
-      <div class="identity">
-        <p class="why">
-          Every commit you push is signed with a name. Yours isn't set yet — without
-          it, your collaborators can't tell who changed what.
-        </p>
-        <div class="row">
-          <input
-            bind:value={nameDraft}
-            onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
-            placeholder="Your name"
-            spellcheck="false"
-            disabled={busy}
-          />
-          <input
-            bind:value={emailDraft}
-            onkeydown={(e) => e.key === 'Enter' && canSaveRemote && saveRemote()}
-            placeholder="you@example.org"
-            spellcheck="false"
-            disabled={busy}
-          />
-        </div>
+        <label class="remote">
+          <span>{plural ? `The ${v.name} vault's` : "Your notes'"} git remote</span>
+          <div class="row">
+            <input
+              bind:value={remoteDrafts[v.name]}
+              onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+              placeholder="git@github.com:you/notes.git"
+              spellcheck="false"
+              disabled={busy}
+            />
+            <button onclick={() => saveRemote(v)} disabled={!canSaveRemote(v)}>Save</button>
+          </div>
+        </label>
+
+        {#if needsIdentity(v)}
+          <!-- Asked once, at the only moment it matters: pushing is when your notes
+               start carrying your name to someone else, and git history is permanent.
+               Per vault, because a vault is an audience — the name on a lab repo need
+               not be the one on your personal notes. Anyone who has ever configured git
+               never sees this. -->
+          <div class="identity">
+            <p class="why">
+              Every commit you push is signed with a name. Yours isn't set{plural
+                ? ` for ${v.name}`
+                : ''} — without it, your collaborators can't tell who changed what.
+            </p>
+            <div class="row">
+              <input
+                bind:value={nameDrafts[v.name]}
+                onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+                placeholder="Your name"
+                spellcheck="false"
+                disabled={busy}
+              />
+              <input
+                bind:value={emailDrafts[v.name]}
+                onkeydown={(e) => e.key === 'Enter' && canSaveRemote(v) && saveRemote(v)}
+                placeholder="you@example.org"
+                spellcheck="false"
+                disabled={busy}
+              />
+            </div>
+          </div>
+        {/if}
+
+        {#if steps.length === 0}
+          <ul class="promise">
+            <li>
+              {#if reachOf(v.remote) === 'unset'}
+                <strong>No remote set</strong> — these notes cannot leave this machine yet.
+              {:else}
+                Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
+                {#if v.unpushed}
+                  <span class="muted">{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span>
+                {/if}
+                {#if v.identity}
+                  <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
+                {/if}
+              {/if}
+            </li>
+          </ul>
+        {/if}
+
+        {#if v.conflicts.length}
+          <!-- The one state a user must be told about by name: these notes have both
+               versions in them and are waiting for a person. The merge driver keeps the
+               markers in the body, so each still opens in the editor. -->
+          <p class="error">
+            {v.conflicts.length} note{v.conflicts.length === 1 ? '' : 's'} still need you:
+            {v.conflicts.join(', ')}. Open each and keep the text you want.
+          </p>
+        {:else if v.remote_moved}
+          <p class="moved">Someone has pushed work you don't have yet.</p>
+        {/if}
+
+        {#if v.remote}
+          <div class="vault-actions">
+            <button onclick={() => bringDown(v)} disabled={busy} class:primary={v.remote_moved}>
+              {busy ? 'Working…' : 'Get their changes'}
+            </button>
+          </div>
+        {/if}
       </div>
-    {/if}
+    {/each}
 
     {#if steps.length === 0}
       <ul class="promise">
         <li>
-          {#if notesReach === 'unset'}
-            <strong>No remote set</strong> — your notes cannot leave this machine yet.
-          {:else}
-            Notes → <strong>{shortDest(status?.remote ?? '')}</strong> — {leaves(notesReach)}.
-            {#if status?.unpushed}
-              <span class="muted">{status.unpushed} commit{status.unpushed === 1 ? '' : 's'} not pushed.</span>
-            {/if}
-            {#if status?.identity}
-              <span class="muted">Signed as {status.identity.name} &lt;{status.identity.email}&gt;.</span>
-            {/if}
-          {/if}
-        </li>
-        <li>
           {#if !heavy}
             Media in <code>blobs/</code> (images, PDFs, video) is <strong>not included</strong>.
           {:else}
-            Media → <strong>{shortDest(status?.restic_repo ?? '')}</strong> — {leaves(mediaReach)}.
+            Media from <strong>every vault</strong> → <strong>{shortDest(status?.restic_repo ?? '')}</strong>
+            — {leaves(mediaReach)}.
           {/if}
         </li>
       </ul>
@@ -249,6 +323,12 @@
       <input type="checkbox" bind:checked={heavy} disabled={busy || !status?.restic_ready} />
       <span>
         Include media — full restic backup
+        {#if plural}
+          <span class="muted">
+            (one repo for every vault — unlike your git remotes, this does not keep them
+            apart)
+          </span>
+        {/if}
         {#if status && !status.restic_ready}
           <span class="muted">
             (unavailable: set <code>FM_RESTIC_REPO</code> and <code>RESTIC_PASSWORD</code>, then
@@ -258,27 +338,14 @@
       </span>
     </label>
 
-    {#if status?.conflicts.length}
-      <!-- The one state a user must be told about by name: these notes have both
-           versions in them and are waiting for a person. The merge driver keeps the
-           markers in the body, so each one still opens in the editor. -->
-      <p class="error">
-        {status.conflicts.length} note{status.conflicts.length === 1 ? '' : 's'} still need
-        you: {status.conflicts.join(', ')}. Open each and keep the text you want.
-      </p>
-    {:else if status?.remote_moved}
-      <p class="moved">Someone has pushed work you don't have yet.</p>
-    {/if}
-
     {#if error}<p class="error">{error}</p>{/if}
 
     <div class="actions">
       <button onclick={onclose} disabled={busy}>Close</button>
-      <button onclick={bringDown} disabled={!canPush} class:primary={status?.remote_moved}>
-        {busy ? 'Working…' : 'Get their changes'}
-      </button>
-      <button class="primary" onclick={run} disabled={!canPush}>
-        {busy ? 'Backing up…' : heavy ? 'Back up notes + media' : 'Back up notes'}
+      <button class="primary" onclick={run} disabled={!canRun}>
+        {busy
+          ? 'Backing up…'
+          : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + media' : ''}`}
       </button>
     </div>
   </div>
@@ -352,6 +419,23 @@
     background: var(--accent-subtle);
     color: var(--text);
     font-size: var(--text-sm);
+  }
+  .vault {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .vault h3 {
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .vault-actions {
+    display: flex;
+    justify-content: flex-end;
   }
   input[type='text'],
   .row input {

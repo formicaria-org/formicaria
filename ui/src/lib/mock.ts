@@ -35,6 +35,8 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
     tags: [],
     assets: [],
     props: {},
+    // Derived from location in the real backend; here, just a label to badge with.
+    vault: 'personal',
     ...partial,
   };
 }
@@ -42,10 +44,10 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 const notes: ObjectMeta[] = [
   makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
   makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: '2026-07-16', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
-  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'] }),
+  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'], vault: 'lab' }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
-  makeNote({ preview: 'Weekly sync notes', start: '2026-07-16T14:30', due: '2026-07-16T15:00', tags: ['meeting'] }),
+  makeNote({ preview: 'Weekly sync notes', start: '2026-07-16T14:30', due: '2026-07-16T15:00', tags: ['meeting'], vault: 'lab' }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
   makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
   makeNote({ preview: 'Architecture sketch', title: 'Architecture sketch', props: { view: 'board', project: 'alpha' } }),
@@ -188,10 +190,28 @@ function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
 // Backing up is inert here — there is no vault to push — but the remote is
 // remembered so the setup flow stays exercisable under `pnpm dev`: save a URL and
 // watch the panel change what it promises.
-let gitRemote: string | null = null;
-// Starts null, like a vault on a machine with no git config, so `pnpm dev` shows
-// the identity question rather than the path only configured users ever see.
-let gitIdentity: { name: string; email: string } | null = null;
+// Two vaults, so `pnpm dev` exercises the plural: badges, the filter, and a backup
+// panel that is a list rather than a form. The first is the default, as in the real
+// config. Identity starts null on both, like a machine with no git config, so the
+// identity question is on screen rather than on the path only configured users see.
+const gitVaults: Array<{
+  name: string;
+  remote: string | null;
+  identity: { name: string; email: string } | null;
+}> = [
+  { name: 'personal', remote: null, identity: null },
+  { name: 'lab', remote: null, identity: null },
+];
+
+/** Resolve a vault by name; empty means the default. Unknown throws, exactly as the
+ *  real backend refuses — a typo must not quietly write into another audience. */
+function mockVault(name: unknown): (typeof gitVaults)[number] {
+  const n = String(name ?? '').trim();
+  if (!n) return gitVaults[0];
+  const v = gitVaults.find((x) => x.name === n);
+  if (!v) throw new Error(`no vault named '${n}'`);
+  return v;
+}
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
@@ -272,25 +292,29 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return undefined as T;
     case 'backup_status':
       return {
-        remote: gitRemote,
-        unpushed: gitRemote ? 2 : null,
+        vaults: gitVaults.map((v) => ({
+          name: v.name,
+          remote: v.remote,
+          unpushed: v.remote ? 2 : null,
+          identity: v.identity,
+          remote_moved: v.remote ? false : null,
+          conflicts: [],
+        })),
         restic_repo: null,
         restic_ready: false,
-        identity: gitIdentity,
-        remote_moved: gitRemote ? false : null,
-        conflicts: [],
       } as T;
     case 'set_git_remote': {
+      const v = mockVault(args.vault);
       const name = String(args.name ?? '').trim();
       const email = String(args.email ?? '').trim();
-      if (name && email) gitIdentity = { name, email };
+      if (name && email) v.identity = { name, email };
       // The same rule fm-core enforces: a vault gains an audience only once
       // someone real owns it. Mirrored here so the mock cannot drift into
       // promising a flow the real backend refuses.
-      if (!gitIdentity) {
+      if (!v.identity) {
         throw new Error('tell us who you are first — your name and email sign every commit you share');
       }
-      gitRemote = String(args.url ?? '').trim() || null;
+      v.remote = String(args.url ?? '').trim() || null;
       return undefined as T;
     }
     case 'push':

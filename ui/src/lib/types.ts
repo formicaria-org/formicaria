@@ -16,6 +16,10 @@ export interface ObjectMeta {
    *  thumbnail from the first one. */
   assets: string[];
   props: Record<string, unknown>;
+  /** Which vault — i.e. which audience — this note belongs to. Derived from where the
+   *  file lives, never from what it says, so a badge reading "lab" is telling the truth
+   *  about who can see it. Empty in a single-vault install: no boundary, no badge. */
+  vault: string;
 }
 
 export interface Column {
@@ -48,16 +52,15 @@ export interface Identity {
   email: string;
 }
 
-/** What each backup tier could do right now (`backup_status`). */
-export interface BackupStatus {
-  /** Where the notes push to, or null when no remote is set yet. */
+/** One vault's git standing. Per vault, not per app: one vault is one repo, one remote,
+ *  one collaborator list, so there is no honest way to collapse these into one number. */
+export interface VaultStatus {
+  /** The audience. Also the argument every git command takes back. */
+  name: string;
+  /** Where this vault's notes push to, or null when no remote is set yet. */
   remote: string | null;
   /** Commits made here but not on the remote; null when never pushed. */
   unpushed: number | null;
-  /** The restic repo — a path or URL, never the password. */
-  restic_repo: string | null;
-  /** Both restic env vars present, i.e. a full backup could actually run. */
-  restic_ready: boolean;
   /** Null when nobody real signs this vault's commits — either git has no identity
    *  configured, or it still holds the placeholder. A remote cannot be set while
    *  this is null, because git history is forever and an unattributed shared vault
@@ -69,6 +72,19 @@ export interface BackupStatus {
   /** Notes with conflict markers in them, waiting for a human. The `.md` merge driver
    *  keeps markers out of the frontmatter, so these still open in the editor. */
   conflicts: string[];
+}
+
+/** What each backup tier could do right now (`backup_status`). */
+export interface BackupStatus {
+  /** Every vault, in configured order; the first is the default for new notes. A
+   *  single-vault install is a list of one. */
+  vaults: VaultStatus[];
+  /** The restic repo — a path or URL, never the password. One repo for the whole set:
+   *  restic is disaster recovery, not distribution, so unlike git it does **not**
+   *  respect vault boundaries. The panel says so. */
+  restic_repo: string | null;
+  /** Both restic env vars present, i.e. a full backup could actually run. */
+  restic_ready: boolean;
 }
 
 /** What a pull did. Conflicts are a result, not a failure. */
