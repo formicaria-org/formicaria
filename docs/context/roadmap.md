@@ -9,7 +9,12 @@ This is the **plan** layer: what we intend and why, sequenced. When a line here
 ships, delete it and fold the outcome into `overview.md`/`decisions.md`. Unlike
 the other files in this folder, this one describes things that do **not** exist.
 
-_Last updated: 2026-07-15._
+> **Multi-person collaboration** has its own design doc:
+> [collaboration-design.md](./collaboration-design.md) — vaults as audiences,
+> location-as-permission, federated views, and why git is already the whole
+> substrate. Its Phase 1 (the lost-update guard) blocks any shared-vault work.
+
+_Last updated: 2026-07-17._
 
 ## The through-line
 
