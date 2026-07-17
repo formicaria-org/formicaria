@@ -74,21 +74,35 @@ that is not something you can mistype into a file.
 
 ---
 
+## Requirements
+
+Two things, and no more:
+
+- **A web browser** — any current Firefox, Chrome, Safari or Edge. This *is* the interface;
+  there is no separate desktop window.
+- **A 64-bit OS** — Linux x86-64 with glibc 2.34+ (Ubuntu 22.04+), macOS on Apple silicon,
+  or Windows 10/11 x64.
+
+No runtime, no account, no network: the interface, fonts, maths and diagram renderer are
+all inside the binary.
+
 ## Optional features
 
-The notebook — writing, tasks, dates, board, agenda, search — needs **nothing installed**.
-It works out of the box on a machine with no tools at all.
+The notebook — writing, tasks, dates, board, agenda, search — needs nothing beyond the two
+above. It works on a machine with no tools installed at all.
 
 Everything below is a *feature*. If its tool isn't on your `PATH`, that feature simply
 isn't available and the app says so. It never breaks the notebook. Install them however
 you like — your system package manager, [pixi](https://pixi.sh), brew, whatever.
 
-| Install | To get |
-|---|---|
-| **git** | History (undo that outlives the session), backup, and sharing a vault with other people |
-| **pdftotext** (poppler) | The text inside a PDF you drop in becomes searchable |
-| **vipsthumbnail** (libvips) | Thumbnails for images and PDFs |
-| **restic** | Encrypted, deduplicated backup of your media (needs `RESTIC_PASSWORD` set, and a `restic` path per vault in the config above) |
+| Install | To get | Without it |
+|---|---|---|
+| **git** | History — undo that outlives the session — plus backup and sharing a vault | Notes are still safe (they are files); no history to go back to |
+| **pdftotext** (poppler) | The text inside a PDF becomes searchable | The PDF is still stored and shown, just not searchable |
+| **vipsthumbnail** (libvips) | Thumbnails for images and PDFs | A placeholder where the preview would be |
+| **restic** | Encrypted, deduplicated backup of your media (needs `RESTIC_PASSWORD`, and a `restic` path per vault above) | Notes still back up over git; media stays local |
+| **xdg-open** (Linux only) | The "open in default app" button | That one button errors |
+| *an internet connection* | Excalidraw's hand-drawn fonts | Whiteboards work, in system fonts |
 
 Linux: `apt install git poppler-utils libvips-tools restic` ·
 macOS: `brew install git poppler vips restic` ·
