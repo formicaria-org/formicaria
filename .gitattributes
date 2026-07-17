@@ -1,0 +1,18 @@
+# Line endings are LF, on every platform, forever.
+#
+# Git's default on Windows (`core.autocrlf=true`) rewrites text files to CRLF on
+# checkout. For this repo that is not cosmetic: `crates/fm-app/tests/fixtures/vault`
+# holds hand-authored notes that the tests parse as bytes, and CI's first Windows run
+# failed all eight `e2e_vault` tests because every fixture arrived with `\r\n`.
+# `ci/checks.sh` and `packaging/*.sh` would break the same way in reverse.
+#
+# `from_file` tolerates CRLF regardless — a Windows user's editor produces it and their
+# notes must still load — but a vault whose bytes change per platform is a vault whose
+# byte-for-byte round-trip is a lie, so we don't let it happen here in the first place.
+* text=auto eol=lf
+
+# Never touch these, whatever git guesses.
+*.png binary
+*.webp binary
+*.pdf binary
+*.ico binary

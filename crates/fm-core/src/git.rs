@@ -118,16 +118,23 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     Ok(true)
 }
 
-/// Ask git to merge notes through us. Tracked, so it travels to every clone — which
-/// is exactly half the job, and the half that is *not* enough (see
-/// [`install_merge_driver`]). Idempotent like `.gitignore`: a cloned vault's own
-/// tracked copy is left alone.
+/// Ask git to merge notes through us, and to leave their bytes alone. Tracked, so it
+/// travels to every clone — which is exactly half the job, and the half that is *not*
+/// enough (see [`install_merge_driver`]). Idempotent like `.gitignore`: a cloned vault's
+/// own tracked copy is left alone.
+///
+/// `eol=lf` is not tidiness. Git's default on Windows rewrites text to CRLF on checkout,
+/// so the same note would be different bytes on different machines — and byte-for-byte
+/// round-tripping is the invariant files-as-truth rests on. It would also hand the `.md`
+/// merge driver two files that differ on every single line, turning every pull between a
+/// Windows and a Linux collaborator into a whole-file conflict. (`from_file` tolerates
+/// CRLF anyway, because an editor can still produce it — but a vault should not.)
 fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
     let path = vault.join(".gitattributes");
     if path.exists() {
         return Ok(());
     }
-    std::fs::write(&path, "*.md merge=fm\n").map_err(io)
+    std::fs::write(&path, "*.md merge=fm text eol=lf\n").map_err(io)
 }
 
 /// Teach *this clone* what `merge=fm` actually runs.

@@ -102,6 +102,14 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **Line endings are LF, and both halves matter.** `from_file` tolerates CRLF because a
+  Windows editor produces it; the repo's `.gitattributes` (`* text=auto eol=lf`) stops git
+  producing it in the first place; and `ensure_repo` writes `*.md merge=fm text eol=lf`
+  into every vault for the same reason. Remove any one and Windows breaks *silently*: the
+  loader is deliberately tolerant, so unparseable notes don't error — they vanish, and the
+  vault opens empty. That is exactly how CI found it (all eight `e2e_vault` tests at once,
+  because they're the only ones reading committed fixtures rather than writing their own).
+
 - **`.desktop` has no relative `Exec`** — it must be absolute, so the entry cannot be a
   static file in the repo. It was one, carrying `/home/baljinder/...`, which meant every
   clone got a launcher into a stranger's home *and* a rename silently rewrote the path to

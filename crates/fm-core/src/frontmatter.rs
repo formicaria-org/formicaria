@@ -92,14 +92,37 @@ pub fn to_file(obj: &Object) -> Result<String, ParseError> {
     Ok(format!("---\n{yaml}---\n{}", obj.body))
 }
 
+/// The frontmatter and the body, split at the closing fence — accepting **either line
+/// ending**.
+///
+/// Not a nicety: `to_file` always writes `\n`, but the file on disk is not always ours.
+/// A Windows editor writes `\r\n`, and git with `core.autocrlf` (the default on Windows)
+/// hands the whole vault over that way on checkout. A fence matcher that only knows `\n`
+/// then rejects **every note**, and since the loader is deliberately tolerant they do not
+/// error — they silently vanish, and the vault opens empty. Which is exactly what CI found
+/// the first time it ran on Windows.
+///
+/// The body is sliced, never rewritten: byte-for-byte round-tripping is the invariant
+/// files-as-truth rests on, so a CRLF body stays a CRLF body until its author changes it.
+fn split_fence(text: &str) -> Option<(&str, &str)> {
+    let rest = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n"))?;
+    let mut offset = 0usize;
+    for line in rest.split_inclusive('\n') {
+        if line.trim_end_matches('\n').trim_end_matches('\r') == "---" {
+            // `offset` still carries the newline that ended the previous line, which
+            // belongs to the YAML; everything past this fence line is the body.
+            return Some((&rest[..offset], &rest[offset + line.len()..]));
+        }
+        offset += line.len();
+    }
+    None
+}
+
 /// Parse an on-disk Markdown file back into an object. Unknown frontmatter keys
-/// are preserved in `Object::extra`; only the first `\n---\n` after the opening
+/// are preserved in `Object::extra`; only the **first** `---` line after the opening
 /// fence closes the frontmatter, so a `---` line inside the body is safe.
 pub fn from_file(text: &str) -> Result<Object, ParseError> {
-    let rest = text.strip_prefix("---\n").ok_or(ParseError::NoFrontmatter)?;
-    let end = rest.find("\n---\n").ok_or(ParseError::NoFrontmatter)?;
-    let yaml = &rest[..end];
-    let body = &rest[end + "\n---\n".len()..];
+    let (yaml, body) = split_fence(text).ok_or(ParseError::NoFrontmatter)?;
 
     let value: Value =
         serde_yaml_ng::from_str(yaml).map_err(|e| ParseError::Yaml(e.to_string()))?;

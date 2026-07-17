@@ -57,6 +57,39 @@ fn index_is_disposable() {
     assert_eq!(r.total, 3);
 }
 
+/// A note written on Windows — or handed to us by git's `core.autocrlf`, the default
+/// there — has `\r\n` line endings. `to_file` only ever writes `\n`, but the file on disk
+/// is not always ours: any Windows editor, and every checkout of a shared vault, produces
+/// CRLF. A parser that only knows `\n` rejects **every** note, and because the loader is
+/// deliberately tolerant they don't error — they vanish, and the vault opens empty.
+///
+/// Found by CI the first time it ran on Windows: all eight `e2e_vault` tests failed at
+/// once, because they're the only ones that read *committed* fixture notes rather than
+/// writing their own.
+#[test]
+fn a_note_with_windows_line_endings_loads_and_keeps_its_body_byte_for_byte() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+
+    // Exactly what `to_file` writes, run through git's autocrlf.
+    let lf = "---\nschema: 1\nid: 01JQ0000000000000000000000\ntype: note\ncreated: 2026-07-17T10:00:00Z\nupdated: 2026-07-17T10:00:00Z\n---\nfirst line\n\nsecond line\n";
+    let crlf = lf.replace('\n', "\r\n");
+    std::fs::write(vault.join("notes/01JQ0000000000000000000000.md"), &crlf).unwrap();
+
+    let s = FileStore::named(vault, "win").unwrap();
+    assert!(s.skipped().is_empty(), "a CRLF note is a note, not a casualty: {:?}", s.skipped());
+    let got = s
+        .get("01JQ0000000000000000000000".parse().unwrap())
+        .unwrap()
+        .expect("the note loads");
+
+    // The body is sliced, never rewritten — byte-for-byte is the invariant files-as-truth
+    // rests on, so the author's line endings survive until the author changes them.
+    assert_eq!(got.body, "first line\r\n\r\nsecond line\r\n", "body preserved verbatim");
+    assert_eq!(got.title, None);
+}
+
 /// One unreadable note must never stop the vault from opening.
 ///
 /// This is the shape a merge conflict *always* takes here: `updated:` is rewritten
