@@ -72,6 +72,11 @@ jobs:
             fi
           done
           cp packaging/README-release.md "stage/${DIR}/README.md"
+          # MIT and Apache-2.0 both require their notice to travel with a binary, and
+          # ~87 crates under them are statically linked in. Generated from the real
+          # dependency tree, never hand-maintained.
+          cp LICENSE-MIT LICENSE-APACHE "stage/${DIR}/"
+          pixi run sh ci/third-party.sh "stage/${DIR}/THIRD-PARTY.md"
           echo "DIR=${DIR}" >> "$GITHUB_ENV"
           ls -la "stage/${DIR}"
 

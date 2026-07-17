@@ -72,6 +72,11 @@ seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
 deny = "cargo deny --all-features check"         # license / advisory gate (permissive-only)
 checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
+# The notices that must ship WITH a binary — MIT and Apache-2.0 both require it, and ~87
+# crates under them are linked in. Generated from the real dependency tree (a hand-kept
+# list goes stale the first time someone adds a crate); the release workflow drops the
+# output into every archive.
+third-party = "sh ci/third-party.sh"
 docs = "mdbook build docs"                       # render the manual; broken links fail the build
 
 [tasks.ci]

@@ -87,3 +87,10 @@ vault/   your notes (its own git repo; git-ignored by this repo)
 
 Backend and browser share one implementation: the command functions in
 `crates/fm-app/src/commands.rs`, fronted over HTTP by `fm-serve`.
+
+## Licence
+
+Dual-licensed **MIT OR Apache-2.0**, at your option — the Rust ecosystem convention and
+about as permissive as licensing gets. See [LICENSE.md](LICENSE.md). Release archives carry
+both texts plus `THIRD-PARTY.md`, generated from the real dependency tree, because MIT and
+Apache both require their notices to travel with a binary.
