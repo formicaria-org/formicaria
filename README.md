@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/formicaria.svg" alt="Three ant colonies, each nest a labyrinth of galleries, linked by braided trails with ants moving both ways along them" width="820">
+  <img src="docs/assets/formicaria.svg" alt="Three ant colonies, each nest a labyrinth of galleries and corridors, every one linked to every other by braided trails, with ants moving both ways along all of it" width="820">
 </p>
 
 <h1 align="center">formicaria</h1>
