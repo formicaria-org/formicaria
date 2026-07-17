@@ -1,96 +1,120 @@
-# formicaria
+<p align="center">
+  <img src="docs/assets/formicaria.svg" alt="Three ant colonies, each circling its own nest, joined by routes along which ants travel in both directions" width="820">
+</p>
 
-A local-first, single-user research notebook. Your notes are plain Markdown files
-you own, search, organize, and back up; heavy media are content-addressed blobs
-referenced from notes. It runs as a local web app — a tiny server (`fm-serve`)
-serves the UI and fronts your vault over `http://127.0.0.1:8765`.
+<h1 align="center">formicaria</h1>
 
-## Quick start
+<p align="center">
+  <em>Knowledge, task scheduling and collaboration — on files you own.</em>
+</p>
+
+---
+
+A *formicarium* is one colony's nest. The plural is the architecture: a **set of vaults**,
+one per audience — your own notes, the lab's, a paper with someone — each its own repo with
+its own collaborators, coordinating through git rather than through anyone's server. Most
+of the traffic stays inside a colony. Some of it flows both ways along the routes between.
+
+**Your notes are Markdown files you own.** One note per file, plain text, on your disk,
+readable in Vim or a text editor with this app nowhere in sight. In the worst case they
+survive as what they always were: files. Heavy media are content-addressed blobs referenced
+from notes, so the notes repo stays small and clonable for a decade.
+
+Knowledge, scheduling and collaboration aren't three subsystems — they're three views of
+one file. A task is a note with a `due`. A shared note is a note in a different repo.
+
+## Install
+
+Download the archive for your platform from
+[**Releases**](https://github.com/singhbal-baljinder/formicaria/releases), unpack, and run
+`fm-serve`. There is no installer and no setup step.
 
 ```sh
-pixi run serve        # build + serve; open the printed URL
-# or, opening the browser for you:
-FM_OPEN=1 pixi run serve
+tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
+./fm-serve                     # → http://127.0.0.1:8765
 ```
 
-A double-click launcher for Linux is in [`packaging/`](packaging/README.md).
+Linux · macOS (Apple silicon) · Windows. Each archive carries its own README with the
+per-OS details. **Keep `fm` beside `fm-serve`** — the second binary is what git calls to
+merge notes.
 
-## Build & run (debug vs release)
+<details>
+<summary>Or build from source</summary>
 
-The app is a production UI bundle (`ui/dist`) plus the `fm-serve` binary. There's
-no separate "install" — you run the binary from the repo root and it serves the
-bundle and your vault.
+Everything is pinned through [pixi](https://pixi.sh); nothing else needs installing.
 
 ```sh
-# Run it (builds + serves in one step):
-pixi run serve            # DEBUG build — fast to compile, unoptimized runtime (dev loop)
-pixi run serve-release    # RELEASE build — optimized (~3 MB, faster); what you'd use daily
-
-# Or just build the artifacts, without running:
-pixi run build            # → target/release/fm-serve  (stripped + thin-LTO)  + ui/dist
-pixi run build-debug      # → target/debug/fm-serve    (full debuginfo)       + ui/dist
-
-# Then run a pre-built binary yourself (from the repo root, so it finds ui/dist):
-FM_OPEN=1 ./target/release/fm-serve      # optimized, opens the browser
-./target/debug/fm-serve                  # debug, prints the URL to open
+pixi run serve            # build + serve, dev loop (a .svelte edit needs no Rust rebuild)
+pixi run build            # → target/release/{fm-serve,fm} + ui/dist, then run fm-serve
 ```
 
-`serve`/`serve-release` rebuild the UI every run; `build`/`build-debug` stop at the
-compiled artifacts. `pixi run app` runs the already-built release binary **without
-rebuilding** (instant start). Config is via env: `FM_VAULT` (default `vault`),
-`FM_UI_DIST` (default `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN`
-(set → open the browser). The release profile lives in [`Cargo.toml`](Cargo.toml)
-(`[profile.release]`).
+`pixi run app` runs the already-built release binary with no rebuild — what the
+[`packaging/`](packaging/README.md) desktop launcher uses.
+</details>
 
-> The [`packaging/`](packaging/README.md) `.desktop` launcher runs `pixi run app`
-> — the **prebuilt release**, no rebuild, so a double-click is instant. It reflects
-> your last `pixi run build`; rebuild to update what the icon launches. **Closing
-> the tab quits the app** (the server auto-stops when the last tab's heartbeat
-> stops — enabled by `FM_AUTO_SHUTDOWN`, which the launcher sets; a plain `pixi run
-> serve` stays up until Ctrl-C).
+## What it needs
+
+**Nothing.** The core — writing, tasks, dates, board, agenda, search — is one
+self-contained binary with the UI baked in. It runs on a machine with no tools installed
+at all.
+
+Everything else is a *feature*, found on your `PATH` and reported honestly when it's
+absent. Install them however you like — apt, brew, [pixi](https://pixi.sh), whatever:
+
+| Install | To get |
+|---|---|
+| **git** | History — undo that outlives the session — plus backup and sharing a vault |
+| **pdftotext** | The text inside a PDF you drop in becomes searchable |
+| **vipsthumbnail** | Thumbnails for images and PDFs |
+| **restic** | Encrypted, deduplicated backup of your media |
+
+## How sharing works
+
+A vault is a git repo. Give it a remote and it's shared; the people who can clone it are
+exactly the people who can read it. **Where a note lives decides who can see it** — not a
+label in the file, because a label you can type is a label you can typo, and git history is
+forever.
+
+Two people editing *different paragraphs of the same note* merge cleanly. That sounds
+unremarkable and isn't: the file format rewrites `updated:` on every save, so any two
+concurrent edits collide on that line, inside the YAML, where the parser refuses them. A
+frontmatter-aware merge driver resolves the collision the format manufactures — and when a
+conflict is real, it lands in the *body*, so the note still opens and you settle it in the
+editor.
+
+No account, no cloud, nothing phones home. The server binds `127.0.0.1` and has no
+authentication, because it was never meant to need any — don't expose it.
 
 ## Documentation
 
-The full manual (user + developer guide, including **how to add a feature**) is
-an mdBook under [`docs/`](docs/):
-
-```sh
-pixi run docs         # renders docs/ to docs/book/ (also run in CI)
-```
-
-Start with `docs/src/introduction.md`, or the design spec in
-[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md).
+The manual is an mdBook under [`docs/`](docs/) (`pixi run docs`); start at
+`docs/src/introduction.md`. The design spec is
+[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md). For maintainers,
+[`docs/context/`](docs/context/README.md) is the project's working memory — what exists,
+*why*, and what doesn't.
 
 ## Development
 
-Everything is pinned through [pixi](https://pixi.sh). One gate:
+One gate:
 
 ```sh
-pixi run ci           # test + test-ui + deny + checks + docs
+pixi run ci               # test + test-ui + deny + checks + docs
 ```
 
-- `pixi run test` — Rust workspace tests · `pixi run test-ui` — Vitest (UI)
-- `pixi run seam` — the zero-I/O query-engine suite · `pixi run perf` — search budget
-- `pixi run checks` — architectural greps · `pixi run deny` — license gate
-
-See [`docs/src/dev/`](docs/src/dev/) for architecture, the extension recipes, the
-design system, and testing conventions.
-
-## Layout
+CI runs it on Linux for every push, and on macOS + Windows whenever code changes. A `v*`
+tag builds and publishes all three.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
-ui/      Svelte 5 + Vite frontend (served by fm-serve)
-docs/    the mdBook manual
-vault/   your notes (its own git repo; git-ignored by this repo)
+ui/      Svelte 5 + Vite (baked into the binary at build time)
+docs/    the mdBook manual + docs/context (maintainer notes)
+vault/   your notes (its own git repo; git-ignored by this one)
 ```
-
-Backend and browser share one implementation: the command functions in
-`crates/fm-app/src/commands.rs`, fronted over HTTP by `fm-serve`.
 
 ## Licence
 
-Dual-licensed **MIT OR Apache-2.0**, at your option — the Rust ecosystem convention and
-about as permissive as licensing gets. See [LICENSE.md](LICENSE.md). Release archives carry
-both texts plus `THIRD-PARTY.md`, generated from the real dependency tree, because MIT and
-Apache both require their notices to travel with a binary.
+Dual-licensed **MIT OR Apache-2.0**, at your option — the Rust ecosystem convention, and
+about as permissive as licensing gets: use it, sell it, close it, no obligation back. See
+[LICENSE.md](LICENSE.md). Release archives carry both texts plus `THIRD-PARTY.md`,
+generated from the real dependency tree, because MIT and Apache both require their notices
+to travel with a binary.

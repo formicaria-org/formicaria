@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-labelledby="t d">
   <title id="t">formicaria</title>
-  <desc id="d">Three ant colonies, each circling its own nest, joined by routes along which ants travel in both directions — a set of vaults, each its own repo and audience, coordinating through git rather than a hub.</desc>
+  <desc id="d">Three ant colonies, each circling its own nest, joined by routes along which ants travel in both directions — a set of vaults, each its own repo and audience, coordinating through git rather than through a hub.</desc>
   <defs>
     <g id="ant" fill="#1a1205">
-      <ellipse cx="-7" cy="0" rx="6.5" ry="4.6"/>
-      <circle cx="1.5" cy="0" r="3.4"/>
-      <circle cx="8.5" cy="0" r="4.2"/>
+      <ellipse cx="-7" cy="0" rx="6.4" ry="4.5"/>
+      <circle cx="1.5" cy="0" r="3.3"/>
+      <circle cx="8.4" cy="0" r="4.1"/>
       <g fill="none" stroke="#1a1205" stroke-width="1.5" stroke-linecap="round">
         <path d="M1,-2 C -2,-6 -5,-8 -9,-9"/><path d="M2,-2 C 2,-7 3,-9 5,-11"/>
         <path d="M2,-2 C 5,-6 8,-7 11,-7"/>
@@ -15,52 +15,56 @@
       </g>
     </g>
     <radialGradient id="glow">
-      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.95"/>
-      <stop offset="55%" stop-color="#dc2626" stop-opacity="0.22"/>
+      <stop offset="0%" stop-color="#dc2626" stop-opacity="0.30"/>
+      <stop offset="62%" stop-color="#dc2626" stop-opacity="0.13"/>
       <stop offset="100%" stop-color="#dc2626" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="1200" height="380" rx="28" fill="#f3e9db"/>
-  <g fill="none" stroke="#f0a03c" stroke-width="2.5" stroke-linecap="round" opacity="0.55" stroke-dasharray="1 9">
-    <path d="M240,210 Q426.0,101.0 612,132"/>
-    <path d="M612,132 Q785.0,129.0 958,246"/>
-    <path d="M240,210 Q599.0,378.0 958,246"/>
+  <g fill="none" stroke="#c2410c" stroke-width="2.2" stroke-linecap="round" opacity="0.45" stroke-dasharray="1 10">
+    <path d="M232,206 Q424.0,102.0 616,126"/>
+    <path d="M616,126 Q792.0,130.0 968,242"/>
+    <path d="M232,206 Q600.0,356.0 968,242"/>
   </g>
-  <circle cx="240" cy="210" r="122" fill="url(#glow)"/>
-  <circle cx="240" cy="210" r="13" fill="#dc2626"/>
-  <circle cx="240" cy="210" r="13" fill="none" stroke="#1a1205" stroke-width="2.5" opacity="0.5"/>
-  <circle cx="612" cy="132" r="99" fill="url(#glow)"/>
-  <circle cx="612" cy="132" r="13" fill="#dc2626"/>
-  <circle cx="612" cy="132" r="13" fill="none" stroke="#1a1205" stroke-width="2.5" opacity="0.5"/>
-  <circle cx="958" cy="246" r="110" fill="url(#glow)"/>
-  <circle cx="958" cy="246" r="13" fill="#dc2626"/>
-  <circle cx="958" cy="246" r="13" fill="none" stroke="#1a1205" stroke-width="2.5" opacity="0.5"/>
-  <use href="#ant" transform="translate(304.0,210.0) rotate(90) scale(0.95)"/>
-  <use href="#ant" transform="translate(279.9,249.0) rotate(141) scale(0.95)"/>
-  <use href="#ant" transform="translate(225.8,258.7) rotate(193) scale(0.95)"/>
-  <use href="#ant" transform="translate(182.3,231.7) rotate(244) scale(0.95)"/>
-  <use href="#ant" transform="translate(182.3,188.3) rotate(296) scale(0.95)"/>
-  <use href="#ant" transform="translate(225.8,161.3) rotate(347) scale(0.95)"/>
-  <use href="#ant" transform="translate(279.9,171.0) rotate(399) scale(0.95)"/>
-  <use href="#ant" transform="translate(661.7,143.9) rotate(107) scale(0.95)"/>
-  <use href="#ant" transform="translate(623.7,171.5) rotate(167) scale(0.95)"/>
-  <use href="#ant" transform="translate(574.0,159.7) rotate(227) scale(0.95)"/>
-  <use href="#ant" transform="translate(562.3,120.1) rotate(287) scale(0.95)"/>
-  <use href="#ant" transform="translate(600.3,92.5) rotate(347) scale(0.95)"/>
-  <use href="#ant" transform="translate(650.0,104.3) rotate(407) scale(0.95)"/>
-  <use href="#ant" transform="translate(1006.1,271.3) rotate(124) scale(0.95)"/>
-  <use href="#ant" transform="translate(954.0,291.1) rotate(184) scale(0.95)"/>
-  <use href="#ant" transform="translate(905.9,265.8) rotate(244) scale(0.95)"/>
-  <use href="#ant" transform="translate(909.9,220.7) rotate(304) scale(0.95)"/>
-  <use href="#ant" transform="translate(962.0,200.9) rotate(364) scale(0.95)"/>
-  <use href="#ant" transform="translate(1010.1,226.2) rotate(424) scale(0.95)"/>
-  <use href="#ant" transform="translate(351.6,157.2) rotate(-20) scale(1.05)"/>
-  <use href="#ant" transform="translate(433.4,134.5) rotate(169) scale(1.05)"/>
-  <use href="#ant" transform="translate(515.3,125.3) rotate(-2) scale(1.05)"/>
-  <use href="#ant" transform="translate(715.8,141.0) rotate(11) scale(1.05)"/>
-  <use href="#ant" transform="translate(791.9,161.3) rotate(199) scale(1.05)"/>
-  <use href="#ant" transform="translate(868.0,193.3) rotate(26) scale(1.05)"/>
-  <use href="#ant" transform="translate(455.4,283.8) rotate(12) scale(1.05)"/>
-  <use href="#ant" transform="translate(613.4,303.6) rotate(182) scale(1.05)"/>
-  <use href="#ant" transform="translate(771.3,294.4) rotate(-9) scale(1.05)"/>
+  <circle cx="232" cy="206" r="116" fill="url(#glow)"/>
+  <circle cx="232" cy="206" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
+  <circle cx="232" cy="206" r="15" fill="#dc2626"/>
+  <circle cx="232" cy="206" r="6" fill="#1a1205" opacity="0.8"/>
+  <circle cx="616" cy="126" r="97" fill="url(#glow)"/>
+  <circle cx="616" cy="126" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
+  <circle cx="616" cy="126" r="15" fill="#dc2626"/>
+  <circle cx="616" cy="126" r="6" fill="#1a1205" opacity="0.8"/>
+  <circle cx="968" cy="242" r="108" fill="url(#glow)"/>
+  <circle cx="968" cy="242" r="26" fill="none" stroke="#dc2626" stroke-width="1.6" opacity="0.4"/>
+  <circle cx="968" cy="242" r="15" fill="#dc2626"/>
+  <circle cx="968" cy="242" r="6" fill="#1a1205" opacity="0.8"/>
+  <use href="#ant" transform="translate(330.6,198.4) rotate(90) scale(0.9)"/>
+  <use href="#ant" transform="translate(272.2,251.0) rotate(152) scale(0.9)"/>
+  <use href="#ant" transform="translate(206.6,259.8) rotate(205) scale(0.9)"/>
+  <use href="#ant" transform="translate(170.9,238.4) rotate(240) scale(0.9)"/>
+  <use href="#ant" transform="translate(153.7,186.2) rotate(295) scale(0.9)"/>
+  <use href="#ant" transform="translate(218.6,152.1) rotate(356) scale(0.9)"/>
+  <use href="#ant" transform="translate(283.6,153.7) rotate(402) scale(0.9)"/>
+  <use href="#ant" transform="translate(686.6,134.5) rotate(105) scale(0.9)"/>
+  <use href="#ant" transform="translate(656.8,167.3) rotate(150) scale(0.9)"/>
+  <use href="#ant" transform="translate(570.4,171.4) rotate(223) scale(0.9)"/>
+  <use href="#ant" transform="translate(539.7,133.0) rotate(269) scale(0.9)"/>
+  <use href="#ant" transform="translate(576.3,83.7) rotate(331) scale(0.9)"/>
+  <use href="#ant" transform="translate(659.1,82.4) rotate(402) scale(0.9)"/>
+  <use href="#ant" transform="translate(1033.9,234.3) rotate(87) scale(0.9)"/>
+  <use href="#ant" transform="translate(1015.9,294.6) rotate(152) scale(0.9)"/>
+  <use href="#ant" transform="translate(956.7,293.9) rotate(195) scale(0.9)"/>
+  <use href="#ant" transform="translate(904.1,269.2) rotate(246) scale(0.9)"/>
+  <use href="#ant" transform="translate(896.5,219.7) rotate(299) scale(0.9)"/>
+  <use href="#ant" transform="translate(963.9,182.7) rotate(363) scale(0.9)"/>
+  <use href="#ant" transform="translate(1015.2,200.6) rotate(406) scale(0.9)"/>
+  <use href="#ant" transform="translate(354.9,152.5) rotate(-18) scale(1.0)"/>
+  <use href="#ant" transform="translate(424.0,134.0) rotate(168) scale(1.0)"/>
+  <use href="#ant" transform="translate(493.1,123.7) rotate(-5) scale(1.0)"/>
+  <use href="#ant" transform="translate(728.6,139.6) rotate(12) scale(1.0)"/>
+  <use href="#ant" transform="translate(792.0,157.0) rotate(198) scale(1.0)"/>
+  <use href="#ant" transform="translate(855.4,181.4) rotate(24) scale(1.0)"/>
+  <use href="#ant" transform="translate(467.5,275.0) rotate(10) scale(1.0)"/>
+  <use href="#ant" transform="translate(600.0,290.0) rotate(183) scale(1.0)"/>
+  <use href="#ant" transform="translate(732.5,287.9) rotate(-5) scale(1.0)"/>
 </svg>
