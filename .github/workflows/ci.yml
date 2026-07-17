@@ -36,17 +36,27 @@ jobs:
         with:
           workspaces: . -> target
 
-      - name: cache node_modules
-        uses: actions/cache@v4
+      # Cache pnpm's STORE, never node_modules. pnpm fills node_modules with symlinks
+      # into a content-addressable store that lives elsewhere, so restoring node_modules
+      # alone restores dangling links — and pnpm then sees node_modules plus a matching
+      # lockfile, reports "Already up to date", repairs nothing, and vitest dies on a
+      # package that is a broken symlink. (It did exactly that on Windows.) The store is
+      # content-addressed, so restore-keys are safe here: a partial hit just means pnpm
+      # fetches what's missing and links the rest.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
         with:
-          path: ui/node_modules
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('ui/pnpm-lock.yaml') }}
-          restore-keys: ${{ runner.os }}-pnpm-
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
 
       # `ci` = test (incl. the perf budget) + test-ui + deny (license gate) + checks
       # (seam + generic-renderer greps) + docs. All must pass.
       #
       # Deliberately NOT followed by `pixi run build`: that is a second, full, release-mode
       # compile of the same code, and nothing consumes the result on an ordinary push.
-      # Release binaries are built once, on a tag, in `cross.yml`.
+      # Release binaries are built once, on a tag, in `release.yml`.
       - run: pixi run ci
