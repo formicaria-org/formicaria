@@ -83,8 +83,10 @@ Two things, and no more:
 - **A 64-bit OS** — Linux x86-64 with glibc 2.34+ (Ubuntu 22.04+), macOS on Apple silicon,
   or Windows 10/11 x64.
 
-No runtime, no account, no network: the interface, fonts, maths and diagram renderer are
-all inside the binary.
+No runtime, no account, no network: the interface, its fonts, the maths renderer and the
+diagram renderer are all inside the binary. Whiteboards ship their own fonts too, so
+drawing never reaches the internet. (Chinese and Japanese text in a whiteboard falls back
+to a system font — the CJK font is 13 MB and is not bundled.)
 
 ## Optional features
 
@@ -102,7 +104,6 @@ you like — your system package manager, [pixi](https://pixi.sh), brew, whateve
 | **vipsthumbnail** (libvips) | Thumbnails for images and PDFs | A placeholder where the preview would be |
 | **restic** | Encrypted, deduplicated backup of your media (needs `RESTIC_PASSWORD`, and a `restic` path per vault above) | Notes still back up over git; media stays local |
 | **xdg-open** (Linux only) | The "open in default app" button | That one button errors |
-| *an internet connection* | Excalidraw's hand-drawn fonts | Whiteboards work, in system fonts |
 
 Linux: `apt install git poppler-utils libvips-tools restic` ·
 macOS: `brew install git poppler vips restic` ·

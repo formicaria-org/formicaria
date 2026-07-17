@@ -5,93 +5,93 @@
 <h1 align="center">formicaria</h1>
 
 <p align="center">
-  <em>Knowledge, task scheduling and collaboration — on files you own.</em>
+  <em>A local-first research notebook: knowledge, task scheduling and collaboration over plain Markdown files.</em>
 </p>
 
 ---
 
-A *formicarium* is one colony's nest. The plural is the architecture: a **set of vaults**,
-one per audience — your own notes, the lab's, a paper with a collaborator — each its own
-repository with its own people, coordinating through git rather than through anyone's
-server.
+formicaria stores each note as a single Markdown file with YAML frontmatter, in a directory
+you control. It runs as a local web application: a small server on your machine, and your
+browser as the interface. There is no account, no cloud service and no network dependency.
 
-**Your notes are Markdown files you own.** One note per file, plain text, on your disk,
-readable in any editor with this app nowhere in sight. Knowledge, scheduling and
-collaboration are not three subsystems; they are three views of one file. A task is a note
-with a `due`. A shared note is a note in a different repository.
+A vault is an ordinary git repository. Running several — one per audience, such as personal
+notes, a lab's notes, and a paper shared with a collaborator — is the normal case, and is
+what the name refers to: a *formicarium* is one colony's nest, and *formicaria* is the
+plural.
+
+Notes, tasks and shared documents are not separate systems. A task is a note with a `due`
+property; a shared note is a note in a different repository.
+
+## Requirements
+
+| | |
+|---|---|
+| **A web browser** | Any current Firefox, Chrome, Safari or Edge. This is the interface; there is no separate desktop window. |
+| **A 64-bit OS** | Linux x86-64 with glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+) · macOS on Apple silicon · Windows 10/11 x64 |
+
+Nothing else is required. The interface, fonts, maths renderer and diagram renderer are
+compiled into the binary, so no runtime, package manager or network connection is needed to
+run it.
 
 ## Install
 
 Download the archive for your platform from
-[**Releases**](https://github.com/singhbal-baljinder/formicaria/releases), unpack it, and
-run `fm-serve`. There is no installer and no setup step.
+[Releases](https://github.com/singhbal-baljinder/formicaria/releases), unpack it, and run
+`fm-serve`:
 
 ```sh
 tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
-./fm-serve                    # → open http://127.0.0.1:8765
+./fm-serve                    # serves http://127.0.0.1:8765
 ```
 
-Each archive carries its own README with per-OS notes (macOS quarantines unsigned
-downloads and needs one `xattr` command). **Keep `fm` beside `fm-serve`** — the second
-binary is what git calls to merge notes, and separating them costs you clean merges.
+Each archive contains per-OS notes in its own README; macOS quarantines unsigned downloads
+and requires one `xattr` command. `fm` must stay in the same directory as `fm-serve`: it is
+the binary git invokes to merge notes, and the merge driver is not installed if it cannot
+be found.
 
 <details>
-<summary>Build from source instead</summary>
+<summary>Building from source</summary>
 
-Everything is pinned through [pixi](https://pixi.sh); nothing else needs installing.
+The toolchain is pinned with [pixi](https://pixi.sh); no other prerequisites.
 
 ```sh
-pixi run serve      # build + serve (a .svelte edit needs no Rust rebuild)
-pixi run build      # → target/release/{fm-serve,fm}; then run fm-serve
+pixi run serve      # build and serve; editing a .svelte file needs no Rust rebuild
+pixi run build      # → target/release/{fm-serve,fm}
 ```
 </details>
 
-## Requirements
-
-formicaria runs as a local web app: a small server on your machine, and your browser as
-the window. So there are two requirements, and no more.
-
-| | |
-|---|---|
-| **A web browser** | Any current Firefox, Chrome, Safari or Edge. This *is* the interface — there is no separate desktop window. |
-| **A 64-bit OS** | **Linux** x86-64 with glibc 2.34+ (Ubuntu 22.04+, Debian 12+, Fedora 35+) · **macOS** on Apple silicon · **Windows** 10/11 x64 |
-
-That is the whole list. No runtime to install, no account, and no network connection — the
-interface, the fonts, the maths and the diagram renderer are all inside the binary. Your
-vault is a folder.
-
 ## Features
 
-Everything below works with nothing but a browser.
+The following require only a browser.
 
-| Feature | What it does |
+| Feature | Description |
 |---|---|
-| **Notes** | Markdown with YAML frontmatter, one note per file. Edit here or in Vim — the bytes round-trip either way. |
-| **Tasks & scheduling** | Any note takes a `start` and a `due`, each with an optional time, so an all-day deadline and a 15:00 meeting are the same field. |
-| **Board** | Kanban that groups by *any* property, not just status. Drag a card to set that property — and to a position within the column. |
-| **Agenda** | Month/week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
-| **Timeline** | Your notes as a journal, by day. |
-| **Search** | Full-text over every note, instantly — SQLite FTS5, case- and accent-folding. |
-| **Note links** | `[Title](note:…)` renders as a live title chip; clicking it opens the target as a pane alongside, so the trail you followed stays on screen. |
-| **Whiteboards** | A note whose body is an Excalidraw scene — a first-class note that happens to draw, so it appears on the board and in the agenda like any other. |
-| **Maths & diagrams** | KaTeX and Mermaid, bundled: `$…$` and ` ```mermaid ` blocks render offline. |
-| **Media** | Drop in an image, PDF or video — stored once by content hash, referenced from the note, shown inline. |
+| **Notes** | Markdown with YAML frontmatter, one note per file. Editing in the application or in an external editor round-trips byte for byte. |
+| **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
+| **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
+| **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
+| **Timeline** | Notes ordered as a journal by day. |
+| **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
+| **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target in a pane alongside the source. |
+| **Whiteboards** | A note whose body is an Excalidraw scene. It remains a note, so it appears on the board and in the agenda like any other. |
+| **Maths and diagrams** | KaTeX and Mermaid are bundled; `$…$` and ` ```mermaid ` blocks render without network access. |
+| **Media** | Images, PDFs and video are stored once by content hash, referenced from notes and displayed inline. |
 
-### Features that need something installed
+### Features requiring additional software
 
-Each of these is optional. If its tool is not on your `PATH`, that feature is unavailable
-and the app says so; nothing else is affected. Install them with your system package
-manager, [pixi](https://pixi.sh), brew — however you prefer.
+These are optional. When a tool is absent the corresponding feature is unavailable and the
+application reports it; nothing else is affected. Install them with a system package
+manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria only looks on
+`PATH`.
 
-| Feature | Needs | Without it |
+| Feature | Requires | Behaviour without it |
 |---|---|---|
-| **History** — undo that outlives the session, and every past version of a note | `git` | Notes are still safe (they are files); there is just no history to go back to |
-| **Backup & sharing** — push a vault to a remote, pull a collaborator's work | `git`, and a remote you can push to | The vault stays on this machine |
-| **PDF search** — the text *inside* a PDF becomes findable | `pdftotext` (poppler) | The PDF is still stored and displayed, just not searchable |
-| **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder where the preview would be |
-| **Media backup** — encrypted, deduplicated snapshots of your blobs | `restic`, a repo per vault, and `RESTIC_PASSWORD` | Notes still back up over git; media stays local |
-| **"Open in default app"** | `xdg-open` — **Linux only**; macOS and Windows have this built in | That one button errors |
-| **Whiteboard hand-drawn fonts** | An internet connection (Excalidraw fetches them) | Whiteboards work, in system fonts |
+| **History** — versions of a note beyond the current session | `git` | Notes remain intact as files; no history is recorded |
+| **Backup and sharing** — push a vault to a remote, pull a collaborator's changes | `git`, and a remote | The vault remains local |
+| **PDF text search** — text inside a PDF becomes searchable | `pdftotext` (poppler) | The PDF is stored and displayed but not indexed |
+| **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder is shown instead of a preview |
+| **Media backup** — encrypted, deduplicated snapshots of blobs | `restic`, a repository per vault, and `RESTIC_PASSWORD` | Notes still back up via git; media remains local |
+| **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
 
 <details>
 <summary>Installing the optional tools</summary>
@@ -105,21 +105,21 @@ brew install git poppler vips restic
 pixi global install git poppler libvips restic
 ```
 
-Windows: `winget install Git.Git`, and the rest through [pixi](https://pixi.sh).
+Windows: `winget install Git.Git`; the remainder through [pixi](https://pixi.sh).
 </details>
 
-## Your notes
+## Vaults
 
 A vault is a directory: notes in `vault/notes/*.md`, media in `vault/blobs/` addressed by
-hash. Point the app at one with `FM_VAULT`:
+content hash. Select one with `FM_VAULT`:
 
 ```sh
 FM_VAULT=~/notes ./fm-serve
 ```
 
-Several vaults — one per audience — go in a config file (`~/.config/formicaria/vaults.json`
-on Linux; `~/Library/Application Support/formicaria/` on macOS; `%APPDATA%\formicaria\` on
-Windows):
+Multiple vaults are configured in a file — `~/.config/formicaria/vaults.json` on Linux,
+`~/Library/Application Support/formicaria/vaults.json` on macOS,
+`%APPDATA%\formicaria\vaults.json` on Windows:
 
 ```json
 {
@@ -130,29 +130,42 @@ Windows):
 }
 ```
 
-The first is where new notes go. Each vault is its own git repository, with its own people.
+The first entry receives new notes. Each vault is an independent git repository with its
+own collaborators.
 
-## How sharing works
+### Configuration
 
-Give a vault a remote and it is shared: the people who can clone it are exactly the people
-who can read it. **Where a note lives decides who can see it** — never a label inside the
-file, because a label you can type is a label you can typo, and git history is permanent.
+| Variable | Default | Purpose |
+|---|---|---|
+| `FM_VAULT` | `vault` | Vault directory, when no vault list is configured |
+| `FM_VAULTS` | per-OS config path | Location of the vault list |
+| `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
+| `FM_OPEN` | unset | Open the browser on start |
+| `FM_UI_DIST` | unset (uses the embedded interface) | Serve the interface from a directory instead |
+| `RESTIC_PASSWORD` | unset | Password for the restic repositories |
 
-Two people editing *different paragraphs of the same note* merge cleanly. That sounds
-unremarkable and is not: the format rewrites `updated:` on every save, so any two
-concurrent edits collide on that line, inside the frontmatter, where the parser refuses
-them. A frontmatter-aware merge driver resolves the collision the format itself
-manufactures. When a conflict is genuine it lands in the note's *body*, so the note still
-opens and you settle it in the editor.
+## Sharing
 
-The server binds `127.0.0.1` and has no authentication, because it was never meant to need
-any — do not expose it to a network. No account, no cloud, nothing phones home.
+Sharing a vault means giving its git repository a remote: the people who can clone it are
+the people who can read it. Access is determined by which repository a note is in, not by
+any field inside the file — a value in a file can be mistyped, and git history is permanent.
+
+Concurrent edits to different parts of one note merge without conflict. This requires a
+frontmatter-aware merge driver, because the file format rewrites `updated:` on every save:
+without it, any two concurrent edits collide on that line, inside the YAML, where the
+parser rejects the result. Genuine conflicts are placed in the note's body, so the note
+still opens and can be resolved in the editor.
+
+The server binds `127.0.0.1` and has no authentication. It is not designed to be exposed to
+a network.
 
 ## Documentation
 
-The manual is an mdBook under [`docs/`](docs/) — `pixi run docs`, then start at
-`docs/src/introduction.md`. The design spec is
+The manual is an mdBook under [`docs/`](docs/) — build with `pixi run docs`; start at
+`docs/src/introduction.md`. The design specification is
 [`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md).
+[`docs/context/`](docs/context/README.md) holds maintainer notes: current state, the
+reasoning behind design decisions, and known gaps.
 
 ## Development
 
@@ -160,19 +173,17 @@ The manual is an mdBook under [`docs/`](docs/) — `pixi run docs`, then start a
 pixi run ci        # test + test-ui + deny + checks + docs — the single gate
 ```
 
-CI runs the gate on Linux, macOS and Windows whenever code changes; a `v*` tag builds and
-publishes all three. [`docs/context/`](docs/context/README.md) is the maintainers' working
-memory: what exists, why, and what does not.
+CI runs the gate on Linux, macOS and Windows when code changes; a `v*` tag builds and
+publishes binaries for all three.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
-ui/      Svelte 5 + Vite (baked into the binary at build time)
-docs/    the mdBook manual
-vault/   your notes (its own git repo; ignored by this one)
+ui/      Svelte 5 + Vite, compiled into the binary at build time
+docs/    mdBook manual
+vault/   notes (a separate git repository; ignored by this one)
 ```
 
 ## Licence
 
-[MIT](LICENSE). Use it, change it, sell it, close it — keep the notice, that is all.
-Release archives also carry `THIRD-PARTY.md`, the notices of the libraries built into the
-binary.
+[MIT](LICENSE). Release archives also contain `THIRD-PARTY.md`, listing the licences of the
+libraries compiled into the binaries.

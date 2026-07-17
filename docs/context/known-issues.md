@@ -77,11 +77,15 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   placement. Only a real browser proves it; re-check by eye after touching the
   editor's font/padding, since the mirror clones exactly those properties.
 
-- **Whiteboard (Excalidraw) caveats.** (1) Excalidraw fetches its hand-drawn
-  fonts from a CDN unless `window.EXCALIDRAW_ASSET_PATH` points at locally-served
-  copies — offline, boards still work but fall back to system fonts. Local-font
-  bundling (copy `@excalidraw/excalidraw/dist/prod/fonts` into the build, ~14 MB,
-  mostly CJK) is **deferred**. (2) The canvas renders only in a real browser, so
+- **Whiteboard (Excalidraw) caveats.** (1) ~~Fonts come from a CDN~~ **fixed
+  2026-07-17**: `ui/scripts/copy-excalidraw-fonts.mjs` self-hosts them at build time and
+  `index.html` sets `window.EXCALIDRAW_ASSET_PATH`. The old note deferred this as "~14 MB,
+  mostly CJK" — that number was doing all the work and was misleading: **13 of the 14 MB is
+  one font** (Xiaolai, CJK). Everything else, Excalifont included, is ~390 KB, so the real
+  cost was 362 KB on a 12 MB binary — for making "nothing phones home" true. Xiaolai is
+  skipped, so CJK text in a whiteboard uses a system font. **Lesson: a deferral justified by
+  a single number deserves the number re-measured.** (2) The canvas renders only in a real
+  browser, so
   it's **unverified in headless CI** (build, code-split, and the board round-trip
   are tested; the visual editor is not). (3) A board can't yet be **embedded in a
   note** — it's a standalone note you open on its own. Planned in
