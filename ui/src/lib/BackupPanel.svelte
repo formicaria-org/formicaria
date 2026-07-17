@@ -4,19 +4,21 @@
   // Light (the default): commit + push the notes. Text only — small, plain, and
   // authenticated by whatever ssh-agent or credential helper the user already
   // has, so this app stores no secret.
-  // Heavy (tick to include): restic over every vault, blobs and all.
+  // Heavy (tick to include): restic, blobs and all.
   //
   // The panel's whole job is to never overstate. It says what each tier will and
   // will not carry *before* you act, and afterwards reports each tier's real
   // outcome — including whether the data left this machine at all, which a local
   // path for a remote or a restic repo quietly does not.
   //
-  // **It is a list, not a form.** Git is per vault by definition — one vault is one
-  // repo, one remote, one collaborator list — so each vault gets its own destination,
-  // its own identity, its own unpushed count and its own "someone pushed". Collapsing
-  // them into one "Back up" that silently meant the first vault is exactly the
-  // overstatement this panel exists to prevent. Restic is the exception, and says so:
-  // one repo for the whole set, because a snapshot is disaster recovery, not sharing.
+  // **It is a list, not a form**, and *both* tiers are per vault. Git because one vault
+  // is one repo, one remote, one collaborator list. Restic for the same shape of reason:
+  // a restic repo is per repository, so a set of vaults needs one each — there is no
+  // single media destination they could share. So each vault gets its own destination,
+  // identity, unpushed count, "someone pushed", and its own snapshot. Collapsing any of
+  // that into one "Back up" that silently meant the first vault is exactly the
+  // overstatement this panel exists to prevent — hence a vault with no restic repo is
+  // named, not skipped in silence.
   import { onMount } from 'svelte';
   import { backup, backupStatus, commit, pull, push, setGitRemote } from './ipc';
   import { reachOf, shortDest } from './destination';
@@ -39,7 +41,9 @@
   let error = $state<string | null>(null);
 
   const vaults = $derived(status?.vaults ?? []);
-  const mediaReach = $derived(reachOf(status?.restic_repo));
+  // Tickable if *anyone* can take media. Vaults without a restic repo are not a reason to
+  // grey out the ones that have one — they are a reason to say their media stayed put.
+  const anyRestic = $derived(vaults.some((v) => v.restic_ready));
   // Something to push somewhere. A vault with no remote isn't a failure, it just has
   // nowhere to go yet.
   const canRun = $derived(!busy && vaults.some((v) => !!v.remote));
@@ -131,7 +135,8 @@
     const now = new Date().toISOString();
     const off: string[] = [];
     const stuck: string[] = [];
-    let mediaOff = false;
+    const mediaOff: string[] = [];
+    const noMedia: string[] = [];
 
     // Every vault gets its own commit + push, and its own line in the report. A vault
     // that fails must not cancel the others — and must not be quietly folded into a
@@ -164,33 +169,58 @@
       }
     }
 
-    // The tiers are independent — a failed push must not cancel a full backup,
-    // and each reports its own fate.
+    // The media tier, per vault and for the same reason git is: a restic repo is per
+    // repository, so each vault either has one or its media has nowhere to go. Back up
+    // the ones that can and **name the ones that can't** — silently skipping them is the
+    // failure this panel exists to prevent. Independent of the git tier: a failed push
+    // must not cancel a snapshot.
     if (heavy) {
-      try {
-        await backup();
-        steps.push({
-          text: `Full backup of every vault, media included → ${shortDest(status.restic_repo ?? '')} — ${left(mediaReach)}.`,
-          ok: true,
-        });
-        mediaOff = mediaReach === 'remote';
-      } catch (e) {
-        steps.push({ text: `Full backup failed: ${msg(e)}`, ok: false });
+      for (const v of status.vaults) {
+        if (!v.restic_ready) {
+          noMedia.push(v.name);
+          steps.push({
+            text: v.restic_repo
+              ? `Media${of(v)} NOT backed up: RESTIC_PASSWORD isn't set.`
+              : `Media${of(v)} NOT backed up — no restic repo configured for it.`,
+            ok: false,
+          });
+          continue;
+        }
+        const reach = reachOf(v.restic_repo);
+        try {
+          await backup(v.name);
+          steps.push({
+            text: `Media${of(v)} → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
+            ok: true,
+          });
+          if (reach === 'remote') mediaOff.push(v.name);
+        } catch (e) {
+          steps.push({ text: `Media${of(v)} backup failed: ${msg(e)}`, ok: false });
+          noMedia.push(v.name);
+        }
       }
     }
 
     // Name the vaults that did not make it. "Your notes are backed up" while the lab
     // vault sat still is the one sentence this panel must never say.
+    // Name the vaults that did not make it, on both tiers. "Your notes are backed up"
+    // while one vault sat still is the one sentence this panel must never say.
     verdict =
       (stuck.length === 0
         ? 'Your notes are off this machine.'
         : off.length === 0
           ? 'Your notes are still on this machine.'
-          : `Off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
+          : `Notes off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
       ' ' +
-      (heavy
-        ? `Your media is ${mediaOff ? 'off' : 'still on'} this machine.`
-        : 'Your media was not included.');
+      (!heavy
+        ? 'Your media was not included.'
+        : noMedia.length === 0
+          ? mediaOff.length
+            ? 'Your media is off this machine.'
+            : 'Your media is backed up, but still on this machine.'
+          : mediaOff.length === 0
+            ? `No media was backed up (${noMedia.join(', ')} ${noMedia.length === 1 ? 'has' : 'have'} no restic repo).`
+            : `Media off this machine: ${mediaOff.join(', ')}. Not backed up: ${noMedia.join(', ')}.`);
     await load();
     busy = false;
   }
@@ -305,8 +335,19 @@
           {#if !heavy}
             Media in <code>blobs/</code> (images, PDFs, video) is <strong>not included</strong>.
           {:else}
-            Media from <strong>every vault</strong> → <strong>{shortDest(status?.restic_repo ?? '')}</strong>
-            — {leaves(mediaReach)}.
+            {#each vaults as v (v.name)}
+              {#if v.restic_ready}
+                <div>
+                  Media{of(v)} → <strong>{shortDest(v.restic_repo ?? '')}</strong> —
+                  {leaves(reachOf(v.restic_repo))}.
+                </div>
+              {:else}
+                <div>
+                  Media{of(v)} <strong>will not be backed up</strong> —
+                  {v.restic_repo ? 'RESTIC_PASSWORD isn\'t set' : 'no restic repo for it'}.
+                </div>
+              {/if}
+            {/each}
           {/if}
         </li>
       </ul>
@@ -319,20 +360,21 @@
       {#if verdict}<p class="verdict">{verdict}</p>{/if}
     {/if}
 
-    <label class="heavy" class:disabled={!status?.restic_ready}>
-      <input type="checkbox" bind:checked={heavy} disabled={busy || !status?.restic_ready} />
+    <label class="heavy" class:disabled={!anyRestic}>
+      <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
       <span>
-        Include media — full restic backup
-        {#if plural}
+        Include media — restic backup
+        {#if status && !anyRestic}
           <span class="muted">
-            (one repo for every vault — unlike your git remotes, this does not keep them
-            apart)
+            (unavailable: no vault has a <code>restic</code> repo in your vault list, or
+            <code>RESTIC_PASSWORD</code> isn't set — then restart)
           </span>
-        {/if}
-        {#if status && !status.restic_ready}
+        {:else if plural && vaults.some((v) => !v.restic_ready)}
           <span class="muted">
-            (unavailable: set <code>FM_RESTIC_REPO</code> and <code>RESTIC_PASSWORD</code>, then
-            restart)
+            (only the vaults with a restic repo of their own: {vaults
+              .filter((v) => v.restic_ready)
+              .map((v) => v.name)
+              .join(', ')})
           </span>
         {/if}
       </span>

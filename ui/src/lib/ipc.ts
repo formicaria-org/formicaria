@@ -58,17 +58,22 @@ export const openExternal = (reference: string) =>
 
 // Ingest an uploaded file (drag-drop / picker): stores a content-addressed blob,
 // extracts text, creates an asset note, and returns its meta so the editor can
-// insert a reference. Raw bytes go in the POST body; the name rides the query.
-export async function ingestFile(file: File): Promise<ObjectMeta> {
+// insert a reference. Raw bytes go in the POST body; the name and vault ride the query.
+//
+// `vault` is the audience the file joins, and it matters: a PDF dropped onto a lab note
+// belongs in the lab vault, beside the notes that reference it and inside the boundary
+// its readers already have. Empty means the default vault.
+export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
   if (import.meta.env.PROD) {
-    const res = await fetch(`/api/ingest?name=${encodeURIComponent(file.name)}`, {
+    const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
+    const res = await fetch(`/api/ingest?${q}`, {
       method: 'POST',
       body: file,
     });
     if (!res.ok) throw new Error((await res.text()) || res.statusText);
     return res.json();
   }
-  return mock.handle<ObjectMeta>('ingest', { name: file.name });
+  return mock.handle<ObjectMeta>('ingest', { name: file.name, vault });
 }
 
 // Durability, in two tiers. Light: commit the vault's notes to its own git repo
@@ -81,7 +86,9 @@ export async function ingestFile(file: File): Promise<ObjectMeta> {
 // default (the first configured vault), which is what a single-vault install always is.
 export const commit = (message: string, vault = '') =>
   invoke<boolean>('commit', { message, vault });
-export const backup = () => invoke<void>('backup');
+/** Snapshot one vault's media into *its own* restic repo. Per vault because a restic
+ *  repo is per repository — there is no one destination a set of vaults could share. */
+export const backup = (vault = '') => invoke<void>('backup', { vault });
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
 /** Point the vault at a remote. `name`/`email` are sent only when the vault has no
  *  identity yet — sharing a vault is what makes the committer name matter, so it is

@@ -274,7 +274,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // No vault in the browser/test: synthesize an asset note so the editor can
       // insert a reference. Deterministic hash so re-adding the same name "dedups".
       const name = String(args.name ?? 'asset');
-      const n = makeNote({ preview: name, type: 'asset', title: name, assets: [`sha256:${fakeHash(name)}`] });
+      // The asset joins the audience of the note it was dropped on — same rule the real
+      // backend follows, mirrored so `pnpm dev` can't show a flow the backend refuses.
+      const vault = mockVault(args.vault).name;
+      const n = makeNote({
+        preview: name,
+        type: 'asset',
+        title: name,
+        assets: [`sha256:${fakeHash(name)}`],
+        vault,
+      });
       notes.unshift(n);
       return n as T;
     }

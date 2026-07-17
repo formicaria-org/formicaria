@@ -49,12 +49,27 @@ which would re-couple a note to a location and break the links Phase 2 gets for 
 *Ingest is the exception and takes an explicit vault*: a blob should land beside the notes
 that will reference it, never in an audience that shouldn't have it.
 
-**restic does not respect vault boundaries, and says so.** One repo, one password, every
-vault — because restic is *backup*, not distribution: a snapshot is disaster recovery for
-the person who owns all these vaults anyway, so mirroring git's boundaries into it would
-buy nothing and cost a repo and a password per vault. The asymmetry with the git tier is
-real, so the panel states it rather than implying otherwise with a per-vault checkbox that
-doesn't exist.
+**restic is per vault too — a restic repo *is* per repository.** *(Corrected 2026-07-17:
+the first cut made it one repo for the whole set, on the theory that a snapshot is
+disaster recovery rather than sharing. That was wrong on its own terms — restic has no
+notion of "part of a repo", so backing up a set of vaults means a repo each, and one repo
+holding several vaults is not a design choice, it is a merge of things that were kept
+apart on purpose.)* So each vault carries an optional `restic` in the vault list, and a
+vault without one simply has nowhere to put its media — which is **not** an error: you may
+well want the lab's notes shared over git and its media backed up by the lab, not by you.
+"Include media" backs up the vaults that have a repo and **names the ones that don't**,
+per vault, in the report and in the verdict. Silently skipping them would be the exact
+overstatement `destination.ts` exists to prevent. `RESTIC_PASSWORD` is still one password
+for every repo: a per-vault password has to live somewhere, and the one place it must
+never live is the config file sitting next to the paths. The single-vault install's
+`FM_RESTIC_REPO` still works and becomes that vault's repo.
+
+**An asset joins the audience of the note it was dropped on.** `ingest` takes the vault's
+**path and its name**, because they answer different things — the blob store takes a path,
+the `Store` routes by name — and they must agree. The first cut passed only the path:
+bytes went to the lab vault while the asset note went to the default, so the people who
+could see the file could not see the note describing it, and the note pointed at bytes its
+own vault never had. Caught by running it, not by a test.
 
 **Hiding a vault is a view preference, not a permission.** The filter lives in
 localStorage next to the column order, and filters client-side. It changes what is on

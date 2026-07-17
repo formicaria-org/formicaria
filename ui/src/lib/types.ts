@@ -72,19 +72,24 @@ export interface VaultStatus {
   /** Notes with conflict markers in them, waiting for a human. The `.md` merge driver
    *  keeps markers out of the frontmatter, so these still open in the editor. */
   conflicts: string[];
+  /** Where this vault's media backs up to — a path or URL, never the password. Null when
+   *  this vault has no restic repo, which is not an error: a restic repo is per
+   *  repository, so a set of vaults needs one each. */
+  restic_repo: string | null;
+  /** This vault's media could actually be backed up now: it has a repo and the password
+   *  is set. */
+  restic_ready: boolean;
 }
 
-/** What each backup tier could do right now (`backup_status`). */
+/** What each backup tier could do right now (`backup_status`).
+ *
+ *  **Both tiers are per vault**: git because one vault is one repo and one remote, restic
+ *  because a restic repo is per repository too. There is no app-wide destination for
+ *  either, which is why there is no field here for one. */
 export interface BackupStatus {
   /** Every vault, in configured order; the first is the default for new notes. A
    *  single-vault install is a list of one. */
   vaults: VaultStatus[];
-  /** The restic repo — a path or URL, never the password. One repo for the whole set:
-   *  restic is disaster recovery, not distribution, so unlike git it does **not**
-   *  respect vault boundaries. The panel says so. */
-  restic_repo: string | null;
-  /** Both restic env vars present, i.e. a full backup could actually run. */
-  restic_ready: boolean;
 }
 
 /** What a pull did. Conflicts are a result, not a failure. */

@@ -17,13 +17,26 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+/// One configured vault: an audience, where it lives, and where its media backs up to.
+struct VaultConfig {
+    name: String,
+    path: PathBuf,
+    /// This vault's restic repo, or `None` when its media has nowhere to go.
+    ///
+    /// Per vault because **a restic repo is per repository** — backing up two vaults
+    /// means two repos, so "the" restic repo for a set of vaults is not a thing that
+    /// exists. A vault without one is not an error: you may well want your lab's notes
+    /// shared over git and its media backed up by the lab, not by you.
+    restic: Option<String>,
+}
+
 struct AppState {
     store: Mutex<MultiStore>,
-    /// Every vault, name → path, in configured order. **The first is the default**: a
-    /// note that names no vault (every fresh capture) lands there, so it should be the
-    /// personal one. A single-vault install is just a list of one, which is why nothing
-    /// below has a "multi" special case.
-    vaults: Vec<(String, PathBuf)>,
+    /// Every vault, in configured order. **The first is the default**: a note that names
+    /// no vault (every fresh capture) lands there, so it should be the personal one. A
+    /// single-vault install is just a list of one, which is why nothing below has a
+    /// "multi" special case.
+    vaults: Vec<VaultConfig>,
     dist: PathBuf,
     /// The origins our own page can be served from. Any other origin on an API
     /// call is some site the user merely visited, reaching for their vault.
@@ -46,7 +59,10 @@ fn main() {
         vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
 
     let vaults = load_vaults();
-    let store = MultiStore::open(&vaults).expect("open vaults");
+    let store = MultiStore::open(
+        &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
+    )
+    .expect("open vaults");
     // A vault opens even when a note is unreadable — a conflicted merge is the usual
     // cause, and refusing to start would take away the very app you need to fix it. But
     // those notes are now absent from every view, so say which ones: silently serving an
@@ -76,8 +92,8 @@ fn main() {
     }
 
     let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
-    for (name, path) in &state.vaults {
-        println!("formicaria is serving {name} at {}", path.display());
+    for v in &state.vaults {
+        println!("formicaria is serving {} at {}", v.name, v.path.display());
     }
     println!("open  http://{addr}  in your browser");
 
@@ -242,14 +258,14 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         // Searched across vaults: the reference names bytes, not a place.
         "asset_status" => {
             let r = s("reference");
-            let found = state.vaults.iter().find_map(|(_, p)| {
-                commands::asset_status(p, &r).ok().filter(|st| st.has_blob)
+            let found = state.vaults.iter().find_map(|v| {
+                commands::asset_status(&v.path, &r).ok().filter(|st| st.has_blob)
             });
             match found {
                 Some(st) => json(st),
                 // Absent everywhere. Still not an error — "media absence is a warning,
                 // never an error" — so answer with the default vault's honest "no".
-                None => json(commands::asset_status(state.vault("")?, &r).map_err(err)?),
+                None => json(commands::asset_status(&state.vault("")?.path, &r).map_err(err)?),
             }
         }
         "resolve_asset" => {
@@ -257,7 +273,7 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             state
                 .vaults
                 .iter()
-                .find_map(|(_, p)| commands::resolve_asset_bytes(p, &r, &k).ok())
+                .find_map(|v| commands::resolve_asset_bytes(&v.path, &r, &k).ok())
                 .ok_or_else(|| format!("blob not present in any vault: {r}"))
         }
         "open_external" => {
@@ -268,10 +284,10 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
             // Hold the store lock so a commit can't snapshot the vault mid-write
             // (fm-serve is thread-per-connection). Matches the retired desktop bin.
             let _guard = lock(state)?;
-            json(git::commit_all(state.vault(&s("vault"))?, &s("message")).map_err(err)?)
+            json(git::commit_all(&state.vault(&s("vault"))?.path, &s("message")).map_err(err)?)
         }
         "backup" => {
-            run_backup(state)?;
+            run_backup(state, &s("vault"))?;
             Ok(Vec::new())
         }
         // What the two backup tiers would actually do right now — the panel needs
@@ -285,22 +301,22 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         "set_git_remote" => {
             let (name, email) = (s("name"), s("email"));
             if !name.is_empty() || !email.is_empty() {
-                git::set_identity(state.vault(&s("vault"))?, &name, &email).map_err(err)?;
+                git::set_identity(&state.vault(&s("vault"))?.path, &name, &email).map_err(err)?;
             }
-            git::set_remote(state.vault(&s("vault"))?, &s("url")).map_err(err)?;
+            git::set_remote(&state.vault(&s("vault"))?.path, &s("url")).map_err(err)?;
             Ok(Vec::new())
         }
         "push" => {
             // Same reason as `commit`: don't let a push snapshot the vault mid-write.
             let _guard = lock(state)?;
-            json(git::push_squashed(state.vault(&s("vault"))?, &s("message")).map_err(err)?)
+            json(git::push_squashed(&state.vault(&s("vault"))?.path, &s("message")).map_err(err)?)
         }
         // Bring a collaborator's work home. Holds the store lock for the same reason
         // push does — a merge rewrites notes under the app's feet, and the very next
         // incremental reindex is what makes them visible.
         "pull" => {
             let mut store = lock(state)?;
-            let outcome = git::pull(state.vault(&s("vault"))?).map_err(err)?;
+            let outcome = git::pull(&state.vault(&s("vault"))?.path).map_err(err)?;
             // The merge just wrote files behind the index's back. Re-read now rather
             // than leave the user staring at pre-pull content until the next heartbeat.
             store.reindex(Reindex::Incremental).map_err(err)?;
@@ -329,9 +345,15 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         "ingest" => {
             let name = query_param(query, "name").unwrap_or_else(|| "asset".to_string());
             // Into the vault the caller names — the blob lands beside the notes that
-            // will reference it, and never in an audience that shouldn't have it.
-            let into = state.vault(&query_param(query, "vault").unwrap_or_default())?.to_path_buf();
-            json(commands::ingest(&mut *lock(state)?, &into, &name, body).map_err(err)?)
+            // will reference it, and never in an audience that shouldn't have it. Both
+            // the path and the name, so the bytes and the asset note land in the *same*
+            // vault: splitting them puts the file in one audience and its note in another.
+            let into = state.vault(&query_param(query, "vault").unwrap_or_default())?;
+            let (path, vault_name) = (into.path.clone(), into.name.clone());
+            json(
+                commands::ingest(&mut *lock(state)?, &path, &vault_name, &name, body)
+                    .map_err(err)?,
+            )
         }
         other => Err(format!("unknown command: {other}")),
     })();
@@ -355,14 +377,13 @@ impl AppState {
     /// An **unknown** name is an error, never a fallback. Quietly writing a note meant
     /// for "lab" into "personal" is a disclosure that git history makes permanent, and
     /// the reverse silently loses the note — so a typo has to be loud.
-    fn vault(&self, name: &str) -> Result<&Path, String> {
+    fn vault(&self, name: &str) -> Result<&VaultConfig, String> {
         if name.is_empty() {
-            return Ok(&self.vaults[0].1);
+            return Ok(&self.vaults[0]);
         }
         self.vaults
             .iter()
-            .find(|(n, _)| n == name)
-            .map(|(_, p)| p.as_path())
+            .find(|v| v.name == name)
             .ok_or_else(|| format!("no vault named '{name}'"))
     }
 
@@ -374,8 +395,8 @@ impl AppState {
     /// to the reference, so they are the same bytes. Vault-scoping references would
     /// re-couple a note to a location and break the links.
     fn find_blob(&self, reference: &str) -> Result<PathBuf, String> {
-        for (_, path) in &self.vaults {
-            if let Ok(p) = commands::blob_path(path, reference) {
+        for v in &self.vaults {
+            if let Ok(p) = commands::blob_path(&v.path, reference) {
                 return Ok(p);
             }
         }
@@ -394,18 +415,26 @@ impl AppState {
 /// which is every install that exists today. Nothing to migrate, and a list of one
 /// behaves exactly like the old single vault.
 ///
+/// `restic` is optional and **per vault**, because a restic repo *is* per repository:
+/// there is no such thing as "the" restic repo for a set of vaults, so backing all of
+/// them up means one repo each. A vault without one simply has nowhere to put its media,
+/// and the panel says so rather than pretending.
+///
 /// ```json
-/// { "vaults": [ { "name": "personal", "path": "/home/you/vault" },
+/// { "vaults": [ { "name": "personal", "path": "/home/you/vault", "restic": "/backup/personal" },
 ///               { "name": "lab",      "path": "/home/you/lab-notes" } ] }
 /// ```
-fn load_vaults() -> Vec<(String, PathBuf)> {
+fn load_vaults() -> Vec<VaultConfig> {
     let single = || {
         let path = PathBuf::from(std::env::var("FM_VAULT").unwrap_or_else(|_| "vault".into()));
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| "vault".into());
-        vec![(name, path)]
+        // The single-vault install kept its restic repo in FM_RESTIC_REPO. Honour it, so
+        // an existing setup keeps backing up without touching anything.
+        let restic = std::env::var("FM_RESTIC_REPO").ok().filter(|s| !s.is_empty());
+        vec![VaultConfig { name, path, restic }]
     };
 
     let Some(config) = vault_list_path() else { return single() };
@@ -420,7 +449,7 @@ fn load_vaults() -> Vec<(String, PathBuf)> {
             return single();
         }
     };
-    let entries: Vec<(String, PathBuf)> = parsed
+    let entries: Vec<VaultConfig> = parsed
         .get("vaults")
         .and_then(Value::as_array)
         .map(|a| {
@@ -428,7 +457,15 @@ fn load_vaults() -> Vec<(String, PathBuf)> {
                 .filter_map(|v| {
                     let name = v.get("name")?.as_str()?.to_string();
                     let path = v.get("path")?.as_str()?;
-                    Some((name, PathBuf::from(expand_home(path))))
+                    Some(VaultConfig {
+                        name,
+                        path: PathBuf::from(expand_home(path)),
+                        restic: v
+                            .get("restic")
+                            .and_then(Value::as_str)
+                            .filter(|s| !s.is_empty())
+                            .map(expand_home),
+                    })
                 })
                 .collect()
         })
@@ -532,68 +569,68 @@ struct VaultStatus {
     remote_moved: Option<bool>,
     /// Notes with conflict markers sitting in them, waiting for a human.
     conflicts: Vec<String>,
+    /// Where this vault's media backs up to — a path or URL, so the UI can say whether
+    /// it would leave this machine. **Never the password.** Null when this vault has no
+    /// restic repo, which is not an error: a restic repo is per repository, so a set of
+    /// vaults needs one each, and you may well not want one for all of them.
+    restic_repo: Option<String>,
+    /// This vault's media could actually be backed up right now: it has a repo *and*
+    /// `RESTIC_PASSWORD` is set.
+    restic_ready: bool,
 }
 
-/// What each backup tier can do right now. fm-core stays free of environment and
-/// configuration concerns, so the env-derived half is assembled here.
+/// What each backup tier can do right now, per vault. fm-core stays free of environment
+/// and configuration concerns, so the env-derived half is assembled here.
+///
+/// **Both tiers are per vault.** Git was always: one vault, one repo, one remote. And
+/// restic is too, for the same shape of reason — a restic repo *is* per repository, so
+/// backing up a set of vaults means a repo each. There is no app-wide media destination
+/// to report, which is why there is no field here for one.
 #[derive(serde::Serialize)]
 struct BackupStatus {
     /// Every vault, in configured order; the first is the default. A single-vault
     /// install is a list of one, so the panel needs no separate shape for it.
     vaults: Vec<VaultStatus>,
-    /// The restic repo — a path or URL, so the UI can say whether media would
-    /// leave this machine. Never the password.
-    ///
-    /// Still one repo for the whole set: restic snapshots *paths*, and `FM_RESTIC_REPO`
-    /// is one repo with one password. That is honest for the media tier — a restic
-    /// snapshot is a disaster-recovery copy, not a shared artifact — but it means the
-    /// media tier does **not** respect vault boundaries the way git does. Said plainly
-    /// here rather than implied by a per-vault checkbox that doesn't exist.
-    restic_repo: Option<String>,
-    /// Both restic env vars present, i.e. a full backup could actually run.
-    restic_ready: bool,
 }
 
 fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
-    let restic_repo = std::env::var("FM_RESTIC_REPO").ok().filter(|s| !s.is_empty());
+    // One password for every repo. A per-vault password would have to live somewhere,
+    // and the one place it must never live is the config file next to the paths.
+    let has_password = std::env::var("RESTIC_PASSWORD").is_ok();
     let vaults = state
         .vaults
         .iter()
-        .map(|(name, path)| VaultStatus {
-            name: name.clone(),
-            remote: git::remote(path).unwrap_or(None),
-            unpushed: git::unpushed(path).unwrap_or(None),
-            identity: git::identity(path),
-            remote_moved: git::remote_moved(path).unwrap_or(None),
-            conflicts: git::conflicts(path).unwrap_or_default(),
+        .map(|v| VaultStatus {
+            name: v.name.clone(),
+            remote: git::remote(&v.path).unwrap_or(None),
+            unpushed: git::unpushed(&v.path).unwrap_or(None),
+            identity: git::identity(&v.path),
+            remote_moved: git::remote_moved(&v.path).unwrap_or(None),
+            conflicts: git::conflicts(&v.path).unwrap_or_default(),
+            restic_ready: v.restic.is_some() && has_password,
+            restic_repo: v.restic.clone(),
         })
         .collect();
-    Ok(BackupStatus {
-        vaults,
-        restic_ready: restic_repo.is_some() && std::env::var("RESTIC_PASSWORD").is_ok(),
-        restic_repo,
-    })
+    Ok(BackupStatus { vaults })
 }
 
-/// The media tier: snapshot **every** vault into the one restic repo.
+/// The media tier, for **one** vault — snapshot it into *its own* restic repo.
 ///
-/// Deliberately not per-vault, and worth being explicit about. restic is *backup*, not
-/// distribution: one repo, one password, all-or-nothing access to every snapshot. It is
-/// a disaster-recovery copy for the person who owns all these vaults anyway, so mirroring
-/// git's audience boundaries into it would buy nothing and cost a repo and a password per
-/// vault. The consequence — restic does not respect vault boundaries the way git does —
-/// is stated in `BackupStatus::restic_repo` and shown in the panel, because the one thing
-/// the backup panel must never do is overstate where data went.
-fn run_backup(state: &AppState) -> Result<(), String> {
-    let repo = std::env::var("FM_RESTIC_REPO")
-        .map_err(|_| "set FM_RESTIC_REPO to a restic repository path".to_string())?;
+/// Per vault because a restic repo is per repository: there is no single destination
+/// that could hold a set of vaults, so each one either has a repo of its own or has
+/// nowhere for its media to go. A vault without one is not an error and must not be
+/// silently folded into someone else's repo — the caller is told, by name, that this
+/// vault's media stayed put. Refusing to say so is the overstatement this whole panel
+/// exists to prevent.
+fn run_backup(state: &AppState, vault: &str) -> Result<(), String> {
+    let v = state.vault(vault)?;
+    let repo = v.restic.as_ref().ok_or_else(|| {
+        format!("no restic repo configured for '{}' — its media has nowhere to go", v.name)
+    })?;
     let password = std::env::var("RESTIC_PASSWORD")
         .map_err(|_| "set RESTIC_PASSWORD for the restic repository".to_string())?;
-    for (name, path) in &state.vaults {
-        backup::backup(path, Path::new(&repo), &password)
-            .map_err(|e| format!("backing up '{name}': {e}"))?;
-    }
-    Ok(())
+    backup::backup(&v.path, Path::new(repo), &password)
+        .map_err(|e| format!("backing up '{}': {e}", v.name))
 }
 
 /// Serve a file from the built UI. Unknown non-file paths fall back to

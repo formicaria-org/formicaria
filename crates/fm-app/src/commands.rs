@@ -228,9 +228,15 @@ pub fn asset_status(vault: &Path, reference: &str) -> Result<AssetStatus, StoreE
 /// searchable text, and create an asset note pointing at it — the GUI twin of
 /// `fm add`. Returns the new asset's meta so the editor can insert a reference
 /// (`![title](asset:sha256-<hash>)`) without a refetch.
+/// `vault` is where the bytes go; `vault_name` is the audience the asset **note** joins.
+/// Both, because they are answered by different things: the blob store takes a path, and
+/// the `Store` routes by name. They must agree — an asset note in one vault describing a
+/// blob in another means the people who can see the file cannot see the note, and the
+/// person who can see the note is pointing at bytes they never shared.
 pub fn ingest(
     store: &mut dyn Store,
     vault: &Path,
+    vault_name: &str,
     filename: &str,
     bytes: &[u8],
 ) -> Result<ObjectMeta, StoreError> {
@@ -239,6 +245,7 @@ pub fn ingest(
     obj.title = Some(ing.filename.clone());
     obj.assets = vec![format!("sha256:{}", ing.hash)];
     obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
+    obj.vault = vault_name.to_string();
     store.put(&obj)?;
     // Best-effort thumbnail, like `fm add`: a missing vipsthumbnail (or failure)
     // only degrades a gallery tile, never the ingest.

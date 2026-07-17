@@ -435,7 +435,12 @@
     const copied: string[] = [];
     try {
       for (const f of files) {
-        const meta = await ingestFile(f);
+        // Into the vault of the note you dropped it on: an asset belongs to the same
+        // audience as the note that references it. Dropping a PDF on a lab note and
+        // having it land in your personal vault would put the bytes on the wrong side
+        // of a boundary — and the note would still render it, so nothing would look
+        // wrong.
+        const meta = await ingestFile(f, note?.vault ?? '');
         await insertAtCaret(assetRef(meta) + '\n');
         copied.push(meta.title ?? f.name);
       }

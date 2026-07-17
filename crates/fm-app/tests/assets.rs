@@ -64,8 +64,11 @@ fn ingest_creates_an_asset_note_and_status_reports_its_mime() {
     // PNG magic bytes — sniffed to image/png regardless of the filename.
     let png: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
-    let meta = commands::ingest(&mut store, vault.path(), "poster v2.png", png).unwrap();
+    let meta = commands::ingest(&mut store, vault.path(), "personal", "poster v2.png", png).unwrap();
     assert_eq!(meta.kind, "asset");
+    // The note joins the same audience as its bytes. Split them and the people who can
+    // see the file cannot see the note describing it — and vice versa.
+    assert_eq!(meta.vault, "personal", "the asset note lands in the vault its blob did");
     assert_eq!(meta.title.as_deref(), Some("poster v2.png"));
     let reference = &meta.assets[0];
     assert!(reference.starts_with("sha256:"), "reference is a blob pointer: {reference}");
@@ -75,7 +78,7 @@ fn ingest_creates_an_asset_note_and_status_reports_its_mime() {
     assert_eq!(status.mime.as_deref(), Some("image/png"));
 
     // The blob dedups but a second ingest still makes its own asset note.
-    let meta2 = commands::ingest(&mut store, vault.path(), "again.png", png).unwrap();
+    let meta2 = commands::ingest(&mut store, vault.path(), "personal", "again.png", png).unwrap();
     assert_eq!(meta2.assets[0], *reference, "same bytes → same blob reference");
     assert_ne!(meta2.id, meta.id, "but a distinct note");
 }
