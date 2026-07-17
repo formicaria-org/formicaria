@@ -1,0 +1,31 @@
+# The manual, built only when the manual changes.
+#
+# `docs/src/**` is the mdBook; a broken link there fails the build, which is worth knowing.
+# Nothing else here is: README.md, docs/context/** (maintainer notes) and docs/assets/**
+# are not part of the book, so they trigger nothing at all. Testing lives in ci.yml and is
+# code-only — a redrawn image should never run a Rust test.
+name: docs
+
+on:
+  push:
+    paths: &docs
+      - 'docs/src/**'
+      - 'docs/book.toml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    paths: *docs
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          run-install: true
+          cache: true
+      - run: pixi run docs

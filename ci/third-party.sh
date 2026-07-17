@@ -34,8 +34,8 @@ OUT="${1:-THIRD-PARTY.md}"
         }' \
       | sort -u
     echo
-    echo "Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is in"
-    echo "\`LICENSE-MIT\` / \`LICENSE-APACHE\`."
+    echo "Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,"
+    echo "in \`LICENSE\`."
 } > "$OUT"
 
 echo "wrote $OUT ($(grep -c '^| ' "$OUT") crates)"

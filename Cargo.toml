@@ -12,7 +12,7 @@ members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cl
 [workspace.package]
 edition = "2021"
 version = "0.0.0"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [workspace.dependencies]
 fm-model = { path = "crates/fm-model" }

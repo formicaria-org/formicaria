@@ -108,4 +108,5 @@ never meant to need any.
 
 ---
 
-Licensed MIT OR Apache-2.0. Source: <https://github.com/singhbal-baljinder/formicaria>
+MIT licensed — see `LICENSE`. `THIRD-PARTY.md` lists the libraries built into these
+binaries and their notices. Source: <https://github.com/singhbal-baljinder/formicaria>

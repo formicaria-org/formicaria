@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/formicaria.svg" alt="Three ant colonies, each circling its own nest, joined by routes along which ants travel in both directions" width="820">
+  <img src="docs/assets/formicaria.svg" alt="Three ant colonies, each nest a labyrinth of galleries, linked by braided trails with ants moving both ways along them" width="820">
 </p>
 
 <h1 align="center">formicaria</h1>
@@ -101,8 +101,8 @@ One gate:
 pixi run ci               # test + test-ui + deny + checks + docs
 ```
 
-CI runs it on Linux for every push, and on macOS + Windows whenever code changes. A `v*`
-tag builds and publishes all three.
+CI runs it on Linux when code changes, and on macOS + Windows too. A `v*` tag builds and
+publishes all three platforms.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
@@ -113,8 +113,6 @@ vault/   your notes (its own git repo; git-ignored by this one)
 
 ## Licence
 
-Dual-licensed **MIT OR Apache-2.0**, at your option — the Rust ecosystem convention, and
-about as permissive as licensing gets: use it, sell it, close it, no obligation back. See
-[LICENSE.md](LICENSE.md). Release archives carry both texts plus `THIRD-PARTY.md`,
-generated from the real dependency tree, because MIT and Apache both require their notices
-to travel with a binary.
+[MIT](LICENSE). Use it, change it, sell it, close it — keep the notice, that's all.
+Release archives also carry `THIRD-PARTY.md`, the notices of the libraries built into the
+binary.

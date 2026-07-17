@@ -7,9 +7,24 @@
 # every session). Those cannot break a Windows build, so they must not pay for one.
 name: ci
 
+# Code only. A README edit, a redrawn image, a note in docs/context — none of those can
+# break a test, and none of them should spend a minute proving it. The doc build has its
+# own workflow, and it only runs when the book's own sources move.
 on:
   push:
+    paths: &code
+      - 'crates/**'
+      - 'ui/**'
+      - 'ci/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - 'deny.toml'
+      - '.gitattributes'
+      - '.github/workflows/ci.yml'
   pull_request:
+    paths: *code
 
 # Pushing twice in a minute shouldn't pay twice. Supersede the older run.
 concurrency:
