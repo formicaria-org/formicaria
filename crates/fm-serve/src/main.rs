@@ -7,6 +7,10 @@
 //!
 //! Localhost only, single user. std-only networking, thread-per-connection.
 
+// The built UI, baked in at compile time by build.rs — this is what makes the core one
+// self-contained file rather than a binary that needs its assets shipped beside it.
+include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
+
 use fm_app::commands;
 use fm_core::{backup, git, MultiStore, Reindex, Store};
 use serde_json::Value;
@@ -37,7 +41,13 @@ struct AppState {
     /// single-vault install is just a list of one, which is why nothing below has a
     /// "multi" special case.
     vaults: Vec<VaultConfig>,
-    dist: PathBuf,
+    /// Where to read the UI from, or `None` to serve the copy baked into this binary.
+    ///
+    /// `Some` only when `FM_UI_DIST` is set explicitly, which is the dev loop: `pixi run
+    /// serve` points it at `ui/dist` so editing a `.svelte` and reloading shows the change
+    /// with no Rust rebuild. Unset — every release launch — serves the embedded assets, so
+    /// the binary needs nothing beside it.
+    dist: Option<PathBuf>,
     /// The origins our own page can be served from. Any other origin on an API
     /// call is some site the user merely visited, reaching for their vault.
     origins: Vec<String>,
@@ -50,7 +60,9 @@ struct AppState {
 }
 
 fn main() {
-    let dist = std::env::var("FM_UI_DIST").unwrap_or_else(|_| "ui/dist".to_string());
+    // Absent on purpose: no default path. The UI is *in* the binary unless someone
+    // explicitly points us at a directory.
+    let dist = std::env::var_os("FM_UI_DIST").map(PathBuf::from);
     let addr = std::env::var("FM_ADDR").unwrap_or_else(|_| "127.0.0.1:8765".to_string());
 
     // Both spellings of "us": a browser sends whichever hostname the user typed.
@@ -78,17 +90,24 @@ fn main() {
     let state = Arc::new(AppState {
         store: Mutex::new(store),
         vaults,
-        dist: PathBuf::from(&dist),
+        dist,
         origins,
         last_seen: Mutex::new(Instant::now()),
         connected: AtomicBool::new(false),
     });
 
-    if !state.dist.join("index.html").exists() {
-        eprintln!(
-            "warning: {} has no index.html — build the UI first (pnpm -C ui build)",
-            state.dist.display()
-        );
+    match &state.dist {
+        // Told to read from disk, but there is nothing there.
+        Some(d) if !d.join("index.html").exists() => eprintln!(
+            "warning: FM_UI_DIST={} has no index.html — build the UI first (pnpm -C ui build)",
+            d.display()
+        ),
+        // Serving ourselves, but nothing was baked in (built before `pnpm build` ran).
+        None if UI_ASSETS.is_empty() => eprintln!(
+            "warning: no UI is embedded in this binary — rebuild with `pixi run build`, \
+             or set FM_UI_DIST to a built ui/dist"
+        ),
+        _ => {}
     }
 
     let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
@@ -103,7 +122,7 @@ fn main() {
         let url = format!("http://{addr}");
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(400));
-            let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+            let _ = open_native(std::ffi::OsStr::new(&url));
         });
     }
 
@@ -413,7 +432,8 @@ impl AppState {
 /// `FM_VAULT` is a single path. Breaking that principle on purpose, in one place, beats
 /// breaking it by accident later.
 ///
-/// `FM_VAULTS` points at the file; otherwise `$XDG_CONFIG_HOME/formicaria/vaults.json`.
+/// `FM_VAULTS` points at the file; otherwise this OS's per-user config dir (see
+/// [`config_dir`]) — `~/.config/formicaria/vaults.json` on Linux.
 /// Absent means the single-vault setup — `FM_VAULT`, named after its own directory —
 /// which is every install that exists today. Nothing to migrate, and a list of one
 /// behaves exactly like the old single vault.
@@ -484,20 +504,47 @@ fn vault_list_path() -> Option<PathBuf> {
     if let Ok(p) = std::env::var("FM_VAULTS") {
         return Some(PathBuf::from(p));
     }
-    let base = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|_| std::env::var("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .ok()?;
-    Some(base.join("formicaria").join("vaults.json"))
+    Some(config_dir()?.join("formicaria").join("vaults.json"))
 }
 
-/// `~` in a config file is what a human writes; nothing else expands it for us.
+/// Where this OS keeps per-user config. Hand-rolled rather than pulling in `dirs`: it is
+/// three env lookups, and this crate's whole stance is to add a dependency only when it
+/// solves a problem whole.
+fn config_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute()) // the spec says relative XDG values are ignored
+            .or_else(|| home().map(|h| h.join(".config")))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        home().map(|h| h.join("Library").join("Application Support"))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::env::var_os("APPDATA").map(PathBuf::from).or_else(|| home().map(|h| h.join("AppData").join("Roaming")))
+    }
+}
+
+/// The user's home, whatever this OS calls it.
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .filter(|p| !p.as_os_str().is_empty())
+}
+
+/// `~` in a config file is what a human writes; nothing else expands it for us. Left
+/// alone when there is no home to expand to — a literal `~/notes` fails loudly as a
+/// missing path, which beats silently resolving somewhere unexpected.
 fn expand_home(path: &str) -> String {
-    match path.strip_prefix("~/") {
-        Some(rest) => match std::env::var("HOME") {
-            Ok(home) => format!("{home}/{rest}"),
-            Err(_) => path.to_string(),
-        },
+    let Some(rest) = path.strip_prefix("~/").or_else(|| path.strip_prefix("~\\")) else {
+        return path.to_string();
+    };
+    match home() {
+        Some(h) => h.join(rest).to_string_lossy().into_owned(),
         None => path.to_string(),
     }
 }
@@ -512,11 +559,34 @@ fn json<T: serde::Serialize>(v: T) -> Result<Vec<u8>, String> {
 
 fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
     let path = state.find_blob(reference)?;
-    std::process::Command::new("xdg-open")
-        .arg(path)
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| format!("could not open the file: {e}"))
+    open_native(path.as_os_str()).map_err(|e| format!("could not open the file: {e}"))
+}
+
+/// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place
+/// that knows how each platform spells that. Every OS has this; only the name differs.
+fn open_native(target: &std::ffi::OsStr) -> std::io::Result<()> {
+    #[cfg(target_os = "linux")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(target);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg(target);
+        c
+    };
+    // `start` is a cmd builtin, not a program, so it needs a shell. The empty "" is the
+    // window title: `start` reads a first quoted argument as the title, so without it a
+    // quoted path would be swallowed as one and nothing would open.
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("cmd");
+        c.args(["/C", "start", ""]).arg(target);
+        c
+    };
+    cmd.spawn().map(|_| ())
 }
 
 /// The heartbeat's answer: did anything change on disk that the tab is not showing?
@@ -642,22 +712,34 @@ fn run_backup(state: &AppState, vault: &str) -> Result<(), String> {
         .map_err(|e| format!("backing up '{}': {e}", v.name))
 }
 
-/// Serve a file from the built UI. Unknown non-file paths fall back to
-/// index.html so the single-page app owns client-side routing. Guards against
-/// `..` path traversal.
+/// Serve a file from the built UI — from `FM_UI_DIST` when it is set, otherwise from the
+/// copy baked into this binary. Unknown non-file paths fall back to index.html so the
+/// single-page app owns client-side routing. Guards against `..` path traversal.
 fn static_file(path: &str, state: &AppState) -> (&'static str, String, Vec<u8>) {
     let clean = path.split('?').next().unwrap_or("/");
     let rel = if clean == "/" { "index.html" } else { clean.trim_start_matches('/') };
+    // Only reachable on the on-disk path, but checked for both: a guard that applies
+    // sometimes is a guard nobody can reason about.
     if rel.split('/').any(|seg| seg == "..") {
         return ("400 Bad Request", "text/plain".to_string(), b"bad path".to_vec());
     }
-    let file = state.dist.join(rel);
-    if let Ok(bytes) = std::fs::read(&file) {
-        return ("200 OK", content_type(rel).to_string(), bytes);
+    match read_asset(state, rel) {
+        Some(bytes) => ("200 OK", content_type(rel).to_string(), bytes),
+        // The SPA owns its own routes, so an unknown path is a route, not a 404.
+        None => match read_asset(state, "index.html") {
+            Some(bytes) => ("200 OK", "text/html; charset=utf-8".to_string(), bytes),
+            None => ("404 Not Found", "text/plain".to_string(), b"not found".to_vec()),
+        },
     }
-    match std::fs::read(state.dist.join("index.html")) {
-        Ok(bytes) => ("200 OK", "text/html; charset=utf-8".to_string(), bytes),
-        Err(_) => ("404 Not Found", "text/plain".to_string(), b"not found".to_vec()),
+}
+
+/// One UI file, from wherever the UI is coming from: an explicit `FM_UI_DIST` (the dev
+/// loop — edit a `.svelte`, reload, no Rust rebuild) or the embedded table (every release
+/// launch, so the binary needs nothing beside it).
+fn read_asset(state: &AppState, rel: &str) -> Option<Vec<u8>> {
+    match &state.dist {
+        Some(dir) => std::fs::read(dir.join(rel)).ok(),
+        None => UI_ASSETS.iter().find(|(name, _)| *name == rel).map(|(_, b)| b.to_vec()),
     }
 }
 
