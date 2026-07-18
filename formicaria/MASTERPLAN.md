@@ -415,7 +415,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 1. **~~Linux WebKitGTK rendering~~ — RESOLVED by removal (2026-07-15).** This was the top risk: the WebKitGTK window rendered blank and on-screen rendering stayed unverified. It is retired — the native window was removed and the UI now runs in the user's real browser, which renders reliably and is what the user actually uses. No webview, no risk. (The remaining risks below stand: libvips subprocess robustness, KaTeX cost, git auto-commit noise, cross-store tokenizer drift, and CM6 in v2.)
 2. **libvips thread-safety** → subprocess `vipsthumbnail`, never in-process.
 3. **KaTeX cost in math-dense read views** → render once per note view, LRU cache, lazy Mermaid; measure worst case.
-4. **git auto-commit noise / `git add -A` cost past 10k files** → commit on idle/blur only; measure; don't build "commit management."
+4. **git auto-commit noise past 10k files** → the `git add -A` half of this is gone (2026-07-18): the auto-commit stages only the paths `put`/`delete` recorded, so its cost scales with what you edited rather than with the vault. The remaining risk is history *noise*; commit on idle/blur, measure, and don't build "commit management."
 5. **Cross-store query drift** (FTS5 tokenizer vs substring scan) → pin `unicode61 remove_diacritics 2`; equivalence test catches regressions.
 6. **CM6 live-preview decoration layer (v2 risk).** No turnkey lib; ~1,200–1,800 LOC; highest build risk in the whole project — which is exactly why it is deferred out of v1. When built: one element at a time, each round-trip-tested; stays in 16 ms via viewport-only iteration, `WidgetType.eq()`, incremental reparse, LRU KaTeX cache.
 

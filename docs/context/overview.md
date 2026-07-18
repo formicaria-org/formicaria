@@ -4,7 +4,20 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **A vault can be a repo you already have**
+_Last verified: 2026-07-18 — **the compiled work queue was emptied**
+(`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`). Unreadable notes are **named in the
+app** instead of on stderr (they were absent from every view with no explanation — the one
+place the app knew a note was missing and told only a terminal); the board's column drag
+**does something again** (`boardOrder.ts` was a tested pure core that nothing imported any
+more — *a unit test cannot catch a caller that stops calling*); `fm-serve`'s CSRF and `Host`
+guards have socket-level tests, which caught the `Host` guard refusing `[::1]:8765` — a
+request from ourselves; `mock.ts` binds each arm to its real DTO, so a shape the Rust never
+sends now fails `check-ui`; the auto-commit stages **exactly the paths `put`/`delete`
+recorded**, so a note you are hand-editing in Vim is not swept in; and the lost-update token
+is a **content hash** rather than the `updated` stamp, because a stamp only moves for writers
+that bump it and Vim does not (1.6 ms in release on a 2.8 MB whiteboard body, pinned by a perf
+budget). `fm-cli` now shares `commands::asset_note` rather than rebuilding it — its copy had
+already drifted, never setting `obj.vault`. Before that, **A vault can be a repo you already have**
 (`plan.md` Track V). Three of V2's four co-tenancy bugs are fixed, including both silent ones:
 `.gitattributes`/`.gitignore` were **skipped when the file already existed**, so in any real
 repo `*.md merge=fm` never landed (the merge driver silently never engaged — Phase 1's
@@ -38,8 +51,8 @@ wins, the other is named); **no `Host` validation** left a DNS-rebinding path st
 CSRF guard; and a **surfaced error was wiped** by any background refresh. Plus: auto-commit committed **only the default vault**;
 the "get changes" nudge pulled **without committing first** (git will not merge over a dirty tree —
 the backup panel already knew; the same rule existed in two spellings); and **a stale editor could
-overwrite a merge that landed under it** — `update_body` now takes the `updated` stamp the caller
-last saw and refuses a superseded write. The mtime guard in `FileStore::put` could not cover that
+overwrite a merge that landed under it** — `update_body` now takes the **version** the caller
+last saw (the body's hash) and refuses a superseded write. The mtime guard in `FileStore::put` could not cover that
 one, because `pull` reindexes right after merging and so re-arms the very mtime the guard compares:
 *noticing the change is what disarmed the protection against it*. On rejection the pane reloads and
 puts the unsaved draft back **below** the merged text with markers — the `.md` driver's stance, one

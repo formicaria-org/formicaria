@@ -47,9 +47,10 @@ edit-gesture)._
   mobile (Android kills backgrounded apps, so every relaunch pays a full rebuild); worth
   little on desktop, which starts once.
 - **A stale editor can no longer overwrite a merge — but only where `updated` moves.**
-  Fixed 2026-07-18: `update_body` takes the `updated` stamp the caller last saw and returns
-  the new one; a mismatch is `StoreError::Conflict`, and `NotePanel` reloads and puts the
-  unsaved draft back *below* the merged text with markers rather than discarding it.
+  Fixed 2026-07-18: `update_body` takes the **version** the caller last saw — the sha256 of
+  the body it loaded, carried on `NoteDetail.version` — and returns the new one; a mismatch is
+  `StoreError::Conflict`, and `NotePanel` reloads and puts the unsaved draft back *below* the
+  merged text with markers rather than discarding it.
   **Why the existing mtime guard could not cover this:** `FileStore::put` refuses a write
   whose file moved since we indexed it — but `pull` merges and then *reindexes* (a merge is
   invisible until it does), which records the post-merge mtime and stands the guard down
@@ -190,8 +191,9 @@ edit-gesture)._
   a dozen arms that reach around the `Store` trait to per-vault paths. So there are **two** command
   surfaces today, and any new frontend (the planned mobile bridge) is a **third**. *(Half
   fixed 2026-07-18: `fm_app::dispatch` shipped and `fm-serve` is now a transport shell over
-  it — so there are **two** surfaces, not three-in-waiting. `fm-cli` still re-implements
-  against `fm-core`, which is the remaining fork.)* Track M's
+  it — so there are **two** surfaces, not three-in-waiting. `fm-cli` now depends on `fm-app`
+  and shares its command *functions* rather than rebuilding them; it deliberately does not
+  route through `dispatch`, which is a JSON wire surface — see `decisions.md`.)* Track M's
   ruling 1 (extract `fm_app::dispatch`) exists to collapse these; until it lands, a change to a
   command's behaviour must be made in **both** `fm-app` and `fm-cli` or they drift. Found by the
   2026-07-18 mobile-port audit.

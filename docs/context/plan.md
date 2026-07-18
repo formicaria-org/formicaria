@@ -9,7 +9,13 @@ sequence and the rulings; that file carries the receipts.
 Like the collaboration doc, most of what's below does **not exist yet**. When a line
 ships, delete it here and fold the outcome into `overview.md` / `decisions.md`.
 
-_Last updated: 2026-07-18, after **Track M's host-side band shipped in full** — rulings 1
+_Last updated: 2026-07-18, after **Track V's V2+V3 shipped, both blocked decisions were
+settled, and the compiled work queue was emptied**
+(`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`). A vault no longer has to be a folder
+made for it: `vault.json` says where the notes are, the auto-commit stages only what the app
+wrote, restic snapshots only the vault's own directories, and the squash stops at commits you
+wrote by hand. **`git2` is rejected** and "git is a capability, not a dependency" stands.
+Before that, **Track M's host-side band shipped in full** — rulings 1
 (`fm_app::dispatch`, the one command surface), 6 (liveness/reindex split), 7 (the streaming blob
 route), 8 (the explicit sync loop) and the phone shell + board touch fallback; plus the whiteboard
 element merge, the O(n²) poll fix, a lost-update guard on `update_body`, and a `check-ui` CI gate
@@ -26,9 +32,11 @@ Before that, **Track V's V1 shipped** (the first-run gate + the vault list's fir
 de-modalize the note trail, then earn `.view`** (the layout ask turned out to be
 `MASTERPLAN:323`'s own deferred design, not a new feature). Before that, **Track C Phases 0, 1
 and 2 shipped** and the rename landed with them: a shared vault works end-to-end and the plural
-is literally true. **Next: Track V's V2 (four live co-tenancy bugs, two silent) gates V3–V4; the
-UI track is independent; Track M is a multi-week program, spikes-first.** Everything not marked
-SHIPPED still describes things that do not exist._
+is literally true. **Next: Track V4 — adoption** (transient ids, so any `.md` reads for free and is stamped only
+when you cite or edit it). V1–V3 have shipped, so V4 is the largest unbuilt item in this file;
+the UI track is independent; Track M's host-side band is done and M0–M8 are blocked on the
+Android toolchain *and* on a git backend the `git2` rejection deliberately leaves open.
+Everything not marked SHIPPED still describes things that do not exist._
 
 ## The vision — *formicaria*
 
@@ -135,7 +143,8 @@ no-op-save guard breaks. **Rejected:** accept-and-document — a 2 MB screenshot
 
 Three tracks. **Track S** (single-user near-term) is independent — ship any item anytime.
 **Track C** (collaboration) is strictly ordered and **Phase 0 gates everything**.
-**Track V** (a vault is a folder you already have) is ordered too: **V2 gates V3–V4**. The one
+**Track V** (a vault is a folder you already have) is ordered too: V2 gated V3–V4, and
+**V1–V3 have all shipped, so V4 is next**. The one
 cross-tie: Ruling B lands before Track C Phase 3 shares boards.
 
 > **Interleave rule:** Phase 0 fixes *live single-user bugs*, so it earns its place even if
@@ -287,8 +296,8 @@ federates through the `candidates` seam.
 **V1 — the first-run gate + the vault list's first writer. ✅ SHIPPED 2026-07-17** —
 [`sessions/2026-07-17-create-vault.md`](./sessions/2026-07-17-create-vault.md).
 
-**V2 — co-tenancy correctness. ✅ THREE OF FOUR SHIPPED 2026-07-18** (both silent ones);
-the fourth is half done. It gated V3–V4, so V3 is now unblocked.**
+**V2 — co-tenancy correctness. ✅ ALL FOUR SHIPPED 2026-07-18** (both silent ones among
+them). It gated V3–V4; **V3 has since shipped and V4 is the next feature.**
 Every one is a **live bug today**, verified by reading the code, not hypothesised. They only
 bite once a repo holds work that isn't ours — which is exactly what V3 enables, so this lands
 first.
@@ -311,19 +320,22 @@ first.
 3. **✅ FIXED — `.gitignore` was skipped if it existed** → `blobs/`, `index.sqlite`, `derived/` unignored
    → the 5 s auto-commit commits your blobs and your SQLite index. **Fix for 2 and 3: append
    the missing line; never skip the file.**
-4. **◐ HALF FIXED — `commit_all` did `git add -A`.** It now stages only the vault's own
-   paths (`notes`/`views`/`manifest.json`/`.gitattributes`/`.gitignore`) and commits the exact
-   staged paths under them with `--only`, so a project repo's half-written code is untouched
-   and a user's curated index survives. **Still open:** the plan's narrower ideal — the exact
-   files `put` wrote, which would also stop us committing a note being hand-edited in vim —
-   needs a write-list threaded from `FileStore`. **And restic is untouched.** Original
-   finding: → commits half-written code every 5 s and destroys a
+4. **✅ FIXED — `commit_all` did `git add -A`.** It stages **exactly the paths `put`/`delete`
+   recorded** — the plan's own requirement, not the directory approximation it passed through
+   first — so a project repo's half-written code is untouched, a curated index survives, and a
+   note you are hand-editing in Vim is not caught mid-sentence. The write-list is deliberately
+   *not* on the `Store` trait (that seam carries no paths, which is what keeps a storage swap a
+   backend change); `Vaults.store` is a concrete `MultiStore` and reaches it there. **And
+   restic is fixed too**: it snapshots the notes dir + `blobs/`, never the vault root, so a
+   project vault stops putting your `.env` and `data/` into a repo that may be a lab's.
+   The trade, stated: a note edited outside the app is now never committed *by* the app.
+   Original finding: → commits half-written code every 5 s and destroys a
    staged index. Across ten project repos this is the primary failure, not an edge case.
    **Fix: `git add` only the paths formicaria actually wrote** — `put` knows the file it just
    wrote, so `FileStore` hands git an exact list. Not `-A`, and *not even the whole notes
    dir*: your own hand-edits to `docs/`, mid-sentence in vim, must never be committed by us.
-   **And restic** (`backup.rs:57`) snapshots the whole vault path → the lab's restic repo
-   holds your `data/` and `.env`. Snapshot the notes dir + blobs dir instead.
+   **And restic** snapshotted the whole vault path → the lab's restic repo would hold your
+   `data/` and `.env`. It now takes the notes dir + blobs dir instead.
 
 **V3 — the descriptor. ✅ SHIPPED 2026-07-18** (`fm-core/src/descriptor.rs`). `vault.json`
 carries `name`/`description`/`notes`; `FileStore::named` reads it, so a repo whose notes live

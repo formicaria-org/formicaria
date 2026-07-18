@@ -84,6 +84,70 @@ low-risk *early demo*, not where Track M lands. **Top risk carried:** the Androi
 conda-packaged, so the toolchain escapes the pixi-only house rule — pin the whole matrix in CI
 (≠ `pixi.lock` reproducibility).
 
+## The auto-commit stages what we wrote, not where we wrote it (2026-07-18)
+
+**Why:** `commit_all` ran `git add -A` every five seconds. In a vault that is also a project
+repo — the direction Track V is heading — that is a second author: it staged half-written code
+and destroyed a curated index. Scoping it to the vault's *directories* fixed the worst of that
+and was still wrong, because in a project vault the notes directory may well be `docs/`, so a
+note being hand-edited in Vim was committed mid-sentence.
+
+**Consequence:** `FileStore::put`/`delete` record every path they touch; `commit_all` stages
+exactly that list and nothing else. Cleared only once a commit lands, so a failed commit does
+not forget what it owed.
+
+**The write-list is deliberately not on the `Store` trait.** That seam carries no paths, no
+mtimes and no directory handles, and that is precisely what makes a storage swap a backend
+change rather than a rewrite. `Vaults.store` is a concrete `MultiStore`, so it reaches the list
+without widening the seam — the same reasoning that keeps `find_blob` off the trait.
+
+**The trade, owned:** a note edited outside the app is now never committed *by* the app. That
+is the intent — it is your edit, in your repo, and yours to commit — and it makes true what
+`known-issues.md` already claimed about `fm-cli`/Vim writes. **Rejected:** committing anything
+we did not write, on the reasoning that "it rides along anyway"; riding along is exactly how a
+half-finished sentence becomes a commit.
+
+## The lost-update token is a content hash, not a timestamp (2026-07-18)
+
+**Why:** `update_body`'s `base` was the `updated` stamp, which only moves for writers that bump
+it. The app does. The `.md` merge driver does. **Vim does not** — and `FileStore::put`'s mtime
+guard is disarmed a few seconds later by the poll's own reindex, which writes the new mtime
+into the index. So the single writer the guard could not see was the one it most needed to.
+
+**Consequence:** the token is the sha256 of the body, carried on `NoteDetail.version` and
+returned by `update_body`. Content cannot lie about whether the body moved.
+
+**Measured before committing to it**, because it sits on the whiteboard save path: **1.6 ms in
+release**, ~41 ms in debug, for a 2.8 MB body — against a 600 ms save debounce that then writes
+and fsyncs that same body, so it is comparable to the write it precedes rather than a new cost.
+Pinned by a perf budget, set in debug terms because that is what `pixi run ci` runs, and sized
+to catch an algorithmic regression rather than to police the constant factor.
+
+**Rejected:** having the client hash the body itself via Web Crypto — it is available on
+localhost, but it makes every save path async for no gain when the server is already holding
+the bytes.
+
+## `fm-cli` shares the command library; it does not route through `dispatch` (2026-07-18)
+
+**Why:** the standing debt was recorded as *"migrate `fm-cli` onto `fm_app::dispatch`"*, and
+that turns out to be the wrong shape. `dispatch` is a **wire** surface — JSON in, JSON out —
+built so a transport can frame it. A CLI wants typed values to print, so `fm show` would have
+to serialize and re-parse its own answer. Only 7 of the CLI's 13 commands even have an arm;
+`verify`/`manifest`/`restore`/`check`/`reindex` are CLI-only by design, and `merge-md` runs
+*before* a store is opened because git invokes it as the merge driver.
+
+**Consequence:** `fm-cli` depends on `fm-app` and calls the **typed command functions**. The
+real debt was duplicated *logic*: `Cmd::Add` rebuilt the asset note — title, blob hash, MIME,
+put, thumbnail — in five lines that already existed in `commands::ingest`, and the copies had
+drifted exactly as duplicated logic does: the CLI's never set `obj.vault`, so a file added from
+the command line was stamped with no audience. Both call `commands::asset_note` now. The CLI
+keeps streaming from a path (a large file is never held whole) where `ingest` takes bytes from
+an upload — that difference is real and kept; the note is not.
+
+**So "one command library" means one implementation of each command, not one entry point.**
+`dispatch` is the one *door* for frontends that speak a wire; `commands` is the one *library*
+for everything.
+
 ## `git2` is rejected; git stays a subprocess capability (2026-07-18)
 
 **Decision made under the project's own principles**, after the audit found `mobile-design.md`'s

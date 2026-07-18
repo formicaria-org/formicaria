@@ -61,7 +61,8 @@ The original finding, for the record:
 **(corrected — the first draft's central premise was false.)** The draft said the durable
 boundary is `fm-app`, *"already fronted by two independent frontends (`fm-serve` and `fm-cli`),
 so nothing forks."* Audited: **`fm-cli` does not front `fm-app`.** `crates/fm-cli/Cargo.toml` has
-no `fm-app` dependency; `fm-cli/src/main.rs` calls `fm-core` directly and **re-implements** the
+no `fm-app` dependency *(true when audited; it depends on `fm-app` and shares
+`commands::asset_note` since 2026-07-18)*; `fm-cli/src/main.rs` called `fm-core` directly and **re-implemented** the
 command logic (e.g. `Cmd::Add`, `main.rs:131-146`, rebuilds the ingest flow rather than calling
 `commands::ingest`). Only **`fm-serve`** fronts `fm-app::commands`. So the seam **already forks
 once**, and a naive Tauri command layer would be a **third** dispatch surface parallel to
