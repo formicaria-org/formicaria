@@ -51,6 +51,8 @@ export interface Board {
 /** A single note with its full body — the read view's payload (`get`). */
 export interface NoteDetail extends ObjectMeta {
   body: string;
+  /** Hash of `body` as read — send it back as `update_body`'s `base`. See the Rust doc. */
+  version: string;
 }
 
 /** Whether a referenced asset can be shown, and its sniffed MIME. */

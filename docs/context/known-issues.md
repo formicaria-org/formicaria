@@ -55,11 +55,10 @@ edit-gesture)._
   invisible until it does), which records the post-merge mtime and stands the guard down
   exactly when it was needed. The staleness lives in the client, so the client declares its
   base.
-  **The residual gap:** the check is on `updated`, so a writer that changes a body *without*
-  bumping `updated` is still invisible to it — hand-editing a note in Vim is the realistic
-  case (a real merge always bumps it, because the `.md` driver resolves `updated` to the
-  later of the two). Narrow, but real: Vim-edit a note that is also open in the app, and the
-  app's next save still wins. Closing it needs a content hash rather than a timestamp.
+  **The residual gap is closed too** (2026-07-18): the token is the **sha256 of the body**,
+  not `updated`, so an edit that never bumps a timestamp — Vim — still moves it. Measured at
+  1.6 ms in release for a 2.8 MB whiteboard body, against a 600 ms save debounce, and pinned
+  by a perf budget.
 - **The phone shell has never run on a phone.** The reflow and the tap→move menu are verified
   at a narrow viewport, by `pointer: coarse`, and by component tests — not on a device. Chrome's
   touch emulation is *actively misleading* here: it synthesises PointerEvents but does not

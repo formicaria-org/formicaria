@@ -79,6 +79,24 @@ pub struct NoteDetail {
     #[serde(flatten)]
     pub meta: ObjectMeta,
     pub body: String,
+    /// What this note's body hashed to when it was read — the token an editor sends back as
+    /// `update_body`'s `base`, and the whole lost-update guard.
+    ///
+    /// **A hash and not the `updated` stamp**, which is what this used to be. A stamp only
+    /// catches writers that bump it: the app does, and the `.md` merge driver does, but
+    /// hand-editing a note in Vim does not — so a Vim edit was invisible to the check, and
+    /// `FileStore::put`'s mtime guard is disarmed by the poll's own reindex a few seconds
+    /// later. Content is the only thing that cannot lie about whether the body moved.
+    pub version: String,
+}
+
+/// The version token for a body — see [`NoteDetail::version`].
+///
+/// sha256 because it is already a dependency and already how this project identifies bytes;
+/// the cost is ~2 ms on the largest thing a body ever is (a whiteboard scene), against a
+/// 600 ms save debounce that then writes and fsyncs that same body.
+pub fn version_of(body: &str) -> String {
+    fm_core::blob::sha256_hex(body.as_bytes())
 }
 
 /// A board column = the distinct value of the grouped property, its display

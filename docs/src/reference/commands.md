@@ -22,7 +22,7 @@ second copy of the table below.
 | `get`            | `id`                         | `NoteDetail \| null`   | meta + full body |
 | `capture`        | `body`                       | `ObjectMeta`           | creates a note |
 | `set_property`   | `id`, `key`, `value`         | —                      | writes one frontmatter field |
-| `update_body`    | `id`, `body`, `base`         | new `updated` stamp    | byte-for-byte body write; `base` is the `updated` you last saw — a mismatch is refused (see below). `''` opts out |
+| `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
 | `ingest`         | *(binary body)* `?name=`     | `ObjectMeta`           | upload → asset note; raw bytes |
 | `resolve_asset`  | `reference`, `kind`          | bytes (ArrayBuffer)    | `kind` = `full` \| `thumb`; whole blob in memory — prefer the blob route below |
 | `asset_status`   | `reference`                  | `{has_blob,has_thumb,mime}` | sniffed MIME |
@@ -66,15 +66,19 @@ overwrite their text and leave a history saying you wrote it.
 that check cannot see this case: `pull` merges and then **reindexes** (a merge is invisible
 until it does), which records the post-merge mtime and stands the guard down exactly when it
 mattered. The staleness is in the *client*, so the client declares what it edited: send the
-`updated` stamp you last saw as `base`, and hold the one that comes back for your next write.
+`version` you last saw (it comes back on `get`) as `base`, and hold the one `update_body`
+returns for your next write.
 
 A mismatch returns `this note changed on disk since you opened it — reload before saving`.
 The UI reloads and puts your unsaved draft back **below** the merged text with conflict
 markers — the same stance as the `.md` merge driver: both versions where a human can see
 them, never a silent choice.
 
-Known limit: the token is a timestamp, so a writer that changes a body *without* bumping
-`updated` (hand-editing in Vim) is invisible to it. A real merge always bumps it.
+The token is the **sha256 of the body**, not the `updated` stamp. A stamp only moves for
+writers that bump it — the app does and the merge driver does, but hand-editing in Vim does
+not — so a stamp left exactly the case `put`'s mtime guard could not cover. Content cannot
+lie about whether the body moved. It costs ~1.6 ms on the largest body there is (a whiteboard
+scene), against a save debounce that then writes and fsyncs that same body.
 
 ## Asset references
 

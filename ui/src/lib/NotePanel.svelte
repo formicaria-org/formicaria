@@ -138,9 +138,13 @@
   // trail is the one being typed in.
   let paneEl = $state<HTMLElement | undefined>(undefined);
 
-  // The `updated` stamp this pane last saw, sent back with every write so the server can
-  // refuse a save based on a version that has since been superseded. Empty until the note
-  // loads, which is also the "don't check" signal — there is nothing to lose before then.
+  // The **version** of the body this pane last saw — a hash, not the `updated` stamp — sent
+  // back with every write so the server can refuse a save based on a body that has since
+  // moved. Empty until the note loads, which is also the "don't check" signal: there is
+  // nothing to lose before then.
+  //
+  // A hash rather than a timestamp because a stamp only catches writers that bump it, and
+  // hand-editing a note in Vim does not.
   let base = $state('');
 
   // Object URLs minted for inline assets, revoked when the note changes or the
@@ -186,7 +190,7 @@
       .then((n) => {
         note = n;
         draft = n?.body ?? '';
-        base = n?.updated ?? '';
+        base = n?.version ?? '';
         if (n) {
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';

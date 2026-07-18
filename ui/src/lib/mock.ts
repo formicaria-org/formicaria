@@ -186,7 +186,16 @@ const EMPTY_BOARD =
 
 const bodyOverrides = new Map<string, string>();
 
-function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
+/// A cheap stand-in for the server's sha256 body version. It only has to be *a function of
+/// the body* — the mock is the only thing that ever compares it with itself — so it says what
+/// it is rather than pretending to be sha256.
+function mockVersion(body: string): string {
+  let h = 0;
+  for (let i = 0; i < body.length; i++) h = (Math.imul(31, h) + body.charCodeAt(i)) | 0;
+  return `mock-${(h >>> 0).toString(16)}`;
+}
+
+function noteDetail(id: string): NoteDetail | null {
   const n = notes.find((x) => x.id === id);
   if (!n) return null;
   const body =
@@ -196,7 +205,7 @@ function noteDetail(id: string): (ObjectMeta & { body: string }) | null {
       : n.type === 'asset'
         ? `# ${n.title ?? n.preview}\n\n${n.preview}`
         : SAMPLE_BODY);
-  return { ...n, body };
+  return { ...n, body, version: mockVersion(body) };
 }
 
 // Backing up is inert here — there is no vault to push — but the remote is
@@ -277,7 +286,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const n = notes.find((x) => x.id === id);
       // Mirror the real guard, so the mock cannot quietly accept a write the server would
       // refuse — that divergence is exactly what `known-issues.md` warns the mock does.
-      if (n && base && n.updated !== base) {
+      // Compared against the *current* body's version, as the server does.
+      const current = noteDetail(id);
+      if (n && base && current && mockVersion(current.body) !== base) {
         throw new Error('this note changed on disk since you opened it — reload before saving');
       }
       bodyOverrides.set(id, body);
@@ -291,7 +302,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           n.preview = firstLine.replace(/^#+\s+/, '') || n.preview;
         }
       }
-      return (n?.updated ?? new Date().toISOString()) as T;
+      return mockVersion(body) as T;
     }
     case 'delete': {
       const id = String(args.id);

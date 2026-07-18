@@ -87,3 +87,38 @@ fn a_quiet_incremental_poll_stays_cheap_at_10k_notes() {
     );
     println!("quiet incremental poll over {N} notes: {elapsed:?}");
 }
+
+/// The lost-update guard hashes a note's body on every read and every write, so it sits on
+/// the whiteboard save path — which fires on a 600 ms debounce while someone is drawing, on
+/// a body that is a whole Excalidraw scene.
+///
+/// This is the measurement the design asked for before committing to a hash rather than a
+/// timestamp, and it is worth recording what it said: **1.6 ms in release, ~41 ms in debug**
+/// for a 2.8 MB body. The shipped number is the release one, against a 600 ms debounce that
+/// then writes and fsyncs that same body — so the hash is comparable to the write it
+/// precedes, not a new cost of its own.
+///
+/// The budget below is a **debug** budget, because that is what `pixi run ci` runs (the other
+/// budgets in this file are the same). It is set to catch an algorithmic regression — an
+/// accidental double-hash, a copy per call — not to police the constant factor.
+#[test]
+fn hashing_a_whiteboard_sized_body_is_a_rounding_error() {
+    // Debug is roughly 25x slower than release here; 100 ms leaves headroom on a loaded CI
+    // box while still failing loudly if the work stops being one pass over the bytes.
+    const BUDGET_MS: u128 = 100;
+    // A scene carrying one pasted screenshot: base64 inflates 2 MB to ~2.8 MB.
+    let body = "x".repeat(2_800_000);
+
+    let t = Instant::now();
+    for _ in 0..10 {
+        std::hint::black_box(fm_core::blob::sha256_hex(body.as_bytes()));
+    }
+    let each = t.elapsed() / 10;
+
+    assert!(
+        each.as_millis() < BUDGET_MS,
+        "hashing a 2.8 MB body took {each:?}, budget is {BUDGET_MS} ms — it would be felt \
+         on the 600 ms whiteboard save debounce"
+    );
+    println!("sha256 of a 2.8 MB body: {each:?}");
+}

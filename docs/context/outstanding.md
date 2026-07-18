@@ -49,7 +49,19 @@ passed in, so its three callers cannot drift on which directories count. Pinned 
 puts a `.env` and a `src/lib.rs` beside the notes and asserts they are absent from the
 snapshot while the notes and blobs are present.
 
-### 1.3 The lost-update guard is a timestamp, so Vim is invisible to it
+### 1.3 ~~The lost-update guard is a timestamp, so Vim is invisible to it~~ — FIXED 2026-07-18
+The base token is the **sha256 of the body** now, carried on `NoteDetail.version` and returned
+by `update_body`. `updated` only moves for writers that bump it — the app does, the `.md`
+merge driver does, Vim does not — and `put`'s mtime guard is disarmed by the poll's own
+reindex seconds later. Content cannot lie about whether the body moved.
+
+**Measured before committing to it, as this entry asked:** 1.6 ms in release, ~41 ms in debug,
+for a 2.8 MB whiteboard body — against a 600 ms save debounce that then writes and fsyncs that
+same body, so the hash is comparable to the write it precedes rather than a new cost. Pinned
+by a perf budget, and the test asserts the crux directly: after a Vim-style edit `updated` is
+unchanged while `version` has moved.
+
+The original entry:
 `update_body` refuses a write whose `base` (`updated`) has been superseded, which closes the
 pull-merged-under-an-open-editor hole. But a writer that changes a body **without** bumping
 `updated` — hand-editing in Vim — is invisible to it, and `FileStore::put`'s mtime guard is

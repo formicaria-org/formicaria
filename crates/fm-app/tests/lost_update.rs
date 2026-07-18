@@ -25,7 +25,8 @@ fn vault_with_a_note(body: &str) -> (FileStore, tempfile::TempDir, String, Strin
     std::fs::create_dir_all(dir.path().join("notes")).unwrap();
     let mut store = FileStore::open(dir.path()).unwrap();
     let meta = commands::capture(&mut store, body, "").unwrap();
-    (store, dir, meta.id, meta.updated)
+    let version = commands::get(&store, &meta.id).unwrap().unwrap().version;
+    (store, dir, meta.id, version)
 }
 
 /// Rewrite the note's file behind the app's back — what a `git pull`'s merge does — then
@@ -155,5 +156,48 @@ fn a_note_edited_outside_the_app_is_not_committed_by_it() {
     assert!(
         !committed.contains("01JQVIMHALFWRITTEN"),
         "a note being hand-edited must NOT be swept in:\n{committed}"
+    );
+}
+
+/// **What the timestamp could not see.** `updated` is bumped by the app and by the `.md`
+/// merge driver — but not by a person editing the file in Vim. So a stamp-based guard let a
+/// stale editor overwrite a hand-edit, and `FileStore::put`'s mtime guard was already
+/// disarmed by the poll's own reindex a few seconds later.
+///
+/// A hash of the body cannot be fooled that way: the content moved, so the token moved.
+#[test]
+fn an_edit_that_never_touches_updated_is_still_caught() {
+    let (mut store, dir, id, base) = vault_with_a_note("the original paragraph\n");
+    let before_updated = commands::get(&store, &id).unwrap().unwrap().meta.updated;
+
+    // Someone edits the note in Vim: the body changes, `updated` does not.
+    let path = std::fs::read_dir(dir.path().join("notes"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .find(|p| p.extension().is_some_and(|e| e == "md"))
+        .unwrap();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let (front, _) = text.rsplit_once("---\n").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    std::fs::write(&path, format!("{front}---\n\ntheir hand-written paragraph\n")).unwrap();
+
+    // …and the poll notices, which is exactly what re-arms the mtime and disarms `put`.
+    store.reindex(Reindex::Incremental).unwrap();
+
+    // **The crux, asserted rather than argued.** A stamp-based guard would have compared
+    // `updated` — which Vim did not touch — and waved this through. The version did move,
+    // because the body did. This is the whole reason the token is a hash.
+    let after = commands::get(&store, &id).unwrap().unwrap();
+    assert_eq!(after.meta.updated, before_updated, "Vim does not bump `updated`");
+    assert_ne!(after.version, base, "but the body moved, so the version did");
+
+    // The open editor saves what it loaded.
+    let result = commands::update_body(&mut store, &id, "my stale draft\n", &base);
+
+    assert!(result.is_err(), "a hand-edit must not be silently overwritten");
+    assert!(
+        commands::get(&store, &id).unwrap().unwrap().body.contains("hand-written"),
+        "their edit survived"
     );
 }

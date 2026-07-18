@@ -91,7 +91,11 @@ pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError
     let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     Ok(store
         .get(id)?
-        .map(|o| NoteDetail { meta: ObjectMeta::from(&o), body: o.body.clone() }))
+        .map(|o| NoteDetail {
+            meta: ObjectMeta::from(&o),
+            version: crate::dto::version_of(&o.body),
+            body: o.body.clone(),
+        }))
 }
 
 /// Capture a note; the text becomes the body. `vault` is the audience it joins —
@@ -110,9 +114,14 @@ pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectM
 /// Markdown, so the round-trip (edit -> store -> read) is lossless by
 /// construction, the invariant the whole files-as-truth design rests on.
 ///
-/// `base` is the `updated` stamp the caller last saw, and it is the **lost-update guard for
-/// an editor that has been open a while**. Returns the new stamp, which the caller holds for
-/// its next write.
+/// `base` is the **version** the caller last saw — the hash of the body it loaded — and it is
+/// the lost-update guard for an editor that has been open a while. Returns the new version,
+/// which the caller holds for its next write.
+///
+/// It was the `updated` stamp until 2026-07-18, which only caught writers that bump it. The
+/// app does and the merge driver does; **Vim does not** — so a note hand-edited outside the
+/// app could be overwritten by a stale editor, with `put`'s mtime guard already disarmed by
+/// the poll's reindex. Content cannot lie about whether the body moved.
 ///
 /// `FileStore::put` already refuses a write whose file moved on disk since we indexed it —
 /// but that check cannot see this case. `pull` merges and then *reindexes*, because a merge
@@ -132,15 +141,13 @@ pub fn update_body(
 ) -> Result<String, StoreError> {
     let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
-    // Compare the serialized form, which is what crossed the wire — reparsing the caller's
-    // string would turn a formatting difference into a spurious conflict.
-    if !base.is_empty() && crate::dto::stamp(obj.updated) != base {
+    if !base.is_empty() && crate::dto::version_of(&obj.body) != base {
         return Err(StoreError::Conflict(id));
     }
     obj.body = body.to_string();
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;
-    Ok(crate::dto::stamp(obj.updated))
+    Ok(crate::dto::version_of(&obj.body))
 }
 
 /// Delete a note: remove its Markdown file and drop it from the index. The
