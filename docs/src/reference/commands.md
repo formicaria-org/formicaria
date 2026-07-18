@@ -2,9 +2,15 @@
 
 The frontend calls these over `POST /api/<cmd>` (JSON args, camelCase). Each is a
 function in `crates/fm-app/src/commands.rs` (except the git/restic ones —
-`commit`, `push`, `backup`, `backup_status`, `set_git_remote` — which are the OS
-seam, not `Store` operations, so the server calls `fm-core` directly). Args map to
+`commit`, `push`, `pull`, `backup`, `backup_status`, `set_git_remote` — which are the OS
+seam, not `Store` operations, so `fm-core` is called directly; the vault-registry and
+`.view` arms likewise live in `crates/fm-app/src/vaults.rs` and `crates/fm-app/src/views.rs`). Args map to
 Rust snake_case.
+
+Every one of them is reached through **`fm_app::dispatch`**, the single command surface.
+`fm-serve` is an HTTP shell over it — it parses a request into `(cmd, args, body)`, calls
+`dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
+second copy of the table below.
 
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
@@ -16,16 +22,24 @@ Rust snake_case.
 | `get`            | `id`                         | `NoteDetail \| null`   | meta + full body |
 | `capture`        | `body`                       | `ObjectMeta`           | creates a note |
 | `set_property`   | `id`, `key`, `value`         | —                      | writes one frontmatter field |
-| `update_body`    | `id`, `body`                 | —                      | byte-for-byte body write |
+| `update_body`    | `id`, `body`, `base`         | new `updated` stamp    | byte-for-byte body write; `base` is the `updated` you last saw — a mismatch is refused (see below). `''` opts out |
 | `ingest`         | *(binary body)* `?name=`     | `ObjectMeta`           | upload → asset note; raw bytes |
-| `resolve_asset`  | `reference`, `kind`          | bytes (ArrayBuffer)    | `kind` = `full` \| `thumb` |
+| `resolve_asset`  | `reference`, `kind`          | bytes (ArrayBuffer)    | `kind` = `full` \| `thumb`; whole blob in memory — prefer the blob route below |
 | `asset_status`   | `reference`                  | `{has_blob,has_thumb,mime}` | sniffed MIME |
 | `open_external`  | `reference`                  | —                      | opens the blob in the OS default app |
 | `commit`         | `message`                    | `bool`                 | git-commit the vault; `false` if clean |
 | `push`           | `message`                    | `u32`                  | squash the unpushed window → push; returns commits squashed (0 on the first push) |
 | `backup_status`  | —                            | `BackupStatus`         | `{remote, unpushed, restic_repo, restic_ready}` — never the restic password |
 | `set_git_remote` | `url`                        | —                      | sets the vault's `origin`; blank URL refused |
-| `backup`         | —                            | —                      | restic snapshot, media included (env repo/password) |
+| `backup`         | `vault`                      | —                      | restic snapshot, media included (env repo/password) |
+| `pull`           | `vault`                      | `{merged, conflicts}`  | fetch + merge through the `.md` driver; `conflicts` is a *result*, not an error |
+| `delete`         | `id`                         | —                      | unlinks the file and both index rows |
+| `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log |
+| `ping`           | —                            | `{changed, git}`       | the 15 s visible-tab reindex poll |
+| `list_vaults`    | —                            | `VaultInfo[]`          | `[]` **is the first-run signal** |
+| `check_path` / `create_vault` | `name`, `path`  | `PathCheck` / `VaultInfo[]` | the surface owns the verdict, not the form |
+| `list_views` / `run_view` | `name` (run only)   | `ViewInfo[]` / `ViewResult` | saved `.view` files; no `Query` crosses the wire |
+| `copy_note` / `copy_status` / `uncopy_note` | `id`, `vault`, … | see `dto.rs` | cross-vault copy, its pre-check, and its undo |
 
 ## Property values (`set_property`)
 
@@ -33,15 +47,67 @@ Rust snake_case.
 
 | key     | value format                                   | empty value |
 |---------|------------------------------------------------|-------------|
-| `type`  | `note`/`task`/`meeting`/`asset` (lowercase)    | rejected    |
+| `type`  | `asset` → asset; **anything else → `note`** (`Kind::from_str` is lenient, so legacy `task`/`meeting` frontmatter migrates silently) | → `note` |
 | `status`| any string                                     | clears      |
 | `title` | any string                                     | clears      |
-| `due`   | `YYYY-MM-DD`                                    | clears      |
+| `start` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
+| `due`   | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
 | `hard`  | `true`/`yes`/`1` → true, else false            | → false     |
 | `tags`  | comma- or space-separated                      | clears      |
 | *(other)* | free text → a custom frontmatter property    | removes it  |
+
+## The lost-update guard (`update_body`'s `base`)
+
+An editor that has been open a while may be holding a version of the note that no longer
+exists — most obviously when a `pull` merged someone else's edit into it. Saving then would
+overwrite their text and leave a history saying you wrote it.
+
+`FileStore::put` already refuses a write whose file moved on disk since we indexed it, but
+that check cannot see this case: `pull` merges and then **reindexes** (a merge is invisible
+until it does), which records the post-merge mtime and stands the guard down exactly when it
+mattered. The staleness is in the *client*, so the client declares what it edited: send the
+`updated` stamp you last saw as `base`, and hold the one that comes back for your next write.
+
+A mismatch returns `this note changed on disk since you opened it — reload before saving`.
+The UI reloads and puts your unsaved draft back **below** the merged text with conflict
+markers — the same stance as the `.md` merge driver: both versions where a human can see
+them, never a silent choice.
+
+Known limit: the token is a timestamp, so a writer that changes a body *without* bumping
+`updated` (hand-editing in Vim) is invisible to it. A real merge always bumps it.
 
 ## Asset references
 
 An asset is referenced as `asset:sha256-<hex>` (canonical, in Markdown) or
 `sha256:<hex>`. `resolve_asset`/`asset_status` accept either, plus a bare hash.
+
+## Two routes that are not commands
+
+A command answers with a value. These two cannot, so they live in the transport instead —
+putting them in `dispatch` would push an HTTP concern into the shared surface.
+
+### `POST /api/alive`
+
+Liveness, and only liveness: the UI beats it every 15 s so the auto-shutdown watchdog knows
+a tab is open. It takes no lock, reads no files, and never reaches `dispatch`. It is
+separate from `ping` because a hidden tab must keep the app alive **without** making it
+reindex a vault nobody is looking at — and because the watchdog belongs to *this* server, so
+a frontend without one would never call it.
+
+### `GET /api/blob/<reference>`
+
+Blob bytes, **streamed** from disk with the sniffed `Content-Type`, `Accept-Ranges: bytes`
+and honest `Range` support (`206` with `Content-Range`, `416` when unsatisfiable). This is
+what `<img>`/`<video>`/`<iframe>` point at, so opening a note with a large attachment costs
+no memory and seeking a video costs one range request instead of a whole-file download.
+
+It is a route rather than a command because a command answers with a `Vec<u8>` — the shape
+that forces the whole file into memory in the first place.
+
+Two response headers are load-bearing, not decoration. `X-Content-Type-Options: nosniff`
+stops the browser second-guessing the sniffed type. And anything outside an inline-safe
+allowlist (`image/*` except SVG, `video/*`, `audio/*`, `application/pdf`) is sent
+`Content-Disposition: attachment`: blobs arrive from collaborators, and a blob is now at a
+URL the browser can *navigate* to, so an SVG or HTML attachment rendered as a top-level
+document would run its script in the app's own origin. Subresource loads ignore the
+disposition, so inline SVG images still render.

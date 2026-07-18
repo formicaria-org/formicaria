@@ -10,6 +10,8 @@ vault/
 ├── blobs/            # content-addressed media, sha256/ab/cd/…  (git-ignored)
 ├── derived/          # regenerable thumbnails                    (git-ignored)
 ├── manifest.json     # sha256 → size inventory of the blobs      (git-tracked)
+├── views/            # saved .view queries (YAML)                (git-tracked)
+├── .gitattributes    # routes *.md through the fm merge driver    (git-tracked)
 ├── index.sqlite      # disposable per-machine FTS index          (git-ignored)
 └── .gitignore
 ```
@@ -20,7 +22,7 @@ A note is Markdown with a YAML frontmatter header:
 ---
 schema: 1
 id: 01J8Z9X0K2A3B4C5D6E7F8G9H0
-type: meeting
+type: note
 status: doing
 due: 2026-07-20
 hard: true

@@ -23,10 +23,15 @@ A command is a pure function over the `Store` seam, fronted over HTTP. It touche
    Add a unit test alongside the others in `crates/fm-app/tests/` (drive it with
    `MemoryStore` or a temp-dir `FileStore`).
 
-2. **The HTTP arm** — `crates/fm-serve/src/main.rs`, in `api()`:
+2. **The dispatch arm** — `crates/fm-app/src/dispatch.rs`, in `dispatch()`:
    ```rust
-   "tagged" => json(commands::tagged(&*lock(state)?, &s("tag")).map_err(err)?),
+   "tagged" => json(commands::tagged(&lock()?.store, &s("tag")).map_err(err)?),
    ```
+   **Not in `fm-serve`.** `dispatch` is the single command surface; the server is a
+   transport shell over it, so an arm added here is reachable from every frontend rather
+   than only over HTTP. `lock()` takes the vault mutex for exactly as long as the arm
+   needs it — if your command does anything slow (a subprocess, the network), clone what
+   you need out and **drop the guard first**, the way `backup_status` does.
 
 3. **The mock** — `ui/src/lib/mock.ts`, a `case` in `handle()` so dev/tests work
    without a backend.
@@ -57,7 +62,10 @@ A view is "a query + a renderer".
 ## Add a store
 
 Implement the `Store` trait (`crates/fm-core/src/lib.rs`) for your backend — five
-methods (`get`, `put`, `delete`, `query`, `reindex`). Because the query engine is
+methods (`get`, `put`, `delete`, `reindex`, `candidates`) — `query` is a **default**
+method that runs `candidates` and hands the residual filter to the pure engine **once**,
+which is exactly what lets `MultiStore` federate by concatenating (you cannot union
+already-sorted/grouped/paginated results and recover `sort`/`limit`/`total`). Because the query engine is
 behind seam 1, your store only has to return objects; the engine does the rest.
 Verify it against the shared contract the way `FileStore` does.
 

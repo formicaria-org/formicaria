@@ -1,12 +1,17 @@
 # Creating & organizing notes
 
-## Capture vs. New
+## Making something new
 
-- **Capture** — the top box. Type a line and press Enter to create a note
-  instantly (its text becomes the body). Pick a **type** (note / task / meeting)
-  from the dropdown to label it as you capture.
-- **New** — creates a blank note of the chosen type and opens it straight in the
-  editor, so you can write a full body and set properties.
+- **New note** — creates a blank note and opens it straight in the editor, so you
+  can write a body and set properties.
+- **New board** — creates a whiteboard: a note whose body is a freeform canvas.
+  It is a note in every other way, so a dated board shows up in the Agenda and a
+  statused one groups on the Board.
+
+There is no "type" to pick. Everything is a **note**, and you tell them apart with
+**tags** — the only surviving distinction is `asset`, which the app sets itself when
+you ingest a file. With more than one vault configured, an **in** selector beside
+these buttons chooses which vault the new file lands in.
 
 ## Editing a note
 
@@ -22,7 +27,7 @@ The editor also gives you a **properties form**:
 
 | Field   | What it sets              | Format                                   |
 |---------|---------------------------|------------------------------------------|
-| Type    | `note`/`task`/`meeting`/`asset` | choose from the dropdown           |
+| Start   | when it begins                  | a date picker, with an optional time |
 | Status  | any label                 | free text (autocompletes known values)   |
 | Due     | a deadline                | a date picker (`YYYY-MM-DD`)             |
 | Hard    | a hard deadline           | a checkbox                               |

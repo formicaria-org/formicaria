@@ -4,9 +4,11 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-18 (the mobile-port code audit re-verified git/merge/serve/UI anchors;
-see `sessions/2026-07-18-mobile-port-plan.md`). Prior: 2026-07-16 (assets/status/kanban/
-slash-menu/edit-gesture)._
+_Last verified: 2026-07-18, after the dispatch extraction, the blob route, the sync loop and the
+scene merge (`sessions/2026-07-18-dispatch-and-blob-route.md`,
+`sessions/2026-07-18-sync-loop-and-scene-merge.md`). Prior: the mobile-port code audit
+(`sessions/2026-07-18-mobile-port-plan.md`); 2026-07-16 (assets/status/kanban/slash-menu/
+edit-gesture)._
 
 ## Known gaps / not fully working
 
@@ -19,47 +21,93 @@ slash-menu/edit-gesture)._
   the resolve passes run *after* sanitize; tests pin both the stripping and the survival.
   Mermaid's own SVG sink still relies on its `securityLevel: 'strict'`, documented in place.
   `fm-serve`'s header was corrected from "single user".
-- **You are only told someone pushed if you open the backup panel.** `git::remote_moved`
-  (one `ls-remote`, moves no refs) is computed in `backup_status`, so nothing surfaces
-  "Ravi pushed" on its own. The plan's automatic 15–30 s poll needs a timer and somewhere
-  in the chrome to show it. Same for conflicted notes: `backup_status.conflicts` lists them,
-  but only in that panel — though the `.md` driver does put markers in the note *body*, so
-  a conflicted note opens and resolves in the ordinary editor.
-- **Reindex still stats every file, every 3 s.** `Reindex::Incremental` now re-*reads*
-  only what moved (Phase 1), but the scan itself is still O(n) `stat`s, and the `ping`
-  heartbeat runs it on every beat. Fine at this scale and far cheaper than the full
-  re-parse it replaced; if the vault reaches ~10k notes, gate it behind a perf-budget test
-  before reaching for a watcher (inotify) — a watcher is a dependency and a per-platform
-  behaviour, which is why polling won on the way in. `FileStore::open` is still a **full**
-  rebuild by design (the disposable-index escape hatch).
+- **~~You are only told someone pushed if you open the backup panel~~ — FIXED.** A visibility-
+  gated 45 s `remote_moved` poll feeds a top-bar chip with one-click pull, and that pull now
+  goes through `sync.svelte.ts`'s `pullVault` (commit first — git will not merge over a dirty
+  tree — then name any conflicted notes rather than throwing a string). Still true: a
+  conflicted note is surfaced only by name, and the `.md` driver puts the markers in the note
+  *body*, so it opens and resolves in the ordinary editor.
+- **Reindex still stats every file, on every beat.** `Reindex::Incremental` re-*reads* only
+  what moved (Phase 1), but the scan itself is still O(n) `stat`s, and the `ping` heartbeat
+  runs it on every beat (15 s, and only while the tab is visible). Now gated by a perf-budget test at 10k notes
+  (`fm-core/tests/perf.rs`) — which is what caught the deletion sweep being O(n²) against a
+  `Vec` (453 ms → 50 ms per quiet beat, 2026-07-18). Before reaching for a watcher (inotify)
+  note that a watcher is a dependency and a per-platform behaviour, which is why polling won
+  on the way in. `FileStore::open` is still a **full** rebuild by design (the
+  disposable-index escape hatch), and switching it to `Incremental` is **not** a drop-in:
+  mtime-only detection is blind to every mtime-preserving writer (`restic restore`,
+  `rsync -a`, `cp -p`, `tar -x`), and the full rebuild at open is currently the only thing
+  that heals them. Doing it needs an index-format version gate (nothing in CI enforces the
+  bump), an `objects(path)` index — `forget_path` full-scans today, so Incremental can be
+  *slower* than Full after a big pull — and cold-start tests that do not exist. Wanted for
+  mobile (Android kills backgrounded apps, so every relaunch pays a full rebuild); worth
+  little on desktop, which starts once.
+- **A stale editor can no longer overwrite a merge — but only where `updated` moves.**
+  Fixed 2026-07-18: `update_body` takes the `updated` stamp the caller last saw and returns
+  the new one; a mismatch is `StoreError::Conflict`, and `NotePanel` reloads and puts the
+  unsaved draft back *below* the merged text with markers rather than discarding it.
+  **Why the existing mtime guard could not cover this:** `FileStore::put` refuses a write
+  whose file moved since we indexed it — but `pull` merges and then *reindexes* (a merge is
+  invisible until it does), which records the post-merge mtime and stands the guard down
+  exactly when it was needed. The staleness lives in the client, so the client declares its
+  base.
+  **The residual gap:** the check is on `updated`, so a writer that changes a body *without*
+  bumping `updated` is still invisible to it — hand-editing a note in Vim is the realistic
+  case (a real merge always bumps it, because the `.md` driver resolves `updated` to the
+  later of the two). Narrow, but real: Vim-edit a note that is also open in the app, and the
+  app's next save still wins. Closing it needs a content hash rather than a timestamp.
+- **The phone shell has never run on a phone.** The reflow and the tap→move menu are verified
+  at a narrow viewport, by `pointer: coarse`, and by component tests — not on a device. Chrome's
+  touch emulation is *actively misleading* here: it synthesises PointerEvents but does not
+  reproduce Android's `dragstart` suppression, so emulation can hide the very bug the menu
+  exists to work around. One real device is needed once, to confirm card drag is genuinely dead
+  there, the menu is reachable, and the targets are hittable.
+- **~~A surfaced error is not durable~~ — FIXED 2026-07-18.** `refresh()` now clears only the
+  errors *it* raised (a feed that failed to load, which the next successful refresh genuinely
+  resolves). Anything about the user's data — a failed sync, a refused save — is reported
+  through `report()`, survives background activity, and has a dismiss button like `notice`.
+- **~~Two files carrying the same `id:` make the poll flap forever~~ — FIXED 2026-07-18.**
+  `objects.id` is the primary key and `index_object` is `INSERT OR REPLACE`, so a duplicated
+  note used to collapse to one row whose `path` alternated: each beat re-indexed whichever
+  path was currently missing, reported `updated: 1`, and the UI refreshed forever on a vault
+  nobody was touching. Now the **first path wins and the other is named** in `skipped` —
+  serving one file's content under another's id is worse than serving neither, and the
+  unreadable-note skip already sets that discipline. Pinned by a test that asserts three
+  consecutive quiet polls report nothing.
 - **No per-view object cache.** Board/Agenda/Timeline each YAML-parse the whole
   corpus via `load_all` per request. Same scale caveat as above.
-- **Inline media buffers whole blobs into memory.** `resolve_asset` returns full
-  bytes → a typed `Blob` object URL. Fine for local single-user. Planned
-  enhancement: a streaming `GET /api/blob/<hash>` in `fm-serve` (correct
-  Content-Type, `Accept-Ranges`, honor `Range`) so `<video>`/`<iframe>`
-  range-request instead of buffering.
+- **~~`fm-serve` never validates the `Host` header~~ — FIXED 2026-07-18.** Binding to
+  127.0.0.1 keeps other *machines* out but does not decide which *name* a browser used, so a
+  hostname an attacker controls, resolved to 127.0.0.1, arrived same-origin with itself and
+  sailed past the CSRF guard. Requests now must carry a Host we actually serve
+  (`127.0.0.1`/`localhost`/`::1`) or get a 403. **A missing Host still passes** — that is
+  HTTP/1.0 or a hand-rolled client, not a browser, so not this vector, and refusing it would
+  break curl for no gain.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
+- **The mock now mirrors one guard deliberately.** `mock.ts`'s `update_body` throws the same
+  conflict the server does, because a mock that quietly accepts a write the backend would
+  refuse is how the UI's rejection path stays untested until a user finds it.
 - **The mock can drift from the real contract silently.** `mock.ts` returns `… as T`,
   which casts the type check away — so it kept a top-level `restic_repo` long after restic
   became per-vault, and `tsc` said nothing. `backup_status` now builds a typed
   `BackupStatus` first; the other arms are still bare casts. If a UI test passes against a
   shape the Rust doesn't send, this is why.
-- **Auto-commit is best-effort and silent** (audited 2026-07-17). `scheduleCommit`
-  (`App.svelte:342`) debounces 5s and every GUI write reaches it (4 App call sites
-  + `onsaved` from NotePanel's five write paths), but: it **swallows every error**
-  (`commit(...).catch(() => {})`), the timer is a browser `setTimeout` that **dies
-  with the tab** — and with `FM_AUTO_SHUTDOWN` closing the tab *is* how you quit,
-  so "edit, then close" skips that commit — and **`fm-cli`/Vim writes never
-  commit** (no `fm commit` subcommand). Nothing surfaces "you have uncommitted
-  edits". Saving grace: `commit_all` is `git add -A`, so a missed change rides
-  along in the next commit, and files are already on disk via atomic temp+rename.
-  So: **files are never at risk; commits can lag.** Don't restate this as "history
-  is always safe" — it isn't. Also, the spec (`MASTERPLAN.md:350`) says
-  "500 ms→disk, 30 s/blur→commit": the code is 5 s with **no blur handler**, and
-  `MASTERPLAN.md:391` still lists auto-commit as *not built* while `:426` lists it
-  as shipped.
+- **Auto-commit is best-effort; commits can lag** (audited 2026-07-17, half-fixed
+  2026-07-18). `scheduleCommit` debounces 5s and every GUI write reaches it (4 App call
+  sites + `onsaved` from NotePanel's five write paths). **No longer silent, and no longer
+  default-vault-only**: it commits *every* vault (it used to call `commit()` with no vault
+  argument, so on a multi-vault install exactly one repo had a history) and it states the
+  first failure in the notice banner instead of `.catch(() => {})`. What is still true: the
+  timer is a browser `setTimeout` that **dies with the tab** — and with `FM_AUTO_SHUTDOWN`
+  closing the tab *is* how you quit, so "edit, then close" can skip that commit — and
+  **`fm-cli`/Vim writes never commit** (no `fm commit` subcommand). Nothing surfaces "you
+  have uncommitted edits". Saving grace: `commit_all` is `git add -A`, so a missed change
+  rides along in the next commit, and files are already on disk via atomic temp+rename.
+  So: **files are never at risk; commits can lag.** Don't restate this as "history is
+  always safe" — it isn't. Also, the spec (`MASTERPLAN.md:350`) says "500 ms→disk,
+  30 s/blur→commit": the code is 5 s with **no blur handler**, and `MASTERPLAN.md:391`
+  still lists auto-commit as *not built* while `:426` lists it as shipped.
 - **A backup destination may be local and that is not an error.** A git remote can
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never

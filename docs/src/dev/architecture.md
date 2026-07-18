@@ -10,7 +10,11 @@ on three seams so that each layer can change without breaking the others.
    Board · Agenda/Calendar · Timeline · Gallery · Search · NotePanel
              │  ipc.ts:  POST /api/<cmd>  (prod)  ·  in-memory mock (dev/test)
              ▼
-        fm-serve  ── std-only HTTP server; locks the store, calls a command fn
+        fm-serve  ── transport shell: frames HTTP, nothing else. Also serves the
+             │        UI, GET /api/blob/<ref> (streamed, Range) and POST /api/alive
+             ▼
+   fm_app::dispatch ── THE one command surface: takes the vault lock, runs the
+             │           command, hands back Output::{Json,Bytes}
              │
    ┌─────────┼──────────────── seam 1 ────────────────────────────┐
    │   fm-query  the query engine — CANNOT touch the filesystem    │
@@ -40,16 +44,21 @@ on three seams so that each layer can change without breaking the others.
 | `fm-model` | `Object`, `Kind`, `PropertyValue` — the data model (no I/O).      |
 | `fm-query` | the query engine + `Store` contract tests (no I/O — seam 1).      |
 | `fm-core`  | `FileStore`, `BlobStore`, ingest, verify, manifest, backup, git.  |
-| `fm-app`   | **library**: the command functions (`commands`) + DTOs (`dto`).  |
-| `fm-serve` | the HTTP server that fronts `fm-app`'s commands to the browser.   |
+| `fm-app`   | **library**: `dispatch` (the one command surface + the `Host` trait), the command functions, `.view` execution, the vault registry (`vaults`), DTOs. |
+| `fm-serve` | the HTTP **transport** over `fm_app::dispatch`; owns only framing. |
 | `fm-cli`   | the `fm` command-line tool over the same core.                   |
 
 ## The command surface
 
 The frontend never sends SQL or a query struct — it calls **named commands** with
-simple args, and `fm-serve` builds the query server-side. Each command is a
+simple args, and `fm-app` builds the query behind `dispatch`. Each command is a
 plain function in `crates/fm-app/src/commands.rs` over the `Store` seam, so it is
 unit-testable with `MemoryStore` and behaves identically against `FileStore`.
+
+Adding a *frontend* therefore means writing a shell — parse a request into
+`(cmd, args, body)`, call `dispatch`, encode the `Output` — not a second copy of the
+dispatch table. `fm-cli` is what that costs when you don't: it re-implements the flows
+against `fm-core` instead, which is the fork `dispatch` was extracted to stop repeating.
 
 See [Commands](../reference/commands.md) for the full list, and
 [How to add a feature](./adding-features.md) to extend it.

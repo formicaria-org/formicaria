@@ -4,7 +4,61 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **Track M — mobile was *planned*** (not built): formicaria on the
+_Last verified: 2026-07-18 — **Sync is an explicit sequence now, whiteboards merge, and three
+plan items were stopped before being built**
+(`sessions/2026-07-18-sync-loop-and-scene-merge.md`). `ui/src/lib/sync.svelte.ts` is the loop:
+`commit → push`, and on a rejection `pull → merge → push once more` — **exactly one retry**, and
+**never a push after a conflicted pull** (publishing conflict markers as content is worse than not
+publishing). `crates/fm-core/src/scene.rs` merges whiteboards **element-wise** before the text
+merge ever sees the JSON — deletions honoured against the base (which is precisely what
+Excalidraw's base-less `reconcileElements` cannot do), higher `version` wins, lower `versionNonce`
+breaks ties, fractional `index` keeps the z-order — and it is **not** a second merge driver: there
+is no `.excalidraw` file, `FileStore` writes `<ulid>.md` and `*.md merge=fm` already routes boards
+there. Liveness split from reindex (`POST /api/alive`, a 15 s beat; the reindex beat is 15 s and
+**visible-tab-only**; the watchdog idle window 10 s → 90 s, which is what actually fixes the
+background-tab kill). Six live bugs fixed — the last three found by audit *this* session and closed rather than
+inherited: a **duplicated `id:`** made the poll re-index and refresh forever (first path now
+wins, the other is named); **no `Host` validation** left a DNS-rebinding path straight past the
+CSRF guard; and a **surfaced error was wiped** by any background refresh. Plus: auto-commit committed **only the default vault**;
+the "get changes" nudge pulled **without committing first** (git will not merge over a dirty tree —
+the backup panel already knew; the same rule existed in two spellings); and **a stale editor could
+overwrite a merge that landed under it** — `update_body` now takes the `updated` stamp the caller
+last saw and refuses a superseded write. The mtime guard in `FileStore::put` could not cover that
+one, because `pull` reindexes right after merging and so re-arms the very mtime the guard compares:
+*noticing the change is what disarmed the protection against it*. On rejection the pane reloads and
+puts the unsaved draft back **below** the merged text with markers — the `.md` driver's stance, one
+level up. **Stopped on purpose,
+each now a blocked task:** the **git2 swap** (`git2::merge_file` does not exist; libgit2 **cannot
+invoke external merge drivers**, so porting `pull()` would silently disable the `.md` driver while
+a collaborator's terminal git still honours it; and `deny.toml`'s permissive-only rule is violated
+in spirit — it passes only because `libgit2-sys` under-declares its licence), the **Excalidraw
+image-strip** (`blobs/` is gitignored, so stripping stops shared boards showing images, and the
+two options are undecided), and **"swap in pragmatic-DnD's pointer adapter"** (2.0.1 ships no such
+adapter). Before that, **Track M's host-side band shipped: there is one command surface
+now, and blobs stream** (`sessions/2026-07-18-dispatch-and-blob-route.md`). **`fm_app::dispatch`**
+is the single door to every command — `fm-serve`'s `api()` match, the `Vaults` state and its lock
+discipline moved into `fm-app` (and `vaults.rs` moved up with them), leaving the server an HTTP
+shell that parses a request into `(cmd, args, body)`, calls `dispatch`, and frames the `Output`.
+That is Track M ruling 1, and it *precedes every mobile milestone*: until there was one door, each
+new frontend was another copy of the dispatch table (`fm-cli` is the standing proof — it
+re-implements against `fm-core` instead of calling `commands`). Three corrections the build made
+to the plan: the lock could **not** move into the signature (five arms drop it before slow I/O —
+`backup_status` shells out per vault), query params are **either/never both** with the JSON body
+(else a `.json` asset would be read as its own arguments and file itself into another audience),
+and `open_external` became a one-method **`Host` trait** rather than a `#[cfg]` ladder. Alongside
+it, **`GET /api/blob/<reference>`** finally exists (ruling 7): streamed from disk, the sniffed
+`Content-Type` that `resolve_asset` used to throw away, `Accept-Ranges` and real `Range` — so
+`<video>`/`<iframe>` range-request instead of buffering a whole file into RAM twice. Serving blobs
+from a *navigable* same-origin URL is a security change too, so anything outside an inline-safe
+allowlist is sent `Content-Disposition: attachment` (blobs arrive from collaborators; an SVG
+rendered as a document would run script in this origin). And **the 3 s poll stopped being
+O(notes²)** — the deletion sweep tested membership against a `Vec`; 453 ms → 50 ms per quiet beat
+at 10k notes, now pinned by a perf budget. The plan's cold-start `Incremental` switch was
+**rejected on purpose** (mtime-only detection is blind to `restic restore`/`rsync -a`, and the
+full rebuild at open is the only thing that heals them — see known-issues). `pixi run ci` gained
+**`check-ui`**: `vite build` never typechecked, so a component calling an unimported function
+built clean and threw in the browser — which is exactly the bug this session introduced and
+shipped into `ui/dist` before catching it. Before that, **Track M — mobile was *planned*** (not built): formicaria on the
 phone **itself**, overriding `MASTERPLAN:57`'s "phone = thin client" framing — one shared Rust
 core, git-coordinated across devices (`sessions/2026-07-18-mobile-port-plan.md`; design in
 [mobile-design.md](./mobile-design.md), rulings + the two reversals in
@@ -66,7 +120,7 @@ note below). Before that, **A vault is now created, not invented**
 gone: unset means **zero vaults**, a real state that gates the whole UI on a first-run
 screen, because a typo or a launcher started from another cwd used to silently create an
 empty vault named after the mistake while your notes appeared to vanish. `vaults.json` gains
-**its first writer** (`fm-serve/src/vaults.rs` — value-tree merge, append-only, refuses a
+**its first writer** (`fm-app/src/vaults.rs`, then in `fm-serve` — value-tree merge, append-only, refuses a
 file it could not parse, writes the whole live list so an `FM_VAULT` vault cannot vanish);
 `check_path`/`create_vault`/`list_vaults`; `MultiStore::open(&[])` legal + `NoVaults` +
 `add` (live, no restart); one mutex over the store **and** the list, since `api()` already
@@ -78,9 +132,10 @@ different paragraphs of the same note and the merge is **clean**, across a *set*
 each with its own repo and audience — verified as a real round trip through the API, not
 just in tests. Phase 1 added: the **`FileStore::put` staleness guard**
 (`StoreError::Conflict` — *the* lost-update bug, where a board drag rewrote the whole file
-from a stale copy); **incremental reindex** + a **3 s local poll** folded into the existing
+from a stale copy); **incremental reindex** + a local poll folded into the existing
 `ping` heartbeat (without it a `git pull` is invisible, because the views are served from
-SQLite); **`git::remote_moved`** (one `ls-remote`, moves no refs) and **`pull`**; and the
+SQLite) — *the fold was undone 2026-07-18: liveness is `POST /api/alive` now and the poll
+is a separate, visible-tab-only 15 s beat*; **`git::remote_moved`** (one `ls-remote`, moves no refs) and **`pull`**; and the
 **`.md` merge driver** (`fm-core/src/merge.rs`, `fm merge-md`, installed by `ensure_repo`)
 which resolves `updated:`/`tags` structurally and hands the body to `git merge-file` — so a
 conflict lands **in the body**, leaving the note parseable and editable. **Phase 2 shipped
@@ -167,8 +222,9 @@ timestamps. This is deliberate and load-bearing.
 **`pixi run serve`** →
 [`fm-serve`](../../crates/fm-serve) (a tiny **std-only** HTTP server,
 thread-per-connection, `127.0.0.1:8765`) builds + serves `ui/dist` and fronts
-the `fm_app::commands` over `POST /api/<cmd>` (JSON, or raw bytes for
-`resolve_asset`/`ingest`), then opens the default browser.
+**`fm_app::dispatch`** — the single command surface — over `POST /api/<cmd>` (JSON, or raw
+bytes for `resolve_asset`/`ingest`), plus two routes that are deliberately *not* commands
+(`GET /api/blob/<reference>`, `POST /api/alive`), then opens the default browser.
 
 There is **no native window** and no cloud/account. The browser is the product
 (see [decisions.md](./decisions.md) for why the Tauri window was removed).
@@ -176,8 +232,11 @@ There is **no native window** and no cloud/account. The browser is the product
 The **desktop icon** (`packaging/`) runs `pixi run app` — the prebuilt release
 binary, no rebuild, so it starts instantly and reflects your last `pixi run
 build`. The launcher sets `FM_OPEN` (open the browser) and `FM_AUTO_SHUTDOWN`
-(the UI heartbeats `POST /api/ping` every 3s; when the last tab closes, the
-server's watchdog exits after a ~10s idle window that still survives a reload).
+(the UI heartbeats `POST /api/alive` every 15s; when the last tab closes, the
+server's watchdog exits after a ~90s idle window. The window is sized against a
+*throttled* beat, not a nominal one: browsers throttle a hidden tab's timers to about
+once a minute, and the old 3s-beat/10s-window pairing killed the app out from under
+anyone who left it in a background tab).
 So **closing the tab closes the app** — no lingering daemon. A terminal `pixi run
 serve` sets neither, so it stays up until Ctrl-C.
 
@@ -190,8 +249,9 @@ otherwise the in-memory `mock.ts` (used by `pnpm dev` and Vitest).
 fm-model   data types (Object, Kind, PropertyValue, frontmatter)
 fm-query   PURE query engine — NO std::fs, NO db crate, NO paths  ← seam 1
 fm-core    FileStore/MultiStore + BlobStore + ingest/verify/backup/git/merge  ← seam 2
-fm-app     command library (commands.rs + dto.rs) over the Store  ← seam 3 (UI ⇄ core)
-fm-serve   std-only HTTP server; fronts fm-app commands over /api
+fm-app     command library (commands.rs + dto.rs) + vaults.rs,
+           behind ONE door: dispatch.rs  ← seam 3 (frontend ⇄ core)
+fm-serve   std-only HTTP server; a transport shell over fm_app::dispatch
 fm-cli     the `fm` binary (add/verify/manifest/backup/restore/check/set/show)
 ui/        Svelte 5 + Vite; renderers are generic + literal-free
 ```
@@ -205,25 +265,50 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
   pure engine **once** over the result. That is what lets `MultiStore` federate by
   concatenating: you cannot union already-sorted/grouped/paginated results and recover
   `sort`/`limit`/`total` from them.
-- **Seam 3:** the UI only knows `POST /api/<cmd>`. Adding a command touches
-  **4 places** — see [adding a feature](../src/dev/adding-features.md).
+- **Seam 3 (the one door):** every command is reached through **`fm_app::dispatch`** —
+  one `match` from a command name to a function, owning the vault list and the lock
+  discipline. A frontend supplies only its *framing*: `fm-serve` parses a request into
+  `(cmd, args, body)`, calls `dispatch`, and turns the returned `Output` (`Json` or
+  `Bytes`) back into HTTP. Adding a command touches **4 places** — see
+  [adding a feature](../src/dev/adding-features.md); adding a *frontend* means writing a
+  shell, not a second dispatch table. The lock lives **inside** `App`, not in the
+  signature: five arms drop it before slow I/O (`backup_status` shells out to `git
+  ls-remote` per vault), so a `&mut Vaults` parameter would stall every `ping` behind
+  a network round trip. The single genuinely platform-bound command, `open_external`, is
+  the one-method **`Host`** trait the shell implements.
+- **Not a command: `GET /api/blob/<reference>`.** Blob bytes stream from disk with the
+  sniffed `Content-Type`, `Accept-Ranges` and `Range` — a command answers with a
+  `Vec<u8>`, which is the shape that forces a whole video into memory. Non-inline-safe
+  types are sent `Content-Disposition: attachment`, because a blob is now at a URL the
+  browser can navigate to and blobs come from collaborators.
 
 The SQLite index (FTS5) is **disposable**, rebuilt from the files on open. Git
 versioning of the notes + restic backup provide durability.
 
-## The 25 API commands
+## The commands — all of them through `fm_app::dispatch`
 
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
-`open_external` · `commit` · `push` · `backup` · `backup_status` ·
-`set_git_remote` · `ingest` · `pull` · `list_vaults` (the audiences; **`[]` is the
+`open_external` (the one platform-bound arm — a `Host` trait the transport implements) ·
+`activity` · `commit` · `push` · `backup` · `backup_status` ·
+`set_git_remote` · `ingest` · `pull` · `copy_note` / `copy_status` / `uncopy_note` ·
+`list_vaults` (the audiences; **`[]` is the
 first-run signal** — deliberately not `backup_status`, which shells out per vault) ·
-`check_path` (what creating a vault here would do; the server owns the verdict) ·
+`check_path` (what creating a vault here would do; the surface owns the verdict) ·
 `create_vault` (create + register + open, live) · `list_views` / `run_view` (**saved `.view`
 files** — `query + a renderer`, parsed server-side, so the UI sends a *name* and no `Query`
-ever crosses the wire) · `ping` (liveness heartbeat → auto-shutdown **and
-the 3 s local poll**: its `{changed}` is how a `git pull` or a Vim edit ever becomes
-visible, since every view is served from the index)
+ever crosses the wire) · `ping` (the **local poll**: its `{changed}` is how a `git pull` or a
+Vim edit ever becomes visible, since every view is served from the index — 15 s, and only
+while the tab is visible)
+
+**Two `/api` routes are deliberately not commands**, because a command is the wrong shape
+for them and putting them in `dispatch` would push a transport concern into the shared
+surface:
+
+- **`GET /api/blob/<reference>`** — blob bytes, streamed, with `Range`. A command answers
+  with a `Vec<u8>`, which is exactly what forces a whole video into memory.
+- **`POST /api/alive`** — liveness only, for *this* server's auto-shutdown watchdog. No
+  lock, no filesystem, no dispatch. A frontend without a watchdog would never call it.
 
 ## Views (all generic renderers over the same query layer)
 
@@ -255,6 +340,11 @@ visible, since every view is served from the index)
   **"Details"** panel with the same props editor (Status/Start/Due/Hard/Title/Tags)
   above the live canvas, so a dated board shows up in Agenda/Calendar and a
   statused board groups on the Board — it's a first-class note that happens to draw.
+  **No new `Kind` and no new file type**: the scene JSON is the body of the note's own
+  `<ulid>.md`. The one backend addition is `fm-core/src/scene.rs` — an element-level 3-way
+  merge, so two people drawing at once get both their shapes instead of a mangled scene.
+  It runs under the existing `*.md merge=fm` driver; there is no `.excalidraw` file and no
+  second driver.
 
 There is **no user-facing note "type"** (meeting/task/note): everything is a
 **note**, differentiated by **tags**. The only surviving `Kind` distinction is
@@ -281,11 +371,13 @@ Everything is pinned in **pixi** (conda-forge). `rust/node/pnpm/poppler/libvips/
 restic/mdbook` are NOT on the base PATH — run via `pixi run …`. Key tasks:
 `serve` (debug run), `serve-release` (optimized run), `build` / `build-debug`
 (compile artifacts — `target/{release,debug}/fm-serve` + `ui/dist` — without
-running), `test`, `test-ui`, `deny`, `checks`, `docs`, and **`ci`** (runs
-test + test-ui + deny + checks + docs; the single CI gate). The shipped binary
+running), `test`, `test-ui`, **`check-ui`** (svelte-check — `vite build` does *not*
+typecheck, so without this a component calling an unimported function builds clean and
+throws in the browser), `deny`, `checks`, `docs`, and **`ci`** (runs
+test + test-ui + check-ui + deny + checks + docs; the single CI gate). The shipped binary
 uses `[profile.release]` in `Cargo.toml` (strip + thin-LTO → ~3 MB, vs ~34 MB debug).
 
-## Current status (2026-07-17)
+## Current status (2026-07-18)
 
 Browser-first **v2 is implemented and green** (`pixi run ci` exit 0, prod build,
 live serve smoke). Everything in "Views" above works, plus: note read view
@@ -304,8 +396,8 @@ asset ingest + drag-drop + inline media
 a `/` slash-insert menu **anchored at the caret** (`caret.ts`, mirror-div) that
 seeds with `recent` notes and searches **both notes and assets**, **two-tier backup**
 (push notes by default / tick to add restic media; tested restore),
-verify/manifest (bit-rot), debounced git auto-commit (**best-effort and silent —
-see known-issues**), a
+verify/manifest (bit-rot), debounced git auto-commit (**every vault**, surfacing its first
+failure rather than swallowing it — commits can still lag, see known-issues), a
 design-token system (dark+light), the sidebar shell, the NotePanel
 (**full screen by default**, toggle to a docked side-sheet; remembered per
 browser), note delete (double-confirm), a ⌘K command palette,

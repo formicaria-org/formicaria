@@ -9,7 +9,15 @@ sequence and the rulings; that file carries the receipts.
 Like the collaboration doc, most of what's below does **not exist yet**. When a line
 ships, delete it here and fold the outcome into `overview.md` / `decisions.md`.
 
-_Last updated: 2026-07-18, after **Track M — mobile was planned** (formicaria on the phone;
+_Last updated: 2026-07-18, after **Track M's host-side band shipped in full** — rulings 1
+(`fm_app::dispatch`, the one command surface), 6 (liveness/reindex split), 7 (the streaming blob
+route), 8 (the explicit sync loop) and the phone shell + board touch fallback; plus the whiteboard
+element merge, the O(n²) poll fix, a lost-update guard on `update_body`, and a `check-ui` CI gate
+(`sessions/2026-07-18-dispatch-and-blob-route.md`,
+`sessions/2026-07-18-sync-loop-and-scene-merge.md`). Deliberately **not** built: the cold-start
+`Incremental` switch (rejected), and rulings 2/3's **git2 swap + Ruling B's image-strip, both
+⛔ blocked on owner decisions** — see below. **M0–M8 stay blocked on the Android toolchain**, and
+spike (iii) PAT clone is untouched. Before that, **Track M — mobile was planned** (formicaria on the phone;
 the owner overrode `MASTERPLAN:57`'s "phone = server + auth" framing — the app runs **on the
 phone itself**). The design + receipts are in [`mobile-design.md`](./mobile-design.md); a
 compact Track M is below; the load-bearing rulings and two reversals are in `decisions.md`.
@@ -100,16 +108,28 @@ as a first-class atom. Honours *the atom is the file*; keeps mid-meeting frictio
 `- [ ]`". **Rejected:** a body-scan "checkboxes → agenda" pass (manufactures items that
 don't round-trip and re-pollutes the very views the 2026-07-16 assets decision cleaned up).
 
-### B. Board images — strip to the blob store on save
+### B. Board images — strip to the blob store on save (⛔ **blocked**, and the ordering claim below was wrong)
 
 Excalidraw embeds a pasted image as a **base64 data URL inside the note body**, rewritten
 whole on every pointer move — routing bulk binary through git and breaking the
-"blobs are already out of git" premise. **On board save, strip inline `files` out of the
-scene into the content-addressed blob store** (reuse `BlobStore::put_bytes` + ingest's MIME
-sniff), leaving only blob references in the `.excalidraw` JSON; **rehydrate on load** via
-the existing `resolve_asset` / planned `GET /api/blob/<hash>` route. Must land **before
-boards are shared** (Phase 3, Track C). **Rejected:** accept-and-document — a 2 MB
-screenshot becomes ~2.7 MB of churn per stroke.
+"blobs are already out of git" premise. The intent stands: **on board save, strip inline
+`files` out of the scene into the content-addressed blob store** (reuse
+`BlobStore::put_bytes` + ingest's MIME sniff), leaving only blob references in the scene
+JSON; **rehydrate on load** via `GET /api/blob/<reference>` (which now exists).
+
+**It cannot ship until one question is answered.** `blobs/` is gitignored, so the moment
+images live there instead of in the body, a shared board shows *no images* on a
+collaborator's clone. Pick (a) git-track whiteboard-embedded blobs as a scoped exception
+(simplest, fully offline, hash-deduped), or (b) a blob mirror (the scale path). Undecided.
+
+**And "must land before boards are shared" turned out to be false** — boards are shared
+*now*, un-stripped, because the element merge (`fm-core/src/scene.rs`) shipped without
+needing this. So the real cost of waiting is churn, not correctness. Two traps found while
+auditing: `onDestroy` flushes **synchronously**, so an async upload on save loses the last
+stroke before closing a board (upload eagerly on paste instead); and `lastSerialized`
+compares the **raw** serialization, so it must switch to the stripped text or the
+no-op-save guard breaks. **Rejected:** accept-and-document — a 2 MB screenshot becomes
+~2.7 MB of churn per stroke.
 
 ## The sequenced program
 
@@ -334,36 +354,101 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
 [`mobile-design.md`](./mobile-design.md). This entry carries only the sequence-defining rulings
 (the detail, and *why not the alternative*, is over there):
 
-1. **One command surface — extract dispatch into `fm-app`.** The tempting story ("`fm-app` is
-   already fronted by `fm-serve` *and* `fm-cli*`, so nothing forks") is **false**: `fm-cli`
-   reimplements against `fm-core`; `fm-serve::api()` is a second surface; a Tauri bridge would be
-   a third. Factor `api()`'s `match` + the single-lock `Vaults{MultiStore + Vec<VaultConfig>}`
-   discipline into `fm_app::dispatch`; both transports become thin over it. This is the fix that
-   makes "one command library" true — and it precedes every mobile milestone.
-2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only.** *All ~13* git ops
-   shell out today (not "only 3 network fns"), so all reimplement against `git2` (mature HTTPS
-   push; `gix` push isn't shipped — keep it as the documented pure-Rust future swap). This makes
-   **git2 the single desktop backend too** — logged as reversing "git is a capability, not a
-   dependency" (in-process git beats "hope `git` is on PATH"; repoint `available()` callers at
-   identity/remote).
-3. **Merge body: `git2::merge_file`/`MergeFileOptions`, not a new crate.** libgit2's own labelled,
-   marker-sized 3-way merge — zero new deps, max fidelity to the on-disk conflict format. The
-   desktop `.md` driver **stays installed**; driver + both app-pulls call the same `merge_files`.
-   A differential test (new engine vs `git merge-file` over random triples) gates the swap.
+1. **One command surface — extract dispatch into `fm-app`. — SHIPPED 2026-07-18.** The tempting
+   story ("`fm-app` is already fronted by `fm-serve` *and* `fm-cli*`, so nothing forks") was
+   **false**: `fm-cli` reimplements against `fm-core`; `fm-serve::api()` was a second surface; a
+   Tauri bridge would have been a third. `api()`'s `match` + the single-lock
+   `Vaults{MultiStore + Vec<VaultConfig>}` discipline now live in `fm_app::dispatch`, with
+   `vaults.rs` moved up beside them; `fm-serve` is a transport shell. Three deltas from the plan
+   as written: the lock stayed **inside** `App` (a `&mut Vaults` parameter would hold it across
+   `backup_status`'s per-vault `git ls-remote`), query params are **either/never both** with the
+   JSON body (else an uploaded `.json` asset is read as its own arguments), and `open_external`
+   became a one-method `Host` trait. `fm-cli` still has not migrated onto it — that remains the
+   open half of "one command library". Detail in
+   [`mobile-design.md`](./mobile-design.md#ruling-1--one-command-surface-the-load-bearing-correction).
+2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only. — ⛔ BLOCKED, do not
+   build as written (audited 2026-07-18).** Three premises are wrong or unweighed:
+   - **libgit2 cannot invoke external merge drivers.** Only text/union/binary are registered and
+     it contains no process-spawn at all. Porting `pull()` would **silently disable the `.md`
+     frontmatter merge** — the whole Phase 1 achievement — while a collaborator's terminal `git
+     pull` still honours it: two merge semantics in one vault. No workaround exists
+     (`git_merge_driver_register` is unbound, and it would not affect anyone else's git anyway).
+   - **`deny.toml` forbids linking GPL code** ("GPL tools like pdftotext/libvips are invoked as
+     subprocesses and never appear in this graph"). libgit2 is GPL-2.0-with-linking-exception;
+     `cargo deny` passes it **only because `libgit2-sys` under-declares** as `MIT OR Apache-2.0`
+     while vendoring ~230k lines of GPL C. `ci/third-party.sh` reads the same field, so we would
+     ship binaries omitting a notice the exception requires. That is an owner policy call, not a
+     silent pass.
+   - The Android C cross-compile is real but *not* the blocker the ruling thought it was
+     (`libgit2-sys` builds via `cc`, no cmake needed).
+   `gix` remains the documented pure-Rust future swap; its push still is not shipped.
+3. **Merge body: `git2::merge_file`/`MergeFileOptions`. — ⛔ BLOCKED as written: that function does
+   not exist** (audited 2026-07-18). git2 0.20.4 exposes only
+   `Repository::merge_file_from_index`, which needs `IndexEntry`s and would pollute the ODB —
+   contradicting `merge.rs`'s own design. The buffer API `git_merge_file` *is* bound in
+   `libgit2-sys`, but git2 imports that crate **privately**, so this needs a direct `libgit2-sys`
+   dependency plus ~40 lines of unsafe FFI — a different decision from the one written here, and
+   it inherits ruling 2's licence question. The plan's "verified against the git2-rs docs" was
+   not. If it is ever done: the desktop `.md` driver **stays installed**, driver + both app-pulls
+   call the same `merge_files`, and a differential test (new engine vs `git merge-file` over
+   random triples) gates the swap.
+3b. **The whiteboard merge — ✅ SHIPPED 2026-07-18, and it needed none of the above.**
+   `crates/fm-core/src/scene.rs` merges scenes element-wise from `merge_body`, before the text
+   merge. **There is no `.excalidraw` file and no second driver** — `FileStore` writes
+   `<ulid>.md` and the existing `*.md merge=fm` attribute already routes board notes into
+   `merge_files`; text elsewhere implying a separate driver would have had someone build one that
+   never fires. Verified through **real git** in `crates/fm-cli/tests/merge.rs`.
 4. **Auth: PAT-first (user-owned, host-agnostic, un-vendored); OAuth device flow optional.** Token
    Keystore-encrypted — a **scoped reversal** of "the app stores no secret" (a phone has no
    ambient credential-helper). Inject a per-URL `CredentialSource` into the three network fns
    (serves multi-repo + refresh + tests); **`set_identity` on clone** so mobile commits carry real
    provenance (the `PLACEHOLDER_EMAIL` sentinel).
-5. **Build the real streaming `GET /api/blob/<hash>`** (it never existed — blobs still buffer
-   whole into RAM) once, for both platforms (`Range` + `sniff_mime`); mobile media over `blob://`.
-6. **Efficiency:** lifecycle-driven reindex (drop the 3 s poll) + incremental cold-start open —
-   both machinery already in the tree. **Auto-push is explicit** (`reject → pull → merge →
-   re-push`), never the silent-loop the naive "auto-push after commit" would wedge.
-7. **Mobile shell stays trivially CSS** (media-query reflow of the *already-tested* shared
-   renderers, no new stateful layout) — the pane-grid rejection precedent (`decisions.md`,
-   "unverifiable by CI") applied so it earns no e2e. Board's touch gap (pragmatic-DnD's element
-   adapter doesn't fire on touch) gets a tap→move-to-column fallback.
+5. **Build the real streaming `GET /api/blob/<hash>`. — SHIPPED 2026-07-18 (desktop half).**
+   `fm-serve/src/blob.rs`: streamed in 64 KB chunks, `sniff_mime`, `Accept-Ranges`, `Range`
+   (206/416); the UI's inline media points at it and object URLs survive only for the mock
+   backend. It also turned out to be a **security** change — a blob is now at a navigable
+   same-origin URL and blobs come from collaborators — hence `nosniff` plus
+   `Content-Disposition: attachment` outside an inline-safe allowlist. Mobile's `blob://`
+   protocol handler is still to build, but now against a working reference.
+6. **Efficiency — ✅ SHIPPED 2026-07-18, with one deliberate deviation.** Liveness and reindex are
+   two beats now: `POST /api/alive` (transport-level, no lock, no filesystem) at 15 s, and the
+   `ping` reindex at 15 s **only while the tab is visible**, plus an unconditional refresh on
+   `visibilitychange`. The watchdog idle window went 10 s → 90 s — and *that*, not the split, is
+   what fixes the documented background-tab kill, because a throttled `alive` beat is throttled
+   exactly as much as a throttled `ping`. **Deviation: desktop keeps a poll.** Fully
+   lifecycle-driven refresh is a real desktop regression — a visible-but-never-refocused window
+   (formicaria tiled beside Vim, or on a second monitor) fires no lifecycle event and would simply
+   stop updating. The battery argument that motivates dropping the poll is a phone argument.
+   **Incremental cold-start open was tried and rejected (2026-07-18)**: mtime-only detection is
+   blind to `restic restore`/`rsync -a`/`cp -p`, and the full rebuild at open is the only thing
+   that heals them; it also needs an index-format version gate nothing enforces and an
+   `objects(path)` index (`forget_path` full-scans, so Incremental can be *slower* than Full
+   after a big pull). The benefit is mobile-only — desktop starts once. What the audit did find
+   was a live bug: the deletion sweep was O(notes²) on every 3 s beat; fixed and pinned by a perf
+   budget. **Auto-push is explicit — ✅ SHIPPED 2026-07-18** as `ui/src/lib/sync.svelte.ts`
+   (`commit → push`, on reject `pull → merge → push once more`), never the silent-loop the naive
+   "auto-push after commit" would wedge: **exactly one retry**, and **never a push after a
+   conflicted pull**. Wired to the backup panel's button and to the "get changes" nudge.
+   **Nothing fires it on a timer** — whether writing a note should publish it unasked is an
+   outward-facing default, and the shipped design says backup is "a conversation, not a
+   fire-and-forget", so it wants a decision rather than an assumption.
+7. **Mobile shell stays trivially CSS — ✅ SHIPPED 2026-07-18.** A media-query reflow of the
+   already-tested shared renderers and no new stateful layout: the pane workspace collapses to
+   one column (`--cols` is overridden, not read — a workspace saved on a laptop must not arrive
+   on a phone as four 4rem columns), the top bar wraps, the board snap-scrolls one column at a
+   time, and `pointer: coarse` bumps the 3px-padding targets to ~44px. Board's touch gap
+   (pragmatic-DnD's element adapter doesn't fire on touch) got the **tap→move-to-column
+   fallback — which was the only option**: `@atlaskit/pragmatic-drag-and-drop` 2.0.1 ships element/external/text-selection and
+   **no pointer adapter**, nor does any of its 12 companion packages (audited 2026-07-18), so
+   earlier text offering "or swap in the pointer adapter" was wrong. The fallback is cheap
+   because `Board` already has `columns: {value,label}[]` and `onmove(id, value, beforeId)`, so
+   the menu reuses the desktop write path with no new command. Watch `ci/checks.sh` — it greps
+   `ui/src/renderers` case-insensitively for a whole-word `todo|doing|done`, so a "Done" button
+   label would fail the build — the menu's labels come from `col.label`, i.e. runtime data, so it
+   stays as generic as the drag it replaces. Built as real `<button>`s rather than touch
+   handlers, which is what makes it **testable without a phone**: a jsdom click exercises the
+   same path a tap does (`ui/src/renderers/Card.touch.test.ts`, 5 tests). What CI still cannot
+   check is narrowed to "is the target big enough for a finger", not "does moving a card work".
 8. **Sync is a seam, git one provider** — a thin `SyncProvider` trait with `GitSyncProvider` as
    the *sole* impl; build no second provider now (design against Syncthing's profile *on paper*;
    make `history` a queried optional capability). Backends default free & serverless (rclone → ~70

@@ -3,7 +3,7 @@
 Everything runs through pixi so the toolchain is reproducible. One gate:
 
 ```sh
-pixi run ci        # = test + test-ui + deny + checks + docs
+pixi run ci        # = test + test-ui + check-ui + deny + checks + docs
 ```
 
 ## The suites
@@ -12,6 +12,7 @@ pixi run ci        # = test + test-ui + deny + checks + docs
 |-------------------|-----------------------------------------------------------------|
 | `pixi run test`   | `cargo test --workspace` — the Rust unit + integration tests.   |
 | `pixi run test-ui`| Vitest (jsdom) — the markdown→HTML render seam and app flows.    |
+| `pixi run check-ui`| svelte-check over every component. **`vite build` does not typecheck** — it strips types and emits — so without this a component calling a function it never imported builds clean and throws in the browser. |
 | `pixi run seam`   | the zero-I/O `fm-query` suite (seam 1).                          |
 | `pixi run perf`   | search-under-budget (< 100 ms at 10k notes).                    |
 | `pixi run deny`   | `cargo deny` — license/advisory gate (permissive-only).         |

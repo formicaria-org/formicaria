@@ -170,11 +170,12 @@ reasoning behind design decisions, and known gaps.
 ## Development
 
 ```sh
-pixi run ci        # test + test-ui + deny + checks + docs — the single gate
+pixi run ci        # test + test-ui + check-ui + deny + checks + docs — the single gate
 ```
 
-CI runs the gate on Linux, macOS and Windows when code changes; a `v*` tag builds and
-publishes binaries for all three.
+**`pixi run ci` locally *is* the gate.** Every GitHub workflow here — `ci`, `cross`, `docs`,
+`release` — is `workflow_dispatch:` only: nothing runs on a push, and a `v*` tag publishes
+nothing until someone presses Run workflow. That is deliberate, not an oversight.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli

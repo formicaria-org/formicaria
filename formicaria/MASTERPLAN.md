@@ -291,7 +291,13 @@ pub trait Store {
 
 **Ingest** = one function, three transports (Tauri paste/drag over IPC; `fm add` with `cp --reflink=auto`; watched inbox in v2). Steps: stream-hash sha256 → dedup (existing hash → discard+return) → atomic commit to `blobs/` → sniff MIME → extract metadata → extract text → FTS → **return** → async thumbnail (fire-and-forget). Any step past hashing can fail and only degrades that feature.
 
-**Index lifecycle:** reindex on startup; 3 s mtime poll for external edits; in-app writes update the index in the same transaction; `fm reindex --full` = DROP+rebuild (<10 s @ 10k). A reindex-idempotence test proves the index is genuinely disposable.
+**Index lifecycle:** reindex on startup (still `Reindex::Full` — switching cold start to
+`Incremental` was considered and **rejected**: mtime-only detection is blind to
+`restic restore`/`rsync -a`/`cp -p`, and the full rebuild is the only thing that heals them);
+a **15 s** incremental mtime poll for external edits, **suppressed while the tab is hidden**
+and paired with an unconditional refresh on `visibilitychange`. Liveness is a separate,
+lock-free `POST /api/alive` beat — it used to ride this poll, which is why the poll had to be
+3 s; in-app writes update the index in the same transaction; `fm reindex --full` = DROP+rebuild (<10 s @ 10k). A reindex-idempotence test proves the index is genuinely disposable.
 
 **`verify` + integrity manifest** (report-only, à la `git fsck`): unparseable frontmatter, unresolved code refs, missing blobs (→ warn), dangling links (v2). `manifest.json` is a plain (optionally minisign-signed) sha256 inventory; `fm verify --scrub` re-hashes blobs against it to catch bit-rot — the genuinely hard part of "lasts 10 years," treated as first-class.
 
@@ -320,7 +326,8 @@ pub trait Store {
 - **READ (render component):** a Svelte view that parses the Markdown (pulldown-cmark or a small TS Markdown lib) and renders it nicely: inline **KaTeX** for `$…$`/`$$…$$`, **Mermaid** (lazy) for diagram blocks, and `WidgetType`-free HTML widgets for image/video/audio/pdf/excalidraw via the `asset:` resolver, each falling back to the shared **`AssetMissing`** placeholder. This is where "looks nice" lives in v1, and it is far lower risk than editing-surface decorations.
 - **Round-trip invariant + CI test:** `read → store → read === bytes`. It holds trivially for the textarea and re-applies unchanged when CM6 arrives in v2 (`read → mount in CM6 → toString() === bytes`). Build each read-view widget one element at a time, each gated by a round-trip fixture.
 
-**Five generic renderers = query + a renderer** (`.view` config files remain planned):
+**Five generic renderers = query + a renderer** (`.view` config files **ship** —
+`crates/fm-app/src/views.rs`, `list_views`/`run_view`):
 | Renderer | Query | Behavior |
 |---|---|---|
 | **board** | any | columns from distinct values of `groupBy` (**any** property); Pragmatic DnD drop → `set_property(id, key, value)`. **Renderer must not contain `todo`/`doing`/`done` — CI greps `ui/src/renderers/**` and fails the build if found.** |
@@ -329,9 +336,9 @@ pub trait Store {
 | **gallery** | `type=asset` | grid of thumbnails |
 | **search** | `Text` predicate (FTS5) | full-text results across notes + extracted PDF text |
 
-**Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is **14**: `board`, `gallery`, `agenda`, `recent`, `search`, `get`, `capture`, `set_property`, `update_body`, `ingest` (binary upload → asset note), `resolve_asset`, `asset_status`, `open_external`, `commit`, `backup`. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
+**Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is now ~30 and its authoritative list is the `match` in **`fm_app::dispatch`** (`crates/fm-app/src/dispatch.rs`) — restating it here is how this line went stale. Every frontend reaches it through that one function; `fm-serve` only frames HTTP. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
 
-**Asset resolution + graceful absence:** `asset:sha256-…` → bytes fetched over `/api/resolve_asset`, wrapped in a typed object URL. The read view renders by sniffed MIME with **native browser elements** — `<img>`, a scrollable `<iframe>` for PDF, `<video>`/`<audio>` — no JS media libraries. `asset_status` reports `has_blob:false` (not synced yet) → shared `AssetMissing` placeholder; try/catch in the resolver. Nothing crashes. Authoring: drag a file into the editor or type `/` to search-and-insert an asset.
+**Asset resolution + graceful absence:** `asset:sha256-…` → a **`GET /api/blob/<reference>`** URL, streamed from disk with `Range` support and handed straight to the element (so seeking a video costs one range request, not a whole-file download). `resolve_asset` — whole file into memory, wrapped in an object URL — remains only for thumbnails and for a frontend with no HTTP route to stream from. The read view renders by sniffed MIME with **native browser elements** — `<img>`, a scrollable `<iframe>` for PDF, `<video>`/`<audio>` — no JS media libraries. `asset_status` reports `has_blob:false` (not synced yet) → shared `AssetMissing` placeholder; try/catch in the resolver. Nothing crashes. Authoring: drag a file into the editor or type `/` to search-and-insert an asset.
 
 **Extensibility, layer 1 = CSS themes:** design tokens as CSS custom properties; pill/urgency colors via `data-value` attribute selectors, so themes color arbitrary enum values while renderer code stays literal-free. A theme is one CSS file. Layer 2 = `.view` files (shared with backend). Layer 3 = the optional Lua hatch.
 
@@ -382,17 +389,17 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 - **Backend / CLI (`fm`), S0–S6.** Capture → atomic write → reindex-on-reload; an external Vim edit is picked up on reindex. FTS5 search returns timestamped hits — **including words that appear only inside an ingested PDF** (`pdftotext` → FTS, the killer feature). Properties editable with custom-property round-trip (no silent data loss). Assets: content-addressed blobs with dedup, text extraction, `vipsthumbnail` thumbnails. Durability: `manifest` → `verify --scrub` catches bit-rot (exits non-zero) → `restic backup` → `check --read-data` → `restore` diffs **byte-identical**. Reindex is idempotent (the index is disposable).
 - **Query seam.** `cargo test -p fm-query` passes with **zero filesystem access**; the board renderer is generic (groups by any property; the `todo|doing|done` CI grep stays green).
 - **Frontend SPA in a browser.** `svelte-check` + `vite build` clean; the board/gallery/agenda renderers, the note read/edit view, and inline KaTeX/Mermaid **render correctly in a normal browser** (kanban board confirmed by hand). This proves the UI logic and the IPC *shape* are sound.
-- **Browser app via `fm-serve` — this is the product.** The command library (DTOs, board/agenda/timeline/gallery/search, property write-back, asset resolution over the `Store` seam) is unit-tested and webkit-free; a std-only HTTP server fronts it to the browser and serves `ui/dist`. The real command surface is **14** (not the earlier 7). The native Tauri window was removed (see the reversal table).
+- **Browser app via `fm-serve` — this is the product.** The command library (DTOs, board/agenda/timeline/gallery/search, property write-back, asset resolution over the `Store` seam) is unit-tested and webkit-free; a std-only HTTP server fronts it to the browser and serves `ui/dist`. The real command surface is ~30 and lives in **`fm_app::dispatch`** — `fm-serve` is a transport shell that only frames HTTP. The native Tauri window was removed (see the reversal table).
 - **CI.** `pixi run ci` is green: workspace tests + `cargo-deny` license/advisory gate + the architectural greps.
 
 **Not verified / not yet working:**
 
 - **On-screen rendering — no longer a question.** The blank-window problem was retired by dropping the WebKitGTK webview: the UI now renders in the user's real browser (Chromium/Firefox/…), which paints reliably and gives native inline media (scrollable PDF `<iframe>`, `<video>`/`<audio>`) for free. Former Risk #1 is closed.
-- **Deferred v1 GUI-interactive bits** (need a real display; not built): global capture hotkey, live asset/thumbnail display via the Tauri asset protocol, `.view` config files, git auto-commit on idle/blur.
+- **Deferred v1 GUI-interactive bits** (need a real display; not built): the global capture hotkey. *Shipped since: inline asset/thumbnail display (now over `GET /api/blob/<reference>`), `.view` config files, and debounced git auto-commit — which commits every vault and surfaces its first failure, though it is still debounced rather than idle/blur-triggered.*
 
 ## Resource weight & framework choice (reassessed 2026-07-14)
 
-**Verdict: light at this scale; the architecture is sound.** Boot loads a **72 KB** entry chunk; a plain note adds ~135 KB; KaTeX and Mermaid are *doubly* lazy — behind the note-panel dynamic import **and** feature-gated (no `$` → no KaTeX; no ` ```mermaid ` → no Mermaid). There are **no background threads, timers, watchers, or polling** — zero idle CPU from our code. The Rust working set is tens of MB.
+**Verdict: light at this scale; the architecture is sound.** Boot loads a **72 KB** entry chunk; a plain note adds ~135 KB; KaTeX and Mermaid are *doubly* lazy — behind the note-panel dynamic import **and** feature-gated (no `$` → no KaTeX; no ` ```mermaid ` → no Mermaid). Idle cost is small but **not zero**, and this line used to claim it was: three UI intervals (a 45 s `remote_moved` check, a 15 s liveness beat, and a 15 s reindex poll that is suppressed while the tab is hidden) plus the server's auto-shutdown watchdog thread. The Rust working set is tens of MB.
 
 **Superseded by the move to a browser app (2026-07-15).** The old worry here was WebKitGTK's ~150–300 MB idle RAM from the embedded webview. That cost is gone: formicaria no longer ships a webview. The server (`fm-serve`) is std-only — no HTTP framework, no bundled browser — so its resident set is tens of MB; the UI runs in a browser the user already has open. The single-digit-MB Rust binaries and the lazy KaTeX/Mermaid budgets still hold. **Decision: the browser is the product; keep the server tiny.**
 
@@ -401,7 +408,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 - **Release profile added** (`[profile.release]` in root `Cargo.toml`: `strip` + thin-LTO + one codegen unit) so the shipped binary is ~10–25 MB, not the 227 MB *debug* build. (The multi-GB `target/` is dev cache — `cargo clean` reclaims it.)
 - **Reindex runs in one transaction** (`fm-core::file::reindex`) — was ~3 un-batched SQL statements per note; a single commit is the cheap scaling win.
 
-**Deferred until the vault reaches ~1–2k notes** (latent O(n) costs, negligible at current scale): incremental mtime-diff reindex — the `mtime_ns` column and the `Reindex::Incremental` variant already exist, unused — so every open is O(changed) not O(all); and avoiding a full YAML re-parse of the whole corpus on every board/gallery/agenda render (an in-memory object cache, or promoting frontmatter fields to SQL columns). Gate both behind a reindex perf-budget test.
+**Deferred until the vault reaches ~1–2k notes** (latent O(n) costs, negligible at current scale): ~~incremental mtime-diff reindex~~ — **done**: `Reindex::Incremental` backs the poll and `pull`, and its deletion sweep is now O(n) rather than O(n²), pinned by a perf budget at 10k notes. Only cold-start `open` is still `Full`, deliberately (see Index lifecycle); and avoiding a full YAML re-parse of the whole corpus on every board/gallery/agenda render (an in-memory object cache, or promoting frontmatter fields to SQL columns). Gate both behind a reindex perf-budget test.
 
 ## Risks (ranked)
 
@@ -423,7 +430,7 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 
 ## Deferred (v2+)
 
-**CM6 live-preview editing surface** (the decoration layer — the biggest single build risk) · Wikilink *backlinks panel* · `.view` config files (layer-2 extensibility; the renderers are hardcoded for now) · ⌘K command palette polish · watched inbox · OCR (tesseract) · pptx/docx extraction (pandoc) · GC (report+quarantine only) · phone/remote access (auth) · MathLive equation editor · semantic search. *(Shipped since this list was written: the month/week calendar, the timeline/journal, search, the properties editor, asset drag/slash authoring, inline PDF/video/audio, one-click backup + git auto-commit.)*
+**CM6 live-preview editing surface** (the decoration layer — the biggest single build risk) · Wikilink *backlinks panel* · ⌘K command palette polish · watched inbox · OCR (tesseract) · pptx/docx extraction (pandoc) · GC (report+quarantine only) · phone/remote access (auth) · MathLive equation editor · semantic search. *(Shipped since this list was written: the month/week calendar, the timeline/journal, search, the properties editor, asset drag/slash authoring, inline PDF/video/audio, one-click backup + git auto-commit, `.view` config files, and the streaming blob route.)*
 
 ---
 

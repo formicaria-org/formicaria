@@ -30,6 +30,27 @@ the first draft mis-named where it is. Fixing that is ruling 1.
 
 ## Ruling 1 — one command surface (the load-bearing correction)
 
+**SHIPPED 2026-07-18.** `fm_app::dispatch` exists; `fm-serve` is an HTTP shell over it. Three
+things the extraction taught, beyond the plan below:
+
+1. **The lock could not move.** The plan's proposed `dispatch(..., vaults: &mut Vaults)` would
+   have held the lock for the whole command — but five arms exist precisely to *drop* it
+   before slow I/O (`asset_status`, `resolve_asset`, `open_external`, `backup`,
+   `backup_status`). So `App` owns the `Mutex` and each arm takes it exactly as long as it
+   did before. (The old comment claiming a held lock could starve the *auto-shutdown
+   watchdog* was stale and is now corrected in place: liveness is refreshed before dispatch,
+   so a slow command cannot make the app quit. It does stall the 3 s poll, which is the real
+   cost.)
+2. **`vaults.rs` moved up too**, from `fm-serve` to `fm-app`. The vault list is state the
+   command surface owns; HTTP was only the first caller. A second transport re-reading
+   `vaults.json` would have been the fork the extraction exists to prevent.
+3. **`open_external` is the one genuinely platform-bound arm**, so it became a seam — the
+   `Host` trait, one method, implemented by the shell. `#[cfg(target_os)]` inside `fm-app`
+   would compile a wrong answer for Android. Note `open_native` has a *second* caller in
+   `fm-serve::main` (the `FM_OPEN` browser launch), which independently keeps it there.
+
+The original finding, for the record:
+
 **(corrected — the first draft's central premise was false.)** The draft said the durable
 boundary is `fm-app`, *"already fronted by two independent frontends (`fm-serve` and `fm-cli`),
 so nothing forks."* Audited: **`fm-cli` does not front `fm-app`.** `crates/fm-cli/Cargo.toml` has
@@ -107,7 +128,26 @@ download direction goes over `blob://` (ruling 7), not an IPC byte-array.
 
 ---
 
-## Ruling 3 — merge: `git2::merge_file`, not `diffy` (corrected)
+## Ruling 3 — merge: `git2::merge_file`, not `diffy` (⛔ **refuted 2026-07-18 — that function does not exist**)
+
+> **Audited against the real crate, not the docs.** `git2` 0.20.4 exposes only
+> `Repository::merge_file_from_index(&IndexEntry, &IndexEntry, &IndexEntry, …)` — which needs
+> index entries and so would pollute the ODB, contradicting `merge.rs`'s own design. The
+> buffer-shaped `git_merge_file`, which *is* the right API, is bound in `libgit2-sys`
+> (`lib.rs:3854`) but `git2` imports that crate **privately** (`use libgit2_sys as raw;`, no
+> `pub`). So this ruling needs a **direct `libgit2-sys` dependency plus ~40 lines of unsafe
+> FFI**, and it inherits ruling 6's licence question. The claim below that it was "verified
+> against the git2-rs docs" is the error to learn from: the docs describe `MergeFileOptions`,
+> which exists; the function taking it does not, at this layer.
+>
+> **What shipped instead, and needed none of it:** `crates/fm-core/src/scene.rs` — the
+> `.excalidraw` half of this ruling — merges whiteboard scenes element-wise from `merge_body`,
+> in pure Rust with `serde_json`. Also corrected: **there is no `.excalidraw` file.**
+> `FileStore` writes `<ulid>.md`, and the existing `*.md merge=fm` attribute already routes
+> board notes into `merge_files`, so this is a branch inside `merge.rs` and never a second
+> driver. Verified through real git in `crates/fm-cli/tests/merge.rs`.
+
+The superseded reasoning, kept because the `diffy` rejection still stands:
 
 The draft swapped the body 3-way merge from `git merge-file` to the third-party `diffy` crate,
 then worried in-text whether `diffy` even exposes a marker size and the three conflict labels.
@@ -198,7 +238,32 @@ provenance hole reopened, precisely in the multi-user case the owner cares about
 
 ---
 
-## Ruling 6 — `git2` becomes the single in-process backend (a reversal, logged)
+## Ruling 6 — `git2` becomes the single in-process backend (⛔ **blocked 2026-07-18 — two showstoppers the ruling never weighed**)
+
+> **1. libgit2 cannot invoke external merge drivers.** Verified in the vendored C: only
+> text/union/binary are registered, and libgit2 contains no process-spawn anywhere.
+> `git_merge_driver_register` is unbound in both `libgit2-sys` and `git2`, and even wired up it
+> would not affect anyone else's git. So porting `pull()` **silently disables the `.md`
+> frontmatter merge** — the thing Track C Phase 1 exists to provide — while a collaborator
+> running `git pull` in a terminal still gets it. Two merge semantics in one vault, and the
+> app's is the worse one. There is no workaround; this alone blocks the ruling.
+>
+> **2. It violates `deny.toml`, and passes only on a metadata technicality.** The policy is
+> explicit: *"any GPL/AGPL/SSPL/BUSL/source-available crate that is **linked** (not shelled out
+> to) must fail the build. GPL tools like pdftotext/libvips are invoked as subprocesses and
+> never appear in this graph."* libgit2 is GPL-2.0-with-linking-exception. `cargo deny` goes
+> green because `libgit2-sys` declares `MIT OR Apache-2.0` while vendoring ~230k lines of GPL C
+> — the gate clears because the metadata under-declares, not because the policy is satisfied.
+> Worse, `ci/third-party.sh` reads that same field, so we would ship binaries **omitting a
+> notice the linking exception requires**, and fixing that means hand-editing a file whose
+> header says it is never hand-maintained. This is an owner policy call.
+>
+> Two smaller corrections while here: the Android C build is **not** the obstacle this ruling
+> assumed (`libgit2-sys` builds via `cc::Build`; the vendored CMakeLists are inert, and pixi's
+> `c-compiler` suffices). And `graph_descendant_of(X, X)` is `false` where
+> `merge-base --is-ancestor X X` is `true`, which would silently break the in-sync no-op push.
+
+The superseded reasoning, kept because the `gix`-vs-`git2` comparison still holds:
 
 **(corrected — the draft under-owned this.)** `fm-core` has **no** `git2`/`gix` today (verified:
 the only `git2` string in the workspace is the plan proposing it); git is invoked purely as a
@@ -237,11 +302,25 @@ reversing *"git is a capability, not a dependency."* The one-backend call is del
 
 ## Ruling 7 — build the real streaming blob route (it never existed)
 
-**(corrected — the draft mis-cited it as "planned/existing.")** Audited: there is **no** `GET
-/api/blob/<hash>` route; blob bytes travel via `POST /api/resolve_asset`, which buffers the whole
-file into RAM (`commands.rs:206`, `std::fs::read`), 512 MB cap, no `Range` — the exact
-whole-blob-in-memory problem still open in `known-issues.md`, on desktop *today*. The draft leaned
-on this route as the reference for the mobile `blob://` protocol.
+**SHIPPED 2026-07-18 (the desktop half).** `GET /api/blob/<reference>` exists in
+`fm-serve/src/blob.rs`: streamed from disk in 64 KB chunks, sniffed `Content-Type`,
+`Accept-Ranges`, real `Range` (206/416), and the UI's inline media points at it instead of
+minting object URLs. The mobile `blob://` protocol handler is still to build, but it now has
+a working reference rather than an imagined one. What remains of the original finding, for
+the record:
+
+**(corrected — the draft mis-cited it as "planned/existing.")** Audited: there was **no** `GET
+/api/blob/<hash>` route; blob bytes travelled via `POST /api/resolve_asset`, which buffers the
+whole file into RAM (`commands.rs:206`, `std::fs::read`) with no `Range`. (The draft also
+attributed a "512 MB cap" to it — wrong: that cap is on inbound `Content-Length` and guards
+*uploads*; the blob **read** path was uncapped.) The draft leaned on this route as the
+reference for the mobile `blob://` protocol.
+
+Two things the build found that the design did not: `resolve_asset` **threw the sniffed MIME
+away** and answered `application/octet-stream` for everything, so the caller had to ask
+`asset_status` separately and build a typed `Blob` by hand — the route sends the real type. And
+serving blobs from a *navigable* same-origin URL is a security change, not just a performance
+one: see the `Content-Disposition` allowlist in `blob.rs`.
 
 **Build it once, for both platforms:** a streaming `GET /api/blob/<hash>` in `fm-serve` with the
 sniffed `Content-Type` (call `ingest::sniff_mime` — `resolve_asset` currently throws the MIME away
@@ -371,13 +450,27 @@ per-block ids" invariant the project is built on, for a real-time we've said we 
   `PointerEvent`, works). And every renderer imports the **global `activity.svelte.ts` singleton**
   — a hidden coupling to account for, not a props-only component. The existing fallback is
   **StatusChip click-to-rotate** (`lib/NotePanel.svelte:631`), which only cycles *status*; for
-  arbitrary-column moves add a **tap → move-to-column menu**, or swap in pragmatic-DnD's pointer
-  adapter. Card/column order stays `localStorage` per-device (don't sync it).
+  arbitrary-column moves add a **tap → move-to-column menu**. That is the *only* option —
+  "swap in pragmatic-DnD's pointer adapter" was wrong and is struck: version 2.0.1 ships
+  element, external and text-selection adapters and **no pointer one**, and none of its 12
+  companion packages provides one (audited 2026-07-18). The alternative is hand-rolling over the
+  package's unversioned `make-adapter/` internals, which is writing a drag engine, not swapping
+  an adapter. The menu is cheap anyway: `Board` already exposes `columns: {value,label}[]` and
+  `onmove(id, value, beforeId)`, so it reuses the desktop write path with **no new command** —
+  and stays literal-free, because column names are runtime data. Watch `ci/checks.sh`: it greps
+  `ui/src/renderers` case-insensitively for a whole-word `todo|doing|done`, so a "Done" label
+  fails the build. Card/column order stays `localStorage` per-device (don't sync it).
 - **Whiteboard is the one view with real cross-device work.** A board note is `view: board` with
   an Excalidraw scene JSON body; the same `Whiteboard.svelte` (React/Excalidraw, lazily loaded)
   runs in a mobile webview with usable touch. Two shared-core pieces make it *sync well* (both
-  improve desktop): the `.excalidraw` 3-way merge (ruling 3), and **Ruling B — strip embedded
-  images out of the scene body into the blob store on save** (a carried decision, not yet coded;
+  improve desktop): the scene 3-way merge — **✅ shipped 2026-07-18** as
+  `crates/fm-core/src/scene.rs`, a branch inside `merge_body` and **not** a second driver, since
+  there is no `.excalidraw` file (`FileStore` writes `<ulid>.md`; `*.md merge=fm` already routes
+  boards there) — and **Ruling B — strip embedded
+  images out of the scene body into the blob store on save** (⛔ **blocked**: `blobs/` is
+  gitignored, so after the strip a shared board's images stop appearing on a collaborator's
+  clone. The two options below are still undecided, and shipping the strip before deciding is a
+  visible regression. A carried decision, not yet coded;
   `saveBoard` at `lib/NotePanel.svelte:249` re-serializes the whole scene on the debounced
   `onChange`, `Whiteboard.svelte`). Without the strip, a 2 MB screenshot is a multi-MB body
   `fsync`'d per stroke on a phone — flash wear + battery. **Ruling B must land before boards are

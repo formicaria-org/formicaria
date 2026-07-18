@@ -1,7 +1,8 @@
 # Views
 
 Every view is the same data seen a different way — "a query plus a renderer".
-Switch views from the top bar.
+Open a view into a **pane** from the top bar; each pane has its own picker, so several
+views can be on screen at once, side by side.
 
 - **Board** — a Kanban board. Group by any property (status, project, tags, or a
   custom key) via the *group by* control. Drag a card to a column to set that
@@ -32,7 +33,8 @@ nudging a note's `due` date is the whole reprioritization gesture.
 A **view** is a saved query drawn through one of the built-in renderers — *"a filtered
 board"*, *"this week's lab agenda"*, *"everything tagged `reading` that isn't done"*. You
 write one as a small YAML file in your vault under `views/`, ending in `.view`; it then
-appears in the sidebar below Board / Agenda / Timeline. Because it lives in the vault, it is
+appears alongside Board / Agenda / Timeline in the top bar and in each pane's view picker.
+Because it lives in the vault, it is
 **git-tracked and travels to collaborators** — a shared view is shared exactly like a note.
 
 The simplest view is two lines:
@@ -87,9 +89,9 @@ gt: …`, because a text/date mix-up there would return a confident wrong answer
 parses real dates and cannot. And **a board/agenda/timeline view always shows notes only** —
 your filter narrows *within* that, it cannot widen it to include assets.
 
-If a `.view` file has a mistake, it still appears in the sidebar, greyed out, with the parse
-error (naming the line) as its tooltip — a broken view tells you why, it never silently
-vanishes.
+If a `.view` file has a mistake it is still **listed, with its parse error** rather than
+quietly dropped — a broken view tells you why. Running it surfaces the same error instead of
+returning an empty result, so "no matches" never masquerades as "your file is wrong".
 
 ## Theme
 

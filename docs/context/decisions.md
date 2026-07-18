@@ -25,25 +25,43 @@ audit in [`mobile-design.md`](./mobile-design.md); sequence in [`plan.md`](./pla
   third. Extract `api()`'s `match` + the single-lock `Vaults{MultiStore + Vec<VaultConfig>}`
   discipline into `fm_app::dispatch`; both transports go thin over it. This is what makes "one
   command library" *true*, and it precedes every milestone.
-- **Two reversals, owned in writing.** (1) **`git2` in `fm-core` reverses "git is a capability,
-  not a dependency"** — linking libgit2 compiles a git implementation (and its NDK C
-  cross-compile) into the core *always*, even for a git-less desktop user; in exchange in-process
-  git beats "hope `git` is on PATH", so `git::available()` becomes effectively always-true and its
-  callers repoint at identity/remote. One backend on purpose (a `#[cfg]` two-impls-forever is the
-  trap "minimal maintenance" rejects); `gix` stays the documented pure-Rust swap once its push
-  ships. (2) **A Keystore-held token reverses "the app stores no secret of its own"** — scoped to
+- **Two reversals, owned in writing — and reversal (1) is now ⛔ BLOCKED (audited 2026-07-18).**
+  (1) **`git2` in `fm-core` would reverse "git is a capability, not a dependency"** — linking
+  libgit2 compiles a git implementation into the core *always*, even for a git-less desktop user;
+  in exchange in-process git beats "hope `git` is on PATH". **It must not be built as written**,
+  for two reasons the ruling never weighed: **libgit2 cannot invoke external merge drivers** (no
+  process-spawn exists in it; `git_merge_driver_register` is unbound), so porting `pull()` would
+  *silently disable* the `.md` frontmatter merge while a collaborator's terminal `git pull` still
+  honours it — two merge semantics in one vault; and **`deny.toml` forbids linking GPL code**,
+  which libgit2 is (GPL-2.0-with-linking-exception) — `cargo deny` passes it only because
+  `libgit2-sys` under-declares as `MIT OR Apache-2.0`, and `ci/third-party.sh` reads the same
+  field, so we would ship binaries omitting a required notice. Needs an owner decision, not a
+  silent pass. `gix` stays the documented pure-Rust swap once its push ships.
+  (2) **A Keystore-held token reverses "the app stores no secret of its own"** — scoped to
   the fact a phone has no ambient credential-helper; encrypted under an Android Keystore key,
-  never in prefs or the remote URL.
+  never in prefs or the remote URL. Untouched (no mobile shell exists yet).
 - **Auth is PAT-first (user-owned, un-vendored), OAuth device flow optional.** A pasted
   fine-grained token is host-agnostic (Gitea included) and needs no vendored OAuth-App
   registration on the critical path; OAuth is the convenience. A **per-URL injected
   `CredentialSource`** (not a global `OnceLock<Fn>`) serves multi-repo + refresh + tests;
   **`set_identity` on clone** keeps the `PLACEHOLDER_EMAIL` provenance sentinel honest on mobile.
-- **Merge stays in the libgit2 family.** Swap the body engine to **`git2::merge_file`/
-  `MergeFileOptions`** (labelled, marker-sized — zero new deps, max fidelity to the on-disk
-  format), *not* a niche crate on the one path that must never corrupt. The desktop `.md` driver
-  **stays installed**; driver + both app-pulls call the same `merge_files`; a differential test
-  (vs `git merge-file`) gates the swap.
+- **Merge stays in the libgit2 family — ⛔ BLOCKED: the named function does not exist**
+  (audited 2026-07-18). `git2` 0.20.4 exposes only `Repository::merge_file_from_index`, which
+  needs index entries and would pollute the ODB. The buffer-shaped `git_merge_file` is bound in
+  `libgit2-sys` but `git2` imports that crate **privately**, so this needs a direct `libgit2-sys`
+  dependency plus unsafe FFI — a different decision, inheriting the licence question above. The
+  rejection of a niche crate (`diffy`) on the one path that must never corrupt still stands. If
+  ever built: the desktop `.md` driver **stays installed**; driver + both app-pulls call the same
+  `merge_files`; a differential test (vs `git merge-file`) gates the swap.
+- **Whiteboards merge element-wise, in pure Rust — ✅ SHIPPED 2026-07-18.** `fm-core/src/scene.rs`,
+  called from `merge_body` before the text merge. **Why not Excalidraw's own
+  `reconcileElements`:** it takes two scenes and *no base*, so it cannot tell "you deleted this"
+  from "I added this" and keeps the element either way — every deleted shape returns on the next
+  sync. A 3-way merge has the base and honours the deletion. Higher `version` wins, lower
+  `versionNonce` breaks ties (deterministic on both machines, which is what stops the next sync
+  diverging), fractional `index` keeps the z-order, file maps unite. **There is no `.excalidraw`
+  file and no second driver** — `FileStore` writes `<ulid>.md` and the existing `*.md merge=fm`
+  attribute already routes board notes into `merge_files`.
 - **Sync is a seam, git one provider — but build nothing extra.** A thin `SyncProvider` trait with
   `GitSyncProvider` as the *sole* impl; design against Syncthing's profile *on paper*; make
   `history`/authorship a **queried optional capability** (that is the test the seam isn't
@@ -500,9 +518,16 @@ latent today and unbounded the moment boards are shared. **Consequence:** on boa
 **strip the scene's inline `files` into the blob store** (reuse `BlobStore::put_bytes` +
 ingest's MIME sniff, dedup by sha256), leaving only blob references in the `.excalidraw`
 JSON; **rehydrate on load** via `resolve_asset` / the planned `GET /api/blob/<hash>`. Reuses
-the existing blob seam rather than adding one, and must land **before** the `.excalidraw`
-merge driver shares boards (plan.md Track C Phase 3). **Rejected:** accept-and-document —
-untenable once boards sync.
+the existing blob seam rather than adding one. **⛔ BLOCKED (2026-07-18), and the ordering
+claim was wrong:** the board merge already shipped without this (`fm-core/src/scene.rs`, under
+the existing `*.md merge=fm` driver — there is no separate `.excalidraw` driver), so boards sync
+today *un-stripped*. The strip cannot ship until one question is answered: **`blobs/` is
+gitignored**, so once images live there instead of in the scene body, a shared board shows no
+images on a collaborator's clone. Pick (a) git-track whiteboard-embedded blobs as a scoped
+exception, or (b) a blob mirror — `mobile-design.md` names both and decides neither. Two further
+traps found while auditing: `onDestroy` flushes *synchronously*, so an async upload on save loses
+the last stroke (upload eagerly on paste instead), and `lastSerialized` compares the **raw**
+serialization, so it must switch to the stripped text or the no-op-save guard breaks.
 
 ## Assets are query-layer-excluded from the planning views (2026-07-16)
 **Why:** an asset is a blob a note *references*, not a thing you plan; a PDF

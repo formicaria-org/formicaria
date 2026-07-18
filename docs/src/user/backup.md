@@ -34,8 +34,12 @@ is nowhere to type it), so it will report an auth failure instead of hanging.
 
 ## Backing up
 
-Click **Back up**, then **Back up notes**. It commits anything outstanding, pushes,
-and reports what happened — including whether your remote is genuinely off this
+Click **Back up**, then **Back up notes**. It commits anything outstanding and pushes —
+and if someone else pushed while you were writing, it **pulls their work, merges it, and
+pushes once more**, rather than making you do that by hand. Exactly one retry: if the
+merge turns up genuine conflicts it stops, names the notes, and does *not* push (publishing
+conflict markers as content would be worse than not publishing). It reports what happened
+either way — including whether your remote is genuinely off this
 machine. (A remote can be a local path or a `file://` URL, which is a fine way to
 back up to an external drive but does not survive the drive; the panel labels that
 honestly rather than calling it backed up.)
