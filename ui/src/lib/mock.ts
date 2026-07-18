@@ -242,8 +242,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'update_body': {
       const id = String(args.id);
       const body = String(args.body);
-      bodyOverrides.set(id, body);
+      const base = String(args.base ?? '');
       const n = notes.find((x) => x.id === id);
+      // Mirror the real guard, so the mock cannot quietly accept a write the server would
+      // refuse — that divergence is exactly what `known-issues.md` warns the mock does.
+      if (n && base && n.updated !== base) {
+        throw new Error('this note changed on disk since you opened it — reload before saving');
+      }
+      bodyOverrides.set(id, body);
       if (n) {
         n.updated = new Date().toISOString();
         // Mirror the real backend: a plain note's card preview is derived from its
@@ -254,7 +260,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           n.preview = firstLine.replace(/^#+\s+/, '') || n.preview;
         }
       }
-      return undefined as T;
+      return (n?.updated ?? new Date().toISOString()) as T;
     }
     case 'delete': {
       const id = String(args.id);

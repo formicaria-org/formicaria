@@ -1,10 +1,15 @@
 //! The vault list — reading it, and (new) writing it.
 //!
-//! This lives in `fm-serve` rather than `fm-core` on purpose, and the rule is stated a few
-//! hundred lines away in `main.rs`: *fm-core stays free of environment and configuration
-//! concerns*. The list is read from `$FM_VAULTS` / `$XDG_CONFIG_HOME` — environment by
-//! definition — and `fm-cli`, the other `fm-core` consumer, never reads it. `backup_status`
-//! is the precedent: fm-core supplies facts, this crate assembles env + config into a DTO.
+//! This lives here rather than in `fm-core` on purpose: *fm-core stays free of environment
+//! and configuration concerns*. The list is read from `$FM_VAULTS` / `$XDG_CONFIG_HOME` —
+//! environment by definition — and `fm-cli`, the other `fm-core` consumer, never reads it.
+//! `backup_status` is the precedent: fm-core supplies facts, this crate assembles env +
+//! config into a DTO.
+//!
+//! It moved *up* from `fm-serve` when [`crate::dispatch`] was extracted: the vault list is
+//! state the command surface owns, not something one transport owns. HTTP was simply the
+//! only caller at the time. Nothing about it is HTTP-shaped, and a second transport that
+//! had to re-read this file would be the fork the extraction exists to prevent.
 //!
 //! **The list is now app-managed.** It used to be read-only config that only a text editor
 //! ever wrote, which is why creating a vault was impossible from inside the app. Writing it

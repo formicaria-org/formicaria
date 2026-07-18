@@ -53,8 +53,12 @@ export const capture = (body: string, vault = '') =>
   invoke<ObjectMeta>('capture', { body, vault });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
-export const updateBody = (id: string, body: string) =>
-  invoke<void>('update_body', { id, body });
+// `base` is the `updated` stamp you last saw for this note; the new one comes back, and you
+// hold it for the next write. That round trip is the **lost-update guard**: an editor open
+// across someone else's pull would otherwise save its pre-merge text straight over the
+// merge. Send `''` to opt out (nothing in the app does).
+export const updateBody = (id: string, body: string, base = '') =>
+  invoke<string>('update_body', { id, body, base });
 // Destructive: unlink the note's file + index rows. Named `deleteNote` because
 // `delete` is a reserved word; the wire command is still `delete`.
 export const deleteNote = (id: string) => invoke<void>('delete', { id });
@@ -86,8 +90,30 @@ export const uncopyNote = (id: string, vault: string, blobs: string[]) =>
 // Asset bytes for the webview. `kind` picks the derived thumbnail or the full
 // blob; the caller wraps the ArrayBuffer in an object URL. Returns null in the
 // browser/test mock (no vault), so callers fall back to the missing placeholder.
+//
+// For the *full* blob prefer `assetUrl` below — this path holds the entire file in
+// memory twice (once here, once in the object URL) and cannot seek.
 export const resolveAsset = (reference: string, kind: 'full' | 'thumb') =>
   invoke<ArrayBuffer | null>('resolve_asset', { reference, kind });
+
+// Whether this backend can stream a blob from a URL. Only the real server has an
+// HTTP route to stream from; the in-memory mock (`pnpm dev`, Vitest) has no server
+// at all, so it keeps the bytes-and-object-URL path.
+export const streamsBlobs = import.meta.env.PROD;
+
+// "A tab is still here" — and nothing else. Not a command: it takes no lock, reads no
+// files, and never reaches `fm_app::dispatch`, because the auto-shutdown watchdog is a
+// property of this server rather than of the app. Kept separate from `ping` so a hidden
+// tab can stay alive without making the server reindex a vault it is not looking at.
+export async function alive(): Promise<void> {
+  if (!import.meta.env.PROD) return;
+  await fetch('/api/alive', { method: 'POST' }).catch(() => {});
+}
+
+// A URL a media element can point at directly, so the browser fetches only the
+// bytes it needs. `<video>` seeking becomes a `Range` request instead of a
+// whole-file download, and nothing has to be revoked afterwards.
+export const assetUrl = (reference: string) => `/api/blob/${encodeURIComponent(reference)}`;
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) =>

@@ -105,7 +105,20 @@
       </header>
       <div class="column-body">
         {#each col.cards as card (card.id)}
-          <Card {card} {onopen} {statuses} {onstatus} />
+          <!-- `columns`/`onmoveto` are the touch stand-in for dragging: the element adapter
+               above is HTML5 drag, which never fires on touch, and the package ships no
+               pointer adapter to swap in. The menu reuses this very `onmove` — appending
+               (`beforeId: null`), since a tap expresses a column, not a position — so a
+               phone move and a desktop drop are the same write. -->
+          <Card
+            {card}
+            {onopen}
+            {statuses}
+            {onstatus}
+            columns={board.columns.map((c) => ({ value: c.value, label: c.label }))}
+            column={col.value}
+            onmoveto={(id, value) => onmove(id, value, null)}
+          />
         {/each}
       </div>
     </section>
@@ -171,5 +184,31 @@
     gap: 0.55rem;
     padding: 0.6rem;
     overflow-y: auto;
+  }
+
+  /* Phone: a column should fill the screen rather than showing 17rem of one and a
+     sliver of the next — the board still scrolls sideways between columns, which is
+     the gesture that already matches how a kanban board reads. */
+  @media (max-width: 40rem) {
+    .board {
+      padding: 0.5rem;
+      gap: 0.5rem;
+      scroll-snap-type: x mandatory;
+    }
+    .column {
+      flex: 0 0 min(85vw, 22rem);
+      scroll-snap-align: start;
+    }
+  }
+
+  /* A coarse pointer cannot drag a column header (the element adapter is HTML5 drag),
+     so stop advertising a gesture that does nothing there. Cards get the move menu;
+     column order stays a desktop affordance, and it is a per-device localStorage
+     preference anyway. */
+  @media (pointer: coarse) {
+    .column-head {
+      cursor: default;
+      padding: 0.75rem 0.7rem;
+    }
   }
 </style>

@@ -10,6 +10,8 @@
     uncopyNote,
     resolveAsset as ipcResolveAsset,
     assetStatus,
+    assetUrl,
+    streamsBlobs,
     openExternal,
     ingestFile,
     search,
@@ -136,6 +138,11 @@
   // trail is the one being typed in.
   let paneEl = $state<HTMLElement | undefined>(undefined);
 
+  // The `updated` stamp this pane last saw, sent back with every write so the server can
+  // refuse a save based on a version that has since been superseded. Empty until the note
+  // loads, which is also the "don't check" signal — there is nothing to lose before then.
+  let base = $state('');
+
   // Object URLs minted for inline assets, revoked when the note changes or the
   // panel closes so the blobs don't leak.
   let assetUrls: string[] = [];
@@ -145,17 +152,24 @@
   }
   onDestroy(revokeAssets);
 
-  // Fetch an asset's bytes + sniffed MIME and hand render.ts a typed object URL,
-  // so it can pick the right inline element (image / PDF / video / audio). null
-  // (missing blob, or the browser/test mock) → the inline "not available"
-  // placeholder; media absence is a warning, never a broken pane.
+  // Give render.ts a URL + sniffed MIME so it can pick the right inline element
+  // (image / PDF / video / audio). null (missing blob, or the browser/test mock)
+  // → the inline "not available" placeholder; media absence is a warning, never a
+  // broken pane.
+  //
+  // Against the real server this is just a path: the element streams from
+  // `/api/blob/<ref>` and range-requests what it needs, so opening a note with a
+  // 300 MB video costs no memory and seeking costs one range. The object-URL path
+  // below survives only for the mock backend, which has no server to stream from —
+  // and it is the one that used to hold every inline asset in memory twice.
   async function resolveAsset(ref: string): Promise<ResolvedAsset | null> {
     try {
       const status = await assetStatus(ref);
       if (!status.has_blob) return null;
+      const mime = status.mime ?? '';
+      if (streamsBlobs) return { url: assetUrl(ref), mime };
       const buf = await ipcResolveAsset(ref, 'full');
       if (!buf || buf.byteLength === 0) return null;
-      const mime = status.mime ?? '';
       const url = URL.createObjectURL(new Blob([buf], mime ? { type: mime } : undefined));
       assetUrls.push(url);
       return { url, mime };
@@ -172,6 +186,7 @@
       .then((n) => {
         note = n;
         draft = n?.body ?? '';
+        base = n?.updated ?? '';
         if (n) {
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';
@@ -228,13 +243,42 @@
   async function save() {
     if (!note) return;
     try {
-      await updateBody(note.id, draft);
+      base = await updateBody(note.id, draft, base);
       note = { ...note, body: draft };
       saved = true;
       onsaved?.();
     } catch (e) {
-      error = String(e);
+      await onSaveRejected(e);
     }
+  }
+
+  // The pane has been open across someone else's pull, and the note it is holding is no
+  // longer the note on disk. The server refuses that write rather than letting a debounced
+  // auto-save overwrite a merged paragraph — so what is left is to say so and show what
+  // actually landed.
+  //
+  // **The draft is not thrown away.** It goes back in the editor beside their text, because
+  // the one thing worse than a conflict is a conflict that ate what you were writing. This
+  // is the same stance as the `.md` driver's: put both versions where a human can see them
+  // and let them decide.
+  async function onSaveRejected(e: unknown) {
+    if (!note || !String(e).includes('changed on disk')) {
+      error = String(e);
+      return;
+    }
+    const mine = draft;
+    const fresh = await getNote(note.id).catch(() => null);
+    if (!fresh) {
+      error = String(e);
+      return;
+    }
+    note = fresh;
+    base = fresh.updated;
+    draft = `${fresh.body}\n\n<<<<<<< your unsaved edit\n${mine}\n>>>>>>>\n`;
+    saved = false;
+    error =
+      'Someone else changed this note while you had it open. Their version is above; ' +
+      'your unsaved edit is marked below it — merge the two and save.';
   }
 
   // A board note carries `view: board`; its body is an Excalidraw scene (JSON),
@@ -249,11 +293,25 @@
   async function saveBoard(json: string) {
     if (!note) return;
     try {
-      await updateBody(note.id, json);
+      base = await updateBody(note.id, json, base);
       note = { ...note, body: json };
       onsaved?.();
     } catch (e) {
-      error = String(e);
+      // A canvas cannot show conflict markers, so a board says what happened and reloads
+      // rather than pretending to merge. `scene.rs` already merged the two scenes on the
+      // way in — what is being refused here is only this stale re-serialization of it.
+      if (String(e).includes('changed on disk')) {
+        const fresh = await getNote(note.id).catch(() => null);
+        if (fresh) {
+          note = fresh;
+          base = fresh.updated;
+        }
+        error =
+          'This board changed while you had it open — the merged version has been ' +
+          'reloaded. Any strokes from the last few seconds may need redrawing.';
+      } else {
+        error = String(e);
+      }
     }
   }
 

@@ -257,3 +257,101 @@ fn a_fresh_clone_gets_both_halves_of_the_driver() {
         assert!(attrs.contains("merge=fm"), "and the attribute still travels: {attrs}");
     }
 }
+
+/// A **whiteboard** through the same driver, against real git.
+///
+/// A board note's body is an Excalidraw scene: one pretty-printed JSON array rewritten
+/// whole on every change. Git's text merge is close to the worst tool for it — two people
+/// drawing in opposite corners touch no common shape but do share the punctuation between
+/// them — so before `scene.rs` this produced either a spurious conflict or spliced JSON
+/// that Excalidraw cannot open. The whole board, lost, because two people drew at once.
+///
+/// This is the test that says the element merge actually fires *through git*, not just in
+/// its own unit tests: the driver is what git invokes, and a driver that never runs is a
+/// merge strategy nobody has.
+#[test]
+fn two_people_drawing_on_one_whiteboard_merge_element_wise() {
+    if !have_git() {
+        eprintln!("skipping merge test: git not on PATH");
+        return;
+    }
+    // A board is a note whose body is a scene — no new file type, no second driver.
+    let board = |updated: &str, elements: &str| {
+        format!(
+            "---\nid: 01JQ0000000000000000000000\ntype: note\ntitle: shared board\nview: board\n\
+             created: 2026-07-17T10:00:00Z\nupdated: {updated}\ntags:\n---\n\n\
+             {{\"type\":\"excalidraw\",\"version\":2,\"source\":\"fm\",\"elements\":[{elements}],\
+             \"appState\":{{}},\"files\":{{}}}}\n"
+        )
+    };
+    let shape = |id: &str, version: i64, nonce: i64, x: i64| {
+        format!(
+            "{{\"id\":\"{id}\",\"version\":{version},\"versionNonce\":{nonce},\
+             \"type\":\"rectangle\",\"x\":{x}}}"
+        )
+    };
+
+    let base_shapes = format!("{},{}", shape("keep", 1, 1, 0), shape("doomed", 1, 2, 0));
+    let (ours, theirs) = two_clones(&board("2026-07-17T10:00:00Z", &base_shapes));
+    let rel = "notes/01JQ0000000000000000000000.md";
+
+    // They draw a new shape, and *move* the one we are about to delete (so their copy of it
+    // is strictly newer — the case a base-less reconcile resurrects).
+    fs::write(
+        theirs.path().join(rel),
+        board(
+            "2026-07-17T12:00:00Z",
+            &format!(
+                "{},{},{}",
+                shape("keep", 1, 1, 0),
+                shape("doomed", 99, 2, 500),
+                shape("theirs", 1, 7, 20)
+            ),
+        ),
+    )
+    .unwrap();
+    g(theirs.path(), &["commit", "-am", "theirs"]);
+
+    // We delete `doomed` and draw our own shape.
+    fs::write(
+        ours.path().join(rel),
+        board(
+            "2026-07-17T11:00:00Z",
+            &format!("{},{}", shape("keep", 1, 1, 0), shape("ours", 1, 5, 10)),
+        ),
+    )
+    .unwrap();
+    g(ours.path(), &["commit", "-am", "ours"]);
+
+    g(ours.path(), &["remote", "add", "them", theirs.path().to_str().unwrap()]);
+    g(ours.path(), &["fetch", "them"]);
+    let merge = g(ours.path(), &["merge", "them/main", "-m", "merge"]);
+
+    let merged = fs::read_to_string(ours.path().join(rel)).unwrap();
+    assert!(
+        merge.status.success(),
+        "two people drawing at once must not conflict:\n{}\n--- file:\n{merged}",
+        String::from_utf8_lossy(&merge.stderr),
+    );
+    assert!(!merged.contains("<<<<<<<"), "no markers in a scene:\n{merged}");
+
+    // The body must still be a scene the app can open — the failure this test exists for
+    // is JSON spliced into something unparseable.
+    let body = merged.split("---\n").nth(2).expect("a body after the frontmatter");
+    let scene: serde_json::Value =
+        serde_json::from_str(body.trim()).expect("the merged body is still valid scene JSON");
+    let ids: Vec<&str> = scene["elements"]
+        .as_array()
+        .expect("elements survived as an array")
+        .iter()
+        .map(|e| e["id"].as_str().unwrap())
+        .collect();
+
+    // Both people's new work is on the canvas.
+    assert!(ids.contains(&"ours"), "our shape survived: {ids:?}");
+    assert!(ids.contains(&"theirs"), "their shape survived: {ids:?}");
+    assert!(ids.contains(&"keep"), "the untouched shape survived: {ids:?}");
+    // And the one we deleted stays deleted, even though their copy was newer. This is the
+    // whole difference from Excalidraw's base-less `reconcileElements`.
+    assert!(!ids.contains(&"doomed"), "a deleted shape must not come back: {ids:?}");
+}

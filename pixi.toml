@@ -86,6 +86,12 @@ build-debug = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build -p 
 # released install would.
 app = "target/release/fm-serve"
 test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
+# svelte-check over every component. `vite build` does NOT typecheck — it strips types and
+# emits — so a `.svelte` file that calls a function it never imported *builds clean* and
+# throws ReferenceError in the browser at the moment that code path runs. That is a whole
+# class of bug the Vitest suite cannot see either, because it only covers the modules it
+# imports. Found the hard way: a blob-URL helper used in NotePanel without the import.
+check-ui = "pnpm -C ui install && pnpm -C ui check"
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
 deny = "cargo deny --all-features check"         # license / advisory gate (permissive-only)
@@ -98,4 +104,4 @@ third-party = "sh ci/third-party.sh"
 docs = "mdbook build docs"                       # render the manual; broken links fail the build
 
 [tasks.ci]
-depends-on = ["test", "test-ui", "deny", "checks", "docs"]
+depends-on = ["test", "test-ui", "check-ui", "deny", "checks", "docs"]

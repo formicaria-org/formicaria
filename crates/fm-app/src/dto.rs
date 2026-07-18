@@ -12,6 +12,16 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use time::format_description::well_known::Rfc3339;
 
+/// How a timestamp crosses the wire: RFC 3339, one spelling, everywhere.
+///
+/// A single function because `update_body` compares the caller's `updated` against the
+/// note's to catch a lost update, and a comparison is only sound if both sides were
+/// formatted identically — two call sites drifting is how that guard would silently stop
+/// guarding.
+pub fn stamp(t: time::OffsetDateTime) -> String {
+    t.format(&Rfc3339).unwrap_or_default()
+}
+
 /// One card. `#[serde(rename = "type")]` matches the frontmatter key name.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ObjectMeta {
@@ -52,8 +62,8 @@ impl From<&Object> for ObjectMeta {
             due: o.due.map(|d| d.to_string()),
             start: o.start.map(|d| d.to_string()),
             hard: o.hard,
-            created: o.created.format(&Rfc3339).unwrap_or_default(),
-            updated: o.updated.format(&Rfc3339).unwrap_or_default(),
+            created: stamp(o.created),
+            updated: stamp(o.updated),
             tags: o.tags.clone(),
             assets: o.assets.clone(),
             props: o.extra.iter().map(|(k, v)| (k.clone(), prop_to_json(v))).collect(),

@@ -4,12 +4,12 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# A tiny local HTTP server that fronts the SAME command functions as the desktop
-# window (fm_app::commands over FileStore) and serves the built UI, so the app
-# runs in a browser against the real vault when WebKitGTK won't paint. It uses
-# fm-app's LIBRARY only (no `desktop` feature), so it needs no webkit and builds
-# in the lean default env. std-only networking — no HTTP framework, in keeping
-# with the project's shell-out-don't-link, minimal-deps stance.
+# The HTTP transport: a tiny local server that frames requests for
+# `fm_app::dispatch` — the single command surface — serves the built UI, and adds the two
+# routes that are deliberately NOT commands (`GET /api/blob/<reference>`, `POST /api/alive`).
+# Everything vault-shaped lives in fm-app; this crate owns only its framing. std-only
+# networking — no HTTP framework, in keeping with the project's shell-out-don't-link,
+# minimal-deps stance.
 [[bin]]
 name = "fm-serve"
 path = "src/main.rs"

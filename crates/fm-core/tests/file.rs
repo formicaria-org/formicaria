@@ -315,3 +315,47 @@ fn filestore_matches_memorystore() {
         assert_eq!(ida, idb, "FileStore and MemoryStore disagree");
     }
 }
+
+/// **The poll used to flap forever on a duplicated `id:`.**
+///
+/// `objects.id` is the primary key and `index_object` is INSERT OR REPLACE, so two files
+/// carrying one id collapse to a single row whose `path` alternates. Every beat found
+/// whichever path the row was *not* pointing at, re-indexed it, and reported `updated: 1` —
+/// so the UI refreshed at the beat interval, indefinitely, on a vault nobody was touching.
+///
+/// The fix is a skip, not a tie-break: serving one file's content under another's id is
+/// worse than serving neither. So this asserts the vault goes **quiet**, and says why.
+#[test]
+fn a_duplicated_id_settles_instead_of_flapping() {
+    let dir = tempdir().unwrap();
+    let notes = dir.path().join("notes");
+    std::fs::create_dir_all(&notes).unwrap();
+
+    // The realistic way this happens: someone copies a note file instead of creating one.
+    let note = |body: &str| {
+        format!(
+            "---\nschema: 1\nid: 01JQ0000000000000000000000\ntype: note\ntitle: t\n\
+             created: 2026-07-18T10:00:00Z\nupdated: 2026-07-18T10:00:00Z\n---\n{body}\n"
+        )
+    };
+    std::fs::write(notes.join("01JQ0000000000000000000000.md"), note("original")).unwrap();
+    std::fs::write(notes.join("a-copy.md"), note("the copy")).unwrap();
+
+    let mut store = FileStore::open(dir.path()).unwrap();
+
+    // Whichever file lost, it is *named* rather than silently dropped.
+    assert_eq!(store.skipped().len(), 1, "the loser is reported: {:?}", store.skipped());
+    assert!(
+        store.skipped()[0].contains("duplicate id"),
+        "and says what is wrong: {:?}",
+        store.skipped()
+    );
+
+    // The point: three consecutive quiet polls must all report nothing changed. Before the
+    // guard, every one of these came back `updated: 1`.
+    for beat in 1..=3 {
+        let stats = store.reindex(Reindex::Incremental).unwrap();
+        assert_eq!(stats.updated, 0, "beat {beat} re-indexed something on a quiet vault");
+        assert_eq!(stats.removed, 0, "beat {beat} reported a removal on a quiet vault");
+    }
+}

@@ -126,7 +126,7 @@ fn note_detail_serializes_to_the_shape_the_frontend_expects() {
 fn editing_a_note_body_round_trips_byte_for_byte_to_disk() {
     let (dir, mut store) = open_fixture_vault();
     let tricky = "Edited.\n\n---\n\n$\\lambda = 0.95$ café ☕\n";
-    update_body(&mut store, RICH, tricky).unwrap();
+    update_body(&mut store, RICH, tricky, "").unwrap();
     // Reopen (index rebuilt from the .md file) — the edit hit the real file.
     let reopened = FileStore::open(dir.path()).unwrap();
     let note = get(&reopened, RICH).unwrap().unwrap();

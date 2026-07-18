@@ -23,14 +23,15 @@
     search as ipcSearch,
     commit,
     ping,
+    alive,
     listVaults,
     listViews,
     runView,
     activity as fetchActivity,
     backupStatus,
-    pull,
   } from './lib/ipc';
   import { setActivity, lastEditFor, contributors } from './lib/activity.svelte';
+  import { pullVault, syncFor } from './lib/sync.svelte';
   import { hashHue } from './lib/vaultColor';
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
@@ -56,6 +57,14 @@
   let focused = $state(0);
   let searchQuery = $state(''); // the top-bar global search box
   let error = $state<string | null>(null);
+  // Whether the current `error` is one `refresh()` raised (a feed that failed to load, which
+  // the next successful refresh genuinely resolves) or one it must not touch — a failed
+  // sync, a refused save. Those are about the user's data and stay until dismissed.
+  let errorIsTransient = $state(true);
+  function report(message: string) {
+    error = message;
+    errorIsTransient = false;
+  }
 
   function persistWorkspace() {
     try {
@@ -143,6 +152,10 @@
   // this exists so its absence is *stated once* rather than swallowed every 5 seconds.
   let gitAvailable = $state<boolean | null>(null);
   let saidNoGit = false;
+  // Same discipline for the other half: git present but *failing*. Said once per run, so a
+  // vault that cannot commit is stated rather than swallowed — and stated rather than
+  // repeated every five seconds.
+  let saidCommitFailed = false;
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let commitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -336,9 +349,14 @@
         keys.map(async (k) => [k, await loadFeed(k).catch(() => ({}) as Feed)] as const),
       );
       feeds = Object.fromEntries(entries);
-      error = null;
+      // Clear only what *this* function put there. It used to clear unconditionally, which
+      // meant a sync failure the user had not read yet was wiped by unrelated background
+      // activity — and `refresh()` runs on every pane change and every `changed` beat, so
+      // "unrelated" was most of the time. A message about losing work has to outlive a poll.
+      if (errorIsTransient) error = null;
     } catch (e) {
       error = String(e);
+      errorIsTransient = true;
     }
   }
 
@@ -364,14 +382,26 @@
       /* offline / no remote — nothing to nudge about */
     }
   }
+  // Bring their work down. Through `pullVault` rather than `pull` directly, so a merge that
+  // genuinely disagrees comes back as *named notes* instead of a thrown string — the markers
+  // are in the body, so those notes still open, and telling the user which ones is the whole
+  // difference between a conflict and a mystery.
+  //
+  // Pull only. Nothing here publishes: pulling is a thing worth doing on a nudge, and
+  // pushing is a thing worth doing on purpose.
   async function getTheirChanges() {
     const targets = movedVaults;
     movedVaults = [];
-    try {
-      for (const v of targets) await pull(v);
-      await refresh();
-    } catch (e) {
-      error = String(e);
+    for (const v of targets) {
+      const phase = await pullVault(v, refresh);
+      if (phase === 'conflicts') {
+        const s = syncFor(v);
+        notice =
+          `'${v}': ${s.conflicts.length} note(s) came back with conflicting edits — ` +
+          `they still open, with both versions marked in the body: ${s.conflicts.join(', ')}`;
+      } else if (phase === 'failed') {
+        report(syncFor(v).error ?? `could not pull '${v}'`);
+      }
     }
   }
   $effect(() => {
@@ -386,19 +416,41 @@
     };
   });
 
-  // Liveness heartbeat, and the local poll — one beat, two jobs.
+  // Liveness. **One beat, one job** — it used to be one beat doing two, which is why it
+  // had to fire every 3 seconds and why every heartbeat took the vault lock and reindexed.
   //
-  // Liveness: while this tab is open, ping the server every few seconds so its
-  // auto-shutdown watchdog knows someone is here. When the tab closes the pings stop
-  // and the server exits — closing the tab closes the app, with no background process
-  // left over. Only in the served build (the mock has no server); a reload's brief gap
-  // stays under the server's idle window.
+  // While this tab is open, tell the server someone is here so its auto-shutdown watchdog
+  // does not quit. When the tab closes the beats stop and the server exits — closing the
+  // tab closes the app, with no background process left over. `alive` reads nothing and
+  // locks nothing, so it stays cheap enough to fire from a hidden tab, which is the point:
+  // a backgrounded tab must keep the app alive without making it work.
   //
-  // The poll: the same request tells us whether the vault moved under us. It has to,
-  // because the views are served from SQLite, so an edit made by anything else — a
-  // `git pull`, a merge driver, Vim — is otherwise invisible until the app restarts.
-  // Refresh only when something actually changed: re-running the query every 3s would
-  // fight the user's own scrolling and drag state for no reason.
+  // 15s against the server's 90s idle window. Browsers throttle a hidden tab's timers to
+  // about once a minute, so the window is sized against the *throttled* rate — the old
+  // 3s-beat/10s-window pairing killed the app out from under anyone who left it in a
+  // background tab for a minute.
+  $effect(() => {
+    if (!import.meta.env.PROD) return; // the mock has no server to keep alive
+    void alive();
+    const id = setInterval(() => void alive(), 15000);
+    return () => clearInterval(id);
+  });
+
+  // Has the vault moved under us? Separate beat, separate job.
+  //
+  // It has to exist at all because the views are served from SQLite, so an edit made by
+  // anything else — a `git pull`, the merge driver, Vim — is otherwise invisible until the
+  // app restarts. `ping` answers it, at the cost of an incremental reindex.
+  //
+  // **Only while the tab is visible.** Nobody is reading a hidden tab, so re-reading the
+  // vault for it is pure waste (and on a battery device, waste that costs something). A
+  // visible tab still notices an outside edit within ~15s.
+  //
+  // Deliberately *not* fully lifecycle-driven, which is where Track M's efficiency ruling
+  // was heading: a visible-but-never-refocused window — formicaria tiled beside Vim, or on
+  // a second monitor — fires no lifecycle event at all, and would simply stop updating. The
+  // battery argument that motivates dropping the poll is a phone argument; on a desktop it
+  // buys nothing and costs that.
   $effect(() => {
     const beat = async () => {
       const r = await ping().catch(() => null);
@@ -416,11 +468,29 @@
     };
     // One beat unconditionally, in every backend: it is what answers `gitAvailable`, which
     // the first-run screen shows. Only the repeating timer is production-only — the mock
-    // has no server to keep alive, and a 3s interval under Vitest is its own bug.
+    // has no server, and a repeating interval under Vitest is its own bug.
     void beat();
     if (!import.meta.env.PROD) return;
-    const id = setInterval(() => void beat(), 3000);
-    return () => clearInterval(id);
+
+    // Coming back to the tab refreshes **unconditionally**, rather than asking `changed`
+    // first. `ping` reindexes, and a reindex writes the new mtimes back — so with two tabs
+    // open the first one to ask consumes the answer and the second is told "nothing
+    // changed" forever. Gating the foreground refresh on that flag is how a tab you just
+    // returned to shows you stale notes.
+    const onVisible = () => {
+      if (document.hidden) return;
+      void refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      void beat();
+    }, 15000);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   });
 
   // Which vaults exist. Answered once at startup and again whenever one is created —
@@ -524,8 +594,8 @@
     }, 250);
   }
 
-  // Debounced auto-commit after any successful write. Best-effort — a clean tree
-  // is a no-op and a missing git binary must never block editing.
+  // Debounced auto-commit after any successful write. A clean tree is a no-op and a
+  // missing git binary must never block editing.
   // Git is a **capability, not a dependency**. Your notes are Markdown files and the
   // whole notebook — capture, board, agenda, search, edit — works with no git installed
   // at all. What git adds is history: local undo that outlives this session, and the
@@ -534,11 +604,32 @@
   // So when there's no git, don't schedule: firing this every 5s at a binary that isn't
   // there, and swallowing the failure, is how a vault ends up quietly unversioned and you
   // find out on the day you needed the history.
+  //
+  // **And when there IS git, say so when it fails.** This used to end in
+  // `.catch(() => {})`, which is the same outcome by a different route: a vault that
+  // stopped versioning — because a merge is half-finished, or the identity is missing —
+  // looks exactly like one that is fine. Once per run, so a persistent failure does not
+  // become a notification every five seconds.
+  // **Every vault, not just the default.** This used to call `commit()` with no vault
+  // argument, which means `list[0]` — so on a multi-vault install exactly one repo was
+  // auto-committed and the others only ever got a commit when someone opened the backup
+  // panel and pressed a button. A vault you write to daily and never back up by hand had
+  // no history at all, which is the same failure as having no git, arrived at quietly.
+  // A clean vault is a no-op, so committing all of them costs nothing.
   function scheduleCommit() {
     if (gitAvailable === false) return;
     clearTimeout(commitTimer);
     commitTimer = setTimeout(() => {
-      commit(`auto: ${new Date().toISOString()}`).catch(() => {});
+      const stamp = new Date().toISOString();
+      for (const v of vaults ?? []) {
+        commit(`auto: ${stamp}`, v.name).catch((e) => {
+          if (saidCommitFailed) return;
+          saidCommitFailed = true;
+          notice =
+            `Your notes are saved as files, but git could not record a change in '${v.name}': ${e}. ` +
+            `History and backup are paused until that is fixed.`;
+        });
+      }
     }, 5000);
   }
 
@@ -693,7 +784,15 @@
   </header>
 
   <div class="body">
-    {#if error}<p class="banner error">{error}</p>{/if}
+    {#if error}
+      <p class="banner error">
+        {error}
+        <button
+          class="banner-dismiss"
+          onclick={() => ((error = null), (errorIsTransient = true))}
+          aria-label="dismiss">✕</button>
+      </p>
+    {/if}
     {#if notice}
       <p class="banner notice">
         {notice}
@@ -1057,5 +1156,46 @@
   }
   .banner-dismiss:hover {
     opacity: 1;
+  }
+
+  /* ── Phone ────────────────────────────────────────────────────────────────────
+     A media-query reflow of the components that already exist, and deliberately
+     nothing more: no new stateful layout, no phone-only component tree, no second
+     set of behaviours to keep in step with the desktop's. The pane workspace is
+     already a grid of independent panes, so "one at a time" is a column count.
+
+     `--cols` is a *desktop* preference (the pane-count control writes it), so it is
+     overridden rather than read here — a phone has no room to honour it, and a
+     workspace saved on a laptop must not arrive on a phone as four 4rem columns.
+
+     Verified at a narrow viewport and by `pointer: coarse`, NOT on a device — see
+     known-issues. Chrome's touch emulation is actively misleading for the drag half
+     of this, which is why the touch path is a real button with a real test rather
+     than something only a phone can exercise. */
+  @media (max-width: 40rem) {
+    .workspace {
+      grid-template-columns: 1fr;
+      grid-auto-rows: minmax(60vh, auto);
+      padding: var(--space-1);
+      gap: var(--space-1);
+      /* Panes stack, so the page scrolls vertically and never sideways. */
+      overflow-x: hidden;
+    }
+    .topbar {
+      flex-wrap: wrap;
+      row-gap: 0.4rem;
+      padding: 0.4rem 0.5rem;
+    }
+  }
+
+  /* Finger-sized targets wherever the pointer is coarse — which is the honest test,
+     not the viewport width: a tablet is wide and still has no mouse. 2.75rem is the
+     ~44px both platform guidelines ask for; several of these were 3px of padding. */
+  @media (pointer: coarse) {
+    .tb-btn,
+    .tb-chip {
+      min-height: 2.75rem;
+      padding-inline: 0.75rem;
+    }
   }
 </style>

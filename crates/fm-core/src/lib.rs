@@ -27,6 +27,7 @@ pub use verify::{verify, Report, Severity};
 pub mod backup;
 pub mod git;
 pub mod merge;
+pub mod scene;   // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
 
 #[derive(Debug, Error)]
 pub enum StoreError {
@@ -68,7 +69,7 @@ pub struct ReindexStats {
     ///
     /// Kept separate from a *failed* parse on purpose. A note that fails to parse is
     /// re-read on every poll and never succeeds, so counting it as a change would
-    /// tell the UI the vault moved every 3 seconds, forever.
+    /// tell the UI the vault moved on every beat, forever.
     pub removed: usize,
     /// Notes that could not be read, as `filename: why`. Never an error: a vault
     /// that refuses to open because one file is malformed is a vault you cannot

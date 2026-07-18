@@ -1,7 +1,11 @@
 //! `fm` — the CLI that drives formicaria's core without the GUI. Enough to
 //! exercise each slice end-to-end: capture notes to disk, rebuild the index from
-//! the files, search, and edit properties. The desktop app (fm-app) reuses the
-//! same core.
+//! the files, search, and edit properties.
+//!
+//! **This CLI drives `fm-core` directly and re-implements the command flows** rather than
+//! calling `fm_app::commands` — a fork that predates `fm_app::dispatch` and is the standing
+//! evidence for why that single surface exists (see its module doc). Migrating this onto
+//! `dispatch` is what would finally make "one command library" true rather than aspirational.
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};

@@ -1,6 +1,6 @@
 //! The command surface — one pure function per IPC call, each over the [`Store`]
 //! seam so it is testable with `MemoryStore` and identical against `FileStore`.
-//! The Tauri binary wraps these; nothing here knows Tauri exists.
+//! `fm_app::dispatch` is the one surface that wraps these; a transport only frames them. Nothing here knows what HTTP is.
 
 use crate::dto::{value_string, Board, Column, NoteDetail, ObjectMeta};
 use crate::refs;
@@ -109,13 +109,38 @@ pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectM
 /// body is stored byte-for-byte — the editor is a plain textarea holding literal
 /// Markdown, so the round-trip (edit -> store -> read) is lossless by
 /// construction, the invariant the whole files-as-truth design rests on.
-pub fn update_body(store: &mut dyn Store, id: &str, body: &str) -> Result<(), StoreError> {
+///
+/// `base` is the `updated` stamp the caller last saw, and it is the **lost-update guard for
+/// an editor that has been open a while**. Returns the new stamp, which the caller holds for
+/// its next write.
+///
+/// `FileStore::put` already refuses a write whose file moved on disk since we indexed it —
+/// but that check cannot see this case. `pull` merges and then *reindexes*, because a merge
+/// is invisible until it does; the reindex records the post-merge mtime, so from `put`'s
+/// point of view everything is in sync while the open pane still holds pre-merge text. The
+/// staleness is in the client, so the client has to be the one to declare what it edited.
+/// Without this, a debounced auto-save silently overwrites a collaborator's merged
+/// paragraph and leaves a clean history saying you wrote it.
+///
+/// An **empty `base` opts out** — `fm-cli`, curl, and anything that never read the note
+/// keep working, still covered by the mtime guard in `put`.
+pub fn update_body(
+    store: &mut dyn Store,
+    id: &str,
+    body: &str,
+    base: &str,
+) -> Result<String, StoreError> {
     let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    // Compare the serialized form, which is what crossed the wire — reparsing the caller's
+    // string would turn a formatting difference into a spurious conflict.
+    if !base.is_empty() && crate::dto::stamp(obj.updated) != base {
+        return Err(StoreError::Conflict(id));
+    }
     obj.body = body.to_string();
     obj.updated = OffsetDateTime::now_utc();
     store.put(&obj)?;
-    Ok(())
+    Ok(crate::dto::stamp(obj.updated))
 }
 
 /// Delete a note: remove its Markdown file and drop it from the index. The
@@ -191,12 +216,16 @@ fn parse_ref(reference: &str) -> Result<String, StoreError> {
     Ok(hash.to_ascii_lowercase())
 }
 
-/// Read the bytes of a referenced asset for display in the webview. `kind`
-/// selects the derived thumbnail (`"thumb"`, what the gallery and inline preview
-/// show) or the full blob (anything else). Returning bytes over IPC needs no
-/// asset-protocol scope or capability entry — the caller wraps them in an object
-/// URL. A missing blob is an ordinary `Err`, which the UI degrades to the
-/// "asset not available" placeholder (media absence is a warning, never a crash).
+/// Read the bytes of a referenced asset. `kind` selects the derived thumbnail
+/// (`"thumb"`) or the full blob (anything else). A missing blob is an ordinary `Err`,
+/// which the UI degrades to the "asset not available" placeholder (media absence is a
+/// warning, never a crash).
+///
+/// **Not how inline media reaches the read view any more.** This reads the whole file into
+/// memory to hand it back, which is the wrong shape for a 300 MB video and cannot seek;
+/// `<img>`/`<video>`/`<iframe>` point at the streaming `GET /api/blob/<reference>` route
+/// instead (`fm-serve/src/blob.rs`). What still needs this: thumbnails, and any frontend
+/// with no HTTP route to stream from — which is why it stays.
 pub fn resolve_asset_bytes(vault: &Path, reference: &str, kind: &str) -> Result<Vec<u8>, StoreError> {
     let hash = parse_ref(reference)?;
     let path = match kind {

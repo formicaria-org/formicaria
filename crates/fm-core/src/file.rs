@@ -176,6 +176,15 @@ impl FileStore {
         }
     }
 
+    /// Which file the index currently believes owns this id, if any. The duplicate-id
+    /// guard's question: "is someone else already holding this?"
+    fn path_of(&self, id: Id) -> Result<Option<String>, StoreError> {
+        self.db
+            .query_row("SELECT path FROM objects WHERE id = ?1", [id.to_string()], |r| r.get(0))
+            .optional()
+            .map_err(sql)
+    }
+
     /// Drop whatever the index holds for one file path, from both tables. Keyed by
     /// path because that is what a filesystem scan knows; the `fts` rows go by the
     /// ids that path currently maps to.
@@ -295,8 +304,8 @@ impl Store for FileStore {
 
         // `Full` drops everything and re-reads every file — the disposable-index
         // escape hatch, and what `open` uses. `Incremental` re-reads only what
-        // changed, which is what makes a 3s poll affordable: without it the poll
-        // would re-parse the entire vault every 3 seconds.
+        // changed, which is what makes the local poll affordable: without it every
+        // beat would re-parse the entire vault.
         //
         // Reconciled by **path**, not id: a note's id lives in its frontmatter, so
         // the two can disagree (a hand-edited `id:`, a file someone copied). Path is
@@ -318,7 +327,11 @@ impl Store for FileStore {
         let mut scanned = 0usize;
         let mut updated = 0usize;
         let mut skipped = Vec::new();
-        let mut on_disk = Vec::new();
+        // A set, not a `Vec`. The deletion sweep below asks "is this indexed path still on
+        // disk?" once per indexed note, so a linear membership test made the poll O(n²) —
+        // ~10⁸ string comparisons per beat on a 10k-note vault, to discover that
+        // nothing had been deleted.
+        let mut on_disk = std::collections::HashSet::new();
         for entry in fs::read_dir(&self.notes).map_err(io)? {
             let path = entry.map_err(io)?.path();
             if path.extension().and_then(|e| e.to_str()) != Some("md") {
@@ -326,7 +339,7 @@ impl Store for FileStore {
             }
             scanned += 1;
             let key = path.to_string_lossy().into_owned();
-            on_disk.push(key.clone());
+            on_disk.insert(key.clone());
             // Unchanged since we last read it — the overwhelmingly common case on a
             // poll, and the entire point of doing this incrementally.
             if known.get(&key) == mtime_ns(&path).ok().as_ref() {
@@ -347,6 +360,32 @@ impl Store for FileStore {
             };
             match frontmatter::from_file(&content) {
                 Ok(obj) => {
+                    // **Two files claiming one id is a skip, not a race to win.**
+                    //
+                    // `objects.id` is the primary key and `index_object` is INSERT OR
+                    // REPLACE, so a duplicated `id:` (someone copied a note file rather
+                    // than making one) collapses to a single row whose `path` alternates.
+                    // Every poll then finds whichever path the row is *not* currently
+                    // pointing at, re-indexes it, reports `updated: 1` — and the UI
+                    // refreshes, forever, at the beat interval. `ReindexStats::removed`
+                    // documents that exact trap for a note that never parses; this is the
+                    // same trap by another route, and it was not covered.
+                    //
+                    // So: first path wins, the other is named. Serving one file's content
+                    // under another's id is worse than serving neither, and "loud and
+                    // recoverable" is the discipline the unreadable-note skip already sets.
+                    if let Some(other) = self.path_of(obj.id)? {
+                        if other != key && Path::new(&other).exists() {
+                            skipped.push(format!(
+                                "{}: duplicate id {} — already held by {}. Give one of them a \
+                                 fresh id; until then only the first is indexed.",
+                                name(),
+                                obj.id,
+                                Path::new(&other).file_name().unwrap_or_default().to_string_lossy()
+                            ));
+                            continue;
+                        }
+                    }
                     // Drop whatever this path held before. Normally that is the same
                     // object and `index_object`'s REPLACE would cover it — but if the
                     // file's `id:` changed under us, the old row would otherwise
@@ -368,7 +407,7 @@ impl Store for FileStore {
         // already dropped them by construction.
         let mut removed = 0usize;
         if mode == Reindex::Incremental {
-            for gone in known.keys().filter(|k| !on_disk.contains(k)) {
+            for gone in known.keys().filter(|k| !on_disk.contains(k.as_str())) {
                 self.forget_path(gone)?;
                 removed += 1;
             }

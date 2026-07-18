@@ -43,7 +43,8 @@ fn edit_body_round_trips_byte_for_byte_through_disk() {
     let id = {
         let mut s = FileStore::open(dir.path()).unwrap();
         let id = capture(&mut s, "original body", "").unwrap().id;
-        update_body(&mut s, &id, tricky).unwrap();
+        // Empty base: this test is about byte fidelity, not concurrency.
+        update_body(&mut s, &id, tricky, "").unwrap();
         id
     };
     // Re-open (index rebuilt from the .md file) and confirm the body is verbatim.

@@ -15,6 +15,13 @@
 //! properly for twenty years. Shelling out is the whole point: there is no diff3 here to
 //! get wrong.
 //!
+//! **One body is not prose, and gets the same treatment one level down.** A `view: board`
+//! note's body is an Excalidraw scene — a single pretty-printed JSON array that the app
+//! rewrites whole on every change, which a line merge mangles into either a spurious
+//! conflict or unparseable JSON. Its atom is the *element*, so [`crate::scene`] merges
+//! elements and [`merge_body`] tries that first. Same rule as above, applied recursively:
+//! never hand the text merge something whose structure we understand.
+//!
 //! **The property worth stating:** when this driver conflicts, it conflicts *in the
 //! body*. Frontmatter is always emitted whole and valid, so a conflicted note still
 //! parses, still indexes, and still opens in the editor with the markers sitting in the
@@ -162,6 +169,19 @@ fn merge_body(
     }
     if theirs == base {
         return Ok((ours.to_string(), Merged::Clean));
+    }
+
+    // A whiteboard's body is not prose, it is a scene — one big JSON array that the app
+    // re-serializes whole on every change. A line merge is close to the worst tool for it:
+    // two people drawing in opposite corners share no shape but do share the punctuation
+    // between them, so it returns either a spurious conflict or spliced JSON that
+    // Excalidraw cannot parse — the entire board lost because two people drew at once.
+    //
+    // The atom there is the element, so merge elements. Same argument as the frontmatter
+    // one directly above, one level down: never hand the text merge something whose
+    // structure we understand. Anything we cannot parse as a scene falls straight through.
+    if let Some(merged) = crate::scene::merge_scene(base, ours, theirs) {
+        return Ok((merged, Merged::Clean));
     }
 
     // git merge-file works on paths, so the bodies have to land somewhere. **Not** in

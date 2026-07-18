@@ -1,9 +1,14 @@
-//! `fm-serve` — the browser fallback. It exposes the same commands the desktop
-//! window does (the pure functions in `fm_app::commands`, over one shared
-//! `FileStore`) as a tiny localhost HTTP+JSON API, and serves the built UI. The
-//! frontend's `ipc.ts` calls `POST /api/<command>` with the same camelCase args
-//! it hands Tauri, so the identical bundle runs in a browser against the REAL
-//! vault — no webkit involved.
+//! `fm-serve` — the browser frontend's transport. It exposes `fm_app::dispatch` (the one
+//! command surface, over one shared set of vaults) as a tiny localhost HTTP+JSON API, and
+//! serves the built UI. The frontend's `ipc.ts` calls `POST /api/<command>` with camelCase
+//! args, so the identical bundle runs in a browser against the REAL vault.
+//!
+//! **This file is a shell, and that is the whole point.** Everything here is HTTP: parsing
+//! a request line, the CSRF guard, status codes, `Range` headers, serving static assets.
+//! The commands themselves — and the vault list, and the lock discipline — live in
+//! `fm_app::dispatch`, so a second frontend reaches them by calling that function rather
+//! than by re-implementing this file. When this file starts knowing what a command *means*,
+//! the fork has begun again.
 //!
 //! Localhost only, one machine. std-only networking, thread-per-connection. **Not** "single
 //! user" in the trust sense any more: note bodies arrive from collaborators through the `.md`
@@ -15,10 +20,9 @@
 // self-contained file rather than a binary that needs its assets shipped beside it.
 include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
 
-mod vaults;
+mod blob;
 
-use fm_app::commands;
-use fm_core::{backup, git, MultiStore, Reindex, Store};
+use fm_app::{dispatch, App, Host, Output};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -26,37 +30,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use vaults::VaultConfig;
-
-/// The open vaults and the list describing them, **behind one lock**.
-///
-/// One and not two, for a reason that is already latent in `api()`: its arms take these in
-/// *opposite orders* — `commit`/`push` lock the store and then resolve the vault, while
-/// `ingest` resolves the vault and then locks the store. Two mutexes would make that a
-/// textbook AB/BA deadlock. One deletes the question, and closes the window where the list
-/// holds a vault the store doesn't.
-struct Vaults {
-    store: MultiStore,
-    /// Every vault, in configured order. **The first is the default**: a note that names
-    /// no vault (every fresh capture) lands there, so it should be the personal one. A
-    /// single-vault install is just a list of one, which is why nothing below has a
-    /// "multi" special case. **Empty is the first run**, not an error.
-    ///
-    /// Parallel to `store`: [`Vaults::add`] is the only thing that grows either, and it
-    /// pushes both.
-    list: Vec<VaultConfig>,
-}
 
 struct AppState {
-    vaults: Mutex<Vaults>,
-    /// The vault list file we would write, or `None` when this machine has no config dir
-    /// at all — in which case a vault cannot be persisted and `create_vault` says so
-    /// *before* it creates any directories.
-    config: Option<PathBuf>,
-    /// Whether we understood the vault list on disk. False means never write it:
-    /// overwriting a hand-edited file we could not parse is the loss `vaults::load`'s
-    /// malformed-JSON warning exists to shout about.
-    config_writable: bool,
+    /// The command surface. Everything vault-shaped lives in here now.
+    app: App,
     /// Where to read the UI from, or `None` to serve the copy baked into this binary.
     ///
     /// `Some` only when `FM_UI_DIST` is set explicitly, which is the dev loop: `pixi run
@@ -75,6 +52,16 @@ struct AppState {
     connected: AtomicBool,
 }
 
+/// This platform's answer to "open this file with whatever owns it" — the one thing
+/// `fm_app::dispatch` cannot know for itself. See [`fm_app::Host`].
+struct Desktop;
+
+impl Host for Desktop {
+    fn open_external(&self, path: &Path) -> Result<(), String> {
+        open_native(path.as_os_str()).map_err(|e| format!("could not open the file: {e}"))
+    }
+}
+
 fn main() {
     // Absent on purpose: no default path. The UI is *in* the binary unless someone
     // explicitly points us at a directory.
@@ -86,21 +73,17 @@ fn main() {
     let origins =
         vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
 
-    let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
-    if vaults.is_empty() {
+    let (app, skipped) = App::load().expect("open vaults");
+    let configs = app.configs().expect("vaults");
+    if configs.is_empty() {
         // Not an error, and not a fallback to a vault nobody chose: the first run. The UI
         // gates on `list_vaults` returning `[]` and asks for one.
         eprintln!("no vaults configured — open the app to create your first one.");
     }
-    let store = MultiStore::open(
-        &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
-    )
-    .expect("open vaults");
     // A vault opens even when a note is unreadable — a conflicted merge is the usual
     // cause, and refusing to start would take away the very app you need to fix it. But
     // those notes are now absent from every view, so say which ones: silently serving an
     // incomplete vault is the one outcome worse than not starting at all.
-    let skipped = store.skipped();
     if !skipped.is_empty() {
         eprintln!("warning: {} note(s) could not be read and are missing from every view:", skipped.len());
         for note in &skipped {
@@ -109,9 +92,7 @@ fn main() {
         eprintln!("  (a conflicted merge? resolve the markers and reload.)");
     }
     let state = Arc::new(AppState {
-        vaults: Mutex::new(Vaults { store, list: vaults }),
-        config,
-        config_writable,
+        app,
         dist,
         origins,
         last_seen: Mutex::new(Instant::now()),
@@ -133,7 +114,7 @@ fn main() {
     }
 
     let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
-    for v in lock(&state).expect("vaults").configs() {
+    for v in &configs {
         println!("formicaria is serving {} at {}", v.name, v.path.display());
     }
     println!("open  http://{addr}  in your browser");
@@ -172,7 +153,16 @@ fn main() {
 /// (which briefly pauses the heartbeat), so a refresh doesn't kill the server.
 /// Before the very first request a longer grace covers a cold browser start.
 fn spawn_watchdog(state: Arc<AppState>) {
-    const IDLE: Duration = Duration::from_secs(10);
+    // **Sized against a *throttled* beat, not a nominal one.** Browsers throttle timers in a
+    // backgrounded tab to roughly once a minute, so the old pairing — a 3 s beat against a
+    // 10 s window — meant leaving the app in a background tab for a minute killed it while
+    // the user still had it open. The window has to exceed the worst-case throttle with
+    // room to spare, which is what 90 s buys against the 15 s nominal beat.
+    //
+    // Erring long leaves a server running ~90 s after the last tab closes. Erring short
+    // kills the app under someone who is working in it. The costs are not symmetric, so
+    // this is biased toward the recoverable failure.
+    const IDLE: Duration = Duration::from_secs(90);
     const STARTUP: Duration = Duration::from_secs(60);
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
@@ -202,9 +192,12 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     }
     state.connected.store(true, Ordering::Relaxed);
 
-    // Read headers; we care about the body length and who is calling.
+    // Read headers; we care about the body length, who is calling, and the byte range a
+    // media element is asking for.
     let mut content_length = 0usize;
     let mut origin: Option<String> = None;
+    let mut range: Option<String> = None;
+    let mut host: Option<String> = None;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -221,6 +214,10 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
             // Lowercased with the rest of the line, which is harmless: an origin is
             // scheme + host + port, none of which are case-sensitive.
             origin = Some(v.trim().to_string());
+        } else if let Some(v) = lower.strip_prefix("range:") {
+            range = Some(v.trim().to_string());
+        } else if let Some(v) = lower.strip_prefix("host:") {
+            host = Some(v.trim().to_string());
         }
     }
     // Guard against a hostile/oversized upload before allocating the body.
@@ -230,6 +227,28 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let mut body = vec![0u8; content_length];
     if content_length > 0 {
         reader.read_exact(&mut body)?;
+    }
+
+    // **DNS rebinding.** Binding to 127.0.0.1 keeps other *machines* out, but it does not
+    // decide which *name* a browser used to get here: a hostname an attacker controls, made
+    // to resolve to 127.0.0.1, reaches this server from a page that is same-origin with
+    // itself — so the CSRF guard below sees a matching Origin and waves it through, and the
+    // browser lets that page read every response.
+    //
+    // The fix is to insist on the names we actually serve. Anything else is a request that
+    // arrived under a name we never published, which is the attack and nothing else.
+    // A missing Host is HTTP/1.0 or a hand-rolled client — not a browser, so not this
+    // vector, and refusing it would break curl for no gain.
+    if let Some(h) = &host {
+        let bare = h.split(':').next().unwrap_or("");
+        if !matches!(bare, "127.0.0.1" | "localhost" | "[::1]" | "::1") {
+            return write_response(
+                &mut stream,
+                "403 Forbidden",
+                "text/plain",
+                b"unexpected Host header",
+            );
+        }
     }
 
     // The vault is reachable at a fixed localhost port with no authentication, so
@@ -254,6 +273,29 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
         }
     }
 
+    // Blob bytes are the one response we refuse to build in memory: a video is served by
+    // `<video src>`, which range-requests as the user seeks, and buffering 300 MB per seek
+    // is how the old object-URL path behaved. Streamed from disk, so it costs one buffer.
+    if (method == "GET" || method == "HEAD") && path.starts_with("/api/blob/") {
+        let hash = path[10..].split('?').next().unwrap_or("");
+        return blob::serve(&mut stream, state, hash, range.as_deref(), method == "HEAD");
+    }
+
+    // Liveness, and *only* liveness — the cheapest possible "a tab is still here".
+    //
+    // Deliberately not a command. `last_seen` was already refreshed above, before routing,
+    // so answering is all that is left to do: no lock, no filesystem, no dispatch. That
+    // matters because the tab has to say this on a timer forever, and the alternative —
+    // riding `ping`, which reindexes — meant every heartbeat took the vault lock and could
+    // queue behind a `backup_status` doing a network `ls-remote` per vault.
+    //
+    // It is also transport-shaped, not app-shaped: the auto-shutdown watchdog is a property
+    // of *this* server, and a frontend with no watchdog would never call it. Putting it in
+    // `dispatch` would push a transport concern into the shared surface.
+    if path == "/api/alive" {
+        return write_response(&mut stream, "200 OK", "text/plain", b"");
+    }
+
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
         api(&path[5..], &body, state)
     } else if method == "GET" || method == "HEAD" {
@@ -265,354 +307,37 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     write_response(&mut stream, status, &ctype, &data)
 }
 
-/// Dispatch one API command. Returns raw bytes for `resolve_asset`, JSON for
-/// everything else, and a plain-text 500 body on error (which the UI shows in
-/// its error banner or degrades to the missing-asset placeholder).
+/// Turn one HTTP request into one [`dispatch`] call, and its answer back into HTTP.
+///
+/// The only translation with any content: named arguments arrive either as a JSON body or
+/// as a query string, and `dispatch` should not have to care which. `ingest` is why both
+/// exist — there the raw body *is* the file, so its name and target vault cannot also be in
+/// it and ride in the URL instead (`/api/ingest?name=<urlencoded>&vault=<name>`).
+///
+/// **A query string means the body is not arguments — it is payload.** Overlaying the two
+/// would read a JSON *asset* as its own arguments: upload a file containing
+/// `{"vault":"lab"}` and it would file itself into someone else's audience. Today no
+/// command wants both, so "either, never both" is exactly today's behaviour and closes that
+/// by construction rather than by the body happening not to parse.
+///
+/// Errors come back as a plain-text 500 body, which the UI shows in its error banner or
+/// degrades to the missing-asset placeholder.
 fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u8>) {
-    // Split an optional query string off the command (e.g. `ingest?name=foo.png`).
-    // Every other arm sees the base command, so JSON dispatch is unaffected.
     let (cmd, query) = cmd.split_once('?').unwrap_or((cmd, ""));
-    let args: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
-    let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or("").to_string();
 
-    let result: Result<Vec<u8>, String> = (|| match cmd {
-        "board" => json(commands::board(&lock(state)?.store, &s("groupBy")).map_err(err)?),
-        "gallery" => json(commands::gallery(&lock(state)?.store).map_err(err)?),
-        "agenda" => json(commands::agenda(&lock(state)?.store).map_err(err)?),
-        "get" => json(commands::get(&lock(state)?.store, &s("id")).map_err(err)?),
-        "search" => json(commands::search(&lock(state)?.store, &s("query")).map_err(err)?),
-        "recent" => json(commands::recent(&lock(state)?.store).map_err(err)?),
-        // The collaboration read-model: who last edited each note, and when, straight from each
-        // vault's git log — one command behind the authorship labels, the activity stream, and
-        // the contributor filter. Aggregated across vaults, newest-first.
-        "activity" => {
-            let since = {
-                let s = s("since");
-                if s.is_empty() { "1 year ago".to_string() } else { s }
-            };
-            let g = lock(state)?;
-            let mut all = Vec::new();
-            for cfg in g.configs() {
-                all.extend(commands::activity(&g.store, &cfg.path, &since).map_err(err)?);
-            }
-            all.sort_by(|a, b| b.time.cmp(&a.time));
-            json(all)
-        }
-        "capture" => {
-            // Validate the target vault up front (unknown name → a loud error, never a
-            // silent default), then route the note into it — the create-side twin of
-            // `ingest`. Empty picks the default vault.
-            let mut g = lock(state)?;
-            let into = g.config(&s("vault"))?;
-            json(commands::capture(&mut g.store, &s("body"), &into.name).map_err(err)?)
-        }
-        "set_property" => {
-            commands::set_property(&mut lock(state)?.store, &s("id"), &s("key"), &s("value"))
-                .map_err(err)?;
-            Ok(Vec::new())
-        }
-        "update_body" => {
-            commands::update_body(&mut lock(state)?.store, &s("id"), &s("body")).map_err(err)?;
-            Ok(Vec::new())
-        }
-        "delete" => {
-            commands::delete(&mut lock(state)?.store, &s("id")).map_err(err)?;
-            Ok(Vec::new())
-        }
-        // Searched across vaults: the reference names bytes, not a place. Configs are
-        // cloned out and the guard dropped before touching the disk.
-        "asset_status" => {
-            let r = s("reference");
-            let (vaults, default) = {
-                let g = lock(state)?;
-                (g.configs(), g.config("").ok())
-            };
-            let found = vaults
-                .iter()
-                .find_map(|v| commands::asset_status(&v.path, &r).ok().filter(|st| st.has_blob));
-            match found {
-                Some(st) => json(st),
-                // Absent everywhere. Still not an error — "media absence is a warning,
-                // never an error" — so answer with the default vault's honest "no". With
-                // no vaults at all there is nothing to be honest *about*, and no note can
-                // exist to reference it, so the default "no" is the whole answer.
-                None => match default {
-                    Some(v) => json(commands::asset_status(&v.path, &r).map_err(err)?),
-                    None => json(commands::AssetStatus {
-                        has_blob: false,
-                        has_thumb: false,
-                        mime: None,
-                    }),
-                },
-            }
-        }
-        "resolve_asset" => {
-            let (r, k) = (s("reference"), s("kind"));
-            let vaults = lock(state)?.configs();
-            vaults
-                .iter()
-                .find_map(|v| commands::resolve_asset_bytes(&v.path, &r, &k).ok())
-                .ok_or_else(|| format!("blob not present in any vault: {r}"))
-        }
-        "open_external" => {
-            open_blob(state, &s("reference"))?;
-            Ok(Vec::new())
-        }
-        "commit" => {
-            // Hold the lock so a commit can't snapshot the vault mid-write (fm-serve is
-            // thread-per-connection). One guard, where this used to take two: resolving
-            // the vault through the same guard is what keeps that from being a
-            // self-deadlock now that the store and the list share a lock.
-            let g = lock(state)?;
-            let path = g.config(&s("vault"))?.path;
-            json(git::commit_all(&path, &s("message")).map_err(err)?)
-        }
-        "backup" => {
-            run_backup(state, &s("vault"))?;
-            Ok(Vec::new())
-        }
-        // What the two backup tiers would actually do right now — the panel needs
-        // this to promise the user only what it can deliver.
-        "backup_status" => json(backup_status(state)?),
-        // The identity rides along because this is the one moment it is worth
-        // asking for: a vault gaining a remote is a vault gaining an audience, and
-        // from here on every commit carries a name into somebody else's clone.
-        // Empty means "don't touch it" — a user whose git is already configured is
-        // never asked, so the panel sends nothing.
-        "set_git_remote" => {
-            let (name, email) = (s("name"), s("email"));
-            // Resolved once, where it used to be resolved twice.
-            let path = lock(state)?.config(&s("vault"))?.path;
-            if !name.is_empty() || !email.is_empty() {
-                git::set_identity(&path, &name, &email).map_err(err)?;
-            }
-            git::set_remote(&path, &s("url")).map_err(err)?;
-            Ok(Vec::new())
-        }
-        "push" => {
-            // Same reason as `commit`: don't let a push snapshot the vault mid-write.
-            let g = lock(state)?;
-            let path = g.config(&s("vault"))?.path;
-            json(git::push_squashed(&path, &s("message")).map_err(err)?)
-        }
-        // Bring a collaborator's work home. Holds the lock for the same reason push does
-        // — a merge rewrites notes under the app's feet, and the very next incremental
-        // reindex is what makes them visible.
-        "pull" => {
-            let mut g = lock(state)?;
-            let path = g.config(&s("vault"))?.path;
-            let outcome = git::pull(&path).map_err(err)?;
-            // The merge just wrote files behind the index's back. Re-read now rather
-            // than leave the user staring at pre-pull content until the next heartbeat.
-            g.store.reindex(Reindex::Incremental).map_err(err)?;
-            json(match outcome {
-                git::Pulled::UpToDate => PullResult { merged: 0, conflicts: Vec::new() },
-                git::Pulled::Merged(n) => PullResult { merged: n, conflicts: Vec::new() },
-                git::Pulled::Conflicted(f) => PullResult { merged: 0, conflicts: f },
-            })
-        }
-        // The browser heartbeat, which doubles as **the local poll**. Liveness was
-        // already refreshed by `handle` before dispatch, so the answer here is the
-        // other half: has the vault moved under us?
-        //
-        // `get`/`query` serve SQLite, and a full reindex only runs at `open` — so
-        // without this a `git pull`, a merge driver, or an edit in Vim is *invisible*
-        // to a running app. The tab already beats every 3s for the watchdog, which is
-        // exactly the cadence a local poll wants, so it costs one incremental reindex
-        // rather than a second timer and a second round-trip. Quiet is the common
-        // case and quiet is a stat per file.
-        "ping" => {
-            let changed = lock(state)?.store.reindex(Reindex::Incremental).map_err(err)?;
-            json(Ping {
-                changed: changed.updated > 0 || changed.removed > 0,
-                git: git::available(),
-            })
-        }
-        // The audiences that exist. `[]` is **the first-run signal** — the one command
-        // that is meaningful with no vaults, and the reason it isn't folded into
-        // `backup_status` (which shells out per vault, including a network `ls-remote`).
-        "list_vaults" => json(infos(&*lock(state)?)),
-        // What would happen if we created a vault here — the form asks on every keystroke.
-        "check_path" => {
-            let g = lock(state)?;
-            json(check_path(&g, state.config.as_deref(), state.config_writable, &s("name"), &s("path")))
-        }
-        "create_vault" => json(create_vault(state, &s("name"), &s("path"))?),
-        // The user's saved `.view` files, aggregated across every vault: a view is
-        // git-tracked *in* the vault it belongs to, but the query it defines runs against
-        // the whole set (so `prop: vault` can narrow, or a dashboard can span audiences).
-        // A view that won't parse is listed with its error, never dropped.
-        "list_views" => {
-            let g = lock(state)?;
-            let mut all = Vec::new();
-            for v in g.configs() {
-                all.extend(fm_app::views::list_views(&v.path));
-            }
-            json(all)
-        }
-        // Run one view by name. The file is read from whichever vault holds it; the query
-        // runs against the full store. A parse error surfaces as the 500 body, so a broken
-        // view says why rather than silently returning nothing.
-        "run_view" => {
-            let name = s("name");
-            let g = lock(state)?;
-            let vault_path = g
-                .configs()
-                .iter()
-                .find(|v| fm_app::views::list_views(&v.path).iter().any(|vi| vi.name == name))
-                .map(|v| v.path.clone())
-                .ok_or_else(|| format!("no view named '{name}'"))?;
-            json(fm_app::views::run_view(&g.store, &vault_path, &name).map_err(err)?)
-        }
-        // Binary upload: the raw request body IS the file; the name rides in the
-        // query string (`/api/ingest?name=<urlencoded>`).
-        "ingest" => {
-            let name = query_param(query, "name").unwrap_or_else(|| "asset".to_string());
-            // Into the vault the caller names — the blob lands beside the notes that
-            // will reference it, and never in an audience that shouldn't have it. Both
-            // the path and the name, so the bytes and the asset note land in the *same*
-            // vault: splitting them puts the file in one audience and its note in another.
-            //
-            // The owned `config` is what makes this borrow-check: `&mut g.store` and a
-            // `&VaultConfig` borrowed from the same guard cannot coexist.
-            let mut g = lock(state)?;
-            let into = g.config(&query_param(query, "vault").unwrap_or_default())?;
-            json(
-                commands::ingest(&mut g.store, &into.path, &into.name, &name, body)
-                    .map_err(err)?,
-            )
-        }
-        // Copy a note into another vault. Restrictive by default (only the prose travels);
-        // `with_assets` opts in to carrying the first-degree blobs. Validate the target up
-        // front, hand `copy_note` every vault's (name, path) so it can locate/copy blobs, then
-        // version the new note in its own vault (best-effort — a solo user's own repo).
-        "copy_note" => {
-            let with_assets = args.get("with_assets").and_then(Value::as_bool).unwrap_or(false);
-            let mut g = lock(state)?;
-            let into = g.config(&s("vault"))?;
-            let vault_paths: Vec<(String, PathBuf)> =
-                g.configs().into_iter().map(|c| (c.name, c.path)).collect();
-            let result =
-                commands::copy_note(&mut g.store, &s("id"), &into.name, &vault_paths, with_assets)
-                    .map_err(err)?;
-            if git::available() {
-                let _ = git::commit_all(&into.path, "backup: copy note");
-            }
-            json(result)
-        }
-        // Pre-check for the copy popover: does the target vault already hold a copy of this
-        // note? Drives the "this will replace the existing copy" warning.
-        "copy_status" => {
-            let g = lock(state)?;
-            let into = g.config(&s("vault"))?;
-            json(commands::copy_status(&g.store, &s("id"), &into.name).map_err(err)?)
-        }
-        // Recede a copy: delete the copied note from the target vault and take back the blobs
-        // this copy newly wrote (only those nothing else there still references).
-        "uncopy_note" => {
-            let blobs: Vec<String> = args
-                .get("blobs")
-                .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
-                .unwrap_or_default();
-            let mut g = lock(state)?;
-            let into = g.config(&s("vault"))?;
-            let vault_paths: Vec<(String, PathBuf)> =
-                g.configs().into_iter().map(|c| (c.name, c.path)).collect();
-            commands::uncopy_note(&mut g.store, &s("id"), &into.name, &blobs, &vault_paths)
-                .map_err(err)?;
-            if git::available() {
-                let _ = git::commit_all(&into.path, "backup: undo copy");
-            }
-            Ok(Vec::new())
-        }
-        other => Err(format!("unknown command: {other}")),
-    })();
+    let args: Value = if query.is_empty() {
+        serde_json::from_slice(body).unwrap_or(Value::Null)
+    } else {
+        Value::Object(query_pairs(query).map(|(k, v)| (k, Value::String(v))).collect())
+    };
 
-    match result {
-        Ok(bytes) if cmd == "resolve_asset" => {
-            ("200 OK", "application/octet-stream".to_string(), bytes)
+    match dispatch(cmd, &args, body, &state.app, &Desktop) {
+        Ok(Output::Bytes(b)) => ("200 OK", "application/octet-stream".to_string(), b),
+        Ok(Output::Json(b)) => ("200 OK", "application/json".to_string(), b),
+        Err(msg) => {
+            ("500 Internal Server Error", "text/plain; charset=utf-8".to_string(), msg.into_bytes())
         }
-        Ok(bytes) => ("200 OK", "application/json".to_string(), bytes),
-        Err(msg) => ("500 Internal Server Error", "text/plain; charset=utf-8".to_string(), msg.into_bytes()),
     }
-}
-
-fn lock(state: &AppState) -> Result<std::sync::MutexGuard<'_, Vaults>, String> {
-    state.vaults.lock().map_err(|e| e.to_string())
-}
-
-impl Vaults {
-    /// A named vault; an empty name means the default (the first).
-    ///
-    /// Returns an **owned** config, not a reference: a `&VaultConfig` borrowed from the
-    /// guard would conflict with `&mut self.store` in the very arms that need both
-    /// (`ingest`), and it is three allocations against a caller that is usually about to
-    /// fork `git`.
-    ///
-    /// An **unknown** name is an error, never a fallback. Quietly writing a note meant
-    /// for "lab" into "personal" is a disclosure that git history makes permanent, and
-    /// the reverse silently loses the note — so a typo has to be loud. With **no** vaults
-    /// there is no default to fall back to either, which is the first run and says so.
-    fn config(&self, name: &str) -> Result<VaultConfig, String> {
-        if self.list.is_empty() {
-            return Err("no vaults configured — create one first".into());
-        }
-        if name.is_empty() {
-            return Ok(self.list[0].clone());
-        }
-        self.list
-            .iter()
-            .find(|v| v.name == name)
-            .cloned()
-            .ok_or_else(|| format!("no vault named '{name}'"))
-    }
-
-    /// An owned snapshot, so callers can drop the guard before doing I/O — which
-    /// `backup_status` must, since it shells out to `git ls-remote` per vault and would
-    /// otherwise block every 3 s `ping` for a network round trip.
-    fn configs(&self) -> Vec<VaultConfig> {
-        self.list.clone()
-    }
-
-    /// Bring a vault into the live set — the whole point being that creating one must not
-    /// need a restart. Pushes **both** halves, so `store` and `list` cannot disagree, and
-    /// **appends**: `list[0]` is the default that receives every fresh capture, so
-    /// inserting would silently move where new notes land.
-    fn add(&mut self, cfg: VaultConfig, store: fm_core::FileStore) {
-        self.store.add(store);
-        self.list.push(cfg);
-    }
-
-    /// Where a blob really is. **Every vault is searched**, because a `sha256:`
-    /// reference deliberately does not say which vault holds the bytes — and it should
-    /// not: that is what keeps a cross-vault `note:`/`asset:` link free, and what lets
-    /// ULIDs be the only identifier anyone needs. Content-addressing makes searching
-    /// *correct* rather than merely convenient: whichever vault answers, the bytes hash
-    /// to the reference, so they are the same bytes. Vault-scoping references would
-    /// re-couple a note to a location and break the links.
-    fn find_blob(&self, reference: &str) -> Result<PathBuf, String> {
-        for v in &self.list {
-            if let Ok(p) = commands::blob_path(&v.path, reference) {
-                return Ok(p);
-            }
-        }
-        Err(format!("blob not present in any vault: {reference}"))
-    }
-}
-
-fn err<E: std::fmt::Display>(e: E) -> String {
-    e.to_string()
-}
-
-fn json<T: serde::Serialize>(v: T) -> Result<Vec<u8>, String> {
-    serde_json::to_vec(&v).map_err(|e| e.to_string())
-}
-
-fn open_blob(state: &AppState, reference: &str) -> Result<(), String> {
-    // Resolve, then drop the guard: handing a path to the OS can block on anything.
-    let path = lock(state)?.find_blob(reference)?;
-    open_native(path.as_os_str()).map_err(|e| format!("could not open the file: {e}"))
 }
 
 /// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place
@@ -640,316 +365,6 @@ fn open_native(target: &std::ffi::OsStr) -> std::io::Result<()> {
         c
     };
     cmd.spawn().map(|_| ())
-}
-
-/// The heartbeat's answer: did anything change on disk that the tab is not showing?
-/// A bool, not a count — the UI's only choice is whether to re-run its query.
-#[derive(serde::Serialize)]
-struct Ping {
-    changed: bool,
-    /// Whether this machine has git at all. **Not a dependency — a capability.** The tab
-    /// uses it to stop firing an auto-commit every 5s at a binary that isn't there, and
-    /// to say so once instead of failing silently forever. Rides the heartbeat because
-    /// the check is cached and the tab already beats.
-    git: bool,
-}
-
-/// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have
-/// markers in their body (the `.md` driver keeps them out of the frontmatter), so they
-/// still open in the editor for a human to settle.
-#[derive(serde::Serialize)]
-struct PullResult {
-    merged: u32,
-    conflicts: Vec<String>,
-}
-
-/// A vault, as the sidebar and the first-run screen need it. Deliberately **not**
-/// [`VaultStatus`]: that one is about a *remote* and shells out to `git ls-remote` per
-/// vault, and making the first-run screen — the thing shown when no vaults exist — depend
-/// on the app's slowest, git-flavoured command would be backwards.
-#[derive(serde::Serialize)]
-struct VaultInfo {
-    name: String,
-    /// For display, so two vaults both called `notes` are tellable apart.
-    path: String,
-    /// Index 0 — where every fresh capture lands. The UI has to be able to say so.
-    default: bool,
-}
-
-/// What the create-vault form needs: the filesystem facts, plus the ones only the vault
-/// list can answer, plus **the verdict**.
-///
-/// `ok` is computed here and not in Svelte on purpose. Duplicating the policy in the
-/// browser is how you get a button that enables and then fails — which is exactly what
-/// `restic_ready` did when it meant "configured" rather than "will work".
-#[derive(serde::Serialize)]
-struct PathCheck {
-    #[serde(flatten)]
-    facts: commands::PathFacts,
-    name_ok: bool,
-    name_taken: bool,
-    path_taken: bool,
-    /// The vault this path nests inside, or that nests inside it. Two `FileStore`s over
-    /// one tree means one note in two audiences, indexed twice — the boundary the whole
-    /// `MultiStore` design exists to make un-crossable.
-    overlaps: Option<String>,
-    /// Whether the vault list can be written at all. False → creating anything would be a
-    /// vault that vanishes on restart, so the form must not offer it.
-    config_writable: bool,
-    ok: bool,
-}
-
-/// One vault's git standing. **Per vault, not per app** — one vault is one repo, one
-/// remote, one collaborator list, so every field here is singular *about that vault* and
-/// there is no honest way to collapse them. A single "unpushed" number across a set of
-/// vaults would be a number about nothing.
-#[derive(serde::Serialize)]
-struct VaultStatus {
-    /// The audience. Doubles as the argument every git command takes back.
-    name: String,
-    /// Where this vault's notes push to (`origin`), or null when unset.
-    remote: Option<String>,
-    /// Commits made here but not on the remote; null when never pushed.
-    unpushed: Option<u32>,
-    /// Who this vault's commits are signed by, or null when nobody real is — the panel
-    /// asks for a name only when this is null, so anyone whose git is already configured
-    /// never sees the question. Per vault on purpose: a vault is an audience, and the
-    /// name on a lab repo need not be the one on your personal notes.
-    identity: Option<git::Identity>,
-    /// Someone else has pushed work we don't have. Null when unknowable (no remote,
-    /// never pushed, or offline — a sleeping laptop is not an error). One `ls-remote`,
-    /// which moves no refs: knowing must not itself be the thing that puts the vault
-    /// in the state the ancestry guard has to survive.
-    remote_moved: Option<bool>,
-    /// Notes with conflict markers sitting in them, waiting for a human.
-    conflicts: Vec<String>,
-    /// Where this vault's media backs up to — a path or URL, so the UI can say whether
-    /// it would leave this machine. **Never the password.** Null when this vault has no
-    /// restic repo, which is not an error: a restic repo is per repository, so a set of
-    /// vaults needs one each, and you may well not want one for all of them.
-    restic_repo: Option<String>,
-    /// This vault's media could actually be backed up **right now**: restic is installed,
-    /// this vault has a repo, and `RESTIC_PASSWORD` is set. All three, because "ready"
-    /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
-    /// and then fails on a machine with no restic.
-    restic_ready: bool,
-}
-
-/// What each backup tier can do right now, per vault. fm-core stays free of environment
-/// and configuration concerns, so the env-derived half is assembled here.
-///
-/// **Both tiers are per vault.** Git was always: one vault, one repo, one remote. And
-/// restic is too, for the same shape of reason — a restic repo *is* per repository, so
-/// backing up a set of vaults means a repo each. There is no app-wide media destination
-/// to report, which is why there is no field here for one.
-#[derive(serde::Serialize)]
-struct BackupStatus {
-    /// Every vault, in configured order; the first is the default. A single-vault
-    /// install is a list of one, so the panel needs no separate shape for it.
-    vaults: Vec<VaultStatus>,
-    /// Whether this machine has git. Without it every vault below reports `remote: null,
-    /// identity: null` — which is indistinguishable from "not set up yet", and would have
-    /// the panel invite you to type a remote into a tier that cannot run. Per machine, not
-    /// per vault: git is either installed or it isn't.
-    git: bool,
-    /// Whether this machine has restic. Per machine for the same reason as `git`. Split
-    /// from `restic_ready` on purpose: "no restic installed" and "restic installed but this
-    /// vault has no repo" are different sentences to say to someone.
-    restic: bool,
-}
-
-fn backup_status(state: &AppState) -> Result<BackupStatus, String> {
-    // One password for every repo. A per-vault password would have to live somewhere,
-    // and the one place it must never live is the config file next to the paths.
-    let has_password = std::env::var("RESTIC_PASSWORD").is_ok();
-    // The tool itself. Media backup is an optional *feature*: no restic, no feature — but
-    // the notebook is untouched, and the panel has to say which of those it is.
-    let has_restic = backup::available();
-    // Clone the configs out and **drop the guard** before any of this: every entry below
-    // shells out per vault, including `remote_moved`'s network `ls-remote`. Holding the
-    // lock across that would stall every 3 s `ping` — and with it the local poll and the
-    // shutdown watchdog — for a round trip to GitHub.
-    let vaults = lock(state)?.configs();
-    let vaults = vaults
-        .iter()
-        .map(|v| VaultStatus {
-            name: v.name.clone(),
-            remote: git::remote(&v.path).unwrap_or(None),
-            unpushed: git::unpushed(&v.path).unwrap_or(None),
-            identity: git::identity(&v.path),
-            remote_moved: git::remote_moved(&v.path).unwrap_or(None),
-            conflicts: git::conflicts(&v.path).unwrap_or_default(),
-            restic_ready: has_restic && v.restic.is_some() && has_password,
-            restic_repo: v.restic.clone(),
-        })
-        .collect();
-    Ok(BackupStatus { vaults, git: git::available(), restic: has_restic })
-}
-
-/// The media tier, for **one** vault — snapshot it into *its own* restic repo.
-///
-/// Per vault because a restic repo is per repository: there is no single destination
-/// that could hold a set of vaults, so each one either has a repo of its own or has
-/// nowhere for its media to go. A vault without one is not an error and must not be
-/// silently folded into someone else's repo — the caller is told, by name, that this
-/// vault's media stayed put. Refusing to say so is the overstatement this whole panel
-/// exists to prevent.
-/// Everything the form needs to decide, and the verdict itself.
-///
-/// Takes the vault list rather than reading it, so `create_vault` can re-run the identical
-/// check **under the same guard** it then mutates — otherwise two concurrent creates both
-/// pass a check and both win.
-fn check_path(v: &Vaults, config: Option<&Path>, config_writable: bool, name: &str, path: &str) -> PathCheck {
-    let path = PathBuf::from(vaults::expand_home(path));
-    let facts = commands::inspect_path(&path);
-
-    // A label, never joined onto a filesystem path, so it stays maximally permissive:
-    // `Lab — Ravi's group` must work. Refuse only what actually breaks — empty (an empty
-    // name already *means* "the default", so it would make the default unaddressable) and
-    // control characters (which would make a JSON entry unreadable to the human who has to
-    // fix it).
-    let name_ok = !name.trim().is_empty() && !name.chars().any(char::is_control);
-    let name_taken = v.list.iter().any(|e| e.name == name);
-
-    // Canonical, because `~/notes` and `/home/you/notes/../notes` are the same directory
-    // and only one of them may be a vault.
-    let me = vaults::absolute(&path);
-    let path_taken = v.list.iter().any(|e| vaults::absolute(&e.path) == me);
-    let overlaps = v
-        .list
-        .iter()
-        .find(|e| {
-            let theirs = vaults::absolute(&e.path);
-            theirs != me && (me.starts_with(&theirs) || theirs.starts_with(&me))
-        })
-        .map(|e| e.name.clone());
-
-    let ok = name_ok
-        && !name_taken
-        && !path_taken
-        && overlaps.is_none()
-        && !facts.not_a_directory
-        && facts.writable
-        && config_writable
-        && config.is_some();
-
-    PathCheck { facts, name_ok, name_taken, path_taken, overlaps, config_writable, ok }
-}
-
-/// Create a vault, register it, and make it live — no restart.
-///
-/// **The invariant: nothing is registered in memory until `vaults.json` on disk says the
-/// same thing.** Reverse the order and a failed config write leaves an in-memory vault
-/// that vanishes on the next start *while the user is capturing notes into it*, which is
-/// note loss. So the config write is the commit point, and everything before it is
-/// recoverable by trying again.
-///
-/// Deliberately does **not** call `git::ensure_repo`: `commit_all` already does, on the
-/// first auto-commit, gated by `ping.git`. Doing it here would buy an empty `.git` five
-/// seconds early — and if the path sits inside a repo the user owns, `ensure_repo` probes
-/// only `<path>/.git`, finds none, and `git init`s a **nested repo shadowing theirs**.
-fn create_vault(state: &AppState, name: &str, path: &str) -> Result<Vec<VaultInfo>, String> {
-    let mut g = lock(state)?;
-
-    // Re-run the check under the guard. The UI already ran it, but this is TOCTOU
-    // territory and curl is a supported client.
-    let check = check_path(&g, state.config.as_deref(), state.config_writable, name, path);
-    if !check.ok {
-        return Err(refusal(&check, name));
-    }
-    let config = state.config.clone().ok_or(
-        "there is nowhere to save the vault list on this machine — set FM_VAULTS".to_string(),
-    )?;
-    let path = PathBuf::from(vaults::expand_home(path));
-
-    // The directories. `blobs/` and `derived/` eagerly, which needs no git and costs
-    // nothing (git cannot track an empty directory anyway) — it just means the ignore
-    // lines `ensure_repo` writes on the first commit refer to something the user can see.
-    for d in [&path, &path.join("blobs"), &path.join("derived")] {
-        std::fs::create_dir_all(d).map_err(|e| format!("could not create {}: {e}", d.display()))?;
-    }
-
-    // Open it. On failure we leave the directory alone — it may have pre-existed, and this
-    // codebase does not delete user data on a failure path.
-    let store = fm_core::FileStore::named(&path, name).map_err(|e| {
-        format!(
-            "created the directory at {}, but could not open it as a vault: {e} \
-             — nothing was configured",
-            path.display()
-        )
-    })?;
-
-    // The commit point.
-    let cfg = VaultConfig { name: name.to_string(), path: path.clone(), restic: None };
-    let mut list = g.configs();
-    list.push(cfg.clone());
-    vaults::save(&list, &config).map_err(|e| {
-        format!(
-            "the vault directory at {} was created, but the vault list could not be \
-             saved: {e} — it is not configured. Nothing was lost; fix that and create it again.",
-            path.display()
-        )
-    })?;
-
-    g.add(cfg, store);
-    Ok(infos(&g))
-}
-
-/// Why the form said no. One sentence, the most disqualifying first — a list of every
-/// complaint at once is how a user fixes one thing and gets a different refusal.
-fn refusal(c: &PathCheck, name: &str) -> String {
-    if !c.config_writable {
-        return "the vault list on disk isn't something we can safely write — fix it first, \
-                then try again"
-            .into();
-    }
-    if !c.name_ok {
-        return "a vault needs a name".into();
-    }
-    if c.name_taken {
-        return format!("there is already a vault called '{name}'");
-    }
-    if c.path_taken {
-        return "that folder is already a vault".into();
-    }
-    if let Some(other) = &c.overlaps {
-        return format!(
-            "that folder is inside '{other}' (or contains it) — one folder cannot be in two \
-             audiences at once"
-        );
-    }
-    if c.facts.not_a_directory {
-        return "that is a file, not a folder".into();
-    }
-    if !c.facts.writable {
-        return format!("we cannot write to {}", c.facts.path);
-    }
-    "there is nowhere to save the vault list on this machine — set FM_VAULTS".into()
-}
-
-fn infos(v: &Vaults) -> Vec<VaultInfo> {
-    v.list
-        .iter()
-        .enumerate()
-        .map(|(i, e)| VaultInfo {
-            name: e.name.clone(),
-            path: e.path.to_string_lossy().into_owned(),
-            default: i == 0,
-        })
-        .collect()
-}
-
-fn run_backup(state: &AppState, vault: &str) -> Result<(), String> {
-    // Owned, and the guard dropped: restic can take minutes, and nothing else may write
-    // notes meanwhile — but everything else may read them.
-    let v = lock(state)?.config(vault)?;
-    let repo = v.restic.as_ref().ok_or_else(|| {
-        format!("no restic repo configured for '{}' — its media has nowhere to go", v.name)
-    })?;
-    let password = std::env::var("RESTIC_PASSWORD")
-        .map_err(|_| "set RESTIC_PASSWORD for the restic repository".to_string())?;
-    backup::backup(&v.path, Path::new(repo), &password)
-        .map_err(|e| format!("backing up '{}': {e}", v.name))
 }
 
 /// Serve a file from the built UI — from `FM_UI_DIST` when it is set, otherwise from the
@@ -983,11 +398,11 @@ fn read_asset(state: &AppState, rel: &str) -> Option<Vec<u8>> {
     }
 }
 
-/// Pull one `key=value` out of a `&`-joined query string, percent-decoded.
-fn query_param(query: &str, key: &str) -> Option<String> {
-    query.split('&').find_map(|kv| {
+/// Every `key=value` in a `&`-joined query string, percent-decoded.
+fn query_pairs(query: &str) -> impl Iterator<Item = (String, String)> + '_ {
+    query.split('&').filter(|s| !s.is_empty()).filter_map(|kv| {
         let (k, v) = kv.split_once('=')?;
-        (k == key).then(|| percent_decode(v))
+        Some((percent_decode(k), percent_decode(v)))
     })
 }
 
@@ -1063,4 +478,28 @@ fn write_response(
     stream.write_all(header.as_bytes())?;
     stream.write_all(body)?;
     stream.flush()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn query_params_become_named_arguments() {
+        let got: Vec<_> = query_pairs("name=my%20photo.png&vault=lab").collect();
+        assert_eq!(
+            got,
+            vec![
+                ("name".to_string(), "my photo.png".to_string()),
+                ("vault".to_string(), "lab".to_string())
+            ]
+        );
+    }
+
+    /// An empty query string must not synthesise an empty argument — `ingest` with no
+    /// `name` falls back to "asset", and a `Some("")` would defeat that.
+    #[test]
+    fn an_empty_query_string_yields_no_arguments() {
+        assert_eq!(query_pairs("").count(), 0);
+    }
 }

@@ -20,7 +20,8 @@
   // overstatement this panel exists to prevent — hence a vault with no restic repo is
   // named, not skipped in silence.
   import { onMount } from 'svelte';
-  import { backup, backupStatus, commit, pull, push, setGitRemote } from './ipc';
+  import { backup, backupStatus, commit, pull, setGitRemote } from './ipc';
+  import { syncVault, syncFor } from './sync.svelte';
   import { reachOf, shortDest } from './destination';
   import type { BackupStatus, VaultStatus } from './types';
 
@@ -160,23 +161,34 @@
         continue;
       }
       const reach = reachOf(v.remote);
-      // Flush whatever the 5s auto-commit debounce has not written yet: it is
-      // best-effort and swallows its errors, so never assume it has run.
-      try {
-        await commit(`auto: ${now}`, v.name);
-      } catch (e) {
-        steps.push({ text: `Could not commit${of(v)}: ${msg(e)}`, ok: false });
+      // `syncVault` is commit → push, and — if the remote moved while you were writing —
+      // pull, merge, push once more. That last part is the difference between this button
+      // working and this button telling you "the remote has changes you don't have — pull
+      // first, then back up" and making you do it by hand. Exactly one retry: a loop is how
+      // a rejected push becomes an invisible one.
+      const phase = await syncVault(v.name, `backup: ${now}`, undefined);
+      const s = syncFor(v.name);
+      if (s.merged > 0) {
+        steps.push({ text: `Brought down ${s.merged} change(s)${of(v)} first.`, ok: true });
       }
-      try {
-        const squashed = await push(`backup: ${now}`, v.name);
-        if (squashed > 1) steps.push({ text: `Squashed ${squashed} commits into one${of(v)}.`, ok: true });
+      if (phase === 'synced') {
         steps.push({
           text: `Notes${of(v)} pushed to ${shortDest(v.remote)} — ${left(reach)}.`,
           ok: true,
         });
         (reach === 'remote' ? off : stuck).push(v.name);
-      } catch (e) {
-        steps.push({ text: `Notes${of(v)} NOT pushed: ${msg(e)}`, ok: false });
+      } else if (phase === 'conflicts') {
+        // Deliberately not pushed. Those notes hold both versions in their bodies, and
+        // publishing conflict markers as content is worse than not publishing.
+        steps.push({
+          text:
+            `Notes${of(v)} NOT pushed — ${s.conflicts.length} note(s) came back with ` +
+            `conflicting edits and need you first: ${s.conflicts.join(', ')}`,
+          ok: false,
+        });
+        stuck.push(v.name);
+      } else {
+        steps.push({ text: `Notes${of(v)} NOT pushed: ${msg(s.error)}`, ok: false });
         stuck.push(v.name);
       }
     }

@@ -9,12 +9,27 @@
 
   // `statuses`/`onstatus` are optional: a view that doesn't offer status
   // rotation just omits them and the chip disappears.
-  let { card, onopen, statuses = [], onstatus }: {
+  //
+  // `columns`/`onmoveto` are the **touch path**. Dragging a card is HTML5 drag
+  // (`@atlaskit/pragmatic-drag-and-drop`'s element adapter), which does not fire on touch at
+  // all — and the package ships no pointer adapter to swap in, so on a phone the board is
+  // simply not operable without this. Given a column list, the card offers a tap-to-move
+  // menu that reuses the exact same write path a drop takes.
+  //
+  // Nothing here knows what the columns *mean*: `label` is whatever the grouped property's
+  // values happen to be, so this stays as generic as the drag it stands in for.
+  let { card, onopen, statuses = [], onstatus, columns = [], column = '', onmoveto }: {
     card: ObjectMeta;
     onopen: (id: string) => void;
     statuses?: string[];
     onstatus?: (id: string, value: string | null) => void;
+    /** The columns this card could move to — `{value,label}` straight from the board. */
+    columns?: { value: string; label: string }[];
+    /** The column it is in now, so the menu can mark it and skip it. */
+    column?: string;
+    onmoveto?: (id: string, value: string) => void;
   } = $props();
+  let menuOpen = $state(false);
   let dragging = $state(false);
   // Suppress the click that trails a drag, so dropping a card never also opens it.
   let suppressClick = false;
@@ -40,6 +55,19 @@
   function open() {
     if (!suppressClick) onopen(card.id);
   }
+
+  // The card itself is a button that opens the note, so every control inside it has to stop
+  // the event climbing — otherwise moving a card also opens it.
+  function swallow(e: Event) {
+    e.stopPropagation();
+  }
+
+  function moveTo(value: string) {
+    menuOpen = false;
+    onmoveto?.(card.id, value);
+  }
+
+  const canMove = $derived(!!onmoveto && columns.length > 1);
 </script>
 
 <div
@@ -77,6 +105,39 @@
       <span class="vault-cell"><VaultBadge vault={card.vault} /></span>
     {/if}
   </footer>
+
+  {#if canMove}
+    <!-- Touch's stand-in for a drag. Hidden from the pointer/keyboard path only by being
+         small and quiet — it is a real button, so it works everywhere, which is what makes
+         it testable without a phone. -->
+    <button
+      class="move"
+      aria-haspopup="true"
+      aria-expanded={menuOpen}
+      aria-label="Move this card to another column"
+      onclick={(e) => (swallow(e), (menuOpen = !menuOpen))}
+      onkeydown={swallow}
+    >⇄</button>
+  {/if}
+  {#if menuOpen}
+    <!-- Plain buttons in a labelled group rather than a listbox: a real button is already
+         focusable, keyboard-operable and announced correctly, where a `listbox` role would
+         oblige us to hand-roll focus management to say the same thing. -->
+    <div class="move-menu" role="group" aria-label="Move to column">
+      {#each columns as col (col.value)}
+        <button
+          class="move-option"
+          aria-current={col.value === column}
+          disabled={col.value === column}
+          onclick={(e) => (swallow(e), moveTo(col.value))}
+        >{col.label}</button>
+      {/each}
+      <button
+        class="move-option cancel"
+        onclick={(e) => (swallow(e), (menuOpen = false))}
+      >Cancel</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -87,6 +148,7 @@
     padding: 0.6rem 0.7rem;
     box-shadow: var(--shadow-sm);
     cursor: grab;
+    position: relative; /* anchors the move button and its menu */
     transition:
       box-shadow var(--dur-fast) var(--ease),
       border-color var(--dur-fast) var(--ease),
@@ -141,5 +203,85 @@
   .vault-cell {
     margin-left: auto;
     display: inline-flex;
+  }
+
+  /* The touch stand-in for dragging. Quiet on a desktop — where the drag works — and a
+     proper 44px target on a phone, where it is the only way to move a card at all. */
+  .move {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--muted);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+    padding: 0.2rem 0.35rem;
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+  .card:hover .move,
+  .move:focus-visible {
+    opacity: 1;
+  }
+  .move:hover,
+  .move:focus-visible {
+    color: var(--text);
+    border-color: var(--card-border);
+  }
+
+  .move-menu {
+    position: absolute;
+    top: 1.9rem;
+    right: 0.25rem;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    min-width: 9rem;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md, var(--shadow-sm));
+    overflow: hidden;
+  }
+  .move-option {
+    border: none;
+    background: none;
+    color: var(--text);
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .move-option:hover:not(:disabled) {
+    background: var(--column-over-bg);
+  }
+  .move-option:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+  .move-option.cancel {
+    border-top: 1px solid var(--card-border);
+    color: var(--muted);
+  }
+
+  /* Phone: no hover to reveal anything, and a finger is not a mouse. The move button is
+     always visible and big enough to hit, because without it the board is inert on touch. */
+  @media (pointer: coarse), (max-width: 40rem) {
+    .move {
+      opacity: 1;
+      padding: 0.55rem 0.7rem;
+      font-size: 1rem;
+    }
+    .move-menu {
+      top: 2.6rem;
+    }
+    .move-option {
+      padding: 0.75rem 0.8rem;
+      font-size: 0.9rem;
+    }
   }
 </style>
