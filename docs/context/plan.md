@@ -251,12 +251,17 @@ vanishing.
 
 **Phase 3 — the differentiators.**
 
-- **The `.excalidraw` 3-way merge driver, in Rust** (~80 lines in `fm-cli`) over git's
-  `%O` base — **not** Excalidraw's `reconcileElements`, which is a base-less 2-way union
-  that resurrects every deleted shape. The 3-way rule recovers deletion intent: in base &
-  gone one side → honour the delete; absent from base → an add, keep; in both → higher
-  `version` wins, tie-break lower `versionNonce`. Watch the fractional `index` (z-order is
-  the unlisted merge hazard). **Lands after Ruling B's image-strip.**
+- **~~The `.excalidraw` 3-way merge driver~~ — ✅ SHIPPED 2026-07-18**, and in a different
+  shape than written: it is not a driver and not in `fm-cli`. There is no `.excalidraw` file —
+  a board's scene is the **body of its own `<ulid>.md`** — so the existing `*.md merge=fm`
+  attribute already routes it, and the merge is a branch inside `fm-core/src/scene.rs` that
+  `merge_body` tries before the text merge. Everything else held: **not** Excalidraw's
+  `reconcileElements`, which is a base-less 2-way union that resurrects every deleted shape;
+  the 3-way rule recovers deletion intent (in base & gone one side → honour the delete;
+  absent from base → an add, keep; in both → higher `version` wins, tie-break lower
+  `versionNonce`); and the fractional `index` decides z-order. Verified through real git in
+  `fm-cli/tests/merge.rs`. **It did *not* need Ruling B's image-strip first** — that ordering
+  claim was wrong, and boards sync un-stripped today.
 - **Backlinks → anchored comments → discussion.** The forward half of references shipped
   (`[Title](note:<ulid>)` + sliding panes, 2026-07-16); the **reverse index** (body scan on
   reindex, or a `links` table) is still open. A comment is a note linking to a target → the

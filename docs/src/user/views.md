@@ -17,6 +17,10 @@ views can be on screen at once, side by side.
   - **List** — a sorted, soonest-first list.
 - **Timeline** — a journal: every note grouped under the day it was created,
   newest first.
+- **Activity** — who changed what, and when, read straight out of each vault's git
+  log. Nothing is stored for it: git already knows, so this is a view of history
+  rather than a record of its own. It is also where the contributor filter comes
+  from — hiding a person there hides their notes everywhere.
 - **Search** — full-text search across every note (and the extracted text of
   ingested PDFs). Type to filter; click a result to open it.
 
@@ -48,7 +52,7 @@ A filtered, grouped board:
 
 ```yaml
 name: Lab board
-view: board          # board | agenda | timeline | search | gallery
+view: board          # board | agenda | timeline  (see the note below)
 group_by: status     # board only
 filter:              # every entry is ANDed onto the renderer's own filter
   - tag: lab
@@ -70,7 +74,14 @@ filter:              # every entry is ANDed onto the renderer's own filter
 | `not:` + one entry | the negation of it |
 | `any:` + a list of entries | at least one of them (an OR) |
 
-```yaml
+```
+
+> **Only three renderers actually draw differently.** `search` and `gallery` are still
+> *accepted* in a `.view` file, but there is no Search or Gallery pane renderer any more —
+> both fall through to the **timeline**, so a view asking for them renders as a journal.
+> Use `board`, `agenda` or `timeline` and say what you mean. (Full-text search lives in the
+> top bar; assets are reached from the notes that reference them, which is why the standalone
+> gallery went away.)yaml
 name: Lab, due this fortnight, still open
 view: agenda
 filter:

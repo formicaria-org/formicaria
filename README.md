@@ -55,7 +55,7 @@ be found.
 The toolchain is pinned with [pixi](https://pixi.sh); no other prerequisites.
 
 ```sh
-pixi run serve      # build and serve; editing a .svelte file needs no Rust rebuild
+pixi run serve      # build the UI, then serve it against ./vault
 pixi run build      # → target/release/{fm-serve,fm}
 ```
 </details>

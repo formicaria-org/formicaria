@@ -414,7 +414,7 @@ seeds with `recent` notes and searches **both notes and assets**, **two-tier bac
 (push notes by default / tick to add restic media; tested restore),
 verify/manifest (bit-rot), debounced git auto-commit (**every vault**, surfacing its first
 failure rather than swallowing it — commits can still lag, see known-issues), a
-design-token system (dark+light), the sidebar shell, the NotePanel
+design-token system (dark+light), the horizontal top-bar shell, the NotePanel
 (**full screen by default**, toggle to a docked side-sheet; remembered per
 browser), note delete (double-confirm), a ⌘K command palette,
 an mdBook manual, and a `.desktop` launcher.

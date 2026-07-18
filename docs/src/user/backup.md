@@ -44,13 +44,19 @@ machine. (A remote can be a local path or a `file://` URL, which is a fine way t
 back up to an external drive but does not survive the drive; the panel labels that
 honestly rather than calling it backed up.)
 
-**Your remote gets one commit per backup.** Auto-commit fires every few seconds
-while you work, so pushing them raw would bury your remote in thousands of `auto:`
-commits. Everything since your last push is squashed into a single `backup:` commit
-instead. The trade: locally you can step back through individual edits only as far
-as your last push — before that, each push is one step. Your *first* push is never
-squashed, since squashing history that has never been backed up would destroy the
-only copy of it.
+**Your remote gets one commit per backup — of the app's own churn.** Auto-commit
+fires every few seconds while you work, so pushing that raw would bury your remote in
+thousands of `auto:` commits. They are squashed into a single `backup:` commit
+instead. The trade: locally you can step back through individual edits only as far as
+your last push — before that, each push is one step.
+
+**Commits you wrote yourself are never squashed.** If your vault is also a repo you
+commit to by hand — a manuscript, a project — those commits are yours and keep their
+shape; the squash stops at the most recent one that formicaria did not write. Only the
+app's own `auto:`/`backup:` commits are collapsed.
+
+Your *first* push is never squashed either, since squashing history that has never been
+backed up would destroy the only copy of it.
 
 ## Including media (restic)
 

@@ -1,8 +1,8 @@
-# Collaboration — design (nothing here is built)
+# Collaboration — design (Phases 0–2 shipped; Phase 3 partly)
 
 _Written 2026-07-17; **revised the same day after a line-by-line re-audit** of every
 claim against `c9cd1ad` — see [What the code actually says](#what-the-code-actually-says).
-Like [roadmap.md](./roadmap.md), this file describes things that do **not** exist. It is
+**Read with its status in mind:** Phases 0–2 have shipped, as has Phase 3's whiteboard scene merge. Per this file's own rule their detail is folded up into `overview.md`/`decisions.md`; what stays here is the **audit** that produced them — the receipts, including the findings that turned out to be wrong. Sections still describing unbuilt work say so in place. It is
 the design layer under the roadmap's collaboration line: the decisions, what was verified
 against the code, and the order to build in. When a phase ships, delete it here and fold
 the outcome into `overview.md` / `decisions.md`._
@@ -79,8 +79,10 @@ rewritten on every save (`frontmatter.rs:67`), so *any* two concurrent edits to 
 note collide on that line and git must conflict. The markers land inside the YAML,
 `from_file` returns `ParseError::Yaml` (`frontmatter.rs:97`), `reindex` propagates it
 (`file.rs:218`), and `FileStore::open` fails (`file.rs:39`) — **the app will not
-start**. Then the shipped auto-commit (`git add -A`, `git.rs:96`) commits the markers
-as a resolution five seconds later and pushes them.
+start**. Then the shipped auto-commit committed the markers
+as a resolution five seconds later and pushed them. *(Both halves of that are fixed since:
+`commit_all` refuses to commit mid-merge, and it no longer stages with a bare `git add -A` —
+it takes the vault's own paths only, so a project repo's other work is left alone.)*
 
 So the honest form: **the distributed system is designed; the single-user
 assumptions baked into the storage layer are not, and they are most of the work.**

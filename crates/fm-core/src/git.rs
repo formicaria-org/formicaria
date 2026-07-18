@@ -119,8 +119,8 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
 
 /// Ask git to merge notes through us, and to leave their bytes alone. Tracked, so it
 /// travels to every clone — which is exactly half the job, and the half that is *not*
-/// enough (see [`install_merge_driver`]). Idempotent like `.gitignore`: a cloned vault's
-/// own tracked copy is left alone.
+/// enough (see [`install_merge_driver`]). Idempotent like `.gitignore`: the rule is
+/// **appended when missing**, and a file that already has it is not rewritten.
 ///
 /// `eol=lf` is not tidiness. Git's default on Windows rewrites text to CRLF on checkout,
 /// so the same note would be different bytes on different machines — and byte-for-byte

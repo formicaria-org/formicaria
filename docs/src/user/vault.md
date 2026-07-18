@@ -10,11 +10,40 @@ vault/
 ├── blobs/            # content-addressed media, sha256/ab/cd/…  (git-ignored)
 ├── derived/          # regenerable thumbnails                    (git-ignored)
 ├── manifest.json     # sha256 → size inventory of the blobs      (git-tracked)
+├── vault.json        # optional: what this vault is called and where
+│                     #           its notes live                    (git-tracked)
 ├── views/            # saved .view queries (YAML)                (git-tracked)
 ├── .gitattributes    # routes *.md through the fm merge driver    (git-tracked)
 ├── index.sqlite      # disposable per-machine FTS index          (git-ignored)
 └── .gitignore
 ```
+
+## `vault.json` — using a repo you already have
+
+A vault does not have to be a folder made for it. If you already have a project — code, a
+manuscript, a thesis — whose notes live in `docs/`, drop a `vault.json` at its root and
+formicaria reads them where they are:
+
+```json
+{
+  "name": "the paper",
+  "description": "notes beside the manuscript",
+  "notes": "docs"
+}
+```
+
+Every field is optional and the file itself is optional; without one you get the layout
+above. `notes` is relative to the vault root and **must stay inside it** — which audience a
+note belongs to is decided by which repo holds it, so notes living outside would make "who
+can see this" unanswerable.
+
+There is deliberately no `author`, no `collaborators`, no `remote` and no `created` here.
+Git already knows all of those, and the rule this file is held to is that **every field must
+be a fact git cannot supply**. If you find yourself wanting to add one, the question to
+answer first is why git's answer was wrong.
+
+`name` gives way to the name in your own vault list if you set one there: a repo you cloned
+does not get to rename your audience out from under you.
 
 A note is Markdown with a YAML frontmatter header:
 

@@ -1,8 +1,8 @@
 //! The storage seam. [`Store`] is the single interface between the query engine
 //! and any backend. [`MemoryStore`] is the zero-I/O reference used to verify the
-//! query contract; `FileStore` (markdown files + SQLite FTS5 index) arrives in a
-//! later slice and implements the *same* trait — swapping storage is then a
-//! backend change, not a rewrite.
+//! query contract; [`FileStore`] (markdown files + SQLite FTS5 index) implements the
+//! *same* trait, and [`MultiStore`] fans a whole set of vaults out behind one `Store` —
+//! so swapping storage is a backend change, not a rewrite.
 
 use fm_model::{Id, Object};
 use fm_query::{Filter, Query, QueryResult};

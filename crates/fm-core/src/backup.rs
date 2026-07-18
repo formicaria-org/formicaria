@@ -5,8 +5,13 @@
 //! The disposable, per-machine index (`index.sqlite`) and regenerable thumbnails
 //! (`derived/`) are excluded: they rebuild from the notes and blobs, and the
 //! index in particular must never travel between machines (the DB-corruption-by-
-//! sync lesson). What's backed up is the durable knowledge: notes, blobs, views,
-//! themes, scripts, and the manifest.
+//! sync lesson).
+//!
+//! **Everything else under the vault path is snapshotted**, which is more than the durable
+//! knowledge when a vault is also a project repo: notes, blobs, views, themes, scripts and
+//! the manifest, but also `.git` and whatever else lives there — so a lab's restic repo
+//! would hold your `data/` and `.env`. Narrowing this to the notes and blobs directories is
+//! open work (`plan.md`, Track V2.4).
 
 use crate::StoreError;
 use std::path::Path;

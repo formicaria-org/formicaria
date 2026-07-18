@@ -147,8 +147,8 @@ fn main() {
 }
 
 /// Auto-shutdown: exit the process when no browser tab is talking to us anymore.
-/// The UI sends a heartbeat (`POST /api/ping`) every few seconds; when the last
-/// tab closes the heartbeats stop and, after a short idle window, we quit — so
+/// The UI sends a heartbeat (`POST /api/alive`) every 15 s; when the last
+/// tab closes the heartbeats stop and, after an idle window, we quit — so
 /// closing the tab closes the app. The idle window is longer than a page reload
 /// (which briefly pauses the heartbeat), so a refresh doesn't kill the server.
 /// Before the very first request a longer grace covers a cold browser start.

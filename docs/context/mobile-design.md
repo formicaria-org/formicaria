@@ -5,10 +5,17 @@ on the phone), the same way [`collaboration-design.md`](./collaboration-design.m
 Track C. `plan.md` carries the sequence and the rulings; this file carries the *why*, the
 *why-not*, and the exact code the port touches.
 
-Nothing here exists yet. This supersedes the owner's first mobile draft, which an adversarial
+**Much of the host-side band now exists** — rulings 1, 7 and 8, the whiteboard scene merge, the
+phone CSS shell and the board touch fallback all shipped 2026-07-18, and rulings 2/3/6 (the
+`git2` port) were **rejected**. Each is marked in place below. What has never been built is
+anything that needs a phone: M0–M8 remain blocked on the Android toolchain.
+
+This file supersedes the owner's first mobile draft, which an adversarial
 review (three code audits + a pass against `decisions.md`) found to rest on one false premise,
 silently pick the more invasive of two architectures, and reverse two carried decisions without
-saying so. Those are fixed below; each fix is marked **(corrected)**.
+saying so. Those are fixed below; each fix is marked **(corrected)**. A later round of building
+refuted three more of its rulings — those are marked too, which is the point of keeping the
+file rather than deleting it.
 
 > **The override.** `MASTERPLAN.md:57` deferred mobile and pre-framed it as *"a server + auth
 > decision"* — the phone as a thin client to the laptop's server. **The owner overrides that:**
@@ -39,8 +46,8 @@ things the extraction taught, beyond the plan below:
    `backup_status`). So `App` owns the `Mutex` and each arm takes it exactly as long as it
    did before. (The old comment claiming a held lock could starve the *auto-shutdown
    watchdog* was stale and is now corrected in place: liveness is refreshed before dispatch,
-   so a slow command cannot make the app quit. It does stall the 3 s poll, which is the real
-   cost.)
+   so a slow command cannot make the app quit. It does stall the reindex poll, which is the
+   real cost.)
 2. **`vaults.rs` moved up too**, from `fm-serve` to `fm-app`. The vault list is state the
    command surface owns; HTTP was only the first caller. A second transport re-reading
    `vaults.json` would have been the fork the extraction exists to prevent.
@@ -238,7 +245,7 @@ provenance hole reopened, precisely in the multi-user case the owner cares about
 
 ---
 
-## Ruling 6 — `git2` becomes the single in-process backend (⛔ **blocked 2026-07-18 — two showstoppers the ruling never weighed**)
+## Ruling 6 — `git2` becomes the single in-process backend (⛔ **REJECTED 2026-07-18**, not merely blocked — see `decisions.md`, "`git2` is rejected; git stays a subprocess capability")
 
 > **1. libgit2 cannot invoke external merge drivers.** Verified in the vendored C: only
 > text/union/binary are registered, and libgit2 contains no process-spawn anywhere.

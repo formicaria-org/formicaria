@@ -56,8 +56,10 @@ A view is "a query + a renderer".
    `data-value` / `data-urgency` / `data-type`; the actual tints live in
    `ui/src/app.css`. CI (`ci/checks.sh`) greps `ui/src/renderers/**` and fails
    the build on a leaked status word — this keeps renderers reusable.
-3. Wire it into `ui/src/App.svelte`: add the view to the `View` type, a nav
-   button, and a branch in the stage that fetches and renders it.
+3. Wire it into the **pane workspace**: add the kind to `PaneKind` and give it a
+   `feedKey` in `ui/src/lib/panes.ts`, fetch that feed in `ui/src/App.svelte`, and render
+   it from `ui/src/lib/Pane.svelte`. There is no single global view any more — panes are
+   opened, arranged and resized, and N panes over M distinct feeds cost M fetches.
 
 ## Add a store
 

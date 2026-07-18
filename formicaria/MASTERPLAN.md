@@ -8,7 +8,7 @@
 
 The user (a researcher) wants one local place to keep notes, ideas, meetings, tasks, and the media/artifacts that go with them — with nice-looking inline math and media, minimal footprint, extensibility, and a 10-year lifespan. An earlier design set (11 docs) reasoned carefully but left forks open and made two questionable calls (plain-textarea editor as the *whole* story; a Go binary justified on the wrong grounds). This plan resolves every fork against *current (mid-2026) evidence*: a critical read of how competitor tools lived and died, cross-domain solutions to the hard sub-problems, and a tool-by-tool stack justification. It is meant to be handed to implementation.
 
-**Resolved decisions:** Build it (rich reading, simple writing) · **Rust core + a browser UI served by a local `fm-serve`** (the native Tauri v2 window was built and then *removed* — see the reversal table) · **Markdown is the source of truth**; v1 editor = plain-textarea edit + a rendered read view; **CodeMirror 6 live-preview deferred to v2** · files-as-truth, disposable per-machine SQLite index · external edits allowed (poll, never inotify) · agenda-first deadlines with *derived* urgency (no priority field) · **single-user, local-only** (a localhost server, no auth/cloud) · extensibility via 3 layers, **no plugin API**.
+**Resolved decisions:** Build it (rich reading, simple writing) · **Rust core + a browser UI served by a local `fm-serve`** (the native Tauri v2 window was built and then *removed* — see the reversal table) · **Markdown is the source of truth**; v1 editor = plain-textarea edit + a rendered read view; **CodeMirror 6 live-preview deferred to v2** · files-as-truth, disposable per-machine SQLite index · external edits allowed (poll, never inotify) · agenda-first deadlines with *derived* urgency (no priority field) · **single-user by default, shareable per vault** (a localhost server, no auth/cloud — sharing is a git remote, not an account; **revised 2026-07-17 when Track C shipped**, where this said "single-user, local-only") · extensibility via 3 layers, **no plugin API**.
 
 ### Key decisions that reversed earlier drafts
 
@@ -54,8 +54,8 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 
 ### What it deliberately will NOT do (and why)
 
-- **No mobile app (v1).** Desktop-only. This is the exact weakness that hurt Roam/Trilium/SilverBullet — stated openly rather than half-delivered. Multi-*desktop* is covered by file sync. Phone can be added later without touching the data model (it becomes a server+auth decision).
-- **No real-time collaboration.** Structurally excluded by single-user + files (like Trilium by choice). A genuine limitation, not a bug.
+- **No mobile app (v1).** Desktop-only. This is the exact weakness that hurt Roam/Trilium/SilverBullet — stated openly rather than half-delivered. Multi-*desktop* is covered by file sync. *(The "it becomes a server+auth decision" framing was **overridden 2026-07-18**: the intent is now that the app runs **on the phone itself**, over the same git-repo vaults — see `docs/context/mobile-design.md`. Still unbuilt, and blocked on the Android toolchain.)*
+- **No *real-time* collaboration.** Still true, and now for a sharper reason than "single-user": real-time needs per-block ids, and **the atom here is the file** — the one invariant that voids this plan if it changes. Asynchronous collaboration *did* ship (Track C, 2026-07-17): a vault is a git repo, a set of vaults is a set of audiences, and concurrent edits merge through the `.md` driver rather than a CRDT. So the accurate line is: two people can edit one note, minutes apart, and both edits survive; they cannot watch each other's cursor. A genuine limitation, not a bug.
 - **No WYSIWYG / block editor.** Markdown stays canonical; a tree-first editor cannot guarantee lossless round-trip. Rejected to avoid Joplin's fidelity problem.
 - **No live-preview editing surface in v1.** You edit raw Markdown in a textarea; the read view renders it beautifully. Live-preview (CM6 decorations) is a v2 upgrade — deferred because it is the single biggest build risk and adds nothing to *capture* or *retrieval*.
 - **No structural query over note *body*.** Only frontmatter is structured-queryable; the body is full-text only (the same constraint Obsidian Bases shipped deliberately). If you want to filter on something, it goes in frontmatter.
@@ -123,7 +123,7 @@ Everything queryable is a property; everything heavy is a pointer. Six months la
 
 ## Vault layout — one folder, knowledge in a subfolder
 
-The application folder holds the app; the knowledge is a subfolder (its own independent git repo; the app's `.gitignore` excludes it). Vault path is configurable (default `./vault`).
+The application folder holds the app; the knowledge is a subfolder (its own independent git repo; the app's `.gitignore` excludes it). Vault paths come from the vault list (`~/.config/formicaria/vaults.json`); **there is no default path** — unset means zero vaults and a first-run screen, because a relative default silently created an empty vault named after a typo. A vault may also describe itself with a `vault.json`, including where its notes live.
 
 ```
 formicaria/                    # the application (Rust workspace + frontend) — app's own git repo
@@ -167,7 +167,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 | walkdir + rayon | 2.5.0 / 1.12.0 | Parallel reindex traversal. | MIT |
 | pulldown-cmark | 0.13.4 | Markdown parse where the backend needs it (and available to the read renderer). | MIT |
 | time | 0.3.53 | Dates/timestamps. | MIT/Apache |
-| git2 | 0.21.0 | Auto-commit + code-ref resolution (libgit2: GPL-2 **with linking exception** → safe). | MIT/Apache |
+| **git** (subprocess) | — | Auto-commit, the `.md` merge driver, push/pull, and the `git log` collaboration read-model. **Shelled out, never linked.** A `git2`/libgit2 dependency was specified here and then *rejected* (2026-07-18): libgit2 cannot invoke external merge drivers — so linking it would silently disable our own — and `deny.toml` forbids linking GPL, which libgit2 is. Git stays a **capability**. | — |
 | **mlua** (`lua54`,`vendored`) | 0.12.0 | Optional scripting hatch (off by default). | MIT |
 | clap · thiserror · tempfile · tracing | 4.6.1 · 2.0.18 · 3.27.0 | CLI, errors, atomic temp files, logging. | MIT/Apache |
 
@@ -322,7 +322,7 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
  └────────────────────────────┘
 ```
 
-- **EDIT (textarea):** raw Markdown, always-focused capture. Typing stops → 500 ms → atomic write (temp+rename) via the existing `update_body` IPC, which does the `mtime` staleness check. Byte-identical round-trip is *trivial* here because a textarea holds literal bytes — no decoration layer can corrupt a note you also edit in Vim.
+- **EDIT (textarea):** raw Markdown, always-focused capture. Typing stops → 500 ms → atomic write (temp+rename) via the `update_body` command, which carries **two** staleness guards: `FileStore::put` compares the file's `mtime` against what it indexed, and `update_body` additionally refuses a write whose `base` (the `updated` stamp the caller last saw) has been superseded — the mtime check alone cannot see a pull that merged *and reindexed* under an open editor. Byte-identical round-trip is *trivial* here because a textarea holds literal bytes — no decoration layer can corrupt a note you also edit in Vim.
 - **READ (render component):** a Svelte view that parses the Markdown (pulldown-cmark or a small TS Markdown lib) and renders it nicely: inline **KaTeX** for `$…$`/`$$…$$`, **Mermaid** (lazy) for diagram blocks, and `WidgetType`-free HTML widgets for image/video/audio/pdf/excalidraw via the `asset:` resolver, each falling back to the shared **`AssetMissing`** placeholder. This is where "looks nice" lives in v1, and it is far lower risk than editing-surface decorations.
 - **Round-trip invariant + CI test:** `read → store → read === bytes`. It holds trivially for the textarea and re-applies unchanged when CM6 arrives in v2 (`read → mount in CM6 → toString() === bytes`). Build each read-view widget one element at a time, each gated by a round-trip fixture.
 
@@ -452,7 +452,7 @@ Files-as-truth with a file-level atom is the right call, but it has costs. Accep
 | YAML parse cost on reindex | 10k files × parse | Bounded by the <10 s full-reindex budget; cache by mtime+size if ever violated |
 | Filesystem quirks | Case-insensitivity, path length, unicode normalization | Filenames are **display only**; the id is truth; sanitize aggressively |
 | Auto-commit ≠ readable history | Thousands of `auto:` commits; `git log` is noise | Accepted — you bought *undo/crash-safety*, not a narrative. Don't build "commit management" |
-| No real-time collaboration, ever | Single-user by construction | Already a non-goal; do not revisit |
+| No *real-time* collaboration, ever | The atom is the file; real-time needs per-block ids | Still a non-goal — but **asynchronous** collaboration shipped (Track C): git remotes, the `.md` merge driver, per-vault audiences. Do not revisit the real-time half |
 
 ---
 

@@ -102,8 +102,10 @@ edit-gesture)._
   timer is a browser `setTimeout` that **dies with the tab** — and with `FM_AUTO_SHUTDOWN`
   closing the tab *is* how you quit, so "edit, then close" can skip that commit — and
   **`fm-cli`/Vim writes never commit** (no `fm commit` subcommand). Nothing surfaces "you
-  have uncommitted edits". Saving grace: `commit_all` is `git add -A`, so a missed change
-  rides along in the next commit, and files are already on disk via atomic temp+rename.
+  have uncommitted edits". Saving grace: `commit_all` stages the vault's own paths with
+  `-A` semantics *within* them, so a missed change rides along in the next commit, and files
+  are already on disk via atomic temp+rename. (It is no longer a bare `git add -A` — that
+  swept the surrounding project's half-written code in too.)
   So: **files are never at risk; commits can lag.** Don't restate this as "history is
   always safe" — it isn't. Also, the spec (`MASTERPLAN.md:350`) says "500 ms→disk,
   30 s/blur→commit": the code is 5 s with **no blur handler**, and `MASTERPLAN.md:391`
@@ -112,7 +114,8 @@ edit-gesture)._
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never
   report a local destination as "off this machine".
-- **Board column *and card* order are client-side** (`localStorage['fm-board-order']`
+- **Board column *and card* order are client-side, and column reorder is currently inert
+  in the pane workspace** (`localStorage['fm-board-order']`
   and `['fm-card-order']`, both keyed by group-by; card order additionally by
   column value) — view preferences, per-browser, **not** in the vault, so they
   don't sync across machines. Intentional; the vault-side `.view` file would
@@ -140,8 +143,6 @@ edit-gesture)._
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
-- `.view` declarative config files (layer-2 extensibility; the renderers are
-  hardcoded commands for now).
 - Optional mlua scripting hatch.
 - **v2:** CM6 live-preview editor, backlinks panel, watched inbox, OCR, video
   posters, semantic search. (Forward note references + the sliding-pane trail
@@ -183,7 +184,10 @@ edit-gesture)._
   `fm-serve::api()` itself is not "thin over `MultiStore`" — it dispatches over `Mutex<Vaults{
   MultiStore + Vec<VaultConfig>}>` with a documented single-lock discipline (`main.rs:31-37`) and
   a dozen arms that reach around the `Store` trait to per-vault paths. So there are **two** command
-  surfaces today, and any new frontend (the planned mobile bridge) is a **third**. Track M's
+  surfaces today, and any new frontend (the planned mobile bridge) is a **third**. *(Half
+  fixed 2026-07-18: `fm_app::dispatch` shipped and `fm-serve` is now a transport shell over
+  it — so there are **two** surfaces, not three-in-waiting. `fm-cli` still re-implements
+  against `fm-core`, which is the remaining fork.)* Track M's
   ruling 1 (extract `fm_app::dispatch`) exists to collapse these; until it lands, a change to a
   command's behaviour must be made in **both** `fm-app` and `fm-cli` or they drift. Found by the
   2026-07-18 mobile-port audit.
@@ -219,9 +223,11 @@ edit-gesture)._
   at `fm-serve` startup), which is the right trade — but a user in the browser sees
   the note **silently missing**, and the terminal is the only place that says why.
   The in-app list is Phase 1's "conflict surfacing" (`plan.md`).
-- **`fm-serve` has no tests at all.** The entire production transport is unverified,
-  and every UI test runs against `mock.ts` — so the real HTTP path is only ever
-  exercised by hand. Found by the 2026-07-17 audit.
+- **`fm-serve` is only partly tested.** The blob route now has real response-path tests
+  (a listener on port 0, a live socket: sniffed type, the `nosniff`/attachment allowlist,
+  `Range`/206/416, 404) and the query-args split has unit tests. Everything else — the CSRF
+  guard, the `Host` guard, static serving, the watchdog — is still exercised only by hand,
+  and every UI test runs against `mock.ts`. Narrower than it was; not closed.
 - **A backgrounded tab can shut the app down.** The heartbeat is 3s
   (`App.svelte:229`) but browsers throttle background timers to ~1/min, while the
   watchdog idles out at 10s (`main.rs:91`). Only bites with `FM_AUTO_SHUTDOWN`
@@ -256,7 +262,9 @@ edit-gesture)._
   board grouped by `type` has only a `note` column *by design* — don't "fix" it.
   Keep `search`/`gallery` seeing assets: search is the only way to find a PDF by
   its extracted text, and the `/` menu's asset insertion rides on it.
-- **`pixi run ci` does NOT typecheck Svelte.** It is `test, test-ui, deny,
+- **~~`pixi run ci` does NOT typecheck Svelte~~ — FIXED 2026-07-18** (`check-ui` runs
+  svelte-check, and `vite build` still does not typecheck, which is why the task exists).
+  The original entry: it was `test, test-ui, deny,
   checks, docs` — no `svelte-check`, and no `vite build` either. A `.svelte` file
   can be type-broken with CI green. After component work run
   `pixi run pnpm -C ui check` (and `pixi run pnpm -C ui build`) by hand.

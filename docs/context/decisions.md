@@ -275,16 +275,27 @@ custom-property columns (`--rail`/`--main`/`--trail`) so rail-collapse and the t
 without a combinatorial explosion of `grid-template-columns` rules. `wide` (already persisted)
 stops meaning "modal vs less modal" and starts meaning "the note takes the whole content area
 vs docks beside the view" — which is what a user always thought it meant. **Rejected, and this
-is the load-bearing part:** a **pane grid** (pick N splits, any view in any cell). It is
-configurability standing in for design with one user who knows the layout he wants; it adds a
-*second, incompatible* pane concept beside the trail; its central claim — *the panes lay out
-correctly* — is unverifiable by `pixi run ci` (jsdom has no geometry, the e2e tree was
-deleted); and a saved arrangement is what `.view` files are *for*. Also rejected: threading
-`groupBy` through `onMove`/`onReorder` to fix their global-capture — that bug is only
-reachable with two boards on screen, i.e. the pane grid, so fixing it now is speculative work
-for a rejected feature. **The stopping line:** the content area holds the current view and,
-when open, the note trail beside it — two regions, fixed. A pane cannot contain a pane. If a
-saved arrangement is ever wanted, it is a `.view` file.
+is the load-bearing part — REVERSED 2026-07-18; the pane grid shipped:** a **pane grid**
+(pick N splits, any view in any cell). The objections, and what became of each:
+
+- *"Configurability standing in for design"* — the owner asked for it directly, which is the
+  one thing that settles this class of argument.
+- *"A second, incompatible pane concept beside the trail"* — resolved by **deleting the
+  trail**: a note became a pane kind (`kind:'note'`), so there is one pane concept, not two.
+  That is what made the reversal safe rather than additive.
+- *"Unverifiable by `pixi run ci`"* — **this one stood.** The layout is still not verified by
+  CI: `panes.ts` is a pure, tested core (pane list, spans, feed-key dedup) and the geometry is
+  not. The precedent still holds — the phone reflow is media-query-only for the same reason.
+- *"A saved arrangement is what `.view` files are for"* — wrong, and usefully so. A `.view` is
+  *a query plus a renderer*; an arrangement is which panes are on screen. Different things,
+  and `.view` shipped separately.
+- Also rejected at the time: threading `groupBy` through `onMove`/`onReorder`. That bug is
+  reachable exactly when two boards are on screen — i.e. under the pane grid — so it became
+  real the moment this reversed, and was fixed with it.
+
+**The stopping line, as it now stands:** a flat pane list plus spans, **not** a recursive
+split tree. A pane still cannot contain a pane — the part of the original ruling that
+survived, because the split tree is the one shape with no natural stopping point.
 
 ## A vault is created, not invented; the vault list gains its first writer (2026-07-17)
 **Why:** `load_vaults()` read `vaults.json` and **nothing wrote it** — hand-edited JSON, so
@@ -703,7 +714,7 @@ the **asset note's body** (git-tracked, FTS-indexed), and makes a thumbnail.
 ## Markdown→HTML is JS `marked`, not Rust pulldown-cmark
 **Why:** it shipped that way; the MASTERPLAN's "pulldown-cmark→HTML" line never
 materialized (the crate is absent). **Consequence:** the only HTML assembly is
-one `marked.parse()` in `render.ts`. Note the unsanitized-innerHTML gap in
+one `marked.parse()` in `render.ts`. *(That output is now sanitized with DOMPurify before the DOM sees it — see the sanitize entry.)* The then-unsanitized-innerHTML gap in
 [known-issues.md](./known-issues.md).
 
 ## No plugin API
@@ -745,8 +756,15 @@ of undo and say *don't build commit management*. That holds for the **local**
 repo, but the remote is a different audience: auto-commit fires every few seconds
 of editing, so pushing raw would make the GitHub history unreadable.
 **Consequence:** `git::push_squashed` collapses the unpushed window into one
-`backup:` commit (`reset --soft <tracking-ref>` + commit). Two constraints are
+`backup:` commit (`reset --soft <base>` + commit). Three constraints are
 load-bearing:
+- **Only *our* commits are the window** (added 2026-07-18, Track V). The
+  justification above — auto-commit fires every few seconds — justifies collapsing
+  what *we* wrote and nothing else. `newest_foreign` walks `tracking..HEAD` and
+  stops the squash at the first commit whose subject is not `auto:`/`backup:`, so
+  three hand-written manuscript commits in a vault that is also a project repo stay
+  three commits. Discriminated by **message prefix, never author**: we commit as the
+  user's own identity, so an author test classifies everything as ours.
 - **Never squash the first push.** With no tracking ref, "unpushed" means the
   *entire* history — destroying history that has never left the machine is
   exactly backwards. First push sends it whole; every later push is one commit.

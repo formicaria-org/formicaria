@@ -29,8 +29,8 @@ second copy of the table below.
 | `open_external`  | `reference`                  | —                      | opens the blob in the OS default app |
 | `commit`         | `message`                    | `bool`                 | git-commit the vault; `false` if clean |
 | `push`           | `message`                    | `u32`                  | squash the unpushed window → push; returns commits squashed (0 on the first push) |
-| `backup_status`  | —                            | `BackupStatus`         | `{remote, unpushed, restic_repo, restic_ready}` — never the restic password |
-| `set_git_remote` | `url`                        | —                      | sets the vault's `origin`; blank URL refused |
+| `backup_status`  | —                            | `BackupStatus`         | `{vaults, git, restic}`; each vault carries `{name, remote, unpushed, identity, remote_moved, conflicts, restic_repo, restic_ready}` — never the restic password |
+| `set_git_remote` | `vault`, `url`, `name`, `email` | —                   | sets the vault's `origin`, and its git identity when `name`/`email` are non-empty (asked only of a vault git has never met); blank URL refused |
 | `backup`         | `vault`                      | —                      | restic snapshot, media included (env repo/password) |
 | `pull`           | `vault`                      | `{merged, conflicts}`  | fetch + merge through the `.md` driver; `conflicts` is a *result*, not an error |
 | `delete`         | `id`                         | —                      | unlinks the file and both index rows |
