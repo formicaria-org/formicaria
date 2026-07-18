@@ -24,6 +24,7 @@ authoritative design document; these files are the fast-recall layer over it.
 | [known-issues.md](./known-issues.md) | what's broken/rough/deferred, and the traps (toolchain, sandbox, CI greps) that will bite you. |
 | [plan.md](./plan.md) | **the forward program** — the sequenced plan (knowledge + scheduling + collaboration) and *why not the obvious alternative*. The file here describing things that do **not** exist yet. |
 | [collaboration-design.md](./collaboration-design.md) | the line-by-line **code audit** behind `plan.md`'s Track C — the receipts (the `candidates` seam, the `reconcileElements` autopsy, the `push_squashed` trap). Read it when `plan.md` sends you for detail. |
+| [mobile-design.md](./mobile-design.md) | the design + code audit behind `plan.md`'s **Track M** (formicaria on the phone) — the receipts: the `fm_app::dispatch` extraction, the `git2`/`git2::merge_file` port, PAT-first auth, the reversals owned, the staged M0–M8 sequence. |
 | [sessions/](./sessions/) | the narrative history — one append-only entry per working session, newest kept. |
 
 ## Update discipline

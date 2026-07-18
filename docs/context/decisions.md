@@ -5,6 +5,67 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## Mobile is the app on the phone, not a thin client — one core, git-coordinated (2026-07-18)
+**Why:** the owner overrode `MASTERPLAN:57`, which deferred mobile as *"a server + auth
+decision"* (the phone as a thin client to the laptop's `fm-serve`). The goal is an app that runs
+**on the phone itself** — collaborate with yourself/others across devices over the *same* git-repo
+vaults, feature-parity of every view including the whiteboard, editable and merged on both
+platforms — under one constraint: **minimal decade-scale maintenance.** That constraint plus
+*"not two parallel workflows / seen seamlessly"* both point to **one shared Rust core reused on
+both platforms**, not a second implementation (a PWA would re-implement `merge`/`query` in JS and
+could diverge on the exact concurrent edits sync must reconcile — silent loss on the one operation
+that matters). **Recommended:** Tauri v2 mobile, Android first, embedding `fm-core`/`fm-query`/
+`fm-model`/`fm-app`; the phone is a *thin frontend*, nothing in the core forks. Full design +
+audit in [`mobile-design.md`](./mobile-design.md); sequence in [`plan.md`](./plan.md) Track M.
+**Consequence** — the rulings, each a fix an adversarial review + three code audits forced:
+
+- **One command surface (the load-bearing fix).** The premise *"`fm-app` is already fronted by
+  `fm-serve` and `fm-cli`, so nothing forks"* is **false**: `fm-cli` reimplements against
+  `fm-core` (no `fm-app` dep), `fm-serve::api()` is a second surface, a Tauri bridge would be a
+  third. Extract `api()`'s `match` + the single-lock `Vaults{MultiStore + Vec<VaultConfig>}`
+  discipline into `fm_app::dispatch`; both transports go thin over it. This is what makes "one
+  command library" *true*, and it precedes every milestone.
+- **Two reversals, owned in writing.** (1) **`git2` in `fm-core` reverses "git is a capability,
+  not a dependency"** — linking libgit2 compiles a git implementation (and its NDK C
+  cross-compile) into the core *always*, even for a git-less desktop user; in exchange in-process
+  git beats "hope `git` is on PATH", so `git::available()` becomes effectively always-true and its
+  callers repoint at identity/remote. One backend on purpose (a `#[cfg]` two-impls-forever is the
+  trap "minimal maintenance" rejects); `gix` stays the documented pure-Rust swap once its push
+  ships. (2) **A Keystore-held token reverses "the app stores no secret of its own"** — scoped to
+  the fact a phone has no ambient credential-helper; encrypted under an Android Keystore key,
+  never in prefs or the remote URL.
+- **Auth is PAT-first (user-owned, un-vendored), OAuth device flow optional.** A pasted
+  fine-grained token is host-agnostic (Gitea included) and needs no vendored OAuth-App
+  registration on the critical path; OAuth is the convenience. A **per-URL injected
+  `CredentialSource`** (not a global `OnceLock<Fn>`) serves multi-repo + refresh + tests;
+  **`set_identity` on clone** keeps the `PLACEHOLDER_EMAIL` provenance sentinel honest on mobile.
+- **Merge stays in the libgit2 family.** Swap the body engine to **`git2::merge_file`/
+  `MergeFileOptions`** (labelled, marker-sized — zero new deps, max fidelity to the on-disk
+  format), *not* a niche crate on the one path that must never corrupt. The desktop `.md` driver
+  **stays installed**; driver + both app-pulls call the same `merge_files`; a differential test
+  (vs `git merge-file`) gates the swap.
+- **Sync is a seam, git one provider — but build nothing extra.** A thin `SyncProvider` trait with
+  `GitSyncProvider` as the *sole* impl; design against Syncthing's profile *on paper*; make
+  `history`/authorship a **queried optional capability** (that is the test the seam isn't
+  git-shaped). Backends default free & serverless (rclone → ~70 backends; a free private GitHub/
+  GitLab repo is the zero-server option), self-hosted first-class. **Keeps "no CRDT / no sync
+  framework" intact** — extends "a bare git remote is the coordinator" to "coordinator is a role."
+- **Auto-push is explicit, never silent** (`reject → pull → merge → re-push`), or the naive
+  "auto-push after commit" wedges into the documented best-effort-and-silent failure loop against
+  `push_squashed`'s deliberate reject-on-moved-remote. **Build the real streaming `GET
+  /api/blob/<hash>`** (it never existed) for both platforms. **Mobile shell stays trivially CSS**
+  (the pane-grid "unverifiable by CI" precedent applied, so it earns no e2e).
+
+**Rejected:** a mobile PWA (a second, divergent merge/query implementation — the exact silent-loss
+risk); CRDT/per-block ids (voids "the atom is the file", doesn't merge media, for a real-time we
+don't need); a global-closure credential source (can't serve N repos, can't rotate on 401,
+untestable); killing the desktop merge driver (reintroduces frontmatter corruption on terminal
+`git pull`); **Path A (transport-only) as the *end state*** — it retreats toward the
+satellite-of-desktop model this decision overrides and fails a phone-only collaborator, so it is a
+low-risk *early demo*, not where Track M lands. **Top risk carried:** the Android SDK/NDK are not
+conda-packaged, so the toolchain escapes the pixi-only house rule — pin the whole matrix in CI
+(≠ `pixi.lock` reproducibility).
+
 ## Collaboration is git, *exposed* — not reimplemented (2026-07-18)
 **Why:** the machinery (per-vault git, `.md` merge driver, push/pull, signed identity) already
 shipped; git knows who changed what and when, but nothing surfaced it. The user's framing: *use

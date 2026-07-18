@@ -4,7 +4,9 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
+_Last verified: 2026-07-18 (the mobile-port code audit re-verified git/merge/serve/UI anchors;
+see `sessions/2026-07-18-mobile-port-plan.md`). Prior: 2026-07-16 (assets/status/kanban/
+slash-menu/edit-gesture)._
 
 ## Known gaps / not fully working
 
@@ -125,6 +127,18 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   `packaging/install.sh` now **generates** it from the real checkout path. Moving the repo
   = re-run `install.sh`; there is no fixing it from inside the file.
 
+- **`fm-cli` does NOT front `fm-app` — the command logic is forked in two.** Despite the
+  overview's "one command library behind two frontends" framing, `crates/fm-cli/Cargo.toml` has
+  **no `fm-app` dependency** and `fm-cli/src/main.rs` reimplements the commands against `fm-core`
+  directly (e.g. `Cmd::Add` at `main.rs:131-146` rebuilds ingest instead of calling
+  `commands::ingest`). Only **`fm-serve`** is a thin frontend over `fm-app::commands`; and
+  `fm-serve::api()` itself is not "thin over `MultiStore`" — it dispatches over `Mutex<Vaults{
+  MultiStore + Vec<VaultConfig>}>` with a documented single-lock discipline (`main.rs:31-37`) and
+  a dozen arms that reach around the `Store` trait to per-vault paths. So there are **two** command
+  surfaces today, and any new frontend (the planned mobile bridge) is a **third**. Track M's
+  ruling 1 (extract `fm_app::dispatch`) exists to collapse these; until it lands, a change to a
+  command's behaviour must be made in **both** `fm-app` and `fm-cli` or they drift. Found by the
+  2026-07-18 mobile-port audit.
 - **`pixi run build` must build `fm`, not just `fm-serve`.** `ensure_repo` installs the
   `.md` merge driver by pointing git at the `fm` binary **beside the running one**, and
   deliberately installs nothing when it can't find one. So a build task that ships only

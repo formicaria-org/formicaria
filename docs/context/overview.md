@@ -4,7 +4,12 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **Collaboration is git, exposed** (not reimplemented)
+_Last verified: 2026-07-18 — **Track M — mobile was *planned*** (not built): formicaria on the
+phone **itself**, overriding `MASTERPLAN:57`'s "phone = thin client" framing — one shared Rust
+core, git-coordinated across devices (`sessions/2026-07-18-mobile-port-plan.md`; design in
+[mobile-design.md](./mobile-design.md), rulings + the two reversals in
+[decisions.md](./decisions.md), sequence as Track M in [plan.md](./plan.md)). Nothing mobile
+exists yet. Before that, **Collaboration is git, exposed** (not reimplemented)
 (`sessions/2026-07-18-git-collaboration-visualized.md`). One read-only `git::activity` (a
 `git log --name-only` over `notes/*.md`, where a file's stem *is* its ULID) yields each note's last
 editor, and that single command powers all of it: **`EditedBy` labels** ("● name · 5m ago") on

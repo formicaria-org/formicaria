@@ -9,14 +9,18 @@ sequence and the rulings; that file carries the receipts.
 Like the collaboration doc, most of what's below does **not exist yet**. When a line
 ships, delete it here and fold the outcome into `overview.md` / `decisions.md`.
 
-_Last updated: 2026-07-17, after **Track V's V1 shipped** (the first-run gate + the vault
-list's first writer — `sessions/2026-07-17-create-vault.md`) and the UI direction was set:
-**sanitize `render.ts`, de-modalize the note trail, then earn `.view`** (the layout ask
-turned out to be `MASTERPLAN:323`'s own deferred design, not a new feature). Before that,
-**Track C Phases 0, 1 and 2 shipped** and the rename landed with them: a shared vault works
-end-to-end and the plural is literally true. **Next: Track V's V2 (four live co-tenancy bugs,
-two silent) gates V3–V4; the UI track is independent.** Everything not marked SHIPPED still
-describes things that do not exist._
+_Last updated: 2026-07-18, after **Track M — mobile was planned** (formicaria on the phone;
+the owner overrode `MASTERPLAN:57`'s "phone = server + auth" framing — the app runs **on the
+phone itself**). The design + receipts are in [`mobile-design.md`](./mobile-design.md); a
+compact Track M is below; the load-bearing rulings and two reversals are in `decisions.md`.
+Before that, **Track V's V1 shipped** (the first-run gate + the vault list's first writer —
+`sessions/2026-07-17-create-vault.md`) and the UI direction was set: **sanitize `render.ts`,
+de-modalize the note trail, then earn `.view`** (the layout ask turned out to be
+`MASTERPLAN:323`'s own deferred design, not a new feature). Before that, **Track C Phases 0, 1
+and 2 shipped** and the rename landed with them: a shared vault works end-to-end and the plural
+is literally true. **Next: Track V's V2 (four live co-tenancy bugs, two silent) gates V3–V4; the
+UI track is independent; Track M is a multi-week program, spikes-first.** Everything not marked
+SHIPPED still describes things that do not exist._
 
 ## The vision — *formicaria*
 
@@ -316,6 +320,63 @@ local and writable, and multiple writers is what git is *for*; it always acts as
 owns it. (A "guest vs owner" mode was proposed and rejected: the distinction that survives is
 **whose commits**, and git answers that.)
 
+### Track M — formicaria on the phone (planned 2026-07-18)
+
+**The owner overrode `MASTERPLAN:57`.** Not "phone as a thin client to the laptop's server" —
+the **app runs on the phone itself**, so you collaborate with yourself (and others) across
+devices over the *same* git-repo vaults, with **feature parity of today's views** (notes, Board,
+Agenda/Calendar, Timeline, Search, and the Excalidraw whiteboard), editable and merged on both
+platforms. Multiple repos = N remotes = the desktop `MultiStore` model, unchanged. Constraint:
+**minimal decade-scale maintenance.** Recommended: **Tauri v2 mobile, Android first, reusing the
+entire Rust core** — the phone is a *thin frontend over the same shared core*, nothing forks.
+
+Full design, code audit, and staged sequence (spikes → M0–M8) in
+[`mobile-design.md`](./mobile-design.md). This entry carries only the sequence-defining rulings
+(the detail, and *why not the alternative*, is over there):
+
+1. **One command surface — extract dispatch into `fm-app`.** The tempting story ("`fm-app` is
+   already fronted by `fm-serve` *and* `fm-cli*`, so nothing forks") is **false**: `fm-cli`
+   reimplements against `fm-core`; `fm-serve::api()` is a second surface; a Tauri bridge would be
+   a third. Factor `api()`'s `match` + the single-lock `Vaults{MultiStore + Vec<VaultConfig>}`
+   discipline into `fm_app::dispatch`; both transports become thin over it. This is the fix that
+   makes "one command library" true — and it precedes every mobile milestone.
+2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only.** *All ~13* git ops
+   shell out today (not "only 3 network fns"), so all reimplement against `git2` (mature HTTPS
+   push; `gix` push isn't shipped — keep it as the documented pure-Rust future swap). This makes
+   **git2 the single desktop backend too** — logged as reversing "git is a capability, not a
+   dependency" (in-process git beats "hope `git` is on PATH"; repoint `available()` callers at
+   identity/remote).
+3. **Merge body: `git2::merge_file`/`MergeFileOptions`, not a new crate.** libgit2's own labelled,
+   marker-sized 3-way merge — zero new deps, max fidelity to the on-disk conflict format. The
+   desktop `.md` driver **stays installed**; driver + both app-pulls call the same `merge_files`.
+   A differential test (new engine vs `git merge-file` over random triples) gates the swap.
+4. **Auth: PAT-first (user-owned, host-agnostic, un-vendored); OAuth device flow optional.** Token
+   Keystore-encrypted — a **scoped reversal** of "the app stores no secret" (a phone has no
+   ambient credential-helper). Inject a per-URL `CredentialSource` into the three network fns
+   (serves multi-repo + refresh + tests); **`set_identity` on clone** so mobile commits carry real
+   provenance (the `PLACEHOLDER_EMAIL` sentinel).
+5. **Build the real streaming `GET /api/blob/<hash>`** (it never existed — blobs still buffer
+   whole into RAM) once, for both platforms (`Range` + `sniff_mime`); mobile media over `blob://`.
+6. **Efficiency:** lifecycle-driven reindex (drop the 3 s poll) + incremental cold-start open —
+   both machinery already in the tree. **Auto-push is explicit** (`reject → pull → merge →
+   re-push`), never the silent-loop the naive "auto-push after commit" would wedge.
+7. **Mobile shell stays trivially CSS** (media-query reflow of the *already-tested* shared
+   renderers, no new stateful layout) — the pane-grid rejection precedent (`decisions.md`,
+   "unverifiable by CI") applied so it earns no e2e. Board's touch gap (pragmatic-DnD's element
+   adapter doesn't fire on touch) gets a tap→move-to-column fallback.
+8. **Sync is a seam, git one provider** — a thin `SyncProvider` trait with `GitSyncProvider` as
+   the *sole* impl; build no second provider now (design against Syncthing's profile *on paper*;
+   make `history` a queried optional capability). Backends default free & serverless (rclone → ~70
+   backends; a free GitHub/GitLab private repo is the zero-server option), self-hosted first-class.
+   Keeps "no CRDT / no sync framework" intact.
+
+**Open fork (per-install config, not a rewrite):** **Path B** (on-device `git2`) is the
+destination — the real "the app runs on the phone." **Path A** (transport-only; desktop records,
+a free transport replicates) is a low-risk *early demo* — but it retreats toward the
+satellite-of-desktop model the owner overrode and fails a phone-only collaborator, so it is not
+the end state. **Top risk:** the Android SDK/NDK are not conda-packaged, so the toolchain escapes
+pixi — pin the whole matrix in CI (this ≠ `pixi.lock` reproducibility).
+
 ## Cross-cutting decisions carried in (don't re-derive)
 
 - **Real-time never exists.** Target fast-async; a bare git remote *is* the coordinator (a
@@ -349,6 +410,8 @@ folder's own rule, **the code wins**. Known-stale, left uncorrected in the spec 
   rather than in it, so it now covers `set_property` and every future writer too.
 - **`pulldown-cmark → HTML` never materialized** — the only HTML assembly is one
   `marked.parse()` in `render.ts`.
+- **`:57`'s "mobile = a server + auth decision" (phone as thin client) is overridden** — Track M
+  runs the app **on the phone itself** (see `mobile-design.md`, `decisions.md`).
 
 ## Verification (each slice, when it ships)
 
