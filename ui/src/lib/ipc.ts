@@ -176,7 +176,8 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
  *  cannot see on their own because they are served from the index. `git` says whether this
  *  machine has git at all — **not a dependency, a capability**: the notebook works without
  *  it, only history does not. */
-export const ping = () => invoke<{ changed: boolean; git: boolean }>('ping');
+export const ping = () =>
+  invoke<{ changed: boolean; git: boolean; skipped: string[] }>('ping');
 
 /** The audiences that exist. `[]` is the first-run signal — the one answer that means
  *  "nothing else in this app can work yet". */

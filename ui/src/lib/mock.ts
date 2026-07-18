@@ -403,7 +403,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.
-      return { changed: false, git: true } as T;
+      return { changed: false, git: true, skipped: [] } as T;
     case 'commit':
       return false as T;
     case 'backup':

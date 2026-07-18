@@ -411,3 +411,52 @@ fn an_explicit_name_beats_the_descriptors() {
 
     assert_eq!(store.name(), "my name");
 }
+
+/// A conflicted note appears **mid-session**, when a pull lands — not at startup. So the
+/// skipped list has to stay current across incremental reindexes, or the app can only ever
+/// report the notes that were already broken when it opened.
+///
+/// This is what lets the UI say "3 notes could not be read" instead of those notes simply
+/// being absent from every view with no explanation, which is what stderr-at-startup meant
+/// in a browser-first product.
+#[test]
+fn a_note_that_breaks_mid_session_shows_up_in_skipped() {
+    let dir = tempdir().unwrap();
+    let notes = dir.path().join("notes");
+    std::fs::create_dir_all(&notes).unwrap();
+    let good = Object::new(Kind::Note, "fine");
+    std::fs::write(
+        notes.join(format!("{}.md", good.id)),
+        fm_core::frontmatter::to_file(&good).unwrap(),
+    )
+    .unwrap();
+
+    let mut store = FileStore::open(dir.path()).unwrap();
+    assert!(store.skipped().is_empty(), "a healthy vault reports nothing");
+
+    // A merge lands markers inside the YAML fence — the usual cause.
+    std::fs::write(
+        notes.join("01JQ0000000000000000000000.md"),
+        "---\nschema: 1\nid: 01JQ0000000000000000000000\n<<<<<<< ours\ntitle: mine\n=======\ntitle: theirs\n>>>>>>> theirs\n---\nbody\n",
+    )
+    .unwrap();
+    store.reindex(Reindex::Incremental).unwrap();
+
+    assert_eq!(store.skipped().len(), 1, "named after the poll, not only at open");
+    assert!(
+        store.skipped()[0].contains("01JQ0000000000000000000000.md"),
+        "and says which file: {:?}",
+        store.skipped()
+    );
+
+    // It must also be re-reported on every later beat — an unreadable note has no index row,
+    // so it is re-read each pass. If it were only reported once, a tab opened afterwards
+    // would never learn about it.
+    store.reindex(Reindex::Incremental).unwrap();
+    assert_eq!(store.skipped().len(), 1, "still reported on the next beat");
+
+    // …and clears the moment a human fixes it.
+    std::fs::remove_file(notes.join("01JQ0000000000000000000000.md")).unwrap();
+    store.reindex(Reindex::Incremental).unwrap();
+    assert!(store.skipped().is_empty(), "resolved means silent again");
+}

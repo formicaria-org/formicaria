@@ -50,7 +50,15 @@ before committing to it.
 
 ## 2. The app knows something is wrong and does not say so
 
-### 2.1 An unreadable note is stderr-only
+### 2.1 ~~An unreadable note is stderr-only~~ — FIXED 2026-07-18
+`ping` now carries `skipped`, and the UI states it: *"N note(s) could not be read and are
+missing from every view — usually a conflicted merge"*, naming each one. Keyed on the set
+rather than a count, so a persistent conflict is not a notification every fifteen seconds and
+a *new* one is not swallowed because an older one is already showing. Pinned by a test that a
+note breaking **mid-session** is reported — a conflict arrives when a pull lands, not at
+startup, which is exactly what stderr-at-startup could never say.
+
+The original entry:
 `FileStore::skipped()` names every note that could not be parsed — a conflicted merge is the
 usual cause — and `fm-serve` prints it to **stderr at startup**. In the browser, which is the
 product, those notes are simply absent from every view with no explanation. This is the one

@@ -156,6 +156,9 @@
   // vault that cannot commit is stated rather than swallowed — and stated rather than
   // repeated every five seconds.
   let saidCommitFailed = false;
+  // The last set of unreadable notes we told the user about, joined. Compared rather than
+  // counted so that "one conflict resolved, a different one appeared" is still announced.
+  let lastSkipped = '';
 
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let commitTimer: ReturnType<typeof setTimeout> | undefined;
@@ -462,6 +465,26 @@
           notice =
             'git isn\'t installed — your notes are saved as files, but not versioned. ' +
             'Install git for history, backup and sharing.';
+        }
+      }
+      // Notes the vault could not read — usually a conflicted merge. They are absent from
+      // every view, so saying nothing means they have simply vanished as far as anyone
+      // using the app can tell. This used to go to stderr, which in a browser is nowhere.
+      //
+      // Keyed on the set itself, so it is stated when it changes and not on every beat: a
+      // conflict that persists must not become a notification every fifteen seconds, and a
+      // *new* one must not be swallowed because an older one is already showing.
+      if (r) {
+        const key = r.skipped.join('\u0000');
+        if (key !== lastSkipped) {
+          lastSkipped = key;
+          if (r.skipped.length) {
+            report(
+              `${r.skipped.length} note(s) could not be read and are missing from every ` +
+                `view — usually a conflicted merge. Open them in an editor and resolve the ` +
+                `markers: ${r.skipped.join('; ')}`,
+            );
+          }
         }
       }
       if (r?.changed) await refresh();

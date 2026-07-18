@@ -321,10 +321,15 @@ pub fn dispatch(
         // precisely because riding one beat forced this to run every 3 s, taking the vault
         // lock each time. Quiet is the common case and quiet is a stat per file.
         "ping" => {
-            let changed = lock()?.store.reindex(Reindex::Incremental).map_err(err)?;
+            let mut g = lock()?;
+            let changed = g.store.reindex(Reindex::Incremental).map_err(err)?;
             json(Ping {
                 changed: changed.updated > 0 || changed.removed > 0,
                 git: git::available(),
+                // Taken from the store rather than from `changed`, because this is the
+                // *current* set across every vault, labelled by which one — not just what
+                // this pass happened to re-read.
+                skipped: g.store.skipped(),
             })
         }
         // The audiences that exist. `[]` is **the first-run signal** — the one command
@@ -525,6 +530,18 @@ struct Ping {
     /// to say so once instead of failing silently forever. Rides the heartbeat because
     /// the check is cached and the tab already beats.
     git: bool,
+    /// Notes that could not be read, as `vault: filename: why`.
+    ///
+    /// **The app knew this and only told a terminal.** A vault opens even when a note is
+    /// unparseable — usually a conflicted merge, and refusing to start would take away the
+    /// app you need to fix it — but those notes are then absent from *every* view. That was
+    /// printed to stderr at startup, which in a browser-first product means nobody sees it:
+    /// the note is simply gone, with no reason given and no way to ask.
+    ///
+    /// Rides the heartbeat rather than being its own command because it must stay current —
+    /// a conflicted note appears mid-session, when a pull lands, not at startup. Almost
+    /// always empty, so it costs a `[]` per beat.
+    skipped: Vec<String>,
 }
 
 /// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have

@@ -71,7 +71,7 @@ audit in [`mobile-design.md`](./mobile-design.md); sequence in [`plan.md`](./pla
 - **Auto-push is explicit, never silent** (`reject → pull → merge → re-push`), or the naive
   "auto-push after commit" wedges into the documented best-effort-and-silent failure loop against
   `push_squashed`'s deliberate reject-on-moved-remote. **Build the real streaming `GET
-  /api/blob/<hash>`** (it never existed) for both platforms. **Mobile shell stays trivially CSS**
+  /api/blob/<hash>`** — ✅ SHIPPED 2026-07-18 as `GET /api/blob/<reference>` (`fm-serve/src/blob.rs`) — for both platforms. **Mobile shell stays trivially CSS**
   (the pane-grid "unverifiable by CI" precedent applied, so it earns no e2e).
 
 **Rejected:** a mobile PWA (a second, divergent merge/query implementation — the exact silent-loss
@@ -154,7 +154,7 @@ author is the merger). That single command powers **all** collaboration visualis
   (chips like the vault filter; `App.shown` gained an author check, so one click hides a person
   everywhere).
 - **Automatic "someone pushed" awareness** — a slow, visibility-gated `remote_moved` network poll
-  (not the 3 s heartbeat) feeding a one-click-pull chip, wiring the deferred item with existing
+  (not the 15 s heartbeat) feeding a one-click-pull chip, wiring the deferred item with existing
   commands.
 **Rejected / deferred:** storing any authorship (git already knows — the app writes nothing);
 "created by" and per-commit logs (last-editor map is the MVP); anchored comments (need the
@@ -339,7 +339,7 @@ trap that survives: with one, `lock(state)` + a separate `state.vault()` is a
 guard they already hold. `config()` returns **owned**, which is also what lets `ingest`
 borrow `&mut store` at the same time. And the guard is dropped before I/O everywhere except
 `commit`/`push`/`pull`: `backup_status` shells out per vault including a network
-`ls-remote`, and holding it across that would stall every 3 s `ping`.
+`ls-remote`, and holding it across that would stall every 15 s `ping`.
 
 **`writable` is probed, never inferred from mode bits.** Create and remove a temp entry.
 Configuration is not capability — the `restic_ready` rule applied verbatim. Likewise the
@@ -355,7 +355,7 @@ to be empty.
 **Rejected:** a native folder dialog (a browser cannot pick a server's directory, and
 shelling out to zenity means the core spawns a process to do its own first run — so: a typed
 path, validated server-side per keystroke); moving the config into `fm-core` (it is env by
-definition, and `main.rs:652` already rules that fm-core stays free of environment and
+definition, and `fm-app/src/vaults.rs:3` already rules that fm-core stays free of environment and
 configuration concerns); an `open_lossy` for the startup panic (real, but pre-existing and
 uncoupled — see `known-issues.md`).
 
@@ -720,7 +720,7 @@ one `marked.parse()` in `render.ts`. *(That output is now sanitized with DOMPuri
 ## No plugin API
 **Why:** plugin APIs rot and become a compatibility burden. **Consequence:**
 extend via modular Rust (add a renderer / store / extractor), declarative
-`.view` files (planned), a one-file theme (design tokens), and an optional mlua
+declarative `.view` files, a one-file theme (design tokens), and an optional mlua
 hatch — never a stable plugin surface.
 
 ## Tauri was the light choice; a native-GUI rewrite is rejected

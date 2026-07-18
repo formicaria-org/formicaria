@@ -116,7 +116,7 @@ over one file. Verified structurally (CI green, 164 UI tests) but **not seen** �
 extension is not connected, so the owner's eyes remain the layout check. Before that, **`.view`
 files: saved queries, any renderer**
 (`sessions/2026-07-17-view-files.md`). A `.view` (YAML, in `vault/views/`, git-tracked) is
-`query + a renderer` — `MASTERPLAN:323`'s own deferred design, now built. Parsed server-side
+`query + a renderer` — `MASTERPLAN:329`'s own deferred design, now built. Parsed server-side
 in `fm-app/views.rs` → `fm_query::Query`; the UI sends a **name** (`list_views`/`run_view`),
 so no `Query` crosses the wire — which keeps serde off the pure crates and the
 `PropertyValue` `Ord` trap unreachable (the DSL has no ordered `prop` comparison; dates go
@@ -408,15 +408,15 @@ body edit (byte round-trip), a **click-to-rotate status chip** on cards and in t
 note header (`status.ts`'s `nextStatus` over the vault's own values — no literal),
 asset ingest + drag-drop + inline media
 (img/PDF/video/audio, incl. SVG via a content sniff), **note→note references**
-(`[Title](note:<ulid>)` → a title+status chip → opens a pane in the trail),
+(`[Title](note:<ulid>)` → a title+status chip → opens the target as a pane in the workspace),
 a `/` slash-insert menu **anchored at the caret** (`caret.ts`, mirror-div) that
 seeds with `recent` notes and searches **both notes and assets**, **two-tier backup**
 (push notes by default / tick to add restic media; tested restore),
 verify/manifest (bit-rot), debounced git auto-commit (**every vault**, surfacing its first
 failure rather than swallowing it — commits can still lag, see known-issues), a
 design-token system (dark+light), the horizontal top-bar shell, the NotePanel
-(**full screen by default**, toggle to a docked side-sheet; remembered per
-browser), note delete (double-confirm), a ⌘K command palette,
+(a pane like any other — `kind:'note'`, one column wide by default, with a toggle that
+maximizes it across the workspace grid; the whole `Workspace` is remembered per browser), note delete (double-confirm), a ⌘K command palette,
 an mdBook manual, and a `.desktop` launcher.
 
 See [known-issues.md](./known-issues.md) for what is **not** working / deferred,
