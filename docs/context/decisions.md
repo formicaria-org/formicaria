@@ -5,6 +5,153 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## `.view` files are parsed server-side; the wire carries a name, never a query (2026-07-17)
+**Why:** the user asked for a customizable multi-pane workspace; three designs + an
+adversarial critic found the ask was already `MASTERPLAN.md:323` — *"five generic renderers =
+query + a renderer, `.view` config files remain planned"* — and that the tempting route
+(put `Query`/`Filter` on the wire so the UI builds filters) has two traps. **Consequence:** a
+`.view` is a YAML file in `vault/views/`, parsed **server-side** (`fm-app/views.rs`) into an
+`fm_query::Query`; the UI sends only a **name** (`list_views`/`run_view`). Four properties are
+load-bearing:
+
+**No `Query` on the wire.** Putting it there would force serde onto `fm-query`/`fm-model`,
+where `Object.vault` is *never serialized on purpose* (else the permission is forgeable by a
+typo), and would hand a client `PropertyValue`'s variant-order `Ord` trap. A name crossing the
+wire has neither risk. (Note the CI grep would **not** have caught serde on those crates — it
+greps `rusqlite|sqlx|std::fs`, so this is enforced by *not writing the derive*, deliberately.)
+
+**The filter DSL has no ordered `prop` comparison.** `prop:` supports `eq`/`ne`/`exists` only;
+date windows go through `date:` (a real `DateRange` over parsed `Date`s). So the `Ord` trap —
+comparing a `Text` against a `Stamp` and getting a confident wrong answer — is *structurally
+unreachable* from a `.view`, not merely discouraged.
+
+**A `.view` extends a preset; it never replaces one.** `Filter { all }` is a top-level AND, so
+user conjuncts compose onto the renderer's base by `Vec::extend`. The base for
+board/agenda/timeline is `Kind(Note)`, written once in Rust — so the assets-exclusion decision
+survives: a `.view` cannot widen a board to include assets, only narrow within notes.
+
+**A broken `.view` is named, never dropped.** `list_views` includes an unparseable file with
+its error (and the filename stem as name); `run_view` returns the parse error as the response.
+The parse-error discipline is the whole reason a saved query is safe to hand a non-programmer.
+
+**Consequence for the UI:** the sidebar lists views under the built-in nav; a selected view
+owns the stage, rendering through the *same* renderers as the built-ins (a custom board
+supports cross-column status drag but not within-column ordering — kept small). YAML not TOML
+(a deliberate deviation from `MASTERPLAN:132`): `serde_yaml_ng` already parses frontmatter, so
+zero new deps, and a `.view` reads like the top of a note. **Rejected:** the pane grid (see the
+de-modalize entry); `Query` on the wire (both traps above); a query-builder UI / DSL grammar
+(the file *is* the language, and it is already YAML); moving presets to the client (re-opens
+the "filtering forgotten per view" bug `decisions.md` closed).
+
+## The read view sanitizes untrusted note bodies (2026-07-17)
+**Why:** `render.ts` assigns `marked.parse()` straight to `innerHTML`, and a note body is no
+longer only the author's own text — collaboration made bodies arrive from other people through
+the `.md` merge driver. `fm-serve`'s CSRF guard allows no-Origin requests, so a hostile
+`<img onerror>` running in our origin can call any `/api/*`: read every note, delete them, or
+set a remote and push a private vault off the machine. This was the top item in
+`known-issues.md`, and its "single-user, low-risk" excuse expired the day two people could
+share a vault. **Consequence:** DOMPurify runs on `marked`'s output before the DOM sees it
+(`sanitize()` in `render.ts`), so scripts and event handlers are stripped. **The load-bearing
+subtlety:** the sanitizer must not eat our *own* pipeline. Three URI schemes are ours —
+`note:` (a reference chip), `asset:`/`sha256:` (inline blobs) — and they are **not** in
+DOMPurify's default allow-list, so a naive call strips them and every asset image and note
+chip silently vanishes. The config widens the URI regexp by exactly those three (they are
+inert in a browser and fully replaced before display, so they add no sink) and nothing else.
+Math (`span[data-math]`) and Mermaid (`code.language-mermaid`) placeholders survive because
+the resolve passes run *after* sanitize; tests pin both the stripping and the survival.
+Mermaid's SVG sink keeps relying on its own `securityLevel: 'strict'` — layering DOMPurify on
+it risks dropping the `foreignObject` it uses for text, a regression headless CI cannot see.
+**Rejected:** hand-rolling a sanitizer (the one thing worse than none); sanitizing Mermaid's
+output (its strict mode is the designed control).
+
+## The note trail is a peer column, not a modal overlay (2026-07-17)
+**Why:** the trail (`openIds` + `NotePanel`) was `position:fixed; z-index:50` with a backdrop
+that closed it on an outside click — i.e. reading a note was a **mode**. That contradicts the
+founding thesis that a note *is* the task *is* the board card (`plan.md`): if a note is just
+another view of the same file, seeing it should not dim and disable the board. The user asked
+for a customizable multi-pane workspace; exploring it (three designs + an adversarial critic)
+found the real want underneath — *"my agenda visible while I write the note it's about"* — and
+that the layout ask was already `MASTERPLAN.md:323`'s own deferred `.view` design, not a new
+feature. **Consequence:** de-modalize instead of building a layout engine. `.trail` becomes
+the **third column** of the `.app` grid, a peer of `.main`; the `.overlay`/`.backdrop` are
+deleted; `NotePanel` loses its `100vh`/`100vw` viewport-locking for `100%`. The grid is three
+custom-property columns (`--rail`/`--main`/`--trail`) so rail-collapse and the trail compose
+without a combinatorial explosion of `grid-template-columns` rules. `wide` (already persisted)
+stops meaning "modal vs less modal" and starts meaning "the note takes the whole content area
+vs docks beside the view" — which is what a user always thought it meant. **Rejected, and this
+is the load-bearing part:** a **pane grid** (pick N splits, any view in any cell). It is
+configurability standing in for design with one user who knows the layout he wants; it adds a
+*second, incompatible* pane concept beside the trail; its central claim — *the panes lay out
+correctly* — is unverifiable by `pixi run ci` (jsdom has no geometry, the e2e tree was
+deleted); and a saved arrangement is what `.view` files are *for*. Also rejected: threading
+`groupBy` through `onMove`/`onReorder` to fix their global-capture — that bug is only
+reachable with two boards on screen, i.e. the pane grid, so fixing it now is speculative work
+for a rejected feature. **The stopping line:** the content area holds the current view and,
+when open, the note trail beside it — two regions, fixed. A pane cannot contain a pane. If a
+saved arrangement is ever wanted, it is a `.view` file.
+
+## A vault is created, not invented; the vault list gains its first writer (2026-07-17)
+**Why:** `load_vaults()` read `vaults.json` and **nothing wrote it** — hand-edited JSON, so
+there was no path from "I want a vault" to a configured, opened, listed one. And it could
+never return empty: `FM_VAULT` defaulted to the *relative* `"vault"`, so a typo, or the
+launcher started from a different cwd, silently `create_dir_all`ed a working empty vault
+named after the mistake while your notes appeared to have vanished. Configuration
+masquerading as capability — the `restic_ready` shape. **Consequence:** the default is gone
+(`FM_VAULT` set explicitly still works; unset means **zero vaults**, a real state that gates
+the whole UI on a first-run screen); `MultiStore::open(&[])` is legal and `route` returns
+`StoreError::NoVaults`, so reads over zero are honestly empty and **writes are loud**;
+`check_path`/`create_vault`/`list_vaults` (`[]` is *the* first-run signal — not
+`backup_status`, which shells out per vault including a network `ls-remote`, and making the
+screen shown when nothing exists depend on the slowest git command is backwards). Six rules
+are load-bearing:
+
+**`vaults::save` merges into the parsed `Value` tree and appends only.** Never a typed serde
+round-trip: `#[serde(flatten)] extra` would reformat a human's whole file and turn "I don't
+understand this" into "I silently dropped it". It refuses a file it could not parse —
+overwriting a hand-edited list is the loss the malformed-JSON warning exists to shout about
+— and **writes the whole live list**, because `FM_VAULT` set with no `vaults.json` plus a
+second vault created means `load` starts preferring the file, ignores `FM_VAULT`, and
+**vault #1 vanishes on the next start**.
+
+**JSON before memory: the config write is the commit point.** Reverse it and a failed write
+leaves an in-memory vault that vanishes on restart *while the user captures notes into it*.
+A failed open never deletes the directory (it may have pre-existed; this codebase does not
+delete user data on a failure path), and partial success is reported as partial.
+
+**Creation does not `git init`.** `commit_all` already calls `ensure_repo` on the first
+auto-commit, gated by `ping.git`. Eager init buys an empty `.git` five seconds early,
+imposes structure at the moment we promise not to, and — if the path sits inside a repo the
+user owns — `ensure_repo` probes only `<path>/.git`, finds none, and `git init`s a **nested
+repo shadowing theirs**, writing the placeholder identity into it. `blobs/` and `derived/`
+*are* created eagerly: no git needed, and git cannot track an empty directory anyway.
+
+**One mutex over the store and the list, never two.** `api()` already took them in opposite
+orders (`commit`/`push` lock-then-resolve; `ingest` the reverse), so two would be AB/BA. The
+trap that survives: with one, `lock(state)` + a separate `state.vault()` is a
+**self-deadlock** — `std::sync::Mutex` is not reentrant — so those arms resolve through the
+guard they already hold. `config()` returns **owned**, which is also what lets `ingest`
+borrow `&mut store` at the same time. And the guard is dropped before I/O everywhere except
+`commit`/`push`/`pull`: `backup_status` shells out per vault including a network
+`ls-remote`, and holding it across that would stall every 3 s `ping`.
+
+**`writable` is probed, never inferred from mode bits.** Create and remove a temp entry.
+Configuration is not capability — the `restic_ready` rule applied verbatim. Likewise the
+verdict (`ok`) is computed server-side: duplicating the policy in Svelte is how a button
+enables and then fails.
+
+**`allVaults` derives from `list_vaults`, not from loaded notes.** It used to come from
+fetched cards, so a vault with nothing in it did not exist as far as the sidebar was
+concerned — "empty vault" and "no vault" were indistinguishable, which is the exact
+confusion the first-run screen exists to end. The vault you just made is the one most likely
+to be empty.
+
+**Rejected:** a native folder dialog (a browser cannot pick a server's directory, and
+shelling out to zenity means the core spawns a process to do its own first run — so: a typed
+path, validated server-side per keystroke); moving the config into `fm-core` (it is env by
+definition, and `main.rs:652` already rules that fm-core stays free of environment and
+configuration concerns); an `open_lossy` for the startup panic (real, but pre-existing and
+uncoupled — see `known-issues.md`).
+
 ## formicaria: three pillars, one atom; renamed when the plural became true (2026-07-17)
 **Why:** the tool grows into *knowledge management + task scheduling + collaboration*
 without becoming three products. **Consequence:** those are three **views of one Markdown

@@ -137,7 +137,7 @@ own collaborators.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `FM_VAULT` | `vault` | Vault directory, when no vault list is configured |
+| `FM_VAULT` | *(none — the app asks on first run)* | Vault directory, when no vault list is configured |
 | `FM_VAULTS` | per-OS config path | Location of the vault list |
 | `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
 | `FM_OPEN` | unset | Open the browser on start |

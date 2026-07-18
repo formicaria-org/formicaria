@@ -138,6 +138,67 @@ fn search_still_uses_fts_when_federated_and_pagination_stays_honest() {
     assert_eq!(page.total, 10, "and total still counts everything that matched");
 }
 
+/// Zero vaults is the **first-run state**, not an error. `open` used to refuse it, on the
+/// reasoning that silence reads like an empty vault — right while zero was unreachable,
+/// wrong now that the UI gates on it and names it. So: reads are honestly empty, and a
+/// write — which has nowhere to go — says `NoVaults` rather than indexing `vaults[0]` and
+/// panicking. The panic is the whole reason this test exists.
+#[test]
+fn a_store_over_no_vaults_is_a_legal_state_and_says_so() {
+    let empty: &[(String, &std::path::Path)] = &[];
+    let mut m = MultiStore::open(empty).unwrap();
+
+    assert!(m.is_empty());
+    assert!(m.names().is_empty());
+
+    // Reads: empty, not an error. Concatenating nothing is nothing.
+    let r = m.query(&Query::default()).unwrap();
+    assert_eq!(r.total, 0, "no vaults → no rows");
+    assert!(m.get(fm_model::Id::new()).unwrap().is_none());
+
+    // Writes: loud. Never a panic, and never `Io`, so the caller can branch on it.
+    let o = Object::new(Kind::Note, "nowhere to put this");
+    assert!(
+        matches!(m.put(&o), Err(StoreError::NoVaults)),
+        "a write with no vaults must say so, not panic on vaults[0]"
+    );
+}
+
+/// **This test is the feature.** Creating a vault must make it live without restarting
+/// the server — so `add` on an already-open store has to route by name, and queries have
+/// to span the newcomer, with no reopen anywhere in sight.
+///
+/// It also pins `add`'s one rule: it **appends**. `vaults[0]` is the default that receives
+/// every fresh capture, so an insert would silently move where new notes land.
+#[test]
+fn add_makes_a_vault_live_without_a_restart() {
+    let dir = tempdir().unwrap();
+    let (personal, lab) = (dir.path().join("personal"), dir.path().join("lab"));
+
+    let mut m = MultiStore::open(&[("personal".into(), &personal)]).unwrap();
+    let mut mine = Object::new(Kind::Note, "before the lab existed");
+    m.put(&mine).unwrap();
+
+    m.add(FileStore::named(&lab, "lab").unwrap());
+    assert_eq!(m.names(), vec!["personal", "lab"], "appended, so the default is untouched");
+
+    // The newcomer takes writes by name, immediately.
+    let mut ours = Object::new(Kind::Note, "the lab's first note");
+    ours.vault = "lab".into();
+    m.put(&ours).unwrap();
+
+    // And a capture that names no vault still lands in the original default.
+    mine = Object::new(Kind::Note, "still mine");
+    m.put(&mine).unwrap();
+
+    // Queries span both, with no reopen.
+    let r = m.query(&Query::default()).unwrap();
+    assert_eq!(r.total, 3, "the query spans the vault added after opening");
+    let vaults: Vec<&str> = r.rows.iter().map(|o| o.vault.as_str()).collect();
+    assert_eq!(vaults.iter().filter(|v| **v == "lab").count(), 1);
+    assert_eq!(vaults.iter().filter(|v| **v == "personal").count(), 2);
+}
+
 /// A `MultiStore` over one vault must behave exactly like that vault. If the plural
 /// changes the singular's answers, the abstraction is not free and something is wrong.
 #[test]

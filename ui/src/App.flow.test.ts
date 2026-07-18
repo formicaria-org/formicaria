@@ -51,16 +51,18 @@ describe('the app, driven end to end as a user', () => {
     const body = await screen.findByLabelText('note body (Markdown)');
     await fireEvent.input(body, { target: { value: 'a freshly captured thought' } });
     await saveWithCtrlS();
-    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(screen.getByLabelText('close'));
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
-    // 3. Switch views: Agenda (due items), back to Board.
-    await fireEvent.click(screen.getByRole('button', { name: 'Agenda' }));
+    // 3. Rotate this pane's view: a click advances Board → Agenda (due items); a wheel-scroll
+    //    spins it back to Board. The picker is a rotator now, not a dropdown — but still the
+    //    workspace model: each pane chooses what it shows.
+    await fireEvent.click(screen.getByLabelText('pane view'));
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
-    await fireEvent.click(screen.getByRole('button', { name: 'Board' }));
+    await fireEvent.wheel(screen.getByLabelText('pane view'), { deltaY: -1 });
     await screen.findByText(/GAE lambda interacts badly/);
 
-    // 4. Re-group the board by a custom property — no backend change.
+    // 4. Re-group the board pane by a custom property — no backend change.
     const groupBy = screen.getByLabelText('group by');
     await fireEvent.input(groupBy, { target: { value: 'project' } });
     expect(await screen.findByText('alpha')).toBeTruthy(); // a project column label

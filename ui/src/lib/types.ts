@@ -106,3 +106,57 @@ export interface PullResult {
   merged: number;
   conflicts: string[];
 }
+
+/** A vault, as the sidebar and the first-run screen need it. Deliberately not
+ *  `VaultStatus`: that one is about a remote and costs a `git ls-remote` per vault, and
+ *  the first-run screen — shown when there are none — must not wait on the network. */
+export interface VaultInfo {
+  name: string;
+  /** For display, so two vaults both called `notes` are tellable apart. */
+  path: string;
+  /** Index 0 — where every fresh capture lands. */
+  default: boolean;
+}
+
+/** What would happen if we created a vault at a path. The server owns `ok`: duplicating
+ *  the policy here is how you get a button that enables and then fails. */
+export interface PathCheck {
+  path: string;
+  exists: boolean;
+  empty: boolean;
+  /** `.md` already under `<path>/notes`. They will be adopted — say so, never surprise. */
+  notes: number;
+  not_a_directory: boolean;
+  parent_missing: boolean;
+  writable: boolean;
+  git_repo: boolean;
+  name_ok: boolean;
+  name_taken: boolean;
+  path_taken: boolean;
+  /** The vault this path nests in, or that nests in it. */
+  overlaps: string | null;
+  config_writable: boolean;
+  ok: boolean;
+}
+
+/** The renderer a `.view` draws through — the same set the built-in nav offers. */
+export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery';
+
+/** One saved `.view`, as the sidebar lists it. A view that would not parse still appears,
+ *  with `error` set and `renderer` null — a broken view names itself, never vanishes. */
+export interface ViewInfo {
+  name: string;
+  renderer: Renderer | null;
+  group_by: string | null;
+  error?: string;
+}
+
+/** The result of running a view: a `board` for the board renderer, a flat `rows` list
+ *  otherwise. One envelope; the UI switches on `renderer` exactly as for built-ins. */
+export interface ViewResult {
+  name: string;
+  renderer: Renderer;
+  group_by: string | null;
+  board?: Board;
+  rows?: ObjectMeta[];
+}

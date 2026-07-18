@@ -218,15 +218,51 @@ describe('renderInto — characterization of the real sample note', () => {
     expect(el.querySelector('.asset-missing-inline')).not.toBeNull(); // the asset: image
   });
 
-  // NOT a security guarantee — a red flag. render.ts assigns marked's output to
-  // innerHTML with no sanitizer, so raw HTML in a note body reaches the DOM. This
-  // test pins that CURRENT behavior; see the plan's "Out of scope" note on adding
-  // a sanitizer as a follow-up.
-  it('passes raw HTML through unsanitized (documents the gap)', async () => {
+  // The security boundary. A note body is untrusted (it arrives from collaborators via the
+  // merge driver), and render.ts assigns marked's output to innerHTML, so DOMPurify runs on
+  // it first. A hostile `onerror` must never reach the DOM; benign inline formatting must
+  // survive so real notes still render.
+  it('strips event handlers and scripts while keeping benign HTML', async () => {
     const el = pane();
-    await renderInto(el, 'text <b>injected</b> and <img src="z" onerror="danger()">', noAsset);
-    expect(el.querySelector('b')?.textContent).toBe('injected');
-    expect(el.querySelector('img[onerror]')).not.toBeNull();
+    await renderInto(
+      el,
+      'text <b>injected</b> and <img src="z" onerror="danger()"> and <script>evil()</script>',
+      noAsset,
+    );
+    expect(el.querySelector('b')?.textContent).toBe('injected'); // benign formatting survives
+    expect(el.querySelector('img[onerror]')).toBeNull(); // the handler is gone
+    expect(el.querySelector('script')).toBeNull(); // and so is the script tag
+    expect(el.innerHTML).not.toContain('onerror');
+  });
+
+  // The trap the sanitizer must NOT fall into: our own pipeline speaks three schemes that
+  // are not in DOMPurify's default allow-list. If sanitizing strips them, every asset image
+  // and note chip silently vanishes — a regression that looks like the feature never worked.
+  it('preserves note: and asset: schemes so the resolve passes still fire', async () => {
+    const el = pane();
+    await renderInto(
+      el,
+      '![pic](asset:sha256-abc) and [a note](note:01KXNOTE)',
+      // asset resolver returns null → the asset-missing placeholder proves the scheme survived
+      noAsset,
+    );
+    // The note link kept its scheme (no resolveNote passed, so it stays an <a href="note:…">).
+    expect(el.querySelector('a[href^="note:"]')).not.toBeNull();
+    // The asset image was recognised by scheme and replaced by the missing-asset placeholder;
+    // if the scheme had been stripped, resolveAssets would have skipped it and left a raw img.
+    expect(el.querySelector('.asset-missing-inline')).not.toBeNull();
+    expect(el.querySelector('img[src^="asset:"]')).toBeNull();
+  });
+
+  // The other half of the trap: the math/diagram pipeline runs in passes AFTER sanitize, on
+  // placeholders sanitize must keep. If DOMPurify ate the `<span data-math>` or the mermaid
+  // code block, math and diagrams would silently stop rendering. Assert both survive and both
+  // downstream renderers still fire.
+  it('keeps the math and mermaid placeholders through sanitize', async () => {
+    const el = pane();
+    await renderInto(el, 'inline $a^2$ and\n\n```mermaid\ngraph TD; A-->B\n```\n', noAsset);
+    expect(katexRender).toHaveBeenCalled(); // span[data-math] survived → KaTeX ran
+    expect(mermaidRender).toHaveBeenCalled(); // code.language-mermaid survived → Mermaid ran
   });
 });
 

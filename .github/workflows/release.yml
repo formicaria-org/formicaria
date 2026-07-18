@@ -9,10 +9,12 @@
 # them, in one archive named after the platform it actually runs on.
 name: release
 
+# Manual-only by owner's standing order (2026-07-18): no remote CI billing until re-enabled.
+# The `v*` tag trigger is removed too, so even cutting a tag builds nothing until you run it
+# by hand (Actions → release → Run workflow). Restore by putting back below:
+#   push:
+#     tags: ['v*']
 on:
-  push:
-    tags: ['v*']
-  # "I want a binary from this commit" without cutting a tag.
   workflow_dispatch:
 
 concurrency:

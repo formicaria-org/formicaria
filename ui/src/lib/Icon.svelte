@@ -25,6 +25,7 @@
     chevronRight: '<path d="M9 6l6 6-6 6"/>',
     backup: '<path d="M4 15a5 5 0 0 1 1.2-9.8A6 6 0 0 1 17 6a4.5 4.5 0 0 1 1 8.9"/><path d="M12 12v7M9 16l3 3 3-3"/>',
     inbox: '<path d="M4 13h4l2 3h4l2-3h4"/><path d="M5 5h14l2 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z"/>',
+    grip: '<circle cx="9" cy="6" r="1.3"/><circle cx="15" cy="6" r="1.3"/><circle cx="9" cy="12" r="1.3"/><circle cx="15" cy="12" r="1.3"/><circle cx="9" cy="18" r="1.3"/><circle cx="15" cy="18" r="1.3"/>',
   };
 </script>
 

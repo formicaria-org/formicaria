@@ -1,4 +1,15 @@
-import type { AssetStatus, BackupStatus, Board, NoteDetail, ObjectMeta, PullResult } from './types';
+import type {
+  AssetStatus,
+  BackupStatus,
+  Board,
+  NoteDetail,
+  ObjectMeta,
+  PathCheck,
+  PullResult,
+  VaultInfo,
+  ViewInfo,
+  ViewResult,
+} from './types';
 import * as mock from './mock';
 
 // Two backends, one contract:
@@ -114,3 +125,18 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
  *  machine has git at all — **not a dependency, a capability**: the notebook works without
  *  it, only history does not. */
 export const ping = () => invoke<{ changed: boolean; git: boolean }>('ping');
+
+/** The audiences that exist. `[]` is the first-run signal — the one answer that means
+ *  "nothing else in this app can work yet". */
+export const listVaults = () => invoke<VaultInfo[]>('list_vaults');
+/** What creating a vault here would do. Called per keystroke; the server owns the verdict. */
+export const checkPath = (name: string, path: string) =>
+  invoke<PathCheck>('check_path', { name, path });
+/** Create, register and open a vault — live, with no restart. Returns the new list. */
+export const createVault = (name: string, path: string) =>
+  invoke<VaultInfo[]>('create_vault', { name, path });
+
+/** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
+export const listViews = () => invoke<ViewInfo[]>('list_views');
+/** Run one saved view by name — the query is defined server-side; we send only the name. */
+export const runView = (name: string) => invoke<ViewResult>('run_view', { name });

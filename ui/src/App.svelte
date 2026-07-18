@@ -1,12 +1,18 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import Board from './renderers/Board.svelte';
-  import Agenda from './renderers/Agenda.svelte';
-  import Calendar from './renderers/Calendar.svelte';
-  import Timeline from './renderers/Timeline.svelte';
-  import Search from './renderers/Search.svelte';
   import Icon from './lib/Icon.svelte';
-  import { arrange, orderColumns, moveValue, placeValue } from './lib/boardOrder';
+  import Pane from './lib/Pane.svelte';
+  import {
+    newPane,
+    distinctFeeds,
+    feedKey,
+    reorder,
+    rendererKind,
+    MAX_PANES,
+    type Workspace,
+    type Pane as PaneT,
+    type PaneKind,
+    type Feed,
+  } from './lib/panes';
   import {
     getBoard,
     getAgenda,
@@ -16,46 +22,87 @@
     search as ipcSearch,
     commit,
     ping,
+    listVaults,
+    listViews,
+    runView,
   } from './lib/ipc';
-  import type { Board as BoardData, ObjectMeta } from './lib/types';
+  import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
+  import NewVault from './lib/NewVault.svelte';
 
-  type View = 'board' | 'agenda' | 'timeline' | 'search';
-  let view = $state<View>('board');
-  let groupBy = $state('status');
-  let agendaMode = $state<'month' | 'week' | 'list'>('month');
-  let board = $state<BoardData | null>(null);
-  let cards = $state<ObjectMeta[] | null>(null);
-  let results = $state<ObjectMeta[]>([]);
-  let searchQuery = $state('');
+  // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
+  // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
+  // keyboard/新-pane actions target.
+  function loadWorkspace(): Workspace {
+    try {
+      const w = JSON.parse(localStorage.getItem('fm-workspace') ?? 'null');
+      if (w && Array.isArray(w.panes) && w.panes.length && typeof w.cols === 'number') return w;
+    } catch {
+      /* fall through to default */
+    }
+    return { cols: 2, panes: [newPane('board')] };
+  }
+  let workspace = $state<Workspace>(loadWorkspace());
+  let feeds = $state<Record<string, Feed>>({});
+  let focused = $state(0);
+  let searchQuery = $state(''); // the top-bar global search box
   let error = $state<string | null>(null);
-  let notice = $state<string | null>(null);
-  // The open notes, left to right: a trail, not a single note. Opening from a
-  // view starts a fresh one; following a note reference pushes onto it, so the
-  // note you came from stays on screen. Empty = nothing open.
-  let openIds = $state<string[]>([]);
-  let startEditing = $state(false);
-  let trailEl = $state<HTMLElement | undefined>(undefined);
 
-  // Full screen by default (the preferred reading/writing mode); the toggle
-  // shrinks to a docked side-sheet, and the choice is remembered per-browser like
-  // the theme. Anything other than the stored '0' (incl. unset) means full screen.
-  // Guard storage access — it's absent in the test env and in private mode.
-  function readWidePref(): boolean {
+  function persistWorkspace() {
     try {
-      return localStorage.getItem('fm-note-wide') !== '0';
+      localStorage.setItem('fm-workspace', JSON.stringify(workspace));
     } catch {
-      return true;
+      /* private mode — the workspace just won't persist this session */
     }
   }
-  let wide = $state(readWidePref());
-  function toggleWide() {
-    wide = !wide;
-    try {
-      localStorage.setItem('fm-note-wide', wide ? '1' : '0');
-    } catch {
-      /* private mode / storage disabled — the default (full screen) still applies */
+  function addPane(kind: PaneKind, over: Partial<PaneT> = {}) {
+    if (workspace.panes.length >= MAX_PANES) {
+      notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
+      return;
     }
+    workspace = { ...workspace, panes: [...workspace.panes, newPane(kind, over)] };
+    focused = workspace.panes.length - 1;
+    persistWorkspace();
+    void refresh();
   }
+  function closePane(id: string) {
+    const panes = workspace.panes.filter((p) => p.id !== id);
+    workspace = { ...workspace, panes: panes.length ? panes : [newPane('board')] };
+    if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
+    persistWorkspace();
+    void refresh();
+  }
+  function changePane(id: string, patch: Partial<PaneT>) {
+    workspace = {
+      ...workspace,
+      panes: workspace.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    };
+    persistWorkspace();
+    void refresh();
+  }
+  function setCols(cols: number) {
+    workspace = { ...workspace, cols: Math.max(1, Math.min(cols, 4)) };
+    persistWorkspace();
+  }
+  function movePane(from: number, to: number) {
+    workspace = { ...workspace, panes: reorder(workspace.panes, from, to) };
+    if (focused === from) focused = to;
+    persistWorkspace();
+  }
+  // Resize a pane's span. Unlike changePane this does NOT refresh: a span change moves no
+  // feed, so refetching would be pure waste (and would fight the drag).
+  function resizePane(id: string, patch: Partial<PaneT>) {
+    workspace = {
+      ...workspace,
+      panes: workspace.panes.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+    };
+    persistWorkspace();
+  }
+  let notice = $state<string | null>(null);
+  // A note is a pane now (kind:'note'), not a separate side-trail. `editingId` is the one note
+  // that should open straight in the editor — set by "New note", read once by that pane on mount.
+  // It is transient (never persisted), so a reload reopens note panes in read mode.
+  let editingId = $state<string | null>(null);
+
   // Distinct status values seen so far — feeds the note panel's status datalist,
   // so the picker is data-driven (no hardcoded status literal anywhere).
   let knownStatuses = $state<string[]>([]);
@@ -76,31 +123,6 @@
     localStorage.setItem('fm-theme', theme);
   }
 
-  // User-chosen column order, per group-by, persisted client-side (like the
-  // theme). A view preference, not note data — so it lives in localStorage, not
-  // the vault. Reconciled against live columns by orderColumns (new columns
-  // appear, deleted ones are ignored).
-  function loadOrders(): Record<string, string[]> {
-    try {
-      return JSON.parse(localStorage.getItem('fm-board-order') ?? '{}');
-    } catch {
-      return {};
-    }
-  }
-  let orders = $state<Record<string, string[]>>(loadOrders());
-
-  // Card order *within* a column — where you dropped it, not when it was created.
-  // Same reasoning and same storage as the column order above: a view preference,
-  // per group-by, keyed by column value → the note ids in the order you chose.
-  function loadCardOrders(): Record<string, Record<string, string[]>> {
-    try {
-      return JSON.parse(localStorage.getItem('fm-card-order') ?? '{}');
-    } catch {
-      return {};
-    }
-  }
-  let cardOrders = $state<Record<string, Record<string, string[]>>>(loadCardOrders());
-
   // Which audiences to show. A **view preference**, like the column order — it lives in
   // localStorage and never in a vault, because what you are currently looking at is not
   // knowledge and would embarrass you in five years. Hiding a vault hides its notes from
@@ -115,19 +137,22 @@
       }
     })(),
   );
-  // Derived from the *unfiltered* data, so hiding the last vault does not also hide the
-  // chip you would use to bring it back.
-  const allVaults = $derived(
-    [
-      ...new Set(
-        [...(board?.columns.flatMap((c) => c.cards) ?? []), ...(cards ?? [])]
-          .map((n) => n.vault)
-          .filter(Boolean),
-      ),
-    ].sort(),
-  );
+  // The configured vaults, from `list_vaults` — authoritative, and `null` until the first
+  // answer arrives, because unknown is not the same as none (the `gitAvailable`
+  // discipline). `[]` is the first run and gates the whole app below.
+  //
+  // This used to be derived from the notes we happened to have *fetched*, which meant a
+  // vault with nothing in it did not exist as far as the sidebar was concerned — so "empty
+  // vault" and "no vault" looked identical. That is precisely the confusion the first-run
+  // screen exists to end, and it must not inherit it: the vault you just made is the one
+  // most likely to be empty.
+  let vaults = $state<VaultInfo[] | null>(null);
+  const allVaults = $derived((vaults ?? []).map((v) => v.name).sort());
+
+  // Saved `.view` files (query + a renderer), authored in the vault. Each becomes a choice in
+  // a pane's view picker; opening one adds/retargets a pane.
+  let views = $state<ViewInfo[]>([]);
   const shown = (n: ObjectMeta) => !n.vault || !hiddenVaults.includes(n.vault);
-  const visibleCards = $derived(cards?.filter(shown) ?? null);
 
   function toggleVault(name: string) {
     hiddenVaults = hiddenVaults.includes(name)
@@ -140,73 +165,33 @@
     }
   }
 
-  // The board with columns arranged by the saved order for the current grouping,
-  // and each column's cards arranged by the saved drop order.
-  let displayBoard = $derived(
-    board
-      ? {
-          ...board,
-          columns: orderColumns(board.columns, orders[groupBy] ?? []).map((c) => ({
-            ...c,
-            cards: arrange(
-              c.cards.filter(shown),
-              cardOrders[groupBy]?.[c.value] ?? [],
-              (n) => n.id,
-            ),
-          })),
-        }
-      : null,
-  );
-  function persistOrders() {
-    try {
-      localStorage.setItem('fm-board-order', JSON.stringify(orders));
-      localStorage.setItem('fm-card-order', JSON.stringify(cardOrders));
-    } catch {
-      /* private mode / quota — order just won't persist */
-    }
-  }
-  function onReorder(fromValue: string, toValue: string, before: boolean) {
-    if (!board) return;
-    const current = orderColumns(board.columns, orders[groupBy] ?? []).map((c) => c.value);
-    orders = { ...orders, [groupBy]: moveValue(current, fromValue, toValue, before) };
-    persistOrders();
-  }
-
-  let railCollapsed = $state(false);
   let paletteOpen = $state(false);
   let backupOpen = $state(false);
+  let newVaultOpen = $state(false);
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
-  const VIEW_TITLES: Record<View, string> = {
-    board: 'Board',
-    agenda: 'Agenda',
-    timeline: 'Timeline',
-    search: 'Search',
-  };
-  let viewTitle = $derived(VIEW_TITLES[view]);
 
-  // Commands surfaced in the ⌘K palette (label + action).
+  // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
   let commands = $derived([
-    { label: 'Go to Board', run: () => (view = 'board') },
-    { label: 'Go to Agenda', run: () => (view = 'agenda') },
-    { label: 'Go to Timeline', run: () => (view = 'timeline') },
-    { label: 'Search notes', run: () => { view = 'search'; searchEl?.focus(); } },
+    { label: 'Open Board', run: () => addPane('board') },
+    { label: 'Open Agenda', run: () => addPane('agenda') },
+    { label: 'Open Timeline', run: () => addPane('timeline') },
+    { label: 'Open Search', run: () => addPane('search') },
+    ...views
+      .filter((v) => !v.error)
+      .map((v) => ({ label: `Open “${v.name}”`, run: () => addPane('view', { viewName: v.name }) })),
     { label: 'New note', run: onNew },
     { label: 'New board', run: onNewBoard },
+    { label: 'New vault', run: () => (newVaultOpen = true) },
     { label: 'Toggle theme', run: toggleTheme },
     { label: 'Back up the vault', run: onBackup },
   ]);
 
-  // Keyboard map: ⌘K palette · ⌘\ toggle rail · 1–3 views · / search · c new note · Esc close.
+  // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
   function onGlobalKey(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       paletteOpen = !paletteOpen;
-      return;
-    }
-    if (mod && e.key === '\\') {
-      e.preventDefault();
-      railCollapsed = !railCollapsed;
       return;
     }
     if (paletteOpen && e.key === 'Escape') {
@@ -215,17 +200,12 @@
     }
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
-    if (openIds.length) return; // the note panel owns keys while open
-    const views: View[] = ['board', 'agenda', 'timeline'];
     if (e.key === '/') {
       e.preventDefault();
-      view = 'search';
       searchEl?.focus();
     } else if (e.key === 'c') {
       e.preventDefault();
       void onNew();
-    } else if (e.key >= '1' && e.key <= '3') {
-      view = views[Number(e.key) - 1];
     }
   }
 
@@ -241,29 +221,59 @@
     if (changed) knownStatuses = [...set];
   }
 
+  // Fetch one feed by its key. Panes sharing a key share this result.
+  async function loadFeed(key: string): Promise<Feed> {
+    const sep = key.indexOf(':');
+    const type = sep === -1 ? key : key.slice(0, sep);
+    const arg = sep === -1 ? '' : key.slice(sep + 1);
+    if (type === 'board') {
+      const board = await getBoard(arg);
+      learnStatuses(board.columns.flatMap((c) => c.cards));
+      return { board };
+    }
+    if (type === 'agenda') {
+      const cards = await getAgenda();
+      learnStatuses(cards);
+      return { cards };
+    }
+    if (type === 'timeline') {
+      const cards = await recent();
+      learnStatuses(cards);
+      return { cards };
+    }
+    if (type === 'search') {
+      const cards = arg ? await ipcSearch(arg) : [];
+      learnStatuses(cards);
+      return { cards };
+    }
+    if (type === 'view') {
+      const r = await runView(arg);
+      return r.board ? { board: r.board } : { cards: r.rows ?? [] };
+    }
+    return {};
+  }
+
   async function refresh() {
+    // Nothing to ask about, and asking anyway paints an error banner *behind* the
+    // first-run screen — the app's first impression being a failure it caused itself.
+    if (!vaults?.length) return;
+    const keys = distinctFeeds(workspace.panes);
     try {
-      if (view === 'board') {
-        board = await getBoard(groupBy);
-        learnStatuses(board.columns.flatMap((c) => c.cards));
-      } else if (view === 'timeline') {
-        cards = await recent();
-        learnStatuses(cards);
-      } else if (view === 'agenda') {
-        cards = await getAgenda();
-        learnStatuses(cards);
-      }
-      // 'search' is driven by the query input, not by the view switch.
+      const entries = await Promise.all(
+        keys.map(async (k) => [k, await loadFeed(k).catch(() => ({}) as Feed)] as const),
+      );
+      feeds = Object.fromEntries(entries);
       error = null;
     } catch (e) {
       error = String(e);
     }
   }
 
-  // Reload when the view switches, or (in board view) when the grouping changes.
+  // Reload when the set of distinct feeds the workspace needs changes (a pane added, closed,
+  // regrouped, or its search edited). Fetches only the distinct feeds, so N panes over M
+  // feeds cost M requests, not N.
   $effect(() => {
-    void view;
-    if (view === 'board') void groupBy;
+    void distinctFeeds(workspace.panes).join('|');
     void refresh();
   });
 
@@ -281,7 +291,6 @@
   // Refresh only when something actually changed: re-running the query every 3s would
   // fight the user's own scrolling and drag state for no reason.
   $effect(() => {
-    if (!import.meta.env.PROD) return;
     const beat = async () => {
       const r = await ping().catch(() => null);
       if (r) {
@@ -296,19 +305,51 @@
       }
       if (r?.changed) await refresh();
     };
+    // One beat unconditionally, in every backend: it is what answers `gitAvailable`, which
+    // the first-run screen shows. Only the repeating timer is production-only — the mock
+    // has no server to keep alive, and a 3s interval under Vitest is its own bug.
     void beat();
+    if (!import.meta.env.PROD) return;
     const id = setInterval(() => void beat(), 3000);
     return () => clearInterval(id);
   });
+
+  // Which vaults exist. Answered once at startup and again whenever one is created —
+  // it changes about as often as you start a new project, so it does not ride the 3s beat.
+  $effect(() => {
+    void listVaults()
+      .then((v) => (vaults = v))
+      .catch(() => (vaults = []));
+  });
+
+  // The saved views the sidebar lists. Same cadence reasoning as vaults — a `.view` file
+  // changes when you author one, not every few seconds.
+  $effect(() => {
+    void listViews()
+      .then((v) => (views = v))
+      .catch(() => (views = []));
+  });
+
+  // Open a note as a pane, deduped by its id: a note already in a pane is *focused*, never
+  // opened a second time — two panes over one file would be two editors racing `updateBody`
+  // and losing writes (the invariant the old trail's truncation protected). This is the one
+  // way a note reaches the screen now: a card click, a followed `note:` chip, or a fresh note.
+  function openNoteInPane(id: string, opts: { editing?: boolean } = {}) {
+    if (opts.editing) editingId = id;
+    const at = workspace.panes.findIndex((p) => p.kind === 'note' && p.noteId === id);
+    if (at !== -1) {
+      focused = at;
+      return;
+    }
+    addPane('note', { noteId: id });
+  }
 
   // "New note": create a blank note and open it straight in the editor (property
   // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
   async function onNew() {
     try {
       const meta = await capture('');
-      startEditing = true;
-      openIds = [meta.id];
-      await refresh();
+      openNoteInPane(meta.id, { editing: true });
       scheduleCommit();
     } catch (err) {
       error = String(err);
@@ -316,8 +357,8 @@
   }
 
   // A board is a note whose body is an Excalidraw scene, flagged `view: board`.
-  // Create it empty, mark it, give it a title, then open it (the panel renders the
-  // canvas for board notes). No new command or Kind — just a property.
+  // Create it empty, mark it, give it a title, then open it (the pane renders the
+  // canvas for board notes — so "whiteboard in a pane" is free). No new command or Kind.
   async function onNewBoard() {
     try {
       const scene =
@@ -325,54 +366,23 @@
       const meta = await capture(scene);
       await setProperty(meta.id, 'view', 'board');
       await setProperty(meta.id, 'title', 'Untitled board');
-      startEditing = false;
-      openIds = [meta.id];
-      await refresh();
+      openNoteInPane(meta.id);
       scheduleCommit();
     } catch (err) {
       error = String(err);
     }
   }
 
-  // Open an existing note in read mode (never inherit a stale startEditing).
-  // Opening from a view starts a new trail — the old one was a different thought.
+  // Open an existing note (from a card click) — as a pane, deduped.
   function openNote(id: string) {
-    startEditing = false;
-    openIds = [id];
+    openNoteInPane(id);
   }
 
-  // Follow a note reference: push the target onto the trail. Re-following a note
-  // already open truncates back to it rather than opening a second copy — two
-  // panes of one note would be two editors over one file.
-  async function pushNote(id: string) {
-    const at = openIds.indexOf(id);
-    openIds = at === -1 ? [...openIds, id] : openIds.slice(0, at + 1);
-    await tick(); // let the new pane mount before scrolling to it
-    // Guarded like the localStorage access above: scrollTo is absent in jsdom,
-    // and failing to scroll must never break the navigation itself.
-    trailEl?.scrollTo?.({ left: trailEl.scrollWidth, behavior: 'smooth' });
-  }
-
-  // Close one pane and everything downstream of it — the trail past it was
-  // reached *through* it, so it no longer has a path.
-  function closeFrom(i: number) {
-    if (i === 0) return closeNote();
-    openIds = openIds.slice(0, i);
-  }
-
-  async function onMove(id: string, value: string, beforeId: string | null) {
-    // The drag write-back: set the grouped property to the target column's value.
-    // The card's place *within* the column is a view preference, so it is saved
-    // client-side rather than written to the note. Save it first: it is keyed by
-    // id, so the refresh below re-reads it and the card lands where it was
-    // dropped — including when the drag crossed into a different column.
-    const column = displayBoard?.columns.find((c) => c.value === value);
-    const ids = column?.cards.map((n) => n.id) ?? [];
-    cardOrders = {
-      ...cardOrders,
-      [groupBy]: { ...cardOrders[groupBy], [value]: placeValue(ids, id, beforeId) },
-    };
-    persistOrders();
+  // The drag write-back: set the property THIS pane groups by to the target column's value.
+  // `groupBy` is passed by the pane, not read from a global — so a drag in one board pane
+  // writes its own property, never another pane's. (Within-column ordering is dropped in the
+  // pane model for now; the card lands in the column, position by the server's sort.)
+  async function onMove(groupBy: string, id: string, value: string, _beforeId: string | null) {
     try {
       await setProperty(id, groupBy, value);
       await refresh();
@@ -383,7 +393,7 @@
   }
 
   // Rotate a note's status from a card or the open note's header. Same write path
-  // as a board drag, but always on `status` — the board may be grouped by anything.
+  // as a board drag, but always on `status` — a board may be grouped by anything.
   async function onSetStatus(id: string, value: string | null) {
     try {
       await setProperty(id, 'status', value ?? '');
@@ -394,18 +404,15 @@
     }
   }
 
+  // The top-bar global search: debounced, it opens (or retargets) a single search pane so a
+  // quick search doesn't require adding a pane by hand first.
   function onSearchInput() {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(runSearch, 250);
-  }
-  async function runSearch() {
-    try {
-      results = await ipcSearch(searchQuery);
-      learnStatuses(results);
-      error = null;
-    } catch (e) {
-      error = String(e);
-    }
+    searchTimer = setTimeout(() => {
+      const existing = workspace.panes.find((p) => p.kind === 'search');
+      if (existing) changePane(existing.id, { query: searchQuery });
+      else if (searchQuery.trim()) addPane('search', { query: searchQuery });
+    }, 250);
   }
 
   // Debounced auto-commit after any successful write. Best-effort — a clean tree
@@ -433,77 +440,81 @@
     backupOpen = true;
   }
 
-  // Editing a note's properties can change its type/status, so refresh the
-  // current view when the panel closes.
-  function closeNote() {
-    openIds = [];
-    startEditing = false;
-    void refresh();
-  }
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
 
-<div class="app" class:rail-collapsed={railCollapsed}>
-  <nav class="sidebar" aria-label="navigation">
-    <div class="brand">
-      <button
-        class="icon-btn rail-toggle"
-        onclick={() => (railCollapsed = !railCollapsed)}
-        aria-label="toggle sidebar"
-        title="Toggle sidebar (Ctrl+\)"
-      >
-        <Icon name={railCollapsed ? 'chevronRight' : 'chevronLeft'} />
-      </button>
-      <span class="wordmark">formicaria</span>
+<!-- The gate. Three states, and the middle one is the point:
+     null - we have not asked yet. Show NOTHING; unknown is not "no", and flashing an
+            empty board or a first-run screen at someone who has ten vaults is a lie we
+            would tell for 40ms.
+     []   - the first run. The vault form IS the app: no rail, no views, no palette,
+            because there is genuinely nothing else to do and offering it would be a menu
+            of things that all fail.
+     [..] - the app. -->
+{#if vaults?.length === 0}
+  <NewVault
+    firstRun
+    git={gitAvailable}
+    oncreated={(v) => {
+      vaults = v;
+      void refresh();
+    }}
+  />
+{:else if vaults}
+<div class="app">
+  <!-- The nav is a horizontal top bar now (it was a tall left rail that wasted vertical
+       space). Everything the rail held lives here in one row; the workspace gets the full
+       height and width below it. -->
+  <header class="topbar">
+    <span class="wordmark">formicaria</span>
+
+    <label class="searchfield">
+      <Icon name="search" size={15} />
+      <input
+        bind:this={searchEl}
+        class="topbar-search"
+        type="search"
+        placeholder="Search…"
+        bind:value={searchQuery}
+        oninput={onSearchInput}
+        spellcheck="false"
+        aria-label="search notes"
+      />
+    </label>
+
+    <button type="button" class="tb-btn" onclick={onNew} title="Create a note and open the editor">
+      <Icon name="plus" size={15} /> New note
+    </button>
+    <button type="button" class="tb-btn ghost" onclick={onNewBoard} title="Create a whiteboard">
+      <Icon name="pen" size={15} /> New board
+    </button>
+
+    <span class="tb-sep"></span>
+
+    <!-- Open a view into a new pane. -->
+    <div class="tb-add" role="group" aria-label="open a view">
+      <span class="tb-add-label"><Icon name="plus" size={14} /> view</span>
+      <button class="tb-chip" onclick={() => addPane('board')}>Board</button>
+      <button class="tb-chip" onclick={() => addPane('agenda')}>Agenda</button>
+      <button class="tb-chip" onclick={() => addPane('timeline')}>Timeline</button>
+      <button class="tb-chip" onclick={() => addPane('search')}>Search</button>
+      {#each views.filter((v) => !v.error) as v (v.name)}
+        <button class="tb-chip saved" onclick={() => addPane('view', { viewName: v.name })} title="Saved view">{v.name}</button>
+      {/each}
     </div>
 
-    <div class="create">
-      <label class="searchfield">
-        <Icon name="search" size={16} />
-        <input
-          bind:this={searchEl}
-          class="sidebar-search"
-          type="search"
-          placeholder="Search notes…"
-          bind:value={searchQuery}
-          oninput={onSearchInput}
-          onfocus={() => (view = 'search')}
-          spellcheck="false"
-          aria-label="search notes"
-        />
-      </label>
-      <button type="button" class="new-btn" onclick={onNew} title="Create a note and open the editor">
-        <Icon name="plus" size={15} /> <span class="label">New note</span>
-      </button>
-      <button type="button" class="new-btn secondary" onclick={onNewBoard} title="Create a whiteboard (Excalidraw canvas)">
-        <Icon name="pen" size={15} /> <span class="label">New board</span>
-      </button>
-    </div>
+    <label class="tb-cols" title="Workspace columns">
+      cols
+      <select value={workspace.cols} onchange={(e) => setCols(Number((e.currentTarget as HTMLSelectElement).value))}>
+        {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n}</option>{/each}
+      </select>
+    </label>
 
-    <ul class="nav">
-      <li>
-        <button class="nav-item" class:active={view === 'board'} aria-current={view === 'board' ? 'page' : undefined} onclick={() => (view = 'board')}>
-          <Icon name="board" /> <span class="label">Board</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item" class:active={view === 'agenda'} aria-current={view === 'agenda' ? 'page' : undefined} onclick={() => (view = 'agenda')}>
-          <Icon name="calendar" /> <span class="label">Agenda</span>
-        </button>
-      </li>
-      <li>
-        <button class="nav-item" class:active={view === 'timeline'} aria-current={view === 'timeline' ? 'page' : undefined} onclick={() => (view = 'timeline')}>
-          <Icon name="timeline" /> <span class="label">Timeline</span>
-        </button>
-      </li>
-    </ul>
+    <span class="tb-spacer"></span>
 
-    <!-- Only when there is a boundary to draw. One vault means no audiences to tell
-         apart, and a filter with one chip is furniture. -->
-    {#if allVaults.length > 1 && !railCollapsed}
-      <div class="vaults">
-        <span class="vaults-label">Vaults</span>
+    {#if allVaults.length > 1}
+      <div class="vaults" aria-label="vault filter">
         {#each allVaults as v (v)}
           <button
             class="vault-chip"
@@ -518,100 +529,57 @@
       </div>
     {/if}
 
-    <div class="sidebar-foot">
-      <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
-        <Icon name="command" />
-      </button>
-      <button class="icon-btn" onclick={toggleTheme} aria-label="toggle theme" title="Toggle light/dark">
-        <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-      </button>
-      <button class="backup" onclick={onBackup} title="Push your notes; optionally snapshot media">
-        <Icon name="backup" size={15} /> <span class="label">Back up</span>
-      </button>
-    </div>
-  </nav>
+    <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
+      <Icon name="command" />
+    </button>
+    <button class="icon-btn" onclick={toggleTheme} aria-label="toggle theme" title="Toggle light/dark">
+      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+    </button>
+    <button class="tb-btn ghost" onclick={onBackup} title="Push your notes; optionally snapshot media">
+      <Icon name="backup" size={15} /> Back up
+    </button>
+  </header>
 
-  <div class="main">
-    <header class="content-header">
-      <h1 class="view-title">{viewTitle}</h1>
-      <div class="header-controls">
-        {#if view === 'board'}
-          <label class="group">
-            <span>group by</span>
-            <input list="props" bind:value={groupBy} spellcheck="false" />
-            <datalist id="props">
-              <option value="status"></option>
-              <option value="project"></option>
-              <option value="tags"></option>
-            </datalist>
-          </label>
-        {:else if view === 'agenda'}
-          <div class="seg" role="group" aria-label="agenda layout">
-            <button class:active={agendaMode === 'month'} aria-pressed={agendaMode === 'month'} onclick={() => (agendaMode = 'month')}>Month</button>
-            <button class:active={agendaMode === 'week'} aria-pressed={agendaMode === 'week'} onclick={() => (agendaMode = 'week')}>Week</button>
-            <button class:active={agendaMode === 'list'} aria-pressed={agendaMode === 'list'} onclick={() => (agendaMode = 'list')}>List</button>
-          </div>
-        {/if}
-      </div>
-    </header>
-
+  <div class="body">
     {#if error}<p class="banner error">{error}</p>{/if}
-    {#if notice}<p class="banner notice">{notice}</p>{/if}
+    {#if notice}
+      <p class="banner notice">
+        {notice}
+        <button class="banner-dismiss" onclick={() => (notice = null)} aria-label="dismiss">✕</button>
+      </p>
+    {/if}
 
-    <div class="stage">
-      {#if view === 'board'}
-        {#if displayBoard}
-          <Board
-            board={displayBoard}
-            onmove={onMove}
-            onreorder={onReorder}
-            onopen={openNote}
+    <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
+         spans some columns; panes flow into rows. The renderers are pure and height:100%, so
+         each drops into its cell unchanged. -->
+    <div class="workspace" style="--cols:{workspace.cols}">
+      {#each workspace.panes as pane, i (pane.id)}
+        <div class="cell" style="grid-column: span {Math.min(pane.colSpan, workspace.cols)}; grid-row: span {pane.rowSpan};">
+          <Pane
+            {pane}
+            index={i}
+            cols={workspace.cols}
+            feed={feedKey(pane) ? feeds[feedKey(pane) ?? ''] : undefined}
             statuses={knownStatuses}
+            savedViews={views}
+            {shown}
+            focused={i === focused}
+            startEditing={pane.kind === 'note' && pane.noteId === editingId}
+            onopen={openNote}
+            onmove={onMove}
             onstatus={onSetStatus}
+            onnavigate={openNoteInPane}
+            onsaved={scheduleCommit}
+            onchange={(patch) => changePane(pane.id, patch)}
+            onreorder={movePane}
+            onresize={(patch) => resizePane(pane.id, patch)}
+            onclose={() => closePane(pane.id)}
+            onfocus={() => (focused = i)}
           />
-        {:else}
-          <p class="empty">Loading…</p>
-        {/if}
-      {:else if view === 'search'}
-        <Search cards={results} query={searchQuery} onopen={openNote} />
-      {:else if !visibleCards}
-        <p class="empty">Loading…</p>
-      {:else if view === 'timeline'}
-        <Timeline cards={visibleCards} onopen={openNote} statuses={knownStatuses} onstatus={onSetStatus} />
-      {:else if agendaMode === 'list'}
-        <Agenda cards={visibleCards} onopen={openNote} />
-      {:else}
-        <Calendar cards={visibleCards} range={agendaMode === 'week' ? 'week' : 'month'} onopen={openNote} />
-      {/if}
+        </div>
+      {/each}
     </div>
   </div>
-
-  {#if openIds.length}
-    <!-- The trail is modal as a whole: one overlay and one backdrop for all of
-         it, however many panes deep it runs. Lazy: the read view (marked +
-         KaTeX + Mermaid) only loads when a note is opened, so the core bundle
-         stays small — and the import resolves once, not once per pane. -->
-    <div class="overlay" class:wide>
-      <button class="backdrop" aria-label="close note" onclick={closeNote}></button>
-      <div class="trail" bind:this={trailEl}>
-        {#await import('./lib/NotePanel.svelte') then { default: NotePanel }}
-          {#each openIds as id, i (id)}
-            <NotePanel
-              {id}
-              {wide}
-              solo={openIds.length === 1}
-              startEditing={i === openIds.length - 1 && startEditing}
-              statuses={knownStatuses}
-              onclose={() => closeFrom(i)}
-              onnavigate={pushNote}
-              ontogglewide={toggleWide}
-              onsaved={scheduleCommit}
-            />
-          {/each}
-        {/await}
-      </div>
-    </div>
-  {/if}
 
   {#if paletteOpen}
     {#await import('./lib/CommandPalette.svelte') then { default: CommandPalette }}
@@ -621,199 +589,218 @@
 
   {#if backupOpen}
     {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
-      <BackupPanel onclose={() => (backupOpen = false)} />
+      <BackupPanel
+        onclose={() => (backupOpen = false)}
+        onnewvault={() => {
+          backupOpen = false;
+          newVaultOpen = true;
+        }}
+      />
     {/await}
   {/if}
+
+  {#if newVaultOpen}
+    <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
+      <NewVault
+        git={gitAvailable}
+        oncreated={(v) => {
+          vaults = v;
+          newVaultOpen = false;
+          void refresh();
+        }}
+        oncancel={() => (newVaultOpen = false)}
+      />
+    </div>
+  {/if}
 </div>
+{/if}
 
 <style>
-  /* ── The note trail: the modal surface holding one or more open panes ── */
-  .overlay {
+  /* The new-vault dialog. Genuinely modal — a form, not a peer view — so it keeps the
+     fixed backdrop the note trail gave up. */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.45);
+    z-index: 40;
+  }
+  .sheet {
     position: fixed;
     inset: 0;
     display: flex;
-    justify-content: flex-end;
-    z-index: 50;
+    align-items: center;
+    justify-content: center;
+    z-index: 41;
+    pointer-events: none;
   }
-  .overlay.wide {
-    justify-content: stretch;
-    align-items: stretch;
-    padding: 0;
-  }
-  /* A full-area button behind the panes: clicking outside closes, with no
-     stopPropagation and no listeners on non-interactive elements. */
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    border: none;
-    background: rgb(0 0 0 / 0.5);
-    cursor: default;
-  }
-  /* Panes sit left-to-right in the order they were opened. The row scrolls
-     rather than squeezing them, so a long trail stays readable; each pane snaps
-     so you land on a note, not between two. `justify-content: flex-end` keeps a
-     short trail docked right, where the single sheet has always been. */
-  .trail {
-    position: relative;
-    display: flex;
-    justify-content: flex-end;
-    margin-left: auto;
-    max-width: 100%;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x proximity;
-    overscroll-behavior-x: contain;
+  .sheet > :global(*) {
+    pointer-events: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-3, 10px);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+    max-height: 90vh;
+    overflow: auto;
   }
 
-  /* ── Shell: recessive left rail + main column (Linear/Things-style) ── */
+  /* ── Shell: a horizontal top bar over the workspace. ──
+     A note is a pane now, so there is no separate trail column: one column, a header row
+     over the workspace row. */
   .app {
     display: grid;
-    grid-template-columns: 15rem 1fr;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
     height: 100vh;
     overflow: hidden;
     background: var(--bg);
-    transition: grid-template-columns var(--dur-med) var(--ease);
   }
-  .app.rail-collapsed {
-    grid-template-columns: 3.25rem 1fr;
-  }
-
-  .sidebar {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    min-height: 0;
-    padding: var(--space-3);
-    background: var(--surface);
-    border-right: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .brand {
+  .topbar {
+    grid-row: 1;
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    height: var(--header-h);
-    padding-left: var(--space-1);
+    min-height: var(--header-h);
+    padding: 0 var(--space-3);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
   }
+  .body {
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* The flexible pane grid. `--cols` is the user's column count; panes flow into it and
+     each spans some columns. min-height:0 on the grid and cells lets a pane scroll
+     internally instead of the page. */
+  .workspace {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    grid-auto-rows: minmax(8rem, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2);
+    overflow: auto;
+  }
+  .cell {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+  }
+  .cell > :global(.pane) {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Top-bar controls. */
   .wordmark {
     font-weight: 700;
     font-size: var(--text-md);
-    letter-spacing: 0.01em;
     color: var(--text);
     white-space: nowrap;
-    overflow: hidden;
-  }
-  .rail-toggle {
-    flex: none;
-  }
-
-  /* Create surface: the primary Search field over the two create buttons. */
-  .create {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+    padding-right: var(--space-1);
   }
   .searchfield {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
+    gap: var(--space-1);
+    padding: 3px var(--space-2);
+    background: var(--bg);
     border: 1px solid var(--border);
-    background: var(--surface-elevated);
+    border-radius: var(--radius-pill);
     color: var(--text-muted);
   }
-  .searchfield:focus-within {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .sidebar-search {
-    flex: 1;
-    min-width: 0;
+  .topbar-search {
     border: none;
     background: transparent;
     color: var(--text);
+    font: inherit;
     font-size: var(--text-sm);
+    width: 9rem;
     outline: none;
   }
-  .sidebar-search::placeholder {
-    color: var(--text-muted);
-  }
-  .new-btn {
-    width: 100%;
-    box-sizing: border-box;
+  .tb-btn {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: var(--space-1);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-sm);
+    gap: 4px;
+    white-space: nowrap;
+    font: inherit;
+    font-size: var(--text-sm);
+    padding: 4px 10px;
     border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     background: var(--accent);
     color: var(--accent-contrast);
-    font-size: var(--text-xs);
-    font-weight: 600;
     cursor: pointer;
+  }
+  .tb-btn.ghost {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .tb-sep {
+    width: 1px;
+    align-self: stretch;
+    margin: 6px 2px;
+    background: var(--border);
+  }
+  .tb-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tb-add-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
     white-space: nowrap;
   }
-  .new-btn:hover {
-    background: var(--accent-hover);
-  }
-  .new-btn.secondary {
-    background: var(--surface-elevated);
+  .tb-chip {
+    font: inherit;
+    font-size: var(--text-sm);
+    white-space: nowrap;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--bg);
     color: var(--text);
-    border-color: var(--border);
+    cursor: pointer;
   }
-  .new-btn.secondary:hover {
-    background: var(--accent-subtle);
+  .tb-chip:hover {
     border-color: var(--accent);
-    color: var(--accent);
+  }
+  .tb-chip.saved {
+    border-style: dashed;
+    color: var(--text-muted);
+  }
+  .tb-cols {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .tb-cols select {
+    font: inherit;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px 4px;
+  }
+  .tb-spacer {
+    flex: 1;
   }
 
-  /* Nav items: quiet by default, tinted when active. */
-  .nav {
-    list-style: none;
-    margin: var(--space-1) 0 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    width: 100%;
-    box-sizing: border-box;
-    padding: var(--space-2) var(--space-2);
-    border: none;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    text-align: left;
-    cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease),
-      color var(--dur-fast) var(--ease);
-  }
-  .nav-item :global(svg) {
-    flex: none;
-  }
-  .nav-item .label {
-    overflow: hidden;
-    white-space: nowrap;
-  }
-  .nav-item:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-  }
-  .nav-item.active {
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-weight: 600;
-  }
   /* Hiding a vault is a view preference and nothing more — it changes what is on
      screen, never who can see a note. The chips are quiet on purpose: they must not
      read like a permission control. */
@@ -823,14 +810,6 @@
     gap: 0.25rem;
     padding: 0 var(--space-3) var(--space-3);
     align-items: center;
-  }
-  .vaults-label {
-    width: 100%;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 0.2rem;
   }
   .vault-chip {
     font-size: 0.68rem;
@@ -846,32 +825,6 @@
     color: var(--text-muted);
     opacity: 0.5;
     text-decoration: line-through;
-  }
-  .sidebar-foot {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding-top: var(--space-2);
-    border-top: 1px solid var(--border);
-  }
-  .backup {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    margin-left: auto;
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: var(--text-xs);
-    white-space: nowrap;
-  }
-  .backup:hover {
-    color: var(--text);
-    border-color: var(--accent);
   }
   .icon-btn {
     display: grid;
@@ -891,96 +844,6 @@
     background: var(--surface-hover);
   }
 
-  /* Collapsed rail: icons only. */
-  .rail-collapsed .wordmark,
-  .rail-collapsed .create,
-  .rail-collapsed .label {
-    display: none;
-  }
-  .rail-collapsed .nav-item {
-    justify-content: center;
-    padding-inline: 0;
-  }
-  .rail-collapsed .sidebar-foot {
-    flex-direction: column;
-  }
-  .rail-collapsed .backup {
-    margin-left: 0;
-    padding: var(--space-2);
-  }
-
-  /* ── Main column ── */
-  .main {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: 0;
-    background: var(--bg);
-  }
-  .content-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    height: var(--header-h);
-    padding: 0 var(--space-5);
-    border-bottom: 1px solid var(--border);
-  }
-  .view-title {
-    margin: 0;
-    font-size: var(--text-lg);
-    font-weight: 650;
-    color: var(--text);
-  }
-  .header-controls {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-  }
-  .group {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
-  .group input {
-    width: 7rem;
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--surface-elevated);
-    color: var(--text);
-  }
-  /* Segmented control for the agenda layout. */
-  .seg {
-    display: inline-flex;
-    padding: 2px;
-    gap: 2px;
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    border: 1px solid var(--border);
-  }
-  .seg button {
-    padding: var(--space-1) var(--space-3);
-    border: none;
-    border-radius: calc(var(--radius-sm) - 2px);
-    background: transparent;
-    color: var(--text-muted);
-    font-size: var(--text-xs);
-    cursor: pointer;
-  }
-  .seg button.active {
-    background: var(--surface-elevated);
-    color: var(--text);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .stage {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-  }
   .banner {
     margin: 0;
     padding: var(--space-2) var(--space-5);
@@ -994,29 +857,15 @@
     background: var(--ok-bg);
     color: var(--ok-fg);
   }
-  .empty {
-    padding: var(--space-7);
-    color: var(--text-muted);
+  .banner-dismiss {
+    margin-left: var(--space-2);
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.7;
   }
-
-  /* Below tablet, force the collapsed icon rail. */
-  @media (max-width: 900px) {
-    .app,
-    .app.rail-collapsed {
-      grid-template-columns: 3.25rem 1fr;
-    }
-    .wordmark,
-    .create,
-    .nav-item .label,
-    .backup .label {
-      display: none;
-    }
-    .nav-item {
-      justify-content: center;
-      padding-inline: 0;
-    }
-    .sidebar-foot {
-      flex-direction: column;
-    }
+  .banner-dismiss:hover {
+    opacity: 1;
   }
 </style>

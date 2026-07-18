@@ -24,7 +24,11 @@
   import { reachOf, shortDest } from './destination';
   import type { BackupStatus, VaultStatus } from './types';
 
-  let { onclose }: { onclose: () => void } = $props();
+  // `onnewvault` because this panel is already "a list, not a form" — the one surface in
+  // the app that is *about the set of vaults*, which makes it where you add one. (The
+  // sidebar is search-first with New note / New board; those are note gestures, and a
+  // vault is not a note.)
+  let { onclose, onnewvault }: { onclose: () => void; onnewvault: () => void } = $props();
 
   type Step = { text: string; ok: boolean };
 
@@ -244,7 +248,10 @@
   <button class="backup-backdrop" aria-label="close backup" onclick={() => !busy && onclose()}
   ></button>
   <div class="panel" role="dialog" aria-label="back up">
-    <h2>Back up</h2>
+    <div class="panel-head">
+      <h2>Back up</h2>
+      <button class="new-vault" onclick={onnewvault} disabled={busy}>New vault…</button>
+    </div>
 
     {#if noGit}
       <!-- Say what is actually wrong. Every vault below reports no remote and no identity,
@@ -419,6 +426,22 @@
 </div>
 
 <style>
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .new-vault {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 4px 10px;
+    border-radius: var(--radius-2, 6px);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
   .backup-overlay {
     position: fixed;
     inset: 0;

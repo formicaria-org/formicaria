@@ -8,19 +8,15 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
 
 ## Known gaps / not fully working
 
-- **Unsanitized `innerHTML` in `render.ts` — and its excuse expired.** The read view sets
-  `el.innerHTML` from `marked.parse()` with **no DOMPurify**, so raw HTML / `<img onerror>`
-  in a note body reaches the DOM. A characterization test pins this *current* behavior.
-  It was "accepted as low-risk for a single-user local tool" — **and the 2026-07-17
-  collaboration work made that premise false.** Note bodies now arrive from other people,
-  merged in cleanly by the `.md` driver. The chain is complete: their note runs script in
-  our origin, and `fm-serve`'s CSRF guard deliberately allows requests with no `Origin`
-  ("there are no ambient credentials to abuse" — `main.rs`), so that script can call any
-  `/api/*` — read every note, delete them, or set a git remote and push a private vault
-  somewhere. Same-origin, so nothing stops it. **This is now the top security item**, not a
-  filed follow-up, and the owner's bar is production-grade + everyone can use it. Fixing it
-  means a sanitizer and re-reading `fm-serve`'s "Localhost only, single user" header, which
-  is also no longer true of the design.
+- **~~Unsanitized `innerHTML` in `render.ts`~~ — FIXED 2026-07-17.** `render.ts` now runs
+  DOMPurify on `marked`'s output before the DOM sees it (`sanitize()`), so a collaborator's
+  `<img onerror>` / `<script>` is stripped. The config widens DOMPurify's URI allow-list by
+  **exactly** `note:`/`asset:`/`sha256:` — our own pipeline speaks those three, and stripping
+  them would silently kill every asset image and note chip (the trap this fix had to avoid).
+  Math (`span[data-math]`) and Mermaid (`code.language-mermaid`) placeholders survive because
+  the resolve passes run *after* sanitize; tests pin both the stripping and the survival.
+  Mermaid's own SVG sink still relies on its `securityLevel: 'strict'`, documented in place.
+  `fm-serve`'s header was corrected from "single user".
 - **You are only told someone pushed if you open the backup panel.** `git::remote_moved`
   (one `ls-remote`, moves no refs) is computed in `backup_status`, so nothing surfaces
   "Ravi pushed" on its own. The plan's automatic 15–30 s poll needs a timer and somewhere
@@ -152,7 +148,7 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   `.pixi/envs/default/bin`. Use `pixi run <task>` or
   `pixi run -e default <cmd>`; a bare `cargo`/`pnpm` in a background shell will
   be "command not found".
-- **`fm-serve` env vars:** `FM_VAULT` (default `vault`), `FM_UI_DIST` (default
+- **`fm-serve` env vars:** `FM_VAULT` (no default — unset means the first-run screen), `FM_UI_DIST` (default
   `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN` (xdg-open the
   browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (the **media** backup tier only —
   the notes tier needs neither).
@@ -187,6 +183,13 @@ _Last verified: 2026-07-16 (assets/status/kanban/slash-menu/edit-gesture)._
   through `ownsKeys()` (focus inside some pane → only that pane acts), or you get
   the bug Escape-exits-edit had: pane 1 closing the trail while you leave pane 2's
   editor.
+- **The note trail is now a peer grid column, not a modal overlay** (de-modalized
+  2026-07-17). The board stays live beside an open note and no backdrop dismisses it —
+  close with the ✕ button or Escape (`NotePanel.onPaneKey`). Deliberately **left
+  conservative**: `App.onGlobalKey`'s `if (openIds.length) return` still suppresses the
+  app-level `1/2/3`/`c`/`/` shortcuts while a note is open, so those don't drive the view
+  beside it. Making them focus-aware is the *pane-grid* rabbit hole the workspace design
+  explicitly rejected — do not open it without a reason the two-region layout can't meet.
 - **Assets are excluded from `board`/`agenda`/`recent`** (`Predicate::Kind`), so a
   board grouped by `type` has only a `note` column *by design* — don't "fix" it.
   Keep `search`/`gallery` seeing assets: search is the only way to find a PDF by

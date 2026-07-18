@@ -38,10 +38,22 @@ test = "cargo test --workspace"
 # runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default
 # env, no webkit: `pixi run serve`, then open http://127.0.0.1:8765.
-serve = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve", env = { FM_UI_DIST = "ui/dist" } }
+#
+# BOTH vault vars are load-bearing for the dev loop, and neither is a default the
+# binary carries:
+#   FM_VAULT=vault  — there is no default vault path any more. Unset means zero
+#     vaults and the first-run screen (which is the point: a *relative* default
+#     meant a typo, or a launcher started from another cwd, silently created an
+#     empty vault while your notes "vanished"). This pins the dev loop to ./vault.
+#   FM_VAULTS=.dev-vaults.json — keeps the loop hermetic. vaults.json WINS over
+#     FM_VAULT, so without this a developer who creates a vault in the app writes
+#     their REAL ~/.config/formicaria/vaults.json, and from then on `pixi run
+#     serve` reads that file, ignores FM_VAULT, and ./vault silently disappears.
+#     Gitignored. To reach the first-run screen: rm it and unset FM_VAULT.
+serve = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json" } }
 # Same, but the RELEASE build (the [profile.release] in Cargo.toml: stripped +
 # thin-LTO, ~3 MB, faster runtime). Slower to compile; what you'd run daily.
-serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --release -p fm-serve", env = { FM_UI_DIST = "ui/dist" } }
+serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --release -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json" } }
 # Produce the shippable artifacts WITHOUT running them: the optimized binaries at
 # `target/release/{fm-serve,fm}` plus the production UI bundle at `ui/dist`. Those
 # together ARE the app — run fm-serve from the repo root (it defaults FM_UI_DIST
@@ -66,6 +78,12 @@ build-debug = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build -p 
 # desktop launcher runs, so a double-click starts instantly; update what it runs
 # by rebuilding explicitly with `pixi run build`. Assumes `pixi run build` has
 # produced `target/release/fm-serve` + `ui/dist`.
+#
+# Deliberately gets NO FM_VAULT/FM_VAULTS, unlike `serve`: this is the launcher,
+# and a double-click on a machine with no vaults landing on the first-run screen
+# IS the feature. Consequence, stated: `pixi run app` from the repo root does not
+# see ./vault — it reads your real ~/.config/formicaria/vaults.json, like a
+# released install would.
 app = "target/release/fm-serve"
 test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite

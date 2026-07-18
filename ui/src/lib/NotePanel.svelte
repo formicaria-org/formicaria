@@ -763,23 +763,27 @@
 </article>
 
 <style>
-  /* Right-docked reading/editing sheet (Notion side-peek). The overlay and
-     backdrop live in App.svelte — a pane is one column of a trail, and only the
-     trail as a whole is modal. */
+  /* Right-docked reading/editing sheet (Notion side-peek). The trail that holds this is a
+     grid COLUMN of the app (App.svelte), no longer a modal overlay — so a pane fills its
+     height (100%, not 100vh) and the trail column, not the viewport, sets the width. */
   .panel {
     position: relative;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100%;
     width: clamp(32rem, 42vw, 44rem);
     max-width: 100%;
     flex: none; /* a trail column keeps its width; the row scrolls instead */
     scroll-snap-align: end;
     background: var(--surface);
-    border-left: 1px solid var(--border);
     box-shadow: var(--shadow-lg);
     overflow-y: auto;
     animation: sheet-in var(--dur-med) var(--ease);
+  }
+  /* A lone pane fills the trail column exactly (docked cap, or the whole content area
+     when wide); a second pane joining makes them fall back to their own width and scroll. */
+  .panel.solo {
+    width: 100%;
   }
   @keyframes sheet-in {
     from {
@@ -796,11 +800,9 @@
      second pane joins the trail, panes fall back to their column width — the
      whole point of following a link is seeing where you came from. */
   .panel.wide.solo {
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     max-width: none;
-    border: none;
-    border-radius: 0;
     animation-name: page-in;
   }
   @keyframes page-in {

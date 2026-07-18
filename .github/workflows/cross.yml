@@ -13,25 +13,21 @@
 # expected to be the Windows casualty, passes there untouched.)
 name: cross
 
+# **Manual-only, deliberately** (2026-07-17): this month's Actions minutes are spent, and at
+# 10x/2x this workflow is essentially the whole bill. `ci.yml` and `docs.yml` are
+# ubuntu-latest (1x) and still gate every push, so Linux stays green automatically.
+#
+# The cost is real and is stated above: Linux cannot see the CRLF class of bug. **Fire this
+# by hand before a release** (Actions -> cross -> Run workflow), and note `release.yml`
+# builds macOS/Windows on a `v*` tag regardless, so a tagged release still exercises them.
+#
+# To restore: put back the `push:` / `pull_request:` blocks below `workflow_dispatch:` —
+#   push:
+#     paths: ['crates/**', 'ui/**', 'ci/**', 'Cargo.toml', 'Cargo.lock', 'pixi.toml',
+#             'pixi.lock', '.gitattributes', '.github/workflows/cross.yml']
+#   pull_request:
+#     paths: ['crates/**', 'ui/**', 'ci/**', 'Cargo.*', 'pixi.*']
 on:
-  push:
-    paths:
-      - 'crates/**'
-      - 'ui/**'
-      - 'ci/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'pixi.toml'
-      - 'pixi.lock'
-      - '.gitattributes'
-      - '.github/workflows/cross.yml'
-  pull_request:
-    paths:
-      - 'crates/**'
-      - 'ui/**'
-      - 'ci/**'
-      - 'Cargo.*'
-      - 'pixi.*'
   workflow_dispatch:
 
 concurrency:

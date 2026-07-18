@@ -42,6 +42,12 @@ pub enum StoreError {
     /// own variant rather than an `Io` string.
     #[error("this note changed on disk since you opened it — reload before saving")]
     Conflict(Id),
+    /// There are no vaults at all — the first-run state. Reads over zero vaults are
+    /// legitimately empty, but a *write* has nowhere to go, so it says so instead of
+    /// picking a vault that does not exist. Its own variant rather than an `Io` string
+    /// because the caller (the first-run screen) branches on it.
+    #[error("no vaults configured — create one first")]
+    NoVaults,
 }
 
 /// How much of the index to rebuild. `Full` = drop and rebuild from files — the

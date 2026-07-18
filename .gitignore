@@ -16,6 +16,12 @@ docs/book/
 # The knowledge vault is its own independent git repo — never track it from the app repo
 /vault/
 
+# The dev loop's vault list (pixi's `serve` points FM_VAULTS here). Per-machine, and it
+# exists precisely so creating a vault in the app never writes your real
+# ~/.config/formicaria/vaults.json — which would then win over FM_VAULT and make ./vault
+# silently vanish from `pixi run serve`.
+/.dev-vaults.json
+
 # OS / editor cruft
 .DS_Store
 *.swp

@@ -9,12 +9,14 @@ sequence and the rulings; that file carries the receipts.
 Like the collaboration doc, most of what's below does **not exist yet**. When a line
 ships, delete it here and fold the outcome into `overview.md` / `decisions.md`.
 
-_Last updated: 2026-07-17, after **Track C Phases 0, 1 and 2 shipped**: a shared vault
-works end-to-end (two people, one note, clean merge, round trip) and **the plural is now
-literally true** — a set of vaults, each its own repo and audience, under one set of views.
-**The rename is the next thing, and its trigger is finally met** (see Phase 2 and "The
-name"). After that, Phase 3. Everything else here still describes things that do not
-exist._
+_Last updated: 2026-07-17, after **Track V's V1 shipped** (the first-run gate + the vault
+list's first writer — `sessions/2026-07-17-create-vault.md`) and the UI direction was set:
+**sanitize `render.ts`, de-modalize the note trail, then earn `.view`** (the layout ask
+turned out to be `MASTERPLAN:323`'s own deferred design, not a new feature). Before that,
+**Track C Phases 0, 1 and 2 shipped** and the rename landed with them: a shared vault works
+end-to-end and the plural is literally true. **Next: Track V's V2 (four live co-tenancy bugs,
+two silent) gates V3–V4; the UI track is independent.** Everything not marked SHIPPED still
+describes things that do not exist._
 
 ## The vision — *formicaria*
 
@@ -107,13 +109,16 @@ screenshot becomes ~2.7 MB of churn per stroke.
 
 ## The sequenced program
 
-Two tracks. **Track S** (single-user near-term) is independent — ship any item anytime.
-**Track C** (collaboration) is strictly ordered and **Phase 0 gates everything**. The one
+Three tracks. **Track S** (single-user near-term) is independent — ship any item anytime.
+**Track C** (collaboration) is strictly ordered and **Phase 0 gates everything**.
+**Track V** (a vault is a folder you already have) is ordered too: **V2 gates V3–V4**. The one
 cross-tie: Ruling B lands before Track C Phase 3 shares boards.
 
 > **Interleave rule:** Phase 0 fixes *live single-user bugs*, so it earns its place even if
 > collaboration never starts — do it first. Track S items (calendar, whiteboard-in-note,
-> PDF) need nothing from Track C and can run ahead of or alongside Phases 1–3.
+> PDF) need nothing from Track C and can run ahead of or alongside Phases 1–3. **Track V's
+> V2 is the same shape**: four live bugs that earn their place even if you never convert a
+> repo, and two of them are silent.
 
 ### Track S — single-user near-term (from the old roadmap.md)
 
@@ -238,6 +243,78 @@ vanishing.
   query-layer change on the assets-decision seam) or a 20-message thread floods the views.
   **Never call it chat** — 20 s latency is fine for durable discussion, broken for chat;
   ephemeral coordination belongs in Signal/Slack, not a knowledge base.
+
+### Track V — a vault is a folder you already have
+
+**Where this goes:** every project repo is a vault, its notes beside the code or manuscript
+they describe, so formicaria renders and searches the Markdown of *every* repo you own and a
+note in one project cites a note in another. That is **"vaults are audiences" completed**,
+not strained: one repo = one audience = one collaborator list, and your paper's notes have
+different readers than your code's. The reading half already works —
+`MultiStore::get` walks every vault (ULIDs are globally unique, so no URI scheme), FTS5
+federates through the `candidates` seam.
+
+**V1 — the first-run gate + the vault list's first writer. ✅ SHIPPED 2026-07-17** —
+[`sessions/2026-07-17-create-vault.md`](./sessions/2026-07-17-create-vault.md).
+
+**V2 — co-tenancy correctness. NOT BUILT, and it gates V3–V4. Two of the four are silent.**
+Every one is a **live bug today**, verified by reading the code, not hypothesised. They only
+bite once a repo holds work that isn't ours — which is exactly what V3 enables, so this lands
+first.
+
+1. **`push_squashed` eats the user's own commits.** `reset --soft <tracking-ref>` collapses
+   *every* unpushed commit, so three hand-written manuscript commits become one `backup:`.
+   Its own comment justifies the squash by "auto-commit fires every few seconds" — that
+   justifies squashing **ours**, never theirs. **Fix:** compute `base` as the newer of
+   `tracking(vault)` and the most recent commit we did not write, discriminated by the
+   **`auto:`/`backup:` message prefix — never the author**: a PC has one git user and we
+   commit *as* them, so author-based detection cannot work. Dedicated vault → every unpushed
+   commit is ours → identical to today. No mode, no flag; derived from the history.
+2. **`.gitattributes` is skipped if the file exists** (`git.rs`), and every real repo has
+   one → `*.md merge=fm` never lands → **the merge driver silently never engages** → every
+   concurrent edit collides on `updated:` inside the YAML fence and the note stops parsing.
+   *This is Track C Phase 1's disaster, reintroduced by conversion.*
+3. **`.gitignore` is skipped if it exists** → `blobs/`, `index.sqlite`, `derived/` unignored
+   → the 5 s auto-commit commits your blobs and your SQLite index. **Fix for 2 and 3: append
+   the missing line; never skip the file.**
+4. **`commit_all` does `git add -A`** → commits half-written code every 5 s and destroys a
+   staged index. Across ten project repos this is the primary failure, not an edge case.
+   **Fix: `git add` only the paths formicaria actually wrote** — `put` knows the file it just
+   wrote, so `FileStore` hands git an exact list. Not `-A`, and *not even the whole notes
+   dir*: your own hand-edits to `docs/`, mid-sentence in vim, must never be committed by us.
+   **And restic** (`backup.rs:57`) snapshots the whole vault path → the lab's restic repo
+   holds your `data/` and `.env`. Snapshot the notes dir + blobs dir instead.
+
+**V3 — the descriptor.** `<vault>/vault.json`, git-tracked, **bounded by one rule: every
+field must be a fact git cannot supply.** Git already knows authorship and history
+(`git log`), the audience (`git remote` + who can clone), and — neatly — `.gitignore` *is
+already* a truth-vs-cache declaration. So: no author, no collaborators, no remote, no
+history. Three things are left: `name`, `description`, `notes` (where the notes are). Read in
+`FileStore::named`, which already holds `notes: PathBuf` as a field — close to a one-line
+change. Optional throughout; absent = today's behaviour. **Rejected:** a descriptor declaring
+*two* locations (read-here/write-there silently moves notes on first edit).
+
+**V4 — adoption. "A doc reads for free; it becomes a note when you use it."** Any `.md`
+renders and searches with a **transient, index-only id** — nothing written to the user's
+repo. The first time you **cite or edit it**, it is stamped with a real ULID. Same
+promote-by-gesture pattern as ruling A above, and it is what makes rendering every repo's
+docs actually free: ten commits putting ULIDs in READMEs your collaborators read is a bad
+trade. It also retires the objection to derived ids — *"they break links when a file moves"*
+only bites if you can link to them, and **you cannot until promotion stamps a real one**.
+While transient, `git log --diff-filter=A` supplies the real `created`, so a promoted note
+keeps its true dates rather than the day you converted — *use git for what only git knows*.
+**The one thing config and a parser cannot cover is writing:** `path_for(id) =
+notes.join("{id}.md")` — the filename *is* the id, so `docs/installation.md` reads perfectly
+and the first edit writes `docs/01KX….md`, orphaning the original. So **the index records
+each note's path and `put` writes back where it found it**, falling back to `{id}.md` for
+notes we create — which is also what makes a recursive walk safe (`reindex`'s `read_dir` is
+flat today, so nested Markdown is invisible). **`FileStore::skipped()` must reach the GUI
+first** (it is stderr-only) or a failed adoption is indistinguishable from an empty vault.
+
+**Rulings carried:** formicaria never "owns" a repo — every repo it touches is the user's,
+local and writable, and multiple writers is what git is *for*; it always acts as though it
+owns it. (A "guest vs owner" mode was proposed and rejected: the distinction that survives is
+**whose commits**, and git answers that.)
 
 ## Cross-cutting decisions carried in (don't re-derive)
 

@@ -7,24 +7,20 @@
 # every session). Those cannot break a Windows build, so they must not pay for one.
 name: ci
 
-# Code only. A README edit, a redrawn image, a note in docs/context — none of those can
-# break a test, and none of them should spend a minute proving it. The doc build has its
-# own workflow, and it only runs when the book's own sources move.
+# **Manual-only by owner's standing order (2026-07-18): NO remote CI billing until the
+# owner re-enables it themselves.** Every workflow in this repo is `workflow_dispatch`-only
+# so nothing fires on push or PR. `pixi run ci` LOCALLY is the gate meanwhile; it is the
+# same commands this workflow runs, at zero remote cost.
+#
+# To restore automatic runs, put back below `workflow_dispatch:`:
+#   push:
+#     paths: &code
+#       - 'crates/**', 'ui/**', 'ci/**', 'Cargo.toml', 'Cargo.lock', 'pixi.toml',
+#         'pixi.lock', 'deny.toml', '.gitattributes', '.github/workflows/ci.yml'
+#   pull_request:
+#     paths: *code
 on:
-  push:
-    paths: &code
-      - 'crates/**'
-      - 'ui/**'
-      - 'ci/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'pixi.toml'
-      - 'pixi.lock'
-      - 'deny.toml'
-      - '.gitattributes'
-      - '.github/workflows/ci.yml'
-  pull_request:
-    paths: *code
+  workflow_dispatch:
 
 # Pushing twice in a minute shouldn't pay twice. Supersede the older run.
 concurrency:

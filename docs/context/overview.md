@@ -4,7 +4,50 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-17 — **Track C Phases 0, 1 and 2 shipped: a shared vault works, and
+_Last verified: 2026-07-18 — **The UI is a flexible pane workspace now**
+(`sessions/2026-07-18-flexible-workspace.md`). The single global view became a **CSS grid of
+panes** the user opens, reorders (drag the header grip), resizes (drag the corner), and closes;
+a horizontal **top bar** replaced the tall left rail (the explicit "sidebar wastes vertical
+space" complaint). `panes.ts` is the pure core — `Pane`/`Workspace`, `MAX_PANES=8`, a
+`Math.random`/`Date`-free `paneId()`, and the load-bearing **feed-key dedup**: N panes over M
+distinct feeds cost M fetches, not N. Each pane's `onmove` carries its **own** `groupBy`, so two
+boards no longer write each other's property. The whole `Workspace` persists to
+`localStorage['fm-workspace']` (a view preference, never a vault). Deliberately a flat pane list
++ spans, **not** hardcoded preset splits and **not** a recursive split tree — the ask was
+"rearrange them where I want," and the split tree is the one shape with no stopping point.
+A note is a **pane kind** too now (`kind:'note'` → `NotePanel`, board-notes → whiteboard), so
+the old side-trail is retired; `openNoteInPane` dedups by id so one note never opens two editors
+over one file. Verified structurally (CI green, 164 UI tests) but **not seen** — the browser
+extension is not connected, so the owner's eyes remain the layout check. Before that, **`.view`
+files: saved queries, any renderer**
+(`sessions/2026-07-17-view-files.md`). A `.view` (YAML, in `vault/views/`, git-tracked) is
+`query + a renderer` — `MASTERPLAN:323`'s own deferred design, now built. Parsed server-side
+in `fm-app/views.rs` → `fm_query::Query`; the UI sends a **name** (`list_views`/`run_view`),
+so no `Query` crosses the wire — which keeps serde off the pure crates and the
+`PropertyValue` `Ord` trap unreachable (the DSL has no ordered `prop` comparison; dates go
+through `date:`). A `.view` **extends** a preset's filter by `Vec::extend`, so `Kind(Note)`
+(the assets exclusion) is never forgotten; a broken view is listed with its parse error, not
+dropped. This gives the engine's previously-unreachable predicates
+(`Not`/`Any`/`TagsAll`/`TagsAny`/`DateRange`) their first callers. Before that, **the read
+view sanitizes, and the note trail stopped being modal**
+(`sessions/2026-07-17-ui-sanitize-demodalize.md`). `render.ts` now runs DOMPurify on
+`marked`'s output before the DOM sees it — the top security item in `known-issues.md`, made
+live by collaboration (a shared note body could run script in your origin and push your vault
+anywhere); the config widens the URI allow-list by exactly `note:`/`asset:`/`sha256:` so our
+own chips and inline media survive. And the note trail is a **peer grid column** now, not a
+`z-50` overlay with a backdrop: the board stays live beside an open note (see the "Views"
+note below). Before that, **A vault is now created, not invented**
+(`sessions/2026-07-17-create-vault.md`). The `FM_VAULT` default (`"vault"`, *relative*) is
+gone: unset means **zero vaults**, a real state that gates the whole UI on a first-run
+screen, because a typo or a launcher started from another cwd used to silently create an
+empty vault named after the mistake while your notes appeared to vanish. `vaults.json` gains
+**its first writer** (`fm-serve/src/vaults.rs` — value-tree merge, append-only, refuses a
+file it could not parse, writes the whole live list so an `FM_VAULT` vault cannot vanish);
+`check_path`/`create_vault`/`list_vaults`; `MultiStore::open(&[])` legal + `NoVaults` +
+`add` (live, no restart); one mutex over the store **and** the list, since `api()` already
+took them in opposite orders. Creation deliberately does **not** `git init` — `commit_all`
+already does, and eager init inside a repo the user owns would `git init` a nested one
+shadowing theirs. Before that, **Track C Phases 0, 1 and 2 shipped: a shared vault works, and
 the plural is true** (`sessions/2026-07-17-phase-{0,1,2}.md`). Two people can now edit
 different paragraphs of the same note and the merge is **clean**, across a *set* of vaults
 each with its own repo and audience — verified as a real round trip through the API, not
@@ -62,7 +105,13 @@ that: **notes reference notes**: `[Title](note:<ulid>)`
 (deliberately *not* `[[wikilinks]]` — see the session note), inserted by the same
 `/` menu as assets, rendered as a live title+status chip, and clicking one opens
 the target as a **pane to the right** so the trail you followed stays on screen
-(`openIds: string[]`; the overlay/backdrop moved from NotePanel up to App).
+(`openIds: string[]`). **The trail is a peer grid column, not a modal overlay**
+(de-modalized 2026-07-17): the board stays live beside an open note, no backdrop dismisses
+it — reading a note is no longer a *mode*, which is the thesis that a note *is* the task
+*is* the card, made literal. `wide` (persisted) now means "the note takes the whole content
+area" vs "docks beside the view". The `.app` grid is three custom-property columns
+(`--rail`/`--main`/`--trail`) so rail-collapse and the trail compose without a
+grid-template explosion.
 Backlinks are still not built. Before that: notes+tags (no user "type"), optional settable
 `start`+`due` **stamps that now carry an optional time** (`2026-07-20T14:30`), so
 a meeting is expressible; calendar bars start→due, note panel full-screen
@@ -137,12 +186,17 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
 The SQLite index (FTS5) is **disposable**, rebuilt from the files on open. Git
 versioning of the notes + restic backup provide durability.
 
-## The 20 API commands
+## The 25 API commands
 
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
 `open_external` · `commit` · `push` · `backup` · `backup_status` ·
-`set_git_remote` · `ingest` · `pull` · `ping` (liveness heartbeat → auto-shutdown **and
+`set_git_remote` · `ingest` · `pull` · `list_vaults` (the audiences; **`[]` is the
+first-run signal** — deliberately not `backup_status`, which shells out per vault) ·
+`check_path` (what creating a vault here would do; the server owns the verdict) ·
+`create_vault` (create + register + open, live) · `list_views` / `run_view` (**saved `.view`
+files** — `query + a renderer`, parsed server-side, so the UI sends a *name* and no `Query`
+ever crosses the wire) · `ping` (liveness heartbeat → auto-shutdown **and
 the 3 s local poll**: its `{changed}` is how a `git pull` or a Vim edit ever becomes
 visible, since every view is served from the index)
 

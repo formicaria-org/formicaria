@@ -27,6 +27,70 @@ cover assets (including the text extracted from a PDF).
 Urgency and grouping are **derived**, never stored — there is no priority field;
 nudging a note's `due` date is the whole reprioritization gesture.
 
+## Saved views (`.view` files)
+
+A **view** is a saved query drawn through one of the built-in renderers — *"a filtered
+board"*, *"this week's lab agenda"*, *"everything tagged `reading` that isn't done"*. You
+write one as a small YAML file in your vault under `views/`, ending in `.view`; it then
+appears in the sidebar below Board / Agenda / Timeline. Because it lives in the vault, it is
+**git-tracked and travels to collaborators** — a shared view is shared exactly like a note.
+
+The simplest view is two lines:
+
+```yaml
+name: All my notes
+view: timeline
+```
+
+A filtered, grouped board:
+
+```yaml
+name: Lab board
+view: board          # board | agenda | timeline | search | gallery
+group_by: status     # board only
+filter:              # every entry is ANDed onto the renderer's own filter
+  - tag: lab
+```
+
+### The filter
+
+`filter` is a list; a note must satisfy **every** entry. Each entry is one of:
+
+| Entry | Matches |
+|---|---|
+| `prop: <key>` + `eq: <value>` | the property equals the value (`status`, `vault`, or any frontmatter key) |
+| `prop: <key>` + `ne: <value>` | …does not equal it |
+| `prop: <key>` + `exists: true` | the property is set (use `exists: false` for unset) |
+| `tag: <name>` | the note carries that tag |
+| `tags_any: [a, b]` / `tags_all: [a, b]` | any / all of the tags |
+| `text: <words>` | full-text match (the same engine as Search) |
+| `date: <key>` + `from:` / `to:` | a date property within an inclusive window |
+| `not:` + one entry | the negation of it |
+| `any:` + a list of entries | at least one of them (an OR) |
+
+```yaml
+name: Lab, due this fortnight, still open
+view: agenda
+filter:
+  - prop: vault
+    eq: lab
+  - date: due
+    from: 2026-07-14
+    to: 2026-07-27
+  - not:
+      prop: status
+      eq: done
+```
+
+Two things are deliberate. **Dates only compare through `date:`** — there is no `prop: due,
+gt: …`, because a text/date mix-up there would return a confident wrong answer; a date window
+parses real dates and cannot. And **a board/agenda/timeline view always shows notes only** —
+your filter narrows *within* that, it cannot widen it to include assets.
+
+If a `.view` file has a mistake, it still appears in the sidebar, greyed out, with the parse
+error (naming the line) as its tooltip — a broken view tells you why, it never silently
+vanishes.
+
 ## Theme
 
 Toggle light / dark with the sun/moon button. Your choice is remembered; the

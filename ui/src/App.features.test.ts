@@ -48,7 +48,7 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.change(dueField, { target: { value: '2026-08-01' } });
 
     // Close the panel, then reopen the same note — the change survived the round trip.
-    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(screen.getByLabelText('close'));
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     const reopened = (await screen.findByLabelText('due')) as HTMLInputElement;
@@ -80,7 +80,7 @@ describe('v2: property editing, timeline, delete', () => {
     await setDate(dueTime, '14:30');
 
     // Round-trip: the two inputs recombine into one wire value, and split again.
-    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(screen.getByLabelText('close'));
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('2026-08-01');
@@ -98,7 +98,7 @@ describe('v2: property editing, timeline, delete', () => {
     await setDate(await screen.findByLabelText('due time'), '14:30');
     await setDate(due, ''); // clearing the day must take the orphaned time with it
 
-    await fireEvent.click(screen.getByLabelText('close note'));
+    await fireEvent.click(screen.getByLabelText('close'));
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('');
@@ -131,11 +131,14 @@ describe('v2: property editing, timeline, delete', () => {
     expect(await screen.findByLabelText('tags')).toBeTruthy();
   });
 
-  it('shows notes grouped by day in the Timeline view', async () => {
+  it('shows notes grouped by day in a Timeline pane', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
 
-    await fireEvent.click(screen.getByText('Timeline'));
+    // Rotate the default pane to Timeline via its view rotator — a click advances one step,
+    // so Board → Agenda → Timeline is two clicks (the workspace model: panes, not one global view).
+    await fireEvent.click(screen.getByLabelText('pane view'));
+    await fireEvent.click(screen.getByLabelText('pane view'));
     // The seeded mock notes are created "now", so they land under Today.
     expect(await screen.findByText('Today')).toBeTruthy();
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
@@ -153,11 +156,11 @@ describe('v2: property editing, timeline, delete', () => {
     // First click only arms the confirmation — the panel is still open.
     await fireEvent.click(await screen.findByLabelText('delete note'));
     await screen.findByText(/permanently/i);
-    expect(screen.queryByLabelText('close note')).not.toBeNull();
+    expect(screen.queryByLabelText('close')).not.toBeNull();
 
     // The confirm button's accessible name is "Delete" (the header button uses
     // the aria-label "delete note"), so this targets the second, final click.
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(screen.queryByLabelText('close note')).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText('close')).toBeNull());
   });
 });

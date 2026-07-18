@@ -32,18 +32,35 @@ pub struct MultiStore {
 impl MultiStore {
     /// Open every vault in the list. The **first is the default**: a note that names no
     /// vault (anything from `Object::new`, i.e. every fresh capture) lands there, so the
-    /// first entry should be the personal one. Empty is refused — a store over no vaults
-    /// answers every query with silence, which reads exactly like an empty vault and is
-    /// the kind of thing you debug for an hour.
+    /// first entry should be the personal one.
+    ///
+    /// **Empty is legal.** It used to be refused, on the reasoning that a store over no
+    /// vaults answers every query with silence and reads exactly like an empty vault —
+    /// true, and the right call while zero was unreachable. It is now the **first-run
+    /// state**, named by `list_vaults` returning `[]` and gated on by the UI, so the
+    /// silence is never shown to anyone. Reads over zero vaults are honestly empty;
+    /// [`Self::route`] makes writes loud.
     pub fn open<P: AsRef<Path>>(vaults: &[(String, P)]) -> Result<Self, StoreError> {
-        if vaults.is_empty() {
-            return Err(StoreError::Io("no vaults configured".into()));
-        }
         let mut open = Vec::new();
         for (name, path) in vaults {
             open.push(FileStore::named(path, name.clone())?);
         }
         Ok(MultiStore { vaults: open })
+    }
+
+    /// Bring a vault into the live set. The point of the whole thing: creating a vault
+    /// must not need a restart.
+    ///
+    /// **Appends, never inserts.** `vaults[0]` is the default and receives every fresh
+    /// capture, so inserting would silently move where new notes land. At zero the new
+    /// vault becomes the default, which is right — it is the only one.
+    pub fn add(&mut self, store: FileStore) {
+        self.vaults.push(store);
+    }
+
+    /// No vaults at all — the first-run state, not an error. See [`Self::open`].
+    pub fn is_empty(&self) -> bool {
+        self.vaults.is_empty()
     }
 
     /// The audiences, in configured order. The first is the default for new notes.
@@ -63,7 +80,13 @@ impl MultiStore {
     /// The child a note belongs to. An unnamed vault means "not from a store yet" — a
     /// fresh capture — and gets the default rather than an error: refusing to save a new
     /// note because nobody told it its audience would be absurd.
+    ///
+    /// With no vaults there is no default to fall back to, so this is where a write over
+    /// the first-run state becomes loud rather than indexing `[0]` and panicking.
     fn route(&mut self, vault: &str) -> Result<&mut FileStore, StoreError> {
+        if self.vaults.is_empty() {
+            return Err(StoreError::NoVaults);
+        }
         if vault.is_empty() {
             return Ok(&mut self.vaults[0]);
         }

@@ -5,7 +5,7 @@
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
 import { parseStamp } from './stamp';
-import type { BackupStatus, Board, Column, ObjectMeta } from './types';
+import type { BackupStatus, Board, Column, ObjectMeta, PathCheck, VaultInfo } from './types';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -203,6 +203,13 @@ const gitVaults: Array<{
   { name: 'lab', remote: null, identity: null },
 ];
 
+/** The vaults `list_vaults` reports. Mutable: `create_vault` appends, so the first-run
+ *  screen's success path is developable without a backend. */
+const mockVaults: Array<{ name: string; path: string }> = [
+  { name: 'personal', path: '/home/you/notes' },
+  { name: 'lab', path: '/home/you/lab-notes' },
+];
+
 /** Resolve a vault by name; empty means the default. Unknown throws, exactly as the
  *  real backend refuses — a typo must not quietly write into another audience. */
 function mockVault(name: unknown): (typeof gitVaults)[number] {
@@ -292,6 +299,50 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { has_blob: false, has_thumb: false, mime: null } as T;
     case 'open_external':
       return undefined as T;
+    // The vault list the mock models. Two, so the sidebar's vault chips and filter are
+    // exercised (they only render above one). The first-run state — an empty list — is
+    // reached for real, not here: `pnpm dev` should give you a working app.
+    case 'list_vaults':
+      return mockVaults.map((v, i) => ({ ...v, default: i === 0 })) as T;
+    case 'check_path': {
+      // Mirrors the real policy closely enough to develop the form against, and no
+      // further: the server owns `ok`, and this file must never become a second opinion.
+      const name = String(args.name ?? '');
+      const path = String(args.path ?? '');
+      const name_ok = name.trim().length > 0;
+      const name_taken = mockVaults.some((v) => v.name === name);
+      const path_taken = mockVaults.some((v) => v.path === path);
+      const check: PathCheck = {
+        path,
+        exists: false,
+        empty: false,
+        notes: 0,
+        not_a_directory: false,
+        parent_missing: false,
+        writable: true,
+        git_repo: false,
+        name_ok,
+        name_taken,
+        path_taken,
+        overlaps: null,
+        config_writable: true,
+        ok: name_ok && !name_taken && !path_taken && path.trim().length > 0,
+      };
+      return check satisfies PathCheck as T;
+    }
+    case 'create_vault': {
+      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      return mockVaults.map((v, i) => ({ ...v, default: i === 0 })) as T;
+    }
+    // Saved views. The mock ships one so the sidebar's view list is exercised; a real
+    // `.view` lives in the vault and is parsed server-side, which the mock does not model.
+    case 'list_views':
+      return [{ name: 'Recent notes', renderer: 'timeline', group_by: null }] as T;
+    case 'run_view': {
+      // Reuse the mock's own note set; the sample view just lists them like the timeline.
+      const rows = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
+      return { name: String(args.name ?? ''), renderer: 'timeline', group_by: null, rows } as T;
+    }
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.

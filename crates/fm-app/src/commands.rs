@@ -224,6 +224,98 @@ pub fn asset_status(vault: &Path, reference: &str) -> Result<AssetStatus, StoreE
     })
 }
 
+/// What is actually at a path, for the "create a vault here?" form to answer with.
+///
+/// Facts only — every one of these is *reported*, and what is refused versus merely warned
+/// about is policy, decided by the caller that also knows the vault list. Splitting it here
+/// is the same seam [`asset_status`] uses: this crate knows the filesystem, not the config.
+#[derive(Clone, Debug, Serialize)]
+pub struct PathFacts {
+    /// Absolute; the caller expands `~` before handing it over.
+    pub path: String,
+    pub exists: bool,
+    /// No entries at all. Not an error — see `notes`.
+    pub empty: bool,
+    /// `.md` files directly under `<path>/notes`. **Adoption is free** — `FileStore::named`
+    /// reindexes whatever is already there, so this needs no code. But it must be *said*:
+    /// creating a vault over someone's notes silently is the surprise this field prevents.
+    pub notes: usize,
+    pub not_a_directory: bool,
+    /// The parent doesn't exist either, so we'd be creating a chain of directories.
+    pub parent_missing: bool,
+    /// **Probed, not inferred from mode bits.** We create and remove a temp entry, because
+    /// a capability must mean "this will work", never "this is configured" — which is
+    /// exactly how `restic_ready` came to enable a checkbox that then failed. Root, and a
+    /// read-only mount that lies about its permissions, are why the bits are not the answer.
+    pub writable: bool,
+    /// Already a git repo. Not an error: we leave its history alone, and its identity is
+    /// one fewer thing to ask the user for.
+    pub git_repo: bool,
+}
+
+/// Inspect a path for the create-vault form. Never mutates anything that outlives the
+/// call: the write probe cleans up after itself.
+pub fn inspect_path(path: &Path) -> PathFacts {
+    let md = std::fs::metadata(path);
+    let exists = md.is_ok();
+    let not_a_directory = md.as_ref().map(|m| !m.is_dir()).unwrap_or(false);
+    let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+
+    let empty = is_dir
+        && std::fs::read_dir(path).map(|mut d| d.next().is_none()).unwrap_or(false);
+
+    // Only `notes/*.md`, non-recursively — `FileStore::reindex` reads exactly that, so
+    // counting anything else here would promise notes that never appear.
+    let notes = std::fs::read_dir(path.join("notes"))
+        .map(|d| {
+            d.flatten()
+                .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
+                .count()
+        })
+        .unwrap_or(0);
+
+    // The nearest existing ancestor is what we can actually probe: the path itself may
+    // not exist yet, and "can I create it?" is a question about its parent.
+    let probe_at = if is_dir { Some(path.to_path_buf()) } else { nearest_existing(path) };
+    let parent_missing = !exists && probe_at.as_deref() != path.parent();
+
+    PathFacts {
+        path: path.to_string_lossy().into_owned(),
+        exists,
+        empty,
+        notes,
+        not_a_directory,
+        parent_missing,
+        writable: probe_at.map(|p| can_write(&p)).unwrap_or(false),
+        git_repo: path.join(".git").exists(),
+    }
+}
+
+/// The closest ancestor that exists, so a path we are about to create can still be
+/// probed. `None` when even the root is unreachable.
+fn nearest_existing(path: &Path) -> Option<PathBuf> {
+    let mut p = path.parent()?;
+    loop {
+        if p.is_dir() {
+            return Some(p.to_path_buf());
+        }
+        p = p.parent()?;
+    }
+}
+
+/// Can we really write here? Make something and remove it. Mode bits are configuration;
+/// this is capability.
+fn can_write(dir: &Path) -> bool {
+    let probe = dir.join(format!(".fm-write-probe-{}", std::process::id()));
+    match std::fs::File::create(&probe) {
+        Ok(_) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 /// Ingest an uploaded file: store its bytes as a content-addressed blob, extract
 /// searchable text, and create an asset note pointing at it — the GUI twin of
 /// `fm add`. Returns the new asset's meta so the editor can insert a reference

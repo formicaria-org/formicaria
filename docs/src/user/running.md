@@ -17,7 +17,8 @@ URL. Open it in your browser. To have it open the browser for you:
 FM_OPEN=1 pixi run serve
 ```
 
-By default the vault lives in `./vault`. Point at another with `FM_VAULT`:
+There is no default vault: on first run the app asks you to create one, and remembers it in
+the vault list. To pin one explicitly (this is what `pixi run serve` does for `./vault`):
 
 ```sh
 FM_VAULT=~/notes pixi run serve
@@ -40,7 +41,7 @@ browser. The server keeps running in the background; stop it with
 
 | Variable          | Default            | Meaning                                   |
 |-------------------|--------------------|-------------------------------------------|
-| `FM_VAULT`        | `vault`            | The vault directory (notes + index).      |
+| `FM_VAULT`        | *(none — asked on first run)* | The vault directory (notes + index).      |
 | `FM_ADDR`         | `127.0.0.1:8765`   | Address the server binds.                 |
 | `FM_OPEN`         | *(unset)*          | If set, opens the browser on startup.     |
 | `FM_RESTIC_REPO`  | *(unset)*          | restic repository for **Back up**.        |

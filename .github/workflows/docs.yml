@@ -6,14 +6,14 @@
 # code-only — a redrawn image should never run a Rust test.
 name: docs
 
+# Manual-only by owner's standing order (2026-07-18): no remote CI billing until re-enabled.
+# Restore by putting back below `workflow_dispatch:`:
+#   push:
+#     paths: &docs ['docs/src/**', 'docs/book.toml', '.github/workflows/docs.yml']
+#   pull_request:
+#     paths: *docs
 on:
-  push:
-    paths: &docs
-      - 'docs/src/**'
-      - 'docs/book.toml'
-      - '.github/workflows/docs.yml'
-  pull_request:
-    paths: *docs
+  workflow_dispatch:
 
 concurrency:
   group: docs-${{ github.ref }}

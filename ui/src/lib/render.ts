@@ -5,6 +5,29 @@
 // back to its raw text, and a missing asset falls back to a placeholder — a bad
 // note never blanks the pane.
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+// A note body is now untrusted input. Before the collaboration work it was only ever the
+// author's own text; now bodies arrive from other people through the `.md` merge driver, and
+// `render.ts` assigns marked's output straight to `innerHTML`. Without this, a collaborator's
+// `<img src=x onerror=…>` runs script in our origin — and fm-serve's CSRF guard allows
+// no-Origin requests, so that script can call any `/api/*`: read every note, delete them, or
+// set a git remote and push a private vault off the machine. This is the fix for that.
+//
+// The trap: sanitizing must not eat our OWN pipeline. Three schemes are load-bearing and are
+// NOT in DOMPurify's default allow-list — `note:` (a reference chip), `asset:`/`sha256:` (an
+// inline blob). marked emits them as `<a href="note:…">` / `<img src="asset:…">`, and
+// resolveNotes/resolveAssets read them back by scheme *after* this runs; strip the scheme and
+// those images and chips silently vanish. So the default URI regexp is widened by exactly
+// those three, and nothing else. (The `<span data-math>` placeholders survive for free —
+// span + data-* are allowed by default.) These schemes are inert in a browser and are fully
+// replaced before display, so allowing them adds no sink.
+const URI_ALLOWED =
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|note|asset|sha256):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
+function sanitize(html: string): string {
+  return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: URI_ALLOWED });
+}
 
 export interface ResolvedAsset {
   url: string;
@@ -37,8 +60,10 @@ export async function renderInto(
   // Each formula leaves an empty <span data-math=i> that survives marked untouched;
   // renderMath fills them with KaTeX afterwards.
   const { text, math } = extractMath(body);
-  // Markdown → HTML. Fenced ```mermaid becomes <pre><code class="language-mermaid">.
-  el.innerHTML = marked.parse(text, { async: false, gfm: true }) as string;
+  // Markdown → HTML → sanitized. Fenced ```mermaid becomes <pre><code class="language-mermaid">.
+  // Sanitize BEFORE the resolve passes so they operate on already-clean DOM, and so a
+  // hostile `onerror` never reaches the parser's output at all.
+  el.innerHTML = sanitize(marked.parse(text, { async: false, gfm: true }) as string);
   await resolveAssets(el, resolveAsset);
   if (resolveNote) await resolveNotes(el, resolveNote);
   await renderMath(el, math);
@@ -299,6 +324,12 @@ async function renderMermaid(el: HTMLElement): Promise<void> {
         const { svg } = await mermaid.render(`mmd-${i}-${code.length}`, code);
         const wrap = document.createElement('div');
         wrap.className = 'mermaid-diagram';
+        // The diagram source is note-controlled, i.e. untrusted, and this is an innerHTML
+        // sink. The control is Mermaid's own `securityLevel: 'strict'` set above — it strips
+        // HTML from labels and disables click-bound scripts, which is the mechanism designed
+        // for exactly this. We deliberately do NOT re-run DOMPurify here: its SVG profile can
+        // drop the `foreignObject` Mermaid uses for text wrapping, a visual regression headless
+        // CI cannot see, traded against a control that already holds. Keep 'strict'.
         wrap.innerHTML = svg;
         host.replaceWith(wrap);
       } catch {
