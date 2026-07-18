@@ -281,12 +281,16 @@ federates through the `candidates` seam.
 **V1 — the first-run gate + the vault list's first writer. ✅ SHIPPED 2026-07-17** —
 [`sessions/2026-07-17-create-vault.md`](./sessions/2026-07-17-create-vault.md).
 
-**V2 — co-tenancy correctness. NOT BUILT, and it gates V3–V4. Two of the four are silent.**
+**V2 — co-tenancy correctness. ✅ THREE OF FOUR SHIPPED 2026-07-18** (both silent ones);
+the fourth is half done. It gated V3–V4, so V3 is now unblocked.**
 Every one is a **live bug today**, verified by reading the code, not hypothesised. They only
 bite once a repo holds work that isn't ours — which is exactly what V3 enables, so this lands
 first.
 
-1. **`push_squashed` eats the user's own commits.** `reset --soft <tracking-ref>` collapses
+1. **✅ FIXED — `push_squashed` ate the user's own commits.** `newest_foreign` walks
+   `tracking..HEAD` newest-first and stops the squash at the first commit whose subject is
+   not `auto:`/`backup:`; a dedicated vault has none, so it collapses to one exactly as
+   before (pinned by a test asserting both). Original finding: `reset --soft <tracking-ref>` collapses
    *every* unpushed commit, so three hand-written manuscript commits become one `backup:`.
    Its own comment justifies the squash by "auto-commit fires every few seconds" — that
    justifies squashing **ours**, never theirs. **Fix:** compute `base` as the newer of
@@ -294,14 +298,20 @@ first.
    **`auto:`/`backup:` message prefix — never the author**: a PC has one git user and we
    commit *as* them, so author-based detection cannot work. Dedicated vault → every unpushed
    commit is ours → identical to today. No mode, no flag; derived from the history.
-2. **`.gitattributes` is skipped if the file exists** (`git.rs`), and every real repo has
+2. **✅ FIXED — `.gitattributes` was skipped if the file existed** (`git.rs`), and every real repo has
    one → `*.md merge=fm` never lands → **the merge driver silently never engages** → every
    concurrent edit collides on `updated:` inside the YAML fence and the note stops parsing.
    *This is Track C Phase 1's disaster, reintroduced by conversion.*
-3. **`.gitignore` is skipped if it exists** → `blobs/`, `index.sqlite`, `derived/` unignored
+3. **✅ FIXED — `.gitignore` was skipped if it existed** → `blobs/`, `index.sqlite`, `derived/` unignored
    → the 5 s auto-commit commits your blobs and your SQLite index. **Fix for 2 and 3: append
    the missing line; never skip the file.**
-4. **`commit_all` does `git add -A`** → commits half-written code every 5 s and destroys a
+4. **◐ HALF FIXED — `commit_all` did `git add -A`.** It now stages only the vault's own
+   paths (`notes`/`views`/`manifest.json`/`.gitattributes`/`.gitignore`) and commits the exact
+   staged paths under them with `--only`, so a project repo's half-written code is untouched
+   and a user's curated index survives. **Still open:** the plan's narrower ideal — the exact
+   files `put` wrote, which would also stop us committing a note being hand-edited in vim —
+   needs a write-list threaded from `FileStore`. **And restic is untouched.** Original
+   finding: → commits half-written code every 5 s and destroys a
    staged index. Across ten project repos this is the primary failure, not an edge case.
    **Fix: `git add` only the paths formicaria actually wrote** — `put` knows the file it just
    wrote, so `FileStore` hands git an exact list. Not `-A`, and *not even the whole notes

@@ -460,3 +460,226 @@ fn a_single_unpushed_commit_is_pushed_as_is() {
     assert_eq!(git::push_squashed(vault.path(), "backup: second").unwrap(), 0, "nothing to squash");
     assert_eq!(log_count(bare.path()), 2);
 }
+
+/// **The Track V bug that was silent.** Every real repo already has a `.gitattributes` and
+/// a `.gitignore`, so "skip the file if it exists" meant that the moment a vault was a
+/// project you already owned, `merge=fm` never landed and `blobs/` was never ignored.
+///
+/// The first is Track C Phase 1's disaster reintroduced by conversion: without the
+/// attribute git uses its built-in text merge, every concurrent edit collides on the
+/// `updated:` line the app rewrites on each save, and the markers land inside the YAML
+/// fence where the note stops parsing. The second commits your blobs and your per-machine
+/// SQLite index, then pushes them.
+#[test]
+fn adopting_a_repo_that_already_has_these_files_still_gets_our_rules() {
+    let vault = tempdir().unwrap();
+    // A repo as it actually arrives: initialised, with both files already populated by
+    // whoever set the project up.
+    std::process::Command::new("git")
+        .arg("-C").arg(vault.path()).arg("init")
+        .output().unwrap();
+    std::fs::write(vault.path().join(".gitattributes"), "*.png binary\n").unwrap();
+    std::fs::write(vault.path().join(".gitignore"), "target/\n*.log\n").unwrap();
+
+    git::ensure_repo(vault.path()).unwrap();
+
+    let attrs = std::fs::read_to_string(vault.path().join(".gitattributes")).unwrap();
+    let ignore = std::fs::read_to_string(vault.path().join(".gitignore")).unwrap();
+
+    // Ours landed…
+    assert!(attrs.contains("*.md merge=fm"), "the merge driver must engage:\n{attrs}");
+    for line in ["index.sqlite", "derived/", "blobs/"] {
+        assert!(ignore.lines().any(|l| l == line), "{line} must be ignored:\n{ignore}");
+    }
+    // …without touching theirs. A writer that rewrites what it did not author is one you
+    // cannot point at someone's repo.
+    assert!(attrs.contains("*.png binary"), "their rule survived:\n{attrs}");
+    assert!(ignore.contains("target/") && ignore.contains("*.log"), "theirs survived:\n{ignore}");
+}
+
+/// Running twice must not stack duplicates — `ensure_repo` is called on every commit.
+#[test]
+fn ensuring_a_repo_repeatedly_does_not_duplicate_lines() {
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+
+    let ignore = std::fs::read_to_string(vault.path().join(".gitignore")).unwrap();
+    assert_eq!(ignore.lines().filter(|l| *l == "blobs/").count(), 1, "{ignore}");
+    let attrs = std::fs::read_to_string(vault.path().join(".gitattributes")).unwrap();
+    assert_eq!(attrs.lines().filter(|l| l.contains("merge=fm")).count(), 1, "{attrs}");
+}
+
+/// A file without a trailing newline must not get our line glued onto its last one.
+#[test]
+fn a_file_missing_its_trailing_newline_is_not_corrupted() {
+    let vault = tempdir().unwrap();
+    std::process::Command::new("git")
+        .arg("-C").arg(vault.path()).arg("init")
+        .output().unwrap();
+    std::fs::write(vault.path().join(".gitignore"), "target/").unwrap(); // no newline
+
+    git::ensure_repo(vault.path()).unwrap();
+
+    let ignore = std::fs::read_to_string(vault.path().join(".gitignore")).unwrap();
+    assert!(ignore.lines().any(|l| l == "target/"), "their rule is intact:\n{ignore}");
+    assert!(ignore.lines().any(|l| l == "blobs/"), "and ours is its own line:\n{ignore}");
+}
+
+/// **A vault is increasingly a repo you already have** — notes beside the code they
+/// describe. The debounced auto-commit runs every 5 s in that repo, so `git add -A` made
+/// it a second author: it staged your half-written function and committed it under `auto:`.
+#[test]
+fn the_auto_commit_never_touches_files_the_app_did_not_write() {
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+
+    // The project's own work, mid-edit, exactly as it sits while you are typing.
+    std::fs::create_dir_all(vault.path().join("src")).unwrap();
+    std::fs::write(vault.path().join("src/lib.rs"), "fn half_written(  \n").unwrap();
+    // And a note, which is ours.
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+    std::fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nbody\n").unwrap();
+
+    assert!(git::commit_all(vault.path(), "auto: test").unwrap());
+
+    let files = std::process::Command::new("git")
+        .arg("-C").arg(vault.path())
+        .args(["show", "--name-only", "--format=", "HEAD"])
+        .output().unwrap();
+    let committed = String::from_utf8_lossy(&files.stdout);
+    assert!(committed.contains("notes/01JQ.md"), "our note is committed:\n{committed}");
+    assert!(
+        !committed.contains("src/lib.rs"),
+        "their half-written code must NOT be:\n{committed}"
+    );
+}
+
+/// Losing a curated index is not recoverable by re-running anything, so the auto-commit
+/// must leave one alone.
+#[test]
+fn the_auto_commit_leaves_a_users_staged_index_staged() {
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+
+    // The user stages something of their own, intending to commit it themselves.
+    std::fs::write(vault.path().join("theirs.txt"), "carefully staged\n").unwrap();
+    std::process::Command::new("git")
+        .arg("-C").arg(vault.path()).args(["add", "theirs.txt"])
+        .output().unwrap();
+
+    // Meanwhile the app saves a note and the debounce fires.
+    std::fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nbody\n").unwrap();
+    git::commit_all(vault.path(), "auto: test").unwrap();
+
+    // Their file is still staged and still uncommitted — theirs to commit, when they choose.
+    let staged = std::process::Command::new("git")
+        .arg("-C").arg(vault.path()).args(["diff", "--cached", "--name-only"])
+        .output().unwrap();
+    assert!(
+        String::from_utf8_lossy(&staged.stdout).contains("theirs.txt"),
+        "the user's staged file was swept into our commit"
+    );
+}
+
+/// A repo that is dirty only with someone else's work has nothing for us to commit — and
+/// must not report that it made one.
+#[test]
+fn a_repo_dirty_only_with_their_work_reports_nothing_to_commit() {
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+    git::commit_all(vault.path(), "auto: baseline").unwrap();
+
+    std::fs::write(vault.path().join("their-code.rs"), "fn theirs() {}\n").unwrap();
+
+    assert!(!git::commit_all(vault.path(), "auto: test").unwrap());
+}
+
+/// **The Track V bug: the squash ate the user's own commits.**
+///
+/// `reset --soft <tracking>` collapsed *every* unpushed commit. Squashing the app's
+/// 5-second `auto:` churn is the whole reason the squash exists; collapsing three
+/// hand-written manuscript commits into one `backup:` never was. The work survives, its
+/// shape does not — which is the quiet kind of loss.
+#[test]
+fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
+    let bare = tempdir().unwrap();
+    std::process::Command::new("git")
+        .args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+
+    let note = |n: u32| {
+        std::fs::write(
+            vault.path().join(format!("notes/{n}.md")),
+            format!("---\nid: {n}\n---\nbody {n}\n"),
+        ).unwrap();
+    };
+    let hand_commit = |msg: &str, file: &str| {
+        std::fs::write(vault.path().join(file), "their work\n").unwrap();
+        std::process::Command::new("git")
+            .arg("-C").arg(vault.path()).args(["add", file]).output().unwrap();
+        std::process::Command::new("git")
+            .arg("-C").arg(vault.path()).args(["commit", "-m", msg]).output().unwrap();
+    };
+
+    // A baseline that is already pushed, so `tracking` exists.
+    note(1);
+    git::commit_all(vault.path(), "auto: one").unwrap();
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    // Now: the app churns, the user writes a real commit, the app churns again.
+    note(2);
+    git::commit_all(vault.path(), "auto: two").unwrap();
+    hand_commit("Rewrite the introduction", "chapter.md");
+    note(3);
+    git::commit_all(vault.path(), "auto: three").unwrap();
+
+    git::push_squashed(vault.path(), "backup: second").unwrap();
+
+    let log = std::process::Command::new("git")
+        .arg("-C").arg(vault.path()).args(["log", "--format=%s", "-5"])
+        .output().unwrap();
+    let log = String::from_utf8_lossy(&log.stdout);
+    assert!(
+        log.contains("Rewrite the introduction"),
+        "the user's own commit must survive the squash:\n{log}"
+    );
+}
+
+/// A dedicated vault — every commit ours — must behave exactly as before: one `backup:`.
+#[test]
+fn a_vault_of_only_our_commits_still_squashes_to_one() {
+    let bare = tempdir().unwrap();
+    std::process::Command::new("git")
+        .args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    std::fs::create_dir_all(vault.path().join("notes")).unwrap();
+
+    let note = |n: u32| {
+        std::fs::write(
+            vault.path().join(format!("notes/{n}.md")),
+            format!("---\nid: {n}\n---\nbody {n}\n"),
+        ).unwrap();
+    };
+
+    note(1);
+    git::commit_all(vault.path(), "auto: one").unwrap();
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    note(2);
+    git::commit_all(vault.path(), "auto: two").unwrap();
+    note(3);
+    git::commit_all(vault.path(), "auto: three").unwrap();
+
+    let squashed = git::push_squashed(vault.path(), "backup: second").unwrap();
+
+    assert_eq!(squashed, 2, "both auto commits collapse, exactly as before");
+}

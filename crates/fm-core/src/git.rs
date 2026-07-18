@@ -95,12 +95,11 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     // is the *only* correct probe here: `git rev-parse` walks upward and would
     // report the parent repo when the vault is nested inside one.
     if vault.join(".git").exists() {
-        // A repo we did not create — `git init`ed by hand, or **cloned from a
-        // collaborator** — still needs the ignore rules, or the very next
-        // `commit_all` (`git add -A`) sweeps `blobs/` and the index into history, and
-        // a push then ships every PDF and video to the remote. Idempotent:
-        // `write_gitignore` only writes when the file is absent, so a cloned vault's
-        // own tracked `.gitignore` is left alone.
+        // A repo we did not create — `git init`ed by hand, **cloned from a collaborator**,
+        // or a project repo being adopted as a vault — still needs the ignore rules and the
+        // merge attribute. Both writers **append what is missing** rather than skipping a
+        // file that exists, which is the only version that works for a repo you already own:
+        // it already has both files, so "skip if present" meant neither rule ever landed.
         write_gitignore(vault)?;
         write_gitattributes(vault)?;
         install_merge_driver(vault)?;
@@ -130,11 +129,40 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
 /// Windows and a Linux collaborator into a whole-file conflict. (`from_file` tolerates
 /// CRLF anyway, because an editor can still produce it — but a vault should not.)
 fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
-    let path = vault.join(".gitattributes");
-    if path.exists() {
+    // **Append, never skip.** This used to return early when the file existed, which read
+    // as politeness and behaved as sabotage: *every* real repo already has a
+    // `.gitattributes`, so the moment a vault is a project you already own — which is the
+    // whole point of Track V — `merge=fm` never lands. Git then falls back to its built-in
+    // text merge, every concurrent edit collides on the `updated:` line we rewrite on each
+    // save, and the markers land inside the YAML fence where `from_file` rejects them. That
+    // is exactly the disaster Track C Phase 1 exists to prevent, reintroduced by conversion,
+    // and it is silent: nothing anywhere says the driver was meant to be running.
+    ensure_line(&vault.join(".gitattributes"), "*.md merge=fm text eol=lf")
+}
+
+/// Make sure `line` is present in a line-oriented config file, leaving every other byte of
+/// it alone. Creates the file when absent.
+///
+/// The file belongs to the user — they may have rules of their own in it, and a writer that
+/// rewrites what it did not author is a writer you cannot point at someone's repo. So this
+/// only ever adds, and only what is missing.
+fn ensure_line(path: &Path, line: &str) -> Result<(), StoreError> {
+    let existing = match std::fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(io(e)),
+    };
+    if existing.lines().any(|l| l.trim() == line) {
         return Ok(());
     }
-    std::fs::write(&path, "*.md merge=fm text eol=lf\n").map_err(io)
+    let mut out = existing;
+    // Don't glue our line onto the end of theirs if the file lacked a trailing newline.
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out.push_str(line);
+    out.push('\n');
+    std::fs::write(path, out).map_err(io)
 }
 
 /// Teach *this clone* what `merge=fm` actually runs.
@@ -250,18 +278,28 @@ pub fn set_identity(vault: &Path, name: &str, email: &str) -> Result<(), StoreEr
 }
 
 fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
-    let path = vault.join(".gitignore");
-    if path.exists() {
-        return Ok(());
-    }
     // index.sqlite is per-machine and must never travel (the DB-corruption-by-sync
     // lesson); derived/ thumbnails regenerate; blobs sync out-of-band, never here.
-    std::fs::write(&path, "index.sqlite\nderived/\nblobs/\n").map_err(io)
+    //
+    // **Append, never skip** — same reason as `.gitattributes`, with a louder failure. A
+    // repo that already has a `.gitignore` (i.e. every real one) used to get none of these
+    // lines, so the debounced auto-commit swept `blobs/` and `index.sqlite` into history and
+    // the next push shipped every PDF and video to the remote — plus a per-machine SQLite
+    // file that must never travel.
+    let path = vault.join(".gitignore");
+    for line in ["index.sqlite", "derived/", "blobs/"] {
+        ensure_line(&path, line)?;
+    }
+    Ok(())
 }
 
-/// Stage everything and commit. Returns false — not an error — when the working
-/// tree is already clean; "nothing to commit" is the common case for a debounced
-/// auto-commit and must not surface as a failure.
+/// Stage the vault's own files and commit them. Returns false — not an error — when there
+/// is nothing of ours to commit; that is the common case for a debounced auto-commit and
+/// must not surface as a failure.
+///
+/// **Scoped on purpose.** A vault may be a repo that also holds code or a manuscript, and
+/// this runs every few seconds. It must never touch a file formicaria did not write, and
+/// must never disturb an index the user staged themselves.
 pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     let status = git(vault).arg("status").arg("--porcelain").output().map_err(spawn)?;
@@ -280,11 +318,71 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
     if String::from_utf8_lossy(&status.stdout).lines().any(unmerged) {
         return Ok(false);
     }
-    let add = git(vault).arg("add").arg("-A").output().map_err(spawn)?;
+    // **Stage what the vault owns, never `-A`.**
+    //
+    // A vault is increasingly *a repo you already have* — notes beside the code or
+    // manuscript they describe. `git add -A` there is not a tidy default, it is a
+    // second author: every 5 seconds it stages your half-written function, your
+    // mid-sentence paragraph, and whatever you had carefully staged for a commit of your
+    // own, then commits the lot under `auto:`. Losing a curated index that way is not
+    // recoverable by re-running anything.
+    //
+    // So: only the paths formicaria writes. `-A` still applies *within* them, so a note
+    // deleted through the app is staged as a deletion.
+    //
+    // Not yet as narrow as it should be: this is the vault's own directories, not the exact
+    // files we just wrote. `put` knows that list, and threading it through would also stop
+    // us committing a note you are hand-editing in vim right now. Recorded in
+    // known-issues; this fixes the part that reaches outside the vault.
+    let owned: Vec<&str> = ["notes", "views", "manifest.json", ".gitattributes", ".gitignore"]
+        .into_iter()
+        .filter(|p| vault.join(p).exists())
+        .collect();
+    if owned.is_empty() {
+        return Ok(false); // nothing of ours exists yet — a fresh vault before its first note
+    }
+    let add = git(vault)
+        .arg("add")
+        .arg("-A")
+        .arg("--")
+        .args(&owned)
+        .output()
+        .map_err(spawn)?;
     if !add.status.success() {
         return Err(failed("git add", &add));
     }
-    let out = git(vault).arg("commit").arg("-m").arg(message).output().map_err(spawn)?;
+    // `status` reported the *repo* dirty, which in a project vault is usually someone
+    // else's work. Ask what actually landed in the index, and keep only the paths under a
+    // directory of ours — the index may also hold something the user staged themselves,
+    // and that is precisely what must not ride along.
+    //
+    // Committing these exact paths rather than the directories is not a detail: `git commit
+    // --only -- notes` *fails* when `notes/` exists on disk but holds nothing git has ever
+    // seen (git cannot track an empty directory), which is every vault before its first
+    // note. A staged path is by definition one git can name.
+    let staged = git(vault).args(["diff", "--cached", "--name-only"]).output().map_err(spawn)?;
+    let ours: Vec<String> = String::from_utf8_lossy(&staged.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .filter(|p| owned.iter().any(|o| *p == *o || p.starts_with(&format!("{o}/"))))
+        .map(String::from)
+        .collect();
+    if ours.is_empty() {
+        return Ok(false);
+    }
+    // `--only` with explicit paths: commit the index we just built for these paths and
+    // nothing else, so a file the user had staged elsewhere stays staged rather than being
+    // swept into our commit.
+    let out = git(vault)
+        .arg("commit")
+        .arg("--only")
+        .arg("-m")
+        .arg(message)
+        .arg("--")
+        .args(&ours)
+        .output()
+        .map_err(spawn)?;
     if !out.status.success() {
         return Err(failed("git commit", &out));
     }
@@ -496,7 +594,22 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
         // destroying history that has never left the machine is exactly
         // backwards — send it as it stands. Every later push collapses to one.
         None => 0,
-        Some(base) => {
+        Some(tracked) => {
+            // **Squash only what we wrote.** `reset --soft <tracking>` collapses *every*
+            // unpushed commit — and the justification for squashing at all is that the app
+            // auto-commits every few seconds. That justifies collapsing **ours**; it never
+            // justified collapsing three hand-written manuscript commits into one `backup:`,
+            // which is what happened the moment a vault was also a repo you commit to
+            // yourself.
+            //
+            // Discriminated by the **message prefix, never the author**: a personal machine
+            // has one git user and we commit *as* them, so author-based detection cannot
+            // work here — it would classify every commit as ours.
+            //
+            // A dedicated vault has only `auto:`/`backup:` commits, so `base` comes out as
+            // the tracking ref and the behaviour is bit-identical to before. No mode, no
+            // flag — derived from the history itself.
+            let base = newest_foreign(vault, &tracked)?.unwrap_or_else(|| tracked.clone());
             // Squash ONLY when the remote's tip is an ancestor of ours — i.e. we
             // hold everything it holds. Otherwise someone else's commits are on
             // that ref (something fetched), and `reset --soft` onto it would put
@@ -506,7 +619,9 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
             // A count of unpushed commits cannot catch this — it is >0 in exactly
             // the divergent case, so it reads as "normal". Ancestry is the question;
             // "how many" never was.
-            if !is_ancestor(vault, &base, "HEAD")? {
+            // Still asked about the *tracking* ref: the question is "does the remote hold
+            // something we don't", which our own squash boundary has no opinion on.
+            if !is_ancestor(vault, &tracked, "HEAD")? {
                 return Err(StoreError::Io(
                     "the remote has changes you don't have — pull first, then back up".into(),
                 ));
@@ -639,6 +754,37 @@ pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
         Some(files) => Ok(Pulled::Conflicted(files)),
         None => Err(failed("git merge", &out)),
     }
+}
+
+/// The newest unpushed commit this app did **not** write, or `None` when every unpushed
+/// commit is ours.
+///
+/// The squash boundary. `push_squashed` may collapse the window of `auto:`/`backup:`
+/// commits the debounced auto-commit produces — that is what it exists for — but a commit
+/// the user wrote by hand is a unit of *their* history and collapsing it is data loss of
+/// the quiet kind: the work survives, its shape does not.
+///
+/// **By message prefix, deliberately not by author.** We commit as the user's own git
+/// identity (that is the point of `ensure_identity`), so on a personal machine every commit
+/// has the same author and an author test classifies everything as ours. The prefix is the
+/// only signal that actually distinguishes them, and it is one we control on write.
+fn newest_foreign(vault: &Path, tracked: &str) -> Result<Option<String>, StoreError> {
+    let out = git(vault)
+        .args(["log", "--format=%H %s", &format!("{tracked}..HEAD")])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git log", &out));
+    }
+    // Newest first, which is the order we want: the first foreign commit we meet walking
+    // back from HEAD is the floor the squash must not go below.
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let Some((hash, subject)) = line.split_once(' ') else { continue };
+        if !subject.starts_with("auto:") && !subject.starts_with("backup:") {
+            return Ok(Some(hash.to_string()));
+        }
+    }
+    Ok(None)
 }
 
 /// How many commits `to` has that `from` does not.
