@@ -71,3 +71,44 @@ fn find_file(root: &Path, name: &str) -> Option<PathBuf> {
     }
     None
 }
+
+/// **A vault may be a repo you already have**, and then its root also holds your source,
+/// your `.env`, your `data/` and a `.git`. Snapshotting the root put all of that into
+/// whatever restic repo the vault names — which for a lab's shared vault is not your repo.
+///
+/// So the snapshot takes what we know is ours (the notes dir and `blobs/`) rather than
+/// excluding what is not, because the set to exclude has no end.
+#[test]
+fn a_projects_own_files_are_not_snapshotted() {
+    if !have("restic") {
+        eprintln!("skipping: restic not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    let repo = tempdir().unwrap();
+    let password = "test-password";
+
+    fs::create_dir_all(vault.path().join("notes")).unwrap();
+    fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nours\n").unwrap();
+    fs::create_dir_all(vault.path().join("blobs")).unwrap();
+    fs::write(vault.path().join("blobs/blob-bytes"), "media\n").unwrap();
+
+    // The things that must never leave the machine in someone else's restic repo.
+    fs::write(vault.path().join(".env"), "SECRET=hunter2\n").unwrap();
+    fs::create_dir_all(vault.path().join("src")).unwrap();
+    fs::write(vault.path().join("src/lib.rs"), "fn theirs() {}\n").unwrap();
+
+    backup::backup(vault.path(), repo.path(), password).unwrap();
+
+    let listed = Command::new("restic")
+        .args(["-r", repo.path().to_str().unwrap(), "ls", "latest"])
+        .env("RESTIC_PASSWORD", password)
+        .output()
+        .unwrap();
+    let listed = String::from_utf8_lossy(&listed.stdout);
+
+    assert!(listed.contains("01JQ.md"), "our notes are backed up:\n{listed}");
+    assert!(listed.contains("blob-bytes"), "our blobs are backed up:\n{listed}");
+    assert!(!listed.contains(".env"), "a secret must not be in the snapshot:\n{listed}");
+    assert!(!listed.contains("lib.rs"), "their code must not be either:\n{listed}");
+}

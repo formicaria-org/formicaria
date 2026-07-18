@@ -27,14 +27,13 @@ open means the debounced 5 s commit can catch it mid-sentence.
 and a hand-edit is never staged by us. **Cost:** threading a write-list from `put` through
 `dispatch` to `git::commit_all`. *(Track V2.4, half-fixed.)*
 
-### 1.2 restic snapshots the whole vault path
-`backup.rs` snapshots the vault root, so a vault that is also a project repo puts your
-`data/`, your `.env` and your `.git` into whatever restic repo the vault is pointed at — which
-for a lab vault may not be yours. It excludes only `index.sqlite` and `derived/`.
-
-**Done looks like:** snapshot the notes dir + blobs dir, not the root. **Cost:** small, but it
-changes what an existing restic repo contains, so it wants a line in the backup panel.
-*(Track V2.4, second half — never started.)*
+### 1.2 ~~restic snapshots the whole vault path~~ — FIXED 2026-07-18
+`backup` now takes the vault's **own** directories — its notes dir (wherever `vault.json` puts
+it) and `blobs/` — instead of the root. Naming what is ours beats excluding what is not,
+because the set to exclude has no end. The notes dir is derived inside `backup()` rather than
+passed in, so its three callers cannot drift on which directories count. Pinned by a test that
+puts a `.env` and a `src/lib.rs` beside the notes and asserts they are absent from the
+snapshot while the notes and blobs are present.
 
 ### 1.3 The lost-update guard is a timestamp, so Vim is invisible to it
 `update_body` refuses a write whose `base` (`updated`) has been superseded, which closes the
@@ -73,14 +72,14 @@ cheap, and it converts a silent absence into a fixable one.
 
 ## 3. Things that silently do nothing
 
-### 3.1 Board column reorder is inert
-`Pane.svelte:271` passes `onreorder={() => {}}` to `Board`, so dragging a column header in the
-pane workspace does nothing at all. The drag still starts, the cursor still says `grab`, and
-`localStorage['fm-board-order']` is still read on the way in — so the affordance is fully
-present and fully dead.
-
-**Done looks like:** either wire it (persist per group-by, as the card order already does) or
-remove the affordance. Leaving a live-looking drag that does nothing is the worse of the two.
+### 3.1 ~~Board column reorder is inert~~ — FIXED 2026-07-18
+`Pane.svelte` passed `onreorder={() => {}}`, so dragging a column header did nothing while the
+drag still started and the cursor still said `grab`. `boardOrder.ts` — a pure, *tested* core —
+had simply stopped being imported when the pane rewrite landed, which is the sharp lesson
+here: **a unit test cannot catch a caller that stops calling.** Reconnected, keyed by each
+pane's own `groupBy`, and the tests now pin the *sequence* the caller performs (drag, persist
+the whole permutation, re-apply on render, compose a second drag against what is on screen)
+rather than only the functions.
 
 ---
 

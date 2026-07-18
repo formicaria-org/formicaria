@@ -83,3 +83,46 @@ describe('placeValue', () => {
     expect(placeValue(v, 'b', 'b')).toBe(v);
   });
 });
+
+// The pure functions above were tested all along — and then the pane rewrite stopped
+// importing them: `Pane.svelte` passed `onreorder={() => {}}`, so dragging a column header
+// did nothing while the drag still started and the cursor still said `grab`.
+//
+// A unit test cannot catch a caller that stops calling. What it *can* pin is the sequence
+// the caller performs, so that if the wiring is rebuilt it is rebuilt correctly: move within
+// the order currently on screen, persist the whole permutation, and re-apply it on render.
+describe('the sequence Pane performs when a column is dragged', () => {
+  const columns = (...vs: string[]) => vs.map((value) => ({ value, label: value, cards: [] }));
+
+  it('a drag, then a render, shows the new order', () => {
+    const server = columns('a', 'b', 'c'); // whatever order the query returned
+    const saved = moveValue(
+      orderColumns(server, []).map((c) => c.value),
+      'c',
+      'a',
+      true,
+    );
+
+    expect(orderColumns(server, saved).map((c) => c.value)).toEqual(['c', 'a', 'b']);
+  });
+
+  // The second drag must be computed against what the user is looking at, not against the
+  // server's order — otherwise it moves the wrong column.
+  it('a second drag composes with the first', () => {
+    const server = columns('a', 'b', 'c');
+    let saved = moveValue(server.map((c) => c.value), 'c', 'a', true); // c a b
+    const visible = orderColumns(server, saved).map((c) => c.value);
+    saved = moveValue(visible, 'a', 'b', false); // c b a
+
+    expect(orderColumns(server, saved).map((c) => c.value)).toEqual(['c', 'b', 'a']);
+  });
+
+  // A column that appears later (a new status value) must not vanish because it is absent
+  // from the saved order.
+  it('a column the saved order has never seen still renders', () => {
+    const saved = ['b', 'a'];
+    const server = columns('a', 'b', 'brand-new');
+
+    expect(orderColumns(server, saved).map((c) => c.value)).toEqual(['b', 'a', 'brand-new']);
+  });
+});

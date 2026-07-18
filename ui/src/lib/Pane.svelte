@@ -15,7 +15,8 @@
   import Icon from './Icon.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan } from './panes';
-  import type { ObjectMeta, ViewInfo } from './types';
+  import type { ObjectMeta, ViewInfo, Board as BoardT } from './types';
+  import { orderColumns, moveValue } from './boardOrder';
 
   interface Props {
     pane: Pane;
@@ -164,6 +165,51 @@
     if (!options.length) return;
     pick(options[(currentIndex + dir + options.length) % options.length].value);
   }
+
+  // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
+  // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
+  // header did nothing while the drag still started and the cursor still said `grab`. An
+  // affordance that looks live and is dead is worse than no affordance.
+  //
+  // Keyed by **this pane's `groupBy`**, because the order of "todo/doing/done" has nothing
+  // to say about the order of "project A/project B". Two panes grouped the same way share
+  // one order, which is right — it is the same board seen twice.
+  //
+  // A view preference, so `localStorage` and never a vault: what you are currently looking
+  // at is not knowledge.
+  const ORDER_KEY = 'fm-board-order';
+
+  function allOrders(): Record<string, string[]> {
+    try {
+      return JSON.parse(localStorage.getItem(ORDER_KEY) ?? '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  // Bumped on write so the `$derived` below re-runs — localStorage is not reactive.
+  let orderVersion = $state(0);
+
+  function ordered(b: BoardT): BoardT {
+    void orderVersion;
+    const saved = allOrders()[pane.groupBy];
+    return saved?.length ? { ...b, columns: orderColumns(b.columns, saved) } : b;
+  }
+
+  function reorderColumns(fromValue: string, toValue: string, before: boolean) {
+    if (!board) return;
+    // Move within the order the user is *looking at*, not the server's — otherwise the
+    // second drag is computed against a list that is no longer on screen. `moveValue`
+    // returns the whole permutation, so the first drag persists a complete, stable order.
+    const visible = ordered(board).columns.map((c) => c.value);
+    const next = moveValue(visible, fromValue, toValue, before);
+    try {
+      localStorage.setItem(ORDER_KEY, JSON.stringify({ ...allOrders(), [pane.groupBy]: next }));
+      orderVersion++;
+    } catch {
+      /* private mode — the order just won't persist */
+    }
+  }
 </script>
 
 <section
@@ -266,9 +312,9 @@
     {:else if pane.kind === 'board' || (pane.kind === 'view' && board)}
       {#if board}
         <Board
-          {board}
+          board={ordered(board)}
           onmove={(id, value, beforeId) => onmove(pane.groupBy, id, value, beforeId)}
-          onreorder={() => {}}
+          onreorder={reorderColumns}
           {onopen}
           {statuses}
           onstatus={onstatus}

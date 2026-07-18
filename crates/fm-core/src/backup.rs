@@ -7,11 +7,11 @@
 //! index in particular must never travel between machines (the DB-corruption-by-
 //! sync lesson).
 //!
-//! **Everything else under the vault path is snapshotted**, which is more than the durable
-//! knowledge when a vault is also a project repo: notes, blobs, views, themes, scripts and
-//! the manifest, but also `.git` and whatever else lives there — so a lab's restic repo
-//! would hold your `data/` and `.env`. Narrowing this to the notes and blobs directories is
-//! open work (`plan.md`, Track V2.4).
+//! **Only the vault's own directories are snapshotted** — its notes dir (wherever
+//! `vault.json` puts it) and `blobs/`. Not the vault root: a vault is increasingly a repo you
+//! already have, and the root then also holds your source, your `.env` and a `.git`, none of
+//! which belong in a restic repo that may be a lab's rather than yours. Naming what is ours
+//! beats excluding what is not, because the set to exclude has no end.
 
 use crate::StoreError;
 use std::path::Path;
@@ -58,16 +58,41 @@ pub fn ensure_repo(repo: &Path, password: &str) -> Result<bool, StoreError> {
     Ok(true)
 }
 
-/// Snapshot the vault (initializing the repo on first run).
+/// Snapshot the vault's **own** directories — notes and blobs — initializing the repo on
+/// first run.
+///
+/// **Not the vault root**, and that is the whole point of this function's shape. A vault is
+/// increasingly a repo you already have: point one at a project and the root also holds your
+/// source, your `.env`, your `data/` and a `.git`. Snapshotting the root put all of it into
+/// whatever restic repo the vault names — which for a lab's shared vault is not your repo.
+/// Excluding `index.sqlite`/`derived` was never enough, because it enumerated what to leave
+/// out of an unbounded set.
+///
+/// So this takes what we know is ours instead. `notes` comes from the store (a `vault.json`
+/// may put it in `docs/`), `blobs` is fixed. Anything else under the vault root — including
+/// a project's own files — is the user's to back up their own way.
 pub fn backup(vault: &Path, repo: &Path, password: &str) -> Result<(), StoreError> {
     ensure_repo(repo, password)?;
+    // Asked here rather than taken as an argument, so the three callers cannot drift on
+    // *which* directories are ours — `vault.json` may put the notes in `docs/`.
+    let notes = crate::descriptor::Descriptor::read(vault)?.notes_dir(vault);
+    // A vault with no blobs yet is normal; restic errors on a path that does not exist.
+    let blobs = vault.join("blobs");
+    let mut paths: Vec<&Path> = Vec::new();
+    if notes.exists() {
+        paths.push(&notes);
+    }
+    if blobs.exists() {
+        paths.push(&blobs);
+    }
+    if paths.is_empty() {
+        return Err(StoreError::Io(
+            "nothing to back up: this vault has no notes or blobs directory yet".into(),
+        ));
+    }
     let out = restic(repo, password)
         .arg("backup")
-        .arg(vault)
-        .arg("--exclude")
-        .arg("index.sqlite")
-        .arg("--exclude")
-        .arg("derived")
+        .args(&paths)
         .arg("--tag")
         .arg("fm")
         .output()
