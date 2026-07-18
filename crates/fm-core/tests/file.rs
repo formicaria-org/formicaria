@@ -359,3 +359,55 @@ fn a_duplicated_id_settles_instead_of_flapping() {
         assert_eq!(stats.removed, 0, "beat {beat} reported a removal on a quiet vault");
     }
 }
+
+/// **V3, and the reason it exists.** Adopting a repo you already own means the notes are in
+/// `docs/`, not in a `notes/` directory the notebook demanded you create. `vault.json` says
+/// where they are, and everything downstream must simply work.
+#[test]
+fn a_vault_can_keep_its_notes_somewhere_other_than_notes() {
+    let dir = tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("vault.json"),
+        r#"{"name":"the paper","description":"notes beside the manuscript","notes":"docs"}"#,
+    )
+    .unwrap();
+    // A note already sitting in the project's own docs directory, hand-written.
+    std::fs::create_dir_all(dir.path().join("docs")).unwrap();
+    let o = Object::new(Kind::Note, "the introduction needs work");
+    std::fs::write(
+        dir.path().join("docs").join(format!("{}.md", o.id)),
+        fm_core::frontmatter::to_file(&o).unwrap(),
+    )
+    .unwrap();
+
+    let mut store = FileStore::open(dir.path()).unwrap();
+
+    // It is adopted with no import step, exactly as a note in `notes/` would be.
+    assert_eq!(store.query(&Query::default()).unwrap().total, 1);
+    assert_eq!(store.description(), Some("notes beside the manuscript"));
+    // And `FileStore::open` takes the name from the descriptor rather than the directory,
+    // which is a tempdir with a random name.
+    assert_eq!(store.name(), "the paper");
+
+    // Writes land there too — a descriptor that only affected reading would relocate a note
+    // on its first edit, which is the trapdoor the design rejected.
+    let fresh = Object::new(Kind::Note, "written through the app");
+    store.put(&fresh).unwrap();
+    assert!(
+        dir.path().join("docs").join(format!("{}.md", fresh.id)).exists(),
+        "a new note must land beside the others, not in a notes/ dir nobody asked for"
+    );
+    assert!(!dir.path().join("notes").exists(), "and no stray notes/ is created");
+}
+
+/// The vault list's name is the audience *this user* chose. A repo they cloned does not get
+/// to rename it out from under them.
+#[test]
+fn an_explicit_name_beats_the_descriptors() {
+    let dir = tempdir().unwrap();
+    std::fs::write(dir.path().join("vault.json"), r#"{"name":"their name"}"#).unwrap();
+
+    let store = FileStore::named(dir.path(), "my name").unwrap();
+
+    assert_eq!(store.name(), "my name");
+}

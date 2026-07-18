@@ -4,7 +4,23 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **Sync is an explicit sequence now, whiteboards merge, and three
+_Last verified: 2026-07-18 — **A vault can be a repo you already have**
+(`plan.md` Track V). Three of V2's four co-tenancy bugs are fixed, including both silent ones:
+`.gitattributes`/`.gitignore` were **skipped when the file already existed**, so in any real
+repo `*.md merge=fm` never landed (the merge driver silently never engaged — Phase 1's
+disaster reintroduced by conversion) and `blobs/`+`index.sqlite` were committed and pushed;
+`commit_all`'s `git add -A` staged your half-written code and your curated index every 5 s;
+and `push_squashed` collapsed hand-written commits into one `backup:` (the boundary is now the
+`auto:`/`backup:` message prefix — **never the author**, since we commit *as* the user). V3
+shipped too: **`vault.json`** (`fm-core/src/descriptor.rs`) carries the three facts git cannot
+supply — `name`, `description`, and **where the notes are** — so a project whose notes live in
+`docs/` is adopted with no import step. Also decided, under the project's own principles:
+**the git2 swap is rejected** and "git is a capability, not a dependency" stands (linking
+libgit2 contradicts shell-out-don't-link, fails `deny.toml`'s permissive-only rule on
+everything but a metadata technicality, and would silently disable the `.md` merge driver);
+and **whiteboard blobs will be git-tracked** when the image-strip lands, which is deferred
+because boards work today and a canvas cannot be verified without eyes on it. Before that,
+**Sync is an explicit sequence now, whiteboards merge, and three
 plan items were stopped before being built**
 (`sessions/2026-07-18-sync-loop-and-scene-merge.md`). `ui/src/lib/sync.svelte.ts` is the loop:
 `commit → push`, and on a rejection `pull → merge → push once more` — **exactly one retry**, and

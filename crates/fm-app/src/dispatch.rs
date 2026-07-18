@@ -330,7 +330,10 @@ pub fn dispatch(
         // The audiences that exist. `[]` is **the first-run signal** — the one command
         // that is meaningful with no vaults, and the reason it isn't folded into
         // `backup_status` (which shells out per vault, including a network `ls-remote`).
-        "list_vaults" => json(infos(&lock()?.configs())),
+        "list_vaults" => {
+            let g = lock()?;
+            json(infos(&g.configs(), &g.store.names()))
+        }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
             let g = lock()?;
@@ -783,7 +786,8 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     })?;
 
     g.add(cfg, store);
-    Ok(infos(&g.configs()))
+    let names = g.store.names();
+    Ok(infos(&g.configs(), &names))
 }
 
 /// Why the form said no. One sentence, the most disqualifying first — a list of every
@@ -818,11 +822,22 @@ fn refusal(c: &PathCheck, name: &str) -> String {
     "there is nowhere to save the vault list on this machine — set FM_VAULTS".into()
 }
 
-fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
+/// The vault list as the UI needs it.
+///
+/// Takes the **store's** names alongside the configured ones, because a vault may name
+/// itself: a `vault.json` in a repo you cloned supplies the audience label when the local
+/// vault list has none to give. Config still wins when it has an opinion — that name is the
+/// one *this* user chose, and a repo must not rename their audience out from under them —
+/// so this only fills a blank. Without it, adopting a repo shows a vault called "".
+fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
     v.iter()
         .enumerate()
         .map(|(i, e)| VaultInfo {
-            name: e.name.clone(),
+            name: if e.name.is_empty() {
+                store_names.get(i).map(|n| n.to_string()).unwrap_or_default()
+            } else {
+                e.name.clone()
+            },
             path: e.path.to_string_lossy().into_owned(),
             default: i == 0,
         })

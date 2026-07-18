@@ -9,6 +9,7 @@ use fm_query::{Filter, Query, QueryResult};
 use std::collections::HashMap;
 use thiserror::Error;
 
+pub mod descriptor;   // <vault>/vault.json — the facts git cannot supply
 pub mod frontmatter;
 mod file;
 pub use file::FileStore;

@@ -84,6 +84,62 @@ low-risk *early demo*, not where Track M lands. **Top risk carried:** the Androi
 conda-packaged, so the toolchain escapes the pixi-only house rule — pin the whole matrix in CI
 (≠ `pixi.lock` reproducibility).
 
+## `git2` is rejected; git stays a subprocess capability (2026-07-18)
+
+**Decision made under the project's own principles**, after the audit found `mobile-design.md`'s
+rulings 2/3/6 rest on wrong premises. The earlier "reversal, owned in writing" is itself
+reversed: **"git is a capability, not a dependency" stands.**
+
+Every principle in this repo points the same way, which is why this is a decision rather than
+a preference:
+
+- **"Bounded, replaceable dependencies — lean on tools that already solve a problem whole and
+  shell out."** Linking libgit2 is the exact opposite move. Shelling out to `git` is the
+  stance that makes `git` swappable at all.
+- **The licence gate.** `deny.toml` says any GPL crate that is *linked* must fail the build,
+  and names pdftotext/libvips as the pattern: GPL tools are **invoked**, never linked. libgit2
+  is GPL-2.0-with-linking-exception. `cargo deny` would pass it only because `libgit2-sys`
+  declares `MIT OR Apache-2.0` while vendoring ~230k lines of GPL C — clearing a gate on a
+  metadata technicality is not satisfying it, and `ci/third-party.sh` would then ship binaries
+  omitting a notice the exception requires.
+- **Do not ruin what works.** libgit2 cannot invoke external merge drivers. Porting `pull()`
+  silently disables the `.md` frontmatter merge while a collaborator's terminal `git pull`
+  still honours it — Phase 1 undone, quietly, in the one place that must never corrupt.
+- **Minimal decade-scale maintenance.** Ruling 3's actual shape is a direct `libgit2-sys`
+  dependency plus unsafe FFI around a function `git2` deliberately keeps private
+  (`git2::merge_file` does not exist). That is a maintenance liability, not a simplification.
+
+**What this costs:** mobile has no `git` binary, so the phone port cannot use `git.rs` as-is.
+That is a real constraint and it is *not* solved here, deliberately — mobile is blocked on the
+Android toolchain anyway, and pre-committing to the wrong backend to unblock something that
+does not exist is how the wrong backend gets built. When it is live, the options are: ship a
+git binary with the app, revisit `gix` once its push ships (the documented pure-Rust escape),
+or the transport-only Path A. **Rejected:** doing it now "so mobile is ready".
+
+## Whiteboard images: git-track them, and do not strip yet (2026-07-18)
+
+Two questions, answered separately.
+
+**Which storage — decided: git-track whiteboard-embedded blobs, a scoped exception.**
+`mobile-design.md` offered (a) that, or (b) a blob mirror over rclone/S3. (a) wins on the
+stated principles: it is one `.gitignore` exception against a whole new subsystem; it stays
+fully offline; content-addressing already dedups it; and (b) is a sync framework by another
+name, which *"no CRDT library, no sync framework"* rules out. Recorded so nobody has to
+re-litigate it.
+
+**When to strip — decided: not yet, and this is the honest reason.** Boards sync *today*,
+un-stripped, because the element merge (`fm-core/src/scene.rs`) shipped without needing the
+strip — so the plan's "must land before boards are shared" was already false. What remains is
+churn, not correctness: a 2 MB screenshot is ~2.7 MB rewritten per stroke. That cost is felt
+on a phone (flash wear, battery) and barely on a desktop, so its beneficiary is the platform
+that does not exist yet. Against that: the change is in the whiteboard save path, it has three
+known traps (`onDestroy` flushes synchronously, so an async upload on save loses the last
+stroke — upload eagerly on paste instead; `lastSerialized` compares the *raw* serialization
+and must switch to the stripped text; and storing bytes needs either a thin `put_blob` command
+or an asset note per screenshot), and **a canvas cannot be verified without eyes on it**.
+Shipping a blind change to the one view whose failure mode is "your drawing is gone" fails
+*do not ruin what works*. It lands when someone can watch it happen.
+
 ## Collaboration is git, *exposed* — not reimplemented (2026-07-18)
 **Why:** the machinery (per-vault git, `.md` merge driver, push/pull, signed identity) already
 shipped; git knows who changed what and when, but nothing surfaced it. The user's framing: *use

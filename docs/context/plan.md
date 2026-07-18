@@ -319,7 +319,19 @@ first.
    **And restic** (`backup.rs:57`) snapshots the whole vault path → the lab's restic repo
    holds your `data/` and `.env`. Snapshot the notes dir + blobs dir instead.
 
-**V3 — the descriptor.** `<vault>/vault.json`, git-tracked, **bounded by one rule: every
+**V3 — the descriptor. ✅ SHIPPED 2026-07-18** (`fm-core/src/descriptor.rs`). `vault.json`
+carries `name`/`description`/`notes`; `FileStore::named` reads it, so a repo whose notes live
+in `docs/` is adopted with no import step and new notes land beside the existing ones rather
+than in a `notes/` dir nobody asked for. Every field optional, absent file = today's
+behaviour. Two things the build added to the design: **name precedence is caller > descriptor
+> directory** (`FileStore::open` now passes no opinion, since the directory name is the
+*weakest* signal — it is whatever git called the clone — and passing it made the descriptor
+unable to ever win); and `list_vaults` fills a blank config name from the store, or adopting a
+repo showed a vault called `""`. **A `notes` path that escapes the vault is refused**:
+audience is decided by location, so notes outside the repo would make "who can see this"
+unanswerable. Original design:
+
+`<vault>/vault.json`, git-tracked, **bounded by one rule: every
 field must be a fact git cannot supply.** Git already knows authorship and history
 (`git log`), the audience (`git remote` + who can clone), and — neatly — `.gitignore` *is
 already* a truth-vs-cache declaration. So: no author, no collaborators, no remote, no

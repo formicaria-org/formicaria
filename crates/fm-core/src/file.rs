@@ -29,6 +29,9 @@ pub struct FileStore {
     /// onto each object on the way out, because `Object.vault` is derived from
     /// location and never read from a file.
     name: String,
+    /// What this vault is for, from its `vault.json`. `None` when it has no descriptor —
+    /// which is most vaults, and not a gap to fill in with something invented.
+    description: Option<String>,
 }
 
 impl FileStore {
@@ -39,12 +42,12 @@ impl FileStore {
     /// The vault takes its name from its directory — see [`FileStore::named`] when
     /// something else has an opinion (a `MultiStore` reading the vault list).
     pub fn open(root: impl AsRef<Path>) -> Result<Self, StoreError> {
-        let root = root.as_ref();
-        let name = root
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "vault".to_string());
-        Self::named(root, name)
+        // Empty means "no opinion", which lets `named` apply the real precedence:
+        // an explicit caller name, then the vault's own `vault.json`, then the directory.
+        // Passing the directory name here would make it an *opinion* and the descriptor
+        // could never win — which is backwards, since the directory name is the weakest
+        // signal of the three (it is whatever git called the clone).
+        Self::named(root, "")
     }
 
     /// Open a vault under a name the caller chooses. That name *is* the audience
@@ -52,10 +55,34 @@ impl FileStore {
     /// list, not to whatever the directory happens to be called.
     pub fn named(root: impl AsRef<Path>, name: impl Into<String>) -> Result<Self, StoreError> {
         let root = root.as_ref();
-        let notes = root.join("notes");
+        // `<vault>/vault.json`, if the vault has an opinion. Absent is the common case and
+        // means exactly today's behaviour: notes in `notes/`, name from the caller.
+        //
+        // The caller's name still wins when it gave one — that is the vault *list*, i.e. the
+        // audience label the person running this app chose, and a repo they cloned does not
+        // get to rename their audience out from under them. The descriptor supplies it only
+        // when nobody else did.
+        let desc = crate::descriptor::Descriptor::read(root)?;
+        let notes = desc.notes_dir(root);
+        // Caller > descriptor > directory. The caller is the vault *list* — the audience
+        // label this user chose — so a repo they cloned never renames it out from under
+        // them. The directory is the last resort: it is whatever git called the clone.
+        let name = {
+            let given: String = name.into();
+            if !given.is_empty() {
+                given
+            } else {
+                desc.name.clone().unwrap_or_else(|| {
+                    root.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "vault".to_string())
+                })
+            }
+        };
         fs::create_dir_all(&notes).map_err(io)?;
         let db = Connection::open(root.join("index.sqlite")).map_err(sql)?;
-        let mut store = FileStore { notes, db, skipped: Vec::new(), name: name.into() };
+        let mut store =
+            FileStore { notes, db, skipped: Vec::new(), name, description: desc.description };
         store.init_schema()?;
         let stats = store.reindex(Reindex::Full)?;
         store.skipped = stats.skipped;
@@ -65,6 +92,12 @@ impl FileStore {
     /// This vault's name — its audience.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// What this vault is for, if it says. Never invented: a vault with no `vault.json` has
+    /// no description, and "" would be a claim we cannot support.
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
     }
 
     /// Notes the last reindex could not read, as `filename: why`. The vault serves
