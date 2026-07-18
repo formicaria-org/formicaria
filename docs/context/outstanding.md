@@ -111,7 +111,21 @@ rather than only the functions.
 
 ## 4. Structural debt, in the order it will hurt
 
-### 4.1 `fm-cli` never migrated onto `fm_app::dispatch`
+### 4.1 ~~`fm-cli` never migrated onto `fm_app::dispatch`~~ — RESOLVED 2026-07-18, differently
+**Not by routing it through `dispatch`.** That is a *wire* surface — JSON in, JSON out — and a
+CLI wants typed values to print. Sending `fm show` through it to re-parse the JSON back would
+have been worse than the fork it was meant to remove. Only 7 of the CLI's 13 commands even
+have an arm; `verify`/`manifest`/`restore`/`check`/`reindex` are CLI-only by design and
+`merge-md` runs *before* a store is opened, because git invokes it as the merge driver.
+
+**What actually cost anything was duplicated logic**, and that is fixed: `Cmd::Add` rebuilt
+the asset note — title, blob hash, MIME, put, thumbnail — in five lines that already existed
+in `commands::ingest`. The copies had diverged: the CLI's never set `obj.vault`, so a file
+added from the command line was stamped with no audience. Both now call
+`commands::asset_note`. The CLI still streams from a path (a large file is never held whole)
+while `ingest` takes bytes — that difference is real and kept; the note is not.
+
+The original entry:
 `dispatch` exists and `fm-serve` is a shell over it, but `fm-cli` still calls `fm-core`
 directly and re-implements the command flows (`Cmd::Add` rebuilds the ingest path rather than
 calling `commands::ingest`). So "one command library" is true of one frontend out of two, and

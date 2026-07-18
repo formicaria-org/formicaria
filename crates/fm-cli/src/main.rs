@@ -10,7 +10,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use fm_core::{merge, FileStore, Reindex, Store};
-use fm_model::{Id, Kind, Object, PropertyValue};
+use fm_model::{Id, Kind, Object};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -133,19 +133,17 @@ fn main() -> Result<()> {
             println!("captured {id}  ->  {}/notes/{id}.md", cli.vault.display());
         }
         Cmd::Add { path } => {
+            // Streamed from the path, so a large file is never held whole — that is why this
+            // does not go through `commands::ingest`, which takes bytes.
             let ing = fm_core::ingest_file(&cli.vault, &path)
                 .with_context(|| format!("ingesting {}", path.display()))?;
-            // The asset note: filename as title, blob hash in `assets`, MIME as a
-            // queryable property, and the extracted text as the body so it is
-            // full-text searchable and travels with the notes (not the blob).
-            let mut obj = Object::new(Kind::Asset, ing.text.clone().unwrap_or_default());
-            obj.title = Some(ing.filename.clone());
-            obj.assets = vec![format!("sha256:{}", ing.hash)];
-            obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
-            let id = obj.id;
-            store.put(&obj)?;
-            // Fire-and-forget thumbnail; failure only degrades the gallery tile.
-            let thumbed = fm_core::ingest::thumbnail(&cli.vault, &ing.hash).is_ok();
+            // But the *note* is built by the shared function, not a second copy of the same
+            // five lines. The copies had already diverged: this one never set `obj.vault`, so
+            // a file added here was stamped with no audience.
+            let vault_name = store.name().to_string();
+            let meta = fm_app::commands::asset_note(&mut store, &cli.vault, &vault_name, &ing)?;
+            let id = meta.id.clone();
+            let thumbed = fm_core::ingest::thumb_path(&cli.vault, &ing.hash).exists();
             let chars = ing.text.as_deref().map(str::len).unwrap_or(0);
             println!(
                 "added asset {id}  ({}, sha256:{}…){}",

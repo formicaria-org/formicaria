@@ -9,6 +9,7 @@ name = "fm"
 path = "src/main.rs"
 
 [dependencies]
+fm-app = { path = "../fm-app" }   # the command library — so `fm add` and the browser build an asset note the same way
 fm-model = { workspace = true }
 fm-query = { workspace = true }
 fm-core = { workspace = true }

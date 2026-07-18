@@ -374,14 +374,34 @@ pub fn ingest(
     bytes: &[u8],
 ) -> Result<ObjectMeta, StoreError> {
     let ing = ingest::ingest_bytes(vault, filename, bytes)?;
+    asset_note(store, vault, vault_name, &ing)
+}
+
+/// Turn an ingested blob into its asset note, and store it.
+///
+/// **Shared on purpose.** This is the shape of an asset note — filename as the title, the
+/// blob hash in `assets`, the MIME as a queryable property, and the extracted text as the
+/// body so it is full-text searchable and travels with the notes rather than the blob. It was
+/// written twice, here and in `fm add`, and the copies had already diverged: the CLI's never
+/// set `obj.vault`, so a file added from the command line was stamped with no audience.
+///
+/// The two callers differ only in how the bytes arrive — `ingest` has them in memory (an
+/// upload), `fm add` streams them from a path so a large file is never held whole. That
+/// difference is real and worth keeping; the note is not.
+pub fn asset_note(
+    store: &mut dyn Store,
+    vault: &Path,
+    vault_name: &str,
+    ing: &fm_core::Ingested,
+) -> Result<ObjectMeta, StoreError> {
     let mut obj = Object::new(Kind::Asset, ing.text.clone().unwrap_or_default());
     obj.title = Some(ing.filename.clone());
     obj.assets = vec![format!("sha256:{}", ing.hash)];
     obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
     obj.vault = vault_name.to_string();
     store.put(&obj)?;
-    // Best-effort thumbnail, like `fm add`: a missing vipsthumbnail (or failure)
-    // only degrades a gallery tile, never the ingest.
+    // Best-effort thumbnail: a missing vipsthumbnail (or a failure) only degrades a gallery
+    // tile, never the ingest.
     let _ = ingest::thumbnail(vault, &ing.hash);
     Ok(ObjectMeta::from(&obj))
 }
