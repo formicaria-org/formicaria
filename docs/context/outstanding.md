@@ -95,7 +95,11 @@ a change to a command's behaviour still has to be made twice.
 tests (`cli.rs`, `merge.rs`) are the safety net, and `merge.rs` must keep driving the real
 driver.
 
-### 4.2 `fm-serve` is only partly tested
+### 4.2 ~~`fm-serve` is only partly tested~~ — FIXED 2026-07-18
+The CSRF guard, the `Host` guard, path traversal, method rejection and `/api/alive` now have
+socket-level tests in the same shape as `blob.rs`'s. **They caught a bug on the first run:**
+the `Host` guard split on `:` to strip the port, so a bracketed IPv6 literal (`[::1]:8765`)
+yielded `[` and a request from ourselves was refused. The original entry:
 The blob route has real socket-level tests and the query-args split has unit tests. The CSRF
 guard, the new `Host` guard, static file serving and the auto-shutdown watchdog have none —
 and every UI test runs against `mock.ts`, so the real HTTP path is otherwise only exercised by
@@ -104,7 +108,11 @@ hand.
 **Done looks like:** the guards get tests in the same shape as `blob.rs`'s (bind port 0, drive
 a real socket, assert on raw bytes). The harness already exists, which makes this cheap.
 
-### 4.3 The mock can drift from the real contract silently
+### 4.3 ~~The mock can drift from the real contract silently~~ — FIXED 2026-07-18
+Every structured arm binds its value to the real DTO before the `as T`. The cast is forced by
+the generic signature and cannot go away, but binding first is what makes a wrong shape fail
+`check-ui`. Verified by reintroducing the exact historical drift — a top-level `restic_repo` —
+and watching it error. The original entry:
 `mock.ts` returns `… as T`, casting the type check away. It kept a top-level `restic_repo`
 long after restic became per-vault and `tsc` said nothing. `backup_status` and now
 `update_body` are typed properly; the other arms are still bare casts.

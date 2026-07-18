@@ -240,8 +240,13 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // A missing Host is HTTP/1.0 or a hand-rolled client — not a browser, so not this
     // vector, and refusing it would break curl for no gain.
     if let Some(h) = &host {
-        let bare = h.split(':').next().unwrap_or("");
-        if !matches!(bare, "127.0.0.1" | "localhost" | "[::1]" | "::1") {
+        // An IPv6 literal is bracketed (`[::1]:8765`), so the port cannot simply be split off
+        // at the first colon — that yields `[` and refuses a request from ourselves.
+        let bare = match h.strip_prefix('[') {
+            Some(rest) => rest.split(']').next().unwrap_or(""),
+            None => h.split(':').next().unwrap_or(""),
+        };
+        if !matches!(bare, "127.0.0.1" | "localhost" | "::1") {
             return write_response(
                 &mut stream,
                 "403 Forbidden",
@@ -483,6 +488,145 @@ fn write_response(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{BufRead as _, BufReader as _BufReader, Read as _Read};
+
+    /// Drive the **real** `handle` over a real socket with a raw request, and return the
+    /// status line plus headers.
+    ///
+    /// The guards below are the ones that decide whether a page you merely visited can reach
+    /// your vault, and until now none of them had a test — the whole transport was verified
+    /// by hand. They are also exactly the kind of code that is easy to get subtly wrong and
+    /// impossible to notice: a guard that stops refusing still serves every page correctly.
+    fn request(raw: &str, origins: Vec<String>) -> (String, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = AppState {
+            app: fm_app::App::new(store, vec![cfg], None, false),
+            dist: None,
+            origins,
+            last_seen: Mutex::new(Instant::now()),
+            connected: AtomicBool::new(false),
+        };
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (sock, _) = listener.accept().unwrap();
+            let _ = handle(sock, &state);
+        });
+
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.write_all(raw.as_bytes()).unwrap();
+        let mut reader = _BufReader::new(&mut client);
+        let mut status = String::new();
+        reader.read_line(&mut status).unwrap();
+        let mut headers = String::new();
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap() == 0 || line.trim().is_empty() {
+                break;
+            }
+            headers.push_str(&line);
+        }
+        let mut body = Vec::new();
+        let _ = reader.read_to_end(&mut body);
+        server.join().unwrap();
+        (status.trim().to_string(), headers)
+    }
+
+    fn ours() -> Vec<String> {
+        vec!["http://127.0.0.1:8765".into(), "http://localhost:8765".into()]
+    }
+
+    fn post(origin: Option<&str>, host: &str) -> String {
+        let mut r = format!("POST /api/ping HTTP/1.1\r\nHost: {host}\r\n");
+        if let Some(o) = origin {
+            r.push_str(&format!("Origin: {o}\r\n"));
+        }
+        r.push_str("Content-Length: 2\r\n\r\n{}");
+        r
+    }
+
+    /// The vault sits at a fixed localhost port with no authentication, so any page the user
+    /// happens to visit could POST to it — and a `text/plain` body skips the CORS preflight,
+    /// so the browser hides the *response* while the side effect still lands.
+    #[test]
+    fn a_post_from_another_origin_is_refused() {
+        let (status, _) = request(&post(Some("http://evil.example"), "127.0.0.1:8765"), ours());
+        assert_eq!(status, "HTTP/1.1 403 Forbidden");
+    }
+
+    #[test]
+    fn a_post_from_our_own_page_is_allowed() {
+        for o in ["http://127.0.0.1:8765", "http://localhost:8765"] {
+            let (status, _) = request(&post(Some(o), "127.0.0.1:8765"), ours());
+            assert_eq!(status, "HTTP/1.1 200 OK", "origin {o} is us");
+        }
+    }
+
+    /// No `Origin` at all means a non-browser client — curl, a script, a test. That is not a
+    /// CSRF vector (there are no ambient credentials to abuse) and refusing it would break
+    /// every command-line workflow.
+    #[test]
+    fn a_post_with_no_origin_is_allowed() {
+        let (status, _) = request(&post(None, "127.0.0.1:8765"), ours());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    /// DNS rebinding: binding to 127.0.0.1 keeps other *machines* out, but does not decide
+    /// which *name* a browser used to arrive. A hostname an attacker controls, resolved to
+    /// 127.0.0.1, is same-origin with itself — so the CSRF guard waves it through and the
+    /// page can read every response.
+    #[test]
+    fn a_request_arriving_under_someone_elses_hostname_is_refused() {
+        let (status, _) = request(&post(None, "evil.attacker.test:8765"), ours());
+        assert_eq!(status, "HTTP/1.1 403 Forbidden");
+    }
+
+    #[test]
+    fn the_names_we_actually_serve_are_allowed() {
+        for h in ["127.0.0.1:8765", "localhost:8765", "[::1]:8765", "127.0.0.1"] {
+            let (status, _) = request(&post(None, h), ours());
+            assert_eq!(status, "HTTP/1.1 200 OK", "host {h} is us");
+        }
+    }
+
+    /// HTTP/1.0 and hand-rolled clients send no `Host`. Not a browser, so not this vector —
+    /// and refusing it would break curl for no gain.
+    #[test]
+    fn a_request_with_no_host_is_allowed() {
+        let (status, _) =
+            request("POST /api/ping HTTP/1.0\r\nContent-Length: 2\r\n\r\n{}", ours());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    #[test]
+    fn a_traversal_out_of_the_ui_directory_is_refused() {
+        let (status, _) = request(
+            "GET /../../../../etc/passwd HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n",
+            ours(),
+        );
+        assert_eq!(status, "HTTP/1.1 400 Bad Request");
+    }
+
+    #[test]
+    fn an_unsupported_method_is_refused() {
+        let (status, _) =
+            request("PUT /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        assert_eq!(status, "HTTP/1.1 405 Method Not Allowed");
+    }
+
+    /// Liveness must stay reachable without a lock or a dispatch — a hidden tab beats it
+    /// forever, and the watchdog's whole job depends on it answering.
+    #[test]
+    fn the_liveness_endpoint_answers() {
+        let (status, _) =
+            request("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+    }
 
     #[test]
     fn query_params_become_named_arguments() {

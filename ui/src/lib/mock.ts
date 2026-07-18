@@ -5,7 +5,19 @@
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
 import { parseStamp } from './stamp';
-import type { BackupStatus, Board, Column, ObjectMeta, PathCheck, VaultInfo } from './types';
+import type {
+  AssetStatus,
+  BackupStatus,
+  Board,
+  Column,
+  NoteDetail,
+  ObjectMeta,
+  PathCheck,
+  PullResult,
+  VaultInfo,
+  ViewInfo,
+  ViewResult,
+} from './types';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -220,22 +232,41 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
   return v;
 }
 
+/**
+ * The in-memory backend for `pnpm dev` and Vitest.
+ *
+ * **Every arm binds its value to the real DTO type before the `as T`.** The cast itself is
+ * forced by the generic signature and cannot go away — but it is exactly what let this file
+ * drift: it kept a top-level `restic_repo` long after restic became per-vault, and `tsc` said
+ * nothing, so UI tests passed against a shape the Rust never sends. Binding first means a
+ * mock that answers the wrong shape fails `check-ui` rather than a user.
+ */
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
-    case 'board':
-      return buildBoard(String(args.groupBy)) as T;
-    case 'gallery':
-      return [...notes]
+    case 'board': {
+      const board: Board = buildBoard(String(args.groupBy));
+      return board as T;
+    }
+    case 'gallery': {
+      const assets: ObjectMeta[] = [...notes]
         .filter((n) => n.type === 'asset')
-        .sort((a, b) => b.created.localeCompare(a.created)) as T;
-    case 'agenda':
-      return notes
+        .sort((a, b) => b.created.localeCompare(a.created));
+      return assets as T;
+    }
+    case 'agenda': {
+      const dated: ObjectMeta[] = notes
         .filter((n) => isNote(n) && n.due && n.status !== 'done')
-        .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? '')) as T;
-    case 'get':
-      return noteDetail(String(args.id)) as T;
-    case 'capture':
-      return captureNote(String(args.body), String(args.vault ?? '')) as T;
+        .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
+      return dated as T;
+    }
+    case 'get': {
+      const detail: NoteDetail | null = noteDetail(String(args.id));
+      return detail as T;
+    }
+    case 'capture': {
+      const meta: ObjectMeta = captureNote(String(args.body), String(args.vault ?? ''));
+      return meta as T;
+    }
     case 'set_property':
       setProp(String(args.id), String(args.key), String(args.value));
       return undefined as T;
@@ -313,8 +344,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         )
         .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
     }
-    case 'recent':
-      return notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created)) as T;
+    case 'recent': {
+      const recent: ObjectMeta[] = notes
+        .filter(isNote)
+        .sort((a, b) => b.created.localeCompare(a.created));
+      return recent as T;
+    }
     // Fake git authorship for dev/tests: attribute each note to one of two people, newest-first,
     // so the "edited by" labels, the activity stream, and the contributor filter all have data.
     case 'activity': {
@@ -352,15 +387,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // to the missing placeholder), and durability commands are inert no-ops.
     case 'resolve_asset':
       return null as T;
-    case 'asset_status':
-      return { has_blob: false, has_thumb: false, mime: null } as T;
+    case 'asset_status': {
+      const status: AssetStatus = { has_blob: false, has_thumb: false, mime: null };
+      return status as T;
+    }
     case 'open_external':
       return undefined as T;
     // The vault list the mock models. Two, so the sidebar's vault chips and filter are
     // exercised (they only render above one). The first-run state — an empty list — is
     // reached for real, not here: `pnpm dev` should give you a working app.
-    case 'list_vaults':
-      return mockVaults.map((v, i) => ({ ...v, default: i === 0 })) as T;
+    case 'list_vaults': {
+      const vaults: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
+      return vaults as T;
+    }
     case 'check_path': {
       // Mirrors the real policy closely enough to develop the form against, and no
       // further: the server owns `ok`, and this file must never become a second opinion.
@@ -389,16 +428,25 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'create_vault': {
       mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
-      return mockVaults.map((v, i) => ({ ...v, default: i === 0 })) as T;
+      const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
+      return created as T;
     }
     // Saved views. The mock ships one so the sidebar's view list is exercised; a real
     // `.view` lives in the vault and is parsed server-side, which the mock does not model.
-    case 'list_views':
-      return [{ name: 'Recent notes', renderer: 'timeline', group_by: null }] as T;
+    case 'list_views': {
+      const views: ViewInfo[] = [{ name: 'Recent notes', renderer: 'timeline', group_by: null }];
+      return views as T;
+    }
     case 'run_view': {
       // Reuse the mock's own note set; the sample view just lists them like the timeline.
       const rows = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
-      return { name: String(args.name ?? ''), renderer: 'timeline', group_by: null, rows } as T;
+      const result: ViewResult = {
+        name: String(args.name ?? ''),
+        renderer: 'timeline',
+        group_by: null,
+        rows,
+      };
+      return result as T;
     }
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
@@ -449,7 +497,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return 2 as T;
     case 'pull':
       // Nothing to pull from: there is no vault and no remote here.
-      return { merged: 0, conflicts: [] } as T;
+      return { merged: 0, conflicts: [] } satisfies PullResult as T;
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }
