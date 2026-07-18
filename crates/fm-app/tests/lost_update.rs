@@ -110,3 +110,50 @@ fn an_empty_base_skips_the_check() {
     assert!(commands::update_body(&mut store, &id, "forced\n", "").is_ok());
     assert_eq!(commands::get(&store, &id).unwrap().unwrap().body, "forced\n");
 }
+
+/// **The auto-commit must not catch you mid-sentence.**
+///
+/// `commit_all` used to stage the vault's *directories*. In a vault that is also a project
+/// — the direction Track V is heading — the notes directory may well be `docs/`, so a note
+/// you were hand-editing in Vim got committed five seconds later, mid-sentence, by a
+/// debounce you did not ask for.
+///
+/// It now stages exactly what `put`/`delete` recorded. The trade, stated: a note edited
+/// outside the app is never committed *by* the app. That is the intended behaviour — it is
+/// your edit, in your repo, and yours to commit — and it is what `known-issues.md` already
+/// described as true of `fm-cli`/Vim writes.
+#[test]
+fn a_note_edited_outside_the_app_is_not_committed_by_it() {
+    let (mut store, dir, id, base) = vault_with_a_note("written through the app\n");
+    if !std::process::Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
+    {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    fm_core::git::ensure_repo(dir.path()).unwrap();
+
+    // Whatever the app wrote is fair game.
+    commands::update_body(&mut store, &id, "edited in the app\n", &base).unwrap();
+
+    // And someone is halfway through a sentence in Vim, in a *different* note.
+    let vim = dir.path().join("notes").join("01JQVIMHALFWRITTEN00000000.md");
+    std::fs::write(&vim, "---\nid: 01JQVIMHALFWRITTEN00000000\n---\nhalf a sen").unwrap();
+
+    // The store is a FileStore here, so it answers directly; MultiStore takes a vault name.
+    let ours = store.written();
+    assert!(fm_core::git::commit_all(dir.path(), "auto: test", &ours).unwrap());
+
+    let committed = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir.path())
+        .args(["show", "--name-only", "--format=", "HEAD"])
+        .output()
+        .unwrap();
+    let committed = String::from_utf8_lossy(&committed.stdout);
+
+    assert!(committed.contains(&id), "the app's own note is committed:\n{committed}");
+    assert!(
+        !committed.contains("01JQVIMHALFWRITTEN"),
+        "a note being hand-edited must NOT be swept in:\n{committed}"
+    );
+}

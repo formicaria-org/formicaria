@@ -16,7 +16,21 @@ _Compiled 2026-07-18 from the multi-agent doc sweep + the Track V/M code audits.
 
 ## 1. Data integrity — fix these first
 
-### 1.1 The auto-commit can still commit a note you are typing in Vim
+### 1.1 ~~The auto-commit can still commit a note you are typing in Vim~~ — FIXED 2026-07-18
+`FileStore::put`/`delete` record every path they touch; `MultiStore` exposes them per vault;
+`commit_all` takes that list and stages exactly it. Cleared only after a commit actually
+lands, so a failed commit does not forget what it owed.
+
+**Deliberately not on the `Store` trait** — that seam carries no paths, no mtimes and no
+directory handles, and it is the reason a storage swap stays a backend change. `Vaults.store`
+is a concrete `MultiStore`, so it reaches them without widening the seam.
+
+**The trade, stated:** a note edited outside the app is now never committed *by* the app.
+That is intended — it is your edit, in your repo, and yours to commit — and it makes true
+what `known-issues.md` already claimed about `fm-cli`/Vim writes. Pinned by a test that
+half-writes a note "in Vim" and asserts it is absent from the commit.
+
+The original entry:
 `git.rs::commit_all` stages the **vault's own directories** (`notes`/`views`/`manifest.json`/
 `.gitattributes`/`.gitignore`) — which stops it sweeping a surrounding project's half-written
 code and stops it destroying a curated index. But the plan's actual requirement was narrower:

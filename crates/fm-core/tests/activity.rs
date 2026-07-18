@@ -7,6 +7,21 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
+/// The note files in a vault — what `FileStore::put` would have recorded had these tests
+/// gone through the store rather than writing files directly. `commit_all` now stages an
+/// explicit list, so a test has to say what it wrote, the same as the app does.
+fn notes_of(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(vault.join("notes"))
+        .map(|d| {
+            d.filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "md"))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
@@ -35,11 +50,11 @@ fn activity_reports_each_notes_last_editor_newest_first() {
     // Alice writes note A; Bob writes note B — two authors, two commits.
     as_person(vault.path(), "Alice", "alice@example.com");
     write_note(vault.path(), "note-a", "alice's note\n");
-    git::commit_all(vault.path(), "a").unwrap();
+    git::commit_all(vault.path(), "a", &notes_of(vault.path())).unwrap();
 
     as_person(vault.path(), "Bob", "bob@example.com");
     write_note(vault.path(), "note-b", "bob's note\n");
-    git::commit_all(vault.path(), "b").unwrap();
+    git::commit_all(vault.path(), "b", &notes_of(vault.path())).unwrap();
 
     let acts = git::activity(vault.path(), "1 year ago").unwrap();
     assert_eq!(acts.len(), 2, "one touch per note");
@@ -51,7 +66,7 @@ fn activity_reports_each_notes_last_editor_newest_first() {
 
     // Bob edits Alice's note → its LAST editor becomes Bob, and it moves to the front.
     write_note(vault.path(), "note-a", "alice's note, edited by bob\n");
-    git::commit_all(vault.path(), "c").unwrap();
+    git::commit_all(vault.path(), "c", &notes_of(vault.path())).unwrap();
 
     let acts = git::activity(vault.path(), "1 year ago").unwrap();
     assert_eq!(acts.len(), 2, "still one touch per note (last edit only)");

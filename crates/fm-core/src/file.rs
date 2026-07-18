@@ -32,6 +32,18 @@ pub struct FileStore {
     /// What this vault is for, from its `vault.json`. `None` when it has no descriptor —
     /// which is most vaults, and not a gap to fill in with something invented.
     description: Option<String>,
+    /// Every note file **this app** has written or deleted since the last commit.
+    ///
+    /// The auto-commit stages exactly these. Staging a directory instead meant that in a
+    /// vault which is also a project — the direction Track V is heading — a note you were
+    /// hand-editing in Vim got committed mid-sentence by a debounce five seconds later.
+    /// `put` is the only thing that knows which file it just wrote, so it is the only thing
+    /// that can answer this honestly.
+    ///
+    /// **Deliberately not on the `Store` trait.** That seam carries no paths, no mtimes and
+    /// no directory handles, and it is the reason a storage swap stays a backend change.
+    /// `MultiStore` reaches these through the concrete type instead.
+    written: std::collections::BTreeSet<PathBuf>,
 }
 
 impl FileStore {
@@ -82,7 +94,14 @@ impl FileStore {
         fs::create_dir_all(&notes).map_err(io)?;
         let db = Connection::open(root.join("index.sqlite")).map_err(sql)?;
         let mut store =
-            FileStore { notes, db, skipped: Vec::new(), name, description: desc.description };
+            FileStore {
+                notes,
+                db,
+                skipped: Vec::new(),
+                name,
+                description: desc.description,
+                written: Default::default(),
+            };
         store.init_schema()?;
         let stats = store.reindex(Reindex::Full)?;
         store.skipped = stats.skipped;
@@ -92,6 +111,20 @@ impl FileStore {
     /// This vault's name — its audience.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// The note files this app has written or deleted since [`clear_written`] was last
+    /// called. Borrowed rather than drained: a commit that fails must not lose the list,
+    /// and staging a file twice is a no-op.
+    ///
+    /// [`clear_written`]: FileStore::clear_written
+    pub fn written(&self) -> Vec<PathBuf> {
+        self.written.iter().cloned().collect()
+    }
+
+    /// Forget the write list — called only after a commit has actually succeeded.
+    pub fn clear_written(&mut self) {
+        self.written.clear();
     }
 
     /// What this vault is for, if it says. Never invented: a vault with no `vault.json` has
@@ -293,6 +326,7 @@ impl Store for FileStore {
         self.refuse_if_stale(obj.id, &path)?;
         Self::write_atomic(&path, &content)?;
         self.index_object(obj, &path, &content)?;
+        self.written.insert(path);
         Ok(())
     }
 
@@ -304,6 +338,8 @@ impl Store for FileStore {
         if path.exists() {
             fs::remove_file(&path).map_err(io)?;
         }
+        // A deletion is a change we made, and git needs it staged as one.
+        self.written.insert(path.clone());
         self.db
             .execute("DELETE FROM objects WHERE id = ?1", [id.to_string()])
             .map_err(sql)?;

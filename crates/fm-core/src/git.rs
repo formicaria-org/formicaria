@@ -10,7 +10,7 @@
 //! would walk up and find a parent repo when the vault sits inside one).
 
 use crate::StoreError;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 /// The one remote we manage. Git's own default name, so a vault stays an
@@ -300,7 +300,7 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
 /// **Scoped on purpose.** A vault may be a repo that also holds code or a manuscript, and
 /// this runs every few seconds. It must never touch a file formicaria did not write, and
 /// must never disturb an index the user staged themselves.
-pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
+pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     let status = git(vault).arg("status").arg("--porcelain").output().map_err(spawn)?;
     if !status.status.success() {
@@ -318,7 +318,7 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
     if String::from_utf8_lossy(&status.stdout).lines().any(unmerged) {
         return Ok(false);
     }
-    // **Stage what the vault owns, never `-A`.**
+    // **Stage exactly the files we wrote, never `-A` and never a directory.**
     //
     // A vault is increasingly *a repo you already have* — notes beside the code or
     // manuscript they describe. `git add -A` there is not a tidy default, it is a
@@ -327,27 +327,25 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
     // own, then commits the lot under `auto:`. Losing a curated index that way is not
     // recoverable by re-running anything.
     //
-    // So: only the paths formicaria writes. `-A` still applies *within* them, so a note
-    // deleted through the app is staged as a deletion.
+    // `paths` is what `FileStore::put`/`delete` recorded — the only thing that actually
+    // knows which files are ours. Staging a *directory* was the previous approximation, and
+    // it still caught a note you were hand-editing in Vim, because in a project vault the
+    // notes directory may well be `docs/`.
     //
-    // Not yet as narrow as it should be: this is the vault's own directories, not the exact
-    // files we just wrote. `put` knows that list, and threading it through would also stop
-    // us committing a note you are hand-editing in vim right now. Recorded in
-    // known-issues; this fixes the part that reaches outside the vault.
-    let owned: Vec<&str> = ["notes", "views", "manifest.json", ".gitattributes", ".gitignore"]
-        .into_iter()
-        .filter(|p| vault.join(p).exists())
-        .collect();
-    if owned.is_empty() {
-        return Ok(false); // nothing of ours exists yet — a fresh vault before its first note
+    // The config files we author are included because we author them: `ensure_repo` writes
+    // the ignore rules and the merge attribute, and they must travel.
+    let mut owned: Vec<String> =
+        paths.iter().filter_map(|p| relative(vault, p)).collect();
+    for f in [".gitattributes", ".gitignore", "manifest.json"] {
+        if vault.join(f).exists() {
+            owned.push(f.to_string());
+        }
     }
-    let add = git(vault)
-        .arg("add")
-        .arg("-A")
-        .arg("--")
-        .args(&owned)
-        .output()
-        .map_err(spawn)?;
+    if owned.is_empty() {
+        return Ok(false); // nothing of ours changed
+    }
+    // `-A` so a note deleted through the app is staged as a deletion, not left behind.
+    let add = git(vault).arg("add").arg("-A").arg("--").args(&owned).output().map_err(spawn)?;
     if !add.status.success() {
         return Err(failed("git add", &add));
     }
@@ -365,7 +363,7 @@ pub fn commit_all(vault: &Path, message: &str) -> Result<bool, StoreError> {
         .lines()
         .map(str::trim)
         .filter(|p| !p.is_empty())
-        .filter(|p| owned.iter().any(|o| *p == *o || p.starts_with(&format!("{o}/"))))
+        .filter(|p| owned.iter().any(|o| p == o || p.starts_with(&format!("{o}/"))))
         .map(String::from)
         .collect();
     if ours.is_empty() {
@@ -844,4 +842,13 @@ fn failed(what: &str, out: &Output) -> StoreError {
 
 fn io(e: std::io::Error) -> StoreError {
     StoreError::Io(e.to_string())
+}
+
+/// A vault-relative path string for git, or `None` when the path is not inside the vault.
+///
+/// git pathspecs are resolved against the repo root, and `commit --only` refuses one it
+/// cannot match — so an absolute path from another vault would fail the whole commit rather
+/// than being ignored.
+fn relative(vault: &Path, path: &Path) -> Option<String> {
+    path.strip_prefix(vault).ok().map(|p| p.to_string_lossy().into_owned())
 }

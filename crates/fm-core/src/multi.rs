@@ -23,7 +23,7 @@
 use crate::{FileStore, Reindex, ReindexStats, Store, StoreError};
 use fm_model::{Id, Object};
 use fm_query::Filter;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct MultiStore {
     vaults: Vec<FileStore>,
@@ -66,6 +66,21 @@ impl MultiStore {
     /// The audiences, in configured order. The first is the default for new notes.
     pub fn names(&self) -> Vec<&str> {
         self.vaults.iter().map(|v| v.name()).collect()
+    }
+
+    /// The note files this app wrote or deleted in **one** vault since its last successful
+    /// commit — what the auto-commit stages. Reached through the concrete type on purpose:
+    /// the `Store` seam carries no paths, and that is what keeps a storage swap a backend
+    /// change rather than a rewrite.
+    pub fn written(&self, vault: &str) -> Vec<PathBuf> {
+        self.vaults.iter().find(|v| v.name() == vault).map(|v| v.written()).unwrap_or_default()
+    }
+
+    /// Forget one vault's write list — only after its commit actually landed.
+    pub fn clear_written(&mut self, vault: &str) {
+        if let Some(v) = self.vaults.iter_mut().find(|v| v.name() == vault) {
+            v.clear_written();
+        }
     }
 
     /// Notes no vault could read, prefixed with the vault they were in — otherwise

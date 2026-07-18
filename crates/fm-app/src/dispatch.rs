@@ -262,9 +262,19 @@ pub fn dispatch(
             // thread-per-connection). One guard, where this used to take two: resolving
             // the vault through the same guard is what keeps that from being a
             // self-deadlock now that the store and the list share a lock.
-            let g = lock()?;
-            let path = g.config(&s("vault"))?.path;
-            json(git::commit_all(&path, &s("message")).map_err(err)?)
+            let mut g = lock()?;
+            let cfg = g.config(&s("vault"))?;
+            // Exactly the files this app wrote or deleted — not a directory, and certainly
+            // not `-A`. A vault may also be a repo you commit to yourself, and this fires
+            // five seconds after every save.
+            let paths = g.store.written(&cfg.name);
+            let made = git::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
+            // Cleared only once the commit actually landed: a failed commit that forgot its
+            // list would leave those notes unstaged forever.
+            if made {
+                g.store.clear_written(&cfg.name);
+            }
+            json(made)
         }
         "backup" => {
             run_backup(app, &s("vault"))?;
@@ -403,7 +413,10 @@ pub fn dispatch(
                 commands::copy_note(&mut g.store, &s("id"), &into.name, &vault_paths, with_assets)
                     .map_err(err)?;
             if git::available() {
-                let _ = git::commit_all(&into.path, "backup: copy note");
+                let paths = g.store.written(&into.name);
+                if git::commit_all(&into.path, "backup: copy note", &paths).unwrap_or(false) {
+                    g.store.clear_written(&into.name);
+                }
             }
             json(result)
         }
@@ -429,7 +442,10 @@ pub fn dispatch(
             commands::uncopy_note(&mut g.store, &s("id"), &into.name, &blobs, &vault_paths)
                 .map_err(err)?;
             if git::available() {
-                let _ = git::commit_all(&into.path, "backup: undo copy");
+                let paths = g.store.written(&into.name);
+                if git::commit_all(&into.path, "backup: undo copy", &paths).unwrap_or(false) {
+                    g.store.clear_written(&into.name);
+                }
             }
             nothing()
         }

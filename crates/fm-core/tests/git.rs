@@ -7,6 +7,21 @@ use std::fs;
 use std::process::Command;
 use tempfile::tempdir;
 
+/// The note files in a vault — what `FileStore::put` would have recorded had these tests
+/// gone through the store rather than writing files directly. `commit_all` now stages an
+/// explicit list, so a test has to say what it wrote, the same as the app does.
+fn notes_of(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(vault.join("notes"))
+        .map(|d| {
+            d.filter_map(Result::ok)
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "md"))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
@@ -41,7 +56,7 @@ fn commit_all_commits_changes_then_reports_a_clean_tree() {
     fs::create_dir_all(&notes).unwrap();
     fs::write(notes.join("01.md"), "the durable knowledge\n").unwrap();
 
-    assert!(git::commit_all(vault.path(), "first snapshot").unwrap(), "committed the new note");
+    assert!(git::commit_all(vault.path(), "first snapshot", &notes_of(vault.path())).unwrap(), "committed the new note");
 
     let log = Command::new("git")
         .arg("-C")
@@ -57,7 +72,7 @@ fn commit_all_commits_changes_then_reports_a_clean_tree() {
 
     // A clean tree is not an error — it is the common case for a debounced
     // auto-commit and must report "nothing to commit" as `false`.
-    assert!(!git::commit_all(vault.path(), "no-op").unwrap(), "clean tree → nothing to commit");
+    assert!(!git::commit_all(vault.path(), "no-op", &notes_of(vault.path())).unwrap(), "clean tree → nothing to commit");
 }
 
 /// Commit a note, so each call adds exactly one commit to the vault's history.
@@ -65,7 +80,7 @@ fn write_and_commit(vault: &std::path::Path, name: &str, body: &str) {
     let notes = vault.join("notes");
     fs::create_dir_all(&notes).unwrap();
     fs::write(notes.join(name), body).unwrap();
-    assert!(git::commit_all(vault, &format!("auto: {name}")).unwrap());
+    assert!(git::commit_all(vault, &format!("auto: {name}"), &notes_of(vault)).unwrap());
 }
 
 fn log_count(repo: &std::path::Path) -> usize {
@@ -238,17 +253,17 @@ fn auto_commit_refuses_to_enshrine_conflict_markers() {
     // takes, since `updated:` is rewritten on every save.
     g(&["checkout", "-b", "theirs"]);
     fs::write(vault.path().join("notes/01.md"), "their line\n").unwrap();
-    assert!(git::commit_all(vault.path(), "theirs").unwrap());
+    assert!(git::commit_all(vault.path(), "theirs", &notes_of(vault.path())).unwrap());
     g(&["checkout", "-"]);
     fs::write(vault.path().join("notes/01.md"), "our line\n").unwrap();
-    assert!(git::commit_all(vault.path(), "ours").unwrap());
+    assert!(git::commit_all(vault.path(), "ours", &notes_of(vault.path())).unwrap());
 
     let merge = g(&["merge", "theirs"]);
     assert!(!merge.status.success(), "the merge really did conflict");
     let before = log_count(vault.path());
 
     assert!(
-        !git::commit_all(vault.path(), "auto: 5s later").unwrap(),
+        !git::commit_all(vault.path(), "auto: 5s later", &notes_of(vault.path())).unwrap(),
         "mid-merge → nothing committed, and not an error"
     );
     assert_eq!(log_count(vault.path()), before, "no commit was made");
@@ -542,7 +557,7 @@ fn the_auto_commit_never_touches_files_the_app_did_not_write() {
     std::fs::create_dir_all(vault.path().join("notes")).unwrap();
     std::fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nbody\n").unwrap();
 
-    assert!(git::commit_all(vault.path(), "auto: test").unwrap());
+    assert!(git::commit_all(vault.path(), "auto: test", &notes_of(vault.path())).unwrap());
 
     let files = std::process::Command::new("git")
         .arg("-C").arg(vault.path())
@@ -572,7 +587,7 @@ fn the_auto_commit_leaves_a_users_staged_index_staged() {
 
     // Meanwhile the app saves a note and the debounce fires.
     std::fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nbody\n").unwrap();
-    git::commit_all(vault.path(), "auto: test").unwrap();
+    git::commit_all(vault.path(), "auto: test", &notes_of(vault.path())).unwrap();
 
     // Their file is still staged and still uncommitted — theirs to commit, when they choose.
     let staged = std::process::Command::new("git")
@@ -591,11 +606,11 @@ fn a_repo_dirty_only_with_their_work_reports_nothing_to_commit() {
     let vault = tempdir().unwrap();
     git::ensure_repo(vault.path()).unwrap();
     std::fs::create_dir_all(vault.path().join("notes")).unwrap();
-    git::commit_all(vault.path(), "auto: baseline").unwrap();
+    git::commit_all(vault.path(), "auto: baseline", &notes_of(vault.path())).unwrap();
 
     std::fs::write(vault.path().join("their-code.rs"), "fn theirs() {}\n").unwrap();
 
-    assert!(!git::commit_all(vault.path(), "auto: test").unwrap());
+    assert!(!git::commit_all(vault.path(), "auto: test", &notes_of(vault.path())).unwrap());
 }
 
 /// **The Track V bug: the squash ate the user's own commits.**
@@ -629,16 +644,16 @@ fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
 
     // A baseline that is already pushed, so `tracking` exists.
     note(1);
-    git::commit_all(vault.path(), "auto: one").unwrap();
+    git::commit_all(vault.path(), "auto: one", &notes_of(vault.path())).unwrap();
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 
     // Now: the app churns, the user writes a real commit, the app churns again.
     note(2);
-    git::commit_all(vault.path(), "auto: two").unwrap();
+    git::commit_all(vault.path(), "auto: two", &notes_of(vault.path())).unwrap();
     hand_commit("Rewrite the introduction", "chapter.md");
     note(3);
-    git::commit_all(vault.path(), "auto: three").unwrap();
+    git::commit_all(vault.path(), "auto: three", &notes_of(vault.path())).unwrap();
 
     git::push_squashed(vault.path(), "backup: second").unwrap();
 
@@ -670,14 +685,14 @@ fn a_vault_of_only_our_commits_still_squashes_to_one() {
     };
 
     note(1);
-    git::commit_all(vault.path(), "auto: one").unwrap();
+    git::commit_all(vault.path(), "auto: one", &notes_of(vault.path())).unwrap();
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 
     note(2);
-    git::commit_all(vault.path(), "auto: two").unwrap();
+    git::commit_all(vault.path(), "auto: two", &notes_of(vault.path())).unwrap();
     note(3);
-    git::commit_all(vault.path(), "auto: three").unwrap();
+    git::commit_all(vault.path(), "auto: three", &notes_of(vault.path())).unwrap();
 
     let squashed = git::push_squashed(vault.path(), "backup: second").unwrap();
 

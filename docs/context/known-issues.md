@@ -106,10 +106,11 @@ edit-gesture)._
   timer is a browser `setTimeout` that **dies with the tab** — and with `FM_AUTO_SHUTDOWN`
   closing the tab *is* how you quit, so "edit, then close" can skip that commit — and
   **`fm-cli`/Vim writes never commit** (no `fm commit` subcommand). Nothing surfaces "you
-  have uncommitted edits". Saving grace: `commit_all` stages the vault's own paths with
-  `-A` semantics *within* them, so a missed change rides along in the next commit, and files
-  are already on disk via atomic temp+rename. (It is no longer a bare `git add -A` — that
-  swept the surrounding project's half-written code in too.)
+  have uncommitted edits". **And since 2026-07-18 a Vim edit is never committed by us at
+  all**: `commit_all` stages exactly the paths `put`/`delete` recorded, so a note you are
+  hand-editing is not swept in mid-sentence — the flip side being that it is not versioned by
+  the app either, and is yours to commit. Files are still never at risk (atomic temp+rename);
+  what lags is *our* commits of *our* writes.
   So: **files are never at risk; commits can lag.** Don't restate this as "history is
   always safe" — it isn't. Also, the spec (`MASTERPLAN.md:350`) says "500 ms→disk,
   30 s/blur→commit": the code is 5 s with **no blur handler**, and `MASTERPLAN.md:391`
