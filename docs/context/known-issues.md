@@ -10,6 +10,10 @@ scene merge (`sessions/2026-07-18-dispatch-and-blob-route.md`,
 (`sessions/2026-07-18-mobile-port-plan.md`); 2026-07-16 (assets/status/kanban/slash-menu/
 edit-gesture)._
 
+> **Looking for what to work on?** This file is the honest *description* of rough edges,
+> including ones we have decided to live with. The ranked **work queue** — with what "done"
+> looks like for each — is [outstanding.md](./outstanding.md).
+
 ## Known gaps / not fully working
 
 - **~~Unsanitized `innerHTML` in `render.ts`~~ — FIXED 2026-07-17.** `render.ts` now runs

@@ -211,11 +211,12 @@ unless we can name an `fm` binary that exists** — git reads a driver that fail
 a conflict and hands back *ours* with no markers, which is silent data loss dressed as a
 normal file.
 
-**Still open, small:** `remote_moved` is computed in `backup_status`, so it is only
-consulted when the backup panel opens — the plan's *automatic* 15–30 s poll (be told
-without asking) is not wired. Conflicted notes are listed by name in that panel, and the
-driver puts markers in the **body** so they open in the editor — but there is no
-list outside the panel. `FileStore::skipped()` is still stderr-only.
+**Mostly closed since.** The *automatic* awareness is wired: a visibility-gated 45 s
+`remote_moved` poll feeds a top-bar chip with one-click pull, and that pull goes through
+`sync.svelte.ts`'s `pullVault` (commit first, then name any conflicted notes rather than
+throwing a string). **Still open, small:** `FileStore::skipped()` is stderr-only, so a note
+that could not be read is invisible in-app — the one place the app knows something is wrong
+and does not say so where you are looking.
 
 **Phase 2 — multi-vault. ✅ SHIPPED 2026-07-17** —
 [`sessions/2026-07-17-phase-2.md`](./sessions/2026-07-17-phase-2.md). Verified against two
