@@ -4,7 +4,17 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **The UI is a flexible pane workspace now**
+_Last verified: 2026-07-18 — **Cross-vault: create-in-vault + restrictive copy**
+(`sessions/2026-07-18-cross-vault-copy.md`). You can now pick which vault a new note/board is
+born in (a top-bar destination picker; `capture` gained a `vault` arg, mirroring `ingest`), and
+**copy a note into another vault**. Copy is **restrictive by default** — only the prose travels;
+`fm-app/refs.rs::strip_cross_vault` drops every `note:`/`asset:` reference (label and all) so a
+copy can never point outside its new vault (ideas flow, artifacts don't). A copy is a **new note**
+(fresh ULID); opting into "also copy the files" carries the first-degree blobs *into* the target
+(content-addressed dedup, manifest refreshed) so it's self-contained; note links stay stripped
+(linked-notes tier deferred). Every copy is behind a plain warning and leaves an `uncopy_note`
+**Undo**. `Object.vault` is still never a field — audience is set by *which FileStore receives the
+put*. Before that, **The UI is a flexible pane workspace now**
 (`sessions/2026-07-18-flexible-workspace.md`). The single global view became a **CSS grid of
 panes** the user opens, reorders (drag the header grip), resizes (drag the corner), and closes;
 a horizontal **top bar** replaced the tall left rail (the explicit "sidebar wastes vertical

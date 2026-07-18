@@ -144,6 +144,76 @@ describe('v2: property editing, timeline, delete', () => {
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
   });
 
+  it('copies a note to another vault behind a warning, then undoes it', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    // Open the GAE note (it lives in the default `personal` vault; the mock also has `lab`).
+    await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
+
+    // The Copy-to control opens a popover that warns this is permanent in the target's history.
+    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+    expect(await screen.findByText(/permanent in that vault/i)).toBeTruthy();
+    // Restrictive by default: the "also copy the files" opt-in starts unchecked.
+    expect((screen.getByLabelText('also copy the files') as HTMLInputElement).checked).toBe(false);
+
+    // Pick the other vault (targeted by title — the name also appears as a filter chip).
+    await fireEvent.click(screen.getByTitle('Copy into lab'));
+
+    // The post-copy Undo strip appears; undoing it recedes the copy.
+    expect(await screen.findByText(/Copied to lab/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.queryByText(/Copied to lab/)).toBeNull());
+  });
+
+  it('requires an extra warning-confirm to carry the files, and can back out', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
+    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+
+    // Tick "also copy the files" — the sharper path.
+    await fireEvent.click(screen.getByLabelText('also copy the files'));
+    // Now a target click arms a warning-confirm instead of copying immediately.
+    await fireEvent.click(screen.getByTitle('Copy into lab'));
+    expect(await screen.findByText(/permanent in its git history/i)).toBeTruthy();
+    expect(screen.queryByText(/Copied to lab/)).toBeNull(); // nothing copied yet
+
+    // Back out — still fully reversible before it runs.
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText(/Copied to lab/)).toBeNull();
+
+    // Try again and confirm this time.
+    await fireEvent.click(screen.getByTitle('Copy into lab'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy with files' }));
+    expect(await screen.findByText(/Copied to lab/)).toBeTruthy();
+
+    // Recede it, so this test leaves the shared mock state as it found it.
+    await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.queryByText(/Copied to lab/)).toBeNull());
+  });
+
+  it('warns that re-copying replaces the existing copy, and can undo', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
+
+    // First copy (prose-only, first time) goes straight through — nothing to replace.
+    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+    await fireEvent.click(screen.getByTitle('Copy into lab'));
+    expect(await screen.findByText(/Copied to lab/)).toBeTruthy();
+
+    // Copying the same note again is warned as a replace, not a duplicate.
+    await fireEvent.click(screen.getByLabelText('copy to another vault'));
+    await fireEvent.click(screen.getByTitle('Copy into lab'));
+    expect(await screen.findByText(/copying again replaces it/i)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Replace copy' }));
+    expect(await screen.findByText(/Replaced the copy in lab/)).toBeTruthy();
+
+    // Undo, leaving the shared mock state clean.
+    await fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(screen.queryByText(/Replaced the copy in lab/)).toBeNull());
+  });
+
   it('deletes a note only after the second confirmation', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);

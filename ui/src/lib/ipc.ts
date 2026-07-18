@@ -46,7 +46,10 @@ async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
 export const getBoard = (groupBy: string) => invoke<Board>('board', { groupBy });
 export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
 export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
-export const capture = (body: string) => invoke<ObjectMeta>('capture', { body });
+// `vault` is the audience the new note joins — empty means the default vault, an
+// unknown name is refused server-side (the create-side twin of `ingestFile`).
+export const capture = (body: string, vault = '') =>
+  invoke<ObjectMeta>('capture', { body, vault });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
 export const updateBody = (id: string, body: string) =>
@@ -56,6 +59,24 @@ export const updateBody = (id: string, body: string) =>
 export const deleteNote = (id: string) => invoke<void>('delete', { id });
 export const search = (query: string) => invoke<ObjectMeta[]>('search', { query });
 export const recent = () => invoke<ObjectMeta[]>('recent');
+
+// Copy a note into another vault. Restrictive by default: only the prose travels —
+// links & attached files are stripped, so the copy can never point at anything outside
+// its new audience. `withAssets` opts in to carrying the first-degree files *into* the
+// target so it is self-contained. Returns the new note's meta plus the blob hashes this
+// copy newly wrote, so an Undo (`uncopyNote`) can take exactly those back.
+export interface CopyResult {
+  meta: ObjectMeta;
+  new_blobs: string[];
+  replaced: number; // prior copies of the same source this one replaced in the target
+}
+export const copyNote = (id: string, vault: string, withAssets: boolean) =>
+  invoke<CopyResult>('copy_note', { id, vault, with_assets: withAssets });
+// Does the target vault already hold a copy of this note? Drives the "will replace" warning.
+export const copyStatus = (id: string, vault: string) =>
+  invoke<boolean>('copy_status', { id, vault });
+export const uncopyNote = (id: string, vault: string, blobs: string[]) =>
+  invoke<void>('uncopy_note', { id, vault, blobs });
 
 // Asset bytes for the webview. `kind` picks the derived thumbnail or the full
 // blob; the caller wraps the ArrayBuffer in an object URL. Returns null in the

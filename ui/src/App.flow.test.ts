@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
+import { newPane } from './lib/panes';
 
 // Layer-2 end-to-end: mount the REAL app and drive it the way a user does —
 // clicking through the board, switching views, re-grouping, opening a card,
@@ -18,8 +19,28 @@ vi.mock('mermaid', () => ({ default: { initialize: mermaidInit, render: mermaidR
 vi.mock('katex', () => ({ default: { renderToString: katexRender } }));
 vi.mock('katex/dist/katex.min.css', () => ({}));
 
+// jsdom in this config exposes no global `localStorage`, and the app wraps every access in
+// try/catch — so persistence simply no-ops in tests, which is exactly why the duplicate-id
+// crash (a reload from real persisted state) went uncaught. Provide a minimal in-memory
+// `localStorage` so a persisted workspace can be seeded, and reset it between tests.
+const lsStore = new Map<string, string>();
 beforeEach(() => {
   mermaidRender.mockResolvedValue({ svg: '<svg data-mock-mermaid="1"></svg>' });
+  lsStore.clear();
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => lsStore.get(k) ?? null,
+    setItem: (k: string, v: string) => void lsStore.set(k, String(v)),
+    removeItem: (k: string) => void lsStore.delete(k),
+    clear: () => lsStore.clear(),
+    key: (i: number) => [...lsStore.keys()][i] ?? null,
+    get length() {
+      return lsStore.size;
+    },
+  });
+});
+afterEach(() => {
+  lsStore.clear();
+  vi.unstubAllGlobals();
 });
 
 // The two gestures that replaced the Edit/Done button: double-click the read
@@ -36,6 +57,23 @@ describe('the app, driven end to end as a user', () => {
     render(App);
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
+  });
+
+  // Regression: the id counter resets each page load, so a workspace persisted by an earlier
+  // session can carry two panes with the SAME id. A keyed {#each} rejects duplicate keys and the
+  // error blanks the whole window — exactly the crash a reload from real localStorage hit but the
+  // unit tests (which never reload from storage) missed. Mounting from a duplicate-id workspace
+  // must render, not throw: loadWorkspace re-mints ids on the way in.
+  it('recovers from a persisted workspace with duplicate pane ids instead of blanking', async () => {
+    const dup = { ...newPane('board'), id: 'p1' };
+    const dup2 = { ...newPane('agenda'), id: 'p1' }; // same id as dup — the corruption
+    localStorage.setItem('fm-workspace', JSON.stringify({ cols: 2, panes: [dup, dup2] }));
+
+    const { container } = render(App);
+    // The board still renders its cards — the workspace was repaired, not crashed.
+    expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
+    // Both panes rendered (board + agenda): the duplicate id was de-duplicated, not dropped.
+    expect(container.querySelectorAll('.pane')).toHaveLength(2);
   });
 
   it('walks board → capture → views → group-by → open → edit → close', async () => {

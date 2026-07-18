@@ -3,12 +3,14 @@
 //! The Tauri binary wraps these; nothing here knows Tauri exists.
 
 use crate::dto::{value_string, Board, Column, NoteDetail, ObjectMeta};
-use fm_core::{apply_property, ingest, BlobStore, Store, StoreError};
+use crate::refs;
+use fm_core::{apply_property, ingest, BlobStore, Manifest, Store, StoreError};
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
+use ulid::Ulid;
 
 /// Group every note by `group_by` into board columns, newest card first. The
 /// property is opaque: pass `"status"` for a status board, or any custom key —
@@ -92,10 +94,13 @@ pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError
         .map(|o| NoteDetail { meta: ObjectMeta::from(&o), body: o.body.clone() }))
 }
 
-/// Capture a note; the text becomes the body. Returns the new card's meta so the
-/// UI can slot it into the board without a full refetch.
-pub fn capture(store: &mut dyn Store, body: &str) -> Result<ObjectMeta, StoreError> {
-    let obj = Object::new(Kind::Note, body);
+/// Capture a note; the text becomes the body. `vault` is the audience it joins —
+/// empty means the default vault, an unknown name is refused by `Store::put`'s
+/// routing (same discipline as `ingest`). Returns the new card's meta so the UI
+/// can slot it into the board without a full refetch.
+pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectMeta, StoreError> {
+    let mut obj = Object::new(Kind::Note, body);
+    obj.vault = vault.to_string();
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
 }
@@ -343,6 +348,176 @@ pub fn ingest(
     // only degrades a gallery tile, never the ingest.
     let _ = ingest::thumbnail(vault, &ing.hash);
     Ok(ObjectMeta::from(&obj))
+}
+
+/// The outcome of a copy: the new note's meta, the blob hashes this copy actually wrote
+/// into the target (deduped ones are omitted, so an Undo knows exactly what to take back),
+/// and how many prior copies of the same source it replaced.
+#[derive(Serialize)]
+pub struct CopyResult {
+    pub meta: ObjectMeta,
+    pub new_blobs: Vec<String>,
+    pub replaced: usize,
+}
+
+/// A stable, one-way fingerprint of a source note's id, stamped on its copies as `copy_of`.
+/// Re-copying the same source into a vault finds its prior copy by this and replaces it, so a
+/// vault never accumulates duplicate copies — and the fingerprint reveals neither the id nor
+/// the origin vault (unlike embedding the raw `note:<id>`, which is exactly what we strip).
+fn provenance(source_id: Id) -> String {
+    fm_core::blob::sha256_hex(source_id.to_string().as_bytes())
+}
+
+/// Does `target_vault` already hold a copy of the note `id`? The pre-check behind the
+/// "this will replace the existing copy" warning.
+pub fn copy_status(store: &dyn Store, id: &str, target_vault: &str) -> Result<bool, StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let token = provenance(id);
+    let want = PropertyValue::Text(token);
+    Ok(store
+        .candidates(&Filter::new())?
+        .0
+        .iter()
+        .any(|o| o.vault == target_vault && o.get("copy_of") == want))
+}
+
+/// Copy a note into another vault. **Restrictive by default:** only the prose travels —
+/// every `note:`/`asset:` reference is stripped (see [`refs::strip_cross_vault`]) so the
+/// copy can never point at a note or blob outside its new audience, and `assets`/`code`
+/// are cleared. `with_assets` opts in to carrying the note's first-degree blobs *into* the
+/// target so it is self-contained (note links are still stripped — the linked-notes tier is
+/// deferred). A copy is a **new** note (fresh ULID); the source is untouched. `vault_paths`
+/// is every vault's `(name, root)`, used to locate a blob wherever it lives and to write the
+/// target. An unknown `target_vault`, or the note's own vault, is refused.
+pub fn copy_note(
+    store: &mut dyn Store,
+    id: &str,
+    target_vault: &str,
+    vault_paths: &[(String, PathBuf)],
+    with_assets: bool,
+) -> Result<CopyResult, StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let src = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    if src.vault == target_vault {
+        return Err(StoreError::Io(format!("note is already in vault '{target_vault}'")));
+    }
+    let target_path = vault_paths
+        .iter()
+        .find(|(name, _)| name == target_vault)
+        .map(|(_, p)| p.clone())
+        .ok_or_else(|| StoreError::Io(format!("no vault named '{target_vault}'")))?;
+
+    // Override, don't duplicate: a re-copy of the same source replaces its prior copies in this
+    // vault (found by the `copy_of` fingerprint), so the vault never grows two copies of one note.
+    let token = provenance(id);
+    let want = PropertyValue::Text(token.clone());
+    let stale: Vec<Id> = store
+        .candidates(&Filter::new())?
+        .0
+        .iter()
+        .filter(|o| o.vault == target_vault && o.get("copy_of") == want)
+        .map(|o| o.id)
+        .collect();
+    let replaced = stale.len();
+    for old in stale {
+        store.delete(old)?;
+    }
+
+    // The copy: a fresh identity in the target vault, prose rewritten to drop outward refs,
+    // stamped with the source fingerprint so a future re-copy finds and replaces it.
+    let now = OffsetDateTime::now_utc();
+    let mut obj = src.clone();
+    obj.id = Ulid::new();
+    obj.created = now;
+    obj.updated = now;
+    obj.vault = target_vault.to_string();
+    obj.body = refs::strip_cross_vault(&src.body, with_assets);
+    obj.code.clear(); // code blobs are not carried in v1 — never leave an outward pointer
+    obj.extra.insert("copy_of".to_string(), PropertyValue::Text(token));
+
+    let mut new_blobs = Vec::new();
+    if with_assets {
+        // First-degree asset hashes: the body's refs plus any frontmatter `assets`.
+        let (mut hashes, _notes) = refs::references(&src.body);
+        for a in &src.assets {
+            if let Ok(h) = parse_ref(a) {
+                hashes.push(h);
+            }
+        }
+        hashes.sort();
+        hashes.dedup();
+        let target_blobs = BlobStore::new(&target_path);
+        for h in &hashes {
+            // Find the blob wherever it physically lives, and copy it into the target
+            // (content-addressed, so put_file dedups; we record only what was new).
+            if let Some((_, src_root)) = vault_paths.iter().find(|(_, p)| BlobStore::new(p).exists(h)) {
+                let src_blob = BlobStore::new(src_root).path_for(h);
+                let stored = target_blobs.put_file(&src_blob)?;
+                if !stored.deduped {
+                    new_blobs.push(stored.hash);
+                }
+            }
+        }
+        if !new_blobs.is_empty() {
+            Manifest::build(&target_path)?.write(&target_path)?;
+        }
+    } else {
+        // Prose-only: no attachment reference of any kind leaves the source vault.
+        obj.assets.clear();
+    }
+
+    store.put(&obj)?;
+    Ok(CopyResult { meta: ObjectMeta::from(&obj), new_blobs, replaced })
+}
+
+/// Recede a copy: delete the copied note from its vault, then remove the blobs this copy
+/// newly wrote — but only a blob that no note remaining in the target still references
+/// (the bytes are content-addressed, so a survivor may now be legitimately shared). The
+/// inverse of the `with_assets` branch of [`copy_note`], and safe because the copy has a
+/// fresh id with no inbound links yet.
+pub fn uncopy_note(
+    store: &mut dyn Store,
+    id: &str,
+    target_vault: &str,
+    blobs: &[String],
+    vault_paths: &[(String, PathBuf)],
+) -> Result<(), StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    store.delete(id)?;
+    if blobs.is_empty() {
+        return Ok(());
+    }
+    let target_path = vault_paths
+        .iter()
+        .find(|(name, _)| name == target_vault)
+        .map(|(_, p)| p.clone())
+        .ok_or_else(|| StoreError::Io(format!("no vault named '{target_vault}'")))?;
+
+    // After the delete, which of these hashes does a note *remaining* in the target vault
+    // still reference (in frontmatter `assets` or body)?
+    let remaining = store.candidates(&Filter::new())?.0;
+    let still_used = |hash: &str| {
+        remaining.iter().filter(|o| o.vault == target_vault).any(|o| {
+            o.assets.iter().any(|a| parse_ref(a).map(|h| h == hash).unwrap_or(false))
+                || refs::references(&o.body).0.iter().any(|h| h == hash)
+        })
+    };
+
+    let target_blobs = BlobStore::new(&target_path);
+    let mut changed = false;
+    for h in blobs {
+        if !still_used(h) {
+            let p = target_blobs.path_for(h);
+            if p.exists() {
+                std::fs::remove_file(&p).map_err(|e| StoreError::Io(e.to_string()))?;
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        Manifest::build(&target_path)?.write(&target_path)?;
+    }
+    Ok(())
 }
 
 /// The on-disk path of a referenced blob, for handing to the OS default app.

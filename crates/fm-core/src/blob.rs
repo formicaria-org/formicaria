@@ -114,6 +114,13 @@ impl BlobStore {
     }
 }
 
+/// The sha256 hex of a byte slice. Used to fingerprint a note's source id so a re-copy
+/// into a vault can recognise and replace its prior copy — one-way, so the fingerprint
+/// leaks neither the source id nor which vault it came from.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
 /// Re-hash a file's bytes to sha256 hex — the scrub's core: a blob whose content
 /// no longer hashes to its own filename has bit-rotted.
 pub fn sha256_file(path: &Path) -> Result<String, StoreError> {

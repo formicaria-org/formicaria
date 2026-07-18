@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   newPane,
+  reidentify,
   defaultWorkspace,
   feedKey,
   distinctFeeds,
@@ -91,6 +92,22 @@ describe('paneTitle / rendererKind', () => {
     expect(rendererKind('board')).toBe('board');
     expect(rendererKind('agenda')).toBe('agenda');
     expect(rendererKind('gallery')).toBe('timeline'); // gallery shows as a flat list
+  });
+});
+
+describe('reidentify', () => {
+  it('gives every pane a unique id even when the inputs collide', () => {
+    // Simulates a workspace persisted across sessions where the reset id counter minted the
+    // same id twice — the exact shape that crashed the keyed {#each} and blanked the window.
+    const colliding: Pane[] = [
+      { ...newPane('board'), id: 'p1' },
+      { ...newPane('note'), id: 'p1' },
+      { ...newPane('agenda'), id: 'p1' },
+    ];
+    const out = reidentify(colliding);
+    expect(new Set(out.map((p) => p.id)).size).toBe(3);
+    // Kind and params are preserved — only the id changes.
+    expect(out.map((p) => p.kind)).toEqual(['board', 'note', 'agenda']);
   });
 });
 

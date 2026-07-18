@@ -3,6 +3,7 @@
   import Pane from './lib/Pane.svelte';
   import {
     newPane,
+    reidentify,
     distinctFeeds,
     feedKey,
     reorder,
@@ -35,7 +36,11 @@
   function loadWorkspace(): Workspace {
     try {
       const w = JSON.parse(localStorage.getItem('fm-workspace') ?? 'null');
-      if (w && Array.isArray(w.panes) && w.panes.length && typeof w.cols === 'number') return w;
+      if (w && Array.isArray(w.panes) && w.panes.length && typeof w.cols === 'number') {
+        // Re-mint pane ids: the counter resets each load, so ids persisted by an older session
+        // can collide and crash the keyed {#each}. Fresh ids are always unique.
+        return { ...w, panes: reidentify(w.panes) };
+      }
     } catch {
       /* fall through to default */
     }
@@ -103,6 +108,27 @@
   // It is transient (never persisted), so a reload reopens note panes in read mode.
   let editingId = $state<string | null>(null);
 
+  // Which vault a new note/board is created in. A view preference (persisted like the theme),
+  // not a permission — it only picks where the file lands; the picker only shows with >1 vault.
+  // Empty = the default vault. Asset drops are unaffected (they join the dropped-on note's vault).
+  let newVaultTarget = $state<string>(
+    (() => {
+      try {
+        return localStorage.getItem('fm-create-vault') ?? '';
+      } catch {
+        return '';
+      }
+    })(),
+  );
+  function setCreateVault(name: string) {
+    newVaultTarget = name;
+    try {
+      localStorage.setItem('fm-create-vault', name);
+    } catch {
+      /* private mode — the choice just won't persist */
+    }
+  }
+
   // Distinct status values seen so far — feeds the note panel's status datalist,
   // so the picker is data-driven (no hardcoded status literal anywhere).
   let knownStatuses = $state<string[]>([]);
@@ -148,6 +174,10 @@
   // most likely to be empty.
   let vaults = $state<VaultInfo[] | null>(null);
   const allVaults = $derived((vaults ?? []).map((v) => v.name).sort());
+  // The create destination, clamped to a vault that still exists (a removed/renamed one
+  // falls back to the default rather than erroring on the next capture). Empty = default vault.
+  const createTarget = $derived(allVaults.includes(newVaultTarget) ? newVaultTarget : '');
+  const defaultVault = $derived((vaults ?? []).find((v) => v.default)?.name ?? allVaults[0] ?? '');
 
   // Saved `.view` files (query + a renderer), authored in the vault. Each becomes a choice in
   // a pane's view picker; opening one adds/retargets a pane.
@@ -348,7 +378,7 @@
   // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
   async function onNew() {
     try {
-      const meta = await capture('');
+      const meta = await capture('', createTarget);
       openNoteInPane(meta.id, { editing: true });
       scheduleCommit();
     } catch (err) {
@@ -363,7 +393,7 @@
     try {
       const scene =
         '{"type":"excalidraw","version":2,"source":"formicaria","elements":[],"appState":{},"files":{}}';
-      const meta = await capture(scene);
+      const meta = await capture(scene, createTarget);
       await setProperty(meta.id, 'view', 'board');
       await setProperty(meta.id, 'title', 'Untitled board');
       openNoteInPane(meta.id);
@@ -490,6 +520,21 @@
       <Icon name="pen" size={15} /> New board
     </button>
 
+    {#if allVaults.length > 1}
+      <!-- Where new notes/boards land. A destination, not a permission — it only picks the
+           folder the file is written to. -->
+      <label class="tb-cols tb-create" title="Create new notes in this vault">
+        in
+        <select
+          value={createTarget || defaultVault}
+          onchange={(e) => setCreateVault((e.currentTarget as HTMLSelectElement).value)}
+          aria-label="create in vault"
+        >
+          {#each allVaults as v (v)}<option value={v}>{v}</option>{/each}
+        </select>
+      </label>
+    {/if}
+
     <span class="tb-sep"></span>
 
     <!-- Open a view into a new pane. -->
@@ -565,6 +610,7 @@
             {shown}
             focused={i === focused}
             startEditing={pane.kind === 'note' && pane.noteId === editingId}
+            vaults={allVaults}
             onopen={openNote}
             onmove={onMove}
             onstatus={onSetStatus}
@@ -796,6 +842,20 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 2px 4px;
+  }
+  /* The create destination reads at a glance: a touch larger, full-contrast text, and an
+     accent-tinted box so it stands out as *where new things land* rather than a quiet setting. */
+  .tb-create {
+    font-size: var(--text-sm);
+    color: var(--text);
+  }
+  .tb-create select {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    padding: 2px 6px;
   }
   .tb-spacer {
     flex: 1;

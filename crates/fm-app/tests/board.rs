@@ -13,9 +13,9 @@ use tempfile::tempdir;
 #[test]
 fn board_groups_by_status_into_columns() {
     let mut s = MemoryStore::new();
-    let a = capture(&mut s, "alpha").unwrap().id;
-    let b = capture(&mut s, "beta").unwrap().id;
-    let c = capture(&mut s, "gamma").unwrap().id;
+    let a = capture(&mut s, "alpha", "").unwrap().id;
+    let b = capture(&mut s, "beta", "").unwrap().id;
+    let c = capture(&mut s, "gamma", "").unwrap().id;
     set_property(&mut s, &a, "status", "todo").unwrap();
     set_property(&mut s, &b, "status", "doing").unwrap();
     set_property(&mut s, &c, "status", "todo").unwrap();
@@ -36,8 +36,8 @@ fn the_board_shows_notes_only_never_assets() {
     // no card. Grouping by `type` is the sharpest way to ask: even pointed
     // straight at the kind, the board can only ever answer "note".
     let mut s = MemoryStore::new();
-    let _n = capture(&mut s, "a note").unwrap().id;
-    let a = capture(&mut s, "an ingested file").unwrap().id;
+    let _n = capture(&mut s, "a note", "").unwrap().id;
+    let a = capture(&mut s, "an ingested file", "").unwrap().id;
     set_property(&mut s, &a, "type", "asset").unwrap();
 
     let b = board(&s, "type").unwrap();
@@ -56,7 +56,7 @@ fn drag_write_back_hits_disk_and_survives_reindex() {
     let dir = tempdir().unwrap();
     let id = {
         let mut s = FileStore::open(dir.path()).unwrap();
-        let id = capture(&mut s, "trust region clipping").unwrap().id;
+        let id = capture(&mut s, "trust region clipping", "").unwrap().id;
         set_property(&mut s, &id, "status", "todo").unwrap();
         // The drag: drop the card into the "doing" column.
         set_property(&mut s, &id, "status", "doing").unwrap();
@@ -79,7 +79,7 @@ fn drag_write_back_hits_disk_and_survives_reindex() {
 #[test]
 fn dropping_into_the_none_column_clears_the_property() {
     let mut s = MemoryStore::new();
-    let id = capture(&mut s, "x").unwrap().id;
+    let id = capture(&mut s, "x", "").unwrap().id;
     set_property(&mut s, &id, "status", "doing").unwrap();
     // The "(none)" column carries an empty value; dropping there clears status.
     set_property(&mut s, &id, "status", "").unwrap();
@@ -98,7 +98,7 @@ fn board_by_a_custom_property_works_and_props_flow_through() {
     // "Board by ANY property" — a user-invented key groups with no code change,
     // and the same key is visible to the card via the open `props` map.
     let mut s = MemoryStore::new();
-    let id = capture(&mut s, "x").unwrap().id;
+    let id = capture(&mut s, "x", "").unwrap().id;
     set_property(&mut s, &id, "project", "alpha").unwrap();
 
     let b = board(&s, "project").unwrap();

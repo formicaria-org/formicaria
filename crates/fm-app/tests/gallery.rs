@@ -8,7 +8,7 @@ use fm_core::{FileStore, MemoryStore, Store};
 use tempfile::tempdir;
 
 fn asset(store: &mut dyn Store, name: &str) -> String {
-    let id = capture(store, name).unwrap().id;
+    let id = capture(store, name, "").unwrap().id;
     set_property(store, &id, "type", "asset").unwrap();
     id
 }
@@ -17,7 +17,7 @@ fn asset(store: &mut dyn Store, name: &str) -> String {
 fn gallery_returns_only_assets_newest_first() {
     let mut s = MemoryStore::new();
     // A mix of kinds; only the assets should surface in the gallery.
-    let _note = capture(&mut s, "a plain note").unwrap();
+    let _note = capture(&mut s, "a plain note", "").unwrap();
     let first = asset(&mut s, "figure_1.pdf");
     let second = asset(&mut s, "slides.key");
 
@@ -32,7 +32,7 @@ fn gallery_returns_only_assets_newest_first() {
 #[test]
 fn gallery_is_empty_when_there_are_no_assets() {
     let mut s = MemoryStore::new();
-    capture(&mut s, "just a note").unwrap();
+    capture(&mut s, "just a note", "").unwrap();
     assert!(gallery(&s).unwrap().is_empty());
 }
 

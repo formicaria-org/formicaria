@@ -135,8 +135,8 @@ function setProp(id: string, key: string, value: string): void {
   n.updated = new Date().toISOString();
 }
 
-function captureNote(body: string): ObjectMeta {
-  const n = makeNote({ preview: body });
+function captureNote(body: string, vault = ''): ObjectMeta {
+  const n = makeNote({ preview: body, vault: mockVault(vault).name });
   notes.unshift(n);
   return n;
 }
@@ -235,7 +235,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'get':
       return noteDetail(String(args.id)) as T;
     case 'capture':
-      return captureNote(String(args.body)) as T;
+      return captureNote(String(args.body), String(args.vault ?? '')) as T;
     case 'set_property':
       setProp(String(args.id), String(args.key), String(args.value));
       return undefined as T;
@@ -261,6 +261,41 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const i = notes.findIndex((x) => x.id === id);
       if (i >= 0) notes.splice(i, 1);
       bodyOverrides.delete(id);
+      return undefined as T;
+    }
+    case 'copy_note': {
+      const src = notes.find((x) => x.id === String(args.id));
+      if (!src) throw new Error('note not found');
+      const target = mockVault(args.vault).name;
+      if (src.vault === target) throw new Error(`note is already in vault '${target}'`);
+      const withAssets = Boolean(args.with_assets);
+      // Mock provenance: the raw source id is a fine match key here (the real backend hashes it).
+      const token = src.id;
+      // Override, don't duplicate: drop any prior copy of this source in the target.
+      let replaced = 0;
+      for (let i = notes.length - 1; i >= 0; i--) {
+        if (notes[i].vault === target && notes[i].props.copy_of === token) {
+          notes.splice(i, 1);
+          replaced++;
+        }
+      }
+      // A copy is a new note (fresh id from makeNote) in the target vault; drop the source id.
+      const { id: _drop, ...rest } = src;
+      const copy = makeNote({ ...rest, vault: target });
+      copy.assets = withAssets ? [...src.assets] : []; // prose-only strips attachments
+      copy.props = { ...copy.props, copy_of: token };
+      notes.unshift(copy);
+      const new_blobs = withAssets ? src.assets.map((a) => a.replace(/^sha256:/, '')) : [];
+      return { meta: copy, new_blobs, replaced } as T;
+    }
+    case 'copy_status': {
+      const src = notes.find((x) => x.id === String(args.id));
+      const target = mockVault(args.vault).name;
+      return notes.some((n) => n.vault === target && n.props.copy_of === src?.id) as T;
+    }
+    case 'uncopy_note': {
+      const i = notes.findIndex((x) => x.id === String(args.id));
+      if (i >= 0) notes.splice(i, 1);
       return undefined as T;
     }
     case 'search': {

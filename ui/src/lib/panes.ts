@@ -61,6 +61,15 @@ export function defaultWorkspace(): Workspace {
   return { cols: 2, panes: [newPane('board')] };
 }
 
+/** Give every pane a fresh, unique id. The id counter (`paneId`) resets on each page load, so
+ *  ids persisted by an older session can collide across loads — and a duplicate key crashes the
+ *  keyed `{#each}` that renders the grid (a blank window). Ids are only `{#each}` keys within one
+ *  session and are never persisted meaningfully, so re-minting them on load is safe and always
+ *  unique. Call this on whatever comes back from storage. */
+export function reidentify(panes: Pane[]): Pane[] {
+  return panes.map((p) => ({ ...p, id: paneId() }));
+}
+
 /** The data source a pane draws from. Two panes with the *same* key share one fetch — so a
  *  workspace of five panes over three distinct feeds costs three requests, not five, and the
  *  3 s heartbeat refreshes the distinct set. `note` has no feed (NotePanel self-fetches by id). */

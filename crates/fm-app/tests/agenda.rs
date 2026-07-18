@@ -6,7 +6,7 @@ use fm_app::commands::{agenda, capture, set_property};
 use fm_core::{MemoryStore, Store};
 
 fn note(store: &mut dyn Store, body: &str, due: Option<&str>, status: Option<&str>) -> String {
-    let id = capture(store, body).unwrap().id;
+    let id = capture(store, body, "").unwrap().id;
     if let Some(d) = due {
         set_property(store, &id, "due", d).unwrap();
     }

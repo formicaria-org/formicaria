@@ -282,7 +282,14 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         "get" => json(commands::get(&lock(state)?.store, &s("id")).map_err(err)?),
         "search" => json(commands::search(&lock(state)?.store, &s("query")).map_err(err)?),
         "recent" => json(commands::recent(&lock(state)?.store).map_err(err)?),
-        "capture" => json(commands::capture(&mut lock(state)?.store, &s("body")).map_err(err)?),
+        "capture" => {
+            // Validate the target vault up front (unknown name → a loud error, never a
+            // silent default), then route the note into it — the create-side twin of
+            // `ingest`. Empty picks the default vault.
+            let mut g = lock(state)?;
+            let into = g.config(&s("vault"))?;
+            json(commands::capture(&mut g.store, &s("body"), &into.name).map_err(err)?)
+        }
         "set_property" => {
             commands::set_property(&mut lock(state)?.store, &s("id"), &s("key"), &s("value"))
                 .map_err(err)?;
@@ -458,6 +465,50 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
                 commands::ingest(&mut g.store, &into.path, &into.name, &name, body)
                     .map_err(err)?,
             )
+        }
+        // Copy a note into another vault. Restrictive by default (only the prose travels);
+        // `with_assets` opts in to carrying the first-degree blobs. Validate the target up
+        // front, hand `copy_note` every vault's (name, path) so it can locate/copy blobs, then
+        // version the new note in its own vault (best-effort — a solo user's own repo).
+        "copy_note" => {
+            let with_assets = args.get("with_assets").and_then(Value::as_bool).unwrap_or(false);
+            let mut g = lock(state)?;
+            let into = g.config(&s("vault"))?;
+            let vault_paths: Vec<(String, PathBuf)> =
+                g.configs().into_iter().map(|c| (c.name, c.path)).collect();
+            let result =
+                commands::copy_note(&mut g.store, &s("id"), &into.name, &vault_paths, with_assets)
+                    .map_err(err)?;
+            if git::available() {
+                let _ = git::commit_all(&into.path, "backup: copy note");
+            }
+            json(result)
+        }
+        // Pre-check for the copy popover: does the target vault already hold a copy of this
+        // note? Drives the "this will replace the existing copy" warning.
+        "copy_status" => {
+            let g = lock(state)?;
+            let into = g.config(&s("vault"))?;
+            json(commands::copy_status(&g.store, &s("id"), &into.name).map_err(err)?)
+        }
+        // Recede a copy: delete the copied note from the target vault and take back the blobs
+        // this copy newly wrote (only those nothing else there still references).
+        "uncopy_note" => {
+            let blobs: Vec<String> = args
+                .get("blobs")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let mut g = lock(state)?;
+            let into = g.config(&s("vault"))?;
+            let vault_paths: Vec<(String, PathBuf)> =
+                g.configs().into_iter().map(|c| (c.name, c.path)).collect();
+            commands::uncopy_note(&mut g.store, &s("id"), &into.name, &blobs, &vault_paths)
+                .map_err(err)?;
+            if git::available() {
+                let _ = git::commit_all(&into.path, "backup: undo copy");
+            }
+            Ok(Vec::new())
         }
         other => Err(format!("unknown command: {other}")),
     })();

@@ -26,6 +26,7 @@
     shown: (n: ObjectMeta) => boolean;
     focused: boolean;
     startEditing: boolean; // a note pane opened via "New note" starts in the editor
+    vaults: string[]; // all vault names — a note pane offers "Copy to" the others
     onopen: (id: string) => void;
     onmove: (groupBy: string, id: string, value: string, beforeId: string | null) => void;
     onstatus: (id: string, value: string | null) => void;
@@ -47,6 +48,7 @@
     shown,
     focused,
     startEditing,
+    vaults,
     onopen,
     onmove,
     onstatus,
@@ -247,6 +249,7 @@
             id={pane.noteId}
             {statuses}
             {startEditing}
+            {vaults}
             solo
             wide={maximized}
             onclose={onclose}

@@ -5,6 +5,9 @@
     updateBody,
     setProperty,
     deleteNote,
+    copyNote,
+    copyStatus,
+    uncopyNote,
     resolveAsset as ipcResolveAsset,
     assetStatus,
     openExternal,
@@ -29,6 +32,7 @@
     wide = true,
     solo = true,
     statuses = [],
+    vaults = [],
     startEditing = false,
   }: {
     id: string;
@@ -39,6 +43,8 @@
     /** The full-screen toggle lives in this header but the state is the whole
      *  trail's, so App owns it. */
     ontogglewide?: () => void;
+    /** All vault names — the "Copy to" control offers the ones that aren't this note's. */
+    vaults?: string[];
     wide?: boolean;
     /** The only pane in the trail. A solo wide pane fills the viewport (the
      *  reading default); once there are siblings, panes keep their column width
@@ -59,6 +65,23 @@
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
+
+  // Copying a note into another vault is sensitive: it writes into that vault's repo
+  // (permanent in its git history). So the button opens a popover that states this plainly,
+  // defaults to the most restrictive behaviour (prose only — links & files removed), and
+  // every copy leaves an Undo that recedes it. `copyUndo` holds what the last copy created.
+  let copyOpen = $state(false);
+  let copyWithAssets = $state(false);
+  // A target click arms a warning-coloured confirm when the copy is *sharper than plain prose*:
+  // it carries the files (real bytes into another repo) and/or it replaces a copy already there.
+  // `existing` tailors the warning; a plain, first-time prose copy skips the confirm entirely.
+  let copyConfirm = $state<{ vault: string; existing: boolean } | null>(null);
+  let copyUndo = $state<{ id: string; vault: string; blobs: string[]; replaced: number } | null>(
+    null,
+  );
+  let copyUndoTimer: ReturnType<typeof setTimeout> | undefined;
+  // The vaults this note can be copied to: every other one (never its own audience).
+  const otherVaults = $derived(vaults.filter((v) => v && v !== note?.vault));
   let draft = $state('');
   let saved = $state(true);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -381,6 +404,54 @@
     setTimeout(() => (notice = null), 3000);
   }
 
+  // A target was picked. Ask the backend whether that vault already holds a copy, then decide:
+  // a plain first-time prose copy runs straight away (it leaks nothing and replaces nothing);
+  // carrying the files OR replacing an existing copy first arms the warning-coloured confirm,
+  // still fully reversible before it runs.
+  async function requestCopy(target: string) {
+    if (!note) return;
+    let existing = false;
+    try {
+      existing = await copyStatus(note.id, target);
+    } catch {
+      /* if the check fails, fall through — the copy itself still reports what it replaced */
+    }
+    if (copyWithAssets || existing) copyConfirm = { vault: target, existing };
+    else void doCopy(target);
+  }
+
+  // Copy this note into `target`. Restrictive by default (only the prose travels);
+  // `copyWithAssets` opts in to carrying the files. Stash what it created so Undo can
+  // recede it, and auto-dismiss the Undo strip after a while so it doesn't linger.
+  async function doCopy(target: string) {
+    if (!note) return;
+    copyOpen = false;
+    copyConfirm = null;
+    error = null;
+    try {
+      const r = await copyNote(note.id, target, copyWithAssets);
+      copyUndo = { id: r.meta.id, vault: target, blobs: r.new_blobs, replaced: r.replaced };
+      clearTimeout(copyUndoTimer);
+      copyUndoTimer = setTimeout(() => (copyUndo = null), 12000);
+      onsaved?.();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+  async function undoCopy() {
+    const u = copyUndo;
+    if (!u) return;
+    copyUndo = null;
+    clearTimeout(copyUndoTimer);
+    try {
+      await uncopyNote(u.id, u.vault, u.blobs);
+      onsaved?.();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+  onDestroy(() => clearTimeout(copyUndoTimer));
+
   // ---- Editor: caret insert, drag-drop ingest, and the slash-menu ----
   async function insertAtCaret(text: string) {
     const el = editorEl;
@@ -581,6 +652,17 @@
         <button class="edit danger" onclick={() => (confirmingDelete = true)} aria-label="delete note" title="Delete this note">
           Delete
         </button>
+        {#if otherVaults.length}
+          <button
+            class="edit"
+            onclick={() => (copyOpen = !copyOpen)}
+            aria-expanded={copyOpen}
+            aria-label="copy to another vault"
+            title="Copy this note into another vault"
+          >
+            Copy to…
+          </button>
+        {/if}
       {/if}
       <button class="icon-toggle" onclick={ontogglewide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
         {wide ? '⤡' : '⤢'}
@@ -594,6 +676,61 @@
           <button class="edit" onclick={() => (confirmingDelete = false)}>Cancel</button>
           <button class="edit danger solid" onclick={confirmDelete}>Delete</button>
         </div>
+      </div>
+    {/if}
+    {#if copyOpen && otherVaults.length}
+      <div class="copy-pop" role="dialog" aria-label="copy to another vault">
+        <p class="copy-warn">
+          Copying writes a <strong>new note</strong> into another vault's repository —
+          <strong>permanent in that vault's git history</strong>. By default only the text is
+          copied; links and attached files are removed. Pick a vault:
+        </p>
+        <label class="copy-opt">
+          <input type="checkbox" bind:checked={copyWithAssets} aria-label="also copy the files" />
+          Also copy the files into that vault
+        </label>
+        {#if copyConfirm}
+          {@const cc = copyConfirm}
+          <!-- The sharper confirm: replacing an existing copy and/or carrying the files, both
+               permanent in that vault's history. Warning-coloured, and still reversible —
+               Cancel backs out before anything runs. -->
+          <div class="copy-danger" role="alertdialog" aria-label="confirm copy">
+            <span>
+              <strong>{cc.vault}</strong>
+              {#if cc.existing}
+                already has a copy of this note — copying again replaces it{#if copyWithAssets}, and
+                  writes its files there{/if}. Written into that vault's repository — permanent in
+                its git history.
+              {:else}
+                — copy the note and its files here. Written into that vault's repository —
+                permanent in its git history.
+              {/if}
+            </span>
+            <div class="confirm-actions">
+              <button class="edit" onclick={() => (copyConfirm = null)}>Cancel</button>
+              <button class="edit danger solid" onclick={() => doCopy(cc.vault)}>
+                {cc.existing ? 'Replace copy' : 'Copy with files'}
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="copy-targets">
+            {#each otherVaults as v (v)}
+              <button class="edit" onclick={() => requestCopy(v)} title={`Copy into ${v}`}>{v}</button>
+            {/each}
+            <button class="edit" onclick={() => (copyOpen = false)}>Cancel</button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+    {#if copyUndo}
+      <div class="copy-undo" role="status">
+        <span>
+          {copyUndo.replaced > 0
+            ? `Replaced the copy in ${copyUndo.vault}.`
+            : `Copied to ${copyUndo.vault}.`}
+        </span>
+        <button class="edit" onclick={undoCopy}>Undo</button>
       </div>
     {/if}
     {#if error}
@@ -884,6 +1021,61 @@
     gap: var(--space-2);
     flex: none;
   }
+  /* The "Copy to another vault" popover: a warning, an opt-in, and the vault targets.
+     Reuses .edit button styling; no new modal system (it's an inline strip like .confirm). */
+  .copy-pop {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border);
+  }
+  .copy-warn {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .copy-opt {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text);
+  }
+  .copy-targets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  /* The extra confirm for carrying the files — warning-coloured, reversible via Cancel. */
+  .copy-danger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+    border: 1px solid var(--danger-fg);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+  }
+  /* The post-copy Undo strip — a copy is sensitive, so it stays visibly reversible. */
+  .copy-undo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    background: var(--ok-bg);
+    color: var(--ok-fg);
+    font-size: var(--text-sm);
+    border-bottom: 1px solid var(--border);
+  }
+
   /* Transient success line (copied a file in), styled like App's .banner.notice. */
   .note-notice {
     margin: 0;

@@ -5,6 +5,32 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## Cross-vault copy is restrictive by default; create picks a vault (2026-07-18)
+**Why:** with multiple vaults you couldn't choose where a new note was born, and porting a
+note to another audience had no path. Files-as-truth makes the copy "just a copy" — but a
+naive one leaks: a copied note keeping its `note:`/`asset:` references would, once its new
+vault is pushed, expose ids/hashes/filenames from *another* vault and leave its audience with
+dangling pointers. **Consequence:** create-in-vault threads one `vault` string through
+`capture` (mirroring `ingest`; routing/refusal already lived in `MultiStore::route`) and a
+top-bar destination picker. Copy is governed by one principle — **ideas flow, artifacts do
+not**:
+
+- **Restrictive default.** `copy_note` copies *only the prose*: a fresh ULID (a copy is a new
+  note — same id in two vaults makes one unreachable via `get`), body rewritten by
+  `fm-app/refs.rs::strip_cross_vault` to drop every `note:` link and (unless opted in) every
+  `asset:`/`sha256:`/local-image reference — whole Markdown span, label included — replaced by
+  a fixed marker, and `assets`/`code` cleared. So a copy can never point outside its new vault.
+- **Opt-in carries into the target, never points out.** `with_assets` copies the first-degree
+  blobs *into* the target (`BlobStore`, content-addressed dedup; manifest refreshed) so it is
+  self-contained; note links stay stripped (the linked-notes tier is deferred, and by the same
+  principle each copied child would itself be prose-only).
+- **Sensitive → warn + undo.** The "Copy to…" popover states the write is permanent in the
+  target's git history; every copy leaves an `uncopy_note` Undo that also reclaims the blobs it
+  newly wrote (only those nothing else there still references).
+- **Rejected:** a same-ULID "move-as-copy" (ambiguous reads), and vault-scoping references to
+  make a copy self-describing (re-couples a note to a location — the same rejection `.view`
+  and the blob store already made). `Object.vault` stays derived-from-location, never a field.
+
 ## `.view` files are parsed server-side; the wire carries a name, never a query (2026-07-17)
 **Why:** the user asked for a customizable multi-pane workspace; three designs + an
 adversarial critic found the ask was already `MASTERPLAN.md:323` — *"five generic renderers =
