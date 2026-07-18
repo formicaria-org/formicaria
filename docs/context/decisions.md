@@ -5,6 +5,41 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## Collaboration is git, *exposed* — not reimplemented (2026-07-18)
+**Why:** the machinery (per-vault git, `.md` merge driver, push/pull, signed identity) already
+shipped; git knows who changed what and when, but nothing surfaced it. The user's framing: *use
+git and expose it*, don't build features on top. **Consequence:** one read-only
+`git::activity` = `git log --name-only` over `notes/*.md` (a note file's stem *is* its ULID, so no
+mapping) yields, walking newest-first, each note's **last editor** (`--no-merges`, since a merge's
+author is the merger). That single command powers **all** collaboration visualisation:
+- **`EditedBy` labels** on every card and the open note ("● name · 5m ago"), person-coloured by
+  the same `hashHue` as vault badges, delivered to renderers via a runes-in-module store
+  (`activity.svelte.ts`) — no prop-drilling.
+- An **Activity pane** (git's log as a first-class workspace view), and a **contributor filter**
+  (chips like the vault filter; `App.shown` gained an author check, so one click hides a person
+  everywhere).
+- **Automatic "someone pushed" awareness** — a slow, visibility-gated `remote_moved` network poll
+  (not the 3 s heartbeat) feeding a one-click-pull chip, wiring the deferred item with existing
+  commands.
+**Rejected / deferred:** storing any authorship (git already knows — the app writes nothing);
+"created by" and per-commit logs (last-editor map is the MVP); anchored comments (need the
+deferred backlinks index); live presence (needs the descoped peer — git knows only *pushed*
+state). The placeholder committer (`formicaria@localhost`) displays as "you".
+
+## Every entity shows its vault, as a name-coloured badge, in every view (2026-07-18)
+**Why:** with a set of vaults, "who can see this?" is a property you must be able to read off any
+note, board or asset at a glance — but the badge existed only on board cards, and was a neutral
+outlined chip whose colour the *theme* was meant to assign per vault (keyed off a `data-vault`
+attribute). A theme can't colour a vault it has never heard of, so arbitrary vault names got no
+colour. **Consequence:** one shared `ui/src/lib/VaultBadge.svelte` (+ pure `vaultColor.ts`:
+`vaultHue(name)` — a deterministic hash → hue) is used by **Card (board), Agenda, Timeline,
+Search, Calendar, and the open NotePanel**, so the same vault reads the same colour everywhere.
+The badge fixes saturation/lightness so white-on-hue stays legible on every hue in both themes;
+Calendar bars are too small for a name, so they use the compact `dot` form with the name in the
+tooltip. Still shown only when `vault` is set (a single-vault install has no boundary), and the
+colour still tells the truth about audience because `vault` is derived from location, never from
+the file's content. No vault name lives in a renderer — the colour is derived generically.
+
 ## Cross-vault copy is restrictive by default; create picks a vault (2026-07-18)
 **Why:** with multiple vaults you couldn't choose where a new note was born, and porting a
 note to another audience had no path. Files-as-truth makes the copy "just a copy" — but a

@@ -11,6 +11,7 @@
   import Calendar from '../renderers/Calendar.svelte';
   import Timeline from '../renderers/Timeline.svelte';
   import Search from '../renderers/Search.svelte';
+  import Activity from '../renderers/Activity.svelte';
   import Icon from './Icon.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan } from './panes';
@@ -23,7 +24,7 @@
     cols: number; // the workspace column count (clamps a resize)
     statuses: string[];
     savedViews: ViewInfo[];
-    shown: (n: ObjectMeta) => boolean;
+    shown: (n: { id: string; vault: string }) => boolean;
     focused: boolean;
     startEditing: boolean; // a note pane opened via "New note" starts in the editor
     vaults: string[]; // all vault names — a note pane offers "Copy to" the others
@@ -138,6 +139,7 @@
     { value: 'agenda', label: 'Agenda' },
     { value: 'timeline', label: 'Timeline' },
     { value: 'search', label: 'Search' },
+    { value: 'activity', label: 'Activity' },
   ];
 
   function pick(value: string) {
@@ -276,6 +278,8 @@
       {/if}
     {:else if pane.kind === 'search'}
       <Search {cards} query={pane.query} {onopen} />
+    {:else if pane.kind === 'activity'}
+      <Activity {shown} {onopen} />
     {:else if pane.kind === 'agenda'}
       {#if pane.agendaMode === 'list'}
         <Agenda {cards} {onopen} />

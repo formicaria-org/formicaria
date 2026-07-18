@@ -1,5 +1,8 @@
 <script lang="ts">
   import StatusChip from '../lib/StatusChip.svelte';
+  import VaultBadge from '../lib/VaultBadge.svelte';
+  import EditedBy from '../lib/EditedBy.svelte';
+  import { lastEditFor } from '../lib/activity.svelte';
   import { dayHeading } from '../lib/calendar';
   import type { ObjectMeta } from '../lib/types';
 
@@ -67,8 +70,10 @@
                 <span class="what">
                   <span class="title">{card.title ?? card.preview ?? card.id}</span>
                   {#if card.title && card.preview}<span class="preview">{card.preview}</span>{/if}
-                  {#if card.tags.length}
+                  {#if card.vault || card.tags.length}
                     <span class="tags">
+                      <VaultBadge vault={card.vault} />
+                      <EditedBy edit={lastEditFor(card.id)} />
                       {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
                     </span>
                   {/if}

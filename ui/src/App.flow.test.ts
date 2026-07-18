@@ -59,6 +59,15 @@ describe('the app, driven end to end as a user', () => {
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
   });
 
+  it('shows a name-coloured vault badge on cards, so every entity’s audience is visible', async () => {
+    const { container } = render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    // The mock spans two vaults (personal + lab); board cards carry a VaultBadge for each.
+    const badges = container.querySelectorAll('.vault-badge');
+    expect(badges.length).toBeGreaterThan(0);
+    expect([...badges].some((b) => /personal|lab/.test(b.textContent ?? ''))).toBe(true);
+  });
+
   // Regression: the id counter resets each page load, so a workspace persisted by an earlier
   // session can carry two panes with the SAME id. A keyed {#each} rejects duplicate keys and the
   // error blanks the whole window — exactly the crash a reload from real localStorage hit but the

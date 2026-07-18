@@ -7,9 +7,9 @@
 
 import type { ObjectMeta, Board, Renderer } from './types';
 
-/** What a pane shows. The four built-in renderers, a specific note (which also covers a
- *  whiteboard — a board-note), or a saved `.view`. */
-export type PaneKind = 'board' | 'agenda' | 'timeline' | 'search' | 'note' | 'view';
+/** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
+ *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
+export type PaneKind = 'board' | 'agenda' | 'timeline' | 'search' | 'activity' | 'note' | 'view';
 
 export interface Pane {
   id: string;
@@ -86,6 +86,9 @@ export function feedKey(p: Pane): string | null {
     case 'view':
       return p.viewName ? `view:${p.viewName}` : null;
     case 'note':
+    case 'activity':
+      // No feed: `note` self-fetches by id; `activity` reads the reactive activity module,
+      // which App refreshes alongside the feeds.
       return null;
   }
 }
@@ -129,6 +132,8 @@ export function paneTitle(p: Pane): string {
       return 'Timeline';
     case 'search':
       return p.query ? `Search · ${p.query}` : 'Search';
+    case 'activity':
+      return 'Activity';
     case 'view':
       return p.viewName ?? 'View';
     case 'note':

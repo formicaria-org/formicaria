@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { dayOf, formatStamp, parseStamp, timeRange, toStamp } from './stamp';
+import { dayOf, formatStamp, parseStamp, relativeTime, timeRange, toStamp } from './stamp';
+
+describe('relativeTime', () => {
+  const now = Date.parse('2026-07-18T12:00:00Z');
+  it('reads recent edits in coarse, human units', () => {
+    expect(relativeTime('2026-07-18T11:59:50Z', now)).toBe('just now');
+    expect(relativeTime('2026-07-18T11:55:00Z', now)).toBe('5m ago');
+    expect(relativeTime('2026-07-18T09:00:00Z', now)).toBe('3h ago');
+    expect(relativeTime('2026-07-16T12:00:00Z', now)).toBe('2d ago');
+    expect(relativeTime('2026-07-04T12:00:00Z', now)).toBe('2w ago');
+  });
+  it('falls back to a date past ~a year, and is empty for garbage', () => {
+    expect(relativeTime('2025-01-01T12:00:00Z', now)).toMatch(/\d/); // a formatted date
+    expect(relativeTime('not-a-date', now)).toBe('');
+  });
+});
 
 // The UI mirror of Rust's `fm_model::Stamp`. The Rust side has its own
 // round-trip suite; these pin the JS half, especially the boundary that keeps an

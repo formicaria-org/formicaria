@@ -350,6 +350,46 @@ pub fn ingest(
     Ok(ObjectMeta::from(&obj))
 }
 
+/// A recent note edit, as the collaboration views show it: git says who last touched a note and
+/// when (`fm_core::git::Touch`); the store says what that note currently is. One `git log` per
+/// vault powers the authorship labels, the activity stream, and the contributor filter.
+#[derive(Serialize)]
+pub struct EditEvent {
+    pub id: String,
+    pub title: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub vault: String,
+    pub author: String,
+    pub email: String,
+    pub time: String,
+}
+
+/// Recent edits in one vault, read from git and resolved against the store. A touch whose note is
+/// gone from the index (deleted, or not yet reindexed) is dropped — the view shows notes that
+/// exist. `since` is a git `--since` value (e.g. `"1 year ago"`). Read-only.
+pub fn activity(
+    store: &dyn Store,
+    vault_path: &Path,
+    since: &str,
+) -> Result<Vec<EditEvent>, StoreError> {
+    let mut events = Vec::new();
+    for t in fm_core::git::activity(vault_path, since)? {
+        let Ok(id) = t.id.parse::<Id>() else { continue };
+        let Some(obj) = store.get(id)? else { continue };
+        events.push(EditEvent {
+            id: t.id,
+            title: obj.title.clone(),
+            kind: obj.kind.as_str().to_string(),
+            vault: obj.vault.clone(),
+            author: t.author,
+            email: t.email,
+            time: t.time,
+        });
+    }
+    Ok(events)
+}
+
 /// The outcome of a copy: the new note's meta, the blob hashes this copy actually wrote
 /// into the target (deduped ones are omitted, so an Undo knows exactly what to take back),
 /// and how many prior copies of the same source it replaced.

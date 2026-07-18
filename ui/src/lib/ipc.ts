@@ -2,6 +2,7 @@ import type {
   AssetStatus,
   BackupStatus,
   Board,
+  EditEvent,
   NoteDetail,
   ObjectMeta,
   PathCheck,
@@ -59,6 +60,10 @@ export const updateBody = (id: string, body: string) =>
 export const deleteNote = (id: string) => invoke<void>('delete', { id });
 export const search = (query: string) => invoke<ObjectMeta[]>('search', { query });
 export const recent = () => invoke<ObjectMeta[]>('recent');
+// The collaboration read-model: who last edited each note, and when, from each vault's git log,
+// aggregated newest-first. One command behind the "edited by" labels, the activity stream, and
+// the contributor filter — git already knows, we only read.
+export const activity = () => invoke<EditEvent[]>('activity');
 
 // Copy a note into another vault. Restrictive by default: only the prose travels —
 // links & attached files are stripped, so the copy can never point at anything outside

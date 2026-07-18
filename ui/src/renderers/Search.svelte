@@ -1,4 +1,7 @@
 <script lang="ts">
+  import VaultBadge from '../lib/VaultBadge.svelte';
+  import EditedBy from '../lib/EditedBy.svelte';
+  import { lastEditFor } from '../lib/activity.svelte';
   import type { ObjectMeta } from '../lib/types';
 
   // Results renderer for full-text search. The same ObjectMeta every other view
@@ -28,8 +31,10 @@
               {card.title ?? card.preview ?? card.id}
             </span>
             {#if card.title && card.preview}<span class="preview">{card.preview}</span>{/if}
-            {#if card.tags.length}
+            {#if card.vault || card.tags.length}
               <span class="tags">
+                <VaultBadge vault={card.vault} />
+                <EditedBy edit={lastEditFor(card.id)} />
                 {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
               </span>
             {/if}

@@ -14,6 +14,7 @@
   } from '../lib/calendar';
   import { urgency } from '../lib/urgency';
   import { dayOf, timeRange } from '../lib/stamp';
+  import VaultBadge from '../lib/VaultBadge.svelte';
   import type { ObjectMeta } from '../lib/types';
 
   // A renderer over the same agenda cards (dated, open) the list view uses — a
@@ -109,6 +110,7 @@
               title={bar.card.title ?? bar.card.preview ?? ''}
             >
               {#if bar.card.hard}<span class="hard" aria-hidden="true">◆</span>{/if}
+              {#if !bar.continuesLeft}<VaultBadge vault={bar.card.vault} dot />{/if}
               {#if !bar.continuesLeft && timeRange(bar.card.start, bar.card.due)}
                 <span class="ev-time">{timeRange(bar.card.start, bar.card.due)}</span>
               {/if}

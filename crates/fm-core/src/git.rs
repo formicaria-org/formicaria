@@ -404,6 +404,76 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
     }
 }
 
+/// One note's most-recent edit, exactly as git records it: who touched it, and when. This is the
+/// whole collaboration read-model — authorship labels, the activity stream, the contributor
+/// filter all come from here, because a note file is `notes/<ULID>.md`, so a changed path's stem
+/// *is* the note id. Nothing is stored: git already knows.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Touch {
+    pub id: String,
+    pub author: String,
+    pub email: String,
+    /// The author date as git's `%aI` (strict ISO-8601), for display and ordering.
+    pub time: String,
+}
+
+/// Every note touched since `since` (a git `--since` value, e.g. `"1 year ago"`), each with its
+/// **last** edit, most-recent-first. Read-only — one `git log`. Empty when there is no repo or no
+/// history: authorship is a git capability, and its absence is not an error.
+///
+/// `--no-merges` because a merge commit's author is whoever *ran* the merge, not who wrote the
+/// text. Fields are joined by `\x1f` (unit separator) so a name or email with spaces survives,
+/// and each commit header is marked with a leading `\x01` so it can't be mistaken for a path.
+pub fn activity(vault: &Path, since: &str) -> Result<Vec<Touch>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let out = git(vault)
+        .args([
+            "log",
+            "--no-merges",
+            &format!("--since={since}"),
+            "--pretty=format:\x01%an\x1f%ae\x1f%aI",
+            "--name-only",
+        ])
+        .output()
+        .map_err(spawn)?;
+    // A brand-new repo with no commits exits non-zero on `log`; that is "no history", not failure.
+    if !out.status.success() {
+        return Ok(Vec::new());
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut seen = std::collections::HashSet::new();
+    let mut touches = Vec::new();
+    let mut cur: Option<(String, String, String)> = None; // (author, email, time)
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix('\x01') {
+            let mut f = rest.split('\x1f');
+            cur = Some((
+                f.next().unwrap_or_default().to_string(),
+                f.next().unwrap_or_default().to_string(),
+                f.next().unwrap_or_default().to_string(),
+            ));
+        } else if !line.is_empty() {
+            // A changed path under the current commit. Only notes; first-seen (newest) wins.
+            if let Some(id) = note_id_from_path(line) {
+                if seen.insert(id.clone()) {
+                    if let Some((author, email, time)) = cur.clone() {
+                        touches.push(Touch { id, author, email, time });
+                    }
+                }
+            }
+        }
+    }
+    Ok(touches)
+}
+
+/// `notes/<ULID>.md` → `<ULID>`; blobs, manifest, `.view` files and anything nested → `None`.
+fn note_id_from_path(path: &str) -> Option<String> {
+    let stem = path.strip_prefix("notes/")?.strip_suffix(".md")?;
+    (!stem.is_empty() && !stem.contains('/')).then(|| stem.to_string())
+}
+
 /// Collapse the not-yet-pushed commits into one and push. Returns how many were
 /// squashed (0 when there was nothing to squash, or on the first push).
 ///

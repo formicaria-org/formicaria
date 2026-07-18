@@ -22,6 +22,20 @@ export interface ObjectMeta {
   vault: string;
 }
 
+/** One note's most-recent edit, read from git (`crates/fm-app/src/commands.rs::EditEvent`):
+ *  who last touched it and when. Powers the "edited by" labels, the activity stream, and the
+ *  contributor filter — collaboration facts git already knows, none stored by the app. */
+export interface EditEvent {
+  id: string;
+  title: string | null;
+  type: string;
+  vault: string;
+  author: string;
+  email: string;
+  /** ISO-8601 author date. */
+  time: string;
+}
+
 export interface Column {
   /** The settable string echoed back to set_property on drop; empty clears. */
   value: string;

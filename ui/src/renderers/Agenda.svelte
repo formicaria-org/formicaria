@@ -1,6 +1,9 @@
 <script lang="ts">
   import { urgency, relativeDue, urgencyLabel, URGENCY_ORDER } from '../lib/urgency';
   import { formatStamp } from '../lib/stamp';
+  import VaultBadge from '../lib/VaultBadge.svelte';
+  import EditedBy from '../lib/EditedBy.svelte';
+  import { lastEditFor } from '../lib/activity.svelte';
   import type { ObjectMeta } from '../lib/types';
 
   // The closest-deadline view. Cards arrive already filtered (dated, open) and
@@ -37,8 +40,10 @@
               <span class="marker" aria-hidden="true"></span>
               <span class="what">
                 <span class="title">{card.title ?? card.preview ?? card.id}</span>
-                {#if card.tags.length}
+                {#if card.vault || card.tags.length}
                   <span class="tags">
+                    <VaultBadge vault={card.vault} />
+                    <EditedBy edit={lastEditFor(card.id)} />
                     {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
                   </span>
                 {/if}

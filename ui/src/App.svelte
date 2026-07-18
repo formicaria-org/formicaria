@@ -26,7 +26,12 @@
     listVaults,
     listViews,
     runView,
+    activity as fetchActivity,
+    backupStatus,
+    pull,
   } from './lib/ipc';
+  import { setActivity, lastEditFor, contributors } from './lib/activity.svelte';
+  import { hashHue } from './lib/vaultColor';
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
 
@@ -182,7 +187,28 @@
   // Saved `.view` files (query + a renderer), authored in the vault. Each becomes a choice in
   // a pane's view picker; opening one adds/retargets a pane.
   let views = $state<ViewInfo[]>([]);
-  const shown = (n: ObjectMeta) => !n.vault || !hiddenVaults.includes(n.vault);
+
+  // Contributor filter — the git-authorship twin of the vault filter. `contributors()` (reactive,
+  // from the activity module) drives the chips; `hiddenAuthors` is a HIDE list like `hiddenVaults`,
+  // persisted the same way. A note whose last editor is hidden is filtered out; a note git knows
+  // nothing about (no author) is always shown, so the filter never hides un-attributed notes.
+  let hiddenAuthors = $state<string[]>(
+    (() => {
+      try {
+        return JSON.parse(localStorage.getItem('fm-hidden-authors') ?? '[]');
+      } catch {
+        return [];
+      }
+    })(),
+  );
+  const allContributors = $derived(contributors());
+  // Reads `hiddenVaults`, `hiddenAuthors` and `lastEditFor` — all reactive — so a pane's
+  // `.filter(shown)` re-runs when any of them change (the reads happen inside the derived).
+  const shown = (n: { id: string; vault: string }) => {
+    if (n.vault && hiddenVaults.includes(n.vault)) return false;
+    const author = lastEditFor(n.id)?.author;
+    return !author || !hiddenAuthors.includes(author);
+  };
 
   function toggleVault(name: string) {
     hiddenVaults = hiddenVaults.includes(name)
@@ -192,6 +218,16 @@
       localStorage.setItem('fm-hidden-vaults', JSON.stringify(hiddenVaults));
     } catch {
       // A browser that won't remember the preference still honours it this session.
+    }
+  }
+  function toggleAuthor(name: string) {
+    hiddenAuthors = hiddenAuthors.includes(name)
+      ? hiddenAuthors.filter((a) => a !== name)
+      : [...hiddenAuthors, name];
+    try {
+      localStorage.setItem('fm-hidden-authors', JSON.stringify(hiddenAuthors));
+    } catch {
+      // Honoured this session even if it can't be remembered.
     }
   }
 
@@ -206,6 +242,7 @@
     { label: 'Open Agenda', run: () => addPane('agenda') },
     { label: 'Open Timeline', run: () => addPane('timeline') },
     { label: 'Open Search', run: () => addPane('search') },
+    { label: 'Open Activity', run: () => addPane('activity') },
     ...views
       .filter((v) => !v.error)
       .map((v) => ({ label: `Open “${v.name}”`, run: () => addPane('view', { viewName: v.name }) })),
@@ -287,6 +324,12 @@
     // Nothing to ask about, and asking anyway paints an error banner *behind* the
     // first-run screen — the app's first impression being a failure it caused itself.
     if (!vaults?.length) return;
+    // Git authorship, in parallel and non-blocking: it enriches (the "edited by" labels, the
+    // activity stream, the contributor filter) but must never hold up the notes themselves, and
+    // an old/absent git is not an error here.
+    void fetchActivity()
+      .then(setActivity)
+      .catch(() => {});
     const keys = distinctFeeds(workspace.panes);
     try {
       const entries = await Promise.all(
@@ -305,6 +348,42 @@
   $effect(() => {
     void distinctFeeds(workspace.panes).join('|');
     void refresh();
+  });
+
+  // Automatic "someone pushed" awareness. `backup_status` computes `remote_moved` per vault (a
+  // no-write `ls-remote`), so this is a *network* poll — far slower than the 3 s heartbeat, and
+  // only when the tab is visible. The chip it feeds turns the deferred "you only find out if you
+  // open the backup panel" into a passive nudge; the pull uses the same command the panel does.
+  let movedVaults = $state<string[]>([]);
+  async function checkRemotes() {
+    if (!vaults?.length || document.hidden) return;
+    try {
+      const st = await backupStatus();
+      movedVaults = st.vaults.filter((v) => v.remote_moved).map((v) => v.name);
+    } catch {
+      /* offline / no remote — nothing to nudge about */
+    }
+  }
+  async function getTheirChanges() {
+    const targets = movedVaults;
+    movedVaults = [];
+    try {
+      for (const v of targets) await pull(v);
+      await refresh();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+  $effect(() => {
+    if (!import.meta.env.PROD) return; // network poll: production only (the mock has no remote)
+    void checkRemotes();
+    const id = setInterval(() => void checkRemotes(), 45000);
+    const onFocus = () => void checkRemotes();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
   });
 
   // Liveness heartbeat, and the local poll — one beat, two jobs.
@@ -544,6 +623,7 @@
       <button class="tb-chip" onclick={() => addPane('agenda')}>Agenda</button>
       <button class="tb-chip" onclick={() => addPane('timeline')}>Timeline</button>
       <button class="tb-chip" onclick={() => addPane('search')}>Search</button>
+      <button class="tb-chip" onclick={() => addPane('activity')} title="Who changed what, from git">Activity</button>
       {#each views.filter((v) => !v.error) as v (v.name)}
         <button class="tb-chip saved" onclick={() => addPane('view', { viewName: v.name })} title="Saved view">{v.name}</button>
       {/each}
@@ -572,6 +652,33 @@
           </button>
         {/each}
       </div>
+    {/if}
+
+    {#if allContributors.length > 1}
+      <!-- Contributor filter — the git-authorship twin of the vault filter. One click hides a
+           person's notes everywhere; the coloured dot matches their "edited by" label. -->
+      <div class="vaults" aria-label="contributor filter">
+        {#each allContributors as who (who)}
+          <button
+            class="vault-chip contrib"
+            class:off={hiddenAuthors.includes(who)}
+            style="--ch:{hashHue(who)}"
+            aria-pressed={!hiddenAuthors.includes(who)}
+            onclick={() => toggleAuthor(who)}
+            title={hiddenAuthors.includes(who) ? `Show ${who}'s notes` : `Hide ${who}'s notes`}
+          >
+            <span class="contrib-dot" aria-hidden="true"></span>{who}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    {#if movedVaults.length}
+      <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
+      <button class="tb-chip moved" onclick={getTheirChanges} title="Someone pushed — get their changes">
+        <Icon name="inbox" size={14} />
+        {movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get changes
+      </button>
     {/if}
 
     <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
@@ -827,6 +934,16 @@
     border-style: dashed;
     color: var(--text-muted);
   }
+  /* The "someone pushed" nudge: filled with the accent so it reads as an invitation to act. */
+  .tb-chip.moved {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 600;
+  }
   .tb-cols {
     display: inline-flex;
     align-items: center;
@@ -885,6 +1002,19 @@
     color: var(--text-muted);
     opacity: 0.5;
     text-decoration: line-through;
+  }
+  /* Contributor chips carry the person's colour (a dot), matching their "edited by" labels. */
+  .vault-chip.contrib {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .contrib-dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: hsl(var(--ch) 55% 48%);
+    box-shadow: 0 0 0 1px hsl(var(--ch) 55% 32%);
   }
   .icon-btn {
     display: grid;

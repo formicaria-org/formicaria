@@ -214,6 +214,34 @@ describe('v2: property editing, timeline, delete', () => {
     await waitFor(() => expect(screen.queryByText(/Replaced the copy in lab/)).toBeNull());
   });
 
+  it('shows a git "edited by" label on cards', async () => {
+    const { container } = render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const labels = container.querySelectorAll('.edited-by');
+    expect(labels.length).toBeGreaterThan(0);
+    // The mock attributes edits to two people; a label carries one of their names.
+    expect([...labels].some((l) => /Ada|Ravi/.test(l.textContent ?? ''))).toBe(true);
+  });
+
+  it('opens a git activity pane and filters it by contributor', async () => {
+    const { container } = render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+
+    // Open the Activity stream from the top bar.
+    await fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
+    const before = await waitFor(() => {
+      const rows = container.querySelectorAll('.activity .row');
+      expect(rows.length).toBeGreaterThan(1);
+      return rows.length;
+    });
+
+    // Hiding a contributor drops their rows from the stream (and from every other view).
+    await fireEvent.click(screen.getByTitle(/Hide Ada Lovelace/));
+    await waitFor(() => {
+      expect(container.querySelectorAll('.activity .row').length).toBeLessThan(before);
+    });
+  });
+
   it('deletes a note only after the second confirmation', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);

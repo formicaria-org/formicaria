@@ -1,6 +1,9 @@
 <script lang="ts">
   import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import StatusChip from '../lib/StatusChip.svelte';
+  import VaultBadge from '../lib/VaultBadge.svelte';
+  import EditedBy from '../lib/EditedBy.svelte';
+  import { lastEditFor } from '../lib/activity.svelte';
   import { formatStamp } from '../lib/stamp';
   import type { ObjectMeta } from '../lib/types';
 
@@ -65,12 +68,13 @@
     {#each card.tags as tag (tag)}
       <span class="tag">{tag}</span>
     {/each}
-    <!-- Which audience this note belongs to. Derived from where the file lives, never
-         from what it says, so this badge is telling the truth about who can see it —
-         which is the entire reason `vault` is not a frontmatter field. Empty in a
-         single-vault install: no boundary, nothing to say. -->
+    <!-- Who last touched this, from git. Quiet, next to the tags; nothing when git is silent. -->
+    <EditedBy edit={lastEditFor(card.id)} />
+    <!-- Which audience this note belongs to — a name-coloured badge, the same everywhere.
+         Derived from where the file lives, never from what it says, so it tells the truth
+         about who can see it. Pushed to the trailing edge of the meta row. -->
     {#if card.vault}
-      <span class="vault" data-vault={card.vault}>{card.vault}</span>
+      <span class="vault-cell"><VaultBadge vault={card.vault} /></span>
     {/if}
   </footer>
 </div>
@@ -132,17 +136,10 @@
     background: var(--tag-bg);
     color: var(--tag-fg);
   }
-  /* Deliberately unlike a tag: a tag is something you chose, a vault is who can see
-     this. Squared off and outlined so the two never read as the same kind of thing.
-     Which vault gets which accent is the theme's business, keyed off the data
-     attribute — no vault names live in a renderer. */
-  .vault {
+  /* Push the vault badge to the trailing edge — a tag is something you chose, a vault is
+     who can see this, so they sit apart. The badge's own colour/shape lives in VaultBadge. */
+  .vault-cell {
     margin-left: auto;
-    font-size: 0.68rem;
-    padding: 0.05rem 0.4rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    letter-spacing: 0.02em;
+    display: inline-flex;
   }
 </style>

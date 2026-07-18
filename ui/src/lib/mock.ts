@@ -309,6 +309,22 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'recent':
       return notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created)) as T;
+    // Fake git authorship for dev/tests: attribute each note to one of two people, newest-first,
+    // so the "edited by" labels, the activity stream, and the contributor filter all have data.
+    case 'activity': {
+      const people = ['Ada Lovelace', 'Ravi Kumar'];
+      return notes
+        .map((n, i) => ({
+          id: n.id,
+          title: n.title ?? n.preview,
+          type: n.type,
+          vault: n.vault,
+          author: people[i % people.length],
+          email: `${people[i % people.length].split(' ')[0].toLowerCase()}@example.com`,
+          time: n.updated,
+        }))
+        .sort((a, b) => b.time.localeCompare(a.time)) as T;
+    }
     case 'ingest': {
       // No vault in the browser/test: synthesize an asset note so the editor can
       // insert a reference. Deterministic hash so re-adding the same name "dedups".

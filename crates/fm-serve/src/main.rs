@@ -282,6 +282,22 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         "get" => json(commands::get(&lock(state)?.store, &s("id")).map_err(err)?),
         "search" => json(commands::search(&lock(state)?.store, &s("query")).map_err(err)?),
         "recent" => json(commands::recent(&lock(state)?.store).map_err(err)?),
+        // The collaboration read-model: who last edited each note, and when, straight from each
+        // vault's git log — one command behind the authorship labels, the activity stream, and
+        // the contributor filter. Aggregated across vaults, newest-first.
+        "activity" => {
+            let since = {
+                let s = s("since");
+                if s.is_empty() { "1 year ago".to_string() } else { s }
+            };
+            let g = lock(state)?;
+            let mut all = Vec::new();
+            for cfg in g.configs() {
+                all.extend(commands::activity(&g.store, &cfg.path, &since).map_err(err)?);
+            }
+            all.sort_by(|a, b| b.time.cmp(&a.time));
+            json(all)
+        }
         "capture" => {
             // Validate the target vault up front (unknown name → a loud error, never a
             // silent default), then route the note into it — the create-side twin of

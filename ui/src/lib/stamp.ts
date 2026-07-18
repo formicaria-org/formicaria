@@ -54,6 +54,25 @@ export function formatStamp(raw: string | null | undefined): string {
   return s.time ? `${label} ${s.time}` : label;
 }
 
+/** A compact "how long ago" for an ISO timestamp — "just now", "5m", "3h", "2d", "6w", or a
+ *  `D Mon` date past ~a year. `now` is injectable so it's testable. Used by the "edited by"
+ *  label and the activity stream. */
+export function relativeTime(iso: string, now: number = Date.now()): string {
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return '';
+  const s = Math.max(0, Math.round((now - then) / 1000));
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return `${d}d ago`;
+  const w = Math.round(d / 7);
+  if (w < 52) return `${w}w ago`;
+  return formatStamp(iso.slice(0, 10));
+}
+
 /** The `HH:MM` window a note occupies on its day, when both ends are timed —
  *  what a meeting reads as. Empty when neither end carries a time. */
 export function timeRange(start: string | null, due: string | null): string {

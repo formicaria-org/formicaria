@@ -4,7 +4,17 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **Cross-vault: create-in-vault + restrictive copy**
+_Last verified: 2026-07-18 — **Collaboration is git, exposed** (not reimplemented)
+(`sessions/2026-07-18-git-collaboration-visualized.md`). One read-only `git::activity` (a
+`git log --name-only` over `notes/*.md`, where a file's stem *is* its ULID) yields each note's last
+editor, and that single command powers all of it: **`EditedBy` labels** ("● name · 5m ago") on
+every card and the open note (person-coloured by the shared `hashHue`, delivered via the
+runes-in-module store `activity.svelte.ts`, no prop-drilling); a first-class **Activity pane** (git's
+log as a workspace view); a **contributor filter** (chips like the vault filter — `App.shown` gained
+an author check, so hiding a person applies everywhere); and **automatic "someone pushed" awareness**
+(a slow visibility-gated `remote_moved` poll → one-click `pull`). Nothing is stored — git stays the
+source of truth. Deferred: creator attribution, anchored comments (need backlinks), live presence
+(needs the descoped peer). Before that, **Cross-vault: create-in-vault + restrictive copy**
 (`sessions/2026-07-18-cross-vault-copy.md`). You can now pick which vault a new note/board is
 born in (a top-bar destination picker; `capture` gained a `vault` arg, mirroring `ingest`), and
 **copy a note into another vault**. Copy is **restrictive by default** — only the prose travels;

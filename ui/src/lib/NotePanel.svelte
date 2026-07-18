@@ -20,6 +20,9 @@
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
   import StatusChip from './StatusChip.svelte';
+  import VaultBadge from './VaultBadge.svelte';
+  import EditedBy from './EditedBy.svelte';
+  import { lastEditFor } from './activity.svelte';
   import Whiteboard from './Whiteboard.svelte';
   import type { NoteDetail, ObjectMeta } from './types';
 
@@ -620,6 +623,8 @@
     <header>
       {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
       <h2>{note?.title ?? 'note'}</h2>
+      {#if note?.vault}<VaultBadge vault={note.vault} />{/if}
+      {#if note}<EditedBy edit={lastEditFor(note.id)} />{/if}
       {#if note}
         <!-- Always visible, no edit mode needed: rotating status is the most
              frequent edit a note gets. Typing a brand-new value is Details' job. -->
