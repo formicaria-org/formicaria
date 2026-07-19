@@ -33,7 +33,26 @@ target="${1:-aarch64}"
 # on a home screen. Cheap, idempotent, and the reason this runs every time.
 ( cd mobile && pnpm exec tauri icon ../ui/public/favicon.svg >/dev/null )
 
-( cd mobile && pnpm exec tauri android build --apk --target "$target" )
+# **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
+# not a clear error: `tauri android build` fails with "failed to ensure Android environment:
+# Skipping Android Studio command line tools installation", which names neither the variable
+# that is missing nor the fact that the SDK is present and complete.
+#
+#   NDK_HOME   — the feature exports ANDROID_NDK_HOME (what cargo and `cc` read); Tauri reads
+#                this one. Both must be set, and they are the same path.
+#   JAVA_HOME  — pinned to the environment's JDK 21. Gradle 8.14 refuses conda's default 25
+#                with "Unsupported class file major version 69", naming neither Java nor Gradle.
+#   PATH       — our `rustup` shim first. Tauri shells out to `rustup target add`, and this
+#                project has no rustup (targets come from conda-forge, pinned in pixi.lock);
+#                the shim verifies rather than pretends.
+#
+# `android-apk` sets all three inline and this script did not, which is why the debug build
+# worked and the release build did not.
+( cd mobile \
+    && PATH="$root/.android/bin:$PATH" \
+       NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
+       JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
+       pnpm exec tauri android build --apk --target "$target" )
 
 bt=$(ls -d "$root"/.android/sdk/build-tools/*/ | sort -V | tail -1)
 unsigned="$root/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
