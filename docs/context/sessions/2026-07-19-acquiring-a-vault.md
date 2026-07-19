@@ -177,3 +177,44 @@ already linked but dead, so the linker could strip most of them; they are reacha
 Two differential tests pin the squash — both backends collapse the same window to one commit,
 and both stop at a hand-written commit rather than eating it — with real `git` reading the far
 side of a bare `file://` remote in each case.
+
+
+## Addendum 2 — a phone has no path, so it stops being asked for one
+
+The owner, on being told the phone could now clone: *"when I want to install a vault I will not
+have the ~/notes or similar paths available… we should have a contained place for formicaria
+only that does not affect other apps and where they will not write"*, and then decisively:
+*"He does not need to control the location like in a desktop."*
+
+**The bug was worse than a bad default.** `NewVault` seeded `path` with `~/notes`; Android has
+no `$HOME`, so `vaults::expand_home` returns the literal string unchanged and it resolves
+against the *process working directory*. Not a place. And the first-run vault was hard-coded in
+`mobile/src-tauri/src/lib.rs`, so there was no answer for a second vault at all.
+
+**`FM_VAULT_ROOT` is the contained place.** Set by the Android shell to `<app_data>/vaults`;
+`vaults::vault_root()` returns `Some` there and `None` on a desktop, and that asymmetry *is* the
+design. A desktop vault is a folder the user already has an opinion about — often a project repo
+being adopted — and taking that away would break what makes it theirs. A phone has no such
+place, so the question is **wrong**, not merely unanswered.
+
+**The join is server-side, deliberately.** The form sends an empty `path`, which is how it says
+"you decide"; `dispatch::resolve_path` resolves it inside the root. A browser computing
+`<root>/<name>` would be one `../` from writing outside the sandbox, and containment that
+depends on the frontend behaving is not containment. `vaults::contained_path` reduces a name to
+exactly one path segment or refuses; `no_name_can_escape_the_root` walks nine hostile names
+(`../../etc`, `/absolute`, `a/b`, `~/elsewhere`, …) and asserts each is either refused or lands
+inside the root as a single component. Writing it caught the assertion being too narrow — `..`
+is *refused* rather than contained, which is the stronger outcome, so the test accepts both.
+
+**An existing `<app_data>/vault` keeps its path.** Builds before this root put the first vault
+there. Repointing would leave those notes on disk and invisible — indistinguishable from data
+loss to the person holding the phone — so only a fresh install starts inside the root.
+
+**The cost is stated in the form, not discovered later:** Android deletes app storage on
+uninstall. That is the price of a sandbox nothing else can touch, and it is precisely why a
+phone vault wants a git remote or a restic repo pointed at it. Files-as-truth means "where is my
+file" has an answer even when the answer is somewhere you cannot browse to.
+
+Desktop is untouched — no root, so the folder field behaves exactly as before, which
+`a_machine_with_git_uses_the_subprocess_backend` and a `vault_root: None` on the live server both
+confirm.
