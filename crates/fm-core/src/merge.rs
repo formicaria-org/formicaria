@@ -52,28 +52,46 @@ pub enum Merged {
 /// Git's merge-driver entry point: read the three versions, write the result back over
 /// `ours` (that is `%A`, which git takes as the answer), and report whether it is clean.
 ///
-/// Anything we cannot understand as a note — either side unparseable, which is what a
-/// *previous* bad merge leaves behind — falls back to a plain whole-file merge. The
-/// driver must never be the reason a merge cannot happen at all.
+/// **This function is the driver ABI and nothing else.** Every decision lives in
+/// [`merge_texts`], which takes and returns text. That split is not tidiness: a phone has no
+/// merge driver for git to invoke, so the app must be able to run the *same* merge over three
+/// strings it pulled out of an object database itself. Keeping the `%O %A %B` path shape here
+/// and the logic there is what stops a phone and a desktop merging the same note differently
+/// — the failure the `git2` rejection was written to avoid (`docs/context/decisions.md`).
 pub fn merge_files(base: &Path, ours: &Path, theirs: &Path, marker_size: usize) -> Result<Merged, StoreError> {
     let (b, o, t) = (read(base)?, read(ours)?, read(theirs)?);
+    let (text, outcome) = merge_texts(&b, &o, &t, marker_size)?;
+    std::fs::write(ours, text).map_err(io)?;
+    Ok(outcome)
+}
 
-    let parsed = (frontmatter::from_file(&b), frontmatter::from_file(&o), frontmatter::from_file(&t));
+/// Merge three versions of a note, as text in and text out. **The one engine**, callable
+/// from a driver, from an in-process pull, or from a platform with no `git` binary at all.
+///
+/// Anything we cannot understand as a note — either side unparseable, which is exactly what a
+/// *previous* bad merge leaves behind — falls back to a plain whole-file text merge. Being
+/// unable to read a note must never be the reason a merge cannot happen.
+pub fn merge_texts(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    marker_size: usize,
+) -> Result<(String, Merged), StoreError> {
+    let parsed = (frontmatter::from_file(base), frontmatter::from_file(ours), frontmatter::from_file(theirs));
     let (Ok(bo), Ok(oo), Ok(to)) = parsed else {
-        return whole_file(base, ours, theirs, marker_size);
+        return text_3way(base, ours, theirs, marker_size);
     };
 
     let Some(mut merged) = merge_objects(&bo, &oo, &to) else {
         // A real disagreement about a field's value. Not ours to resolve.
-        return whole_file(base, ours, theirs, marker_size);
+        return text_3way(base, ours, theirs, marker_size);
     };
 
     let (body, outcome) = merge_body(&bo.body, &oo.body, &to.body, marker_size)?;
     merged.body = body;
 
     let text = frontmatter::to_file(&merged).map_err(|e| StoreError::Parse(e.to_string()))?;
-    std::fs::write(ours, text).map_err(io)?;
-    Ok(outcome)
+    Ok((text, outcome))
 }
 
 /// Merge everything except the body. `None` means the two sides disagree about a field
@@ -184,7 +202,27 @@ fn merge_body(
         return Ok((merged, Merged::Clean));
     }
 
-    // git merge-file works on paths, so the bodies have to land somewhere. **Not** in
+    text_3way(base, ours, theirs, marker_size)
+}
+
+/// The 3-way text merge itself — `git merge-file`, which everyone already has and nobody
+/// should write twice.
+///
+/// Serves two callers: [`merge_body`] for a note's prose, and [`merge_texts`] for the
+/// whole-file fallback when a note cannot be read as a note. One engine for both, so the
+/// fallback cannot drift away from the ordinary path.
+///
+/// **This is the seam the mobile port turns on.** It is the last thing in the merge that
+/// shells out, so it is exactly what a platform with no `git` binary has to replace — and
+/// replacing it is gated on a differential harness against this implementation, which stays
+/// as the permanent oracle (`docs/context/decisions.md`, the body-engine ruling).
+fn text_3way(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    marker_size: usize,
+) -> Result<(String, Merged), StoreError> {
+    // git merge-file works on paths, so the texts have to land somewhere. **Not** in
     // the repo: the driver's working directory is the vault, and the auto-commit's
     // `git add -A` fires every 5s — a scratch file living there for the length of a
     // merge is a scratch file that can end up in someone's history.
@@ -227,27 +265,6 @@ fn merge_body(
         Some(n) if n > 0 && n < 128 => {
             Ok((String::from_utf8_lossy(&out.stdout).into_owned(), Merged::Conflicted))
         }
-        _ => Err(StoreError::Io(format!(
-            "git merge-file failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))),
-    }
-}
-
-/// What git would have done without us. The fallback for a note we cannot read as a
-/// note, and for a field disagreement no rule settles.
-fn whole_file(base: &Path, ours: &Path, theirs: &Path, marker_size: usize) -> Result<Merged, StoreError> {
-    let out = Command::new("git")
-        .arg("merge-file")
-        .arg(format!("--marker-size={marker_size}"))
-        .arg(ours)
-        .arg(base)
-        .arg(theirs)
-        .output()
-        .map_err(|e| StoreError::Io(format!("could not run git merge-file: {e}")))?;
-    match out.status.code() {
-        Some(0) => Ok(Merged::Clean),
-        Some(n) if n > 0 && n < 128 => Ok(Merged::Conflicted),
         _ => Err(StoreError::Io(format!(
             "git merge-file failed: {}",
             String::from_utf8_lossy(&out.stderr).trim()

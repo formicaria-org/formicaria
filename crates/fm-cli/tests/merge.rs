@@ -227,6 +227,15 @@ fn a_divergent_status_field_breaks_the_fence_and_keeps_both_values() {
         fm_core::frontmatter::from_file(&merged).is_err(),
         "a fence-broken note does not parse — this is the known cost, see the doc comment:\n{merged}"
     );
+
+    // Whatever a human ends up reading, it must not be our scratch files or git's. The
+    // whole-file fallback used to hand `git merge-file` the real paths and let it label the
+    // markers with them; it now goes through the same labelled text merge as a body
+    // conflict, so the labels are git's own vocabulary either way.
+    for leak in ["fm-merge-", ".merge_file", "/tmp/"] {
+        assert!(!merged.contains(leak), "conflict markers leak {leak}:\n{merged}");
+    }
+    assert!(merged.contains("ours") && merged.contains("theirs"), "labelled:\n{merged}");
 }
 
 /// `pull` is the whole point of the guards that came before it: it is the thing that

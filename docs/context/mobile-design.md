@@ -609,9 +609,17 @@ staked on a decision nobody has taken yet. Receipts:
   provably cannot reproduce Android's `dragstart` suppression. `adb` is outside pixi and that is
   acceptable — it enters neither the build graph nor the artifact — but say so rather than letting
   it pass as hermetic.
-- **STEP 1 — `merge.rs`, desktop-only, no new deps. — ◐ HALF SHIPPED 2026-07-19:** the temp-file
-  race below is fixed (names are unique per call now); **`merge_texts` is not extracted yet**,
-  and that extraction is the thing M4 and the whole body-engine question wait on. Extract
+- **STEP 1 — `merge.rs`, desktop-only, no new deps. — ✅ SHIPPED 2026-07-19.** `merge_texts` is
+  extracted and is now the one engine: text in, text out, callable from a driver, an in-process
+  pull, or a platform with no `git` binary. `merge_files` is the `%O %A %B` driver ABI and
+  nothing else. The whole-file fallback moved from a path-shaped, in-place `git merge-file` onto
+  the same labelled text merge the body already used — which **removed a leak**: fallback
+  conflict markers used to be labelled with real and temp *paths*, and are now `ours`/`base`/
+  `theirs` like every other conflict (locked by a test asserting no `fm-merge-`/`.merge_file`/
+  `/tmp/` reaches a note). The temp-file race is fixed too. **What remains before any engine can
+  be swapped is STEP 2, the differential harness** — `text_3way` is now the single place that
+  shells out, so it is exactly what a phone must replace, and it stays as the permanent oracle.
+  The original text, for the record:
   `merge_texts(base, ours, theirs, marker_size)` from the path-shaped wrapper; keep `merge_files`
   as the thin driver-ABI shim (it is git's `%O %A %B` contract). **Fix the PID-only temp naming**
   (`merge.rs:192`): `blob.rs` already uses PID + `AtomicU64`, `merge.rs` uses PID alone and is
