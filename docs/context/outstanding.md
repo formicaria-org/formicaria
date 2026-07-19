@@ -27,6 +27,15 @@ the highest-value item in the file** — not because anything is known to be bro
 the volume of unobserved UI is now the largest single risk in the project, and everything
 below is cheaper to judge once it is gone.
 
+**◐ Partly retired 2026-07-19** (`sessions/2026-07-19-the-phone.md`). The app has now been seen
+by eye **on a real phone**, over `adb reverse` against the real backend, and the first finding is
+already load-bearing: *the current GUI is not good for small screens* — enough to move the
+single-column touch work **ahead of** packaging. Still unobserved, so this item stays open: the
+pane workspace on a desktop, and on the phone each specific path it was opened for — Board
+scroll-snap vs finger drag, the tap→move menu, a `<video>` seeking mid-file (the only exercise of
+`blob.rs`'s `Range` on real hardware), Excalidraw under a finger, thumb reach on the 2.75rem
+targets.
+
 ---
 
 ## 2. Not started

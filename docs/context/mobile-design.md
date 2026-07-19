@@ -569,7 +569,13 @@ order front-loads everything that pays off *under every possible backend*, so th
 staked on a decision nobody has taken yet. Receipts:
 `sessions/2026-07-19-mobile-drift-review.md`.
 
-- **STEP 0 — today, one hour, zero lines of code. The single first actionable step.**
+- **STEP 0 — ✅ RUN 2026-07-19, and it already reordered what follows.** The toolchain and the
+  tunnel hold (`sessions/2026-07-19-the-phone.md`); the finding is that **the current GUI is not
+  good for small screens**, which puts the single-column touch work (M6) **ahead of M0 and step
+  8** — an APK wrapping a shell that does not work on a phone is worse than no APK, because it
+  makes a layout problem look like a platform problem. The per-path observations were not
+  recorded, so `outstanding.md` §1.1 is only *partly* retired and the MVP line is **not** re-cut
+  yet. The procedure, kept because it is how you do it again:
   ```
   pixi run serve            # builds the PROD bundle: real dispatch, real blob.rs, real Range
 
