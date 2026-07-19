@@ -19,11 +19,16 @@
     active,
     onselect,
     onclose,
+    onpalette,
+    onsettings,
   }: {
     panes: Pane[];
     active: number;
     onselect: (i: number) => void;
     onclose: (id: string) => void;
+    /** The palette and Settings live here on a phone — see the note above the buttons. */
+    onpalette: () => void;
+    onsettings: () => void;
   } = $props();
 
   // The pane kinds map onto icons we already ship; anything without one (a saved view, a note)
@@ -54,6 +59,21 @@
       <span class="label">{paneTitle(pane)}</span>
     </button>
   {/each}
+
+  <!-- **The palette and Settings live down here, not in the top bar.**
+       Wrapping the top bar stopped it hiding them, but on a phone it bought that with a second
+       cramped row above the content. This bar is already the navigation, already thumb-reachable,
+       and has room — so the two controls that are not *navigation* but are needed constantly sit
+       at its end, pushed right so they never move as views are opened and closed. -->
+  <div class="spacer" aria-hidden="true"></div>
+  <button class="tab util" onclick={onpalette} aria-label="command palette" title="Commands">
+    <Icon name="command" size={18} />
+    <span class="label">Commands</span>
+  </button>
+  <button class="tab util" onclick={onsettings} aria-label="settings" title="Settings">
+    <Icon name="gear" size={18} />
+    <span class="label">Settings</span>
+  </button>
 
   <!-- Closing lives here because in `single` the pane's own header chrome is hidden: with one
        view filling the screen there is no room for a title bar, and no ambiguity about which
@@ -112,6 +132,17 @@
     color: var(--text);
     border-top-color: var(--accent);
     background: var(--surface-hover);
+  }
+  /* Pushes the utilities to the far end, so they hold one position while the view tabs to
+     their left come and go. */
+  .spacer {
+    flex: 1 0 auto;
+    min-width: var(--space-2);
+  }
+  .tab.util {
+    flex: 0 0 auto;
+    min-width: 3.5rem;
+    border-top-color: transparent;
   }
   .tab.close {
     flex: 0 0 auto;

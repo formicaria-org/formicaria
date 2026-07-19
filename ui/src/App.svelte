@@ -358,8 +358,7 @@
         void onNew();
         break;
       case 'newView':
-        paletteInitial = 'view';
-        paletteOpen = true;
+        openPalette('Open ');
         break;
       case 'focusSearch':
         searchEl?.focus();
@@ -909,7 +908,10 @@
       </button>
     {/if}
 
-    <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
+    <!-- **Through `openPalette`, never `paletteOpen = true`.** Setting the flag directly leaves
+         `paletteInitial` at whatever the last "+" button put there, so opening the palette from
+         its own icon showed the New-scoped list — the palette looked broken and stuck. -->
+    <button class="icon-btn" onclick={() => openPalette()} aria-label="command palette" title="Command palette (Ctrl+K)">
       <Icon name="command" />
     </button>
     <!-- Theme and Back up moved into the palette: both are commands, neither is a thing you
@@ -974,6 +976,8 @@
     <!-- Navigation for the single-pane arrangement. Always rendered, shown by CSS only when
          one pane is visible — the same no-conditional-component-tree discipline as the rest. -->
     <ViewBar
+      onpalette={() => openPalette()}
+      onsettings={() => (settingsOpen = true)}
       panes={workspace.panes}
       active={focused}
       onselect={(i) => {
@@ -1142,6 +1146,12 @@
   }
   [data-layout='single'] :global(.viewbar) {
     display: flex;
+  }
+  /* Their home in `single` is the bottom bar, which has the room and the thumb reach. Leaving
+     them here too would wrap the top bar onto a second row for controls that are already on
+     screen — which is the cramping this replaced the `overflow-x` hiding with. */
+  [data-layout='single'] .topbar .icon-btn {
+    display: none;
   }
   /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
      relative to, and no ambiguity about which pane a close button means — so the container
