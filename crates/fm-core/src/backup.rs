@@ -14,7 +14,7 @@
 //! beats excluding what is not, because the set to exclude has no end.
 
 use crate::StoreError;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 /// Is restic on this machine?
@@ -119,6 +119,183 @@ pub fn restore(repo: &Path, password: &str, dest: &Path) -> Result<(), StoreErro
     Ok(())
 }
 
+/// One snapshot, as restic describes it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Snapshot {
+    pub id: String,
+    pub time: String,
+    /// The **source** paths, absolute on whatever machine took the snapshot.
+    pub paths: Vec<PathBuf>,
+}
+
+/// The most recent `fm`-tagged snapshot, or `None` for a repo that has none.
+///
+/// Tag-filtered on purpose. A restic repo is frequently not ours — [`backup`] says so — and
+/// restoring a vault from someone's photo backup because it happened to be the latest
+/// snapshot is the kind of confident wrongness that costs a directory.
+pub fn latest(repo: &Path, password: &str) -> Result<Option<Snapshot>, StoreError> {
+    let out = restic(repo, password)
+        .args(["snapshots", "--json", "--tag", "fm", "--latest", "1"])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("restic snapshots", &out));
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| StoreError::Io(format!("restic returned something that is not JSON ({e}) — is {} really a restic repo?", repo.display())))?;
+    let Some(first) = parsed.as_array().and_then(|a| a.first()) else {
+        return Ok(None);
+    };
+    let paths: Vec<PathBuf> = first
+        .get("paths")
+        .and_then(|p| p.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_str()).map(PathBuf::from).collect())
+        .unwrap_or_default();
+    if paths.is_empty() {
+        return Err(StoreError::Io(
+            "the latest formicaria snapshot records no paths, so there is nothing to restore \
+             from it"
+                .into(),
+        ));
+    }
+    Ok(Some(Snapshot {
+        id: first.get("short_id").or_else(|| first.get("id")).and_then(|v| v.as_str()).unwrap_or("?").to_string(),
+        time: first.get("time").and_then(|v| v.as_str()).unwrap_or("?").to_string(),
+        paths,
+    }))
+}
+
+/// What a restore actually produced, so the caller can tell the user the truth about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Restored {
+    pub from: Snapshot,
+    /// The notes directory's name as it was on the source machine — `notes` unless a
+    /// `vault.json` there put it somewhere else.
+    pub notes_dir: String,
+    pub had_blobs: bool,
+}
+
+/// Restore the latest `fm` snapshot into `dest` **as a vault**, not as a copy of someone
+/// else's filesystem tree.
+///
+/// The difference is the whole function. [`restore`] hands restic a target and restic
+/// faithfully recreates the absolute source path underneath it, so a plain restore of Ada's
+/// vault gives you `dest/home/ada/vault/notes/…` — correct as a *backup* restore, useless as
+/// a vault. Here the snapshot's own recorded paths say where the source root was, and the
+/// tree is lifted out of that prefix into `dest`.
+///
+/// **What arrives is a vault with no history.** [`backup`] snapshots the vault's own
+/// directories and deliberately not its root, so `.git` was never in there to come back. That
+/// is the honest shape of restic as an acquisition method: it returns your notes and your
+/// media, not your history and not a collaboration. Anything that needs those needs git.
+///
+/// Refuses to overwrite. Every entry is moved into `dest` only if nothing of that name is
+/// already there, so pointing this at a directory with content in it fails before it clobbers
+/// anything rather than merging two vaults into one.
+pub fn restore_vault(repo: &Path, password: &str, dest: &Path) -> Result<Restored, StoreError> {
+    let snap = latest(repo, password)?.ok_or_else(|| {
+        StoreError::Io(format!(
+            "{} has no formicaria snapshot in it — this repo has never backed up a vault",
+            repo.display()
+        ))
+    })?;
+    let root = common_parent(&snap.paths).ok_or_else(|| {
+        StoreError::Io(
+            "the snapshot's paths share no common folder, so we cannot tell what the vault \
+             root was"
+                .into(),
+        )
+    })?;
+
+    // Staging *inside* `dest` so the move below is a rename on one filesystem rather than a
+    // second full copy of what may be gigabytes of blobs.
+    let staging = dest.join(".fm-restoring");
+    if staging.exists() {
+        std::fs::remove_dir_all(&staging).map_err(io)?;
+    }
+    std::fs::create_dir_all(&staging).map_err(io)?;
+
+    let outcome = (|| {
+        restore(repo, password, &staging)?;
+        let src = staging.join(strip_prefix(&root));
+        if !src.is_dir() {
+            return Err(StoreError::Io(format!(
+                "restic restored the snapshot but {} was not in it — the repo may have been \
+                 written by a different version",
+                root.display()
+            )));
+        }
+        // Refuse *before* moving anything: a half-moved vault is worse than a failed one.
+        let mut entries: Vec<PathBuf> = Vec::new();
+        for e in std::fs::read_dir(&src).map_err(io)? {
+            let e = e.map_err(io)?;
+            let target = dest.join(e.file_name());
+            if target.exists() {
+                return Err(StoreError::Io(format!(
+                    "{} already exists — restoring here would overwrite it, so nothing was \
+                     changed",
+                    target.display()
+                )));
+            }
+            entries.push(e.path());
+        }
+        for from in entries {
+            let to = dest.join(from.file_name().expect("read_dir yields named entries"));
+            std::fs::rename(&from, &to).map_err(io)?;
+        }
+        Ok(())
+    })();
+
+    // Clean up the staging tree whichever way that went. Best-effort: failing to remove it
+    // must not turn a good restore into a reported failure.
+    let _ = std::fs::remove_dir_all(&staging);
+    outcome?;
+
+    let names: Vec<String> = snap
+        .paths
+        .iter()
+        .filter_map(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .collect();
+    Ok(Restored {
+        notes_dir: names.iter().find(|n| *n != "blobs").cloned().unwrap_or_else(|| "notes".into()),
+        had_blobs: names.iter().any(|n| n == "blobs"),
+        from: snap,
+    })
+}
+
+/// The deepest folder that contains all of `paths` — the vault root on the source machine.
+///
+/// Pure, and separated from the restore so it can be tested without a restic repo: this is
+/// the piece that decides which directory gets lifted, and getting it wrong moves the wrong
+/// tree.
+fn common_parent(paths: &[PathBuf]) -> Option<PathBuf> {
+    let mut it = paths.iter();
+    let mut common: Vec<std::path::Component> = it.next()?.parent()?.components().collect();
+    for p in it {
+        let theirs: Vec<_> = p.parent()?.components().collect();
+        let keep = common.iter().zip(&theirs).take_while(|(a, b)| a == b).count();
+        common.truncate(keep);
+    }
+    // **A shared prefix of just `/` is not a vault root.** Two snapshot paths with nothing in
+    // common still share the filesystem root, and `!is_empty()` accepts that — it leaves
+    // `[RootDir]`, which would lift the entire restored tree and treat the machine's root as
+    // the vault. Requiring a named folder is the difference between "we found the root" and
+    // "we found nothing and said `/`".
+    common
+        .iter()
+        .any(|c| matches!(c, std::path::Component::Normal(_)))
+        .then(|| common.iter().collect())
+}
+
+/// An absolute path as restic nests it under a restore target: `/home/ada/v` → `home/ada/v`.
+fn strip_prefix(root: &Path) -> PathBuf {
+    root.components()
+        .filter(|c| matches!(c, std::path::Component::Normal(_)))
+        .collect()
+}
+
 /// Verify repo integrity. `read_data` re-reads and re-hashes every pack — the
 /// off-site bit-rot scrub — which is slow but the only way to catch silent rot.
 pub fn check(repo: &Path, password: &str, read_data: bool) -> Result<(), StoreError> {
@@ -138,7 +315,52 @@ fn spawn(e: std::io::Error) -> StoreError {
     StoreError::Io(format!("could not run restic (is it installed?): {e}"))
 }
 
+fn io(e: std::io::Error) -> StoreError {
+    StoreError::Io(e.to_string())
+}
+
 fn failed(what: &str, out: &Output) -> StoreError {
     let stderr = String::from_utf8_lossy(&out.stderr);
     StoreError::Io(format!("{what} failed: {}", stderr.trim()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The ordinary snapshot: notes and blobs side by side under the vault root.
+    #[test]
+    fn common_parent_of_notes_and_blobs_is_the_vault_root() {
+        let paths = [PathBuf::from("/home/ada/vault/notes"), PathBuf::from("/home/ada/vault/blobs")];
+        assert_eq!(common_parent(&paths), Some(PathBuf::from("/home/ada/vault")));
+    }
+
+    /// A vault that has never held an attachment snapshots one path, and the root is still
+    /// recoverable — this is the common case on a fresh vault and must not fail.
+    #[test]
+    fn common_parent_of_one_path_is_its_parent() {
+        let paths = [PathBuf::from("/home/ada/vault/notes")];
+        assert_eq!(common_parent(&paths), Some(PathBuf::from("/home/ada/vault")));
+    }
+
+    /// A `vault.json` may put the notes in `docs/`, and the root is unchanged by that.
+    #[test]
+    fn common_parent_survives_a_custom_notes_dir() {
+        let paths = [PathBuf::from("/srv/team/vault/docs"), PathBuf::from("/srv/team/vault/blobs")];
+        assert_eq!(common_parent(&paths), Some(PathBuf::from("/srv/team/vault")));
+    }
+
+    /// Two unrelated trees share only `/`, whose parent-of-parents is empty. Returning `None`
+    /// is what makes `restore_vault` refuse rather than lift the whole filesystem.
+    #[test]
+    fn common_parent_refuses_when_there_is_no_shared_folder() {
+        let paths = [PathBuf::from("/notes"), PathBuf::from("/blobs")];
+        assert_eq!(common_parent(&paths), None);
+    }
+
+    /// The mapping from a source path to where restic puts it under `--target`.
+    #[test]
+    fn strip_prefix_drops_the_root_so_the_path_nests() {
+        assert_eq!(strip_prefix(Path::new("/home/ada/vault")), PathBuf::from("home/ada/vault"));
+    }
 }

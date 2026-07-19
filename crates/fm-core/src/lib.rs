@@ -25,6 +25,7 @@ pub mod manifest;
 pub mod verify;
 pub use manifest::Manifest;
 pub use verify::{verify, Report, Severity};
+pub mod acquire;   // the one step every way of getting a vault from elsewhere shares
 pub mod backup;
 pub mod git;
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.

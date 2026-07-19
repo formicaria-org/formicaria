@@ -91,6 +91,51 @@ impl Descriptor {
     pub fn notes_dir(&self, root: &Path) -> PathBuf {
         root.join(self.notes.clone().unwrap_or_else(|| PathBuf::from("notes")))
     }
+
+    /// Write `vault.json` for a vault that does not have one. Returns whether it wrote.
+    ///
+    /// **Never overwrites**, which is why it is `write_new` and not `write`. A descriptor is
+    /// the user's file — it may hold a `description` they wrote and keys this version has
+    /// never heard of ([`Descriptor::read`] preserves neither, because it only reads the
+    /// three it knows) — so a writer that rewrote it would silently delete both. The only
+    /// safe write is the one that creates a file where none exists.
+    ///
+    /// The reason it exists at all: restoring from a backup. `backup` snapshots the vault's
+    /// own directories and not its root, so `vault.json` is not in the snapshot — and a vault
+    /// whose notes were in `docs/` would come back with its notes intact, be opened looking in
+    /// `notes/`, and show nothing at all. The snapshot's recorded paths are the last surviving
+    /// record of that name, so this is how it gets written back down.
+    ///
+    /// Only fields with an opinion are emitted; a descriptor with nothing to say writes
+    /// nothing and returns false, rather than leaving `{}` behind for someone to wonder about.
+    pub fn write_new(&self, root: &Path) -> Result<bool, StoreError> {
+        let path = root.join("vault.json");
+        if path.exists() {
+            return Ok(false);
+        }
+        let mut obj = serde_json::Map::new();
+        if let Some(n) = &self.name {
+            obj.insert("name".into(), serde_json::Value::String(n.clone()));
+        }
+        if let Some(d) = &self.description {
+            obj.insert("description".into(), serde_json::Value::String(d.clone()));
+        }
+        if let Some(n) = &self.notes {
+            obj.insert(
+                "notes".into(),
+                serde_json::Value::String(n.to_string_lossy().into_owned()),
+            );
+        }
+        if obj.is_empty() {
+            return Ok(false);
+        }
+        let mut text = serde_json::to_string_pretty(&serde_json::Value::Object(obj))
+            .map_err(|e| StoreError::Io(e.to_string()))?;
+        text.push('\n');
+        std::fs::write(&path, text)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -151,6 +196,40 @@ mod tests {
             std::fs::write(d.path().join("vault.json"), bad).unwrap();
             assert!(Descriptor::read(d.path()).is_err(), "must refuse: {bad}");
         }
+    }
+
+    /// The restore case: the notes were in `docs/`, and without this they come back invisible.
+    #[test]
+    fn write_new_records_a_non_default_notes_dir_and_reads_back() {
+        let d = tempdir().unwrap();
+        let desc = Descriptor { notes: Some(PathBuf::from("docs")), ..Default::default() };
+
+        assert!(desc.write_new(d.path()).unwrap());
+        assert_eq!(Descriptor::read(d.path()).unwrap().notes_dir(d.path()), d.path().join("docs"));
+    }
+
+    /// A descriptor is the user's file, and `read` keeps only the three keys it knows — so a
+    /// writer that overwrote would delete their description and any key a newer version added.
+    #[test]
+    fn write_new_never_overwrites_what_is_already_there() {
+        let d = tempdir().unwrap();
+        let theirs = r#"{"description":"Ravi's group","somethingElse":true}"#;
+        std::fs::write(d.path().join("vault.json"), theirs).unwrap();
+
+        let wrote = Descriptor { notes: Some(PathBuf::from("docs")), ..Default::default() }
+            .write_new(d.path())
+            .unwrap();
+
+        assert!(!wrote);
+        assert_eq!(std::fs::read_to_string(d.path().join("vault.json")).unwrap(), theirs);
+    }
+
+    /// Nothing to say writes nothing, rather than leaving `{}` for someone to wonder about.
+    #[test]
+    fn write_new_with_no_opinion_writes_no_file() {
+        let d = tempdir().unwrap();
+        assert!(!Descriptor::default().write_new(d.path()).unwrap());
+        assert!(!d.path().join("vault.json").exists());
     }
 
     /// It was put there on purpose, so applying "defaults" the user thinks are overridden is

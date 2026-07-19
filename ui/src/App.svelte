@@ -161,6 +161,10 @@
   // "no", so nothing is claimed before we know. Git is optional (see `scheduleCommit`);
   // this exists so its absence is *stated once* rather than swallowed every 5 seconds.
   let gitAvailable = $state<boolean | null>(null);
+  // The same discipline for restic. Unlike git it is never mentioned unprompted — a machine
+  // without it is not missing anything until you try to add a vault from a backup — so this
+  // exists only to decide whether that route is offered at all. `false` on every phone.
+  let resticAvailable = $state<boolean | null>(null);
   let saidNoGit = false;
   // Same discipline for the other half: git present but *failing*. Said once per run, so a
   // vault that cannot commit is stated rather than swallowed — and stated rather than
@@ -496,6 +500,7 @@
       const r = await ping().catch(() => null);
       if (r) {
         gitAvailable = r.git;
+        resticAvailable = r.restic;
         // Once, not every beat. The notebook is fine; be accurate about what isn't.
         if (!r.git && !saidNoGit) {
           saidNoGit = true;
@@ -720,6 +725,7 @@
   <NewVault
     firstRun
     git={gitAvailable}
+    restic={resticAvailable}
     oncreated={(v) => {
       vaults = v;
       void refresh();
@@ -957,6 +963,7 @@
     <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
       <NewVault
         git={gitAvailable}
+        restic={resticAvailable}
         oncreated={(v) => {
           vaults = v;
           newVaultOpen = false;

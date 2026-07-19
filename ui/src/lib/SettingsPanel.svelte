@@ -156,6 +156,15 @@
             {/if}
           </li>
           <li>
+            <span class="k">restic</span>
+            {#if cfg.restic_installed}
+              <span class="ok">available</span>
+            {:else}
+              <span class="none">not installed</span> — heavy media has nowhere to back up,
+              and a vault cannot be restored from a backup on this machine.
+            {/if}
+          </li>
+          <li>
             <span class="k">restic password</span>
             {#if cfg.restic_password_set}
               <span class="ok">set</span>

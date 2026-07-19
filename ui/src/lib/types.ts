@@ -194,6 +194,11 @@ export interface Config {
   /** `FM_*` overrides actually in effect. Never contains a secret. */
   env: { name: string; value: string }[];
   git: boolean;
+  /** Whether restic is on this machine. Three different questions used to be answerable
+   *  only as one: installed (this), configured for a vault (`restic` above), and unlocked
+   *  (`restic_password_set`). Conflating them is how a control enables for a tool that is
+   *  not there. */
+  restic_installed: boolean;
   /** Present/absent only. The value is never sent. */
   restic_password_set: boolean;
 }

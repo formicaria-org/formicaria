@@ -1114,3 +1114,34 @@ load-bearing:
 
 **Accepted cost:** granular undo only reaches back to the last push; before that
 each push is one step. This narrows (does not remove) the undo auto-commit buys.
+
+## Acquiring a vault: `naturalise` is the seam, not a transport trait
+*(2026-07-19, `sessions/2026-07-19-acquiring-a-vault.md`)*
+
+**Why:** the owner wants vaults acquirable from elsewhere by several methods —
+git and restic now, p2p later — and explicitly *"these vaults can be git init or
+not, that's not a core necessary requirement of formicaria."* The tempting seam
+("a vault is a directory, so any directory copy moves one") is **false**: vault
+state has three tiers, and one of them must *not* travel (`index.sqlite`, the
+`.git/config` merge driver, the committer identity) while a third
+(`vaults.json`) lives outside the vault entirely.
+
+**Consequence:** `fm_core::acquire::naturalise` owns tier 2 in one place, and
+every acquisition path routes through it. A transport moves bytes and nothing
+else, so **a new transport cannot corrupt a vault** — it touches neither the
+merge path nor the safety. There is deliberately **no `Transport` trait and no
+registry**: the extension point is the filesystem, which is also why a folder
+synced by other means is already adoptable with no code.
+
+**The rule that bounds it: `sync` requires git, `copy` works with anything.**
+There is exactly one merge engine (`merge::merge_texts`) and it is git-shaped, so
+only git can be a two-way relationship; every other transport hands you a copy.
+A non-git vault can therefore be *shared* but not *collaborated on*, and the UI
+says that in those words rather than implying otherwise. This is what keeps p2p
+from needing a CRDT layer (`plan.md:67`): p2p moves a copy for any vault, and can
+carry packs for git ones.
+
+**Accepted cost:** restic acquisition returns notes and media with **no history**,
+because `backup` snapshots the vault's own directories and not its root. It is a
+*recovery*, not a *join*, and stating that before the button was preferred to
+widening what restic snapshots.

@@ -4,7 +4,9 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-18, after the dispatch extraction, the blob route, the sync loop and the
+_Last verified: 2026-07-19, after multi-method vault acquisition and the stale-merge-driver fix
+(`sessions/2026-07-19-acquiring-a-vault.md`). Prior: 2026-07-18, after the dispatch extraction,
+the blob route, the sync loop and the
 scene merge (`sessions/2026-07-18-dispatch-and-blob-route.md`,
 `sessions/2026-07-18-sync-loop-and-scene-merge.md`). Prior: the mobile-port code audit
 (`sessions/2026-07-18-mobile-port-plan.md`); 2026-07-16 (assets/status/kanban/slash-menu/
@@ -15,6 +17,34 @@ edit-gesture)._
 > looks like for each — is [outstanding.md](./outstanding.md).
 
 ## Known gaps / not fully working
+
+- **~~A stale `merge.fm.driver` silently discarded a collaborator's edit~~ — FIXED 2026-07-19.**
+  `install_merge_driver` registered an **absolute** path to `fm` and its guard was
+  one-directional: no `fm` found meant `return Ok(())`, leaving whatever was already in
+  `.git/config`. Every way that path goes stale is real — reinstall to a different prefix, a dev
+  build where a release one ran, a package shipping `fm-serve` without `fm`, mobile (no `fm`
+  beside it at all), or a vault directory *copied* between machines, since `.git/config` travels
+  with a copy though not with a clone. Git then read the driver's non-zero exit as "conflict"
+  and handed back `%A` untouched: a conflict reported, a file that looks completely normal, and
+  the collaborator's edit gone on "resolve". Now `clear_merge_driver` unsets it, degrading to
+  git's built-in text merge — uglier and *visible*. Pinned by
+  `a_stale_merge_driver_is_removed_rather_than_left_pointing_at_nothing`, which asserts the real
+  invariant (never names a binary that isn't there) rather than a build-dependent literal.
+
+- **Two transport tiers, one warning, two meanings — decide before the next bulk transport.**
+  `notes/` travels by git and `blobs/` out-of-band, so `verify` grades a referenced-but-missing
+  blob a *Warning* because it is expected to be transient. A transport that moves the directory
+  **whole** inverts that: those vaults have atomic note/blob completeness, and the same warning
+  would mean "permanently lost". `vault.json` (`descriptor.rs`) has no field recording which
+  kind a vault is. Not urgent — restic acquisition does not create this population, because it
+  restores the same two tiers separately — but it lands the moment rclone/p2p/zip does.
+
+- **No "Send a copy", and no auth UI.** Acquisition is in (git clone, restic restore); the
+  outbound half is only `git push`. Deferred because the honest non-git form today is "write a
+  folder or a zip", which the OS already does. Auth is delegated to each tool's own store, which
+  holds on desktop — **but on Android none of those stores exist** (no terminal, no credential
+  helper, no `rclone config`), so the phone forces a real Keystore decision the moment a second
+  transport needs a secret.
 
 - **~~Unsanitized `innerHTML` in `render.ts`~~ — FIXED 2026-07-17.** `render.ts` now runs
   DOMPurify on `marked`'s output before the DOM sees it (`sanitize()`), so a collaborator's

@@ -840,3 +840,103 @@ fn a_squashing_push_leaves_the_remote_holding_exactly_our_head() {
     // And the squash really did happen — the guard must not have quietly rolled it back.
     assert_eq!(log_count(vault.path()), 2, "first push, then one squashed commit");
 }
+
+/// **The invariant that stops silent data loss: `merge.fm.driver` never names a binary that
+/// is not there.**
+///
+/// The definition lives in `.git/config` and holds an *absolute* path to `fm`. Git declines
+/// to carry `.git/config` in a clone, which is why `ensure_repo` reinstalls it — but a
+/// directory *copy* carries it verbatim, and so does every reinstall to a different prefix, a
+/// dev build where a release one ran, a package shipping `fm-serve` without `fm`, and mobile,
+/// which has no `fm` beside it at all.
+///
+/// A driver naming a path that no longer exists is far worse than no driver. Git takes any
+/// non-zero exit as "conflict" and hands back `%A` untouched — *our* version, with no markers
+/// in it. The user sees a conflict, opens a file that looks completely normal, resolves it,
+/// and has silently deleted their collaborator's edit. An absent driver instead degrades to
+/// git's built-in text merge: uglier, and visible.
+///
+/// Written to hold whether or not an `fm` happens to sit beside this test binary, because
+/// that is the real invariant and it must not depend on how the suite was built.
+#[test]
+fn a_stale_merge_driver_is_removed_rather_than_left_pointing_at_nothing() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    git::ensure_repo(vault).unwrap();
+
+    // Exactly what arrives with a copied `.git/config`: a driver naming a machine we are not.
+    let stale = "/nonexistent/prefix/fm merge-md %O %A %B %L";
+    Command::new("git")
+        .current_dir(vault)
+        .args(["config", "merge.fm.driver", stale])
+        .output()
+        .unwrap();
+
+    git::ensure_repo(vault).unwrap();
+
+    let out = Command::new("git")
+        .current_dir(vault)
+        .args(["config", "--get", "merge.fm.driver"])
+        .output()
+        .unwrap();
+    let configured = String::from_utf8_lossy(&out.stdout).trim().to_string();
+
+    assert_ne!(configured, stale, "the stale driver must not survive `ensure_repo`");
+    if configured.is_empty() {
+        return; // No `fm` on this machine: unset is the correct answer.
+    }
+    // Otherwise it was re-pointed, and what it points at must actually exist — the whole
+    // point. The value is `'<path>' merge-md …`, quoted because the path may contain spaces.
+    let binary = configured
+        .strip_prefix('\'')
+        .and_then(|r| r.split_once('\''))
+        .map(|(p, _)| p.to_string())
+        .unwrap_or_else(|| panic!("unexpected driver format: {configured}"));
+    assert!(
+        std::path::Path::new(&binary).exists(),
+        "the driver must name a binary that exists, or none at all — got {binary}"
+    );
+}
+
+/// A committer that arrived with a copied vault is forgotten, so this machine is asked who it
+/// is rather than signing a shared history as whoever sent it.
+///
+/// Only ever runs on freshly-acquired directories (`acquire::naturalise`); on a vault someone
+/// works in this would detach their name from their own commits.
+#[test]
+fn forget_identity_clears_a_committer_that_came_with_the_copy() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let dir = tempdir().unwrap();
+    let vault = dir.path();
+    git::ensure_repo(vault).unwrap();
+    git::set_identity(vault, "Ada Lovelace", "ada@example.org").unwrap();
+
+    let local = |key: &str| {
+        let out = Command::new("git")
+            .current_dir(vault)
+            .args(["config", "--local", "--get", key])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    };
+    assert_eq!(local("user.email"), "ada@example.org", "the sender's identity is here first");
+
+    assert!(git::forget_identity(vault), "there was one to forget");
+    assert!(local("user.email").is_empty(), "and the repo no longer carries it");
+    assert!(local("user.name").is_empty());
+
+    // Asserted on the *repo's own* config, never on `identity()`: that one resolves the way
+    // git would for a commit, so on a machine with a global `user.email` it correctly keeps
+    // answering — with **this** machine's person instead of the sender's, which is the entire
+    // point of forgetting. "No identity anywhere" was never the goal.
+
+    // Idempotent, and honest about having found nothing the second time.
+    assert!(!git::forget_identity(vault), "nothing left to forget");
+}

@@ -342,6 +342,7 @@ pub fn dispatch(
             json(Ping {
                 changed: changed.updated > 0 || changed.removed > 0,
                 git: git::available(),
+                restic: backup::available(),
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
                 // this pass happened to re-read.
@@ -429,6 +430,7 @@ pub fn dispatch(
                 // greyed out". `RESTIC_PASSWORD` is reported as present/absent only — never
                 // its value, which is why it is a bool and not an `env` entry.
                 git: fm_core::git::available(),
+                restic_installed: backup::available(),
                 restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
             })
         }
@@ -442,6 +444,9 @@ pub fn dispatch(
             &s("gitName"),
             &s("gitEmail"),
         )?),
+        // The third way in: a vault you already have, in a backup, on a machine that no
+        // longer exists. Same registration as the other two, with a restic restore in front.
+        "restore_vault" => json(restore_vault(app, &s("name"), &s("path"), &s("repo"))?),
         // The user's saved `.view` files, aggregated across every vault: a view is
         // git-tracked *in* the vault it belongs to, but the query it defines runs against
         // the whole set (so `prop: vault` can narrow, or a dashboard can span audiences).
@@ -633,6 +638,12 @@ struct Ping {
     /// to say so once instead of failing silently forever. Rides the heartbeat because
     /// the check is cached and the tab already beats.
     git: bool,
+    /// Whether restic is on this machine — the same kind of claim as `git`, for the same
+    /// reason, and now load-bearing rather than cosmetic: restoring a vault from a backup is
+    /// one of the ways a vault is acquired, and the form must not offer a route it cannot
+    /// take. Android is precisely this case — it has no restic and never will — so the option
+    /// is absent there rather than present and failing.
+    restic: bool,
     /// Notes that could not be read, as `vault: filename: why`.
     ///
     /// **The app knew this and only told a terminal.** A vault opens even when a note is
@@ -693,6 +704,11 @@ struct Config {
     restic: Vec<VaultRestic>,
     env: Vec<EnvVar>,
     git: bool,
+    /// Restic on this machine, distinct from `restic_password_set` (configured) and from
+    /// `restic` above (which vaults name a repo). Three different questions that used to be
+    /// answerable only as one, which is how a panel enables a control for a tool that is
+    /// not installed.
+    restic_installed: bool,
     restic_password_set: bool,
 }
 
@@ -1012,6 +1028,20 @@ fn clone_vault(
     let path = PathBuf::from(vaults::expand_home(path));
 
     fm_core::git::clone(url, &path).map_err(|e| format!("could not clone {}: {e}", url.trim()))?;
+
+    // Every way of acquiring a vault goes through the same step, and it runs **before** the
+    // identity is set: `naturalise` forgets any committer that arrived with the directory,
+    // which is a no-op for a clone (git declines to carry `.git/config`) and essential for
+    // any transport that moves the directory whole. Doing it after `set_identity` would
+    // erase the identity we just asked the user for.
+    fm_core::acquire::naturalise(&path).map_err(|e| {
+        format!(
+            "cloned into {}, but could not prepare it for this machine: {e} — the clone is \
+             on disk and intact; nothing was configured",
+            path.display()
+        )
+    })?;
+
     fm_core::git::set_identity(&path, git_name, git_email).map_err(|e| {
         format!(
             "cloned into {}, but could not set who you are in it: {e} — the clone is on disk \
@@ -1019,11 +1049,6 @@ fn clone_vault(
             path.display()
         )
     })?;
-
-    // Same as `create_vault`: eagerly, so the ignore lines refer to something visible.
-    for d in [&path.join("blobs"), &path.join("derived")] {
-        std::fs::create_dir_all(d).map_err(|e| format!("could not create {}: {e}", d.display()))?;
-    }
 
     let store = fm_core::FileStore::named(&path, name).map_err(|e| {
         format!(
@@ -1040,6 +1065,119 @@ fn clone_vault(
         format!(
             "the vault was cloned into {}, but the vault list could not be saved: {e} — it is \
              not configured. Nothing was lost; fix that and add it again.",
+            path.display()
+        )
+    })?;
+
+    g.add(cfg, store);
+    let names = g.store.names();
+    Ok(infos(&g.configs(), &names))
+}
+
+/// Restore a vault from a restic repo and register it — the third way a vault comes into
+/// being, and the one for a machine that is not the machine the vault was on.
+///
+/// Same shape as [`clone_vault`]: validate everything cheap and pure *first*, so a mistyped
+/// field refuses while the disk is untouched, and only then touch the network.
+///
+/// **What you get back is notes and media, with no history.** [`fm_core::backup::backup`]
+/// snapshots the vault's own directories and deliberately not its root, so `.git` was never
+/// in the repo to come back — which also means no remote, no collaborators, and no identity.
+/// That is the honest shape of a backup as an acquisition method and the UI says so in as
+/// many words. It is a *recovery*, not a *join*: the vault that arrives is a first-class
+/// vault, and if the user later wants collaboration they turn on history and add a remote,
+/// exactly as they would for a vault they had made locally.
+///
+/// **No identity is required, and that is the difference from a clone.** A clone has an
+/// audience by definition; a restore has one user by definition — theirs. Demanding a name
+/// and email to recover your own notes would be ceremony.
+///
+/// The password comes from `RESTIC_PASSWORD` and is never taken as an argument, stored, or
+/// echoed: the app holds no secret of its own, and a restore is not the place to start.
+fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<VaultInfo>, String> {
+    let mut g = app.lock()?;
+
+    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+    if !check.ok {
+        return Err(refusal(&check, name));
+    }
+    if repo.trim().is_empty() {
+        return Err("restoring needs the restic repository the backup is in".into());
+    }
+    // Ask before doing, so "restic isn't installed" is not reported as a failed restore.
+    if !backup::available() {
+        return Err("restic is not installed on this machine, so there is no backup to \
+                    restore from — a vault can still be created here, or cloned with git"
+            .into());
+    }
+    let password = std::env::var("RESTIC_PASSWORD")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .ok_or("set RESTIC_PASSWORD to the repository's password — the app never stores it")?;
+    let config = app.config.clone().ok_or(
+        "there is nowhere to save the vault list on this machine — set FM_VAULTS".to_string(),
+    )?;
+    let path = PathBuf::from(vaults::expand_home(path));
+    let repo = PathBuf::from(vaults::expand_home(repo));
+
+    std::fs::create_dir_all(&path)
+        .map_err(|e| format!("could not create {}: {e}", path.display()))?;
+
+    let restored = fm_core::backup::restore_vault(&repo, &password, &path)
+        .map_err(|e| format!("could not restore from {}: {e}", repo.display()))?;
+
+    // The same step every acquisition shares. Here it is mostly the directories — a restic
+    // snapshot carries neither `.git` nor an index — but routing through it is what keeps
+    // "add a transport" from meaning "reimplement the safety".
+    fm_core::acquire::naturalise(&path).map_err(|e| {
+        format!(
+            "restored into {}, but could not prepare it for this machine: {e} — the files \
+             are on disk and intact; nothing was configured",
+            path.display()
+        )
+    })?;
+
+    // A `vault.json` is not in the snapshot (it lives at the vault root, which `backup` does
+    // not take), so a vault whose notes were in `docs/` would restore its notes and then be
+    // opened looking in `notes/` — every note invisible, and nothing to say why. The
+    // snapshot's own recorded paths are the only surviving record of that name, so write the
+    // descriptor back from them. Skipped when it is already the default.
+    if restored.notes_dir != "notes" {
+        let d = fm_core::descriptor::Descriptor {
+            notes: Some(PathBuf::from(&restored.notes_dir)),
+            ..Default::default()
+        };
+        d.write_new(&path).map_err(|e| {
+            format!(
+                "restored into {}, but could not record that its notes are in {}/: {e}",
+                path.display(),
+                restored.notes_dir
+            )
+        })?;
+    }
+
+    let store = fm_core::FileStore::named(&path, name).map_err(|e| {
+        format!(
+            "restored into {}, but could not open it as a vault: {e} — the files are on disk \
+             and intact; nothing was configured",
+            path.display()
+        )
+    })?;
+
+    // Remember where it came from. A restored vault has no remote and no history, so its
+    // restic repo is the only thing connecting it to anywhere — and the user who just typed
+    // it should not have to type it again to back up.
+    let cfg = VaultConfig {
+        name: name.to_string(),
+        path: path.clone(),
+        restic: Some(repo.to_string_lossy().into_owned()),
+    };
+    let mut list = g.configs();
+    list.push(cfg.clone());
+    vaults::save(&list, &config).map_err(|e| {
+        format!(
+            "the vault was restored into {}, but the vault list could not be saved: {e} — it \
+             is not configured. Nothing was lost; fix that and add it again.",
             path.display()
         )
     })?;

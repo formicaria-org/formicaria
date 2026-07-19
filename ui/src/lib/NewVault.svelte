@@ -10,7 +10,7 @@
   // A browser cannot open a folder picker for a server's filesystem, and shelling out to
   // zenity would mean the core spawns a process to do its own first run. So: a typed path,
   // and the server answers what is really there on every keystroke.
-  import { checkPath, cloneVault, createVault } from './ipc';
+  import { checkPath, cloneVault, createVault, restoreVault } from './ipc';
   import type { PathCheck, VaultInfo } from './types';
   import { describe, historyNote } from './vaultCheck';
 
@@ -19,10 +19,13 @@
     firstRun?: boolean;
     /** From the `ping` heartbeat — a capability, not a guess. `null` = not yet answered. */
     git?: boolean | null;
+    /** Likewise for restic. `null` = not yet answered; `false` on every phone, and on any
+     *  desktop without it installed. */
+    restic?: boolean | null;
     oncreated: (vaults: VaultInfo[]) => void;
     oncancel?: () => void;
   }
-  let { firstRun = false, git = null, oncreated, oncancel }: Props = $props();
+  let { firstRun = false, git = null, restic = null, oncreated, oncancel }: Props = $props();
 
   let name = $state('notes');
   let path = $state('~/notes');
@@ -30,24 +33,53 @@
   let busy = $state(false);
   let error = $state<string | null>(null);
 
-  // The second way a vault comes into existence: someone else already has it. Same folder
-  // question, same server-owned verdict — a clone just fills the folder from a remote
-  // before registering it.
-  let mode = $state<'create' | 'clone'>('create');
+  // THREE ways a vault comes into being, and they differ only in what fills the folder
+  // before it is registered. Not three components and not three screens: the folder
+  // question, the server-owned verdict and the registration are identical in all three, and
+  // that shared half is the part that must never drift.
+  //
+  //   create  — nothing fills it; you start empty
+  //   clone   — git fills it from a remote, with history, and you can push back
+  //   restore — restic fills it from a backup, with your media, and no history at all
+  //
+  // The distinction that matters is not the tool, it is **whether what arrives can sync**.
+  // Only git carries history, so only git can be a two-way relationship; everything else
+  // hands you a copy. Saying that plainly is better than a form that implies otherwise.
+  type Mode = 'create' | 'clone' | 'restore';
+  let mode = $state<Mode>('create');
   let url = $state('');
   let gitName = $state('');
   let gitEmail = $state('');
+  let repo = $state('');
+
+  // A route the machine cannot take is not offered. `null` means the heartbeat has not
+  // answered yet, and we assume capable rather than flashing options away underneath a
+  // cursor — the server refuses anyway, with a better sentence than we could write.
+  const canClone = $derived(git !== false);
+  const canRestore = $derived(restic !== false);
+
+  // Falling back rather than stranding the form in a mode whose fields have vanished — the
+  // phone case, where restic will never appear.
+  $effect(() => {
+    if ((mode === 'clone' && !canClone) || (mode === 'restore' && !canRestore)) mode = 'create';
+  });
 
   const described = $derived(describe(check));
   // The SERVER owns this. Never `described.blocking.length === 0` — that would be the
   // browser holding a second opinion, which is how a button enables and then fails.
   //
-  // The clone fields are checked here only to keep the button honest about what it will
+  // The per-mode fields are checked here only to keep the button honest about what it will
   // attempt; the server validates them again, first, and before it fetches anything.
   const cloneReady = $derived(
     !!url.trim() && !!gitName.trim() && gitEmail.includes('@'),
   );
-  const canCreate = $derived(!!check?.ok && !busy && (mode === 'create' || cloneReady));
+  // No identity is demanded to restore, and the asymmetry is deliberate: a clone has an
+  // audience by definition, a restore has one user by definition — you.
+  const restoreReady = $derived(!!repo.trim());
+  const modeReady = $derived(
+    mode === 'clone' ? cloneReady : mode === 'restore' ? restoreReady : true,
+  );
+  const canCreate = $derived(!!check?.ok && !busy && modeReady);
 
   // Debounced like the sidebar's search: a keystroke should not be a round trip, but the
   // answer must feel immediate once you stop.
@@ -73,7 +105,9 @@
       oncreated(
         mode === 'clone'
           ? await cloneVault(name, path, url, gitName, gitEmail)
-          : await createVault(name, path),
+          : mode === 'restore'
+            ? await restoreVault(name, path, repo)
+            : await createVault(name, path),
       );
     } catch (e) {
       // The server's sentence, verbatim. It is the one that knows what actually happened
@@ -107,19 +141,29 @@
       </p>
     {/if}
 
-    <!-- Two ways in, one form. A clone is not a different kind of vault — it is the same
-         folder question with the contents arriving from someone else first. -->
+    <!-- Three ways in, one form. None of them is a different *kind* of vault — it is the
+         same folder question, with the contents arriving from somewhere else first. Options
+         the machine cannot take are absent rather than present-and-failing. -->
     <div class="mode" role="group" aria-label="how to add this vault">
       <button
         type="button"
         class:active={mode === 'create'}
         onclick={() => (mode = 'create')}
         disabled={busy}>Start empty</button>
-      <button
-        type="button"
-        class:active={mode === 'clone'}
-        onclick={() => (mode = 'clone')}
-        disabled={busy}>Clone a shared one</button>
+      {#if canClone}
+        <button
+          type="button"
+          class:active={mode === 'clone'}
+          onclick={() => (mode = 'clone')}
+          disabled={busy}>Join a shared one</button>
+      {/if}
+      {#if canRestore}
+        <button
+          type="button"
+          class:active={mode === 'restore'}
+          onclick={() => (mode = 'restore')}
+          disabled={busy}>Restore a backup</button>
+      {/if}
     </div>
 
     <label>
@@ -165,6 +209,34 @@
       </label>
     {/if}
 
+    {#if mode === 'restore'}
+      <label>
+        <span>Backup repository</span>
+        <input
+          bind:value={repo}
+          placeholder="~/backups/notes-repo"
+          autocomplete="off"
+          spellcheck="false"
+          autocapitalize="off"
+        />
+        <small>
+          The restic repository your vault was backed up to. Unlocked with
+          <code>RESTIC_PASSWORD</code> from the environment — this app stores no password of
+          its own.
+        </small>
+      </label>
+
+      <!-- Said before the button, not after the restore. What comes back is genuinely less
+           than what a clone brings, and a user who expected their history would find it
+           missing at the worst possible moment: after their old machine is gone. -->
+      <p class="lede caveat">
+        Restoring brings back your <strong>notes and attachments</strong> — not your history.
+        Backups snapshot the vault's own folders, so there is no <code>.git</code> in them and
+        nothing to pull from or push to. You'll get a working vault you own outright; turn on
+        history later if you want one.
+      </p>
+    {/if}
+
     <label>
       <span>Folder</span>
       <input
@@ -187,9 +259,18 @@
         <li class="warn">{msg}</li>
       {/each}
       {#if check?.ok && described.warnings.length === 0}
-        <li class="good">Ready to create.</li>
+        <li class="good">
+          {mode === 'clone'
+            ? 'Ready to join.'
+            : mode === 'restore'
+              ? 'Ready to restore.'
+              : 'Ready to create.'}
+        </li>
       {/if}
-      {#if git !== null}
+      <!-- Suppressed while restoring: the caveat above already says this vault arrives with
+           no history, and following it with git's general availability note would read as a
+           contradiction of the sentence directly above it. -->
+      {#if git !== null && mode !== 'restore'}
         <li class="note">{historyNote(git)}</li>
       {/if}
     </ul>
@@ -204,7 +285,9 @@
       {/if}
       <button type="submit" disabled={!canCreate}>
         {#if mode === 'clone'}
-          {busy ? 'Cloning…' : 'Clone vault'}
+          {busy ? 'Joining…' : 'Join vault'}
+        {:else if mode === 'restore'}
+          {busy ? 'Restoring…' : 'Restore vault'}
         {:else}
           {busy ? 'Creating…' : 'Create vault'}
         {/if}
@@ -239,12 +322,23 @@
     color: var(--fg-muted);
     line-height: 1.5;
   }
+  .caveat {
+    font-size: 0.9rem;
+    padding: 8px 10px;
+    border-left: 2px solid var(--border);
+    background: var(--surface, transparent);
+    border-radius: 0 var(--radius-2, 6px) var(--radius-2, 6px) 0;
+  }
   .mode {
     display: flex;
+    flex-wrap: wrap; /* three options do not fit one phone-width row */
     gap: var(--space-2);
   }
   .mode button {
-    flex: 1;
+    flex: 1 1 8rem;
+    /* The touch target both platform guidelines ask for. This row decides what the whole
+       form means, and it is the first thing a thumb lands on. */
+    min-height: 2.75rem;
     padding: 6px 10px;
     border: 1px solid var(--border);
     border-radius: var(--radius-2, 6px);

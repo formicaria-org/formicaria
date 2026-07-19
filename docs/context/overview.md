@@ -4,7 +4,13 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-18 — **the compiled work queue was emptied**
+_Last verified: 2026-07-19 — a vault can now be **acquired from elsewhere**, not only created
+locally: `clone_vault` (git, with history) and `restore_vault` (restic, notes + media, no
+history), both through the one shared `acquire::naturalise` step that strips per-machine state.
+The same pass fixed a live silent-data-loss path — a stale absolute `merge.fm.driver` made git
+report a conflict on a file that looked clean, so "resolving" it deleted a collaborator's edit
+(`sessions/2026-07-19-acquiring-a-vault.md`). Prior: 2026-07-18 — **the compiled work queue was
+emptied**
 (`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`). Unreadable notes are **named in the
 app** instead of on stderr (they were absent from every view with no explanation — the one
 place the app knew a note was missing and told only a terminal); the board's column drag
@@ -324,7 +330,10 @@ versioning of the notes + restic backup provide durability.
 `list_vaults` (the audiences; **`[]` is the
 first-run signal** — deliberately not `backup_status`, which shells out per vault) ·
 `check_path` (what creating a vault here would do; the surface owns the verdict) ·
-`create_vault` (create + register + open, live) · `list_views` / `run_view` (**saved `.view`
+`create_vault` / `clone_vault` / `restore_vault` (**three ways a vault comes into being**:
+start empty, git-clone a shared one, restic-restore a backup — identical registration, differing
+only in what fills the folder first; all three route through `acquire::naturalise`) ·
+`list_views` / `run_view` (**saved `.view`
 files** — `query + a renderer`, parsed server-side, so the UI sends a *name* and no `Query`
 ever crosses the wire) · `ping` (the **local poll**: its `{changed}` is how a `git pull` or a
 Vim edit ever becomes visible, since every view is served from the index — 15 s, and only

@@ -203,9 +203,11 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
  *  vault moved on disk under us (a pull, a merge driver, an editor), which the views
  *  cannot see on their own because they are served from the index. `git` says whether this
  *  machine has git at all — **not a dependency, a capability**: the notebook works without
- *  it, only history does not. */
+ *  it, only history does not. `restic` is the same kind of claim, and it decides whether
+ *  "restore from a backup" is offered at all — Android has no restic and never will, so
+ *  there the route is absent rather than present and failing. */
 export const ping = () =>
-  invoke<{ changed: boolean; git: boolean; skipped: SkippedNote[] }>('ping');
+  invoke<{ changed: boolean; git: boolean; restic: boolean; skipped: SkippedNote[] }>('ping');
 
 /** A note the vault could not read, and enough to show it in a list. No path: the backend
  *  resolves that from the same set, so the only files openable this way are ones it just
@@ -239,6 +241,18 @@ export const cloneVault = (
   gitName: string,
   gitEmail: string,
 ) => invoke<VaultInfo[]>('clone_vault', { name, path, url, gitName, gitEmail });
+
+/** Restore a vault from a restic backup and register it — the third way a vault comes into
+ *  being, and the one for a machine that is not the machine the vault was on.
+ *
+ *  **What comes back is notes and media, with no history.** `backup` snapshots the vault's
+ *  own directories and deliberately not its root, so `.git` was never in the repo — no
+ *  remote, no collaborators, no identity. It is a *recovery*, not a *join*.
+ *
+ *  No password argument, and there will not be one: it is read from `RESTIC_PASSWORD` on the
+ *  server. The app holds no secret of its own and a restore is not the place to start. */
+export const restoreVault = (name: string, path: string, repo: string) =>
+  invoke<VaultInfo[]>('restore_vault', { name, path, repo });
 
 /** What this installation is configured as. Cheap — no shelling out — so Settings can be
  *  opened freely, unlike `backupStatus` which runs `git ls-remote` per vault. */

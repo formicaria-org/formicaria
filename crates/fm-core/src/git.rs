@@ -314,7 +314,18 @@ fn ensure_line(path: &Path, line: &str) -> Result<(), StoreError> {
 /// resolves it, and has silently deleted their collaborator's edit. An undefined
 /// driver, by contrast, degrades to git's built-in text merge: uglier, and correct.
 fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
-    let Some(exe) = merge_command() else { return Ok(()) };
+    // **Nothing to point at means actively removing what is there**, not leaving it. This
+    // used to `return Ok(())`, which reads as "install nothing" and behaves as "keep whatever
+    // the last install wrote" — and what it wrote is an *absolute* path (see
+    // [`merge_command`]). Every way that path goes stale is the silent-data-loss case above,
+    // not a hypothetical: reinstalling to a different prefix, a dev build where a release one
+    // ran, a package shipping `fm-serve` without `fm`, a vault directory copied between
+    // machines (`.git/config` travels with a copy even though it does not travel with a
+    // clone), or mobile, which has no `fm` beside it at all.
+    //
+    // Removing it degrades to git's built-in text merge: uglier, and *visible*. Leaving a dead
+    // path degrades to a conflict on a file that looks clean. Only one of those is survivable.
+    let Some(exe) = merge_command() else { return clear_merge_driver(vault) };
     for (key, value) in [
         ("merge.fm.name", "formicaria frontmatter-aware note merge".to_string()),
         // %O base, %A ours (and where the answer goes), %B theirs, %L marker size.
@@ -324,6 +335,19 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
         if !out.status.success() {
             return Err(failed("git config", &out));
         }
+    }
+    Ok(())
+}
+
+/// Forget a `merge.fm` definition this machine cannot honour.
+///
+/// Best-effort by construction: `git config --unset` exits 5 when the key is simply not
+/// there, which is the ordinary case on every vault that never had a driver, and is not a
+/// failure of anything. The only outcome that matters is that no *stale* definition survives
+/// this call, and an unset that could not run leaves us no worse than before.
+fn clear_merge_driver(vault: &Path) -> Result<(), StoreError> {
+    for key in ["merge.fm.driver", "merge.fm.name"] {
+        let _ = git(vault).args(["config", "--unset-all", key]).output();
     }
     Ok(())
 }
@@ -367,6 +391,46 @@ fn config(vault: &Path, key: &str) -> Option<String> {
     }
     let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
     (!value.is_empty()).then_some(value)
+}
+
+/// One git config value read from **this repo's own config only** — never falling back to
+/// the user's global or the system file.
+///
+/// The distinction matters exactly once, in [`forget_identity`]: "does this directory carry
+/// somebody else's identity?" and "does this user have an identity?" are different questions,
+/// and [`config`] answers the second. Asking the wrong one would report every user on earth
+/// as carrying an inherited identity.
+fn config_local(vault: &Path, key: &str) -> Option<String> {
+    let out = git(vault).args(["config", "--local", key]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+/// Forget a committer identity that came in with a copied vault. Returns whether there was
+/// one to forget.
+///
+/// **For freshly-acquired directories only** — see [`crate::acquire::naturalise`], the sole
+/// caller. Clearing the identity on a vault someone already works in would silently detach
+/// their name from their own commits.
+///
+/// A `git clone` never needs this (git declines to carry `.git/config`, which is the whole
+/// reason [`install_merge_driver`] has to exist). A **verbatim directory copy does**, and it
+/// is the one transport shape that arrives with the sender's name already configured — after
+/// which every commit this machine makes is attributed to them, in a shared history, with
+/// nothing on screen to suggest it.
+///
+/// Best-effort: `--unset-all` exits non-zero when the key was never set, which is the
+/// ordinary case and not a failure of anything.
+pub fn forget_identity(vault: &Path) -> bool {
+    let had =
+        config_local(vault, "user.name").is_some() || config_local(vault, "user.email").is_some();
+    for key in ["user.name", "user.email"] {
+        let _ = git(vault).args(["config", "--local", "--unset-all", key]).output();
+    }
+    had
 }
 
 /// Who this vault's commits are attributed to, or `None` when nobody real is —

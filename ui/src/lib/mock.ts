@@ -448,6 +448,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         restic: mockVaults.map((v) => ({ vault: v.name, repo: null })),
         env: [{ name: 'FM_VAULT', value: 'vault' }],
         git: true,
+        // Installed but not unlocked — the state that exercises the distinction between the
+        // three restic questions rather than collapsing them into one happy case.
+        restic_installed: true,
         restic_password_set: false,
       } as T;
     case 'create_vault': {
@@ -467,6 +470,17 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
       const cloned: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return cloned as T;
+    }
+    case 'restore_vault': {
+      // Registers like the other two. The restore itself is restic, which the mock does not
+      // model — but the refusals *are* modelled, because they are what the form must not be
+      // able to walk past. No identity is demanded here, and that asymmetry with
+      // `clone_vault` is deliberate: a clone has an audience, a restore has one user.
+      if (!String(args.repo ?? '').trim())
+        throw new Error('restoring needs the restic repository the backup is in');
+      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      const restored: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
+      return restored as T;
     }
     // Saved views. The mock ships one so the sidebar's view list is exercised; a real
     // `.view` lives in the vault and is parsed server-side, which the mock does not model.
@@ -488,7 +502,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.
-      return { changed: false, git: true, skipped: [] } as T;
+      return { changed: false, git: true, restic: true, skipped: [] } as T;
     case 'open_skipped':
       // Nothing here is ever unreadable, so this is only reachable from a hand-crafted
       // call. Fail the way the real arm does rather than pretending it worked.
