@@ -4,7 +4,10 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-19, after git-over-HTTPS started working on Android
+_Last verified: 2026-07-19, after the Android byte path for media landed
+(`sessions/2026-07-19-media-on-the-phone.md`) — blobs stream over a `fmblob://` protocol handler
+and captures arrive as a raw IPC body, because a phone has no HTTP server and media worked in
+neither direction before. Prior: after git-over-HTTPS started working on Android
 (`sessions/2026-07-19-git-on-the-phone.md`): the trust store is loaded into libgit2 from memory,
 because `openssl-src` builds every Android target with `no-stdio` and no file-based certificate
 loading can work there at all. Prior: multi-method vault acquisition and the stale-merge-driver fix
@@ -20,6 +23,24 @@ edit-gesture)._
 > looks like for each — is [outstanding.md](./outstanding.md).
 
 ## Known gaps / not fully working
+
+- **Media capture on Android is untested on a real device.** The byte path (`fmblob://` +
+  `fm_ingest`), the capture menu and the wry `onShowFileChooser` reading are all in place and the
+  app runs, but **no photo has actually been taken and inserted on a phone** — the emulator has no
+  camera. The file input, the system camera Intent and the ingest round trip are unexercised end
+  to end.
+
+- **A phone vault holds the only copy of its media.** App-private storage is wiped on uninstall,
+  `blobs/` is gitignored so a push does not carry it, and restic — the one thing that does — is a
+  binary Android does not have. Losing notes is bad; losing the only copy of a photo is worse, and
+  capture makes that materially more likely. No answer yet.
+
+- **Every narrow-layout CSS rule in `App.svelte` must be written twice.** Once for
+  `[data-layout='single']` and once inside `@media (max-width: 60rem)` for `[data-layout='auto']`,
+  because `auto` is the default and a phone therefore never matches a `single` rule. Writing only
+  one half is **silent** — it shipped twice on 2026-07-19. There is no way to express "narrow
+  right now" in one place without viewport-tracking TypeScript, which the layout design
+  deliberately avoids.
 
 - **The Android git token is app-private storage, not the Keystore.** The owner chose
   hardware-backed; what shipped is a 0600 file in the app's private directory. The kernel
