@@ -369,6 +369,23 @@ fn open_native(target: &std::ffi::OsStr) -> std::io::Result<()> {
         c.args(["/C", "start", ""]).arg(target);
         c
     };
+    // Anywhere else — Android first, and the reason this arm exists: without it the three
+    // `cfg`s above are all false, `cmd` is never bound, and **`fm-serve` does not compile for
+    // Android at all**. The same shape of hole as `fm_app::vaults::config_dir` had.
+    //
+    // It is a genuine `Unsupported`, not a stub. There is no `xdg-open` on Android: handing a
+    // file to whatever owns it means an `Intent`, which needs the JVM and therefore a real
+    // shell — which is precisely why `open_external` was made a `Host` trait method rather than
+    // a `#[cfg]` ladder inside `fm-app` (`mobile-design.md`, ruling 1). A mobile shell
+    // implements `Host` and never reaches this function; `fm-serve`-on-device is a test
+    // fixture, and a test fixture should say what it cannot do rather than pretend.
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    return Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "opening a file with the system handler needs a platform shell on this OS",
+    ));
+
+    #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
     cmd.spawn().map(|_| ())
 }
 

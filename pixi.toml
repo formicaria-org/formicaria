@@ -56,6 +56,11 @@ openjdk = "*"                          # sdkmanager and Gradle need a JVM; conda
 # *device* property: without it, future Android releases will not run the app at all. r27 needs
 # it explicitly; r28+ makes it the default, which is the reason to bump later.
 [feature.android.activation.env]
+# The SDK: sdkmanager, the emulator, system images, build-tools. Unlike the NDK this tree is
+# NOT pinned — sdkmanager resolves packages against Google's manifest at run time, which is why
+# `decisions.md` declares this side non-hermetic. The zip that bootstraps it *is* pinned.
+ANDROID_HOME = "$PIXI_PROJECT_ROOT/.android/sdk"
+ANDROID_SDK_ROOT = "$PIXI_PROJECT_ROOT/.android/sdk"
 ANDROID_NDK_HOME = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d"
 NDK_BIN = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin"
 # **The host CFLAGS must be emptied, or nothing cross-compiles.** conda's `c-compiler`
@@ -89,6 +94,12 @@ CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=
 # so it resolves to the android environment on its own: `pixi run android-check`.
 [feature.android.tasks]
 android-check = "sh ci/android-check.sh"
+# Create the emulator once. Its data lives in `.android/avd`, not your home directory, so the
+# whole Android toolchain stays inside the checkout and `rm -rf .android` is a clean slate.
+android-avd = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n formicaria -k 'system-images;android-35;google_apis;x86_64' -d pixel_6 --force" }
+# Boot it headless. `screencap` works without a window, so screenshots need no display — which
+# is what makes the UI inspectable from a terminal at all.
+android-emu = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID_HOME/emulator/emulator -avd formicaria -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect" }
 
 [environments]
 default = { features = [] }

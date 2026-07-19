@@ -85,6 +85,27 @@ while read -r name version os sha url || [ -n "${name:-}" ]; do
     fetched=$((fetched + 1))
 done < "$lock"
 
+# `avdmanager` and `sdkmanager` derive the SDK root from **their own path**, expecting to live
+# at `$SDK/cmdline-tools/latest/bin/`. Anywhere else they look one directory too high, find no
+# system images, and fail with the memorable "Valid system image paths are: null".
+# `ANDROID_HOME` does not override it.
+#
+# A symlink does NOT work: the launcher resolves its own path through the link and lands back
+# where it started. So this is a real copy (~165 MB), keyed on the locked version so it is made
+# once and refreshed only when cmdline-tools itself changes. Wasteful, and the alternative is
+# fighting a tool that has already decided where it lives.
+if [ -d "$dest/cmdline-tools" ]; then
+    want=$(cat "$dest/.stamp-cmdline-tools" 2>/dev/null || echo unknown)
+    have=$(cat "$dest/sdk/cmdline-tools/.stamp" 2>/dev/null || echo none)
+    if [ "$want" != "$have" ]; then
+        echo "  installing cmdline-tools into the SDK layout the Android tools require..."
+        rm -rf "$dest/sdk/cmdline-tools/latest"
+        mkdir -p "$dest/sdk/cmdline-tools"
+        cp -a "$dest/cmdline-tools" "$dest/sdk/cmdline-tools/latest"
+        printf '%s' "$want" > "$dest/sdk/cmdline-tools/.stamp"
+    fi
+fi
+
 echo "android-init: $fetched fetched, $skipped already present -> $dest"
 
 if [ -x "$dest/platform-tools/adb" ]; then

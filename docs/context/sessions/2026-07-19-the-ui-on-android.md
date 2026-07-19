@@ -1,0 +1,69 @@
+# 2026-07-19 — the whole product, rendering on Android
+
+**The UI now runs on Android against an on-device backend**, and the owner's coarse step-0
+verdict — *"the current GUI is not good for small screens"* — is a specific defect list.
+
+Screenshots: `docs/context/shots/2026-07-19-android-board.png` (and `-scrolled.png`).
+
+## How, and why it needed no shell
+
+`fm-serve` and `fm-cli` cross-compiled for `x86_64-linux-android`, pushed to the emulator's
+`/data/local/tmp`, and **the server run on the device**. Notes captured on-device with `fm`,
+then the emulator's own browser pointed at `http://127.0.0.1:8765` — server and browser both
+on Android, nothing on the laptop but `adb`.
+
+This is the **ruling-2 fallback transport** (`fm-serve` on device) exercised for real, months
+before the Tauri bridge exists. It is not the product — a binary in `/data/local/tmp` is a test
+fixture and an *app* could not exec it — but it renders the same bytes the shell will.
+
+Emulator: Android 15, x86_64, headless. `screencap` works with no window, which is what makes
+the UI inspectable from a terminal at all. `pixi run android-avd` / `android-emu` make it
+repeatable.
+
+## What works
+
+The whole thing. Header, search, New note/New board, the view tabs (Board, Agenda, Timeline,
+Search, Activity), the pane workspace, the Board renderer with both notes, status grouping,
+per-card actions, the vault chip, the theme toggle, Back up.
+
+**And the capability model degrades correctly, visibly, on a device where git genuinely does not
+exist:** the banner reads *"git isn't installed — your notes are saved as files, but not
+versioned. Install git for history, backup and sharing."* That is `git::available()` returning
+false end-to-end, into copy a user can act on. Previously only ever theory.
+
+## The defect list — the thing that was missing
+
+Ranked by how much they cost on a phone:
+
+1. **Chrome eats ~40% of the viewport before content.** Four stacked rows: title+search+New
+   note, New board, the view-tab row, then cols/theme/Back up. On a 2400px-tall screen the
+   board starts below the halfway mark. This is the finding — the rest are details.
+2. **`cols 2` on a phone.** The board defaults to two columns at a width that fits one. The
+   control is right there in the toolbar, which is itself part of problem 1.
+3. **The git banner is permanent on mobile**, because git will *never* be installed on Android.
+   Correct copy on the desktop, but on a phone it is un-actionable advice occupying a band
+   forever — and it will be wrong outright once `native-git` ships, since history will work
+   with no `git` binary anywhere. Needs to key on the capability, not the binary.
+4. **The view-tab row barely fits** five tabs and has no overflow behaviour; a sixth wraps or
+   clips.
+5. **Pane chrome is desktop-shaped** — the focus border, the per-pane `×`, the drag handle and
+   the two selector inputs are all mouse-sized furniture on a surface with one pane.
+
+Not yet assessed, and needing a real device rather than an emulator: **Board drag versus
+scroll-snap**, the tap→move menu, thumb reach, and a `<video>` seeking mid-file.
+
+## What this does not mean
+
+Still no app. No shell, no APK, nothing installable — an app cannot exec a binary from its own
+data directory, which is exactly why the port needs in-process git rather than a bundled one.
+`native-git` exists and is graded but nothing calls it. The Tauri bridge, and with it the M0
+"does the WebView paint" kill criterion, is untouched: this rendered in **Chrome**, not in the
+System WebView a Tauri app would use.
+
+## A bug found on the way
+
+`fm-serve` did not compile for Android at all: `open_native` had `#[cfg]` arms for linux, macos
+and windows and no fallback, so `cmd` was never bound. Same shape of hole as
+`fm_app::vaults::config_dir`. Fixed with an honest `Unsupported` — handing a file to its owner
+on Android means an `Intent`, which needs the JVM, which is precisely why `open_external` is a
+`Host` trait method rather than a `#[cfg]` ladder.
