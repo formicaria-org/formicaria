@@ -179,6 +179,93 @@ fn git(vault: &Path) -> Command {
     c
 }
 
+/// What asking a remote, without cloning it, told us.
+///
+/// The point is to separate the three failures a user cannot tell apart from a clone's output:
+/// a typo'd URL, a repo that needs credentials this machine does not have, and being offline.
+/// They need completely different next steps, and "could not read Username for 'https://…'"
+/// says none of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Probe {
+    /// It answered, and we may read it — either it is public or our credentials already work.
+    Reachable,
+    /// It exists (or at least the host does) but will not talk to us unauthenticated.
+    NeedsAuth,
+    /// No such repo, host not found, offline. Carries what the tool actually said.
+    Unreachable(String),
+}
+
+/// Ask a remote whether we could clone it — **without cloning it**.
+///
+/// `ls-remote` fetches refs only and downloads no objects, so this is cheap enough to run
+/// while the user is still typing a URL into a form. `GIT_TERMINAL_PROMPT=0` is what turns a
+/// credential prompt into an *answer* rather than a hang: with no TTY a prompt would block a
+/// thread-per-connection server forever, and on a phone there is no terminal to prompt on at
+/// all.
+pub fn probe(url: &str) -> Probe {
+    if !available() {
+        return Probe::Unreachable("git is not installed on this machine".into());
+    }
+    let out = match git_cmd().arg("ls-remote").arg(url.trim()).output() {
+        Ok(o) => o,
+        Err(e) => return Probe::Unreachable(format!("could not run git: {e}")),
+    };
+    if out.status.success() {
+        return Probe::Reachable;
+    }
+    Probe::from_stderr(&String::from_utf8_lossy(&out.stderr))
+}
+
+impl Probe {
+    /// Classify a failure by what the tool said. **Matched on substrings deliberately**: the
+    /// exit code is 128 for every one of these, so the message is the only signal there is.
+    /// Anything unrecognised stays `Unreachable` with the original text — a wrong *guess* here
+    /// would send someone to configure credentials for a URL they simply mistyped.
+    pub fn from_stderr(stderr: &str) -> Probe {
+        let s = stderr.to_lowercase();
+        let auth = [
+            "authentication failed",
+            "could not read username",
+            "could not read password",
+            "terminal prompts disabled",
+            "permission denied",
+            "invalid username or password",
+            "authentication required",
+            "403 forbidden",
+            // **Deliberately NOT "please make sure you have the correct access rights".** Git
+            // prints that for a repository that simply does not exist — the full sentence is
+            // "...correct access rights and the repository exists", which names both causes and
+            // therefore distinguishes neither. Matching it sent a plain typo to the credentials
+            // advice, which is the one wrong answer this classifier must never give.
+        ];
+        if auth.iter().any(|m| s.contains(m)) {
+            return Probe::NeedsAuth;
+        }
+        Probe::Unreachable(stderr.trim().to_string())
+    }
+}
+
+/// How this machine is set up to authenticate to git, in the terms a user can act on.
+///
+/// **Names the helper, never a secret.** `credential.helper` is a program name, and the whole
+/// value of reporting it is that the answer is often "you have one, and it is the bad one":
+/// `store` keeps credentials as **plaintext** in `~/.git-credentials`, which most people who
+/// have it did not choose on purpose — `git` writes it when a tutorial says to.
+///
+/// `None` means nothing is configured, which is not a problem by itself: SSH remotes
+/// authenticate through the agent and never consult a helper at all.
+pub fn credential_helper() -> Option<String> {
+    if !available() {
+        return None;
+    }
+    let out = git_cmd().args(["config", "--get", "credential.helper"]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!v.is_empty()).then_some(v)
+}
+
 /// Clone `url` into `dest` and make the result a formicaria vault.
 ///
 /// **New code, on every possible backend.** `git.rs` never had a clone — every plan document

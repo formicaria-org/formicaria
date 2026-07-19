@@ -278,6 +278,38 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
+/// Mirrors [`crate::git::probe`]: ask a remote whether we could clone it, without cloning.
+///
+/// `create_detached` is the point — there is no repository yet when a user is typing a URL into
+/// the new-vault form, and every other remote call here needs one. `connect` fetches the ref
+/// advertisement and no objects.
+pub fn probe(url: &str) -> crate::git::Probe {
+    use crate::git::Probe;
+    let mut rem = match git2::Remote::create_detached(url.trim()) {
+        Ok(r) => r,
+        Err(e) => return Probe::Unreachable(e.message().to_string()),
+    };
+    let cbs = credentials();
+    // The connection borrows `rem`, so the outcome is reduced to a plain value inside this
+    // block and the borrow ends before anything else touches the remote.
+    let outcome = match rem.connect_auth(git2::Direction::Fetch, Some(cbs), None) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    };
+    match outcome {
+        Ok(()) => {
+            let _ = rem.disconnect();
+            Probe::Reachable
+        }
+        // libgit2 reports a missing/refused credential as its own class, which is a far better
+        // signal than the message text the subprocess backend has to match on.
+        Err(e) if e.class() == git2::ErrorClass::Http || e.code() == git2::ErrorCode::Auth => {
+            Probe::NeedsAuth
+        }
+        Err(e) => Probe::from_stderr(e.message()),
+    }
+}
+
 /// Mirrors [`crate::git::conflicts`]: the notes with an unfinished merge in them.
 pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
     if !vault.join(".git").exists() {

@@ -83,6 +83,7 @@ route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
+route!(probe(url: &str) -> crate::git::Probe);
 
 /// `commit_all` takes a slice, which the macro's by-value arm cannot express.
 pub fn commit_all(

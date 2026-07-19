@@ -446,6 +446,10 @@ pub fn dispatch(
             &s("gitName"),
             &s("gitEmail"),
         )?),
+        // Can we reach this repo, and if not, why not — asked *before* a clone commits to a
+        // directory. The three failures a clone cannot tell apart (typo, no credentials,
+        // offline) need three different next steps.
+        "probe_remote" => json(probe_remote(&s("url"))),
         // The third way in: a vault you already have, in a backup, on a machine that no
         // longer exists. Same registration as the other two, with a restic restore in front.
         "restore_vault" => {
@@ -1193,6 +1197,76 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     g.add(cfg, store);
     let names = g.store.names();
     Ok(infos(&g.configs(), &names))
+}
+
+/// What the new-vault form shows under a repo URL: can we reach it, and if not, what to do.
+#[derive(serde::Serialize)]
+struct RemoteProbe {
+    /// `reachable` | `needs_auth` | `unreachable` — the shape the UI branches on.
+    state: &'static str,
+    /// One sentence naming what to do next. Never git's raw text for the two cases we
+    /// understand, always git's raw text for the one we do not.
+    detail: String,
+    /// The credential helper configured on this machine, or `null`. **A program name, never a
+    /// secret.** Present so the advice can be specific instead of a link to a manual.
+    helper: Option<String>,
+    /// `true` when the configured helper keeps credentials in **plaintext**. Worth saying
+    /// unprompted: most people running `store` were told to by a tutorial and have no idea
+    /// their token is sitting in `~/.git-credentials` in the clear.
+    helper_is_plaintext: bool,
+}
+
+/// Ask a remote whether we could clone it, and turn the answer into advice.
+///
+/// **Never fails.** Every outcome — including "there is no git here" — is a state the form
+/// renders, because this runs while the user is still typing and an error banner on every
+/// keystroke of a half-typed URL would be worse than useless.
+fn probe_remote(url: &str) -> RemoteProbe {
+    let helper = fm_core::git::credential_helper();
+    // `store` is the one that matters: git writes `~/.git-credentials` unencrypted. `cache` is
+    // memory-only and fine; the platform keychains are fine.
+    let helper_is_plaintext = helper.as_deref().is_some_and(|h| h == "store");
+    let advise = |state, detail: String| RemoteProbe {
+        state,
+        detail,
+        helper: helper.clone(),
+        helper_is_plaintext,
+    };
+
+    if url.trim().is_empty() {
+        return advise("unreachable", String::new());
+    }
+    match fm_core::vcs::probe(url) {
+        fm_core::git::Probe::Reachable => {
+            advise("reachable", "This repo answered — you can clone it.".into())
+        }
+        fm_core::git::Probe::NeedsAuth => {
+            // The advice is per platform because the *fix* is per platform, and a generic
+            // "configure your credentials" is what sends people to a search engine.
+            let detail = if fm_core::git::available() {
+                match helper.as_deref() {
+                    // A helper is configured and we still could not read it: the stored
+                    // credential is missing for this host or no longer valid. That is a
+                    // different problem from having no helper, and saying so saves an hour.
+                    Some(h) => format!(
+                        "This repo needs credentials. Git is set up to use the '{h}' helper on                          this machine, but it had nothing valid for this host — the token may                          have expired, or never been saved for it. Authenticate once in a                          terminal (`git ls-remote <url>`) and the helper will remember."
+                    ),
+                    None => "This repo needs credentials and git has no credential helper                              configured on this machine. Either use an SSH URL (git@…) with a                              key in your agent, or set a helper — `git config --global                              credential.helper` — then authenticate once in a terminal."
+                        .into(),
+                }
+            } else {
+                // No git binary: this is the phone. There is no helper to configure and no
+                // terminal to authenticate in, so the app has to hold a token itself.
+                "This repo needs credentials. Add a personal access token for it in Settings —                  there is no system-wide git configuration on this device to fall back on."
+                    .into()
+            };
+            advise("needs_auth", detail)
+        }
+        // Deliberately git's own words. We did not recognise this, and inventing a friendlier
+        // sentence would mean guessing — which is how someone ends up configuring credentials
+        // for a URL they simply mistyped.
+        fm_core::git::Probe::Unreachable(why) => advise("unreachable", why),
+    }
 }
 
 /// Where a vault goes, given what the caller asked for.

@@ -940,3 +940,79 @@ fn forget_identity_clears_a_committer_that_came_with_the_copy() {
     // Idempotent, and honest about having found nothing the second time.
     assert!(!git::forget_identity(vault), "nothing left to forget");
 }
+
+/// **The three failures a clone cannot tell apart.** A typo'd URL, a repo that needs
+/// credentials, and being offline all come out of `git clone` as exit 128 with a message about
+/// usernames — and they need completely different next steps. `probe` is what separates them
+/// *before* a clone has committed to a directory.
+///
+/// Offline by construction: a `file://` remote for the reachable case, a nonexistent path for
+/// the unreachable one. The auth case is classified from git's own wording rather than by
+/// contacting a host that would need credentials, because a test that needed the network would
+/// not run here.
+#[test]
+fn probe_separates_reachable_from_needs_auth_from_typo() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    // A real repo on disk, which is reachable with no credentials at all.
+    let origin = tempdir().unwrap();
+    fs::create_dir_all(origin.path().join("notes")).unwrap();
+    fs::write(origin.path().join("notes/01.md"), "theirs\n").unwrap();
+    git::ensure_repo(origin.path()).unwrap();
+    git::commit_all(origin.path(), "theirs", &[origin.path().join("notes/01.md")]).unwrap();
+
+    assert_eq!(git::probe(origin.path().to_str().unwrap()), git::Probe::Reachable);
+
+    // A path that is not a repo. Must NOT be reported as an auth problem — sending someone to
+    // configure credentials for a URL they mistyped is the failure this test exists to prevent.
+    let missing = origin.path().join("no-such-repo");
+    match git::probe(missing.to_str().unwrap()) {
+        git::Probe::Unreachable(_) => {}
+        other => panic!("a bad path must not look like an auth problem, got {other:?}"),
+    }
+
+    // Empty input is not a remote.
+    assert!(matches!(git::probe("   "), git::Probe::Unreachable(_)));
+}
+
+/// The classifier, over the wordings git and the forges actually emit. Kept separate from the
+/// probe so every phrasing can be covered without a network or a credential.
+#[test]
+fn auth_failures_are_recognised_and_nothing_else_is() {
+    for stderr in [
+        "fatal: Authentication failed for 'https://github.com/you/notes.git/'",
+        "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        "git@github.com: Permission denied (publickey).",
+        "remote: Invalid username or password.",
+        "fatal: unable to access '...': The requested URL returned error: 403 Forbidden",
+    ] {
+        assert_eq!(
+            git::Probe::from_stderr(stderr),
+            git::Probe::NeedsAuth,
+            "should read as an auth problem: {stderr}"
+        );
+    }
+
+    // Everything else keeps git's own words and stays "unreachable". A wrong guess here is
+    // worse than no guess: it sends the user to fix credentials that were never the problem.
+    for stderr in [
+        "fatal: repository 'https://github.com/you/typo.git/' not found",
+        "fatal: unable to access '...': Could not resolve host: githubb.com",
+        "fatal: '/tmp/nope' does not appear to be a git repository",
+        // The exact text git emits for a MISSING repo, verified by running it. It contains
+        // "correct access rights", which is why that phrase cannot be an auth signal: this
+        // string must classify as unreachable or a typo becomes a credentials lecture.
+        "fatal: '/nonexistent/no-such-repo' does not appear to be a git repository\nfatal: \
+         Could not read from remote repository.\n\nPlease make sure you have the correct \
+         access rights\nand the repository exists.",
+    ] {
+        match git::Probe::from_stderr(stderr) {
+            git::Probe::Unreachable(text) => {
+                assert!(!text.is_empty(), "git's own words are kept: {stderr}")
+            }
+            other => panic!("must not claim auth for {stderr}, got {other:?}"),
+        }
+    }
+}
