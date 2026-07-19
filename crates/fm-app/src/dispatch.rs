@@ -1323,7 +1323,14 @@ fn probe_remote(url: &str) -> RemoteProbe {
             } else {
                 // No git binary: this is the phone. There is no helper to configure and no
                 // terminal to authenticate in, so the app has to hold a token itself.
-                "This repo needs credentials. Add a personal access token for it in Settings —                  there is no system-wide git configuration on this device to fall back on."
+                //
+                // **Names where the field actually is.** An earlier draft sent people to
+                // Settings, which does not have it — the token input sits directly below this
+                // message in the clone form. Advice pointing at the wrong screen is worse than
+                // none, because it reads as authoritative.
+                "This repo needs credentials. Paste a personal access token below — this \
+                 device has no system-wide git configuration to fall back on, so formicaria \
+                 keeps it in its own private storage."
                     .into()
             };
             advise("needs_auth", detail)
