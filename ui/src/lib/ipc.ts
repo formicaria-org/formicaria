@@ -150,10 +150,20 @@ export async function alive(): Promise<void> {
 // A URL a media element can point at directly, so the browser fetches only the
 // bytes it needs. `<video>` seeking becomes a `Range` request instead of a
 // whole-file download, and nothing has to be revoked afterwards.
-export const assetUrl = (reference: string) =>
-  isTauri
-    ? `fmblob://localhost/${encodeURIComponent(reference)}`
-    : `/api/blob/${encodeURIComponent(reference)}`;
+export const assetUrl = (reference: string) => {
+  if (!isTauri) return `/api/blob/${encodeURIComponent(reference)}`;
+  // **Tauri maps the scheme, not us.** A custom scheme is not the same string on every platform:
+  // Android's WebView cannot intercept one at all, so wry rewrites `fmblob://…` to
+  // `http://fmblob.localhost/…` behind the scenes (its `custom_protocol_workaround`). Writing
+  // the URL by hand here worked on paper and would have addressed a scheme the WebView never
+  // sees. `convertFileSrc` is the function that already knows the right shape per platform.
+  const internals = (window as unknown as {
+    __TAURI_INTERNALS__?: { convertFileSrc(path: string, protocol: string): string };
+  }).__TAURI_INTERNALS__;
+  return internals
+    ? internals.convertFileSrc(reference, 'fmblob')
+    : `fmblob://localhost/${encodeURIComponent(reference)}`;
+};
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) =>
