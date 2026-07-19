@@ -97,10 +97,8 @@ fn certificates_in(text: &str) -> Vec<String> {
 /// files is a few milliseconds against a startup that already opens a SQLite index.
 pub fn install(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     let result = install_inner(dirs, out);
-    // Recorded so `config` can report it. **Startup diagnostics that only reach stderr are
-    // invisible on Android** — Rust's stderr is not routed to logcat, so the `eprintln!` here
-    // produced exactly nothing while an SSL failure was being debugged. A status the app can
-    // show is the only kind that helps.
+    // Recorded so `config` can report it — the only diagnostic channel a phone has, since
+    // Android routes Rust's stderr nowhere and MIUI suppresses app logcat besides.
     let _ = STATUS.set(match &result {
         Ok(n) => format!("{n} certificates"),
         Err(e) => e.clone(),
@@ -117,80 +115,31 @@ pub fn status() -> Option<String> {
 static STATUS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 fn install_inner(dirs: &[&Path], out: &Path) -> Result<usize, String> {
-    let n = build(dirs, out)?;
+    let pem = collect(dirs)?;
 
-    // **The environment first, because it cannot fail.** This used to run *after* the libgit2
-    // option with a `?` on it, so an option that errored took the environment variable down
-    // with it and left the process with no trust store at all — two mechanisms, and a failure
-    // in one discarded both. Order matters here for exactly that reason.
-    //
-    // Safety: startup, before any network call and before other threads exist — the same
-    // contract `configure_paths` relies on.
-    unsafe { std::env::set_var("SSL_CERT_FILE", out) };
+    // **Loaded from memory, because no file can be read.** `openssl-src` builds OpenSSL with
+    // `no-stdio` on every Android target, so `BIO_s_file` does not exist and every file route —
+    // `SSL_CERT_FILE`, `SSL_CERT_DIR`, `GIT_OPT_SET_SSL_CERT_LOCATIONS` — fails with
+    // `X509_R_BIO_LIB` on a file that is present, correct and readable by the same process.
+    // Measured on a device across several builds before the cause was found.
+    let added = fm_core::vcs::add_certs_from_pem(pem.as_bytes())
+        .map_err(|e| format!("could not load the CA bundle: {e}"))?;
 
-    // **This result is the whole diagnostic, and discarding it was the mistake that hid the
-    // bug.** It had been `let _ =` on the theory that a refusal here was expected and harmless,
-    // because libgit2 creates its OpenSSL context lazily. It does not: `libgit2-sys` never
-    // defines `GIT_OPENSSL_DYNAMIC`, so `openssl_init()` runs eagerly inside
-    // `git_libgit2_init()` and the context always exists by now.
-    //
-    // So this call genuinely reports whether the bundle loaded, and it is the *only* thing that
-    // does. The `SSL_CERT_FILE` route is read once during that eager init, and
-    // `X509_STORE_set_default_paths` calls `ERR_clear_error()` and returns success even when it
-    // loads nothing — a failure there is invisible by construction.
-    //
-    // A refusal therefore means the process has **no trusted roots at all**, and every HTTPS
-    // remote will fail with "the SSL certificate is invalid" — an error naming the server
-    // rather than the cause.
-    match fm_core::vcs::set_cert_file(out) {
-        Ok(()) => Ok(n),
-        // **What OpenSSL saw, not what we assume it saw.** The failure observed on a device was
-        // `X509_R_BIO_LIB`, which `X509_load_cert_file` raises when `BIO_new_file` returns
-        // NULL — i.e. OpenSSL could not *open* the file, rather than disliking its contents.
-        // Since Rust wrote that same path successfully one statement earlier, the interesting
-        // question is what differs between the two views of it, so the answer is measured here
-        // instead of reasoned about.
-        Err(e) => Err(format!("{n} certs built, but libgit2 rejected them: {e} [{}]", probe_file(out))),
+    // Written afterwards purely so a human can look at what was loaded. Nothing reads it back,
+    // and a failure to write it must not fail the trust store that is already in place.
+    if let Some(parent) = out.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
+    let _ = std::fs::write(out, &pem);
+
+    Ok(added)
 }
 
-/// What this process can actually see at `path`, in one line, for an error message.
+/// Gather every certificate from the first directory that has any, as one PEM string.
 ///
-/// Deliberately re-checks the obvious: a bundle we just wrote should exist, be non-empty, be
-/// readable, and start with a PEM header. When a C library says it cannot open a file the
-/// runtime just wrote, one of those assumptions is wrong, and guessing which has already cost
-/// more than measuring it.
-fn probe_file(path: &Path) -> String {
-    let meta = match std::fs::metadata(path) {
-        Ok(m) => m,
-        Err(e) => return format!("stat failed: {e}"),
-    };
-    let readable = std::fs::File::open(path).is_ok();
-    let head = std::fs::read(path)
-        .ok()
-        .map(|b| String::from_utf8_lossy(&b[..b.len().min(27)]).into_owned())
-        .unwrap_or_else(|| "<unreadable>".into());
-    #[cfg(unix)]
-    let mode = {
-        use std::os::unix::fs::PermissionsExt;
-        format!("{:o}", meta.permissions().mode() & 0o7777)
-    };
-    #[cfg(not(unix))]
-    let mode = "n/a".to_string();
-    format!(
-        "path={} size={} mode={mode} readable={readable} head={head:?}",
-        path.display(),
-        meta.len()
-    )
-}
-
-/// Write the bundle, and touch no global state.
-///
-/// **Split from [`install`] because the environment is shared and tests are threads.** With
-/// the `set_var` inline, two tests that each built a bundle raced on `SSL_CERT_FILE` and one
-/// saw the other's path — a failure that appeared only in the full suite and passed when run
-/// alone, which is the worst shape a test failure can have.
-fn build(dirs: &[&Path], out: &Path) -> Result<usize, String> {
+/// Returns the bundle rather than writing it: the trust store is loaded from memory, and a file
+/// on disk is only a convenience for a human reading it afterwards.
+fn collect(dirs: &[&Path]) -> Result<String, String> {
     // Sorted and deduplicated: the same root appears in both Android directories, and a stable
     // order makes the file reproducible, which is what makes it diffable when something is off.
     let mut certs: BTreeSet<String> = BTreeSet::new();
@@ -215,14 +164,8 @@ fn build(dirs: &[&Path], out: &Path) -> Result<usize, String> {
         ));
     }
 
-    if let Some(parent) = out.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
-    }
     let body = certs.iter().map(String::as_str).collect::<Vec<_>>().join("\n");
-    std::fs::write(out, format!("{body}\n"))
-        .map_err(|e| format!("could not write {}: {e}", out.display()))?;
-    Ok(certs.len())
+    Ok(format!("{body}\n"))
 }
 
 #[cfg(test)]
@@ -270,12 +213,11 @@ mod tests {
         std::fs::write(apex.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
         std::fs::write(legacy.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
         std::fs::write(legacy.path().join("deadbeef.0"), dropped).unwrap();
-        let out = tempdir().unwrap().path().join("ca-bundle.pem");
 
-        let n = build(&[apex.path(), legacy.path()], &out).unwrap();
+        let written = collect(&[apex.path(), legacy.path()]).unwrap();
+        let n = written.matches(BEGIN).count();
 
         assert_eq!(n, 1, "only the authoritative store is read");
-        let written = std::fs::read_to_string(&out).unwrap();
         assert!(
             !written.contains("DROPPED"),
             "a root the platform dropped must not come back via the legacy store:\n{written}"
@@ -288,23 +230,10 @@ mod tests {
         let d = tempdir().unwrap();
         std::fs::write(d.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
         std::fs::write(d.path().join("8d89cda1.0"), ANDROID_SHAPED).unwrap();
-        let out = tempdir().unwrap().path().join("ca-bundle.pem");
 
-        assert_eq!(build(&[d.path()], &out).unwrap(), 1);
-        assert_eq!(std::fs::read_to_string(&out).unwrap().matches(BEGIN).count(), 1);
+        assert_eq!(collect(&[d.path()]).unwrap().matches(BEGIN).count(), 1);
     }
 
-    /// The one test that touches the process environment, so nothing races it.
-    #[test]
-    fn install_points_openssl_at_the_bundle_it_wrote() {
-        let a = tempdir().unwrap();
-        std::fs::write(a.path().join("cert.0"), ANDROID_SHAPED).unwrap();
-        let out = tempdir().unwrap().path().join("ca-bundle.pem");
-
-        install(&[a.path()], &out).unwrap();
-
-        assert_eq!(std::env::var("SSL_CERT_FILE").unwrap(), out.to_string_lossy());
-    }
 
     /// A missing (or empty) directory falls through to the next — which of Android's stores is
     /// present varies by version, and an absent one is not a failure.
@@ -312,9 +241,8 @@ mod tests {
     fn a_missing_directory_is_skipped_not_fatal() {
         let a = tempdir().unwrap();
         std::fs::write(a.path().join("cert.0"), ANDROID_SHAPED).unwrap();
-        let out = tempdir().unwrap().path().join("ca-bundle.pem");
 
-        let n = build(&[Path::new("/no/such/dir"), a.path()], &out).unwrap();
+        let n = collect(&[Path::new("/no/such/dir"), a.path()]).unwrap().matches(BEGIN).count();
         assert_eq!(n, 1);
     }
 
@@ -323,7 +251,6 @@ mod tests {
     #[test]
     fn finding_no_certificates_at_all_is_an_error() {
         let empty = tempdir().unwrap();
-        let out = tempdir().unwrap().path().join("ca-bundle.pem");
-        assert!(build(&[empty.path()], &out).is_err());
+        assert!(collect(&[empty.path()]).is_err());
     }
 }

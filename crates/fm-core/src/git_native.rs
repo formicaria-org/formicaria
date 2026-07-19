@@ -278,6 +278,91 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
+/// libgit2's `GIT_OPT_ADD_SSL_X509_CERT`, by ordinal.
+///
+/// Not exposed by `libgit2-sys`, which binds the enum only as far as
+/// `GIT_OPT_SET_SSL_CERT_LOCATIONS`. Counted from `include/git2/common.h` in the vendored
+/// source: it is the 46th entry, so 45 zero-indexed. Asserted at runtime by checking the call's
+/// return rather than trusted — a wrong constant would silently configure something else.
+const GIT_OPT_ADD_SSL_X509_CERT: libc_int = 45;
+
+#[allow(non_camel_case_types)]
+type libc_int = i32;
+
+/// Load CA certificates into libgit2's trust store **from memory**, never from a file.
+///
+/// # Why this exists, and why the obvious approach cannot work
+///
+/// `openssl-src` builds OpenSSL with `no-stdio` on every Android target. Without stdio there is
+/// no `BIO_s_file`, so `BIO_new(BIO_s_file())` returns NULL and `X509_load_cert_file` raises
+/// `X509_R_BIO_LIB` — which is precisely what a device reported after several rounds of
+/// producing better and better bundle files:
+///
+/// ```text
+/// error:05880020:x509 certificate routines::BIO lib
+/// [path=… size=217790 mode=600 readable=true head="-----BEGIN CERTIFICATE-----"]
+/// ```
+///
+/// A correct, readable, well-formed file that OpenSSL cannot open, in the same process that
+/// wrote it. **So every file-based route is structurally unavailable here** — `SSL_CERT_FILE`,
+/// `SSL_CERT_DIR` and `GIT_OPT_SET_SSL_CERT_LOCATIONS` all end in a file BIO.
+///
+/// `GIT_OPT_ADD_SSL_X509_CERT` does not. It takes an `X509 *` and calls `X509_STORE_add_cert` on
+/// libgit2's own context. Parsing PEM out of a `&[u8]` uses a *memory* BIO, which `no-stdio`
+/// leaves entirely intact — so the whole path touches no file.
+///
+/// Returns how many certificates the store accepted. A certificate the store rejects is skipped
+/// rather than fatal: a trust store with 144 of 145 roots is useful, and one that refused to
+/// build because a single entry was odd would be a regression on the file it replaces.
+pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
+    if pem.is_empty() {
+        return Err(StoreError::Io("the CA bundle was empty".into()));
+    }
+    let mut added = 0usize;
+    let mut parsed = 0usize;
+
+    // Safety: a memory BIO over a slice that outlives this block, read with the standard PEM
+    // loop. Every certificate we obtain is freed here; `X509_STORE_add_cert` takes its own
+    // reference, so libgit2 keeps the ones it accepts alive independently of ours.
+    unsafe {
+        let bio = openssl_sys::BIO_new_mem_buf(
+            pem.as_ptr() as *const std::ffi::c_void,
+            pem.len() as i32,
+        );
+        if bio.is_null() {
+            return Err(StoreError::Io("could not open a memory BIO for the CA bundle".into()));
+        }
+        loop {
+            let cert = openssl_sys::PEM_read_bio_X509(
+                bio,
+                std::ptr::null_mut(),
+                None,
+                std::ptr::null_mut(),
+            );
+            if cert.is_null() {
+                break; // end of the bundle, or an entry we cannot parse
+            }
+            parsed += 1;
+            if libgit2_sys::git_libgit2_opts(GIT_OPT_ADD_SSL_X509_CERT, cert) == 0 {
+                added += 1;
+            }
+            openssl_sys::X509_free(cert);
+        }
+        openssl_sys::BIO_free_all(bio);
+        // The loop always ends on a PEM read that failed, which leaves an entry on OpenSSL's
+        // error queue. Left there, it would surface as a spurious cause on the *next* unrelated
+        // failure — the kind of misdirection that has already cost this bug several rounds.
+        openssl_sys::ERR_clear_error();
+    }
+
+    if added == 0 {
+        return Err(StoreError::Io(format!(
+            "libgit2 accepted none of the {parsed} certificates parsed from the bundle"
+        )));
+    }
+    Ok(added)
+}
+
 /// Point libgit2's OpenSSL at a CA bundle, explicitly.
 ///
 /// # The ordering rule, corrected

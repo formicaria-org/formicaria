@@ -85,8 +85,22 @@ route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
 route!(probe(url: &str) -> crate::git::Probe);
 
-/// Point the in-process TLS at a CA bundle. A no-op where a `git` binary does the talking —
-/// it uses the system's own trust store and has nothing for us to configure.
+/// Load CA certificates into the in-process TLS store, from memory.
+///
+/// **The only route that works on Android**, where vendored OpenSSL is built `no-stdio` and no
+/// file can be opened by it at all — see [`crate::git_native::add_certs_from_pem`]. A no-op
+/// where a `git` binary does the talking: that uses the system's own trust store.
+pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
+    #[cfg(feature = "native-git")]
+    if native() {
+        return crate::git_native::add_certs_from_pem(pem);
+    }
+    let _ = pem;
+    Ok(0)
+}
+
+/// Point the in-process TLS at a CA bundle *file*. Retained for platforms whose OpenSSL has
+/// stdio; **on Android this can never succeed** and [`add_certs_from_pem`] is the path.
 pub fn set_cert_file(path: &Path) -> Result<(), StoreError> {
     #[cfg(feature = "native-git")]
     if native() {

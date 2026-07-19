@@ -32,7 +32,40 @@ infer = "0.19"     # pure-Rust MIME sniff by magic bytes (never trust the extens
 # the ones distributing that code — see the named exception in `deny.toml`.
 [features]
 default = []
-native-git = ["dep:git2"]
+native-git = ["dep:git2", "dep:libgit2-sys", "dep:openssl-sys"]
+
+# **The only way to give libgit2 a trust store on Android**, and the reason two crates that
+# look redundant with `git2` are here.
+#
+# `openssl-src` compiles OpenSSL with `no-stdio` on *every* Android target (its `lib.rs`: "On
+# Android it looks like not passing no-stdio may cause a build failure"). Without stdio there
+# is no `BIO_s_file`, so `X509_load_cert_file` fails with `X509_R_BIO_LIB` and **no
+# file-based certificate loading can ever work** — not `SSL_CERT_FILE`, not `SSL_CERT_DIR`,
+# not `GIT_OPT_SET_SSL_CERT_LOCATIONS`. Measured on a device, after several builds spent
+# producing better and better files that nothing could open.
+#
+# libgit2's `GIT_OPT_ADD_SSL_X509_CERT` takes an `X509 *` and goes straight to
+# `X509_STORE_add_cert`, touching no file at all. `git2` does not wrap that option and keeps
+# `libgit2_sys` private (`use`, not `pub use`), so the raw crate is needed to call it; and
+# `openssl` is needed to turn PEM bytes into the `X509 *` it wants, which it does through a
+# memory BIO that `no-stdio` leaves intact.
+#
+# Neither adds a new C build: both resolve to the same `libgit2-sys`/`openssl-sys` that `git2`
+# already pulls in, so the versions are pinned to match rather than chosen.
+[dependencies.libgit2-sys]
+version = "0.18"
+optional = true
+default-features = false
+
+# The `-sys` crate, not the safe `openssl` wrapper: the wrapper does not re-export the
+# `ForeignType` trait needed to reach a live `X509 *`, and pulling that trait in separately
+# means pinning a transitive version by hand. The raw calls used here are three, all of them
+# memory-based, and they resolve to the very library `git2` already links — which is the
+# property that matters, since the pointer has to be one libgit2's own OpenSSL recognises.
+[dependencies.openssl-sys]
+version = "0.9"
+optional = true
+default-features = false
 
 [dependencies.git2]
 # >=0.21 is a floor, not a preference: 0.20.4 carries RUSTSEC-2026-0183 and -0184, two
