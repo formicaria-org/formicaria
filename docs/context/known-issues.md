@@ -318,7 +318,23 @@ All verified **2026-07-19**.
    `cargo build` does not catch it either — no workspace crate declares `crate-type`, so these are
    rlibs and rlibs never link. **Assert an artifact fact, never an exit code:** build a linking
    target (`-p fm-cli`) and check `readelf -h` reports AArch64.
-5. **Android loopback is not sandboxed.** Any app holding `INTERNET` can reach a localhost
+5. **conda's `c-compiler` activation breaks Android cross-compilation, and the per-target
+   override does not rescue it.** Found 2026-07-19 while getting the first ARM build green.
+   The activation exports host flags — `CFLAGS=-march=nocona -mtune=haswell … -isystem
+   <env>/include`, plus `CPPFLAGS`/`LDFLAGS` pointing into the x86-64 environment — and the
+   `cc` crate applies `CFLAGS` and then *appends* `CFLAGS_<target>`, so setting the specific
+   one does **not** win. The Android clang receives an x86 `-march` and refuses to compile
+   SQLite, with a wall of flags that look like ours and are not. **Fix: empty `CFLAGS`,
+   `CPPFLAGS` and `LDFLAGS` in the android environment** (`pixi.toml`,
+   `[feature.android.activation.env]`), which is safe because every C compile in that build
+   targets the phone. Same root cause as trap 4 below — conda's C activation is host-shaped —
+   but the opposite symptom: this one fails loudly, that one passes green and wrong.
+6. **`git2`'s `https` feature needs `vendored-openssl` on Android.** There is no system
+   OpenSSL to link against, so `openssl-sys` fails outright (`$TARGET =
+   aarch64-linux-android, openssl-sys = 0.9.117`). Building it from source is what GitSync
+   ships for the same reason — and it puts a *second* vendored C blob under a licence its
+   `-sys` crate does not declare, which is why `ci/checks.sh` guards `openssl-src` too.
+7. **Android loopback is not sandboxed.** Any app holding `INTERNET` can reach a localhost
    listener. `fm-serve`'s Host/Origin guards are a *browser* threat model and do not apply.
    **Never ship `fm-serve` as a TCP listener on a phone** — the on-device-server fallback needs a
    per-launch bearer token before it is even a candidate.

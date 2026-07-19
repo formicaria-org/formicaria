@@ -27,9 +27,72 @@ mdbook = "*"         # renders docs/ to a static site; built in CI
 ffmpeg = "*"
 tesseract = "*"
 
+# Android cross-compilation. **A feature and an environment, never a platform** — the plan's
+# ruling: adding `linux-aarch64`-style android entries to `platforms` would claim we build and
+# test there, which we do not. This only adds the Rust standard library for the two targets
+# that matter (the phone, and the x86_64 emulator).
+#
+# These ARE conda-forge packages, so the Rust half of the Android toolchain is version-locked
+# in `pixi.lock` like everything else. The gap is only the NDK and SDK, which have no conda
+# packaging and are fetched into a gitignored `.android/` by `pixi run android-init`, pinned by
+# SHA-256 in `android/toolchain.lock` (`docs/context/decisions.md`, ruling 3).
+#
+# Kept out of the default environment on purpose: a contributor with no interest in Android
+# must not pay for these, and `pixi run ci` must stay green without them.
+[feature.android.dependencies]
+rust-std-aarch64-linux-android = "*"   # the phone
+rust-std-x86_64-linux-android = "*"    # the emulator
+
+# Point cargo and the `cc` crate at the NDK, **repo-relative**. Deliberately here rather than
+# in `.cargo/config.toml`: that file cannot express "relative to the project", so it would need
+# absolute paths — unshareable between machines, and exactly the kind of thing that rots.
+# `$PIXI_PROJECT_ROOT` keeps it portable and keeps the whole toolchain inside the checkout.
+#
+# minSdk 24 (Android 7.0) is the floor these wrappers encode. The NDK ships 21–35; 24 covers
+# effectively every device in use and is the level to change if that stops being true.
+#
+# **The 16 KB alignment flag is load-bearing, not hygiene.** Google states 16 KB page size as a
+# *device* property: without it, future Android releases will not run the app at all. r27 needs
+# it explicitly; r28+ makes it the default, which is the reason to bump later.
+[feature.android.activation.env]
+ANDROID_NDK_HOME = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d"
+NDK_BIN = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin"
+# **The host CFLAGS must be emptied, or nothing cross-compiles.** conda's `c-compiler`
+# activation exports host flags — `CFLAGS=-march=nocona -mtune=haswell … -isystem
+# <env>/include`, plus `CPPFLAGS` and `LDFLAGS` pointing into the x86-64 environment. The `cc`
+# crate applies `CFLAGS` and *appends* `CFLAGS_<target>` rather than letting the specific one
+# win, so a per-target override does not rescue it: the Android clang still receives an x86
+# `-march` and refuses to compile SQLite.
+#
+# Emptying them here is safe because every C compile in this build is for the *target*
+# (`rusqlite bundled`, `libgit2 vendored`); nothing needs conda's host include path. This is
+# the same root cause as the `known-issues.md` trap where a *missing* NDK builds green with
+# host objects — conda's C activation is host-shaped, and a cross build has to say so.
+CFLAGS = ""
+CPPFLAGS = ""
+LDFLAGS = ""
+CFLAGS_aarch64_linux_android = "-fPIC -O2"
+CFLAGS_x86_64_linux_android = "-fPIC -O2"
+# `cc` (rusqlite bundled, libgit2/OpenSSL vendored) reads CC_<target>; cargo reads CARGO_TARGET_*.
+CC_aarch64_linux_android = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+AR_aarch64_linux_android = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang"
+CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"
+CC_x86_64_linux_android = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang"
+AR_x86_64_linux_android = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android24-clang"
+CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=16384"
+
+# Prove the core builds for a phone, asserting the ELF machine of every vendored C blob rather
+# than the exit code (see the script for why the exit code lies here). Defined on the feature,
+# so it resolves to the android environment on its own: `pixi run android-check`.
+[feature.android.tasks]
+android-check = "sh ci/android-check.sh"
+
 [environments]
 default = { features = [] }
 media = { features = ["media"] }
+android = { features = ["android"] }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard

@@ -48,7 +48,7 @@ echo "[check] a crate that vendors code under an undeclared licence must be in t
 # Keyed on Cargo.lock so it costs a grep, and so it fires on an *optional* dependency too —
 # `fm-core/native-git` is off by default, but the day someone builds with it the notice has to
 # already be right.
-for crate in libgit2-sys; do
+for crate in libgit2-sys openssl-src; do
     if grep -q "^name = \"$crate\"\$" Cargo.lock 2>/dev/null; then
         if ! grep -q "$crate" ci/third-party.sh; then
             echo "  FAIL: $crate is in Cargo.lock but ci/third-party.sh has no licence override"

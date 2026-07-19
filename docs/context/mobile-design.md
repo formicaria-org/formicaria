@@ -715,9 +715,22 @@ staked on a decision nobody has taken yet. Receipts:
   neither mapping is safe (report `Conflicted` and you send the user to resolve a file with no
   markers; report `Clean` and you publish the fiat). Decide any new licence allowlist entry **up
   front, deliberately**.
-- **STEP 8 — toolchain** (see the Toolchain section): `[feature.android]` + two environments; an
-  `android/toolchain.lock` pinning the NDK by our own SHA-256; the linking probe with an
-  **ELF-machine assertion**; the `CC` provenance guard; the android arm in `vaults.rs`.
+- **STEP 8 — ◐ MOSTLY SHIPPED 2026-07-19. The core compiles for a phone.**
+  `[feature.android]` + an `android` environment carrying the two conda-forge
+  `rust-std-*-linux-android` targets; NDK **r27d** pinned by our own SHA-256 in
+  `android/toolchain.lock` and fetched by `pixi run android-init`; the NDK toolchain wired
+  through `[feature.android.activation.env]` with `$PIXI_PROJECT_ROOT` so every path stays
+  repo-relative; `pixi run android-check` builds and **asserts the ELF machine of every
+  vendored C blob** plus a `CC`-provenance guard that refuses a compiler from outside
+  `.android/`. Verified: `fm-core` with `native-git` builds for `aarch64-linux-android`, and
+  SQLite, libgit2, libcrypto and libssl are all `AArch64`.
+  Two traps found by walking into them, both now in `known-issues.md`: conda's `c-compiler`
+  activation exports host `CFLAGS` that the `cc` crate *appends to* rather than lets you
+  override, so they must be emptied in the android env; and `git2`'s `https` needs
+  `vendored-openssl` because Android has no system OpenSSL.
+  **Still open:** `x86_64-linux-android` (the emulator target) is wired but unexercised, the
+  SDK/cmdline-tools are not in the lock, and `pixi run ci` deliberately gains no NDK
+  dependency — a contributor without the toolchain still gets a green gate.
 - **STEP 9 — M0**, only after step 8 is green *and* the transport is decided.
 
 **Not sequenced, deliberately: M8** (pure-Rust media extraction). Replacing mature `pdftotext`

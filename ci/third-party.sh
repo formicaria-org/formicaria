@@ -48,6 +48,10 @@ OUT="${1:-THIRD-PARTY.md}"
             # vendored COPYING). Both ship, so both are stated.
             if (name == "libgit2-sys")
                 lic = "(MIT OR Apache-2.0) AND (GPL-2.0-only WITH linking exception) — vendors libgit2";
+            # openssl-src vendors OpenSSL itself. Apache-2.0 is already on the allowlist so this
+            # is not a policy question, but the notice must still say whose code ships.
+            if (name == "openssl-src")
+                lic = "(MIT OR Apache-2.0) AND Apache-2.0 — vendors OpenSSL";
             printf "| %s | %s | %s |\n", name, (n>1 ? p[2] : "-"), lic
         }' \
       | sort -u

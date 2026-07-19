@@ -21,7 +21,19 @@
 
 platform-tools 37.0.0 linux 198ae156ab285fa555987219af237b31102fefe8b9d2bc274708a8d4f2865a07 https://dl.google.com/android/repository/platform-tools_r37.0.0-linux.zip
 
-# The NDK and cmdline-tools belong here too, and are deliberately absent until someone has
-# actually fetched them and computed the checksum — an unverified line would be worse than a
-# missing one. They are needed from step 8 (the first real Android build); `platform-tools`
-# alone is what step 0 needs, and step 0 is what tells us whether step 8 is worth doing.
+# The NDK: the C cross-compiler, sysroot and linker. Needed by `rusqlite bundled` and by
+# `git2/vendored-libgit2` — neither is optional, so nothing in `fm-core` builds for Android
+# without this.
+#
+# **r27 is the LTS line.** r28+ aligns to 16 KB pages by default, which r27 needs an explicit
+# `-Wl,-z,max-page-size=16384` for (see `.cargo/config.toml`) — that flag is the price of
+# staying on LTS, and it is cheap and written down. Bump to r28 when the LTS line moves.
+#
+# The unpack directory is version-named because that is what the zip contains, so two versions
+# can coexist and a bump never merges into a half-old tree. `.cargo/config.toml` names the same
+# version, and `ci/checks.sh` fails if the two ever disagree.
+android-ndk-r27d 27.3 linux 601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be2829178c8ed15d9 https://dl.google.com/android/repository/android-ndk-r27d-linux.zip
+
+# cmdline-tools (sdkmanager, the emulator, system images) belongs here too, and is deliberately
+# absent until someone has fetched it and computed the checksum — an unverified line is worse
+# than a missing one. It is needed to *run* the app; the NDK above answers whether it *builds*.

@@ -43,7 +43,12 @@ native-git = ["dep:git2"]
 version = "0.21"
 optional = true
 default-features = false
-features = ["vendored-libgit2", "https"]
+# `vendored-openssl` is not optional on Android: there is no system OpenSSL to link against,
+# so `openssl-sys` fails outright ("$TARGET = aarch64-linux-android, openssl-sys = 0.9.117").
+# Building it from source is what GitSync ships for the same reason. It is a second vendored C
+# blob under a licence its `-sys` crate does not declare — see `ci/checks.sh`, which now guards
+# both.
+features = ["vendored-libgit2", "vendored-openssl", "https"]
 
 [dev-dependencies]
 tempfile = "3"
