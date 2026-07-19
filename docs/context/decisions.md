@@ -5,6 +5,59 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## One shell, two arrangements — layout adapts by space, never by platform (2026-07-19)
+
+**Decision.** The UI has **exactly two named layouts**, `tiled` and `single`, chosen by a
+`layout: 'auto' | 'tiled' | 'single'` preference on the workspace. `auto` is the default and
+follows available space. **Both are reachable on every platform** — `single` on a desktop,
+`tiled` on a tablet.
+
+**Why not a mobile frontend.** Putting the app on a phone made the tiled grid untenable: today's
+answer stacks panes vertically, so you scroll past whole views to reach the next. The tempting
+fix is a phone-specific UI. Two decades of cross-platform work says that is the expensive
+mistake — `m.example.com`, a separate mobile app team, `Platform.select()` through a codebase:
+all converge on content drift and two things to change per feature. What survived is **one
+content layer inside an adaptive shell**, and **branching on space and input capability, never
+on platform**, because platforms multiply forever while space is a continuum with two or three
+thresholds testable at any window width.
+
+This codebase already held that principle and under-implemented it: `App.svelte` argues pointer
+beats width because *"a tablet is wide and still has no mouse"*, and explicitly rejected "a
+phone-only component tree". This finishes the thought rather than reversing it.
+
+**Consequences:**
+- **No viewport-tracking TypeScript.** The whole mechanism is `data-layout` on the app root plus
+  CSS; the only new state is a preference string, exactly like `fm-theme`. `single` hides
+  non-active panes with `display: none` — every pane stays **mounted and fetched**, so switching
+  is instant and the feed layer is untouched.
+- **Desktop opt-in is the test, not a courtesy.** A narrow layout only a phone could run is a
+  second frontend wearing a setting, and nothing would exercise it during ordinary desktop work.
+  If `single` ever stops working in a desktop browser, the design has failed.
+- **Hard stop at two.** A general "customisable frontend" is unbounded and lands on the plugin
+  API `plan.md` already rejects. Two arrangements are bounded and both are tested.
+- **The one setting Settings is allowed to own.** Everything else there is a read-only mirror
+  (`vaults::save` is append-only). Layout is a *view* preference like the theme: this browser,
+  no vault, nothing on disk.
+- **Renderers moved to container queries.** They were querying the *window* while living in a
+  pane sized `viewport ÷ cols` — a `colSpan:1` pane on a wide monitor got desktop-width board
+  columns it could not fit. `Pane` is now `container-type: inline-size`; `Board`/`Card`'s width
+  rules are `@container`, while `pointer: coarse` stays a *media* query because it is a
+  capability, not a size. **Container queries are why this advice differs from 2010's** — a
+  component can now ask its own box, which is what makes one renderer correct at any width.
+- **Safe areas are paid for.** `viewport-fit=cover` plus `env(safe-area-inset-*)` on the shell,
+  and `100dvh` rather than `100vh`. On a real phone the toolbar was painting under the status
+  bar with the clock on top of the search field — invisible on the emulator.
+
+**Deliberately not done:** swipe between panes. `Board` already uses `scroll-snap-type: x
+mandatory` for its columns on narrow screens, so a horizontal pane swipe would compete with a
+horizontal column swipe and make both feel broken. If it is ever wanted it must be an edge
+gesture, judged on a device. And **no lazy per-pane fetching** — `MAX_PANES` is 8 and feeds
+dedupe by `feedKey`, so it would trade instant switching for a loading flash.
+
+**Reversal condition:** a third arrangement is genuinely needed (a tablet rail, say) → that is
+the moment to check whether this has become the customisation system it refuses to be, not to
+add a fourth.
+
 ## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19)
 
 **Decision — one named exception, vendored, mobile only.** `fm-core` gains an optional

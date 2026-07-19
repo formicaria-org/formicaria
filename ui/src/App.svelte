@@ -10,6 +10,7 @@
     rendererKind,
     MAX_PANES,
     type Workspace,
+    type Layout,
     type Pane as PaneT,
     type PaneKind,
     type Feed,
@@ -35,6 +36,7 @@
   import { hashHue } from './lib/vaultColor';
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
+  import ViewBar from './lib/ViewBar.svelte';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
@@ -50,11 +52,13 @@
     } catch {
       /* fall through to default */
     }
-    return { cols: 2, panes: [newPane('board')] };
+    return { cols: 2, layout: 'auto', panes: [newPane('board')] };
   }
   let workspace = $state<Workspace>(loadWorkspace());
   let feeds = $state<Record<string, Feed>>({});
-  let focused = $state(0);
+  // Which pane is showing in `single`, and the focus ring in `tiled`. Seeded from the
+  // persisted workspace so reopening the app lands where you left it.
+  let focused = $state(loadWorkspace().active ?? 0);
   let searchQuery = $state(''); // the top-bar global search box
   let error = $state<string | null>(null);
   // Whether the current `error` is one `refresh()` raised (a feed that failed to load, which
@@ -68,7 +72,7 @@
 
   function persistWorkspace() {
     try {
-      localStorage.setItem('fm-workspace', JSON.stringify(workspace));
+      localStorage.setItem('fm-workspace', JSON.stringify({ ...workspace, active: focused }));
     } catch {
       /* private mode — the workspace just won't persist this session */
     }
@@ -98,6 +102,12 @@
     persistWorkspace();
     void refresh();
   }
+  // Changing arrangement is a view preference, like the theme — it never touches a vault.
+  function setLayout(layout: Layout) {
+    workspace = { ...workspace, layout };
+    persistWorkspace();
+  }
+
   function setCols(cols: number) {
     workspace = { ...workspace, cols: Math.max(1, Math.min(cols, 4)) };
     persistWorkspace();
@@ -716,7 +726,7 @@
     }}
   />
 {:else if vaults}
-<div class="app">
+<div class="app" data-layout={workspace.layout ?? 'auto'}>
   <!-- The nav is a horizontal top bar now (it was a tall left rail that wasted vertical
        space). Everything the rail held lives here in one row; the workspace gets the full
        height and width below it. -->
@@ -863,7 +873,10 @@
          each drops into its cell unchanged. -->
     <div class="workspace" style="--cols:{workspace.cols}">
       {#each workspace.panes as pane, i (pane.id)}
-        <div class="cell" style="grid-column: span {Math.min(pane.colSpan, workspace.cols)}; grid-row: span {pane.rowSpan};">
+        <div
+          class="cell"
+          class:active={i === focused}
+          style="grid-column: span {Math.min(pane.colSpan, workspace.cols)}; grid-row: span {pane.rowSpan};">
           <Pane
             {pane}
             index={i}
@@ -889,6 +902,17 @@
         </div>
       {/each}
     </div>
+
+    <!-- Navigation for the single-pane arrangement. Always rendered, shown by CSS only when
+         one pane is visible — the same no-conditional-component-tree discipline as the rest. -->
+    <ViewBar
+      panes={workspace.panes}
+      active={focused}
+      onselect={(i) => {
+        focused = i;
+        persistWorkspace();
+      }}
+      onclose={closePane} />
   </div>
 
   {#if paletteOpen}
@@ -900,6 +924,8 @@
   {#if settingsOpen}
     {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
       <SettingsPanel
+        layout={workspace.layout ?? 'auto'}
+        onlayout={setLayout}
         onclose={() => (settingsOpen = false)}
         onbackup={() => {
           settingsOpen = false;
@@ -978,7 +1004,10 @@
     display: grid;
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
-    height: 100vh;
+    /* `dvh`, not `vh`: on a phone `100vh` is the tallest the viewport ever gets, so with a
+       retracting URL bar or an on-screen keyboard the shell is taller than what you can see
+       and the bottom of the app is unreachable. `dvh` tracks the *current* viewport. */
+    height: 100dvh;
     overflow: hidden;
     background: var(--bg);
   }
@@ -988,12 +1017,53 @@
     align-items: center;
     gap: var(--space-2);
     min-height: var(--header-h);
-    padding: 0 var(--space-3);
+    /* Pay back `viewport-fit=cover`. Without this the toolbar paints under the status bar and
+       the clock sits on top of the search field — observed on a real device, invisible on the
+       emulator until the screen was taller. `max()` so a desktop with no insets is unchanged. */
+    padding: max(var(--safe-top), 0px) max(var(--safe-right), var(--space-3)) 0
+      max(var(--safe-left), var(--space-3));
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
     overflow-y: hidden;
   }
+  /* ---------------------------------------------------------------------------------------
+     Two arrangements, one shell.
+
+     `single` shows one pane and lets a switcher move between them; `tiled` is the grid.
+     `auto` asks the space. All of it is CSS keyed off `data-layout`, so there is **no
+     viewport-tracking TypeScript** — the only new state is a preference string, exactly like
+     the theme. That keeps the promise made when the phone CSS first landed: no new stateful
+     layout, no phone-only component tree.
+
+     Every pane stays mounted and fetched, so switching is instant and the feed layer is
+     untouched. `display: none` rather than unmounting is the point.
+     --------------------------------------------------------------------------------------- */
+  [data-layout='single'] .cell:not(.active) {
+    display: none;
+  }
+  [data-layout='single'] :global(.viewbar) {
+    display: flex;
+  }
+  [data-layout='single'] .workspace {
+    grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
+  }
+  /* The narrow default. 60rem, not the 40rem used elsewhere: two panes side by side need room
+     for two *readable* columns, which runs out well before a phone's width. */
+  @media (max-width: 60rem) {
+    [data-layout='auto'] .cell:not(.active) {
+      display: none;
+    }
+    [data-layout='auto'] :global(.viewbar) {
+      display: flex;
+    }
+    [data-layout='auto'] .workspace {
+      grid-template-columns: 1fr;
+      grid-auto-rows: 1fr;
+    }
+  }
+
   .body {
     grid-row: 2;
     display: flex;
@@ -1210,11 +1280,17 @@
     opacity: 1;
   }
 
-  /* ── Phone ────────────────────────────────────────────────────────────────────
-     A media-query reflow of the components that already exist, and deliberately
-     nothing more: no new stateful layout, no phone-only component tree, no second
-     set of behaviours to keep in step with the desktop's. The pane workspace is
-     already a grid of independent panes, so "one at a time" is a column count.
+  /* ── Narrow shell ─────────────────────────────────────────────────────────────
+     A media-query reflow of components that already exist: no viewport-tracking
+     TypeScript, no phone-only component tree, no second set of behaviours to keep
+     in step. That promise still holds — the layout modes above are `data-layout`
+     plus CSS, and the one new component (ViewBar) is always rendered.
+
+     **Superseded in part (2026-07-19):** "one at a time is a column count" was the
+     old answer, and it only *stacked* panes — you scrolled past whole views to
+     reach the next. One-at-a-time is now a real arrangement (see the `data-layout`
+     block above); what remains here is the shell reflow, which is genuinely about
+     the window rather than about any pane.
 
      `--cols` is a *desktop* preference (the pane-count control writes it), so it is
      overridden rather than read here — a phone has no room to honour it, and a

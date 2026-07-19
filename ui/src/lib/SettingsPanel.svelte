@@ -18,7 +18,21 @@
   import { config as fetchConfig } from './ipc';
   import type { Config } from './types';
 
-  let { onclose, onbackup }: { onclose: () => void; onbackup: () => void } = $props();
+  // The one *setting* on this screen. Everything else here is a mirror of configuration the
+  // backend owns and this panel cannot change (`vaults::save` is append-only). Layout is
+  // different in kind: a view preference like the theme, stored in this browser, touching no
+  // vault. That is why it is allowed to live here without making Settings a form.
+  let {
+    onclose,
+    onbackup,
+    layout,
+    onlayout,
+  }: {
+    onclose: () => void;
+    onbackup: () => void;
+    layout: 'auto' | 'tiled' | 'single';
+    onlayout: (l: 'auto' | 'tiled' | 'single') => void;
+  } = $props();
 
   let cfg = $state<Config | null>(null);
   let error = $state<string | null>(null);
@@ -53,6 +67,30 @@
     {:else if !cfg}
       <p class="muted">Reading configuration…</p>
     {:else}
+      <section>
+        <h3>Layout</h3>
+        <p class="muted">
+          How views are arranged. <strong>Single</strong> is reachable here on any machine on
+          purpose — a narrow layout only a phone could run would be a second frontend wearing a
+          setting, and nothing would exercise it during ordinary desktop work.
+        </p>
+        <ul class="caps">
+          {#each [['auto', 'Automatic', 'Tiled when there is room, single when there is not.'], ['tiled', 'Tiled', 'The pane grid, always.'], ['single', 'Single', 'One view at a time, with a switcher.']] as [value, label, why] (value)}
+            <li>
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="layout"
+                  checked={layout === value}
+                  onchange={() => onlayout(value as 'auto' | 'tiled' | 'single')} />
+                <span class="k">{label}</span>
+                <span class="muted">{why}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+      </section>
+
       <section>
         <h3>Vault list</h3>
         {#if cfg.vault_list}
@@ -270,6 +308,15 @@
   .eq {
     color: var(--text-muted);
     padding: 0 4px;
+  }
+  .choice {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    cursor: pointer;
+  }
+  .choice .k {
+    min-width: 5.5rem;
   }
   .link {
     background: none;

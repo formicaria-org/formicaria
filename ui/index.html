@@ -2,9 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` lets the page paint under the status bar and gesture area; the
+         shell then pays that back with `env(safe-area-inset-*)` padding. Without the pair, an
+         installed Android app draws its toolbar *underneath* the clock and signal icons —
+         which is exactly what shipping to a real phone showed. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#dc2626" />
+    <!-- Paired with the scheme so the browser/app chrome follows the theme instead of staying
+         brand red in the dark. -->
+    <meta name="theme-color" content="#dc2626" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1a19" media="(prefers-color-scheme: dark)" />
     <title>formicaria</title>
     <!-- Serve Excalidraw's fonts ourselves. Unset, it downloads them from a CDN the first
          time you open a whiteboard — which would make "nothing phones home" untrue and

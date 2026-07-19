@@ -478,9 +478,15 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
    **Nothing fires it on a timer** — whether writing a note should publish it unasked is an
    outward-facing default, and the shipped design says backup is "a conversation, not a
    fire-and-forget", so it wants a decision rather than an assumption.
-7. **Mobile shell stays trivially CSS — ✅ SHIPPED 2026-07-18.** A media-query reflow of the
-   already-tested shared renderers and no new stateful layout: the pane workspace collapses to
-   one column (`--cols` is overridden, not read — a workspace saved on a laptop must not arrive
+7. **Mobile shell stays trivially CSS — ✅ SHIPPED 2026-07-18, ◐ SUPERSEDED IN PART
+   2026-07-19.** The *"trivially CSS"* half held and still does — the layout work that followed
+   added no viewport-tracking TypeScript. What did not survive contact with a real phone is
+   "collapse to one column": stacking meant scrolling past whole views to reach the next, so
+   there are now **two named arrangements** (`tiled`/`single`) chosen by space and overridable
+   on any platform, plus a bottom view-switcher, safe-area insets and container queries on the
+   renderers (`decisions.md`, "One shell, two arrangements"). The original, for the record: a
+   media-query reflow of the already-tested shared renderers and no new stateful layout: the
+   pane workspace collapses to one column (`--cols` is overridden, not read — a workspace saved on a laptop must not arrive
    on a phone as four 4rem columns), the top bar wraps, the board snap-scrolls one column at a
    time, and `pointer: coarse` bumps the 3px-padding targets to ~44px. Board's touch gap
    (pragmatic-DnD's element adapter doesn't fire on touch) got the **tap→move-to-column

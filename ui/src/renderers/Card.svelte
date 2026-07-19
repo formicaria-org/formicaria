@@ -270,7 +270,26 @@
 
   /* Phone: no hover to reveal anything, and a finger is not a mouse. The move button is
      always visible and big enough to hit, because without it the board is inert on touch. */
-  @media (pointer: coarse), (max-width: 40rem) {
+  /* Split deliberately. `pointer: coarse` is a *capability* of the input device and is a media
+     query for the right reason — a tablet is wide and still has no mouse. The width half is a
+     question about this card's container, so it moved to `@container`. They used to be OR'd
+     into one rule, which meant a narrow pane on a mouse-driven desktop got touch affordances
+     it did not need, and a wide pane on a touch screen missed them. */
+  @media (pointer: coarse) {
+    .move {
+      opacity: 1;
+      padding: 0.55rem 0.7rem;
+      font-size: 1rem;
+    }
+    .move-menu {
+      top: 2.6rem;
+    }
+    .move-option {
+      padding: 0.75rem 0.8rem;
+      font-size: 0.9rem;
+    }
+  }
+  @container pane (max-width: 40rem) {
     .move {
       opacity: 1;
       padding: 0.55rem 0.7rem;

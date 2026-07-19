@@ -23,9 +23,30 @@ export interface Pane {
   rowSpan: number; // grid rows occupied (>=1)
 }
 
+/** How the panes are arranged. **Two named layouts, and deliberately only two.**
+ *
+ *  - `auto`   — the arrangement follows the available space (the default).
+ *  - `tiled`  — the pane grid, always. What the desktop has always done.
+ *  - `single` — one view at a time with a switcher, always.
+ *
+ *  This is a *layout*, not a platform. `single` is reachable on a desktop and `tiled` on a
+ *  tablet, which is the point: if the narrow arrangement only worked on a phone it would be a
+ *  fork with extra steps, and nothing would exercise it during ordinary desktop work.
+ *
+ *  Two and no more. A general "customisable frontend" is unbounded and lands on the plugin API
+ *  `docs/context/plan.md` already rejects. */
+export type Layout = 'auto' | 'tiled' | 'single';
+
 export interface Workspace {
-  cols: number; // grid column count (>=1)
+  cols: number; // grid column count (>=1) — tiled only
   panes: Pane[]; // flow into the grid in order
+  /** Optional for back-compat: a workspace persisted before layouts existed has neither, and
+   *  `loadWorkspace` must keep accepting it. */
+  layout?: Layout;
+  /** Which pane is showing in `single`. Promotes `focused` from a border-colour hint to real,
+   *  persisted state — it already meant "the active pane" everywhere else (`closePane` clamps
+   *  it, `openNoteInPane` sets it), it just never decided what was visible. */
+  active?: number;
 }
 
 /** A soft ceiling so a runaway loop or a fat-fingered "add" can't spawn hundreds of heavy

@@ -6,6 +6,22 @@
 
 /* ---- (1) Scales — theme-agnostic ---- */
 :root {
+  /* The one width threshold in the app, so it stops being a literal copied into three
+     separate <style> blocks. It means "too narrow for two things side by side" — used as a
+     *container* query on a pane and as a *media* query only for the shell itself.
+     NOTE: CSS cannot interpolate a custom property into a media/container condition, so this
+     token is documentation and a single place to read the number from, not a substitution. */
+  --bp-narrow: 40rem;
+
+  /* The device's own unsafe regions — the status bar, the gesture pill, a display cutout —
+     named once so no component has to remember the `env()` spelling or its fallback. Zero on
+     anything without insets, so desktop is untouched. Only meaningful because `index.html`
+     asks for `viewport-fit=cover`; the two are a pair. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
   /* spacing, 4px base */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;

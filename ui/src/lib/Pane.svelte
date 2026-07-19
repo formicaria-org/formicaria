@@ -358,6 +358,15 @@
 
 <style>
   .pane {
+    /* Renderers inside a pane must size to *the pane*, not the window. A colSpan:1 pane in a
+       4-column workspace on a wide monitor is ~380px, and viewport media queries were handing
+       it desktop-width board columns it could not fit; a maximised pane on a small window got
+       `85vw` columns inside a box that was not 85vw. The media queries were asking the wrong
+       element. This is what lets one renderer be correct at any size — and it is the capability
+       that did not exist when the standard advice was "build a separate mobile site". */
+    container-type: inline-size;
+    container-name: pane;
+
     position: relative;
     display: flex;
     flex-direction: column;

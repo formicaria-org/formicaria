@@ -189,7 +189,9 @@
   /* Phone: a column should fill the screen rather than showing 17rem of one and a
      sliver of the next — the board still scrolls sideways between columns, which is
      the gesture that already matches how a kanban board reads. */
-  @media (max-width: 40rem) {
+  /* `@container`, not `@media`: "is this board narrow" is a question about the pane, and the
+     answer differs per pane on the same screen. Same number as before, correct element. */
+  @container pane (max-width: 40rem) {
     .board {
       padding: 0.5rem;
       gap: 0.5rem;
