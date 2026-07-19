@@ -220,6 +220,7 @@ pub fn commit_all(
 /// to install at all, which is precisely why a native `pull` will have to call
 /// [`crate::merge::merge_texts`] directly.
 pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
+    ensure_certs();
     crate::git::check_clone_dest(url, dest)?;
     Repository::clone(url.trim(), dest).map_err(map)?;
     ensure_repo(dest)?;
@@ -278,6 +279,25 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
+/// Hand libgit2 our CA bundle again, now that a network call is about to create the SSL
+/// context — **the retry that makes the explicit option usable at all**.
+///
+/// At startup `set_cert_file` fails with "OpenSSL error: failed to load certificates" and no
+/// detail appended, which is `SSL_CTX_load_verify_locations` refusing a context that does not
+/// exist yet: libgit2 builds it lazily, on first stream use. Measured on a real device.
+///
+/// So the same call is made once more here, at the first operation that will actually open a
+/// stream. Best-effort in both places: `SSL_CERT_FILE` is set at startup and is the mechanism
+/// actually relied on — OpenSSL reads it when libgit2 calls `SSL_CTX_set_default_verify_paths`
+/// — and this only closes the gap if that env var were ever read too late.
+fn ensure_certs() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let Some(p) = std::env::var_os("SSL_CERT_FILE") else { return };
+        let _ = set_cert_file(Path::new(&p));
+    });
+}
+
 /// Point libgit2's OpenSSL at a CA bundle, explicitly.
 ///
 /// **Preferred over the `SSL_CERT_FILE` environment variable**, which only takes effect if it
@@ -302,6 +322,7 @@ pub fn set_cert_file(path: &Path) -> Result<(), StoreError> {
 /// the new-vault form, and every other remote call here needs one. `connect` fetches the ref
 /// advertisement and no objects.
 pub fn probe(url: &str) -> crate::git::Probe {
+    ensure_certs();
     use crate::git::Probe;
     let mut rem = match git2::Remote::create_detached(url.trim()) {
         Ok(r) => r,
@@ -376,6 +397,7 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
 /// as it does on a desktop. A note they genuinely disagreed about comes back with markers **in
 /// the body**, which is what keeps it parseable and openable in the editor.
 pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
+    ensure_certs();
     use crate::git::Pulled;
 
     ensure_repo(vault)?;
@@ -523,6 +545,7 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
 /// can retry-and-roll-back around, and because a caller that genuinely wants "send what I have"
 /// should have to say so.
 pub fn push(vault: &Path) -> Result<(), StoreError> {
+    ensure_certs();
     let repo = Repository::open(vault).map_err(map)?;
     let head = repo.head().map_err(map)?;
     let branch = head.shorthand().map_err(|_| StoreError::Io("detached HEAD".into()))?.to_string();
@@ -705,6 +728,7 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
 /// `connect` + `list` rather than a fetch: this asks for refs only and downloads no objects,
 /// which is what makes it cheap enough to sit behind a poll on a phone's data connection.
 fn remote_head(repo: &Repository, branch: &str) -> Result<Option<git2::Oid>, StoreError> {
+    ensure_certs();
     let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
     let mut cbs = credentials();
     // Connect borrows the callbacks, so the connection is scoped tightly and always closed.
