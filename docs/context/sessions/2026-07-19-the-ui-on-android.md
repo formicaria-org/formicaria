@@ -67,3 +67,38 @@ and windows and no fallback, so `cmd` was never bound. Same shape of hole as
 `fm_app::vaults::config_dir`. Fixed with an honest `Unsupported` — handing a file to its owner
 on Android means an `Intent`, which needs the JVM, which is precisely why `open_external` is a
 `Host` trait method rather than a `#[cfg]` ladder.
+
+
+## First pass at the defects — measured, not guessed
+
+Fixed and verified on the emulator (`shots/2026-07-19-android-board.png` before,
+`-board-after.png` after):
+
+- **The `cols` control is hidden below 40rem.** It was rendered, said "2", and did nothing —
+  `.workspace` is already forced to one column at that width. A control that lies about the
+  state is worse than one that is absent.
+- **The view chips are one horizontally-scrolling strip** rather than a wrapping block. Costs
+  one row instead of two, and stops being a cliff the moment a sixth saved view exists.
+  `touch-action: pan-x` so a vertical drag still scrolls the page.
+- **The wordmark is hidden, Back up is icon-only, the separator is gone.**
+- **The search input drops 9rem → 6rem.** Measured: row one came to ~423px against a 411px
+  viewport — over by about a dozen pixels, which is the entire reason New board sat alone on a
+  line. Giving up 3rem closes the row.
+
+**Result: four toolbar rows became three.** Toolbar height ~445 → ~335 display-px, about a 25%
+reduction; the board starts ~130px higher on a 2400px screen.
+
+**Honest about what is left.** The third row still holds only the theme toggle and Back up,
+right-aligned against an empty left half — that is the next obvious row to reclaim, and it
+needs a markup change rather than CSS, so it is a design call rather than a tweak. And the
+original "~40% before content" figure was right but worth decomposing: roughly 22% of it is our
+toolbar, the rest is the once-per-session git banner (dismissible) plus Chrome's own URL bar,
+which a real shell would not have.
+
+## A deployment trap worth knowing
+
+`adb push <dir> <existing-dir>` **nests** rather than replaces — the second push landed in
+`dist/dist/`, so the device kept serving the previous bundle while the local build looked
+correct. Two CSS changes appeared to do nothing before this was spotted; the tell was comparing
+the hashed asset name in the *served* `index.html` against the one just built. `rm -rf` the
+target first.

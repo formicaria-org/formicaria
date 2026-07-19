@@ -823,7 +823,7 @@
       <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
     </button>
     <button class="tb-btn ghost" onclick={onBackup} title="Push your notes; optionally snapshot media">
-      <Icon name="backup" size={15} /> Back up
+      <Icon name="backup" size={15} /> <span class="tb-backup-label">Back up</span>
     </button>
   </header>
 
@@ -1235,6 +1235,70 @@
       flex-wrap: wrap;
       row-gap: 0.4rem;
       padding: 0.4rem 0.5rem;
+    }
+
+    /* Measured on a device (2026-07-19, `sessions/2026-07-19-the-ui-on-android.md`): the
+       toolbar wrapped to FOUR rows and the board began below the halfway mark of a 2400px
+       screen. Everything below is about getting that back — the content is the product, the
+       chrome is not. */
+
+    /* The view chips were the widest row and the main reason it grew. One horizontally
+       scrolling strip instead of a wrapping block: it costs one row instead of two, and it
+       stops being a cliff the moment a sixth saved view exists. Vertical scroll still belongs
+       to the page — `touch-action` keeps a vertical drag from being stolen by the strip. */
+    .tb-add {
+      flex: 1 1 100%;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      touch-action: pan-x;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tb-add::-webkit-scrollbar {
+      display: none;
+    }
+    .tb-chip {
+      flex: 0 0 auto;
+    }
+
+    /* The workspace-columns control is **ignored** at this width — `.workspace` above is
+       forced to `1fr`. It was still rendered, still said "2", and still did nothing: a
+       control that lies about the state is worse than one that is absent. `:not(.tb-create)`
+       because the vault selector shares the class and is genuinely useful here. */
+    .tb-cols:not(.tb-create) {
+      display: none;
+    }
+
+    /* A vertical rule between wrapped rows separates nothing. */
+    .tb-sep {
+      display: none;
+    }
+
+    /* Rows, not controls, are what cost height — removing the columns selector above saved a
+       control and no space at all. At 411px the first row (wordmark + search + New note) is
+       full, so New board wraps onto a line of its own, and the trailing actions wrap onto
+       another. Reclaiming a row means making row one narrower.
+
+       The wordmark goes first: the app's name is the least useful thing on screen to someone
+       already looking at it, and it is ~90px. That is enough for New board to come up beside
+       New note. `<title>` still carries the name in the tab. */
+    .wordmark {
+      display: none;
+    }
+
+    /* Back up keeps its icon and loses its label — the icon is the same one the backup panel
+       uses, and the row it sits on is shared with the theme toggle. */
+    .tb-backup-label {
+      display: none;
+    }
+
+    /* Measured, not guessed: at 411px the first row came to ~423px with New board on it — over
+       by about a dozen pixels, which is why New board sat alone on a line of its own. The
+       search input is 9rem by default and is the only thing here with slack, so it gives up
+       3rem and the row closes. A placeholder is still legible at 6rem, and the field grows the
+       moment there is room. */
+    .topbar-search {
+      width: 6rem;
     }
   }
 
