@@ -302,6 +302,13 @@ schedule, for an upstream issue that has been open for years.
 
 All verified **2026-07-19**.
 
+0. **VERIFIED ON DEVICE 2026-07-19: there is no `git` binary on Android.** Previously sourced
+   from platform docs and asserted throughout `docs/context/`; now confirmed by running
+   `command -v git` on the owner's phone (`git: inaccessible or not found`). formicaria's core,
+   cross-compiled and pushed to `/data/local/tmp`, captured/listed/searched notes there with no
+   git present and created no `.git` — so the capability model degrades exactly as designed.
+   See `sessions/2026-07-19-the-core-on-the-phone.md`. This is the premise the whole libgit2
+   decision rests on, and it is no longer an inference.
 1. **`gix`/gitoxide push is still unimplemented.** Re-verify via gitoxide's `crate-status.md`,
    **never** by the existence of a `gix::push` module — that name is the `push.default` config
    enum and will fool the next checker. Consequence: the pure-Rust escape is closed, and any
