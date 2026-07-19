@@ -38,7 +38,12 @@ fn fm(
     args: serde_json::Value,
     app: tauri::State<'_, Arc<App>>,
 ) -> Result<String, String> {
-    let out = dispatch(&cmd, &args, &[], &app, &AndroidHost)?;
+    // **Logged before it is returned.** The UI shows the message, but a phone screen is not
+    // somewhere a stack of failures can be compared — and the whole point of the tag is that
+    // a failing clone can be read off `adb logcat` instead of retyped by hand.
+    let out = dispatch(&cmd, &args, &[], &app, &AndroidHost).inspect_err(|e| {
+        log::error!("{cmd}: {e}");
+    })?;
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
 }
 
@@ -120,17 +125,36 @@ fn install_ca_bundle(handle: &tauri::AppHandle) {
         std::path::Path::new("/system/etc/security/cacerts"),
     ];
     match fm_app::ca_bundle::install(&dirs, &dir.join("ca-bundle.pem")) {
-        Ok(n) => eprintln!("ca-bundle: {n} certificates"),
+        Ok(n) => log::info!("ca-bundle: {n} certificates loaded into libgit2"),
         // Said out loud rather than swallowed: this is the difference between "sync is broken"
         // and "sync cannot verify anyone", and the two look identical from the UI.
-        Err(e) => eprintln!("ca-bundle: {e}"),
+        Err(e) => log::error!("ca-bundle: {e}"),
     }
+}
+
+/// Send this shell's diagnostics somewhere they can actually be read.
+///
+/// **Android routes neither Rust's stdout nor its stderr anywhere.** Every `eprintln!` in this
+/// file has been writing into a void — which is precisely how "the SSL certificate is invalid"
+/// stayed unexplained across several builds while the app was already reporting the cause. A
+/// startup diagnostic nobody can read is not a diagnostic.
+///
+/// Everything lands under the `formicaria` tag: `adb logcat -s formicaria`.
+fn install_logger() {
+    #[cfg(target_os = "android")]
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("formicaria"),
+    );
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            // First, so that everything below is visible — including its own failures.
+            install_logger();
             configure_paths(app.handle());
             install_ca_bundle(app.handle());
             // The git token, if this device has one. **Only ever reached here**: a desktop
@@ -146,7 +170,7 @@ pub fn run() {
             if !skipped.is_empty() {
                 // Same discipline as the desktop: a note that could not be read is named, never
                 // swallowed. The UI surfaces these on the heartbeat.
-                eprintln!("unreadable notes: {}", skipped.join("; "));
+                log::warn!("unreadable notes: {}", skipped.join("; "));
             }
             tauri::Manager::manage(app, Arc::new(fm_app));
             Ok(())
