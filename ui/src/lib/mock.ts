@@ -452,6 +452,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // three restic questions rather than collapsing them into one happy case.
         restic_installed: true,
         restic_password_set: false,
+        // The desktop shape: the user picks their own locations. The managed-root path is a
+        // phone, and is exercised there.
+        vault_root: null,
       } as T;
     case 'create_vault': {
       mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });

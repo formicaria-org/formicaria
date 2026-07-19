@@ -10,7 +10,8 @@
   // A browser cannot open a folder picker for a server's filesystem, and shelling out to
   // zenity would mean the core spawns a process to do its own first run. So: a typed path,
   // and the server answers what is really there on every keystroke.
-  import { checkPath, cloneVault, createVault, restoreVault } from './ipc';
+  import { onMount } from 'svelte';
+  import { checkPath, cloneVault, config as fetchConfig, createVault, restoreVault } from './ipc';
   import type { PathCheck, VaultInfo } from './types';
   import { describe, historyNote } from './vaultCheck';
 
@@ -29,6 +30,25 @@
 
   let name = $state('notes');
   let path = $state('~/notes');
+
+  // **Where vaults go, when the user does not choose.** `null` is a desktop: they type a
+  // folder, because a vault there is a folder they already have an opinion about. A string is
+  // a phone, where there is no `$HOME`, no shell, and no path anyone could meaningfully type —
+  // so the form stops asking and the server places the vault inside its own sandbox.
+  //
+  // The join is the SERVER's: sending an empty path is how the form says "you decide". A
+  // browser computing `<root>/<name>` would be one `../` from writing outside the sandbox.
+  let vaultRoot = $state<string | null>(null);
+  const managed = $derived(vaultRoot !== null);
+
+  onMount(async () => {
+    const cfg = await fetchConfig().catch(() => null);
+    if (cfg) {
+      vaultRoot = cfg.vault_root;
+      // Nothing sensible to prefill on a phone, and the field is not shown there anyway.
+      if (cfg.vault_root !== null) path = '';
+    }
+  });
   let check = $state<PathCheck | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -85,9 +105,11 @@
   // answer must feel immediate once you stop.
   let timer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    const [n, p] = [name, path];
+    const [n, p, m] = [name, path, managed];
     clearTimeout(timer);
-    if (!p.trim()) {
+    // On a managed install the *name* is the whole input — an empty path is what asks the
+    // server to place it — so only a desktop treats a blank folder as nothing to check.
+    if (!m && !p.trim()) {
       check = null;
       return;
     }
@@ -237,17 +259,28 @@
       </p>
     {/if}
 
-    <label>
-      <span>Folder</span>
-      <input
-        bind:value={path}
-        placeholder="~/notes"
-        autocomplete="off"
-        spellcheck="false"
-        autocapitalize="off"
-      />
-      <small>Where the files live. Notes go in a <code>notes/</code> folder inside it.</small>
-    </label>
+    {#if managed}
+      <!-- No folder question, because there is no folder to choose. The location is stated
+           rather than hidden: files-as-truth means "where is my file" must always have an
+           answer, even when the answer is somewhere you cannot browse to. -->
+      <p class="lede caveat">
+        Kept in formicaria's own storage on this device — <code>{vaultRoot}</code> — where no
+        other app can read or write. Uninstalling formicaria deletes it, so give a vault you
+        care about a remote or a backup.
+      </p>
+    {:else}
+      <label>
+        <span>Folder</span>
+        <input
+          bind:value={path}
+          placeholder="~/notes"
+          autocomplete="off"
+          spellcheck="false"
+          autocapitalize="off"
+        />
+        <small>Where the files live. Notes go in a <code>notes/</code> folder inside it.</small>
+      </label>
+    {/if}
 
     <!-- Everything below is a promise about someone's filesystem. Each line is a fact the
          server reported, never an inference we made. -->

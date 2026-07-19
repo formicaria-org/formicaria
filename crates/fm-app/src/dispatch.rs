@@ -386,10 +386,11 @@ pub fn dispatch(
         }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
+            let path = resolve_path(&s("name"), &s("path"))?;
             let g = lock()?;
-            json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &s("path")))
+            json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &path))
         }
-        "create_vault" => json(create_vault(app, &s("name"), &s("path"))?),
+        "create_vault" => json(create_vault(app, &s("name"), &resolve_path(&s("name"), &s("path"))?)?),
         // What this installation is actually configured as — the answer to "what am I
         // operating with?". Read-only by construction and by necessity: `vaults::save` is
         // append-only and never rewrites an existing entry, so a settings screen that offered
@@ -432,6 +433,7 @@ pub fn dispatch(
                 git: fm_core::vcs::available(),
                 restic_installed: backup::available(),
                 restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
+                vault_root: vaults::vault_root().map(|p| p.display().to_string()),
             })
         }
         // The other way a vault comes into existence: someone else already has it. Same
@@ -439,14 +441,16 @@ pub fn dispatch(
         "clone_vault" => json(clone_vault(
             app,
             &s("name"),
-            &s("path"),
+            &resolve_path(&s("name"), &s("path"))?,
             &s("url"),
             &s("gitName"),
             &s("gitEmail"),
         )?),
         // The third way in: a vault you already have, in a backup, on a machine that no
         // longer exists. Same registration as the other two, with a restic restore in front.
-        "restore_vault" => json(restore_vault(app, &s("name"), &s("path"), &s("repo"))?),
+        "restore_vault" => {
+            json(restore_vault(app, &s("name"), &resolve_path(&s("name"), &s("path"))?, &s("repo"))?)
+        }
         // The user's saved `.view` files, aggregated across every vault: a view is
         // git-tracked *in* the vault it belongs to, but the query it defines runs against
         // the whole set (so `prop: vault` can narrow, or a dashboard can span audiences).
@@ -710,6 +714,10 @@ struct Config {
     /// not installed.
     restic_installed: bool,
     restic_password_set: bool,
+    /// The directory this installation puts vaults in, or `null` when the user chooses their
+    /// own. **Present on a phone, absent on a desktop** — and it is what tells the form
+    /// whether to ask for a folder at all. See `vaults::vault_root`.
+    vault_root: Option<String>,
 }
 
 /// A vault's restic destination. Its own type rather than a field on `VaultInfo` because it
@@ -1185,6 +1193,27 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     g.add(cfg, store);
     let names = g.store.names();
     Ok(infos(&g.configs(), &names))
+}
+
+/// Where a vault goes, given what the caller asked for.
+///
+/// **An empty `path` means "you decide", and only a managed installation may decide.** On a
+/// phone the form never asks for a folder — there is no path a user could meaningfully type —
+/// so it sends the name alone and this resolves it inside `FM_VAULT_ROOT`. On a desktop there
+/// is no root, an empty path stays empty, and `check_path` refuses it the way it always has.
+///
+/// **Resolved here rather than in the UI on purpose.** A browser joining `<root>/<name>` is one
+/// `../` away from writing outside the sandbox, and containment that depends on the frontend
+/// behaving is not containment. A caller may still name an explicit path — `curl` is a
+/// supported client — and on a phone that path is checked by `check_path` like any other.
+fn resolve_path(name: &str, path: &str) -> Result<String, String> {
+    if !path.trim().is_empty() {
+        return Ok(path.to_string());
+    }
+    match vaults::vault_root() {
+        Some(root) => Ok(vaults::contained_path(&root, name)?.to_string_lossy().into_owned()),
+        None => Ok(String::new()),
+    }
 }
 
 /// Why the form said no. One sentence, the most disqualifying first — a list of every

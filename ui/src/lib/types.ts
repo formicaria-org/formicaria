@@ -201,4 +201,8 @@ export interface Config {
   restic_installed: boolean;
   /** Present/absent only. The value is never sent. */
   restic_password_set: boolean;
+  /** The one directory this installation puts vaults in, or `null` when the user chooses.
+   *  Present on a phone, absent on a desktop — and it is what decides whether the new-vault
+   *  form asks for a folder at all. */
+  vault_root: string | null;
 }

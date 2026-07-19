@@ -56,12 +56,36 @@ fn configure_paths(handle: &tauri::AppHandle) {
     // Safety: single-threaded, before any vault is opened. `set_var` is the only way to reach
     // `config_dir()`, which reads the environment by design so that the same code works under
     // `fm-serve`, the CLI and here.
+    // Every vault this device makes lives in here, and nothing else on the device writes to it.
+    //
+    // **A phone has no place a user could name.** There is no `$HOME`, no shell to `mkdir`
+    // with, and no file manager that can reach an app's storage — so the desktop's "type a
+    // folder" question has no answer here, and asking it produced a literal `~/notes` resolved
+    // against the process working directory. The platform gives an app exactly one directory it
+    // may write to; this is it, and `fm-app` puts vaults inside it by name.
+    //
+    // **The cost, stated:** Android deletes this when the app is uninstalled. That is the price
+    // of a sandbox nothing else can touch, and it is the reason a phone vault wants a git remote
+    // or a restic repo pointed at it rather than being the only copy.
+    let root = dir.join("vaults");
+    let _ = std::fs::create_dir_all(&root);
+
+    // Safety: single-threaded, before any vault is opened. `set_var` is the only way to reach
+    // `config_dir()`, which reads the environment by design so that the same code works under
+    // `fm-serve`, the CLI and here.
     unsafe {
         std::env::set_var("FM_CONFIG_DIR", &dir);
+        std::env::set_var("FM_VAULT_ROOT", &root);
         // First run needs *a* vault or the app opens on the first-run screen with nowhere to
         // create one — on a phone there is no shell to `mkdir` with.
         if std::env::var_os("FM_VAULT").is_none() {
-            let vault = dir.join("vault");
+            // **The pre-root default is honoured when it exists.** Earlier builds put the first
+            // vault at `<app_data>/vault`, outside the root introduced here. Repointing at the
+            // new location would leave those notes on disk and invisible — indistinguishable
+            // from data loss to the person holding the phone. So an existing one keeps its
+            // path, and only a fresh install starts inside the root.
+            let legacy = dir.join("vault");
+            let vault = if legacy.exists() { legacy } else { root.join("notes") };
             let _ = std::fs::create_dir_all(vault.join("notes"));
             std::env::set_var("FM_VAULT", &vault);
         }

@@ -267,6 +267,52 @@ pub fn config_dir() -> Option<PathBuf> {
     }
 }
 
+/// The one directory this installation is allowed to put vaults in, or `None` when the user
+/// picks their own locations.
+///
+/// **`Some` is the phone; `None` is the desktop, and that asymmetry is the design.** On a
+/// desktop a vault is a folder you chose — `~/notes`, or a project repo you are adopting — and
+/// taking that away would break the thing that makes a vault *yours*. A phone has no such
+/// place: there is no `$HOME`, no shell to `mkdir` with, no file manager that can reach an
+/// app's storage, and no meaningful path a user could type. The platform hands the app one
+/// private directory and that is the whole world it may write to.
+///
+/// So the shell sets `FM_VAULT_ROOT` and everything lands inside it. Nothing else on the device
+/// writes there, and it is removed when the app is uninstalled — which is the honest cost of a
+/// sandbox, and the reason a phone vault wants a remote or a backup pointed at it.
+pub fn vault_root() -> Option<PathBuf> {
+    std::env::var_os("FM_VAULT_ROOT")
+        .map(PathBuf::from)
+        // A relative root would follow the cwd, which on a phone means nothing at all.
+        .filter(|p| p.is_absolute())
+}
+
+/// Where a vault called `name` goes inside the managed root.
+///
+/// **The join happens here, never in the UI.** A browser computing `<root>/<name>` is a browser
+/// one `../` away from writing outside the sandbox, and "the frontend promised not to" is not
+/// containment. The name becomes exactly one path segment or this refuses.
+///
+/// The mapping is deliberately lossy and deliberately not shown to the user as *the* name: what
+/// they typed is the vault's name in the app, and this is only the folder it lives in. Two
+/// vaults whose names differ only in punctuation would collide here, which `check_path` catches
+/// as a taken path — a clear refusal rather than two vaults quietly sharing a directory.
+pub fn contained_path(root: &Path, name: &str) -> Result<PathBuf, String> {
+    let slug: String = name
+        .trim()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+        .collect();
+    // Collapse runs and trim the separator, so "my notes!!" is `my-notes`, not `my-notes--`.
+    let slug = slug.split('-').filter(|s| !s.is_empty()).collect::<Vec<_>>().join("-");
+    if slug.is_empty() {
+        return Err("that name has no letters or digits in it, so there is no folder to make \
+                    from it — try adding some"
+            .into());
+    }
+    Ok(root.join(slug))
+}
+
 /// The user's home, whatever this OS calls it.
 pub fn home() -> Option<PathBuf> {
     std::env::var_os("HOME")
@@ -388,5 +434,82 @@ mod tests {
         let v = read(&f);
         assert!(v["vaults"][0].get("restic").is_none(), "no restic → no key, not null");
         assert_eq!(v["vaults"][1]["restic"], "/backup/lab");
+    }
+}
+
+#[cfg(test)]
+mod contained {
+    use super::*;
+
+    /// The ordinary case: a name becomes one folder inside the root.
+    #[test]
+    fn a_name_becomes_one_segment_inside_the_root() {
+        let root = Path::new("/data/app/vaults");
+        assert_eq!(contained_path(root, "notes").unwrap(), root.join("notes"));
+        assert_eq!(contained_path(root, "My Notes").unwrap(), root.join("My-Notes"));
+        assert_eq!(contained_path(root, "lab-2026").unwrap(), root.join("lab-2026"));
+    }
+
+    /// **The whole reason this function exists.** A name is user input, and on a phone it is
+    /// the *only* input — so anything that could climb out of the sandbox must become an
+    /// ordinary segment instead. Every one of these stays under the root.
+    #[test]
+    fn no_name_can_escape_the_root() {
+        let root = Path::new("/data/app/vaults");
+        for hostile in [
+            "../../etc",
+            "..",
+            "../sibling",
+            "/absolute",
+            "a/b",
+            "a\\b",
+            "....//....//etc",
+            "~/elsewhere",
+            "notes/../../..",
+        ] {
+            // Two acceptable outcomes, and refusal is the stronger one: a name made entirely
+            // of traversal (`..`) has nothing left once punctuation is stripped, so it is
+            // rejected rather than silently renamed. Anything that *does* produce a folder
+            // must land inside the root as exactly one segment.
+            let Ok(got) = contained_path(root, hostile) else { continue };
+            assert!(
+                got.starts_with(root),
+                "{hostile:?} escaped to {}",
+                got.display()
+            );
+            assert_eq!(
+                got.components().count(),
+                root.components().count() + 1,
+                "{hostile:?} became more than one segment: {}",
+                got.display()
+            );
+            assert!(
+                !got.components().any(|c| c.as_os_str() == ".." || c.as_os_str() == "."),
+                "{hostile:?} kept a traversal component: {}",
+                got.display()
+            );
+        }
+    }
+
+    /// A name with nothing to make a folder from is refused rather than silently becoming the
+    /// root itself — which would put a vault's notes directly among every other vault's.
+    #[test]
+    fn a_name_with_no_usable_characters_is_refused() {
+        let root = Path::new("/data/app/vaults");
+        for empty in ["", "   ", "...", "///", "!!!", "..", "/"] {
+            assert!(contained_path(root, empty).is_err(), "must refuse {empty:?}");
+        }
+    }
+
+    /// Only an absolute root is a root. A relative one would follow the process working
+    /// directory, which on a phone is not a place at all.
+    #[test]
+    fn a_relative_root_is_not_a_root() {
+        std::env::set_var("FM_VAULT_ROOT", "vaults");
+        assert_eq!(vault_root(), None, "a relative root must be ignored");
+        std::env::set_var("FM_VAULT_ROOT", "/data/app/vaults");
+        assert_eq!(vault_root(), Some(PathBuf::from("/data/app/vaults")));
+        std::env::remove_var("FM_VAULT_ROOT");
+        assert_eq!(vault_root(), None, "unset is the desktop, where the user chooses");
     }
 }
