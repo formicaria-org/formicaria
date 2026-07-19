@@ -2,6 +2,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 
+/** Reach a command the way a user now does: the toolbar's "+" buttons open the command
+ *  palette already filtered, and the palette is where every command lives. There are no
+ *  dropdowns in this app by design — see `CommandPalette.svelte`. */
+async function runCommand(label: string, via: 'create' | 'view') {
+  await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
+  // `mouseDown`, not `click`: the palette chooses on mousedown so focus never leaves its
+  // input (a click would blur it first and close the overlay). A `click` here finds the row
+  // and silently does nothing.
+  await fireEvent.mouseDown(await screen.findByText(label));
+}
+
 // Covers the v2 additions on top of App.flow.test.ts: editing a note's
 // properties from the panel (round-tripped through the mock backend), the
 // day-grouped Timeline view, and delete-with-confirm. Same hermetic setup as the
@@ -228,7 +239,7 @@ describe('v2: property editing, timeline, delete', () => {
     await screen.findByText(/GAE lambda interacts badly/);
 
     // Open the Activity stream from the top bar.
-    await fireEvent.click(screen.getByRole('button', { name: 'Activity' }));
+    await runCommand('Open Activity', 'view');
     const before = await waitFor(() => {
       const rows = container.querySelectorAll('.activity .row');
       expect(rows.length).toBeGreaterThan(1);
@@ -248,7 +259,7 @@ describe('v2: property editing, timeline, delete', () => {
 
     // Create a throwaway note — "New note" opens it straight in the panel — so we
     // exercise delete without mutating the shared seed.
-    await fireEvent.click(screen.getByText('New note'));
+    await runCommand('New note', 'create');
     await screen.findByLabelText('note body (Markdown)'); // panel open in edit mode
 
     // First click only arms the confirmation — the panel is still open.

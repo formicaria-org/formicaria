@@ -1,4 +1,5 @@
 import type {
+  Config,
   AssetStatus,
   BackupStatus,
   Board,
@@ -211,6 +212,10 @@ export const cloneVault = (
   gitName: string,
   gitEmail: string,
 ) => invoke<VaultInfo[]>('clone_vault', { name, path, url, gitName, gitEmail });
+
+/** What this installation is configured as. Cheap — no shelling out — so Settings can be
+ *  opened freely, unlike `backupStatus` which runs `git ls-remote` per vault. */
+export const config = () => invoke<Config>('config');
 
 /** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
 export const listViews = () => invoke<ViewInfo[]>('list_views');

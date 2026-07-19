@@ -389,6 +389,49 @@ pub fn dispatch(
             json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &s("path")))
         }
         "create_vault" => json(create_vault(app, &s("name"), &s("path"))?),
+        // What this installation is actually configured as — the answer to "what am I
+        // operating with?". Read-only by construction and by necessity: `vaults::save` is
+        // append-only and never rewrites an existing entry, so a settings screen that offered
+        // to edit a vault's path or restic repo would silently no-op. Where something *is*
+        // editable, it stays where it already is (the backup panel owns remotes and identity).
+        //
+        // Deliberately cheap: vault list, config file, environment and capabilities, no
+        // shelling out. `backup_status` answers remotes and identities and is the slowest
+        // command in the app — a settings screen must not be a reason to run it.
+        "config" => {
+            let g = lock()?;
+            json(Config {
+                vault_list: app.config.as_ref().map(|p| p.display().to_string()),
+                vault_list_writable: app.config_writable,
+                vaults: infos(&g.configs(), &g.store.names()),
+                restic: g
+                    .configs()
+                    .iter()
+                    .map(|c| VaultRestic {
+                        vault: c.name.clone(),
+                        repo: c.restic.clone(),
+                    })
+                    .collect(),
+                env: [
+                    "FM_VAULT",
+                    "FM_VAULTS",
+                    "FM_CONFIG_DIR",
+                    "FM_RESTIC_REPO",
+                    "FM_ADDR",
+                    "FM_UI_DIST",
+                    "FM_AUTO_SHUTDOWN",
+                ]
+                .iter()
+                .filter_map(|k| std::env::var(k).ok().map(|v| EnvVar { name: (*k).into(), value: v }))
+                .collect(),
+                // Capabilities, not settings: things the machine either has or does not, which
+                // change what the app can do and are the commonest source of "why is this
+                // greyed out". `RESTIC_PASSWORD` is reported as present/absent only — never
+                // its value, which is why it is a bool and not an `env` entry.
+                git: fm_core::git::available(),
+                restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
+            })
+        }
         // The other way a vault comes into existence: someone else already has it. Same
         // registration as `create_vault`, with a clone in front and an identity behind.
         "clone_vault" => json(clone_vault(
@@ -637,6 +680,40 @@ struct PullResult {
 /// [`VaultStatus`]: that one is about a *remote* and shells out to `git ls-remote` per
 /// vault, and making the first-run screen — the thing shown when no vaults exist — depend
 /// on the app's slowest, git-flavoured command would be backwards.
+/// What the machine is configured as. See the `config` arm for why this is read-only.
+#[derive(serde::Serialize)]
+struct Config {
+    /// The vault list file we would write, or `None` when this machine has no config
+    /// directory at all — in which case nothing can be persisted, which is worth saying.
+    vault_list: Option<String>,
+    /// False also means "we could not parse what is there", not merely "no permission" — and
+    /// in that case we will never overwrite it. Both are worth showing.
+    vault_list_writable: bool,
+    vaults: Vec<VaultInfo>,
+    restic: Vec<VaultRestic>,
+    env: Vec<EnvVar>,
+    git: bool,
+    restic_password_set: bool,
+}
+
+/// A vault's restic destination. Its own type rather than a field on `VaultInfo` because it
+/// comes from the config entry rather than the store — and because it is the one piece of
+/// backup configuration with no UI to edit it anywhere, which is precisely why it is shown.
+#[derive(serde::Serialize)]
+struct VaultRestic {
+    vault: String,
+    repo: Option<String>,
+}
+
+/// An `FM_*` override actually in effect. Only these are reported: they change where data
+/// lives or how the server binds, which is exactly what a confused user needs to see. No
+/// secret appears here — `RESTIC_PASSWORD` is reported as a bool and never by value.
+#[derive(serde::Serialize)]
+struct EnvVar {
+    name: String,
+    value: String,
+}
+
 #[derive(serde::Serialize)]
 struct VaultInfo {
     name: String,

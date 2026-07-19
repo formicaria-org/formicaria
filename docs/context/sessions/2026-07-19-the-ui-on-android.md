@@ -102,3 +102,60 @@ which a real shell would not have.
 correct. Two CSS changes appeared to do nothing before this was spotted; the tell was comparing
 the hashed asset name in the *served* `index.html` against the one just built. `rm -rf` the
 target first.
+
+
+## The toolbar redesign (owner's design, same day)
+
+*"Search, a plus for new atoms, a plus for view, more cmds in a dedicated cmd palette, the
+vault filter explicit but not taking much space, and a settings that shows the config the user
+is operating with."* Applied to **both** platforms, not a mobile special case.
+
+**Four toolbar rows became one** (`shots/2026-07-19-android-toolbar-one-row.png`): search,
+`+ New`, `+ View`, the vault/contributor filters, the palette, settings. Content now starts at
+~24% of the screen instead of ~41%.
+
+**The two "+" buttons open the command palette pre-filtered** — `New` and `Open` — rather than
+a dropdown. Three reasons, and the first is the one that decided it:
+1. **This codebase has deliberately never had a dropdown.** `Pane.svelte` documents its view
+   picker as *"a rotator, not a dropdown"*, and there is no popover primitive anywhere.
+2. **`.topbar` is a scroll container** (`overflow-x:auto; overflow-y:hidden`), so an anchored
+   menu would be clipped vertically and scroll away horizontally. A dropdown here means also
+   solving portalling — a new primitive on the critical path of a layout fix.
+3. On a phone a full-width list beats a 200px popover, and it is the owner's own "more cmds in
+   a dedicated cmd palette".
+
+Cost, stated plainly: New note is two interactions instead of one. `c` and `Ctrl+K` still exist
+on desktop.
+
+Theme, Back up and the workspace-columns selector moved into the palette. Columns in particular
+was a select occupying toolbar width for a preference changed roughly never, and meaningless
+below 40rem where the workspace is forced to one column anyway.
+
+## Settings — a mirror, not a form
+
+New `config` dispatch arm + `SettingsPanel.svelte`
+(`shots/2026-07-19-android-settings.png`). Shows the vault list file and whether it is
+writable, every vault with **its path** — on the wire since `list_vaults` existed and rendered
+nowhere until now — its restic repo, whether git and `RESTIC_PASSWORD` are present, and the
+`FM_*` overrides in effect.
+
+**Read-only by construction, not by preference.** `vaults::save` is append-only and never
+rewrites an existing entry, so a field offering to change a vault's path or restic repo would
+silently do nothing. Remotes and identity stay in the backup panel, where they are genuinely
+editable. The arm shells out to nothing, unlike `backup_status`, which runs `git ls-remote` per
+vault and is the slowest command in the app — opening Settings must never hit the network.
+
+**It immediately reported something true and unwelcome:** *"No config directory on this
+machine, so there is nowhere to save a vault list."* On Android `config_dir()` falls to the
+catch-all arm, which reads `FM_CONFIG_DIR` — and nothing sets it. **A phone cannot persist a
+vault list today.** The eventual shell has to supply that directory from the platform. Found by
+building the screen that shows it.
+
+## Two bugs found on the way
+
+- **`Ctrl+C`/`Cmd+C` outside a text field created a note.** Only the `k` branch of the global
+  key handler checked for a modifier; `c` did not, so copying a selection from a board pane
+  silently captured. Fixed.
+- The palette chooses on **`mousedown`**, not click (so focus never leaves its input). The UI
+  tests drove it with `fireEvent.click`, which found the row and did nothing. Worth knowing
+  before writing any test against it.

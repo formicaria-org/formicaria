@@ -1,11 +1,25 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   interface Command {
     label: string;
     run: () => void;
   }
-  let { commands, onclose }: { commands: Command[]; onclose: () => void } = $props();
+  // `initial` lets a caller open the palette already scoped — the toolbar's "+" opens it on
+  // "New", "+ view" on "Open". That is why this app has no dropdown menus: the palette is the
+  // menu, it escapes the topbar's `overflow` clipping by being an overlay, and it is a far
+  // better target on a phone than a 200px popover. See `Pane.svelte`'s "a rotator, not a
+  // dropdown" for the same instinct applied elsewhere.
+  let {
+    commands,
+    onclose,
+    initial = '',
+  }: { commands: Command[]; onclose: () => void; initial?: string } = $props();
 
-  let query = $state('');
+  // Read once, at construction, and deliberately so: the palette is inside an `{#if}`, so it
+  // is rebuilt every time it opens and `initial` is always the value the opener just set.
+  // `untrack` says that out loud — without it Svelte warns that a later change to the prop
+  // would not be picked up, which is true and is exactly the behaviour wanted.
+  let query = $state(untrack(() => initial));
   let active = $state(0);
   let inputEl = $state<HTMLInputElement | undefined>(undefined);
 

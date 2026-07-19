@@ -437,6 +437,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       };
       return check satisfies PathCheck as T;
     }
+    case 'config':
+      // Shaped like the real thing, including the awkward parts — a null vault_list and an
+      // unwritable one are exactly the states the panel must render honestly, and a mock that
+      // only ever returns the happy case is how those go untested.
+      return {
+        vault_list: '~/.config/formicaria/vaults.json',
+        vault_list_writable: true,
+        vaults: mockVaults.map((v, i) => ({ ...v, default: i === 0 })),
+        restic: mockVaults.map((v) => ({ vault: v.name, repo: null })),
+        env: [{ name: 'FM_VAULT', value: 'vault' }],
+        git: true,
+        restic_password_set: false,
+      } as T;
     case 'create_vault': {
       mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));

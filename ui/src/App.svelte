@@ -248,6 +248,15 @@
   }
 
   let paletteOpen = $state(false);
+  // What the palette should be pre-filtered to when it opens. The toolbar's two "+" buttons
+  // are the only callers; Ctrl+K clears it, because a shortcut that silently narrowed the
+  // list would be a trap.
+  let paletteInitial = $state('');
+  function openPalette(initial = '') {
+    paletteInitial = initial;
+    paletteOpen = true;
+  }
+  let settingsOpen = $state(false);
   let backupOpen = $state(false);
   let newVaultOpen = $state(false);
   // Kept as state rather than read off the last ping, because the panel has to survive
@@ -272,6 +281,15 @@
     { label: 'New vault', run: () => (newVaultOpen = true) },
     { label: 'Toggle theme', run: toggleTheme },
     { label: 'Back up the vault', run: onBackup },
+    { label: 'Settings', run: () => (settingsOpen = true) },
+    // Columns left the toolbar: the control is meaningless below 40rem (the workspace is
+    // forced to one column there) and it was a select occupying a row for a preference
+    // changed roughly never. Labels are spelled out because the palette filters on the label
+    // and nothing else — "col" finds all four.
+    ...[1, 2, 3, 4].map((n) => ({
+      label: `Columns: ${n}`,
+      run: () => setCols(n),
+    })),
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
@@ -279,6 +297,7 @@
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
+      if (!paletteOpen) paletteInitial = '';
       paletteOpen = !paletteOpen;
       return;
     }
@@ -291,7 +310,10 @@
     if (e.key === '/') {
       e.preventDefault();
       searchEl?.focus();
-    } else if (e.key === 'c') {
+    } else if (e.key === 'c' && !mod && !e.altKey) {
+      // `mod` matters: without it Ctrl+C / Cmd+C outside an input fell through to here, so
+      // copying a selection from a board pane silently created a note instead. Only the `k`
+      // branch above ever checked. Alt too, for the same reason.
       e.preventDefault();
       void onNew();
     }
@@ -715,11 +737,26 @@
       />
     </label>
 
-    <button type="button" class="tb-btn" onclick={onNew} title="Create a note and open the editor">
-      <Icon name="plus" size={15} /> New note
+    <!-- Two buttons where there were eight controls. Both open the command palette already
+         scoped, rather than a dropdown: this codebase has deliberately never had one (see
+         `Pane.svelte` — "a rotator, not a dropdown"), `.topbar` is a scroll container that
+         would clip an anchored menu, and on a phone a full-height list beats a popover. The
+         palette is the menu. -->
+    <button
+      type="button"
+      class="tb-btn"
+      onclick={() => openPalette('New ')}
+      title="Create — note, board, vault (Ctrl+K)"
+      aria-label="create">
+      <Icon name="plus" size={15} /> New
     </button>
-    <button type="button" class="tb-btn ghost" onclick={onNewBoard} title="Create a whiteboard">
-      <Icon name="pen" size={15} /> New board
+    <button
+      type="button"
+      class="tb-btn ghost"
+      onclick={() => openPalette('Open ')}
+      title="Open a view in a new pane"
+      aria-label="open a view">
+      <Icon name="plus" size={15} /> View
     </button>
 
     {#if allVaults.length > 1}
@@ -736,28 +773,6 @@
         </select>
       </label>
     {/if}
-
-    <span class="tb-sep"></span>
-
-    <!-- Open a view into a new pane. -->
-    <div class="tb-add" role="group" aria-label="open a view">
-      <span class="tb-add-label"><Icon name="plus" size={14} /> view</span>
-      <button class="tb-chip" onclick={() => addPane('board')}>Board</button>
-      <button class="tb-chip" onclick={() => addPane('agenda')}>Agenda</button>
-      <button class="tb-chip" onclick={() => addPane('timeline')}>Timeline</button>
-      <button class="tb-chip" onclick={() => addPane('search')}>Search</button>
-      <button class="tb-chip" onclick={() => addPane('activity')} title="Who changed what, from git">Activity</button>
-      {#each views.filter((v) => !v.error) as v (v.name)}
-        <button class="tb-chip saved" onclick={() => addPane('view', { viewName: v.name })} title="Saved view">{v.name}</button>
-      {/each}
-    </div>
-
-    <label class="tb-cols" title="Workspace columns">
-      cols
-      <select value={workspace.cols} onchange={(e) => setCols(Number((e.currentTarget as HTMLSelectElement).value))}>
-        {#each [1, 2, 3, 4] as n (n)}<option value={n}>{n}</option>{/each}
-      </select>
-    </label>
 
     <span class="tb-spacer"></span>
 
@@ -819,11 +834,10 @@
     <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
       <Icon name="command" />
     </button>
-    <button class="icon-btn" onclick={toggleTheme} aria-label="toggle theme" title="Toggle light/dark">
-      <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-    </button>
-    <button class="tb-btn ghost" onclick={onBackup} title="Push your notes; optionally snapshot media">
-      <Icon name="backup" size={15} /> <span class="tb-backup-label">Back up</span>
+    <!-- Theme and Back up moved into the palette: both are commands, neither is a thing you
+         reach for mid-thought, and the row they occupied is worth more than they are. -->
+    <button class="icon-btn" onclick={() => (settingsOpen = true)} aria-label="settings" title="Settings — what this install is configured as">
+      <Icon name="backup" size={15} />
     </button>
   </header>
 
@@ -879,7 +893,18 @@
 
   {#if paletteOpen}
     {#await import('./lib/CommandPalette.svelte') then { default: CommandPalette }}
-      <CommandPalette {commands} onclose={() => (paletteOpen = false)} />
+      <CommandPalette {commands} initial={paletteInitial} onclose={() => (paletteOpen = false)} />
+    {/await}
+  {/if}
+
+  {#if settingsOpen}
+    {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
+      <SettingsPanel
+        onclose={() => (settingsOpen = false)}
+        onbackup={() => {
+          settingsOpen = false;
+          backupOpen = true;
+        }} />
     {/await}
   {/if}
 
@@ -1046,25 +1071,6 @@
     border-color: var(--border);
     color: var(--text);
   }
-  .tb-sep {
-    width: 1px;
-    align-self: stretch;
-    margin: 6px 2px;
-    background: var(--border);
-  }
-  .tb-add {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .tb-add-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
   .tb-chip {
     font: inherit;
     font-size: var(--text-sm);
@@ -1078,10 +1084,6 @@
   }
   .tb-chip:hover {
     border-color: var(--accent);
-  }
-  .tb-chip.saved {
-    border-style: dashed;
-    color: var(--text-muted);
   }
   /* The "someone pushed" nudge: filled with the accent so it reads as an invitation to act. */
   .tb-chip.moved {
@@ -1242,21 +1244,6 @@
        screen. Everything below is about getting that back — the content is the product, the
        chrome is not. */
 
-    /* The view chips were the widest row and the main reason it grew. One horizontally
-       scrolling strip instead of a wrapping block: it costs one row instead of two, and it
-       stops being a cliff the moment a sixth saved view exists. Vertical scroll still belongs
-       to the page — `touch-action` keeps a vertical drag from being stolen by the strip. */
-    .tb-add {
-      flex: 1 1 100%;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      touch-action: pan-x;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .tb-add::-webkit-scrollbar {
-      display: none;
-    }
     .tb-chip {
       flex: 0 0 auto;
     }
@@ -1269,11 +1256,6 @@
       display: none;
     }
 
-    /* A vertical rule between wrapped rows separates nothing. */
-    .tb-sep {
-      display: none;
-    }
-
     /* Rows, not controls, are what cost height — removing the columns selector above saved a
        control and no space at all. At 411px the first row (wordmark + search + New note) is
        full, so New board wraps onto a line of its own, and the trailing actions wrap onto
@@ -1283,12 +1265,6 @@
        already looking at it, and it is ~90px. That is enough for New board to come up beside
        New note. `<title>` still carries the name in the tab. */
     .wordmark {
-      display: none;
-    }
-
-    /* Back up keeps its icon and loses its label — the icon is the same one the backup panel
-       uses, and the row it sits on is shared with the theme toggle. */
-    .tb-backup-label {
       display: none;
     }
 

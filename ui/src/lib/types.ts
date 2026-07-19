@@ -176,3 +176,24 @@ export interface ViewResult {
   board?: Board;
   rows?: ObjectMeta[];
 }
+
+/** What this installation is configured as — the Settings screen's whole payload.
+ *
+ *  **Read-only by construction**, not by preference: `vaults::save` is append-only and never
+ *  rewrites an existing entry, so offering to edit a vault's path or restic repo here would
+ *  silently do nothing. Where something *is* editable it stays where it already is — the
+ *  backup panel owns remotes and identity. Deliberately cheap to fetch: no shelling out, so
+ *  opening Settings never triggers the per-vault `git ls-remote` that `backup_status` does. */
+export interface Config {
+  /** The vault list file we would write; `null` when this machine has no config dir at all. */
+  vault_list: string | null;
+  /** False also means "unparseable, so we will never overwrite it" — not merely "no permission". */
+  vault_list_writable: boolean;
+  vaults: VaultInfo[];
+  restic: { vault: string; repo: string | null }[];
+  /** `FM_*` overrides actually in effect. Never contains a secret. */
+  env: { name: string; value: string }[];
+  git: boolean;
+  /** Present/absent only. The value is never sent. */
+  restic_password_set: boolean;
+}

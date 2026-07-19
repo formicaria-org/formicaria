@@ -3,6 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 import { newPane } from './lib/panes';
 
+/** Reach a command the way a user now does: the toolbar's "+" buttons open the command
+ *  palette already filtered, and the palette is where every command lives. There are no
+ *  dropdowns in this app by design — see `CommandPalette.svelte`. */
+async function runCommand(label: string, via: 'create' | 'view') {
+  await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
+  // `mouseDown`, not `click`: the palette chooses on mousedown so focus never leaves its
+  // input (a click would blur it first and close the overlay). A `click` here finds the row
+  // and silently does nothing.
+  await fireEvent.mouseDown(await screen.findByText(label));
+}
+
 // Layer-2 end-to-end: mount the REAL app and drive it the way a user does —
 // clicking through the board, switching views, re-grouping, opening a card,
 // editing it, closing it. No Tauri window: `ipc.ts` sees no `__TAURI_INTERNALS__`
@@ -94,7 +105,7 @@ describe('the app, driven end to end as a user', () => {
     // 2. Create a new note; "New note" opens it straight in the editor. Type a
     //    body, leave edit mode (flushes the write), close — it lands on the board
     //    with its first line as the card preview.
-    await fireEvent.click(screen.getByText('New note'));
+    await runCommand('New note', 'create');
     const body = await screen.findByLabelText('note body (Markdown)');
     await fireEvent.input(body, { target: { value: 'a freshly captured thought' } });
     await saveWithCtrlS();
