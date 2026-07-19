@@ -194,9 +194,14 @@ edit-gesture)._
   it — so there are **two** surfaces, not three-in-waiting. `fm-cli` now depends on `fm-app`
   and shares its command *functions* rather than rebuilding them; it deliberately does not
   route through `dispatch`, which is a JSON wire surface — see `decisions.md`.)* Track M's
-  ruling 1 (extract `fm_app::dispatch`) exists to collapse these; until it lands, a change to a
-  command's behaviour must be made in **both** `fm-app` and `fm-cli` or they drift. Found by the
-  2026-07-18 mobile-port audit.
+  ruling 1 (extract `fm_app::dispatch`) exists to collapse these. **This trap has no expiry —
+  corrected 2026-07-19.** It previously read "until it lands", which invites a reader to wait for
+  a convergence that was ruled *against*: `decisions.md` settled on one command **library**, not
+  one command **door**, so `fm-cli` sharing `commands::*` while not routing through `dispatch` is
+  the intended end state. What remains permanently true is the operational half: a change to a
+  command's behaviour must be made where both callers see it, or they drift. Found by the
+  2026-07-18 mobile-port audit. *(`crates/fm-cli/src/main.rs:7-8` still asserts the retired debt
+  in source — fix it there too, or a cold reader who checks the code finds it reasserted.)*
 - **`pixi run build` must build `fm`, not just `fm-serve`.** `ensure_repo` installs the
   `.md` merge driver by pointing git at the `fm` binary **beside the running one**, and
   deliberately installs nothing when it can't find one. So a build task that ships only
@@ -288,3 +293,51 @@ edit-gesture)._
 - **`vault/` is gitignored** (the knowledge vault is its own repo). Test
   fixtures under `crates/*/tests/fixtures/` are NOT the root `/vault/` and are
   tracked.
+
+## External facts (dated — re-verify, never trust the date alone)
+
+**The rule that created this section: any external claim gets a date and a re-verify command, or
+it does not go in.** The corpus previously carried *"once `gix` push ships"* as though it were a
+schedule, for an upstream issue that has been open for years.
+
+All verified **2026-07-19**.
+
+1. **`gix`/gitoxide push is still unimplemented.** Re-verify via gitoxide's `crate-status.md`,
+   **never** by the existence of a `gix::push` module — that name is the `push.default` config
+   enum and will fool the next checker. Consequence: the pure-Rust escape is closed, and any
+   `gix` backend means hand-writing `send-pack`.
+2. **conda-forge ships all four `rust-std-*-linux-android` targets, and no NDK/SDK.** Re-verify:
+   `curl -s "https://api.anaconda.org/search?name=rust-std" | grep android`. The only `android-*`
+   hits on anaconda.org are unmaintained personal channels (`rodgomesc`, `kivyschool`) — not
+   something to stake a decade on. So the pixi gap is **NDK + SDK only**.
+3. **`bundled` rusqlite (`crates/fm-core/Cargo.toml:18`) needs an NDK sysroot** regardless of any
+   git decision. "Avoid C cross-compilation" was never a live argument for any backend option.
+4. **Inside a pixi env, a misconfigured Android toolchain produces GREEN builds.** `c-compiler`'s
+   activation always sets `CC`, so `cargo check -p fm-core --target aarch64-linux-android` exits
+   **0 with no NDK installed** and deposits an **x86-64** `sqlite3.o` into the `aarch64` tree.
+   `cargo build` does not catch it either — no workspace crate declares `crate-type`, so these are
+   rlibs and rlibs never link. **Assert an artifact fact, never an exit code:** build a linking
+   target (`-p fm-cli`) and check `readelf -h` reports AArch64.
+5. **Android loopback is not sandboxed.** Any app holding `INTERNET` can reach a localhost
+   listener. `fm-serve`'s Host/Origin guards are a *browser* threat model and do not apply.
+   **Never ship `fm-serve` as a TCP listener on a phone** — the on-device-server fallback needs a
+   per-launch bearer token before it is even a candidate.
+6. **`config_dir()` does not compile for Android.** `crates/fm-app/src/vaults.rs:239-257` has
+   three `#[cfg]` arms — `linux`, `macos`, `windows` — and no fallback; Android's `target_os` is
+   `"android"`, so every arm is skipped. The first Android build fails in the file the dispatch
+   extraction created. Precondition, not a follow-up.
+7. **`git.rs` has no `clone`.** Thirteen public fns, none of them clone. Every plan document that
+   frames M1 as a *port* is wrong: it is new code on every possible backend.
+8. **Executing a bundled binary is possible on Android, impossible on iOS.** Android 10+ blocks
+   `exec()` from the app's writable home directory (SELinux drops `execute_no_trans` for
+   `targetSdk ≥ 29`), but `nativeLibraryDir` under `/data/app` stays executable — hence the
+   `lib*.so` naming trick plus `useLegacyPackaging = true`. iOS forbids it outright (no
+   `fork`/`exec`, mandatory code signing, W^X). Consequence: any binary-shipping design is
+   **Android-only forever**. Struck as an option anyway — see `decisions.md` 2026-07-19.
+9. **Syncthing is not a viable mobile backend.** Syncthing-Android was discontinued 2024-10-20
+   (a Google Play storage-permission fight); the surviving fork went through an opaque
+   signing-key handover that triggered an F-Droid security investigation. iOS never had an
+   official app and **persistent background sync is structurally impossible there**. This does
+   not retire the "design against Syncthing's profile on paper" hedge — a paper target has no bus
+   factor — it **validates git as the coordinator**: fetch/merge/push is a discrete resumable job
+   that fits every budget both OSes grant; a P2P mesh fits none.

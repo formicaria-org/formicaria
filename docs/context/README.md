@@ -25,7 +25,7 @@ authoritative design document; these files are the fast-recall layer over it.
 | [outstanding.md](./outstanding.md) | **the work queue** — what is known to be wrong or missing, ranked, each entry naming the file and what "done" looks like. Start here when picking up work. |
 | [plan.md](./plan.md) | **the forward program** — the sequenced plan (knowledge + scheduling + collaboration) and *why not the obvious alternative*. The file here describing things that do **not** exist yet. |
 | [collaboration-design.md](./collaboration-design.md) | the line-by-line **code audit** behind `plan.md`'s Track C — the receipts (the `candidates` seam, the `reconcileElements` autopsy, the `push_squashed` trap). Read it when `plan.md` sends you for detail. |
-| [mobile-design.md](./mobile-design.md) | the design + code audit behind `plan.md`'s **Track M** (formicaria on the phone) — the receipts. Read it knowing two of its rulings were **refuted and are marked so in place**: the `git2` port (libgit2 cannot run external merge drivers, and linking GPL fails `deny.toml`) and `git2::merge_file` (no such function). What stands: the `fm_app::dispatch` extraction (shipped), PAT-first auth, and the staged M0–M8 sequence. |
+| [mobile-design.md](./mobile-design.md) | the design + code audit behind `plan.md`'s **Track M** (formicaria on the phone) — the receipts. Read it knowing two of its rulings were **refuted and are marked so in place**: the `git2` port (libgit2 cannot run external merge drivers, and linking GPL fails `deny.toml`) and `git2::merge_file` (no such function). What stands: the `fm_app::dispatch` extraction (shipped), PAT-first auth, and the transport ruling. **The M0–M8 sequence was re-derived 2026-07-19** — steps 0–5 need no git backend and no NDK; the old spike list is kept struck-through. |
 | [sessions/](./sessions/) | the narrative history — one append-only entry per working session, newest kept. |
 
 ## Update discipline
@@ -71,3 +71,30 @@ whole-blob-in-memory workaround. Before ending the session:
 
 That's the whole loop: **append to `sessions/`, prune the three current-state
 files, bump the verified line.**
+
+## The cold-read test — run it quarterly, and after any ruling
+
+`docs/book.toml` renders `docs/src`, not `docs/context`, so **these files have zero CI coverage**.
+Nothing mechanical will tell you the synthesis has gone stale. This checklist is the substitute:
+open a **fresh session**, follow this README's protocol, and answer from the corpus alone — then
+check each answer against the tree. It is written down so it gets *re-run*, not re-derived.
+
+1. Was the mobile **transport** ruling reversed? → *No. Untouched.*
+2. Is the `.md` **merge in-process**? → *No — `merge.rs` shells `git merge-file`.*
+3. Does **`fm-cli` owe a migration** onto `dispatch`? → *No — ruled the other way.*
+4. Does **M1 port an existing primitive**? → *No — `git.rs` has no `clone`.*
+5. What is **executable today** with no phone and no NDK? → *Steps 0–5 of the corrected sequence.*
+6. What does the corpus say about **viewing a PDF on Android**, and about foreground services?
+7. Is **`fm-serve` safe to run on a phone**? → *No. Loopback is not sandboxed on Android.*
+
+**On 2026-07-19, six of these seven answered wrong.** That number is the measurement: record it
+each time you run this, and treat any non-zero count as work, not trivia.
+
+Three standing rules, because these are what actually failed:
+
+- **Cite rulings by subject, never by number** across document boundaries — the numbering schemes
+  in `plan.md` and `mobile-design.md` are incompatible and always were.
+- **Any external claim gets a date and a re-verify command**, or it does not go in
+  (`known-issues.md` → "External facts").
+- **A mitigation that names a mechanism must name an executor that exists.** "Pin it in CI" is not
+  a mitigation while every workflow is `workflow_dispatch`-only.

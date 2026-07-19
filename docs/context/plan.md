@@ -21,9 +21,13 @@ route), 8 (the explicit sync loop) and the phone shell + board touch fallback; p
 element merge, the O(n²) poll fix, a lost-update guard on `update_body`, and a `check-ui` CI gate
 (`sessions/2026-07-18-dispatch-and-blob-route.md`,
 `sessions/2026-07-18-sync-loop-and-scene-merge.md`). Deliberately **not** built: the cold-start
-`Incremental` switch (rejected), and rulings 2/3's **git2 swap + Ruling B's image-strip, both
-⛔ blocked on owner decisions** — see below. **M0–M8 stay blocked on the Android toolchain**, and
-spike (iii) PAT clone is untouched. Before that, **Track M — mobile was planned** (formicaria on the phone;
+`Incremental` switch (rejected), and the **git2 backend + the git2 body-merge engine, both
+⛔ REJECTED — not blocked** (the foundation is not coming back; `decisions.md`). Ruling B's
+image-strip is **decided, not open**: git-track the blobs, do not strip yet. **M0–M8 stay blocked
+on four things — toolchain, git backend, body-merge engine, transport** — and spikes (ii)/(iii)
+are **void**, having been specified against the rejected backend. A 2026-07-19 drift review found
+**9 of 12 sequenced items** still written in terms of that backend
+(`sessions/2026-07-19-mobile-drift-review.md`). Before that, **Track M — mobile was planned** (formicaria on the phone;
 the owner overrode `MASTERPLAN:57`'s "phone = server + auth" framing — the app runs **on the
 phone itself**). The design + receipts are in [`mobile-design.md`](./mobile-design.md); a
 compact Track M is below; the load-bearing rulings and two reversals are in `decisions.md`.
@@ -403,11 +407,13 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
    as written: the lock stayed **inside** `App` (a `&mut Vaults` parameter would hold it across
    `backup_status`'s per-vault `git ls-remote`), query params are **either/never both** with the
    JSON body (else an uploaded `.json` asset is read as its own arguments), and `open_external`
-   became a one-method `Host` trait. `fm-cli` still has not migrated onto it — that remains the
-   open half of "one command library". Detail in
+   became a one-method `Host` trait. **`fm-cli` does not owe a migration onto
+   `dispatch`** — closed the other way in `decisions.md` (one command *library*, not one command
+   *door*); sharing `commands::asset_note` is the intended end state, not a down payment. Detail in
    [`mobile-design.md`](./mobile-design.md#ruling-1--one-command-surface-the-load-bearing-correction).
-2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only. — ⛔ BLOCKED, do not
-   build as written (audited 2026-07-18).** Three premises are wrong or unweighed:
+2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only. — ⛔ REJECTED, and the
+   backend is deliberately left open (audited 2026-07-18; re-confirmed 2026-07-19).** Three
+   premises are wrong or unweighed:
    - **libgit2 cannot invoke external merge drivers.** Only text/union/binary are registered and
      it contains no process-spawn at all. Porting `pull()` would **silently disable the `.md`
      frontmatter merge** — the whole Phase 1 achievement — while a collaborator's terminal `git
@@ -499,8 +505,12 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
 destination — the real "the app runs on the phone." **Path A** (transport-only; desktop records,
 a free transport replicates) is a low-risk *early demo* — but it retreats toward the
 satellite-of-desktop model the owner overrode and fails a phone-only collaborator, so it is not
-the end state. **Top risk:** the Android SDK/NDK are not conda-packaged, so the toolchain escapes
-pixi — pin the whole matrix in CI (this ≠ `pixi.lock` reproducibility).
+the end state. **Top risk:** the Android **NDK + SDK only** are not conda-packaged — the four
+`rust-std-*-linux-android` targets, `openjdk` and `gradle` all are, so the gap is narrower than
+"the toolchain escapes pixi". Pin the NDK by our own SHA-256 in a committed lock file; quarantine
+`sdkmanager` in an opt-in environment declared non-hermetic. **Do not write "pin the matrix in
+CI" as the mitigation** — remote CI is switched off by standing order, so that names no executor
+that exists (`known-issues.md`).
 
 ## Cross-cutting decisions carried in (don't re-derive)
 

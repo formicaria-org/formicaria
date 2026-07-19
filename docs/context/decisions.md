@@ -5,6 +5,100 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## The owner's five Track M rulings (2026-07-19)
+
+Taken by the owner after the drift review, and binding. They close the questions the review left
+open; the receipts for each are in `sessions/2026-07-19-mobile-drift-review.md`.
+
+1. **libgit2 is the git backend — and the *intended* end state is one git dependency on both
+   platforms, desktop included.** *Why:* it solves the problem whole, and two shipping apps
+   already vindicate it (PuppyGit via JNI; GitSync, which migrated *off* JGit onto Rust `git2`
+   and ships Android **and** iOS from one Rust core). *Consequence:* `deny.toml` gains **one named
+   exception** for libgit2, citing its GPL-2.0 **linking exception**; the linked-vs-invoked ratio
+   itself is **not** rewritten (it still correctly protects a future `.deb` shipping `pdftotext`),
+   and `ci/third-party.sh` must emit the notice that exception requires. This **reverses** the
+   2026-07-18 `git2` rejection on its licence ground.
+   > **Sequencing caveat, recorded so it is not lost.** The desktop half is the *destination*, not
+   > the next commit, and two findings gate it. (a) **`git merge-file` is the permanent oracle** —
+   > it is the only grader the pure-Rust body engine will ever have, so it must survive **in the
+   > test harness** even after production stops shelling out; "one git dep" is satisfied by one
+   > dep *in the shipped binary*, not by deleting the oracle. (b) **libgit2 cannot invoke external
+   > merge drivers**, so an app-side pull must call `merge_files` itself at each conflicted path —
+   > the driver stays installed for collaborators running terminal `git pull`, and both routes
+   > call the same engine, which is what makes them unable to diverge. **Build the engine and the
+   > differential harness first (steps 1–2); swap the backend after.** Swapping first would
+   > silently disable the frontmatter merge on the one path that must never corrupt.
+2. **iOS eventually; Android now.** *Why:* it costs nothing today and permanently forecloses the
+   ship-a-binary temptation, since iOS forbids `fork`/`exec` outright. *Consequence:* no design
+   may assume an executable subprocess on device, on either platform.
+3. **Non-pixi dependencies are accepted — but they must stay easy for another developer to
+   install and modify.** *Why:* the Android NDK/SDK have no conda packaging and never will.
+   *Consequence:* the first written exception to *"pixi is the only package manager."* It is paid
+   for with **one-command bootstrap** (`pixi run android-init`), a committed
+   `android/toolchain.lock` pinning the NDK by our own SHA-256, `sdkmanager` quarantined in an
+   opt-in environment **declared non-hermetic**, and `pixi run ci` gaining **no** NDK dependency,
+   ever. A contributor without an Android toolchain must still get a green `pixi run ci`.
+4. **A divergent frontmatter field keeps its current "loud-and-absent" behaviour; the fix is the
+   missing UI surface, not a semantic change.** *Why:* it never loses data, and the obvious
+   alternative is forbidden in writing at `merge.rs:32-35`. *Consequence:* a characterization test
+   locks the behaviour, and a "needs attention" place lists skipped notes with a raw editor. Any
+   future semantic change is **its own ruling with its own adversarial pass**.
+5. **The MVP cut line is steps 0–5** of the corrected sequence — everything that needs no git
+   backend and no NDK. *Why:* it is demoable in days, fixes real bugs, and stakes nothing on a
+   decision whose consequences are not yet observed. *Consequence:* re-cut the line **after step
+   0** puts the real UI on real glass.
+
+## The Track M record drifted from the Track M rulings — and the body-merge engine is its own decision (2026-07-19)
+
+**Decision — five rulings, from an adversarial drift review** (receipts:
+`sessions/2026-07-19-mobile-drift-review.md`; four rulings were each attacked by three skeptics
+and **all four were revised under attack**).
+
+1. **The judgement never drifted; the record did.** Every ruling taken since 2026-07-18 traces to
+   a stated principle and stands. But the sequence was never re-derived after its foundation was
+   rejected: **9 of 12 sequenced items — 7 of 8 inside the MVP cut line — were still written in
+   terms of the rejected `git2` backend.** A cold-read test of seven questions a fresh session
+   would ask answered **six wrong**. *Consequence:* refuted **arguments** stay verbatim and marked
+   (they teach); refuted **instructions** are deleted (they recruit).
+2. **The body-merge engine is a decision distinct from the git backend**, and nobody had named it.
+   `merge_files` shells `git merge-file` (`merge.rs:204`, `:233`) and takes driver-shaped path
+   inputs, so **no engine exists that a phone can call** — under *any* backend. *Consequence:* a
+   differential harness against `git merge-file` is a **standing precondition** on any change to
+   `merge_files`, and the desktop keeps shelling out **permanently, as the oracle**. Swapping the
+   desktop engine would destroy the only grader we will ever have.
+3. **Ship-a-git-binary-in-the-APK is struck permanently.** Not on the licence ratio in `deny.toml`
+   — which is correct and stays as written — but on dated facts: a bundled binary produces **no
+   row** in `ci/third-party.sh`'s `cargo tree` walk, so we become the licence *and* CVE
+   distributor of a TLS stack invisible to both gates. That is structurally worse than the defect
+   `git2` was rejected for. It is also Android-only forever: iOS forbids `fork`/`exec` outright.
+4. **We will not build a backend for a platform that does not exist — but we have evaluated what
+   exists.** The option set *as of 2026-07-19* (never "evaluated and closed"): `gix` (permissive,
+   but **push is unimplemented**, so it means hand-writing `send-pack` — which the skeptics
+   correctly called more sync machinery than the blob mirror already rejected as *"a sync
+   framework by another name"*); `git2`/libgit2 (mature push, and **two shipping apps vindicate
+   it** — PuppyGit via JNI, and GitSync, which migrated *off* JGit onto Rust `git2` and ships
+   Android **and** iOS from one Rust core — but it enters under a wrong licence declaration and
+   needs a conscious `deny.toml` exception naming libgit2's linking exception); Path A
+   (transport-only, **demo-only, never the end state**, in both places it is mentioned).
+   *Consequence:* the merge-driver objection **no longer discriminates** — neither engine can
+   invoke an external driver and neither needs to, because the app calls its own `merge_files`
+   during the pull. That is GitSync's shipped pattern and is better than a driver: one engine,
+   both platforms.
+5. **A phone with no git backend is not a failure state.** `git::available()` already returns
+   false gracefully (`git.rs:53-58`); such a device is a compliant degraded notebook that reports
+   `git: false` and hides the collaboration surfaces. What is constitutive on mobile is **sync**,
+   not git — record that rather than suspending the capability model.
+
+**Also found, and it is not a mobile problem:** the invariant at *"Frontmatter merges
+structurally"* below is **asserted, not held** — see the ⛔ note there. It reproduces today, on
+desktop, in shipped collaboration code.
+
+**Why this entry exists at all:** the 2026-07-18 review's own finding was that the draft *"applied
+the project's rules to others and exempted its own proposals"* — and then did the same thing
+itself. So: **before any ruling ships, grep this file for the thing it is about, and quote what
+you find.** Cite rulings **by subject, never by number** — `mobile-design.md` and `plan.md` number
+them differently, and the hybrid propagated a wrong number into this file.
+
 ## Mobile is the app on the phone, not a thin client — one core, git-coordinated (2026-07-18)
 **Why:** the owner overrode `MASTERPLAN:57`, which deferred mobile as *"a server + auth
 decision"* (the phone as a thin client to the laptop's `fm-serve`). The goal is an app that runs
@@ -583,7 +677,29 @@ still opens in the editor with the markers in the textarea. That is what makes c
 surfacing possible at all, and it is why "resolve markers in the textarea" is a feature
 rather than a wish. A genuinely divergent *field* (both sides set `status` differently)
 falls back to a whole-file merge rather than picking a winner: resolving by fiat is the
-silent loss this phase exists to stop. **Two traps, both load-bearing.** (1) The
+silent loss this phase exists to stop.
+
+> **⛔ The italicised invariant above is asserted, not held (found 2026-07-19).** The two
+> sentences contradict each other, and the second one is what the code does. `merge_objects`
+> returns `None` on a divergent `status` (`merge.rs:104-122`), `merge_files` then calls
+> `whole_file`, and that line-merges the **entire file including the YAML fence**
+> (`merge.rs:232`). Markers land *inside* the frontmatter, `frontmatter::from_file` rightly
+> rejects it, and the note **disappears from every view** — `file.rs:417-420` already names this
+> exact cause. Trigger: two people drag one card to different columns. `crates/fm-cli/tests/
+> merge.rs` has five tests and **none covers it**.
+>
+> It fails *loud-and-absent* — the note is collected with a reason (`file.rs:426`, `:471`) and
+> surfaced by name (`App.svelte`, "N note(s) could not be read"). That is the right failure, so
+> this is a **missing test and a missing UI surface, not a redesign**. Do **not** "fix" it by
+> letting ours win the field: `merge.rs:32-35` forbids exactly that in writing, and it would be
+> worse — bodies are identical in the card-drag case, so the merge returns **Clean**, auto-commit
+> fires at 5s and the sync loop pushes it. Loud-and-absent would become quiet-and-wrong.
+>
+> Any change to this behaviour is **its own ruling with its own adversarial pass**. Acceptance:
+> both values survive in the file, the file parses, and the result is `Conflicted` — never Clean,
+> or each machine keeps its own value by fiat and re-derives the conflict forever.
+
+**Two traps, both load-bearing.** (1) The
 `merge.fm.driver` definition lives in `.git/config` and deliberately does **not** travel —
 git will not let a repo ship a command that runs on your machine — so `ensure_repo`
 installs it on every open, exactly as it writes `.gitignore` and the identity; only

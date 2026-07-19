@@ -2,13 +2,32 @@
 
 The line-by-line design + code audit behind [`plan.md`](./plan.md)'s **Track M** (formicaria
 on the phone), the same way [`collaboration-design.md`](./collaboration-design.md) sits behind
-Track C. `plan.md` carries the sequence and the rulings; this file carries the *why*, the
-*why-not*, and the exact code the port touches.
+Track C. `plan.md` carries the sequence-defining *rulings*; this file carries the *why*, the
+*why-not*, the exact code the port touches, **and the staged sequence** — the same shape as
+`collaboration-design.md`'s `## Sequencing (do not reorder)`.
 
-**Much of the host-side band now exists** — rulings 1, 7 and 8, the whiteboard scene merge, the
-phone CSS shell and the board touch fallback all shipped 2026-07-18, and rulings 2/3/6 (the
-`git2` port) were **rejected**. Each is marked in place below. What has never been built is
-anything that needs a phone: M0–M8 remain blocked on the Android toolchain.
+**Cite rulings by subject, never by number.** This file and `plan.md` number them differently and
+always have; the hybrid that used to sit here propagated a wrong number into `decisions.md`.
+
+**Status (verified 2026-07-19).** Shipped: the one command surface (`fm_app::dispatch`), the
+streaming blob route, the explicit sync loop, the liveness/reindex split, the whiteboard scene
+merge, the phone CSS shell, the board touch fallback. **Rejected** (not blocked — the foundation
+is not coming back): the **`git2` backend** and the **`git2::merge_file` body engine**. The
+**transport ruling — Tauri bridge primary, `fm-serve`-on-device as the documented retreat — is
+untouched, not rejected.**
+
+**Four things block a phone build, not one:**
+
+1. **Toolchain** — the Android NDK + SDK are not conda-packaged (the four
+   `rust-std-*-linux-android` targets *are*; see `known-issues.md`).
+2. **Git backend** — deliberately open; the `git2` rejection left it so on purpose.
+3. **Body-merge engine** — `merge_files` still shells `git merge-file` (`merge.rs:204`, `:233`),
+   so there is no engine a phone can call. This is a *separate decision* from the backend, and it
+   is the one nobody had named.
+4. **Transport** — decided in principle, unbuilt.
+
+**`git.rs` has no `clone`.** M1 is new code on every possible backend, not a port. Nothing in the
+sequence below should be read as "port the existing primitive."
 
 This file supersedes the owner's first mobile draft, which an adversarial
 review (three code audits + a pass against `decisions.md`) found to rest on one false premise,
@@ -389,13 +408,22 @@ them apart:
 |---|---|---|
 | **Transport / coordination** | git remote | git **or** Syncthing/LAN, rclone→cloud |
 | **Recording / versioning** | git commit | git (the constant) — a change is one more commit over whatever a transport delivered |
-| **Conflict-merge** | `.md`/`.excalidraw` merge | **app-owned `merge_files`** — identical for every transport (ruling 1+3 already put it in-process) |
+| **Conflict-merge** | `.md`/`.excalidraw` merge | **app-owned `merge_files`** — identical for every transport, *once it is in-process* (it is not yet) |
 | **Backup / durability** | restic | restic/borg/kopia — a **separate lane**, never inside the sync seam |
 
-**The load-bearing move is already done by ruling 1+3: the app owns the merge**, in-process. That
-is what lets a *dumb, friendly* transport plug in safely — Syncthing only renames the loser to
-`*.sync-conflict-*`, so a watcher pairs it with the current file (+ the git merge-base as ancestor)
-and runs **our** merge. A friendly transport gains git-like safety because the *app* merges.
+**⛔ Corrected 2026-07-19 — this section previously claimed the load-bearing move was already
+done. It is not.** The app does **not** own the merge in-process: `merge_files` shells
+`git merge-file` (`merge.rs:204`, `:233`) and takes **driver-shaped inputs** — three paths on
+disk, writing over `ours` (`merge.rs:58`, `:75`) — which on desktop exist only because git
+materialized `%O %A %B`. A phone caller cannot produce those without an ODB reader, i.e. the
+backend it does not have.
+
+So the safety case for a dumb transport is **contingent, not established**. The design is still
+right: Syncthing renames the loser to `*.sync-conflict-*`, a watcher pairs it with the current
+file (+ the git merge-base as ancestor) and runs **our** merge, and a friendly transport thereby
+gains git-like safety. But it requires work that does not exist — extract
+`merge_texts(base, ours, theirs, marker_size)` from the path-shaped wrapper, then supply a
+pure-Rust body engine. **Until then this table describes an intention, not the code.**
 
 **What this costs now — minimal.** Introduce the seam as a thin `SyncProvider` trait with
 `GitSyncProvider` as the **sole** implementation (route the UI's `commit`/`push`/`pull`/
@@ -533,13 +561,94 @@ Audited corrections — `NotePanel`, `Whiteboard`, `Pane` are in **`ui/src/lib/`
 `ui/src/renderers/`, and are **not** renderers. `renderers/` holds only Activity, Agenda, Board,
 Calendar, Card, Search, Timeline. Line anchors otherwise verified.
 
-## Staged sequence (each independently demoable)
+## Corrected sequence (2026-07-19) — steps 0–5 need no backend and no NDK
 
-- **Spikes first (host-side, cheap, no phone):** (i) extract `fm_app::dispatch` (ruling 1) and
-  prove `fm-serve` still green over it; (ii) unify `merge_files`'s body onto `git2::merge_file`
-  keeping the driver installed + the **differential test** (ruling 3); (iii) a ~30-line desktop
-  binary that `git2`-clones a throwaway private repo over HTTPS+PAT via a `CredentialSource`,
-  commits, pushes — proves the git2 credential+push path *and* the trait shape.
+**Why this replaced the old spike list.** Spikes (ii) and (iii) were `git2` spikes and are
+**void**; the phases below them were written against the same rejected mechanism. The corrected
+order front-loads everything that pays off *under every possible backend*, so that no work is
+staked on a decision nobody has taken yet. Receipts:
+`sessions/2026-07-19-mobile-drift-review.md`.
+
+- **STEP 0 — today, one hour, zero lines of code. The single first actionable step.**
+  ```
+  pixi run serve                    # builds the PROD bundle: real dispatch, real blob.rs, real Range
+  adb reverse tcp:8765 tcp:8765     # device localhost → host localhost; NO listener on the phone
+  # phone browser: http://127.0.0.1:8765
+  ```
+  The device's browser sends `Host:`/`Origin: 127.0.0.1:8765`, so every guard in `fm-serve` passes
+  **by construction, zero lines changed**, and nothing listens on the phone (see the loopback trap
+  in `known-issues.md`). Because `pixi run serve` runs `pnpm -C ui build`, `import.meta.env.PROD`
+  is true — this exercises real `dispatch` and real `blob.rs`, **not `ui/src/lib/mock.ts`**.
+  Record observations into `sessions/`: the single-column workspace, 2.75rem coarse-pointer
+  targets, Board scroll-snap vs finger drag, the tap→move menu, Excalidraw under a finger, an
+  inline image, and a `<video>` seeking mid-file — the only thing that exercises `blob.rs`'s
+  `Range` path on real hardware. **This is the only gate that can retire `outstanding.md` §1.1**
+  (unobserved UI, *"the largest single risk in the project"*), because Chrome touch emulation
+  provably cannot reproduce Android's `dragstart` suppression. `adb` is outside pixi and that is
+  acceptable — it enters neither the build graph nor the artifact — but say so rather than letting
+  it pass as hermetic.
+- **STEP 1 — `merge.rs`, desktop-only, no new deps.** Extract
+  `merge_texts(base, ours, theirs, marker_size)` from the path-shaped wrapper; keep `merge_files`
+  as the thin driver-ABI shim (it is git's `%O %A %B` contract). **Fix the PID-only temp naming**
+  (`merge.rs:192`): `blob.rs` already uses PID + `AtomicU64`, `merge.rs` uses PID alone and is
+  safe today *only* because its sole caller is a one-shot subprocess. The moment merges run
+  in-process in a threaded server, two concurrent merges write the same three `/tmp` paths and
+  produce a note whose body came from **another note** — clean exit, silent. Required under every
+  resolution including "wait" and including Path A. **No semantic change.**
+- **STEP 2 — the differential harness, green against *today's* engine first.** Property test over
+  randomized `(base, ours, theirs)` — near-adjacent hunks, CRLF, marker sizes 1 and 255, markers
+  left over from a prior bad merge — asserting **verdict identity** (clean vs conflict) and the
+  parse invariant. Run it against the existing subprocess implementation *before* touching
+  anything: that proves the harness, not the engine. **Risk 2 (*"wrong markers = silent data
+  loss"*) currently has no gate at all**, because its only mitigation was parented to a refuted
+  ruling.
+- **STEP 3 — the skipped-note surface (`ui/src/`).** A *place*, not a toast: list notes that
+  failed to parse, with an editor that opens them raw. This is the correct answer to the
+  frontmatter conflict (`decisions.md`), and it is the highest-value visible work available —
+  *"a phase that ships only Rust shipped nothing."*
+- **STEP 4 — write `clone` in `git.rs`**, on the subprocess backend where it is testable today.
+  `ensure_repo` → `set_identity` **before** the first commit, which finally makes the identity
+  ruling real rather than theoretical. New `dispatch` arm beside `set_git_remote`, plus a
+  "clone a vault" affordance in the desktop vault picker — so the step ships visible UI, not only
+  Rust. Test: offline clone of a `file://` remote, asserting the first commit's author is **not**
+  `PLACEHOLDER_EMAIL`. **Prerequisite on every backend.**
+- **STEP 5 — harden `push_squashed`'s rollback.** It currently fires only on
+  `!out.status.success()`. Make it independent of the client's own verdict — confirm the remote
+  ref actually moved via a separate `ls-remote` — because with any in-process client "success"
+  becomes our own parser's opinion, and a false success destroys granular history for a backup
+  that never happened. Pays under every option; a precondition for any future push client.
+- **STEP 6 — the record.** Reconcile this file, `plan.md`, `decisions.md`, `known-issues.md`
+  (done 2026-07-19), and re-run the cold-read test at the bottom of `README.md`.
+- **STEP 7 — body engine as an *experiment*, feature-gated, mobile-only.** Run the candidate
+  against the STEP 2 harness and **publish the divergence list before deciding anything**. Treat
+  any engine's "auto-resolved conflict" outcome as an automatic **stop** until someone
+  demonstrates what content it discards — it is resolution-by-fiat baked into the engine, and
+  neither mapping is safe (report `Conflicted` and you send the user to resolve a file with no
+  markers; report `Clean` and you publish the fiat). Decide any new licence allowlist entry **up
+  front, deliberately**.
+- **STEP 8 — toolchain** (see the Toolchain section): `[feature.android]` + two environments; an
+  `android/toolchain.lock` pinning the NDK by our own SHA-256; the linking probe with an
+  **ELF-machine assertion**; the `CC` provenance guard; the android arm in `vaults.rs`.
+- **STEP 9 — M0**, only after step 8 is green *and* the transport is decided.
+
+**Not sequenced, deliberately: M8** (pure-Rust media extraction). Replacing mature `pdftotext`
+and `vipsthumbnail` with niche crates is structurally the same move the `diffy` rejection
+forbids. The divergence hazard it would close is real — identical PDF bytes yielding extracted
+text on desktop and an empty body on a phone, both committed, both hitting the text merge — but
+the minimal correct fix is two lines of policy: **declare the extractors as capabilities on the
+heartbeat** (today `ingest.rs:101`'s `.ok()?` cannot tell a missing binary from a text-free PDF),
+and **rule that a device without an extractor writes no body rather than an empty one** — *an
+empty body merges cleanly into a lie.*
+
+### The superseded spike list, kept because the reasoning teaches
+
+- ~~(i) extract `fm_app::dispatch` and prove `fm-serve` still green over it~~ — **SHIPPED.**
+- ~~(ii) unify `merge_files`'s body onto `git2::merge_file`~~ — **void:** that function does not
+  exist at that layer. The *instruction* is dead; the *argument* it carried (do not reach for a
+  niche crate on the one path that must never corrupt) stands and is why STEP 7 is gated.
+- ~~(iii) a ~30-line binary that `git2`-clones over HTTPS+PAT~~ — **void with the backend.** What
+  it was really trying to prove — the `CredentialSource` *trait shape* — survives, and STEP 4
+  proves it more cheaply on the backend that already works.
 - **M0 — Shell paints + lists notes (read-only, no git).** `cargo tauri android init`; native
   branch for read commands; a sandbox vault; open `Reindex::Incremental`; `rusqlite bundled` +
   libgit2 cross-compiled for `x86_64`/`aarch64-linux-android`. Inline images via the streaming
