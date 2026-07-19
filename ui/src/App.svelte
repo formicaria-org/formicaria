@@ -1042,8 +1042,29 @@
   [data-layout='single'] .cell:not(.active) {
     display: none;
   }
+  /* **The inset floor, hung off a condition proven to match on the device.**
+     `env(safe-area-inset-top)` is 0 in wry's Android WebView (Android 15 forces edge-to-edge
+     for targetSdk 35, but the insets are never handed to the page), and a `pointer: coarse`
+     floor did not take either — measured on the owner's phone: the CSS shipped, compiled
+     correctly, and the toolbar still landed on the clock. The narrow-layout query *is*
+     matching, because the single-pane bar appears. So the floor rides that instead of a
+     capability query nothing here can confirm.
+     `max()` so a platform that does report a real inset still wins. */
+  [data-layout='single'] .topbar {
+    padding-top: max(var(--safe-top), 1.75rem);
+  }
   [data-layout='single'] :global(.viewbar) {
     display: flex;
+  }
+  /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
+     relative to, and no ambiguity about which pane a close button means — so the container
+     chrome goes and the content gets the room. Closing moved to the view bar. The pane's own
+     *content* controls (the view rotator, group-by, search box) stay: those configure what you
+     are looking at, not where it sits. */
+  [data-layout='single'] :global(.grip),
+  [data-layout='single'] :global(.pane-close),
+  [data-layout='single'] :global(.resize-grip) {
+    display: none;
   }
   [data-layout='single'] .workspace {
     grid-template-columns: 1fr;
@@ -1054,6 +1075,10 @@
   @media (max-width: 60rem) {
     [data-layout='auto'] .cell:not(.active) {
       display: none;
+    }
+    /* Same floor, same reason — see the note on the `single` rule above. */
+    [data-layout='auto'] .topbar {
+      padding-top: max(var(--safe-top), 1.75rem);
     }
     [data-layout='auto'] :global(.viewbar) {
       display: flex;

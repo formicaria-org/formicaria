@@ -44,8 +44,13 @@ out="$root/mobile/formicaria-$target.apk"
 # Tauri sets its own CARGO_TARGET_*_RUSTFLAGS and overwrites ours.
 "${bt}zipalign" -P 16 -f 4 "$unsigned" "$out"
 
-# shellcheck disable=SC1090
-. <(sed 's/^/export /' "$props")
+# Read the four values rather than sourcing the file: `. <(...)` is a bashism that dies under
+# dash, and sourcing a properties file would *execute* whatever is in it. Parsing is both
+# portable and the safer of the two for a file holding a signing password.
+storeFile=$(sed -n 's/^storeFile=//p' "$props")
+storePassword=$(sed -n 's/^storePassword=//p' "$props")
+keyAlias=$(sed -n 's/^keyAlias=//p' "$props")
+keyPassword=$(sed -n 's/^keyPassword=//p' "$props")
 "${bt}apksigner" sign --ks "$storeFile" --ks-pass "pass:$storePassword" \
     --key-pass "pass:$keyPassword" --ks-key-alias "$keyAlias" "$out" 2>/dev/null
 "${bt}apksigner" verify "$out" >/dev/null 2>&1 || { echo "android-release: signature did not verify" >&2; exit 1; }

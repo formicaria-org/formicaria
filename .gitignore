@@ -48,3 +48,8 @@ ui/public/fonts/
 mobile/src-tauri/gen/
 mobile/src-tauri/target/
 mobile/node_modules/
+
+# The signed release APK, written beside the shell by `pixi run android-release`. A build
+# artifact reconstructible from the source + the keystore, and ~19 MB — the pre-commit size
+# guard rejects it, correctly. What is committed is the script that builds it.
+mobile/*.apk

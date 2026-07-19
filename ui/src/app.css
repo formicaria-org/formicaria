@@ -17,6 +17,20 @@
      named once so no component has to remember the `env()` spelling or its fallback. Zero on
      anything without insets, so desktop is untouched. Only meaningful because `index.html`
      asks for `viewport-fit=cover`; the two are a pair. */
+  /* **`env()` is zero inside the Android WebView today, and that is not our bug to fix in
+     CSS.** Android 15 forces edge-to-edge for targetSdk 35, so the app paints under the status
+     bar — but wry does not forward the window insets into the page, so every `env(safe-area-*)`
+     resolves to 0 and the toolbar lands on top of the clock. Observed on a real device; the
+     emulator's shorter status bar hid it.
+
+     So: floor the top inset on touch devices only. 1.75rem is the common Android status-bar
+     height, and `max()` means a device that *does* report a real inset (iOS, or wry once it
+     forwards them) wins over the floor rather than being clamped by it. Desktop is untouched —
+     `pointer: coarse` is the gate, and a mouse-driven window has no system bar over it.
+
+     **Interim, and the real fix is named:** the shell should read `WindowInsetsCompat` and hand
+     the values to the page, the same way it hands over `FM_CONFIG_DIR` — a platform fact only
+     the platform has. When that lands, delete the floor. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -46,6 +60,15 @@
 
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* The touch-device floor for the inset tokens above. Separate block because it overrides
+   `:root`, and a `@media` cannot live inside a declaration list. */
+@media (pointer: coarse) {
+  :root {
+    --safe-top: max(env(safe-area-inset-top, 0px), 1.75rem);
+    --safe-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
+  }
 }
 
 /* ---- (2) Semantic tokens — dark (default) ---- */
