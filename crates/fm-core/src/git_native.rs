@@ -278,6 +278,24 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
+/// Point libgit2's OpenSSL at a CA bundle, explicitly.
+///
+/// **Preferred over the `SSL_CERT_FILE` environment variable**, which only takes effect if it
+/// is set before OpenSSL reads its default verify paths — a lazy, once-per-process
+/// initialisation whose ordering relative to app startup is not ours to guarantee. This routes
+/// to `SSL_CTX_load_verify_locations` directly, so it is order-independent and does not depend
+/// on a process-global mutation. The env var is still set alongside it, harmlessly, for
+/// anything else in the process that reads it.
+///
+/// Only meaningful where libgit2 does the talking; a machine with a `git` binary uses the
+/// system's own store and never reaches this.
+pub fn set_cert_file(path: &Path) -> Result<(), StoreError> {
+    // Safety: called once at startup, before any network operation and before other threads
+    // exist. `git2::opts` mutates libgit2's process-global TLS context, which is exactly what
+    // is wanted here and why the function is `unsafe`.
+    unsafe { git2::opts::set_ssl_cert_file(path) }.map_err(map)
+}
+
 /// Mirrors [`crate::git::probe`]: ask a remote whether we could clone it, without cloning.
 ///
 /// `create_detached` is the point — there is no repository yet when a user is typing a URL into

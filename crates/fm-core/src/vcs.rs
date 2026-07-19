@@ -85,6 +85,17 @@ route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
 route!(probe(url: &str) -> crate::git::Probe);
 
+/// Point the in-process TLS at a CA bundle. A no-op where a `git` binary does the talking —
+/// it uses the system's own trust store and has nothing for us to configure.
+pub fn set_cert_file(path: &Path) -> Result<(), StoreError> {
+    #[cfg(feature = "native-git")]
+    if native() {
+        return crate::git_native::set_cert_file(path);
+    }
+    let _ = path;
+    Ok(())
+}
+
 /// `commit_all` takes a slice, which the macro's by-value arm cannot express.
 pub fn commit_all(
     vault: &Path,

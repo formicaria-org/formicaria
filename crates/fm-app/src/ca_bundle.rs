@@ -40,6 +40,18 @@
 //! **User-installed CAs are deliberately not included.** Since Android 7 apps do not trust them
 //! by default, and silently opting into a corporate or interception CA is not a decision a
 //! notes app should make on someone's behalf.
+//!
+//! # The directories are a priority list, NOT a union
+//!
+//! This is a correctness rule, not a preference. Since Android 14 the Conscrypt APEX store is
+//! **authoritative** and `/system/etc/security/cacerts` is retained but bypassed — Conscrypt's
+//! own `TrustedCertificateStore` picks one directory and ignores the other. Measured on the
+//! device here: 145 certificates in the APEX store against 149 in `/system`.
+//!
+//! **Those four are roots the platform has dropped.** Unioning the two directories would
+//! re-trust certificates Android deliberately stopped trusting — turning a trust store into a
+//! strictly-more-permissive one, which is the opposite of what a trust store is for. So the
+//! first directory that yields any certificate wins, and the rest are not read.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -64,20 +76,26 @@ fn certificates_in(text: &str) -> Vec<String> {
     out
 }
 
-/// Collect every certificate under `dirs` into one PEM file at `out`, and point OpenSSL at it.
+/// Build a trust store from the **first** of `dirs` that has certificates, and point OpenSSL
+/// at it.
 ///
-/// Returns how many distinct certificates were written. `Err` only when there is nothing usable
-/// to write — a directory that does not exist is skipped, because which ones exist varies by
-/// Android version and an absent one is not a failure.
+/// `dirs` is a priority list in platform order, not a set to merge — see the module docs: the
+/// authoritative store supersedes the legacy one rather than extending it. Returns how many
+/// distinct certificates were written. `Err` only when no directory yielded any, because which
+/// ones exist varies by Android version and an absent one is not a failure.
 ///
 /// **Rebuilt on every launch rather than cached.** An OS update changes the trust store, a
 /// cached bundle would pin the app to whatever was true at first run, and reading ~150 small
 /// files is a few milliseconds against a startup that already opens a SQLite index.
 pub fn install(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     let n = build(dirs, out)?;
+    // **The authoritative half.** Routes to `SSL_CTX_load_verify_locations` inside libgit2, so
+    // it does not depend on having run before OpenSSL's lazy, once-per-process reading of its
+    // default verify paths — an ordering we do not control and should not have to reason about.
+    fm_core::vcs::set_cert_file(out).map_err(|e| format!("could not install the CA bundle: {e}"))?;
+    // And the environment too, harmlessly, for anything else in the process that reads it.
     // Safety: startup, before any network call and before other threads exist — the same
-    // contract `configure_paths` relies on. `SSL_CERT_FILE` is read by OpenSSL when libgit2
-    // calls `SSL_CTX_set_default_verify_paths`.
+    // contract `configure_paths` relies on.
     unsafe { std::env::set_var("SSL_CERT_FILE", out) };
     Ok(n)
 }
@@ -97,6 +115,13 @@ fn build(dirs: &[&Path], out: &Path) -> Result<usize, String> {
         for e in entries.flatten() {
             let Ok(text) = std::fs::read_to_string(e.path()) else { continue };
             certs.extend(certificates_in(&text));
+        }
+        // **First store with anything in it wins.** Reading the next one too would union a
+        // superseded trust store into the authoritative one and re-trust roots the platform
+        // dropped. Dedup within a single directory is still wanted — a store may legitimately
+        // carry the same certificate under two names.
+        if !certs.is_empty() {
+            break;
         }
     }
     if certs.is_empty() {
@@ -147,21 +172,42 @@ mod tests {
         assert!(certificates_in("-----BEGIN CERTIFICATE-----\nAAAA\n").is_empty());
     }
 
-    /// The two Android directories overlap heavily — 145 and 149 entries on the measured
-    /// device — so without dedup the bundle would carry most roots twice.
+    /// **The authoritative store supersedes the legacy one; it does not merge with it.**
+    ///
+    /// Since Android 14 the Conscrypt APEX store is authoritative and `/system` is bypassed.
+    /// On the measured device the legacy directory held four certificates the APEX one did not
+    /// — roots the platform has dropped. A union would re-trust them, which makes the trust
+    /// store strictly more permissive than the platform's own. This is the test that stops it.
     #[test]
-    fn the_same_certificate_in_two_directories_is_written_once() {
-        let a = tempdir().unwrap();
-        let b = tempdir().unwrap();
-        std::fs::write(a.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
-        std::fs::write(b.path().join("8d89cda1.0"), ANDROID_SHAPED).unwrap();
+    fn the_legacy_store_is_not_merged_into_the_authoritative_one() {
+        let dropped = "-----BEGIN CERTIFICATE-----\nDROPPED\n-----END CERTIFICATE-----\n";
+        let apex = tempdir().unwrap();
+        let legacy = tempdir().unwrap();
+        std::fs::write(apex.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
+        std::fs::write(legacy.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
+        std::fs::write(legacy.path().join("deadbeef.0"), dropped).unwrap();
         let out = tempdir().unwrap().path().join("ca-bundle.pem");
 
-        let n = build(&[a.path(), b.path()], &out).unwrap();
+        let n = build(&[apex.path(), legacy.path()], &out).unwrap();
 
-        assert_eq!(n, 1, "same certificate, different filenames, one entry");
+        assert_eq!(n, 1, "only the authoritative store is read");
         let written = std::fs::read_to_string(&out).unwrap();
-        assert_eq!(written.matches(BEGIN).count(), 1);
+        assert!(
+            !written.contains("DROPPED"),
+            "a root the platform dropped must not come back via the legacy store:\n{written}"
+        );
+    }
+
+    /// Dedup still applies *within* a store — the same certificate may appear under two names.
+    #[test]
+    fn one_certificate_under_two_names_is_written_once() {
+        let d = tempdir().unwrap();
+        std::fs::write(d.path().join("01419da9.0"), ANDROID_SHAPED).unwrap();
+        std::fs::write(d.path().join("8d89cda1.0"), ANDROID_SHAPED).unwrap();
+        let out = tempdir().unwrap().path().join("ca-bundle.pem");
+
+        assert_eq!(build(&[d.path()], &out).unwrap(), 1);
+        assert_eq!(std::fs::read_to_string(&out).unwrap().matches(BEGIN).count(), 1);
     }
 
     /// The one test that touches the process environment, so nothing races it.
@@ -176,8 +222,8 @@ mod tests {
         assert_eq!(std::env::var("SSL_CERT_FILE").unwrap(), out.to_string_lossy());
     }
 
-    /// A directory that does not exist is skipped — which of Android's two stores is present
-    /// varies by version, and an absent one is not a failure.
+    /// A missing (or empty) directory falls through to the next — which of Android's stores is
+    /// present varies by version, and an absent one is not a failure.
     #[test]
     fn a_missing_directory_is_skipped_not_fatal() {
         let a = tempdir().unwrap();
