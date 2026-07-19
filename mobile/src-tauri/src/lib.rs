@@ -92,11 +92,47 @@ fn configure_paths(handle: &tauri::AppHandle) {
     }
 }
 
+/// Give the vendored OpenSSL a CA trust store, without which **every** HTTPS remote fails.
+///
+/// `git2` links OpenSSL statically, and a vendored build bakes in a default certificate
+/// directory that does not exist on Android. With no trust store libgit2 reports "the SSL
+/// certificate is invalid" for a perfectly good github.com — an error that names the server
+/// rather than the missing bundle, which is exactly how it wasted an evening.
+///
+/// **Not `SSL_CERT_DIR` pointed at Android's store**, which looks correct and silently does
+/// nothing: that lookup is by hashed filename, and Android names its certificates with
+/// OpenSSL's *pre-1.0.0* subject hash while a modern OpenSSL computes a different one. Measured
+/// on the device — `01419da9.0` on disk, `8d89cda1` from `openssl -subject_hash`. See
+/// [`fm_app::ca_bundle`] for the full reasoning; it concatenates instead, which uses no hashed
+/// lookup at all.
+///
+/// Both directories are offered because which exists varies by version: the historical
+/// `/system/etc/security/cacerts` and the Conscrypt APEX that newer releases serve from. On the
+/// measured device both are present and overlap, which the bundle deduplicates.
+///
+/// Best-effort and non-fatal: a phone that cannot build a bundle is still a working notebook —
+/// it just cannot reach an HTTPS remote, which is the same position it was in before.
+fn install_ca_bundle(handle: &tauri::AppHandle) {
+    use tauri::Manager;
+    let Ok(dir) = handle.path().app_data_dir() else { return };
+    let dirs = [
+        std::path::Path::new("/apex/com.android.conscrypt/cacerts"),
+        std::path::Path::new("/system/etc/security/cacerts"),
+    ];
+    match fm_app::ca_bundle::install(&dirs, &dir.join("ca-bundle.pem")) {
+        Ok(n) => eprintln!("ca-bundle: {n} certificates"),
+        // Said out loud rather than swallowed: this is the difference between "sync is broken"
+        // and "sync cannot verify anyone", and the two look identical from the UI.
+        Err(e) => eprintln!("ca-bundle: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             configure_paths(app.handle());
+            install_ca_bundle(app.handle());
             // The git token, if this device has one. **Only ever reached here**: a desktop
             // delegates to git's credential helper and stores nothing, so this call is the
             // mobile half of that split (`fm_app::secrets`). Must run before the first sync,
