@@ -1,0 +1,27 @@
+# The Android toolchain, pinned by our own SHA-256.
+#
+# Why this file exists: the NDK/SDK/platform-tools have no conda packaging, so they cannot be
+# pinned by `pixi.lock`. They are still not allowed to become *system* requirements — a
+# dependency installed with `sudo` is one this repo can neither pin nor remove. Every artifact
+# Google ships is a standalone zip rather than an installer, so `pixi run android-init` unpacks
+# them into a gitignored `.android/` in this tree and verifies each against the checksum below.
+#
+# The checksum, not the URL, is the assertion. Google may re-point a URL; a mismatch fails the
+# bootstrap loudly rather than silently installing a different toolchain. Reproducibility for
+# this project is `pixi.lock` PLUS this file — neither alone.
+#
+# Format, one artifact per line, whitespace-separated:
+#   <name>  <version>  <os>  <sha256>  <url>
+#
+# <name> is also the directory the zip unpacks to inside `.android/`.
+# <os> is `linux`, `macos`, or `any`; lines for other systems are skipped.
+#
+# To add or bump an entry: download the artifact, `sha256sum` it, and paste the result here.
+# Never paste a checksum you did not compute from the bytes you actually fetched.
+
+platform-tools 37.0.0 linux 198ae156ab285fa555987219af237b31102fefe8b9d2bc274708a8d4f2865a07 https://dl.google.com/android/repository/platform-tools_r37.0.0-linux.zip
+
+# The NDK and cmdline-tools belong here too, and are deliberately absent until someone has
+# actually fetched them and computed the checksum — an unverified line would be worse than a
+# missing one. They are needed from step 8 (the first real Android build); `platform-tools`
+# alone is what step 0 needs, and step 0 is what tells us whether step 8 is worth doing.

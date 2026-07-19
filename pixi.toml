@@ -102,6 +102,15 @@ checks = "sh ci/checks.sh"                       # architectural greps: seam + g
 # output into every archive.
 third-party = "sh ci/third-party.sh"
 docs = "mdbook build docs"                       # render the manual; broken links fail the build
+# Unpack the Android toolchain into a gitignored `.android/`, each artifact verified against
+# its SHA-256 in `android/toolchain.lock`. The NDK/SDK/platform-tools have no conda packaging,
+# so they cannot ride in `pixi.lock` — but "outside pixi" must not become "outside the
+# project": a `sudo apt install` dependency is one this repo can neither pin nor remove. Every
+# piece Google ships is a standalone zip, so it lives in the tree instead.
+#
+# Deliberately NOT in `pixi run ci`: a contributor with no Android toolchain must still get a
+# green gate. Opt-in, and the only thing that writes `.android/`.
+android-init = "sh ci/android-init.sh"
 
 [tasks.ci]
 depends-on = ["test", "test-ui", "check-ui", "deny", "checks", "docs"]

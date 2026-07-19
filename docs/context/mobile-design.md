@@ -573,7 +573,9 @@ staked on a decision nobody has taken yet. Receipts:
   ```
   pixi run serve            # builds the PROD bundle: real dispatch, real blob.rs, real Range
 
-  # adb from a project-local platform-tools zip (.android/), never a system install.
+  pixi run android-init     # unpacks platform-tools into .android/, SHA-256 verified.
+                            # Nothing installed system-wide; re-running is a no-op.
+
   # Phone: Developer options -> Wireless debugging -> Pair device with pairing code.
   ADB=.android/platform-tools/adb
   $ADB pair <phone-ip>:<pair-port>      # enter the 6-digit code; no USB, no udev, no sudo
