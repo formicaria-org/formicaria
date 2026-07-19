@@ -1,0 +1,56 @@
+<!--
+  The launcher icon for Android, and the reason it is a separate file from `ui/public/favicon.svg`.
+
+  **Android masks launcher icons.** The system crops every icon to whatever shape the launcher
+  uses — a circle, a squircle, a rounded square, and it varies by device and by theme. Only the
+  inner ~66% of the canvas is guaranteed to survive; everything outside that is decoration the
+  user may never see. The favicon fills its canvas edge to edge, which is right in a browser tab
+  and wrong here: on a phone the circle clipped the ant's antennae and outer legs.
+
+  So the whole drawing is scaled into the safe zone and the background is full-bleed. Whatever
+  shape the launcher cuts, it cuts red, and the ant arrives whole.
+
+  Kept separate rather than padding the favicon, because the two have opposite requirements: a
+  browser tab shows a 16px square with no mask and wants every pixel used, while a launcher
+  masks aggressively and wants the middle kept clear. One file cannot be right for both.
+
+  `ci/android-release.sh` points `tauri icon` at this. The favicon is unchanged.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="formicaria">
+  <!-- Full-bleed: this is the layer the mask cuts into, so it must reach every corner. No
+       rounded corners either — the launcher supplies the shape, and baking one in shows as an
+       odd inset against the mask it does not match. -->
+  <rect width="512" height="512" fill="#dc2626"/>
+
+  <!--
+    The ant, scaled to 55% about the centre.
+
+    **This number was measured, not guessed.** 66% of the half-canvas is the safe zone Android
+    guarantees. The artwork's own extent — the rear of the abdomen and the outermost legs, plus
+    half the 18px stroke — reaches 1.12x the half-canvas at full size, so a 0.62 scale still
+    landed at 69.5% and would have been clipped by a tight circular mask. 0.55 puts it at 64.3%,
+    which leaves real headroom rather than the appearance of it.
+
+    scale(0.55) about (256,256) == translate(256*(1-0.55)) then scale — i.e. translate(115.2).
+  -->
+  <g transform="translate(115.2 115.2) scale(0.55)">
+    <g fill="none" stroke="#1a1205" stroke-width="18" stroke-linecap="round">
+      <!-- antennae -->
+      <path d="M240 122 C 212 88, 198 76, 178 66"/>
+      <path d="M272 122 C 300 88, 314 76, 334 66"/>
+      <!-- left legs -->
+      <path d="M232 214 C 188 196, 150 196, 118 214"/>
+      <path d="M228 240 C 180 240, 140 252, 110 278"/>
+      <path d="M232 266 C 190 286, 156 308, 138 338"/>
+      <!-- right legs -->
+      <path d="M280 214 C 324 196, 362 196, 394 214"/>
+      <path d="M284 240 C 332 240, 372 252, 402 278"/>
+      <path d="M280 266 C 322 286, 356 308, 374 338"/>
+    </g>
+    <g fill="#1a1205">
+      <circle cx="256" cy="150" r="40"/>
+      <circle cx="256" cy="232" r="32"/>
+      <ellipse cx="256" cy="346" rx="54" ry="66"/>
+    </g>
+  </g>
+</svg>

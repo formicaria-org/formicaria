@@ -31,7 +31,12 @@ target="${1:-aarch64}"
 # The launcher icons live in the regenerated tree, so they must be (re)written after any
 # `android init` — otherwise the app ships Tauri's default icon and nobody notices until it is
 # on a home screen. Cheap, idempotent, and the reason this runs every time.
-( cd mobile && pnpm exec tauri icon ../ui/public/favicon.svg >/dev/null )
+# **A mobile-specific source, not the favicon.** Android masks launcher icons to a circle or
+# squircle and only the inner ~66% is guaranteed to survive, so artwork drawn edge to edge loses
+# its extremities — on a real phone the circle cut the ant's antennae and outer legs. The
+# favicon fills its canvas because a browser tab is a 16px square with no mask and wants every
+# pixel; the two requirements are opposite, so they are two files. See `mobile/icon-source.svg`.
+( cd mobile && pnpm exec tauri icon ./icon-source.svg >/dev/null )
 
 # **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
 # not a clear error: `tauri android build` fails with "failed to ensure Android environment:
