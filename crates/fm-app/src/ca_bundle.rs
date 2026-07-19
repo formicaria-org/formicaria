@@ -144,8 +144,44 @@ fn install_inner(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     // rather than the cause.
     match fm_core::vcs::set_cert_file(out) {
         Ok(()) => Ok(n),
-        Err(e) => Err(format!("{n} certs built, but libgit2 rejected them: {e}")),
+        // **What OpenSSL saw, not what we assume it saw.** The failure observed on a device was
+        // `X509_R_BIO_LIB`, which `X509_load_cert_file` raises when `BIO_new_file` returns
+        // NULL — i.e. OpenSSL could not *open* the file, rather than disliking its contents.
+        // Since Rust wrote that same path successfully one statement earlier, the interesting
+        // question is what differs between the two views of it, so the answer is measured here
+        // instead of reasoned about.
+        Err(e) => Err(format!("{n} certs built, but libgit2 rejected them: {e} [{}]", probe_file(out))),
     }
+}
+
+/// What this process can actually see at `path`, in one line, for an error message.
+///
+/// Deliberately re-checks the obvious: a bundle we just wrote should exist, be non-empty, be
+/// readable, and start with a PEM header. When a C library says it cannot open a file the
+/// runtime just wrote, one of those assumptions is wrong, and guessing which has already cost
+/// more than measuring it.
+fn probe_file(path: &Path) -> String {
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => m,
+        Err(e) => return format!("stat failed: {e}"),
+    };
+    let readable = std::fs::File::open(path).is_ok();
+    let head = std::fs::read(path)
+        .ok()
+        .map(|b| String::from_utf8_lossy(&b[..b.len().min(27)]).into_owned())
+        .unwrap_or_else(|| "<unreadable>".into());
+    #[cfg(unix)]
+    let mode = {
+        use std::os::unix::fs::PermissionsExt;
+        format!("{:o}", meta.permissions().mode() & 0o7777)
+    };
+    #[cfg(not(unix))]
+    let mode = "n/a".to_string();
+    format!(
+        "path={} size={} mode={mode} readable={readable} head={head:?}",
+        path.display(),
+        meta.len()
+    )
 }
 
 /// Write the bundle, and touch no global state.
