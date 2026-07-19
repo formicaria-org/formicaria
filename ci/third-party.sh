@@ -30,7 +30,25 @@ OUT="${1:-THIRD-PARTY.md}"
       | sort -u \
       | awk -F'|' 'NF==2 {
             n = split($1, p, " ");
-            printf "| %s | %s | %s |\n", p[1], (n>1 ? p[2] : "-"), ($2 == "" ? "(unstated)" : $2)
+            name = p[1];
+            lic  = ($2 == "" ? "(unstated)" : $2);
+            # OVERRIDES — crates whose declared licence is not the whole truth.
+            #
+            # `cargo tree` reports the `license` field, and so does `cargo deny`. A crate that
+            # vendors third-party source under a different licence declares only its own, and
+            # both gates believe it. That is not a hypothetical: it is why the entry below
+            # exists, and it is the exact gap `deny.toml` documents at length.
+            #
+            # This file generates the notices that MUST travel with a binary, so a wrong row
+            # here is a licence violation shipped in the artifact. Overriding is therefore not
+            # "being helpful" — it is the only place the truth gets recorded.
+            #
+            # libgit2-sys declares MIT OR Apache-2.0, which covers its Rust wrapper. It also
+            # vendors libgit2 itself: GPL-2.0-only WITH a linking exception (read from the
+            # vendored COPYING). Both ship, so both are stated.
+            if (name == "libgit2-sys")
+                lic = "(MIT OR Apache-2.0) AND (GPL-2.0-only WITH linking exception) — vendors libgit2";
+            printf "| %s | %s | %s |\n", name, (n>1 ? p[2] : "-"), lic
         }' \
       | sort -u
     echo

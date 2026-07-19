@@ -19,6 +19,32 @@ rusqlite = { version = "0.40.1", features = ["bundled"] }
 sha2 = "0.11"      # sha256 content addressing — verifiable with `sha256sum` forever
 infer = "0.19"     # pure-Rust MIME sniff by magic bytes (never trust the extension)
 
+# In-process git, for platforms that have no `git` binary to shell out to — Android has
+# none, and iOS forbids executing one at all. **Never on by default**: the desktop keeps
+# shelling out (`git.rs`), which is what keeps "git is a capability, not a dependency" true
+# there, and what keeps the `.md` merge driver working for a collaborator's terminal `git
+# pull`. Turning this on is a deliberate act by a mobile shell, not a default anybody
+# inherits.
+#
+# `vendored-libgit2` builds the C in-tree rather than linking whatever the host happens to
+# have: it is what makes the Android cross-compile tractable at all, and it is what GitSync
+# ships on both stores. It also makes the notice obligation unambiguous, because we are then
+# the ones distributing that code — see the named exception in `deny.toml`.
+[features]
+default = []
+native-git = ["dep:git2"]
+
+[dependencies.git2]
+# >=0.21 is a floor, not a preference: 0.20.4 carries RUSTSEC-2026-0183 and -0184, two
+# unsound advisories, and the first is squarely on our path — `Remote::list()` passes a null
+# pointer to `slice::from_raw_parts` when a remote advertises no refs, which is exactly the
+# empty-remote case a first push meets. Worth knowing that GitSync, the shipping app this
+# choice is modelled on, is still on 0.20.4.
+version = "0.21"
+optional = true
+default-features = false
+features = ["vendored-libgit2", "https"]
+
 [dev-dependencies]
 tempfile = "3"
 time = { workspace = true }   # macros (datetime!) for search recency-ordering tests

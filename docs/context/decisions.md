@@ -5,6 +5,48 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19)
+
+**Decision — one named exception, vendored, mobile only.** `fm-core` gains an optional
+`native-git` feature (**off by default**) pulling `git2` with `vendored-libgit2`. The desktop
+keeps shelling out to `git`; *"git is a capability, not a dependency"* still holds there, and
+the `.md` merge driver keeps working for a collaborator's terminal `git pull`. **Why an
+exception at all:** a phone has no `git` binary — Android ships none, iOS forbids executing
+one. **Why it is safe:** libgit2 is GPL-2.0-only *with its own linking exception*, read
+verbatim from the vendored `COPYING` at the pinned version; linking is precisely what that
+exception permits. What survives is the **notice** obligation and the duty to publish any
+modification to libgit2 — we make none.
+
+**`git2 >= 0.21` is a floor, not a preference.** 0.20.4 — the version GitSync ships — carries
+**RUSTSEC-2026-0183** and **-0184**, both `unsound`. The first is squarely on our path:
+`Remote::list()` passes a null pointer to `slice::from_raw_parts` when a remote advertises no
+refs, which is exactly the empty-remote case a first push meets. The advisories gate caught it
+on the first resolve.
+
+**The discovery, and it is the part that matters: `cargo deny` cannot enforce this, and never
+will.** `libgit2-sys` declares `license = "MIT OR Apache-2.0"` — true of its Rust wrapper,
+silent about the ~230k lines of GPL C it vendors — and cargo-deny treats a valid `license`
+field as authoritative. `[[licenses.clarify]]` is **silently inert** in that case regardless of
+the path or hash it is given (tested against cargo-deny 0.20.2; a paired
+`[[licenses.exceptions]]` reports `license-exception-not-encountered`). Both were written,
+tested, found ineffective, and **removed rather than left in place looking effective** — dead
+config that appears to enforce something is worse than none.
+
+This *vindicates* the 2026-07-18 `git2` rejection's sharpest line — that the gate "clears on a
+metadata technicality" — and goes further: it is not fixable within `deny.toml`.
+
+**Consequence — the enforcement moved to where it can actually run.** `ci/third-party.sh`
+carries a licence **override** so the shipped notice states libgit2's real licence, and
+`ci/checks.sh` **fails if `libgit2-sys` enters `Cargo.lock` without that override**, so the
+dependency cannot arrive without the notice that legally must travel with it. Keyed on the
+lockfile, so it fires for an optional dependency too. Both were verified by breaking them.
+`deny.toml` now carries the finding in full, pointing the next reader at the real gate rather
+than implying it does a job it cannot do.
+
+**Reversal condition:** cargo-deny gains the ability to override a declared `license` field →
+move the assertion back and delete the `checks.sh` entry. A maintained permissive pure-Rust
+git with working push appears → drop libgit2 entirely.
+
 ## The owner's five Track M rulings (2026-07-19)
 
 Taken by the owner after the drift review, and binding. They close the questions the review left
