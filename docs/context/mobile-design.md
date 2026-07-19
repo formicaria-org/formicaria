@@ -578,11 +578,16 @@ staked on a decision nobody has taken yet. Receipts:
 
   # Phone: Developer options -> Wireless debugging -> Pair device with pairing code.
   ADB=.android/platform-tools/adb
-  $ADB pair <phone-ip>:<pair-port>      # enter the 6-digit code; no USB, no udev, no sudo
-  $ADB connect <phone-ip>:<port>
+  $ADB pair <phone-ip>:<pair-port>      # the PAIRING DIALOG's port; no USB, no udev, no sudo
+  $ADB devices                          # the phone is already listed — see below
   $ADB reverse tcp:8765 tcp:8765        # phone's localhost -> this host; NO listener on the phone
   # phone browser: http://127.0.0.1:8765
   ```
+  **There is no `adb connect` step, and adding one breaks it.** adb discovers the device over
+  mDNS and connects it itself the moment pairing succeeds. The port in the pairing dialog is
+  *single-use* and dies on success — different from the one on the main Wireless-debugging
+  screen — so a hand-run `connect` fails, leaves a dead second entry, and every later command
+  then answers `more than one device/emulator`. `adb disconnect` clears the strays.
   Wireless rather than USB on purpose: USB `adb` on Linux needs udev rules or `plugdev`
   membership, and a system requirement is exactly what ruling 3 rules out. `adb reverse` is
   transport-agnostic, so the tunnel — and the guard argument below — is unchanged.

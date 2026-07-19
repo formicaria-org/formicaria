@@ -96,9 +96,15 @@ To reach a phone WITHOUT USB — USB adb on Linux needs udev rules or plugdev me
 which is exactly the system requirement this avoids:
 
   Phone: Developer options -> Wireless debugging -> Pair device with pairing code
-  .android/platform-tools/adb pair <phone-ip>:<pair-port>    # enter the 6-digit code
-  .android/platform-tools/adb connect <phone-ip>:<port>
+  .android/platform-tools/adb pair <phone-ip>:<pair-port>    # port from the PAIRING DIALOG
+  .android/platform-tools/adb devices                        # should already list the phone
   .android/platform-tools/adb reverse tcp:8765 tcp:8765
+
+There is no 'adb connect' step. adb finds the device over mDNS and connects it itself as
+soon as pairing succeeds. Running 'connect' by hand races that, and because the pairing
+dialog's port is single-use and dies on success, it fails and leaves a dead second entry --
+which then makes every later command answer 'more than one device/emulator'. If that
+happens: 'adb disconnect' clears the strays, and 'adb devices' shows the survivor.
 
 Then run \`pixi run serve\` and open http://127.0.0.1:8765 in the phone's browser. The
 tunnel means the phone sends Host: 127.0.0.1:8765, so fm-serve's guards pass unchanged and
