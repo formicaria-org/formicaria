@@ -627,7 +627,29 @@ staked on a decision nobody has taken yet. Receipts:
   in-process in a threaded server, two concurrent merges write the same three `/tmp` paths and
   produce a note whose body came from **another note** — clean exit, silent. Required under every
   resolution including "wait" and including Path A. **No semantic change.**
-- **STEP 2 — the differential harness, green against *today's* engine first.** Property test over
+- **STEP 2 — ✅ SHIPPED 2026-07-19.** `crates/fm-core/tests/merge_differential.rs`: fixed-seed
+  xorshift (no `rand` dep — a *reproducible* failure matters more here than statistical quality),
+  ~400 generated triples across marker sizes 7/12/32 and both line endings, asserting
+  **byte-for-byte and verdict-for-verdict** against `git merge-file` invoked independently.
+  Plain text rather than notes on purpose, so it exercises the engine and nothing else — no
+  frontmatter rules, no scene merge, no fast paths. A second test covers the invariant the
+  collaboration design actually promises: **a `Clean` note merge always parses.** Three things
+  learned building it:
+  - **The generator is the test.** The first version conflicted 378/400 times — which sounds
+    like a stress test and is a worse one, because it barely reached the clean path, and the
+    clean path is where a wrong engine loses content *silently* rather than marking it. Now
+    ~50/50, with a third of cases one-sided (the commonest real shape: pulling work you have no
+    local edits against).
+  - **The balance is asserted** (`clean > 100 && conflicted > 100`). Without it a future
+    generator change could make every other assertion vacuous and still pass green.
+  - **Graded against today's engine first, deliberately.** With one engine it is nearly a
+    tautology — that is the point: it proves the *harness* while a known-good answer still
+    exists. A harness first exercised on the day it is needed is one nobody trusts.
+
+  **This is now the gate on any engine swap**, and risk #2 (*"wrong markers = silent data
+  loss"*) finally has one. Marker-byte divergence may be waived per-case, in writing, with the
+  case recorded in the file — never by loosening an assertion until it passes. As planned:
+- **STEP 2 (as planned) — the differential harness, green against *today's* engine first.** Property test over
   randomized `(base, ours, theirs)` — near-adjacent hunks, CRLF, marker sizes 1 and 255, markers
   left over from a prior bad merge — asserting **verdict identity** (clean vs conflict) and the
   parse invariant. Run it against the existing subprocess implementation *before* touching
