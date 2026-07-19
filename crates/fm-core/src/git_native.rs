@@ -225,3 +225,272 @@ pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
     ensure_repo(dest)?;
     Ok(())
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// The sync half.
+//
+// **This is the part libgit2 cannot do for us, and the reason it needed its own argument.**
+// libgit2 contains no process spawn at all, so it cannot invoke the `.md` merge driver that
+// makes two people editing one note a non-event rather than a conflict on the `updated:` line.
+// Porting `pull` naively would silently disable that — a collaborator running `git pull` in a
+// terminal would still get the structural merge while the app quietly did a worse one. Two
+// merge semantics in one vault, and ours the wrong one.
+//
+// So the app resolves conflicted paths itself, by calling [`crate::merge::merge_texts`] — the
+// **same engine** the desktop driver calls through `fm merge-md`. One engine, two call sites,
+// which is what makes them unable to diverge. That is the whole design, and it is why
+// `merge_texts` had to be extracted from its path-shaped wrapper before any of this was safe.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/// Authentication for the network operations.
+///
+/// PAT over HTTPS, read from the environment. **The app stores no secret of its own** — on the
+/// desktop that is the ambient credential helper, and here it is a value the shell supplies,
+/// which on Android will come from the Keystore. Keeping it in the environment rather than in
+/// a config file is the same stance `RESTIC_PASSWORD` already takes.
+///
+/// **Fails after one attempt.** libgit2 will call this callback in a loop while it keeps
+/// getting credentials, so returning a bad token forever is a hang rather than an error — the
+/// exact trap the mobile design flagged. The counter makes the second call an error.
+fn credentials() -> git2::RemoteCallbacks<'static> {
+    let mut cb = git2::RemoteCallbacks::new();
+    let mut tried = 0u8;
+    cb.credentials(move |_url, username, allowed| {
+        tried += 1;
+        if tried > 1 {
+            return Err(git2::Error::from_str(
+                "authentication failed — check the token for this remote",
+            ));
+        }
+        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+            if let Ok(token) = std::env::var("FM_GIT_TOKEN") {
+                if !token.is_empty() {
+                    // A fine-grained PAT is the *password*; every host accepts any non-empty
+                    // username alongside it, so the remote's own username wins when present.
+                    return git2::Cred::userpass_plaintext(username.unwrap_or("x-access-token"), &token);
+                }
+            }
+        }
+        // No token: fall back to whatever the URL itself carries (a `file://` remote, or a
+        // credential already baked into the URL). Anything else is an honest failure.
+        git2::Cred::default()
+    });
+    cb
+}
+
+/// Mirrors [`crate::git::conflicts`]: the notes with an unfinished merge in them.
+pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let index = repo.index().map_err(map)?;
+    if !index.has_conflicts() {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for c in index.conflicts().map_err(map)?.flatten() {
+        // `our` is the side we keep the path from; a delete/modify conflict may have only one.
+        if let Some(entry) = c.our.or(c.their).or(c.ancestor) {
+            out.push(String::from_utf8_lossy(&entry.path).into_owned());
+        }
+    }
+    out.sort();
+    out.dedup();
+    Ok(out)
+}
+
+/// Mirrors [`crate::git::unpushed`]: how many commits are ahead of the tracking ref, or `None`
+/// when nothing has ever been pushed.
+pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let Ok(head) = repo.head() else { return Ok(None) };
+    let Ok(name) = head.shorthand() else { return Ok(None) };
+    let Ok(upstream) = repo.find_branch(&format!("{}/{name}", crate::git::REMOTE), git2::BranchType::Remote)
+    else {
+        return Ok(None);
+    };
+    let (local_oid, up_oid) = match (head.target(), upstream.get().target()) {
+        (Some(a), Some(b)) => (a, b),
+        _ => return Ok(None),
+    };
+    let (ahead, _behind) = repo.graph_ahead_behind(local_oid, up_oid).map_err(map)?;
+    Ok(Some(ahead as u32))
+}
+
+/// Mirrors [`crate::git::pull`]: fetch, then merge their work into ours.
+///
+/// The merge is where this backend earns its keep. Every conflicted path is handed to
+/// [`crate::merge::merge_texts`] — frontmatter merged structurally, the body through the same
+/// 3-way engine — so a note two people edited in different paragraphs comes back clean, exactly
+/// as it does on a desktop. A note they genuinely disagreed about comes back with markers **in
+/// the body**, which is what keeps it parseable and openable in the editor.
+pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
+    use crate::git::Pulled;
+
+    ensure_repo(vault)?;
+    if remote(vault)?.is_none() {
+        return Err(StoreError::Io(
+            "no remote configured — set one before pulling anyone's work".into(),
+        ));
+    }
+    if !conflicts(vault)?.is_empty() {
+        return Err(StoreError::Io(
+            "there is already a merge to finish here — resolve the conflicts first".into(),
+        ));
+    }
+
+    let repo = Repository::open(vault).map_err(map)?;
+    {
+        let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
+        let mut opts = git2::FetchOptions::new();
+        opts.remote_callbacks(credentials());
+        // Empty refspec list = the remote's configured default, same as `git fetch origin`.
+        rem.fetch(&[] as &[&str], Some(&mut opts), None).map_err(map)?;
+    }
+
+    let head = repo.head().map_err(map)?;
+    let branch = head.shorthand().unwrap_or("main").to_string();
+    let Ok(upstream) =
+        repo.find_branch(&format!("{}/{branch}", crate::git::REMOTE), git2::BranchType::Remote)
+    else {
+        // Nothing of ours is up there yet, so there is nothing of theirs to merge into.
+        return Ok(Pulled::UpToDate);
+    };
+    let their_oid = upstream.get().target().ok_or_else(|| StoreError::Io("remote ref has no target".into()))?;
+    let our_oid = head.target().ok_or_else(|| StoreError::Io("HEAD has no target".into()))?;
+
+    if repo.graph_descendant_of(our_oid, their_oid).map_err(map)? || our_oid == their_oid {
+        // We already hold everything they have.
+        return Ok(Pulled::UpToDate);
+    }
+
+    let (_ahead, behind) = repo.graph_ahead_behind(our_oid, their_oid).map_err(map)?;
+    let incoming = behind as u32;
+
+    let their_commit = repo.find_commit(their_oid).map_err(map)?;
+    let our_commit = repo.find_commit(our_oid).map_err(map)?;
+    let annotated = repo.find_annotated_commit(their_oid).map_err(map)?;
+    let (analysis, _) = repo.merge_analysis(&[&annotated]).map_err(map)?;
+
+    if analysis.is_fast_forward() {
+        // Nothing of ours to preserve: move the branch and check their tree out.
+        let mut r = repo.find_reference(&format!("refs/heads/{branch}")).map_err(map)?;
+        r.set_target(their_oid, "pull: fast-forward").map_err(map)?;
+        repo.set_head(&format!("refs/heads/{branch}")).map_err(map)?;
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
+            .map_err(map)?;
+        return Ok(Pulled::Merged(0));
+    }
+
+    // A real merge.
+    //
+    // `repo.merge` rather than `merge_trees`: it merges into the **repository** index and
+    // working tree, which is what real `git merge` leaves behind — a repo-backed index whose
+    // conflicts survive for `conflicts()` to report, and files on disk a human can edit.
+    // `merge_trees` hands back a standalone in-memory index instead, which cannot be written,
+    // cannot be `add_path`'d into ("Index is not backed up by an existing repository"), and
+    // would leave a conflicted pull invisible to every later call.
+    repo.merge(&[&annotated], None, None).map_err(map)?;
+
+    let mut index = repo.index().map_err(map)?;
+    let mut unresolved: Vec<String> = Vec::new();
+
+    if index.has_conflicts() {
+        let items: Vec<_> = index.conflicts().map_err(map)?.flatten().collect();
+        for c in items {
+            // `as_ref`, not `clone`: git2 0.21's `IndexEntry` is not `Clone`, and the path
+            // bytes are all that is needed.
+            let Some(our_entry) = c.our.as_ref().or(c.their.as_ref()).or(c.ancestor.as_ref())
+            else {
+                continue;
+            };
+            let path = String::from_utf8_lossy(&our_entry.path).into_owned();
+            let blob = |e: &Option<git2::IndexEntry>| -> String {
+                e.as_ref()
+                    .and_then(|e| repo.find_blob(e.id).ok())
+                    .map(|b| String::from_utf8_lossy(b.content()).into_owned())
+                    .unwrap_or_default()
+            };
+            let (base_txt, our_txt, their_txt) = (blob(&c.ancestor), blob(&c.our), blob(&c.their));
+
+            // THE call. Same engine as `fm merge-md`, so a phone and a desktop cannot disagree
+            // about what a merged note is.
+            let (merged, outcome) = crate::merge::merge_texts(&base_txt, &our_txt, &their_txt, 7)?;
+
+            let full = vault.join(&path);
+            if let Some(parent) = full.parent() {
+                std::fs::create_dir_all(parent).map_err(io)?;
+            }
+            std::fs::write(&full, &merged).map_err(io)?;
+
+            if outcome == crate::merge::Merged::Clean {
+                // Clear the three conflict stages and stage the resolution, which is exactly
+                // what `git add` does after a human fixes a conflict by hand.
+                index.conflict_remove(Path::new(&path)).map_err(map)?;
+                index.add_path(Path::new(&path)).map_err(map)?;
+            } else {
+                // Left conflicted on purpose: the markers are in the body, the note still
+                // parses and still opens, and a human decides. Reported, never swallowed —
+                // and the index keeps the conflict so `conflicts()` still sees it.
+                unresolved.push(path);
+            }
+        }
+        index.write().map_err(map)?;
+    }
+
+    if !unresolved.is_empty() {
+        unresolved.sort();
+        // MERGE_HEAD is deliberately left in place, exactly as an interrupted `git merge` does:
+        // the next `pull` refuses rather than starting a second merge over an unfinished one.
+        return Ok(Pulled::Conflicted(unresolved));
+    }
+
+    // Everything resolved: record the merge with both parents so history says what happened.
+    let tree_oid = index.write_tree().map_err(map)?;
+    let tree = repo.find_tree(tree_oid).map_err(map)?;
+    let sig = repo.signature().map_err(map)?;
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        &format!("merge {}/{branch}", crate::git::REMOTE),
+        &tree,
+        &[&our_commit, &their_commit],
+    )
+    .map_err(map)?;
+    // Clears MERGE_HEAD; without it the repo stays "mid-merge" forever and the next pull
+    // refuses.
+    repo.cleanup_state().map_err(map)?;
+    repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
+    Ok(Pulled::Merged(incoming))
+}
+
+/// Mirrors [`crate::git::push_squashed`]'s *push* half — without the squash.
+///
+/// **The squash is deliberately absent.** Collapsing history is a destructive optimisation that
+/// exists because the desktop auto-commits every few seconds; it is guarded by an ancestry check
+/// and a rollback that verifies the remote ref actually moved. Reimplementing that here, on the
+/// backend that has never run against a real remote, is exactly the "half-shipped on the path
+/// that must never corrupt" the design forbids. A phone pushes what it has.
+pub fn push(vault: &Path) -> Result<(), StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let head = repo.head().map_err(map)?;
+    let branch = head.shorthand().map_err(|_| StoreError::Io("detached HEAD".into()))?.to_string();
+
+    let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
+    let mut opts = git2::PushOptions::new();
+    opts.remote_callbacks(credentials());
+    rem.push(&[format!("refs/heads/{branch}:refs/heads/{branch}")], Some(&mut opts))
+        .map_err(map)?;
+
+    // `push -u`'s other half: without a tracking ref the next `unpushed` has nothing to compare
+    // against and reports "never pushed" forever.
+    let mut b = repo.find_branch(&branch, git2::BranchType::Local).map_err(map)?;
+    let _ = b.set_upstream(Some(&format!("{}/{branch}", crate::git::REMOTE)));
+    Ok(())
+}
+
+fn io(e: std::io::Error) -> StoreError {
+    StoreError::Io(e.to_string())
+}

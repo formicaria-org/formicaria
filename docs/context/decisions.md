@@ -5,6 +5,51 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+## The in-process sync path: the app merges, because libgit2 cannot (2026-07-19)
+
+**Decision.** `git_native` now covers the whole collaboration loop — `clone`, `commit_all`,
+`pull`, `push`, `unpushed`, `conflicts` — so a phone can share a vault with a desktop.
+
+**The load-bearing part is the merge.** libgit2 contains no process spawn, so it can never
+invoke the `.md` driver that makes two people editing one note a non-event rather than a
+conflict on the `updated:` line the app rewrites on every save. Porting `pull` naively would
+have silently disabled that: a collaborator running `git pull` in a terminal would still get the
+structural merge while the app quietly did a worse one — **two merge semantics in one vault, and
+ours the wrong one.** That was the single strongest argument in the original `git2` rejection.
+
+So the app resolves conflicted paths **itself**, by calling `merge::merge_texts` — the *same*
+engine `fm merge-md` calls. One engine, two call sites, which is what makes them unable to
+diverge. This is why `merge_texts` had to be extracted from its path-shaped wrapper first: none
+of this was safe until the engine could be called with three strings.
+
+**Proven, not asserted.** `crates/fm-cli/tests/git_native_merge.rs` runs the same divergence
+through both backends and compares: a concurrent edit to different lines of one note comes back
+**byte-identical**, cleanly merged, on both. A genuine disagreement conflicts on both, with
+markers **in the body** so the note still parses, and the path named rather than swallowed.
+
+**That test lives in `fm-cli`, not `fm-core`, and the reason is a trap worth remembering:**
+`ensure_repo` points the driver at the `fm` binary beside the running one, and only `fm-cli`
+builds one. Run from `fm-core`'s harness the subprocess side silently falls back to git's plain
+text merge and conflicts — so the comparison would grade two broken things against each other.
+
+**Consequences and the things deliberately left out:**
+- `repo.merge`, not `merge_trees`. The latter returns a standalone in-memory index that cannot
+  be written or `add_path`'d into, so a conflicted pull would be invisible to every later call.
+  `repo.merge` leaves a repo-backed index and files on disk, which is what real `git merge` does.
+- **The squash is not ported.** `push_squashed` collapses history, guarded by an ancestry check
+  and a rollback that verifies the remote ref actually moved. Reimplementing that on a backend
+  that has never run against a real remote is exactly the half-shipping this project forbids on
+  the path that must never corrupt. **A phone pushes what it has.**
+- **Credentials are a PAT from the environment** (`FM_GIT_TOKEN`), and the callback **fails after
+  one attempt** — libgit2 retries while it keeps receiving credentials, so a bad token is a hang
+  rather than an error. The Keystore-backed source is the shell's job, the same way it supplies
+  `FM_CONFIG_DIR`.
+- Still unported: `activity` (git log) and `remote_moved`. Neither is on the corruption path;
+  both degrade to "unknown" rather than to a wrong answer.
+
+**Reversal condition:** the differential test cannot stay green → stop, because that is the
+signal that a phone and a desktop have started disagreeing about what a merged note is.
+
 ## One shell, two arrangements — layout adapts by space, never by platform (2026-07-19)
 
 **Decision.** The UI has **exactly two named layouts**, `tiled` and `single`, chosen by a

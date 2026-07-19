@@ -258,3 +258,9 @@ fn clone_agrees_and_both_make_the_result_a_vault() {
     assert!(git_native::clone(url, occupied.path()).is_err());
     assert!(!occupied.path().join(".git").exists(), "and neither wrote anything");
 }
+
+// The *pull* comparison lives in `crates/fm-cli/tests/git_native_merge.rs`, not here.
+// It needs the `.md` merge driver installed, and `ensure_repo` points the driver at the `fm`
+// binary beside the running one — which in `fm-core`'s test harness does not exist. Run here,
+// the subprocess side silently falls back to git's plain text merge and conflicts on the
+// `updated:` line, so the comparison would grade two broken things against each other.

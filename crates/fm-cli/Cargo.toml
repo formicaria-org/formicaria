@@ -20,3 +20,9 @@ time = { workspace = true }   # parse `due` dates and stamp `updated` on edit
 [dev-dependencies]
 tempfile = "3"   # throwaway --vault for the CLI integration tests
 serde_json = "1" # assert a merged whiteboard body is still a scene the app can parse
+
+# Forwarded so `tests/git_native_merge.rs` can compare the two git backends *through a real
+# merge driver* — which needs the `fm` binary this crate builds, and therefore cannot live in
+# `fm-core`'s test harness.
+[features]
+native-git = ["fm-core/native-git"]
