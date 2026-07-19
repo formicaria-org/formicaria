@@ -107,6 +107,9 @@ android-check = "sh ci/android-check.sh"
 # and this project has no rustup (targets come from conda-forge, pinned in pixi.lock); the shim
 # verifies rather than pretends. `JAVA_HOME` is pinned because conda's default JDK is 25, whose
 # class files Gradle 8.14 refuses with an error naming neither Java nor Gradle.
+# A signed, 16 KB-aligned release APK for a real phone. Keystore in ~/.config/formicaria,
+# never in the repo. See the script for why signing is not done in Gradle.
+android-release = { cmd = "sh ci/android-release.sh" }
 android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/.android/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64" }
 # Install the debug APK on whatever single device adb sees, and launch it.
 android-run = { cmd = "$ANDROID_HOME/../platform-tools/adb install -r mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk && $ANDROID_HOME/../platform-tools/adb shell am start -n dev.formicaria.notes/.MainActivity" }
