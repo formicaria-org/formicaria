@@ -561,6 +561,29 @@ Audited corrections — `NotePanel`, `Whiteboard`, `Pane` are in **`ui/src/lib/`
 `ui/src/renderers/`, and are **not** renderers. `renderers/` holds only Activity, Agenda, Board,
 Calendar, Card, Search, Timeline. Line anchors otherwise verified.
 
+## Device safety — the phone is not a test rig
+
+**The Android device used for this work is the owner's personal phone.** Everything below is a
+hard rule, asked for directly after a `rm -rf "$V"` built from a shell variable — scoped to a
+scratch path, but the wrong shape of command to point at someone's phone.
+
+- **Write only under `/data/local/tmp/`.** Never `/sdcard`, `/storage`, `/data/data`,
+  `/system`, or any app's directory — that is photos, messages, and every installed app.
+- **Never build a destructive command from a variable.** Literal paths only, and only paths
+  this session created; an unset variable turns a scoped delete into an unscoped one.
+- **Never `adb install`/`uninstall`/`pm`/`settings put`/`su`.** No device state changes.
+- **Do not read personal data at all**, even read-only. `logcat` filtered to our own output is
+  fine; anything else is not ours to look at.
+- **Clean up, then `adb disconnect`** when done, so nothing can reach the phone until the owner
+  re-pairs. Wireless debugging pairing is theirs to revoke whenever they like.
+
+**Why `/data/local/tmp` is both sufficient and the limit:** `adb shell` runs as the *shell*
+user, outside the app sandbox, so a pushed binary can execute there — the W^X restriction that
+stops an *app* exec'ing from its own data directory does not apply. That is exactly what made
+`sessions/2026-07-19-the-core-on-the-phone.md` possible with no SDK, no APK and no shell. It is
+a test fixture, never a product path, and it is the reason the port still needs in-process git
+rather than a bundled `git` binary.
+
 ## Corrected sequence (2026-07-19) — steps 0–5 need no backend and no NDK
 
 **Why this replaced the old spike list.** Spikes (ii) and (iii) were `git2` spikes and are
