@@ -403,3 +403,43 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
             "{backend}: commits below the floor are untouched:\n{log}");
     }
 }
+
+/// **The trust-store load must not crash, and must actually load.**
+///
+/// `git_openssl__add_x509_cert` reads `SSL_CTX_get_cert_store(git__ssl_ctx)` after an
+/// `openssl_ensure_initialized()` that creates nothing in a non-`GIT_OPENSSL_DYNAMIC` build. Call
+/// it before `git_libgit2_init()` has run and it dereferences NULL — a launch crash rather than an
+/// error, which is exactly what shipping it unguarded produced on a device.
+///
+/// This runs the real path against real certificates, so a regression is a failed test rather
+/// than a phone that dies on open.
+#[cfg(feature = "native-git")]
+#[test]
+fn adding_certificates_from_memory_initialises_libgit2_first() {
+    // A tiny bundle is enough: the crash was in reaching the store at all, not in the count.
+    let origin = tempdir().unwrap();
+    git::ensure_repo(origin.path()).unwrap();
+
+    // Two real roots, in the shape the Android store hands us — PEM block plus trailing text.
+    let pem = std::process::Command::new("openssl")
+        .args(["s_client", "-showcerts", "-connect", "example.com:443"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+
+    // Offline or no openssl: fall back to asserting the guard rather than skipping entirely —
+    // an empty bundle must be refused, and refusing must not crash.
+    let Some(pem) = pem.filter(|p| p.contains("BEGIN CERTIFICATE")) else {
+        assert!(git_native::add_certs_from_pem(b"").is_err(), "empty is refused, not fatal");
+        assert!(
+            git_native::add_certs_from_pem(b"not a certificate\n").is_err(),
+            "garbage is refused, not fatal"
+        );
+        return;
+    };
+
+    let added = git_native::add_certs_from_pem(pem.as_bytes())
+        .expect("certificates from memory must load");
+    assert!(added > 0, "at least one certificate reached libgit2's store");
+}

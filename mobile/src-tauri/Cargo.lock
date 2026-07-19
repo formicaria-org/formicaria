@@ -866,6 +866,8 @@ dependencies = [
  "fm-query",
  "git2",
  "infer",
+ "libgit2-sys",
+ "openssl-sys",
  "rusqlite",
  "serde",
  "serde_json",

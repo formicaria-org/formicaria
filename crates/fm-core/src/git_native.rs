@@ -318,6 +318,20 @@ pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
     if pem.is_empty() {
         return Err(StoreError::Io("the CA bundle was empty".into()));
     }
+    // **libgit2 must be initialised before this option is touched, or the app dies.**
+    //
+    // `git_openssl__add_x509_cert` does `SSL_CTX_get_cert_store(git__ssl_ctx)` after an
+    // `openssl_ensure_initialized()` that is `return 0` in a non-`GIT_OPENSSL_DYNAMIC` build —
+    // so it creates nothing. Reach it before `git_libgit2_init()` has run and `git__ssl_ctx` is
+    // still NULL, which dereferences null inside OpenSSL: a hard crash on launch, not an error
+    // code. Observed exactly that way on a device.
+    //
+    // The `git2` wrappers all call the crate's `init()` first; calling `git_libgit2_opts` raw
+    // skips it, which is the cost of using an option `git2` does not wrap. Opening a path that
+    // cannot exist is the cheapest way to run that same initialisation: it fails, harmlessly,
+    // *after* libgit2 and its SSL context are up.
+    let _ = git2::Repository::open(Path::new("/nonexistent/formicaria-libgit2-init"));
+
     let mut added = 0usize;
     let mut parsed = 0usize;
 
