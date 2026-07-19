@@ -46,7 +46,12 @@ impl Host for AndroidHost {
 /// `fmblob://localhost/<url-encoded reference>` — the reference is whatever the note wrote
 /// (`sha256:…` or `asset:sha256-…`), resolved by the same command the desktop uses, so there is
 /// one implementation of what a reference means.
-fn blob_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec<u8>> {
+fn blob_response(
+    app: &tauri::AppHandle,
+    method: &str,
+    uri: &str,
+    body: &[u8],
+) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{Response, StatusCode};
     use tauri::Manager; // `try_state` lives on the trait, not on `AppHandle` itself
     let not_found = || {
@@ -57,9 +62,45 @@ fn blob_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec
     else {
         return not_found();
     };
-    let reference = percent_decode(rest.split('?').next().unwrap_or(rest));
+    let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
     let Some(state) = app.try_state::<Arc<App>>() else { return not_found() };
 
+    // **Ingest rides the same scheme, in the other direction.** Tauri's raw IPC body does not
+    // exist on Android — its own docs say so: "On Android, InvokeBody::Raw is not supported. The
+    // enum will always contain InvokeBody::Json." A photo through JSON means base64, a third
+    // larger and copied several times. A protocol handler receives the request body as bytes, so
+    // a POST here carries the file exactly as the picker produced it.
+    //
+    // It also makes this identical in shape to the desktop, which POSTs the file to
+    // `/api/ingest`. One transport, two directions, and the same `dispatch` arm underneath.
+    if method.eq_ignore_ascii_case("POST") && path.starts_with("ingest") {
+        let param = |k: &str| {
+            query
+                .split('&')
+                .filter_map(|kv| kv.split_once('='))
+                .find(|(n, _)| *n == k)
+                .map(|(_, v)| percent_decode(v))
+                .unwrap_or_default()
+        };
+        let args = serde_json::json!({ "name": param("name"), "vault": param("vault") });
+        return match dispatch("ingest", &args, body, &state, &AndroidHost) {
+            Ok(out) => tauri::http::Response::builder()
+                .header("Content-Type", "application/json")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(out.into_bytes())
+                .unwrap_or_else(|_| not_found()),
+            Err(e) => {
+                log::error!("ingest: {e}");
+                tauri::http::Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(e.into_bytes())
+                    .unwrap_or_else(|_| not_found())
+            }
+        };
+    }
+
+    let reference = percent_decode(path);
     let args = serde_json::json!({ "reference": reference, "kind": "full" });
     match dispatch("resolve_asset", &args, &[], &state, &AndroidHost) {
         Ok(out) => {
@@ -103,39 +144,6 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
-}
-
-/// Ingest a captured or picked file — **raw bytes over IPC, not JSON**.
-///
-/// The desktop posts the file to `/api/ingest`; there is no server here, and base64 through the
-/// JSON channel would inflate a photo by a third and hold it in memory several times over. Tauri
-/// v2 carries a raw body, so the bytes arrive as they left the picker.
-///
-/// Everything after this is the path the desktop already uses: `ingest_bytes` content-addresses
-/// them into `blobs/`, writes a thumbnail, records the manifest entry, and returns the note DTO
-/// the editor inserts at the caret.
-#[tauri::command]
-fn fm_ingest(
-    request: tauri::ipc::Request<'_>,
-    app: tauri::State<'_, Arc<App>>,
-) -> Result<String, String> {
-    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("ingest expects the file's bytes, not JSON".into());
-    };
-    let header = |k: &str| {
-        request.headers().get(k).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string()
-    };
-    // **No rule of its own.** An empty name is not refused here, because the `ingest` arm
-    // already handles it — it falls back to `asset` and sniffs the type from the bytes' magic
-    // number. Adding a stricter check in the shell would make a capture on a phone behave
-    // differently from the same bytes dropped on a desktop, which is precisely what one command
-    // surface exists to prevent. A test pins the shared behaviour.
-    let name = header("x-fm-name");
-    let args = serde_json::json!({ "name": name, "vault": header("x-fm-vault") });
-    let out = dispatch("ingest", &args, bytes, &app, &AndroidHost).inspect_err(|e| {
-        log::error!("ingest {name}: {e}");
-    })?;
-    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -282,9 +290,14 @@ pub fn run() {
             Ok(())
         })
         .register_uri_scheme_protocol("fmblob", |ctx, req| {
-            blob_response(ctx.app_handle(), &req.uri().to_string())
+            blob_response(
+                ctx.app_handle(),
+                req.method().as_str(),
+                &req.uri().to_string(),
+                req.body(),
+            )
         })
-        .invoke_handler(tauri::generate_handler![fm, fm_ingest])
+        .invoke_handler(tauri::generate_handler![fm])
         .run(tauri::generate_context!())
         .expect("error while running formicaria");
 }

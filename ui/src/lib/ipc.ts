@@ -150,6 +150,22 @@ export async function alive(): Promise<void> {
 // A URL a media element can point at directly, so the browser fetches only the
 // bytes it needs. `<video>` seeking becomes a `Range` request instead of a
 // whole-file download, and nothing has to be revoked afterwards.
+/** The origin the shell's `fmblob` handler answers on, with a trailing slash.
+ *
+ *  Derived from `convertFileSrc` rather than written out, because a custom scheme is not the
+ *  same string on every platform: Android's WebView cannot intercept one at all, so wry rewrites
+ *  `fmblob://…` to `http://fmblob.localhost/…` (its `custom_protocol_workaround`). Asking Tauri
+ *  to map a known path and then trimming it back is how this stays correct on a platform whose
+ *  rewriting rules are not ours. */
+function assetBase(): string {
+  const internals = (window as unknown as {
+    __TAURI_INTERNALS__?: { convertFileSrc(path: string, protocol: string): string };
+  }).__TAURI_INTERNALS__;
+  if (!internals) return 'fmblob://localhost/';
+  const probe = internals.convertFileSrc('__base__', 'fmblob');
+  return probe.slice(0, probe.lastIndexOf('__base__'));
+}
+
 export const assetUrl = (reference: string) => {
   if (!isTauri) return `/api/blob/${encodeURIComponent(reference)}`;
   // **Tauri maps the scheme, not us.** A custom scheme is not the same string on every platform:
@@ -177,16 +193,16 @@ export const openExternal = (reference: string) =>
 // belongs in the lab vault, beside the notes that reference it and inside the boundary
 // its readers already have. Empty means the default vault.
 export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
-  // **The phone has no HTTP server**, so the POST below cannot run there. Tauri carries a raw
-  // body, which is what a picked or captured file already is — no base64, which would inflate a
-  // photo by a third and hold it in memory several times on the way through.
+  // **The same POST the desktop makes, to a different base.** Tauri's raw IPC body does not
+  // exist on Android — its own docs: "On Android, InvokeBody::Raw is not supported." Sending a
+  // photo as JSON would mean base64, a third larger and copied several times. The shell's
+  // `fmblob` protocol handler receives a request body as bytes, so this is an ordinary `fetch`
+  // with the File as the body, exactly as the browser path below does.
   if (isTauri) {
-    const core = await import('@tauri-apps/api/core');
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const out = await core.invoke<string>('fm_ingest', bytes, {
-      headers: { 'x-fm-name': encodeURIComponent(file.name), 'x-fm-vault': vault },
-    });
-    return JSON.parse(out) as ObjectMeta;
+    const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
+    const res = await fetch(`${assetBase()}ingest?${q}`, { method: 'POST', body: file });
+    if (!res.ok) throw new Error((await res.text()) || res.statusText);
+    return res.json();
   }
   if (import.meta.env.PROD) {
     const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
