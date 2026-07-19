@@ -28,12 +28,17 @@
     onbackup,
     layout,
     onlayout,
+    columns,
+    oncolumns,
     onkeyschanged,
   }: {
     onclose: () => void;
     onbackup: () => void;
     layout: 'auto' | 'tiled' | 'single';
     onlayout: (l: 'auto' | 'tiled' | 'single') => void;
+    /** `auto` tracks the number of open views; a number pins the grid width. */
+    columns: number | 'auto';
+    oncolumns: (c: number | 'auto') => void;
     /** Told when a binding changes, so the shell re-reads it without a reload. */
     onkeyschanged?: () => void;
   } = $props();
@@ -101,6 +106,13 @@
     {:else if !cfg}
       <p class="muted">Reading configuration…</p>
     {:else}
+      <!-- **Two kinds of thing on one screen, and the split is the point.** Everything above
+           the divider is a *preference*: it lives in this browser, touches no vault, and can be
+           changed here. Everything below is a *mirror* of configuration the backend owns, which
+           this panel deliberately cannot edit — `vaults::save` is append-only, so a field
+           offering to change a vault's path would silently do nothing. -->
+      <p class="group">Preferences <span class="muted">— this browser, no vault touched</span></p>
+
       <section>
         <h3>Layout</h3>
         <p class="muted">
@@ -119,6 +131,29 @@
                   onchange={() => onlayout(value as 'auto' | 'tiled' | 'single')} />
                 <span class="k">{label}</span>
                 <span class="muted">{why}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+      </section>
+
+      <section>
+        <h3>Columns</h3>
+        <p class="muted">
+          How wide the grid is in the tiled arrangement. <strong>Automatic</strong> follows the
+          number of open views, so opening one widens the grid and closing one lets the rest
+          reclaim the space.
+        </p>
+        <ul class="caps">
+          {#each ['auto', 1, 2, 3, 4] as c (c)}
+            <li>
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="columns"
+                  checked={columns === c}
+                  onchange={() => oncolumns(c as number | 'auto')} />
+                <span class="k">{c === 'auto' ? 'Automatic' : `${c}`}</span>
               </label>
             </li>
           {/each}
@@ -154,6 +189,10 @@
           <button class="link" onclick={resetKeys}>Reset to defaults</button>
         </p>
       </section>
+
+      <p class="group">
+        This installation <span class="muted">— read-only; the backend owns these</span>
+      </p>
 
       <section>
         <h3>Vault list</h3>
@@ -404,6 +443,17 @@
   }
   .choice .k {
     min-width: 5.5rem;
+  }
+  .group {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: var(--space-1);
+  }
+  .group .muted {
+    font-weight: 400;
   }
   .binding {
     font-family: ui-monospace, monospace;

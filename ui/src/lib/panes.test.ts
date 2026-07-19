@@ -119,3 +119,51 @@ describe('defaultWorkspace', () => {
     expect(w.panes[0].kind).toBe('board');
   });
 });
+
+// ── The grid reclaims space, and defaults stay typeable on a non-US keyboard ──
+import * as k from './keys';
+
+describe('columns follow the pane count', () => {
+  // Mirrors App.svelte's `autoCols`. Kept here because the property is the point: opening a
+  // view widened the grid and closing one did NOT narrow it, so closing two of three notes
+  // left one note sitting in a third of the screen.
+  const autoCols = (n: number, mode: 'auto' | 'fixed', cols: number) =>
+    mode === 'fixed' ? cols : Math.max(1, Math.min(n, 4));
+
+  it('grows as views open and shrinks as they close', () => {
+    expect(autoCols(1, 'auto', 2)).toBe(1);
+    expect(autoCols(3, 'auto', 2)).toBe(3);
+    expect(autoCols(1, 'auto', 3)).toBe(1); // the reclaim
+  });
+
+  it('never exceeds four, because a fifth pane is a sliver', () => {
+    expect(autoCols(8, 'auto', 2)).toBe(4);
+  });
+
+  it('leaves a pinned width alone', () => {
+    expect(autoCols(4, 'fixed', 2)).toBe(2);
+  });
+});
+
+describe('default shortcuts are typeable on a non-US layout', () => {
+  // `Ctrl+[` / `Ctrl+]` shipped first and are unreachable on an Italian keyboard, where both
+  // brackets need AltGr. Anything behind AltGr, or that moves between layouts, is barred.
+  const NEEDS_ALTGR_OR_MOVES = ['[', ']', '\\', ';', "'", '`', '@', '#', '{', '}'];
+
+  it('binds no key that an Italian layout puts behind AltGr', () => {
+    for (const cmd of Object.keys(k.DEFAULTS) as k.Command[]) {
+      expect(NEEDS_ALTGR_OR_MOVES, `${cmd} is not reachable on an Italian keyboard`).not.toContain(
+        k.DEFAULTS[cmd].key,
+      );
+    }
+  });
+
+  it('matches on the physical key when a rebind recorded one', () => {
+    // Captured on one layout, pressed on another: the character differs, the position does not.
+    const b: k.Binding = { key: 'z', code: 'KeyY', mod: true };
+    const ev = (o: Partial<KeyboardEvent>) =>
+      ({ key: 'y', code: 'KeyY', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, ...o }) as KeyboardEvent;
+    expect(k.matches(ev({}), b)).toBe(true);
+    expect(k.matches(ev({ code: 'KeyZ' }), b)).toBe(false);
+  });
+});

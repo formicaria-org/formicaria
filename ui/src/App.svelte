@@ -83,23 +83,19 @@
       notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
       return;
     }
-    // **A new view widens rather than stacks.** `cols` was pinned at 2, so opening a third
-    // view wrapped it onto a second row — halving everyone's height on a display that has far
-    // more width than height. Growing the column count instead keeps every pane full-height
-    // until there are genuinely too many. Capped at 4, which is `setCols`'s own ceiling, after
-    // which wrapping is the honest answer.
-    //
-    // Only in `tiled`: `single` shows one pane regardless, and on a phone this is inert.
     const panes = [...workspace.panes, newPane(kind, over)];
-    const cols = Math.min(Math.max(workspace.cols, panes.length), 4);
-    workspace = { ...workspace, cols, panes };
+    workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
     focused = workspace.panes.length - 1;
     persistWorkspace();
     void refresh();
   }
   function closePane(id: string) {
-    const panes = workspace.panes.filter((p) => p.id !== id);
-    workspace = { ...workspace, panes: panes.length ? panes : [newPane('board')] };
+    const filtered = workspace.panes.filter((p) => p.id !== id);
+    const panes = filtered.length ? filtered : [newPane('board')];
+    // **The remaining views reclaim the space.** Growing on open without shrinking on close
+    // left an empty column behind — the grid got wider and never got narrower, so closing two
+    // of three notes left one note in a third of the screen.
+    workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
     if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
     void refresh();
@@ -118,8 +114,21 @@
     persistWorkspace();
   }
 
-  function setCols(cols: number) {
-    workspace = { ...workspace, cols: Math.max(1, Math.min(cols, 4)) };
+  /** The column count for `n` panes: tracks the pane count unless it has been pinned.
+   *
+   *  Capped at 4 — beyond that a pane is too narrow to read, and wrapping to a second row is
+   *  the honest answer rather than eight slivers. */
+  function autoCols(n: number, w: Workspace): number {
+    if (w.colMode === 'fixed') return w.cols;
+    return Math.max(1, Math.min(n, 4));
+  }
+
+  /** Pin the column count, or hand it back to `auto`. A view preference, like the layout. */
+  function setCols(cols: number | 'auto') {
+    workspace =
+      cols === 'auto'
+        ? { ...workspace, colMode: 'auto', cols: autoCols(workspace.panes.length, { ...workspace, colMode: 'auto' }) }
+        : { ...workspace, colMode: 'fixed', cols: Math.max(1, Math.min(cols, 4)) };
     persistWorkspace();
   }
   function movePane(from: number, to: number) {
@@ -986,6 +995,8 @@
         onlayout={setLayout}
         onclose={() => (settingsOpen = false)}
         onkeyschanged={reloadKeys}
+        columns={workspace.colMode === 'fixed' ? workspace.cols : 'auto'}
+        oncolumns={setCols}
         onbackup={() => {
           settingsOpen = false;
           backupOpen = true;

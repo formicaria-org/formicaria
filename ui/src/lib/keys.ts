@@ -22,8 +22,13 @@ export type Command =
   | 'backup';
 
 export interface Binding {
-  /** `KeyboardEvent.key`, lower-cased for letters. Empty string = unbound. */
+  /** `KeyboardEvent.key`, lower-cased for letters. Empty string = unbound. Kept for display,
+   *  and used for matching when no `code` was recorded. */
   key: string;
+  /** `KeyboardEvent.code` — the key's *physical position*, which does not change with the
+   *  keyboard layout. Preferred for matching; absent on the built-in defaults, which are chosen
+   *  to be typeable everywhere, and on bindings saved before this field existed. */
+  code?: string;
   /** Ctrl on Linux/Windows, Cmd on macOS — they are the same intent, so one flag. */
   mod?: boolean;
   alt?: boolean;
@@ -57,17 +62,27 @@ export const WHILE_TYPING: ReadonlySet<Command> = new Set<Command>([
   'closePane',
 ]);
 
+/// Defaults chosen to be typeable on a **non-US keyboard**.
+///
+/// The first version used `Ctrl+[` and `Ctrl+]`, which is what editors have used for decades —
+/// and on an Italian layout those brackets need AltGr, so the shortcut was unreachable. Anything
+/// that lives behind AltGr, or moves between layouts, is off the table:
+///
+/// - **`.` and `,`** sit on the same unshifted keys across US, Italian, German, French and
+///   Spanish layouts, and are adjacent, so "next/previous" reads physically.
+/// - **Digits** are unshifted on Italian (unlike letters-with-accents) and stable everywhere.
+/// - Avoided: `[` `]` `/` `\` `;` `'` (AltGr or relocated), Ctrl+Tab and Ctrl+PageUp/Down (the
+///   browser keeps those for its own tabs), Alt+Arrow (browser back/forward), and bare
+///   Ctrl+Arrow (moves by word inside the editor, which these must not disturb).
 export const DEFAULTS: Record<Command, Binding> = {
   palette: { key: 'k', mod: true },
-  // Bracket keys rather than Tab: the browser owns Ctrl+Tab in a real tab strip and will not
-  // reliably yield it, and these are what editors have used for "cycle panel" for years.
-  nextPane: { key: ']', mod: true },
-  prevPane: { key: '[', mod: true },
+  nextPane: { key: '.', mod: true },
+  prevPane: { key: ',', mod: true },
   newNote: { key: 'c' },
-  newView: { key: 'n', mod: true, shift: true },
-  focusSearch: { key: '/' },
-  closePane: { key: 'w', mod: true, shift: true },
-  backup: { key: 'b', mod: true, shift: true },
+  newView: { key: '1', mod: true },
+  focusSearch: { key: '2', mod: true },
+  closePane: { key: '0', mod: true },
+  backup: { key: '9', mod: true },
 };
 
 const STORAGE = 'fm-keys';
@@ -83,7 +98,13 @@ export function load(): Record<Command, Binding> {
         // Validated rather than trusted: this is hand-editable storage, and a malformed entry
         // must fall back to the default rather than silently unbind a command.
         if (b && typeof b.key === 'string') {
-          out[c] = { key: b.key, mod: !!b.mod, alt: !!b.alt, shift: !!b.shift };
+          out[c] = {
+            key: b.key,
+            code: typeof b.code === 'string' ? b.code : undefined,
+            mod: !!b.mod,
+            alt: !!b.alt,
+            shift: !!b.shift,
+          };
         }
       }
     }
@@ -109,16 +130,18 @@ export function reset(): void {
   }
 }
 
-/** Does this event match this binding? */
+/** Does this event match this binding?
+ *
+ *  Matches on `code` — the **physical key** — when the binding recorded one, and falls back to
+ *  `key` otherwise. That is what makes a rebind survive a layout: `KeyboardEvent.key` is the
+ *  character produced, so a binding captured on one layout can be untypeable on another, while
+ *  `code` names the key's position and does not move. Bindings from before this existed carry
+ *  no `code` and keep matching by character, which is what they always did. */
 export function matches(e: KeyboardEvent, b: Binding): boolean {
-  if (!b.key) return false; // explicitly unbound
+  if (!b.key && !b.code) return false; // explicitly unbound
   const mod = e.metaKey || e.ctrlKey;
-  return (
-    e.key.toLowerCase() === b.key.toLowerCase() &&
-    mod === !!b.mod &&
-    e.altKey === !!b.alt &&
-    e.shiftKey === !!b.shift
-  );
+  const same = b.code ? e.code === b.code : e.key.toLowerCase() === b.key.toLowerCase();
+  return same && mod === !!b.mod && e.altKey === !!b.alt && e.shiftKey === !!b.shift;
 }
 
 /** A binding as a human reads it: `Ctrl+Shift+W`. Empty when unbound. */
@@ -137,6 +160,9 @@ export function describe(b: Binding, platform = navigator.platform): string {
 export function fromEvent(e: KeyboardEvent): Binding {
   return {
     key: e.key.toLowerCase(),
+    // Recorded so the binding follows the physical key rather than the character it happens to
+    // produce on the layout it was captured with.
+    code: e.code || undefined,
     mod: e.metaKey || e.ctrlKey,
     alt: e.altKey,
     shift: e.shiftKey,
@@ -152,7 +178,8 @@ export function conflict(
   for (const c of Object.keys(bindings) as Command[]) {
     if (c === cmd) continue;
     const o = bindings[c];
-    if (o.key && o.key === b.key && !!o.mod === !!b.mod && !!o.alt === !!b.alt && !!o.shift === !!b.shift) {
+    const sameKey = o.code && b.code ? o.code === b.code : !!o.key && o.key === b.key;
+    if (sameKey && !!o.mod === !!b.mod && !!o.alt === !!b.alt && !!o.shift === !!b.shift) {
       return c;
     }
   }

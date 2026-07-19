@@ -39,6 +39,10 @@ export type Layout = 'auto' | 'tiled' | 'single';
 
 export interface Workspace {
   cols: number; // grid column count (>=1) — tiled only
+  /** How `cols` is decided. `auto` tracks the pane count so opening a view widens the grid and
+   *  closing one lets the rest reclaim the space; a number pins it. Absent means `auto`, so a
+   *  workspace persisted before this existed keeps working. */
+  colMode?: 'auto' | 'fixed';
   panes: Pane[]; // flow into the grid in order
   /** Optional for back-compat: a workspace persisted before layouts existed has neither, and
    *  `loadWorkspace` must keep accepting it. */
