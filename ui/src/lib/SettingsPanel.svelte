@@ -142,7 +142,7 @@
           bind:value={filter}
           autocomplete="off"
           spellcheck="false" />
-        <ul class="actions">
+        <ul class="action-list">
           {#each shown as c, i (c.label)}
             {#if c.group && c.group !== shown[i - 1]?.group}
               <li class="sub">{c.group}</li>
@@ -535,12 +535,15 @@
     color: var(--fg);
     font: inherit;
   }
-  .actions {
+  /* **Not `.actions`** — that name was already taken by the dialog's footer button row, which
+     is `display: flex`, so reusing it laid this list out horizontally and overflowed it off both
+     edges of a phone. Found by screenshotting the emulator; no test would have seen it. */
+  .action-list {
     list-style: none;
     margin: var(--space-2) 0 0;
     padding: 0;
   }
-  .actions .sub {
+  .action-list .sub {
     padding: var(--space-2) 0 2px;
     font-size: var(--text-xs);
     font-weight: 600;
@@ -548,7 +551,7 @@
     letter-spacing: 0.04em;
     color: var(--text-muted);
   }
-  .action {
+  .action-list .action {
     display: block;
     width: 100%;
     text-align: left;
@@ -563,7 +566,7 @@
     font: inherit;
     cursor: pointer;
   }
-  .action:hover {
+  .action-list .action:hover {
     background: var(--surface-hover);
   }
   .binding {

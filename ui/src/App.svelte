@@ -831,7 +831,10 @@
       onclick={() => openSettings('commands')}
       title="Open a view in a new pane"
       aria-label="open a view">
-      <Icon name="plus" size={16} /><span class="btn-label">View</span>
+      <!-- **Not a second plus.** With the labels hidden on a phone the two buttons became
+           indistinguishable except by colour, which is not a distinction someone can act on. The
+           pane glyph says "another view" the way the plus says "another thing". -->
+      <Icon name="board" size={16} /><span class="btn-label">View</span>
     </button>
 
     {#if allVaults.length > 1}
@@ -1176,6 +1179,17 @@
     [data-layout='auto'] .workspace {
       grid-template-columns: 1fr;
       grid-auto-rows: 1fr;
+    }
+    /* **The `single` twins of these live above, and both halves are required.**
+       `auto` is the default, so a phone never matches a `[data-layout='single']` rule — writing
+       only that half means the rule silently does nothing on the device it was written for.
+       Caught by screenshotting the emulator: "＋ New" and "＋ View" still had their labels and
+       the top bar still carried the utility buttons, because both hides were single-only. */
+    [data-layout='auto'] .topbar .icon-btn {
+      display: none;
+    }
+    [data-layout='auto'] .topbar :global(.btn-label) {
+      display: none;
     }
   }
 
