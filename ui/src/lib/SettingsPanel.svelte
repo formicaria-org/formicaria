@@ -17,6 +17,7 @@
   import { onMount } from 'svelte';
   import { config as fetchConfig } from './ipc';
   import type { Config } from './types';
+  import * as keys from './keys';
 
   // The one *setting* on this screen. Everything else here is a mirror of configuration the
   // backend owns and this panel cannot change (`vaults::save` is append-only). Layout is
@@ -27,15 +28,48 @@
     onbackup,
     layout,
     onlayout,
+    onkeyschanged,
   }: {
     onclose: () => void;
     onbackup: () => void;
     layout: 'auto' | 'tiled' | 'single';
     onlayout: (l: 'auto' | 'tiled' | 'single') => void;
+    /** Told when a binding changes, so the shell re-reads it without a reload. */
+    onkeyschanged?: () => void;
   } = $props();
 
   let cfg = $state<Config | null>(null);
   let error = $state<string | null>(null);
+
+  // **A view preference, like Layout and the theme** — stored in this browser, touching no
+  // vault. That is what lets a rebind live on a screen that is otherwise a read-only mirror of
+  // configuration the backend owns: this is not vault config, so the rule Settings keeps
+  // ("never offer a control that silently does nothing") is not in play.
+  let keymap = $state(keys.load());
+  let capturing = $state<keys.Command | null>(null);
+  const COMMANDS = Object.keys(keys.LABELS) as keys.Command[];
+
+  function capture(e: KeyboardEvent) {
+    if (!capturing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      capturing = null;
+      return;
+    }
+    // A lone modifier is someone mid-chord, not a binding.
+    if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return;
+    keymap = { ...keymap, [capturing]: keys.fromEvent(e) };
+    keys.save(keymap);
+    onkeyschanged?.();
+    capturing = null;
+  }
+
+  function resetKeys() {
+    keys.reset();
+    keymap = keys.load();
+    onkeyschanged?.();
+  }
 
   onMount(async () => {
     try {
@@ -52,7 +86,7 @@
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window onkeydown={(e) => (capturing ? capture(e) : onkeydown(e))} />
 
 <div class="settings-overlay">
   <button class="settings-backdrop" aria-label="close settings" onclick={onclose}></button>
@@ -89,6 +123,36 @@
             </li>
           {/each}
         </ul>
+      </section>
+
+      <section>
+        <h3>Keyboard</h3>
+        <p class="muted">
+          Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels.
+          The <em>Next / Previous view</em> pair works even while you are typing in a note —
+          which is the whole reason they exist, since otherwise a note has to be closed before
+          anything else can be reached.
+        </p>
+        <ul class="caps">
+          {#each COMMANDS as cmd (cmd)}
+            {@const clash = keys.conflict(keymap, cmd, keymap[cmd])}
+            <li>
+              <span class="k">{keys.LABELS[cmd]}</span>
+              <button
+                class="binding"
+                class:capturing={capturing === cmd}
+                onclick={() => (capturing = capturing === cmd ? null : cmd)}>
+                {capturing === cmd ? 'press keys…' : keys.describe(keymap[cmd])}
+              </button>
+              {#if clash}
+                <span class="warn">also {keys.LABELS[clash]}</span>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        <p class="muted">
+          <button class="link" onclick={resetKeys}>Reset to defaults</button>
+        </p>
       </section>
 
       <section>
@@ -340,6 +404,21 @@
   }
   .choice .k {
     min-width: 5.5rem;
+  }
+  .binding {
+    font-family: ui-monospace, monospace;
+    font-size: var(--text-sm);
+    padding: 2px 8px;
+    min-width: 6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--surface-elevated);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .binding.capturing {
+    border-color: var(--accent);
+    color: var(--text-muted);
   }
   .link {
     background: none;

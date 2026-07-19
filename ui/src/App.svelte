@@ -37,6 +37,7 @@
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
   import ViewBar from './lib/ViewBar.svelte';
+  import * as keys from './lib/keys';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
@@ -316,29 +317,71 @@
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
-  function onGlobalKey(e: KeyboardEvent) {
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === 'k') {
-      e.preventDefault();
-      if (!paletteOpen) paletteInitial = '';
-      paletteOpen = !paletteOpen;
-      return;
+  // Every binding in force, defaults plus whatever Settings changed. Re-read when Settings
+  // saves, so a rebind takes effect without a reload.
+  let keymap = $state(keys.load());
+  function reloadKeys() {
+    keymap = keys.load();
+  }
+
+  /** Move the active pane by `step`, wrapping. The switcher the editor was missing. */
+  function cyclePane(step: number) {
+    const n = workspace.panes.length;
+    if (n < 2) return;
+    focused = (focused + step + n) % n;
+    persistWorkspace();
+  }
+
+  function run(cmd: keys.Command) {
+    switch (cmd) {
+      case 'palette':
+        if (!paletteOpen) paletteInitial = '';
+        paletteOpen = !paletteOpen;
+        break;
+      case 'nextPane':
+        cyclePane(1);
+        break;
+      case 'prevPane':
+        cyclePane(-1);
+        break;
+      case 'newNote':
+        void onNew();
+        break;
+      case 'newView':
+        paletteInitial = 'view';
+        paletteOpen = true;
+        break;
+      case 'focusSearch':
+        searchEl?.focus();
+        break;
+      case 'closePane':
+        if (workspace.panes[focused]) closePane(workspace.panes[focused].id);
+        break;
+      case 'backup':
+        backupOpen = true;
+        break;
     }
+  }
+
+  function onGlobalKey(e: KeyboardEvent) {
     if (paletteOpen && e.key === 'Escape') {
       paletteOpen = false;
       return;
     }
+    // **Typing wins, except for the commands that are not text.** A bare `c` must type a `c`,
+    // so the editor is protected — but protecting it wholesale is why a note, once open, could
+    // not be left without closing it: no navigation reached the handler at all. `WHILE_TYPING`
+    // is the exemption, and every member of it requires a modifier, so none can eat a keystroke
+    // someone meant to type.
     const tag = (e.target as HTMLElement | null)?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return; // don't hijack typing
-    if (e.key === '/') {
+    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    for (const cmd of Object.keys(keymap) as keys.Command[]) {
+      if (typing && !keys.WHILE_TYPING.has(cmd)) continue;
+      if (!keys.matches(e, keymap[cmd])) continue;
       e.preventDefault();
-      searchEl?.focus();
-    } else if (e.key === 'c' && !mod && !e.altKey) {
-      // `mod` matters: without it Ctrl+C / Cmd+C outside an input fell through to here, so
-      // copying a selection from a board pane silently created a note instead. Only the `k`
-      // branch above ever checked. Alt too, for the same reason.
-      e.preventDefault();
-      void onNew();
+      run(cmd);
+      return;
     }
   }
 
@@ -942,6 +985,7 @@
         layout={workspace.layout ?? 'auto'}
         onlayout={setLayout}
         onclose={() => (settingsOpen = false)}
+        onkeyschanged={reloadKeys}
         onbackup={() => {
           settingsOpen = false;
           backupOpen = true;
