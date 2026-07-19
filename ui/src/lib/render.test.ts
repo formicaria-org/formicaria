@@ -137,8 +137,32 @@ describe('renderInto — assets degrade gracefully', () => {
     await renderInto(el, '![trust-region figure](asset:sha256-deadbeef)', noAsset);
     const placeholder = el.querySelector('.asset-missing-inline');
     expect(placeholder).not.toBeNull();
-    expect(placeholder?.textContent).toBe('trust-region figure');
+    // The label the note gave it comes first, so the line still reads as the missing thing.
+    expect(placeholder?.textContent).toBe('trust-region figure — not available');
     expect(el.querySelector('img')).toBeNull(); // the broken <img> is gone
+  });
+
+  // The reason is on screen because on a real device there is nowhere else to put it: an
+  // Android WebView routes no `console` output to logcat, which cost a whole build/sign/install
+  // round trip on 2026-07-20 before it was noticed. These two cases pin that it stays visible.
+  it("shows the resolver's reason when it declines to resolve", async () => {
+    const el = pane();
+    const why = vi.fn(async () => ({ reason: 'no bytes in vault "notes"' }));
+    await renderInto(el, '![IMG_0042.jpg](asset:sha256-deadbeef)', why);
+    expect(el.querySelector('.asset-missing-inline')?.textContent).toBe(
+      'IMG_0042.jpg — no bytes in vault "notes"',
+    );
+  });
+
+  it('shows the message when the resolver throws, rather than swallowing it', async () => {
+    const el = pane();
+    const boom = vi.fn(async () => {
+      throw new Error('asset_status: not an asset reference');
+    });
+    await renderInto(el, '![IMG_0042.jpg](asset:sha256-deadbeef)', boom);
+    expect(el.querySelector('.asset-missing-inline')?.textContent).toBe(
+      'IMG_0042.jpg — asset_status: not an asset reference',
+    );
   });
 
   it('resolves sha256: image refs too', async () => {

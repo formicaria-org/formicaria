@@ -17,7 +17,7 @@
     search,
     recent,
   } from './ipc';
-  import { renderInto, type ResolvedAsset, type ResolvedNote } from './render';
+  import { renderInto, type AssetFailure, type ResolvedAsset, type ResolvedNote } from './render';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
@@ -166,33 +166,25 @@
   // 300 MB video costs no memory and seeking costs one range. The object-URL path
   // below survives only for the mock backend, which has no server to stream from —
   // and it is the one that used to hold every inline asset in memory twice.
-  async function resolveAsset(ref: string): Promise<ResolvedAsset | null> {
+  async function resolveAsset(ref: string): Promise<ResolvedAsset | AssetFailure | null> {
     try {
       const status = await assetStatus(ref);
       if (!status.has_blob) {
-        // **Say which of the two things went wrong.** A note that renders its filename as text
-        // looks identical whether the bytes are missing from this vault or the URL that would
-        // fetch them is wrong — and those need opposite fixes. The placeholder cannot carry a
-        // sentence, so the reason goes to the console, which is readable on a device.
-        console.warn(
-          `[asset] no blob for ${ref} in vault ${note?.vault ?? '(default)'} — ` +
-            `ingested elsewhere, or not synced here`,
-        );
-        return null;
+        // On screen, not in the console: an Android WebView logs nothing by default and MIUI
+        // suppresses the rest, so a console line is invisible on the one device that matters.
+        return { reason: `no bytes in vault "${note?.vault || 'default'}" for ${ref}` };
       }
       const mime = status.mime ?? '';
       if (streamsBlobs) return { url: assetUrl(ref), mime };
       const buf = await ipcResolveAsset(ref, 'full');
       if (!buf || buf.byteLength === 0) {
-        console.warn(`[asset] blob present for ${ref} but resolved to no bytes`);
-        return null;
+        return { reason: 'the vault has this blob but it read back empty' };
       }
       const url = URL.createObjectURL(new Blob([buf], mime ? { type: mime } : undefined));
       assetUrls.push(url);
       return { url, mime };
     } catch (e) {
-      console.warn(`[asset] ${ref} failed: ${e instanceof Error ? e.message : String(e)}`);
-      return null;
+      return { reason: e instanceof Error ? e.message : String(e) };
     }
   }
 

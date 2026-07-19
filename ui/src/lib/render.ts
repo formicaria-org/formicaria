@@ -33,7 +33,15 @@ export interface ResolvedAsset {
   url: string;
   mime: string; // '' = unknown; the browser content-sniffs an <img>
 }
-export type AssetResolver = (ref: string) => Promise<ResolvedAsset | null>;
+/** Resolved bytes, or **why not**.
+ *
+ *  The reason is part of the contract rather than a console line, because on a real device the
+ *  console is not readable: an Android WebView routes nothing to logcat by default and MIUI
+ *  suppresses what is left. A note that renders its own filename as plain text is identical
+ *  whether the bytes are in another vault, absent, or the URL is wrong — three problems with
+ *  three different fixes, previously indistinguishable on the one screen anyone can see. */
+export type AssetFailure = { reason: string };
+export type AssetResolver = (ref: string) => Promise<ResolvedAsset | AssetFailure | null>;
 
 /** What a `note:` chip needs to draw itself — the live fields, not the body. */
 export interface ResolvedNote {
@@ -146,11 +154,16 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
     const src = img.getAttribute('src') ?? '';
     if (!src.startsWith('asset:') && !src.startsWith('sha256:')) continue;
     const alt = img.getAttribute('alt') ?? '';
-    const asset = await resolveAsset(src).catch(() => null);
-    if (!asset) {
+    const asset = await resolveAsset(src).catch((e) => ({
+      reason: e instanceof Error ? e.message : String(e),
+    }));
+    if (!asset || 'reason' in asset) {
       const ph = document.createElement('span');
       ph.className = 'asset-missing-inline';
-      ph.textContent = alt || 'asset not available';
+      // The label the note gave it, then the reason — so the line still reads as the thing that
+      // is missing, and says what happened to it.
+      const why = asset && 'reason' in asset ? asset.reason : 'not available';
+      ph.textContent = `${alt || 'asset'} — ${why}`;
       img.replaceWith(ph);
       continue;
     }

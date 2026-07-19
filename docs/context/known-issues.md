@@ -4,10 +4,13 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-19, after the Android byte path for media landed
-(`sessions/2026-07-19-media-on-the-phone.md`) — blobs stream over a `fmblob://` protocol handler
-and captures arrive as a raw IPC body, because a phone has no HTTP server and media worked in
-neither direction before. Prior: after git-over-HTTPS started working on Android
+_Last verified: 2026-07-20, after capture ran on real hardware
+(`sessions/2026-07-20-capture-on-a-real-phone.md`) — the camera, the ingest POST and the blob write
+all work on the phone; **display does not**, and that is the open thread. Ingest moved from a raw
+IPC body to a `POST` on the protocol handler, because `InvokeBody::Raw` is unsupported on Android.
+Prior: 2026-07-19, the Android byte path for media
+(`sessions/2026-07-19-media-on-the-phone.md`) — blobs stream over a `fmblob://` protocol handler,
+because a phone has no HTTP server and media worked in neither direction before. Prior: after git-over-HTTPS started working on Android
 (`sessions/2026-07-19-git-on-the-phone.md`): the trust store is loaded into libgit2 from memory,
 because `openssl-src` builds every Android target with `no-stdio` and no file-based certificate
 loading can work there at all. Prior: multi-method vault acquisition and the stale-merge-driver fix
@@ -24,11 +27,20 @@ edit-gesture)._
 
 ## Known gaps / not fully working
 
-- **Media capture on Android is untested on a real device.** The byte path (`fmblob://` +
-  `fm_ingest`), the capture menu and the wry `onShowFileChooser` reading are all in place and the
-  app runs, but **no photo has actually been taken and inserted on a phone** — the emulator has no
-  camera. The file input, the system camera Intent and the ingest round trip are unexercised end
-  to end.
+- **A captured photo does not render on the phone.** Capture, ingest and the blob write are all
+  verified on real hardware now (2026-07-20) — the camera opens, bytes arrive, a hash comes back
+  and the reference is inserted — but the note shows the filename as text instead of the image.
+  Two hypotheses were offered and both were wrong on inspection: `asset_status` searches *every*
+  registered vault, so it cannot be a vault mismatch, and `parse_ref` accepts `sha256-`, so it is
+  not the reference format. A build carrying the reason on screen is installed and unread. **Read
+  the placeholder before theorising** — see `sessions/2026-07-20-capture-on-a-real-phone.md`.
+
+- **The owner's phone has no diagnostic channel except the app's own UI.** `eprintln!`/stdout
+  never reaches logcat from a Tauri Android shell, and — found the hard way on 2026-07-20 — the
+  WebView routes **no `console.*` output there either**: a signed, installed, MD5-verified build
+  full of `console.warn` produced zero lines while the native `ca-bundle:` log from the same run
+  came through fine. Anything you need to read off that device must be rendered on screen. This
+  cost a full build/sign/install/ask-the-owner round trip.
 
 - **A phone vault holds the only copy of its media.** App-private storage is wiped on uninstall,
   `blobs/` is gitignored so a push does not carry it, and restic — the one thing that does — is a
@@ -242,6 +254,18 @@ edit-gesture)._
   reason behind the browser pivot ([decisions.md](./decisions.md)).
 
 ## Traps for whoever works here next
+
+- **`pixi run ci | tail` reports the exit code of `tail`, not of CI.** A piped gate always looks
+  green: on 2026-07-20 a failing test (221 tests, 1 red) was reported as "exit code 0" because the
+  pipeline's status is its *last* command's. Run `pixi run ci` unpiped, or append
+  `; echo "exit: $?"`, and read the count — never trust the exit status of a pipe.
+
+- **`tauri icon` rewrites `mobile/src-tauri/icons/*` non-deterministically.** Every
+  `ci/android-release.sh` run re-encodes all platforms' icons, so an *Android* build leaves the
+  *macOS* `icon.icns` dirty with 43k of 44k bytes changed and no semantic difference. It is
+  committed, so it shows up in `git status` after any APK build. Discard it
+  (`git checkout -- mobile/src-tauri/icons/`) rather than committing the churn; whether these
+  should be generated at build time instead of tracked is an open design call, not a papercut fix.
 
 - **Line endings are LF, and both halves matter.** `from_file` tolerates CRLF because a
   Windows editor produces it; the repo's `.gitattributes` (`* text=auto eol=lf`) stops git
