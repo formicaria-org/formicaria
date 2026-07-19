@@ -279,15 +279,18 @@
       // Honoured this session even if it can't be remembered.
     }
   }
-
-  let paletteOpen = $state(false);
   // What the palette should be pre-filtered to when it opens. The toolbar's two "+" buttons
   // are the only callers; Ctrl+K clears it, because a shortcut that silently narrowed the
   // list would be a trap.
-  let paletteInitial = $state('');
-  function openPalette(initial = '') {
-    paletteInitial = initial;
-    paletteOpen = true;
+  let settingsSection = $state('');
+  /// **There is no command palette.** It was a second menu that drifted from Settings — it
+  /// carried preferences Settings also owned, it reopened stuck on whatever filter a "+" button
+  /// had left behind, and it meant two places to look for one thing. Settings is the single
+  /// surface now: preferences *and* the actions that used to live in the palette, under one
+  /// gear. `section` scrolls it to a heading, so "+ New" still lands where it meant to.
+  function openSettings(section = '') {
+    settingsSection = section;
+    settingsOpen = true;
   }
   let settingsOpen = $state(false);
   let backupOpen = $state(false);
@@ -345,8 +348,7 @@
   function run(cmd: keys.Command) {
     switch (cmd) {
       case 'palette':
-        if (!paletteOpen) paletteInitial = '';
-        paletteOpen = !paletteOpen;
+        openSettings();
         break;
       case 'nextPane':
         cyclePane(1);
@@ -358,7 +360,7 @@
         void onNew();
         break;
       case 'newView':
-        openPalette('Open ');
+        openSettings('commands');
         break;
       case 'focusSearch':
         searchEl?.focus();
@@ -373,10 +375,6 @@
   }
 
   function onGlobalKey(e: KeyboardEvent) {
-    if (paletteOpen && e.key === 'Escape') {
-      paletteOpen = false;
-      return;
-    }
     // **Typing wins, except for the commands that are not text.** A bare `c` must type a `c`,
     // so the editor is protected — but protecting it wholesale is why a note, once open, could
     // not be left without closing it: no navigation reached the handler at all. `WHILE_TYPING`
@@ -822,7 +820,7 @@
     <button
       type="button"
       class="tb-btn"
-      onclick={() => openPalette('New ')}
+      onclick={() => openSettings('commands')}
       title="Create — note, board, vault (Ctrl+K)"
       aria-label="create">
       <Icon name="plus" size={15} /> New
@@ -830,7 +828,7 @@
     <button
       type="button"
       class="tb-btn ghost"
-      onclick={() => openPalette('Open ')}
+      onclick={() => openSettings('commands')}
       title="Open a view in a new pane"
       aria-label="open a view">
       <Icon name="plus" size={15} /> View
@@ -908,15 +906,9 @@
       </button>
     {/if}
 
-    <!-- **Through `openPalette`, never `paletteOpen = true`.** Setting the flag directly leaves
-         `paletteInitial` at whatever the last "+" button put there, so opening the palette from
-         its own icon showed the New-scoped list — the palette looked broken and stuck. -->
-    <button class="icon-btn" onclick={() => openPalette()} aria-label="command palette" title="Command palette (Ctrl+K)">
-      <Icon name="command" />
-    </button>
     <!-- Theme and Back up moved into the palette: both are commands, neither is a thing you
          reach for mid-thought, and the row they occupied is worth more than they are. -->
-    <button class="icon-btn" onclick={() => (settingsOpen = true)} aria-label="settings" title="Settings — what this install is configured as">
+    <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
       <Icon name="gear" size={16} />
     </button>
   </header>
@@ -976,8 +968,7 @@
     <!-- Navigation for the single-pane arrangement. Always rendered, shown by CSS only when
          one pane is visible — the same no-conditional-component-tree discipline as the rest. -->
     <ViewBar
-      onpalette={() => openPalette()}
-      onsettings={() => (settingsOpen = true)}
+      onsettings={() => openSettings()}
       panes={workspace.panes}
       active={focused}
       onselect={(i) => {
@@ -987,12 +978,6 @@
       onclose={closePane} />
   </div>
 
-  {#if paletteOpen}
-    {#await import('./lib/CommandPalette.svelte') then { default: CommandPalette }}
-      <CommandPalette {commands} initial={paletteInitial} onclose={() => (paletteOpen = false)} />
-    {/await}
-  {/if}
-
   {#if settingsOpen}
     {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
       <SettingsPanel
@@ -1000,6 +985,8 @@
         onlayout={setLayout}
         onclose={() => (settingsOpen = false)}
         onkeyschanged={reloadKeys}
+        {commands}
+        section={settingsSection}
         columns={workspace.colMode === 'fixed' ? workspace.cols : 'auto'}
         oncolumns={setCols}
         {theme}

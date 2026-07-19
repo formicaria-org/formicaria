@@ -3,15 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 import { newPane } from './lib/panes';
 
-/** Reach a command the way a user now does: the toolbar's "+" buttons open the command
- *  palette already filtered, and the palette is where every command lives. There are no
- *  dropdowns in this app by design — see `CommandPalette.svelte`. */
+/** Reach a command the way a user now does: the toolbar's "+" buttons open **Settings**, whose
+ *  first section is the action list. There is no command palette any more — one surface, one
+ *  gear, so preferences and actions cannot drift apart. */
 async function runCommand(label: string, via: 'create' | 'view') {
   await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
-  // `mouseDown`, not `click`: the palette chooses on mousedown so focus never leaves its
-  // input (a click would blur it first and close the overlay). A `click` here finds the row
-  // and silently does nothing.
-  await fireEvent.mouseDown(await screen.findByText(label));
+  await fireEvent.click(await screen.findByRole('button', { name: label }));
 }
 
 // Layer-2 end-to-end: mount the REAL app and drive it the way a user does —

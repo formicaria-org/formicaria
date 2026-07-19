@@ -19,15 +19,13 @@
     active,
     onselect,
     onclose,
-    onpalette,
     onsettings,
   }: {
     panes: Pane[];
     active: number;
     onselect: (i: number) => void;
     onclose: (id: string) => void;
-    /** The palette and Settings live here on a phone — see the note above the buttons. */
-    onpalette: () => void;
+    /** Settings — the one utility, and on a phone the way into everything that is not a view. */
     onsettings: () => void;
   } = $props();
 
@@ -61,15 +59,11 @@
   {/each}
 
   <!-- **The palette and Settings live down here, not in the top bar.**
-       Wrapping the top bar stopped it hiding them, but on a phone it bought that with a second
+       Wrapping the top bar stopped it hiding it, but on a phone it bought that with a second
        cramped row above the content. This bar is already the navigation, already thumb-reachable,
-       and has room — so the two controls that are not *navigation* but are needed constantly sit
-       at its end, pushed right so they never move as views are opened and closed. -->
+       and has room — so the one control that is not *navigation* sits at its end, pushed right so
+       it never moves as views are opened and closed. -->
   <div class="spacer" aria-hidden="true"></div>
-  <button class="tab util" onclick={onpalette} aria-label="command palette" title="Commands">
-    <Icon name="command" size={18} />
-    <span class="label">Commands</span>
-  </button>
   <button class="tab util" onclick={onsettings} aria-label="settings" title="Settings">
     <Icon name="gear" size={18} />
     <span class="label">Settings</span>

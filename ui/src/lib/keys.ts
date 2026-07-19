@@ -36,7 +36,7 @@ export interface Binding {
 }
 
 export const LABELS: Record<Command, string> = {
-  palette: 'Command palette',
+  palette: 'Settings',
   nextPane: 'Next view',
   prevPane: 'Previous view',
   newNote: 'New note',

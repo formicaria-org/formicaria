@@ -2,15 +2,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 
-/** Reach a command the way a user now does: the toolbar's "+" buttons open the command
- *  palette already filtered, and the palette is where every command lives. There are no
- *  dropdowns in this app by design — see `CommandPalette.svelte`. */
+/** Reach a command the way a user now does: the toolbar's "+" buttons open **Settings**, whose
+ *  first section is the action list. There is no command palette any more — it was a second menu
+ *  that carried preferences Settings also owned, so the two could disagree about one thing. One
+ *  surface, one gear. */
 async function runCommand(label: string, via: 'create' | 'view') {
   await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
-  // `mouseDown`, not `click`: the palette chooses on mousedown so focus never leaves its
-  // input (a click would blur it first and close the overlay). A `click` here finds the row
-  // and silently does nothing.
-  await fireEvent.mouseDown(await screen.findByText(label));
+  await fireEvent.click(await screen.findByRole('button', { name: label }));
 }
 
 // Covers the v2 additions on top of App.flow.test.ts: editing a note's

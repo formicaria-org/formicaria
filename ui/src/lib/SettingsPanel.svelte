@@ -32,6 +32,8 @@
     oncolumns,
     theme,
     ontheme,
+    commands,
+    section = '',
     onkeyschanged,
   }: {
     onclose: () => void;
@@ -43,6 +45,10 @@
     oncolumns: (c: number | 'auto') => void;
     theme: string;
     ontheme: () => void;
+    /** The actions that used to be the command palette. Grouped, and run from here. */
+    commands: { label: string; run: () => void; group?: string }[];
+    /** Which heading to open at — `commands` when a "+" button sent you here. */
+    section?: string;
     /** Told when a binding changes, so the shell re-reads it without a reload. */
     onkeyschanged?: () => void;
   } = $props();
@@ -55,6 +61,12 @@
   // configuration the backend owns: this is not vault config, so the rule Settings keeps
   // ("never offer a control that silently does nothing") is not in play.
   let keymap = $state(keys.load());
+  let filter = $state('');
+  const shown = $derived(
+    filter.trim()
+      ? commands.filter((c) => c.label.toLowerCase().includes(filter.trim().toLowerCase()))
+      : commands,
+  );
   let capturing = $state<keys.Command | null>(null);
   const COMMANDS = Object.keys(keys.LABELS) as keys.Command[];
 
@@ -81,6 +93,9 @@
   }
 
   onMount(async () => {
+    // Land on the requested heading, so a "+" button arrives where it meant to rather than at
+    // the top of a long panel.
+    if (section) queueMicrotask(() => document.getElementById(section)?.scrollIntoView());
     try {
       cfg = await fetchConfig();
     } catch (e) {
@@ -115,6 +130,38 @@
            changed here. Everything below is a *mirror* of configuration the backend owns, which
            this panel deliberately cannot edit — `vaults::save` is append-only, so a field
            offering to change a vault's path would silently do nothing. -->
+      <!-- **Actions first, preferences second.** This is the surface the "+" buttons and the
+           gear both land on, and what someone wants nine times out of ten is to open or make
+           something — not to change a setting. -->
+      <p class="group" id="commands">Do something</p>
+
+      <section>
+        <input
+          class="filter"
+          placeholder="Filter actions…"
+          bind:value={filter}
+          autocomplete="off"
+          spellcheck="false" />
+        <ul class="actions">
+          {#each shown as c, i (c.label)}
+            {#if c.group && c.group !== shown[i - 1]?.group}
+              <li class="sub">{c.group}</li>
+            {/if}
+            <li>
+              <button
+                class="action"
+                onclick={() => {
+                  c.run();
+                  onclose();
+                }}>{c.label}</button>
+            </li>
+          {/each}
+          {#if shown.length === 0}
+            <li class="muted">Nothing matches “{filter}”.</li>
+          {/if}
+        </ul>
+      </section>
+
       <p class="group">Preferences <span class="muted">— this browser, no vault touched</span></p>
 
       <section>
@@ -477,6 +524,47 @@
   }
   .group .muted {
     font-weight: 400;
+  }
+  .filter {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--bg-inset, var(--bg));
+    color: var(--fg);
+    font: inherit;
+  }
+  .actions {
+    list-style: none;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+  }
+  .actions .sub {
+    padding: var(--space-2) 0 2px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .action {
+    display: block;
+    width: 100%;
+    text-align: left;
+    /* 2.75rem is the touch target both platform guidelines ask for; this list is the primary
+       way into everything on a phone now. */
+    min-height: 2.75rem;
+    padding: var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-2, 6px);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .action:hover {
+    background: var(--surface-hover);
   }
   .binding {
     font-family: ui-monospace, monospace;
