@@ -32,6 +32,112 @@ impl Host for AndroidHost {
 /// body. The reply is the raw bytes `dispatch` produced, handed back as a string because every
 /// command the shell can reach answers JSON (blob bytes go over a protocol handler, not IPC —
 /// ruling 7).
+/// Blob bytes, over a URI scheme rather than the command channel — **the "ruling 7" path that
+/// was described in this file's own header and never written.**
+///
+/// Without it media does not work on this platform in either direction: `resolve_asset` answers
+/// with raw bytes, and [`fm`] runs every reply through `String::from_utf8`, so a JPEG fails to
+/// decode; while `assetUrl` points at `/api/blob/…`, an HTTP route that exists only in
+/// `fm-serve` and never on a phone.
+///
+/// A protocol handler is the right shape rather than base64 over IPC: it **streams**, so a video
+/// is not held in memory twice on the way to the screen, and the webview can seek within it.
+///
+/// `fmblob://localhost/<url-encoded reference>` — the reference is whatever the note wrote
+/// (`sha256:…` or `asset:sha256-…`), resolved by the same command the desktop uses, so there is
+/// one implementation of what a reference means.
+fn blob_response(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec<u8>> {
+    use tauri::http::{Response, StatusCode};
+    use tauri::Manager; // `try_state` lives on the trait, not on `AppHandle` itself
+    let not_found = || {
+        Response::builder().status(StatusCode::NOT_FOUND).body(Vec::new()).unwrap_or_default()
+    };
+    // Everything after the host: `fmblob://localhost/<ref>` → `<ref>`.
+    let Some(rest) = uri.split_once("://").and_then(|(_, r)| r.split_once('/')).map(|(_, r)| r)
+    else {
+        return not_found();
+    };
+    let reference = percent_decode(rest.split('?').next().unwrap_or(rest));
+    let Some(state) = app.try_state::<Arc<App>>() else { return not_found() };
+
+    let args = serde_json::json!({ "reference": reference, "kind": "full" });
+    match dispatch("resolve_asset", &args, &[], &state, &AndroidHost) {
+        Ok(out) => {
+            let bytes = out.into_bytes();
+            Response::builder()
+                // Sniffed by the webview: the blob store is content-addressed and does not keep
+                // the MIME beside the bytes, and guessing wrongly here would be worse than
+                // letting the browser look.
+                .header("Content-Type", "application/octet-stream")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(bytes)
+                .unwrap_or_else(|_| not_found())
+        }
+        // A missing blob is the ordinary case for a vault whose media has not synced — the note
+        // renders a placeholder, which is the same thing the desktop does.
+        Err(e) => {
+            log::warn!("blob {reference}: {e}");
+            not_found()
+        }
+    }
+}
+
+/// Minimal percent-decoding for the one place a reference crosses a URL.
+///
+/// Hand-rolled rather than adding a crate: a `sha256:` reference is hex plus one colon, so the
+/// only escape that ever appears is `%3A`. Anything else passes through unchanged, which is the
+/// conservative direction — a reference that fails to resolve renders a placeholder.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(b) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Ingest a captured or picked file — **raw bytes over IPC, not JSON**.
+///
+/// The desktop posts the file to `/api/ingest`; there is no server here, and base64 through the
+/// JSON channel would inflate a photo by a third and hold it in memory several times over. Tauri
+/// v2 carries a raw body, so the bytes arrive as they left the picker.
+///
+/// Everything after this is the path the desktop already uses: `ingest_bytes` content-addresses
+/// them into `blobs/`, writes a thumbnail, records the manifest entry, and returns the note DTO
+/// the editor inserts at the caret.
+#[tauri::command]
+fn fm_ingest(
+    request: tauri::ipc::Request<'_>,
+    app: tauri::State<'_, Arc<App>>,
+) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("ingest expects the file's bytes, not JSON".into());
+    };
+    let header = |k: &str| {
+        request.headers().get(k).and_then(|v| v.to_str().ok()).unwrap_or_default().to_string()
+    };
+    // **No rule of its own.** An empty name is not refused here, because the `ingest` arm
+    // already handles it — it falls back to `asset` and sniffs the type from the bytes' magic
+    // number. Adding a stricter check in the shell would make a capture on a phone behave
+    // differently from the same bytes dropped on a desktop, which is precisely what one command
+    // surface exists to prevent. A test pins the shared behaviour.
+    let name = header("x-fm-name");
+    let args = serde_json::json!({ "name": name, "vault": header("x-fm-vault") });
+    let out = dispatch("ingest", &args, bytes, &app, &AndroidHost).inspect_err(|e| {
+        log::error!("ingest {name}: {e}");
+    })?;
+    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn fm(
     cmd: String,
@@ -175,7 +281,10 @@ pub fn run() {
             tauri::Manager::manage(app, Arc::new(fm_app));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![fm])
+        .register_uri_scheme_protocol("fmblob", |ctx, req| {
+            blob_response(ctx.app_handle(), &req.uri().to_string())
+        })
+        .invoke_handler(tauri::generate_handler![fm, fm_ingest])
         .run(tauri::generate_context!())
         .expect("error while running formicaria");
 }

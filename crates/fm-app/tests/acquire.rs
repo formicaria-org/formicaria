@@ -273,3 +273,66 @@ fn probing_a_real_repo_reports_it_reachable() {
     .unwrap();
     assert!(!out.contains("needs_auth"), "a typo is not an auth problem: {out}");
 }
+
+// ── Ingest: the byte path media capture rides on ──
+
+/// **Bytes in, blob out, note back** — the path a photo takes once the picker hands it over.
+///
+/// Exercised through `dispatch` with a raw body, which is exactly what the Android shell's
+/// `fm_ingest` does after Tauri hands it the file: there is no HTTP server on a phone, so this
+/// is the only route media can take there. On the desktop the same arm is reached from
+/// `/api/ingest`.
+#[test]
+fn ingesting_bytes_stores_a_blob_and_returns_a_note() {
+    let (home, app) = app();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    call(&app, "create_vault", json!({ "name": "v", "path": vault.to_string_lossy() })).unwrap();
+
+    // A one-pixel PNG: real bytes with a real magic number, so the MIME sniff has something
+    // truthful to read rather than a string pretending to be an image.
+    let png: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, b'I', b'H', b'D',
+        b'R', 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
+        0x0a, b'I', b'D', b'A', b'T', 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01,
+        0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, b'I', b'E', b'N', b'D', 0xae, 0x42, 0x60,
+        0x82,
+    ];
+
+    let out = dispatch(
+        "ingest",
+        &json!({ "name": "nice-car.png", "vault": "v" }),
+        png,
+        &app,
+        &NoHost,
+    )
+    .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+    .expect("ingesting bytes should produce a note");
+
+    assert!(out.contains("asset"), "an ingested file is an asset note: {out}");
+
+    // Content-addressed into the vault's own blob store — the audience boundary matters as much
+    // for a photo as for a note.
+    let blobs = std::fs::read_dir(vault.join("blobs")).unwrap().flatten().count();
+    assert!(blobs > 0, "the bytes must land in this vault's blobs/");
+}
+
+/// A file with no name is **accepted**, not refused — the arm names it `asset` and the MIME is
+/// sniffed from the bytes' magic number rather than the extension.
+///
+/// Pinned because the mobile shell briefly refused this, which would have made a capture behave
+/// differently on a phone than the same bytes dropped on a desktop. One command surface is only
+/// worth having if the shells around it do not add rules of their own.
+#[test]
+fn ingesting_without_a_name_is_accepted_and_named() {
+    let (home, app) = app();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    call(&app, "create_vault", json!({ "name": "v", "path": vault.to_string_lossy() })).unwrap();
+
+    let png: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    let out = dispatch("ingest", &json!({ "name": "", "vault": "v" }), png, &app, &NoHost)
+        .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+        .expect("an unnamed file is named, not refused");
+    assert!(out.contains("asset"), "it gets the fallback name: {out}");
+}

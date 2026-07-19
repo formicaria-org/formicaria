@@ -562,10 +562,69 @@
       e.dataTransfer.dropEffect = 'copy';
     }
   }
+  // ── Capture from the device ────────────────────────────────────────────────────────────
+  //
+  // **Deliberately a plain `<input type="file">`, and no native code at all.** Android turns
+  // `capture="environment"` into the system camera Intent and a bare `accept` into the system
+  // picker, so the platform's own capture UI does the work and hands back a `File` — which is
+  // exactly what `ingestFile` already takes. A Tauri plugin with a Kotlin `ActivityResultLauncher`
+  // would reimplement, worse, what the WebView already brokers.
+  //
+  // **Verified, not assumed** — wry 0.55.1 `src/android/kotlin/RustWebChromeClient.kt:272`
+  // implements `onShowFileChooser`, including multi-select and the capture Intent.
+  //
+  // And the permission works out in our favour. Its `isMediaCaptureSupported` reads:
+  //
+  //     hasPermissions(activity, CAMERA) || !hasDefinedPermission(activity, CAMERA)
+  //
+  // — satisfied when CAMERA is granted *or is not declared at all*. This app declares only
+  // INTERNET, so capture goes straight to the system camera Intent, which owns its own
+  // permissions. **Declaring CAMERA would make this worse**, not better: it would add a prompt
+  // for something the camera app already asks about. So the manifest stays as it is.
+  //
+  // Screenshots are absent on purpose: Android's own screenshot is a hardware gesture that lands
+  // in the gallery, and "Photo library" then inserts it. Building a second path for something the
+  // OS does better is the kind of surface this project declines.
+  const CAPTURE = [
+    { label: 'Take a photo', accept: 'image/*', capture: 'environment' },
+    { label: 'Record a video', accept: 'video/*', capture: 'environment' },
+    { label: 'Record audio', accept: 'audio/*', capture: '' },
+    { label: 'From the library', accept: 'image/*,video/*', capture: '' },
+    { label: 'Any file', accept: '', capture: '' },
+  ] as const;
+
+  let captureEl = $state<HTMLInputElement | undefined>(undefined);
+  let captureOpen = $state(false);
+
+  /** Point the one hidden input at a source and open it. One element, reconfigured, so the
+   *  browser never holds five pickers' worth of state. */
+  function capture(kind: (typeof CAPTURE)[number]) {
+    captureOpen = false;
+    if (!captureEl) return;
+    captureEl.accept = kind.accept;
+    if (kind.capture) captureEl.setAttribute('capture', kind.capture);
+    else captureEl.removeAttribute('capture');
+    captureEl.value = ''; // so picking the same file twice still fires `change`
+    captureEl.click();
+  }
+
+  /** The captured file, through exactly the path a dropped one takes. */
+  async function onCaptured(e: Event) {
+    const files = Array.from((e.target as HTMLInputElement).files ?? []);
+    if (files.length) await ingestAll(files);
+  }
+
   async function onDrop(e: DragEvent) {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (!files.length) return;
     e.preventDefault();
+    await ingestAll(files);
+  }
+
+  /** Ingest files and insert a reference for each at the caret — the one implementation shared
+   *  by drag-drop and device capture, so a photo taken on a phone and a file dropped on a
+   *  desktop cannot end up behaving differently. */
+  async function ingestAll(files: File[]) {
     adding = true;
     error = null;
     const copied: string[] = [];
@@ -738,6 +797,34 @@
             Copy to…
           </button>
         {/if}
+      {/if}
+      {#if note && editing}
+        <!-- Only while editing: capture exists to put something *into* the text you are
+             writing, and the caret it inserts at only means something in the editor. -->
+        <div class="capture">
+          <button
+            class="edit"
+            onclick={() => (captureOpen = !captureOpen)}
+            aria-expanded={captureOpen}
+            aria-label="add media">＋ Media</button>
+          {#if captureOpen}
+            <ul class="capture-menu">
+              {#each CAPTURE as kind (kind.label)}
+                <li>
+                  <button onclick={() => capture(kind)}>{kind.label}</button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+        <!-- One hidden input, reconfigured per source. `multiple` because the library picker is
+             the natural place to add several at once, and `ingestAll` already loops. -->
+        <input
+          class="capture-input"
+          type="file"
+          multiple
+          bind:this={captureEl}
+          onchange={onCaptured} />
       {/if}
       <button class="icon-toggle" onclick={ontogglewide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
         {wide ? '⤡' : '⤢'}
@@ -1180,6 +1267,49 @@
     background: var(--ok-bg);
     color: var(--ok-fg);
     font-size: var(--text-sm);
+  }
+  .capture {
+    position: relative;
+  }
+  .capture-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    min-width: 12rem;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    box-shadow: var(--shadow-lg);
+  }
+  .capture-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    /* The touch target both platform guidelines ask for — this menu exists for phones. */
+    min-height: 2.75rem;
+    padding: var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-2, 6px);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .capture-menu button:hover {
+    background: var(--surface-hover);
+  }
+  /* Hidden, never `display: none`: a display-none input cannot be opened by `.click()` in
+     every engine, and this one is only ever driven programmatically. */
+  .capture-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
   }
   .icon-toggle {
     display: grid;

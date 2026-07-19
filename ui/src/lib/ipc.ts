@@ -126,9 +126,16 @@ export const uncopyNote = (id: string, vault: string, blobs: string[]) =>
 export const resolveAsset = (reference: string, kind: 'full' | 'thumb') =>
   invoke<ArrayBuffer | null>('resolve_asset', { reference, kind });
 
-// Whether this backend can stream a blob from a URL. Only the real server has an
-// HTTP route to stream from; the in-memory mock (`pnpm dev`, Vitest) has no server
-// at all, so it keeps the bytes-and-object-URL path.
+// Whether this backend can stream a blob from a URL rather than holding it in memory.
+//
+// True in two different ways, and that is the point: `fm-serve` streams over HTTP, and the
+// mobile shell streams over the `fmblob://` URI scheme it registers. The in-memory mock
+// (`pnpm dev`, Vitest) has neither and keeps the bytes-and-object-URL path.
+//
+// **This was silently wrong on the phone.** A Tauri build is `import.meta.env.PROD`, so it
+// claimed to stream and then pointed at `/api/blob/…`, a route that only exists in the desktop
+// server — every image failed. Same trap as the `invoke` transport switch above, in the same
+// file, for the same reason: PROD is not a statement about which backend is present.
 export const streamsBlobs = import.meta.env.PROD;
 
 // "A tab is still here" — and nothing else. Not a command: it takes no lock, reads no
@@ -143,7 +150,10 @@ export async function alive(): Promise<void> {
 // A URL a media element can point at directly, so the browser fetches only the
 // bytes it needs. `<video>` seeking becomes a `Range` request instead of a
 // whole-file download, and nothing has to be revoked afterwards.
-export const assetUrl = (reference: string) => `/api/blob/${encodeURIComponent(reference)}`;
+export const assetUrl = (reference: string) =>
+  isTauri
+    ? `fmblob://localhost/${encodeURIComponent(reference)}`
+    : `/api/blob/${encodeURIComponent(reference)}`;
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) =>
@@ -157,6 +167,17 @@ export const openExternal = (reference: string) =>
 // belongs in the lab vault, beside the notes that reference it and inside the boundary
 // its readers already have. Empty means the default vault.
 export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
+  // **The phone has no HTTP server**, so the POST below cannot run there. Tauri carries a raw
+  // body, which is what a picked or captured file already is — no base64, which would inflate a
+  // photo by a third and hold it in memory several times on the way through.
+  if (isTauri) {
+    const core = await import('@tauri-apps/api/core');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const out = await core.invoke<string>('fm_ingest', bytes, {
+      headers: { 'x-fm-name': encodeURIComponent(file.name), 'x-fm-vault': vault },
+    });
+    return JSON.parse(out) as ObjectMeta;
+  }
   if (import.meta.env.PROD) {
     const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
     const res = await fetch(`/api/ingest?${q}`, {
