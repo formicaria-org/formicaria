@@ -220,7 +220,6 @@ pub fn commit_all(
 /// to install at all, which is precisely why a native `pull` will have to call
 /// [`crate::merge::merge_texts`] directly.
 pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
-    ensure_certs();
     crate::git::check_clone_dest(url, dest)?;
     Repository::clone(url.trim(), dest).map_err(map)?;
     ensure_repo(dest)?;
@@ -279,33 +278,29 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
     cb
 }
 
-/// Hand libgit2 our CA bundle again, now that a network call is about to create the SSL
-/// context — **the retry that makes the explicit option usable at all**.
-///
-/// At startup `set_cert_file` fails with "OpenSSL error: failed to load certificates" and no
-/// detail appended, which is `SSL_CTX_load_verify_locations` refusing a context that does not
-/// exist yet: libgit2 builds it lazily, on first stream use. Measured on a real device.
-///
-/// So the same call is made once more here, at the first operation that will actually open a
-/// stream. Best-effort in both places: `SSL_CERT_FILE` is set at startup and is the mechanism
-/// actually relied on — OpenSSL reads it when libgit2 calls `SSL_CTX_set_default_verify_paths`
-/// — and this only closes the gap if that env var were ever read too late.
-fn ensure_certs() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        let Some(p) = std::env::var_os("SSL_CERT_FILE") else { return };
-        let _ = set_cert_file(Path::new(&p));
-    });
-}
-
 /// Point libgit2's OpenSSL at a CA bundle, explicitly.
 ///
-/// **Preferred over the `SSL_CERT_FILE` environment variable**, which only takes effect if it
-/// is set before OpenSSL reads its default verify paths — a lazy, once-per-process
-/// initialisation whose ordering relative to app startup is not ours to guarantee. This routes
-/// to `SSL_CTX_load_verify_locations` directly, so it is order-independent and does not depend
-/// on a process-global mutation. The env var is still set alongside it, harmlessly, for
-/// anything else in the process that reads it.
+/// # The ordering rule, corrected
+///
+/// An earlier version of this comment claimed libgit2 creates its OpenSSL context lazily on
+/// first stream use. **That is false**, and believing it cost several debugging rounds.
+/// `libgit2-sys`'s `build.rs` never defines `GIT_OPENSSL_DYNAMIC` (it emits only `GIT_OPENSSL`
+/// off Windows/Apple), so `git_openssl_stream_global_init` takes the `#ifndef` branch and calls
+/// `openssl_init()` **eagerly, inside `git_libgit2_init()`** — and `openssl_ensure_initialized`
+/// is `return 0` with no context creation at all.
+///
+/// Two consequences:
+///
+/// - The context always exists by the time any git2 API can be reached, so retrying this later
+///   is a no-op. There was never a window to close.
+/// - `SSL_CTX_set_default_verify_paths` — and therefore `SSL_CERT_FILE` — is read **once**,
+///   during that eager init. Setting the variable afterwards has no effect, and
+///   `X509_STORE_set_default_paths` calls `ERR_clear_error()` and returns success regardless,
+///   so a bundle that fails to load there fails **completely silently**.
+///
+/// Which is why this explicit call is the one that matters: it routes to
+/// `SSL_CTX_load_verify_locations`, which actually reports whether the bundle loaded. Its
+/// result must be surfaced, never discarded.
 ///
 /// Only meaningful where libgit2 does the talking; a machine with a `git` binary uses the
 /// system's own store and never reaches this.
@@ -322,7 +317,6 @@ pub fn set_cert_file(path: &Path) -> Result<(), StoreError> {
 /// the new-vault form, and every other remote call here needs one. `connect` fetches the ref
 /// advertisement and no objects.
 pub fn probe(url: &str) -> crate::git::Probe {
-    ensure_certs();
     use crate::git::Probe;
     let mut rem = match git2::Remote::create_detached(url.trim()) {
         Ok(r) => r,
@@ -397,7 +391,6 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
 /// as it does on a desktop. A note they genuinely disagreed about comes back with markers **in
 /// the body**, which is what keeps it parseable and openable in the editor.
 pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
-    ensure_certs();
     use crate::git::Pulled;
 
     ensure_repo(vault)?;
@@ -545,7 +538,6 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
 /// can retry-and-roll-back around, and because a caller that genuinely wants "send what I have"
 /// should have to say so.
 pub fn push(vault: &Path) -> Result<(), StoreError> {
-    ensure_certs();
     let repo = Repository::open(vault).map_err(map)?;
     let head = repo.head().map_err(map)?;
     let branch = head.shorthand().map_err(|_| StoreError::Io("detached HEAD".into()))?.to_string();
@@ -728,7 +720,6 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
 /// `connect` + `list` rather than a fetch: this asks for refs only and downloads no objects,
 /// which is what makes it cheap enough to sit behind a poll on a phone's data connection.
 fn remote_head(repo: &Repository, branch: &str) -> Result<Option<git2::Oid>, StoreError> {
-    ensure_certs();
     let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
     let mut cbs = credentials();
     // Connect borrows the callbacks, so the connection is scoped tightly and always closed.

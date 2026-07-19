@@ -41,6 +41,14 @@
 //! by default, and silently opting into a corporate or interception CA is not a decision a
 //! notes app should make on someone's behalf.
 //!
+//! # Ordering: this must run before the first `git2` call in the process
+//!
+//! `libgit2-sys` never defines `GIT_OPENSSL_DYNAMIC`, so libgit2 initialises OpenSSL **eagerly
+//! inside `git_libgit2_init()`** — which the `git2` crate triggers on its first use of any API.
+//! `SSL_CTX_set_default_verify_paths` (and therefore `SSL_CERT_FILE`) is read exactly once, at
+//! that moment. Anything that touches `git2` before this module runs takes the trust store
+//! decision away from it permanently.
+//!
 //! # The directories are a priority list, NOT a union
 //!
 //! This is a correctness rule, not a preference. Since Android 14 the Conscrypt APEX store is
