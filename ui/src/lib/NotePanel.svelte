@@ -588,7 +588,13 @@
   const CAPTURE = [
     { label: 'Take a photo', accept: 'image/*', capture: 'environment' },
     { label: 'Record a video', accept: 'video/*', capture: 'environment' },
-    { label: 'Record audio', accept: 'audio/*', capture: '' },
+    // **Not "Record audio".** wry only treats `capture` as capture for `image/*` and `video/*`
+    // (`RustWebChromeClient.kt:279-281`); anything else falls through to `showFilePicker`, so an
+    // audio input opens a file browser no matter what `capture` says. Labelling it "Record"
+    // promised a recorder and delivered a folder. In-app recording needs `getUserMedia` +
+    // `MediaRecorder`, the RECORD_AUDIO permission, and wry's permission plumbing — a real piece
+    // of work, and not one to imply is already done.
+    { label: 'Choose an audio file', accept: 'audio/*', capture: '' },
     { label: 'From the library', accept: 'image/*,video/*', capture: '' },
     { label: 'Any file', accept: '', capture: '' },
   ] as const;

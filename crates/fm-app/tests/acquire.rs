@@ -309,12 +309,73 @@ fn ingesting_bytes_stores_a_blob_and_returns_a_note() {
     .map(|o| String::from_utf8(o.into_bytes()).unwrap())
     .expect("ingesting bytes should produce a note");
 
-    assert!(out.contains("asset"), "an ingested file is an asset note: {out}");
+    // **The whole shape an asset takes in a vault**, not just "a blob appeared". A photo taken
+    // on a phone has to be indistinguishable from one dropped on a desktop, or it is a second
+    // kind of asset with its own rules.
+    assert!(out.contains("\"type\":\"asset\""), "it is an asset note: {out}");
+    assert!(out.contains("nice-car.png"), "the filename becomes the title: {out}");
+    assert!(out.contains("sha256:"), "the note references the blob by content hash: {out}");
+    assert!(out.contains("image/png"), "the MIME is sniffed from the bytes, not the name: {out}");
 
-    // Content-addressed into the vault's own blob store — the audience boundary matters as much
-    // for a photo as for a note.
-    let blobs = std::fs::read_dir(vault.join("blobs")).unwrap().flatten().count();
-    assert!(blobs > 0, "the bytes must land in this vault's blobs/");
+    // Content-addressed into *this* vault's blob store — the audience boundary matters as much
+    // for a photo as for a note. The layout is `blobs/sha256/ab/cd/<hash>`: fanned out two
+    // levels so a vault with thousands of blobs never has one enormous directory.
+    let stored = blob_files(&vault.join("blobs"));
+    assert_eq!(stored.len(), 1, "exactly one blob");
+    assert_eq!(stored[0].len(), 64, "the filename IS the sha256: {}", stored[0]);
+    assert!(
+        stored[0].chars().all(|c| c.is_ascii_hexdigit()),
+        "hex, so `sha256sum` verifies it forever"
+    );
+
+    // And a real note file on disk — files-as-truth applies to an asset's note like any other.
+    let notes: Vec<_> = std::fs::read_dir(vault.join("notes"))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "md"))
+        .collect();
+    assert_eq!(notes.len(), 1, "one asset, one note file");
+    let body = std::fs::read_to_string(notes[0].path()).unwrap();
+    assert!(body.contains("type: asset"), "the note declares its kind:\n{body}");
+    assert!(body.contains("sha256:"), "and carries the blob reference:\n{body}");
+}
+
+/// **The same bytes twice are one blob.** Content addressing is what makes a photo inserted into
+/// two notes cost one copy, and what makes a re-taken capture of the same file free.
+#[test]
+fn ingesting_the_same_bytes_twice_stores_one_blob() {
+    let (home, app) = app();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    call(&app, "create_vault", json!({ "name": "v", "path": vault.to_string_lossy() })).unwrap();
+
+    let bytes: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3];
+    for name in ["first.png", "second.png"] {
+        dispatch("ingest", &json!({ "name": name, "vault": "v" }), bytes, &app, &NoHost).unwrap();
+    }
+
+    assert_eq!(
+        blob_files(&vault.join("blobs")).len(),
+        1,
+        "identical bytes are stored once, whatever they were called"
+    );
+}
+
+/// Every blob file under `blobs/`, which is fanned out as `sha256/ab/cd/<hash>`.
+fn blob_files(root: &Path) -> Vec<String> {
+    fn walk(dir: &Path, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            if e.path().is_dir() {
+                walk(&e.path(), out);
+            } else {
+                out.push(e.file_name().to_string_lossy().into_owned());
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, &mut out);
+    out
 }
 
 /// A file with no name is **accepted**, not refused — the arm names it `asset` and the MIME is
