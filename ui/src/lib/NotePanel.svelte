@@ -683,8 +683,16 @@
 
 <article class="panel" class:wide class:solo bind:this={paneEl}>
     <header>
-      {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
-      <h2>{note?.title ?? 'note'}</h2>
+      <!-- **The title gets its own line.** It used to share one flex row with the vault badge,
+           the last editor, the status chip and every action button, so a title of any real
+           length was squeezed into whatever those left over — unreadable on a narrow pane and
+           worse on a phone. The title is what identifies the note; the controls act on it.
+           Two rows, in that order. -->
+      <div class="title-row">
+        {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
+        <h2>{note?.title ?? 'note'}</h2>
+      </div>
+      <div class="control-row">
       {#if note?.vault}<VaultBadge vault={note.vault} />{/if}
       {#if note}<EditedBy edit={lastEditFor(note.id)} />{/if}
       {#if note}
@@ -735,6 +743,7 @@
         {wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
+          </div>
     </header>
     {#if confirmingDelete}
       <div class="confirm" role="alertdialog" aria-label="confirm delete">
@@ -1023,12 +1032,28 @@
     position: sticky;
     top: 0;
     z-index: 2;
+    /* Two stacked rows, not one. See the markup: the title owns the first line. */
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
     gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+  }
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    min-width: 0;
+  }
+  /* The controls wrap rather than compress: on a narrow pane a second line of buttons is
+     readable, whereas eight items crushed onto one is what this change exists to undo. */
+  .control-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
   .type {
     font-size: var(--text-xs);
@@ -1041,9 +1066,14 @@
   }
   h2 {
     flex: 1;
+    min-width: 0;
     margin: 0;
     font-size: var(--text-md);
     color: var(--text);
+    /* One line, elided — a very long title must not push the header into a paragraph. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .edit {
     background: var(--surface-elevated);

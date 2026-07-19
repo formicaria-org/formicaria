@@ -82,7 +82,16 @@
       notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
       return;
     }
-    workspace = { ...workspace, panes: [...workspace.panes, newPane(kind, over)] };
+    // **A new view widens rather than stacks.** `cols` was pinned at 2, so opening a third
+    // view wrapped it onto a second row — halving everyone's height on a display that has far
+    // more width than height. Growing the column count instead keeps every pane full-height
+    // until there are genuinely too many. Capped at 4, which is `setCols`'s own ceiling, after
+    // which wrapping is the honest answer.
+    //
+    // Only in `tiled`: `single` shows one pane regardless, and on a phone this is inert.
+    const panes = [...workspace.panes, newPane(kind, over)];
+    const cols = Math.min(Math.max(workspace.cols, panes.length), 4);
+    workspace = { ...workspace, cols, panes };
     focused = workspace.panes.length - 1;
     persistWorkspace();
     void refresh();
@@ -853,7 +862,7 @@
     <!-- Theme and Back up moved into the palette: both are commands, neither is a thing you
          reach for mid-thought, and the row they occupied is worth more than they are. -->
     <button class="icon-btn" onclick={() => (settingsOpen = true)} aria-label="settings" title="Settings — what this install is configured as">
-      <Icon name="backup" size={15} />
+      <Icon name="gear" size={16} />
     </button>
   </header>
 
@@ -1031,8 +1040,21 @@
       max(var(--safe-left), var(--space-3));
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    overflow-x: auto;
-    overflow-y: hidden;
+    /* **Never `overflow-x: auto` here.** It looks like graceful degradation and behaves as
+       hiding: on a phone the trailing controls — the command palette and Settings — scrolled
+       off the right edge with nothing indicating the bar could scroll. That made Settings, the
+       only diagnostic surface on a device whose logcat is suppressed, reachable solely by
+       swiping a bar nobody would think to swipe; and it put "Back up" (i.e. push) out of reach
+       entirely, since that is reached through the palette. Wrapping keeps every control on
+       screen; the search field gives up its width first. */
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+  /* The search box is the one elastic item: it may shrink to nothing before any button is
+     pushed to a second line, because a button you cannot see is a feature you do not have. */
+  .topbar :global(.search) {
+    flex: 1 1 6rem;
+    min-width: 0;
   }
   /* ---------------------------------------------------------------------------------------
      Two arrangements, one shell.
