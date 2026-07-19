@@ -32,3 +32,11 @@ docs/book/
 # goes stale the moment @excalidraw/excalidraw is bumped, and stale fonts are drift nobody
 # notices. Any build regenerates them.
 ui/public/fonts/
+
+# The Android toolchain, unpacked in-tree by `pixi run android-init`: platform-tools (adb),
+# the NDK, cmdline-tools. Every one of them is a standalone zip rather than an installer, so
+# they live here instead of becoming a system requirement a checkout cannot pin or remove
+# (`docs/context/decisions.md`, the owner's ruling 3). Hundreds of MB of vendor binaries and
+# entirely reconstructible from `android/toolchain.lock`, so never committed — the *lock* is
+# what is committed, and it is what makes the unpacked tree reproducible.
+.android/

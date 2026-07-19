@@ -31,13 +31,32 @@ open; the receipts for each are in `sessions/2026-07-19-mobile-drift-review.md`.
 2. **iOS eventually; Android now.** *Why:* it costs nothing today and permanently forecloses the
    ship-a-binary temptation, since iOS forbids `fork`/`exec` outright. *Consequence:* no design
    may assume an executable subprocess on device, on either platform.
-3. **Non-pixi dependencies are accepted — but they must stay easy for another developer to
-   install and modify.** *Why:* the Android NDK/SDK have no conda packaging and never will.
-   *Consequence:* the first written exception to *"pixi is the only package manager."* It is paid
-   for with **one-command bootstrap** (`pixi run android-init`), a committed
-   `android/toolchain.lock` pinning the NDK by our own SHA-256, `sdkmanager` quarantined in an
-   opt-in environment **declared non-hermetic**, and `pixi run ci` gaining **no** NDK dependency,
-   ever. A contributor without an Android toolchain must still get a green `pixi run ci`.
+3. **Non-pixi dependencies are accepted — but they are *project-local*, never a system
+   requirement.** *Why:* the Android NDK/SDK have no conda packaging and never will. But
+   "outside pixi" must not become "outside the project": a checkout that asks a contributor to
+   `sudo apt install` something has moved the dependency into a place the repo cannot pin,
+   cannot version, and cannot uninstall — which is the *reproducibility* the pixi rule exists to
+   protect, lost by another route. **Refined by the owner 2026-07-19, after a `sudo apt install
+   adb` instruction was correctly rejected as a system-wide requirement.**
+   *Consequence:* the first written exception to *"pixi is the only package manager"*, and it is
+   paid for with:
+   - **Everything under a gitignored `.android/` in the repo.** Every piece Google ships —
+     `platform-tools` (adb), the NDK, `cmdline-tools` — is a **standalone zip, not an
+     installer**, so all of it unzips into the tree and runs from there. Nothing is installed,
+     so nothing needs uninstalling, and two checkouts can hold different versions.
+   - **One-command bootstrap** (`pixi run android-init`), reading a committed
+     `android/toolchain.lock` that pins each artifact by **our own SHA-256** — the durable,
+     project-owned assertion. `sdkmanager` and anything it resolves stay quarantined in an
+     opt-in environment **declared non-hermetic**.
+   - **`pixi run ci` gains no NDK dependency, ever.** A contributor with no Android toolchain
+     must still get a green `pixi run ci`.
+   - **No system-level device setup either.** USB `adb` on Linux wants udev rules or `plugdev`
+     membership, which is exactly the system requirement this rules out — so the documented
+     path is **Android 11+ wireless debugging** (`adb pair` with a code over Wi-Fi). No USB, no
+     udev rule, no sudo. `adb reverse` is transport-agnostic, so the loopback tunnel that makes
+     `fm-serve`'s Host guard pass by construction works identically over Wi-Fi.
+   - `openjdk`, `gradle` and the four `rust-std-*-linux-android` targets are conda-forge-native
+     and stay in `pixi.toml` — the non-pixi surface is **NDK + SDK + platform-tools only**.
 4. **A divergent frontmatter field keeps its current "loud-and-absent" behaviour; the fix is the
    missing UI surface, not a semantic change.** *Why:* it never loses data, and the obvious
    alternative is forbidden in writing at `merge.rs:32-35`. *Consequence:* a characterization test

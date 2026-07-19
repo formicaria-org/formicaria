@@ -571,10 +571,19 @@ staked on a decision nobody has taken yet. Receipts:
 
 - **STEP 0 — today, one hour, zero lines of code. The single first actionable step.**
   ```
-  pixi run serve                    # builds the PROD bundle: real dispatch, real blob.rs, real Range
-  adb reverse tcp:8765 tcp:8765     # device localhost → host localhost; NO listener on the phone
+  pixi run serve            # builds the PROD bundle: real dispatch, real blob.rs, real Range
+
+  # adb from a project-local platform-tools zip (.android/), never a system install.
+  # Phone: Developer options -> Wireless debugging -> Pair device with pairing code.
+  ADB=.android/platform-tools/adb
+  $ADB pair <phone-ip>:<pair-port>      # enter the 6-digit code; no USB, no udev, no sudo
+  $ADB connect <phone-ip>:<port>
+  $ADB reverse tcp:8765 tcp:8765        # phone's localhost -> this host; NO listener on the phone
   # phone browser: http://127.0.0.1:8765
   ```
+  Wireless rather than USB on purpose: USB `adb` on Linux needs udev rules or `plugdev`
+  membership, and a system requirement is exactly what ruling 3 rules out. `adb reverse` is
+  transport-agnostic, so the tunnel — and the guard argument below — is unchanged.
   The device's browser sends `Host:`/`Origin: 127.0.0.1:8765`, so every guard in `fm-serve` passes
   **by construction, zero lines changed**, and nothing listens on the phone (see the loopback trap
   in `known-issues.md`). Because `pixi run serve` runs `pnpm -C ui build`, `import.meta.env.PROD`
@@ -699,12 +708,32 @@ android targets (`x86_64` emulator + `aarch64` phone). **Honest hermeticity gap 
 longevity risk, ruling-level):** pixi (conda-forge) can pin `rust`/`nodejs`/`pnpm`/`c-compiler`/
 `openjdk`, but the **Android SDK/NDK are not cleanly conda-packaged** — so this bolts a non-pixi
 provisioning step onto the one thing that gives the project reproducibility, violating the hard
-"pixi is the only package manager" house rule. Keep pixi as the umbrella; add explicit
-`ANDROID_HOME`/`ANDROID_NDK_HOME` provisioning + pixi tasks (`android-init`/`-dev`/`-build`)
-shelling into `cargo tauri android`. **Pin the whole matrix — NDK *and* AGP/Gradle/`cargo-mobile2`
-+ targets — as a known-good set in CI** (CI-pinning ≠ `pixi.lock` reproducibility; say so). Ship
-per-ABI split APKs (arm64-v8a release, x86_64 emulator/CI). `pixi.lock` alone will not give a
-hermetic 2031 Android build.
+"pixi is the only package manager" house rule.
+
+**Narrowed twice since this was written (2026-07-19).** First: the gap is **NDK + SDK +
+platform-tools only** — `openjdk`, `gradle` and all four `rust-std-*-linux-android` targets are
+conda-forge-native, so most of the list above is already pixi-pinned. Second, and the load-bearing
+part: *outside pixi* must not become *outside the project*. Every piece Google ships is a
+**standalone zip, not an installer**, so all of it unpacks into a gitignored **`.android/`** in
+the tree, fetched by `pixi run android-init` against a committed `android/toolchain.lock` that
+pins each artifact by **our own SHA-256**. Nothing is installed system-wide, so nothing needs
+uninstalling, two checkouts can differ, and the thing the pixi rule actually protects —
+reproducibility the repo can assert — survives. A checkout that says `sudo apt install` has moved
+the dependency somewhere the repo cannot pin or remove, which fails the rule by another route
+(`decisions.md`, owner's ruling 3). `ANDROID_HOME`/`ANDROID_NDK_HOME` point *into* `.android/`;
+`sdkmanager` and whatever it resolves stay quarantined in an opt-in environment declared
+non-hermetic.
+
+**Device access is subject to the same rule.** USB `adb` on Linux wants udev rules or `plugdev`
+membership — a system requirement — so the documented path is **Android 11+ wireless debugging**
+(`adb pair` with a code over Wi-Fi): no USB, no udev, no sudo. `adb reverse` is
+transport-agnostic, so the loopback tunnel works identically.
+
+Pin the rest of the matrix — AGP/Gradle/`cargo-mobile2` — as a known-good set, and note that
+**"pin it in CI" names no executor here**: every workflow is `workflow_dispatch`-only by standing
+order, so the lock file and `pixi run ci` are the controls that actually run. Ship per-ABI split
+APKs (arm64-v8a release, x86_64 emulator/CI). `pixi.lock` alone will not give a hermetic 2031
+Android build; `pixi.lock` **plus** `android/toolchain.lock` is the honest claim.
 
 ## Risks (re-weighted)
 
