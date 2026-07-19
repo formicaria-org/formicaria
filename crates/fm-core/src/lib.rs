@@ -31,6 +31,10 @@ pub mod git;
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.
 #[cfg(feature = "native-git")]
 pub mod git_native;
+// Which git backend the app talks to. **Always call through this, never `git`/`git_native`
+// directly** — naming a backend at a call site is what left the phone reporting "git not
+// installed" while carrying a working libgit2.
+pub mod vcs;
 pub mod merge;
 pub mod scene;   // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
 

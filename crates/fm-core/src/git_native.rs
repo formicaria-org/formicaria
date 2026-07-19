@@ -466,13 +466,12 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     Ok(Pulled::Merged(incoming))
 }
 
-/// Mirrors [`crate::git::push_squashed`]'s *push* half — without the squash.
+/// The raw push, with no squash — the primitive [`push_squashed`] is built on.
 ///
-/// **The squash is deliberately absent.** Collapsing history is a destructive optimisation that
-/// exists because the desktop auto-commits every few seconds; it is guarded by an ancestry check
-/// and a rollback that verifies the remote ref actually moved. Reimplementing that here, on the
-/// backend that has never run against a real remote, is exactly the "half-shipped on the path
-/// that must never corrupt" the design forbids. A phone pushes what it has.
+/// Not the one the app calls: on a shared remote, pushing raw means every few seconds of typing
+/// becomes a commit somebody else has to read. Kept separate because the squash needs a push it
+/// can retry-and-roll-back around, and because a caller that genuinely wants "send what I have"
+/// should have to say so.
 pub fn push(vault: &Path) -> Result<(), StoreError> {
     let repo = Repository::open(vault).map_err(map)?;
     let head = repo.head().map_err(map)?;
@@ -489,6 +488,308 @@ pub fn push(vault: &Path) -> Result<(), StoreError> {
     let mut b = repo.find_branch(&branch, git2::BranchType::Local).map_err(map)?;
     let _ = b.set_upstream(Some(&format!("{}/{branch}", crate::git::REMOTE)));
     Ok(())
+}
+
+/// The tracking ref's commit, or `None` when nothing of ours has ever been pushed.
+fn tracking_oid(repo: &Repository) -> Option<(String, git2::Oid)> {
+    let head = repo.head().ok()?;
+    // git2 0.21 returns a `Result` here, not an `Option` — same shape as `unpushed` uses.
+    let Ok(branch) = head.shorthand() else { return None };
+    let branch = branch.to_string();
+    let up = repo
+        .find_branch(&format!("{}/{branch}", crate::git::REMOTE), git2::BranchType::Remote)
+        .ok()?;
+    let oid = up.get().target()?;
+    Some((branch, oid))
+}
+
+/// Mirrors [`crate::git::newest_foreign`]: the newest unpushed commit this app did **not**
+/// write, or `None` when every unpushed commit is ours.
+///
+/// The squash boundary, and the reason it is a *boundary* rather than a flag: collapsing an
+/// `auto:` window is what this feature is for, but collapsing three hand-written commits into
+/// one `backup:` is data loss of the quiet kind — the work survives, its shape does not.
+///
+/// **By message prefix, deliberately not by author** — we commit *as* the user, so an author
+/// test classifies everything as ours. Identical rule to the subprocess backend, and
+/// `git_differential.rs` is what keeps them from drifting apart.
+fn newest_foreign(repo: &Repository, tracked: git2::Oid) -> Result<Option<git2::Oid>, StoreError> {
+    let mut walk = repo.revwalk().map_err(map)?;
+    walk.push_head().map_err(map)?;
+    walk.hide(tracked).map_err(map)?;
+    // Newest first, matching `git log`: the first foreign commit met walking back from HEAD is
+    // the floor the squash must not go below.
+    walk.set_sorting(git2::Sort::TOPOLOGICAL).map_err(map)?;
+    for oid in walk {
+        let oid = oid.map_err(map)?;
+        let commit = repo.find_commit(oid).map_err(map)?;
+        let subject = commit.summary().ok().flatten().unwrap_or("");
+        if !subject.starts_with("auto:") && !subject.starts_with("backup:") {
+            return Ok(Some(oid));
+        }
+    }
+    Ok(None)
+}
+
+/// Mirrors [`crate::git::push_squashed`]: collapse the not-yet-pushed `auto:` window into one
+/// commit and push it. Returns how many commits were squashed (0 when there was nothing to
+/// squash, or on the first push).
+///
+/// **Every guard the subprocess version has, for the same reasons**, because this now runs on a
+/// real remote that other machines share and the failure modes are not hypothetical:
+///
+/// - **Never squash the first push.** With no tracking ref, "unpushed" is the *entire* history,
+///   and destroying history that has never left the machine is exactly backwards.
+/// - **Only our commits.** `newest_foreign` is the floor; a hand-written commit stops the squash.
+/// - **Only when the remote's tip is an ancestor of ours.** Otherwise someone else's commits are
+///   on that ref, and resetting onto it would put *their* tip under *our* tree — a commit that
+///   deletes their work and pushes as a clean fast-forward, which nothing rejects. A count of
+///   unpushed commits cannot catch this: it is >0 in exactly the divergent case, so it reads as
+///   normal. **Ancestry is the question; "how many" never was.**
+/// - **Roll back if the push fails.** The squash is a bet that the push lands; losing the bet
+///   must not also cost the user their granular undo.
+/// - **Ask the remote, not the pusher.** On the desktop this is belt-and-braces because git's
+///   exit code is trustworthy. *Here it is the point.* Push is spoken by libgit2 and its error
+///   mapping is ours, so "success" is our own parser's opinion — and a **false** success is the
+///   one failure this cannot survive, because the history was already collapsed on the strength
+///   of it. This is the check the subprocess version's comment says exists "for the client that
+///   replaces it". This is that client.
+pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
+    ensure_repo(vault)?;
+    if remote(vault)?.is_none() {
+        return Err(StoreError::Io(
+            "no remote configured — set one to push your notes off this machine".into(),
+        ));
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    // Where history stood before we collapsed it — what we put back if the push does not land.
+    let head_before = repo.head().ok().and_then(|h| h.target());
+
+    let squashed = match tracking_oid(&repo) {
+        None => 0, // the first push: send it whole
+        Some((_branch, tracked)) => {
+            let head = repo.head().map_err(map)?.target().ok_or_else(|| {
+                StoreError::Io("this vault has no commits yet, so there is nothing to push".into())
+            })?;
+            // `graph_descendant_of` is false for an identical oid, which is the up-to-date case
+            // and must count as "they are an ancestor of us" exactly as `--is-ancestor` does.
+            let ours_contains_theirs =
+                head == tracked || repo.graph_descendant_of(head, tracked).map_err(map)?;
+            if !ours_contains_theirs {
+                return Err(StoreError::Io(
+                    "the remote has changes you don't have — pull first, then back up".into(),
+                ));
+            }
+            let base = newest_foreign(&repo, tracked)?.unwrap_or(tracked);
+            let (ahead, _) = repo.graph_ahead_behind(head, base).map_err(map)?;
+            if ahead > 1 {
+                let base_obj = repo.find_object(base, None).map_err(map)?;
+                // Soft: HEAD moves, the index keeps every squashed change, so the commit below
+                // reproduces exactly the same tree.
+                repo.reset(&base_obj, git2::ResetType::Soft, None).map_err(map)?;
+
+                // A net-zero window — write something, then undo it — leaves an index identical
+                // to the base's tree. Committing that would be an empty commit; skipping it
+                // leaves us already at the remote's state, and the push below is a no-op.
+                let mut index = repo.index().map_err(map)?;
+                let tree_id = index.write_tree().map_err(map)?;
+                let base_commit = repo.find_commit(base).map_err(map)?;
+                if tree_id != base_commit.tree_id() {
+                    let sig = repo.signature().map_err(map)?;
+                    let tree = repo.find_tree(tree_id).map_err(map)?;
+                    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&base_commit])
+                        .map_err(map)?;
+                }
+                ahead as u32
+            } else {
+                0
+            }
+        }
+    };
+
+    let rollback = |repo: &Repository| {
+        if squashed > 0 {
+            if let Some(h) = head_before {
+                if let Ok(obj) = repo.find_object(h, None) {
+                    let _ = repo.reset(&obj, git2::ResetType::Soft, None);
+                }
+            }
+        }
+    };
+
+    if let Err(e) = push(vault) {
+        rollback(&repo);
+        return Err(e);
+    }
+
+    // The push says it worked. Ask the remote. See the doc comment: on this backend a false
+    // success is the failure that costs the user history they already paid for.
+    if squashed > 0 {
+        if let (Ok(head_ref), Some((branch, _))) = (repo.head(), tracking_oid(&repo)) {
+            if let Some(ours) = head_ref.target() {
+                // A *definite* mismatch, and nothing else. If the remote cannot be asked — it
+                // went away, or does not publish this branch — the answer is unknown, and
+                // unknown must not roll back: undoing a push that actually landed leaves us
+                // behind a remote that already has the work, and every later push is then
+                // rejected as divergent. Failing to verify is not failing to push.
+                if let Ok(Some(there)) = remote_head(&repo, &branch) {
+                    if there != ours {
+                        rollback(&repo);
+                        return Err(StoreError::Io(format!(
+                            "the push reported success but {} still points at {} — your history \
+                             has been put back the way it was, and nothing was backed up",
+                            crate::git::REMOTE,
+                            &there.to_string()[..8]
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    Ok(squashed)
+}
+
+/// What the remote says a branch points at, straight from the wire — the `ls-remote` question.
+/// `Ok(None)` when it does not publish that branch, which is an honest "cannot tell".
+///
+/// `connect` + `list` rather than a fetch: this asks for refs only and downloads no objects,
+/// which is what makes it cheap enough to sit behind a poll on a phone's data connection.
+fn remote_head(repo: &Repository, branch: &str) -> Result<Option<git2::Oid>, StoreError> {
+    let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
+    let mut cbs = credentials();
+    // Connect borrows the callbacks, so the connection is scoped tightly and always closed.
+    rem.connect_auth(git2::Direction::Fetch, Some(std::mem::take(&mut cbs)), None).map_err(map)?;
+    let wanted = format!("refs/heads/{branch}");
+    let found = rem
+        .list()
+        .map_err(map)?
+        .iter()
+        .find(|h| h.name() == wanted)
+        .map(|h| h.oid());
+    let _ = rem.disconnect();
+    Ok(found)
+}
+
+/// Mirrors [`crate::git::remote_moved`]: has someone else pushed since we last saw the remote?
+/// `None` means "cannot tell" — offline, no remote, nothing pushed yet — and never an error,
+/// because this runs on a timer and a phone that loses signal must not show a failure.
+pub fn remote_moved(vault: &Path) -> Result<Option<bool>, StoreError> {
+    if !vault.join(".git").exists() || remote(vault)?.is_none() {
+        return Ok(None);
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let Some((branch, tracked)) = tracking_oid(&repo) else { return Ok(None) };
+    match remote_head(&repo, &branch) {
+        Ok(Some(there)) => Ok(Some(there != tracked)),
+        // No such branch there yet: nothing has moved.
+        Ok(None) => Ok(Some(false)),
+        // Offline or refused. Not knowing is not an error.
+        Err(_) => Ok(None),
+    }
+}
+
+/// Mirrors [`crate::git::activity`]: who last touched each note.
+///
+/// **`since` is deliberately ignored here, and the result is a superset rather than a subset.**
+/// The desktop passes git a human string (`"1 year ago"`) that only git's own approxidate parser
+/// understands; libgit2 has no equivalent, and reimplementing that parser to *narrow* a result
+/// would be work spent making the answer smaller. Since every note keeps only its newest touch,
+/// walking further back can only fill in notes the desktop would have left blank — "last edited
+/// by" for an old note, instead of nothing. Capped so a long history cannot stall a phone.
+pub fn activity(vault: &Path, _since: &str) -> Result<Vec<crate::git::Touch>, StoreError> {
+    use crate::git::Touch;
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut walk = repo.revwalk().map_err(map)?;
+    if walk.push_head().is_err() {
+        return Ok(Vec::new()); // a repo with no commits is "no history", not a failure
+    }
+    walk.set_sorting(git2::Sort::TIME).map_err(map)?;
+
+    let mut seen = std::collections::HashSet::new();
+    let mut touches = Vec::new();
+    for oid in walk.take(2000) {
+        let Ok(oid) = oid else { continue };
+        let Ok(commit) = repo.find_commit(oid) else { continue };
+        if commit.parent_count() > 1 {
+            continue; // --no-merges: a merge's diff is not authorship
+        }
+        let Ok(tree) = commit.tree() else { continue };
+        let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+        let Ok(diff) = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None) else {
+            continue;
+        };
+        let author = commit.author();
+        let (name, email) = (
+            author.name().unwrap_or_default().to_string(),
+            author.email().unwrap_or_default().to_string(),
+        );
+        // Same wire format as the subprocess backend's `%aI`, so the two are comparable and the
+        // UI's sort is stable across them.
+        let time = format_iso(author.when());
+        for delta in diff.deltas() {
+            let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) else {
+                continue;
+            };
+            let Some(id) = note_id_from_path(&path.to_string_lossy()) else { continue };
+            // First seen wins, and the walk is newest-first — so this is the newest touch.
+            if seen.insert(id.clone()) {
+                touches.push(Touch {
+                    id,
+                    author: name.clone(),
+                    email: email.clone(),
+                    time: time.clone(),
+                });
+            }
+        }
+    }
+    Ok(touches)
+}
+
+/// `notes/<ULID>.md` → `<ULID>`; blobs, manifest, `.view` files and anything nested → `None`.
+/// Duplicated from [`crate::git`] rather than shared because it is four lines and the
+/// differential test is what actually keeps the two backends honest.
+fn note_id_from_path(path: &str) -> Option<String> {
+    let stem = path.strip_prefix("notes/")?.strip_suffix(".md")?;
+    (!stem.is_empty() && !stem.contains('/')).then(|| stem.to_string())
+}
+
+/// git2's `Time` as the `%aI` string git prints: `2026-07-19T17:43:52+08:00`.
+///
+/// Hand-rolled because the offset is minutes-from-UTC and the crate's own formatting does not
+/// produce this shape. The format is load-bearing: the UI sorts these as strings.
+fn format_iso(t: git2::Time) -> String {
+    let offset_minutes = t.offset_minutes();
+    let secs = t.seconds() + i64::from(offset_minutes) * 60;
+    let (sign, off) = if offset_minutes < 0 { ('-', -offset_minutes) } else { ('+', offset_minutes) };
+    let days = secs.div_euclid(86_400);
+    let rem = secs.rem_euclid(86_400);
+    let (y, m, d) = civil_from_days(days);
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}{sign}{:02}:{:02}",
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60,
+        off / 60,
+        off % 60
+    )
+}
+
+/// Days since the Unix epoch → civil date. Howard Hinnant's `civil_from_days`, which is exact
+/// for the whole proleptic Gregorian range and needs no calendar table.
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d)
 }
 
 fn io(e: std::io::Error) -> StoreError {

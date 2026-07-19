@@ -19,7 +19,7 @@
 
 use crate::commands;
 use crate::vaults::{self, VaultConfig};
-use fm_core::{backup, git, MultiStore, Reindex, Store};
+use fm_core::{backup, git, vcs, MultiStore, Reindex, Store};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -274,7 +274,7 @@ pub fn dispatch(
             // not `-A`. A vault may also be a repo you commit to yourself, and this fires
             // five seconds after every save.
             let paths = g.store.written(&cfg.name);
-            let made = git::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
+            let made = vcs::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
             // Cleared only once the commit actually landed: a failed commit that forgot its
             // list would leave those notes unstaged forever.
             if made {
@@ -299,16 +299,16 @@ pub fn dispatch(
             // Resolved once, where it used to be resolved twice.
             let path = lock()?.config(&s("vault"))?.path;
             if !name.is_empty() || !email.is_empty() {
-                git::set_identity(&path, &name, &email).map_err(err)?;
+                vcs::set_identity(&path, &name, &email).map_err(err)?;
             }
-            git::set_remote(&path, &s("url")).map_err(err)?;
+            vcs::set_remote(&path, &s("url")).map_err(err)?;
             nothing()
         }
         "push" => {
             // Same reason as `commit`: don't let a push snapshot the vault mid-write.
             let g = lock()?;
             let path = g.config(&s("vault"))?.path;
-            json(git::push_squashed(&path, &s("message")).map_err(err)?)
+            json(vcs::push_squashed(&path, &s("message")).map_err(err)?)
         }
         // Bring a collaborator's work home. Holds the lock for the same reason push does
         // — a merge rewrites notes under the app's feet, and the very next incremental
@@ -316,7 +316,7 @@ pub fn dispatch(
         "pull" => {
             let mut g = lock()?;
             let path = g.config(&s("vault"))?.path;
-            let outcome = git::pull(&path).map_err(err)?;
+            let outcome = vcs::pull(&path).map_err(err)?;
             // The merge just wrote files behind the index's back. Re-read now rather
             // than leave the user staring at pre-pull content until the next heartbeat.
             g.store.reindex(Reindex::Incremental).map_err(err)?;
@@ -341,7 +341,7 @@ pub fn dispatch(
             let changed = g.store.reindex(Reindex::Incremental).map_err(err)?;
             json(Ping {
                 changed: changed.updated > 0 || changed.removed > 0,
-                git: git::available(),
+                git: vcs::available(),
                 restic: backup::available(),
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
@@ -429,7 +429,7 @@ pub fn dispatch(
                 // change what the app can do and are the commonest source of "why is this
                 // greyed out". `RESTIC_PASSWORD` is reported as present/absent only — never
                 // its value, which is why it is a bool and not an `env` entry.
-                git: fm_core::git::available(),
+                git: fm_core::vcs::available(),
                 restic_installed: backup::available(),
                 restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
             })
@@ -504,9 +504,9 @@ pub fn dispatch(
             let result =
                 commands::copy_note(&mut g.store, &s("id"), &into.name, &vault_paths, with_assets)
                     .map_err(err)?;
-            if git::available() {
+            if vcs::available() {
                 let paths = g.store.written(&into.name);
-                if git::commit_all(&into.path, "backup: copy note", &paths).unwrap_or(false) {
+                if vcs::commit_all(&into.path, "backup: copy note", &paths).unwrap_or(false) {
                     g.store.clear_written(&into.name);
                 }
             }
@@ -533,9 +533,9 @@ pub fn dispatch(
                 g.configs().into_iter().map(|c| (c.name, c.path)).collect();
             commands::uncopy_note(&mut g.store, &s("id"), &into.name, &blobs, &vault_paths)
                 .map_err(err)?;
-            if git::available() {
+            if vcs::available() {
                 let paths = g.store.written(&into.name);
-                if git::commit_all(&into.path, "backup: undo copy", &paths).unwrap_or(false) {
+                if vcs::commit_all(&into.path, "backup: undo copy", &paths).unwrap_or(false) {
                     g.store.clear_written(&into.name);
                 }
             }
@@ -839,16 +839,16 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
         .iter()
         .map(|v| VaultStatus {
             name: v.name.clone(),
-            remote: git::remote(&v.path).unwrap_or(None),
-            unpushed: git::unpushed(&v.path).unwrap_or(None),
-            identity: git::identity(&v.path),
-            remote_moved: git::remote_moved(&v.path).unwrap_or(None),
-            conflicts: git::conflicts(&v.path).unwrap_or_default(),
+            remote: vcs::remote(&v.path).unwrap_or(None),
+            unpushed: vcs::unpushed(&v.path).unwrap_or(None),
+            identity: vcs::identity(&v.path),
+            remote_moved: vcs::remote_moved(&v.path).unwrap_or(None),
+            conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
             restic_ready: has_restic && v.restic.is_some() && has_password,
             restic_repo: v.restic.clone(),
         })
         .collect();
-    Ok(BackupStatus { vaults, git: git::available(), restic: has_restic })
+    Ok(BackupStatus { vaults, git: vcs::available(), restic: has_restic })
 }
 
 /// The media tier, for **one** vault — snapshot it into *its own* restic repo.
@@ -1027,7 +1027,7 @@ fn clone_vault(
     )?;
     let path = PathBuf::from(vaults::expand_home(path));
 
-    fm_core::git::clone(url, &path).map_err(|e| format!("could not clone {}: {e}", url.trim()))?;
+    fm_core::vcs::clone(url, &path).map_err(|e| format!("could not clone {}: {e}", url.trim()))?;
 
     // Every way of acquiring a vault goes through the same step, and it runs **before** the
     // identity is set: `naturalise` forgets any committer that arrived with the directory,
@@ -1042,7 +1042,7 @@ fn clone_vault(
         )
     })?;
 
-    fm_core::git::set_identity(&path, git_name, git_email).map_err(|e| {
+    fm_core::vcs::set_identity(&path, git_name, git_email).map_err(|e| {
         format!(
             "cloned into {}, but could not set who you are in it: {e} — the clone is on disk \
              and intact; nothing was configured",

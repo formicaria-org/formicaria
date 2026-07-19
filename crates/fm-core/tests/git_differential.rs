@@ -264,3 +264,142 @@ fn clone_agrees_and_both_make_the_result_a_vault() {
 // binary beside the running one — which in `fm-core`'s test harness does not exist. Run here,
 // the subprocess side silently falls back to git's plain text merge and conflicts on the
 // `updated:` line, so the comparison would grade two broken things against each other.
+
+/// **The squash, compared.** This is the most destructive operation either backend performs —
+/// it rewrites local history on the bet that a push lands — so the two must agree not only on
+/// the happy path but on every guard, and `git log` on the far side is the oracle for both.
+///
+/// Runs over a bare `file://` remote, offline: a real network is not needed to prove the
+/// history is shaped identically, and a test that needed one would not run.
+#[test]
+fn push_squashed_agrees_on_what_it_collapses_and_what_it_refuses() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+
+    // One bare remote per backend, so neither sees the other's pushes.
+    let setup = |name: &str| {
+        let bare = tempdir().unwrap();
+        Command::new("git")
+            .args(["init", "--bare", bare.path().to_str().unwrap()])
+            .output()
+            .unwrap();
+        let work = tempdir().unwrap();
+        fs::create_dir_all(work.path().join("notes")).unwrap();
+        git::ensure_repo(work.path()).unwrap();
+        git::set_identity(work.path(), name, "who@example.org").unwrap();
+        git::set_remote(work.path(), bare.path().to_str().unwrap()).unwrap();
+        (bare, work)
+    };
+
+    // Three `auto:` commits, exactly what a few seconds of typing produces.
+    // `round` is load-bearing: rewriting identical bytes stages nothing, `commit_all` correctly
+    // returns false, and the second window would have had no commits to squash at all — the
+    // test would then pass for the wrong reason on a backend that squashed nothing.
+    let churn = |vault: &std::path::Path,
+                 commit: fn(&std::path::Path, &str, &[std::path::PathBuf]) -> Result<bool, fm_core::StoreError>,
+                 round: u32| {
+        for i in 0..3 {
+            let f = vault.join(format!("notes/r{round}n{i}.md"));
+            fs::write(&f, format!("note {round}.{i}\n")).unwrap();
+            assert!(commit(vault, &format!("auto: {round}.{i}"), &[f]).unwrap(), "a real commit");
+        }
+    };
+
+    let (bare_a, a) = setup("Sub Process");
+    let (bare_b, b) = setup("Lib Git2");
+    churn(a.path(), git::commit_all, 1);
+    churn(b.path(), git_native::commit_all, 1);
+
+    // First push: NEVER squashed. "Unpushed" here means the entire history, and destroying
+    // history that has never left the machine is exactly backwards.
+    assert_eq!(git::push_squashed(a.path(), "backup: one").unwrap(), 0, "subprocess first push");
+    assert_eq!(git_native::push_squashed(b.path(), "backup: one").unwrap(), 0, "libgit2 first push");
+    let subjects = |bare: &tempfile::TempDir| {
+        String::from_utf8(
+            Command::new("git")
+                .args(["-C", bare.path().to_str().unwrap(), "log", "--format=%s"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap()
+    };
+    assert_eq!(subjects(&bare_a), subjects(&bare_b), "the first push sends history whole, both");
+    assert_eq!(subjects(&bare_a).lines().count(), 3, "all three commits, not one");
+
+    // Second window: three more `auto:` commits, which SHOULD collapse to one.
+    churn(a.path(), git::commit_all, 2);
+    churn(b.path(), git_native::commit_all, 2);
+    assert_eq!(git::push_squashed(a.path(), "backup: two").unwrap(), 3, "subprocess squashed 3");
+    assert_eq!(git_native::push_squashed(b.path(), "backup: two").unwrap(), 3, "libgit2 squashed 3");
+    assert_eq!(subjects(&bare_a), subjects(&bare_b), "identical remote history after a squash");
+    assert_eq!(
+        subjects(&bare_a).lines().next().unwrap(),
+        "backup: two",
+        "the window became one commit"
+    );
+    assert_eq!(subjects(&bare_a).lines().count(), 4, "3 original + 1 squashed");
+}
+
+/// **A hand-written commit is a floor the squash must not go below.** The justification for
+/// collapsing at all is that the app auto-commits every few seconds — that justifies collapsing
+/// *ours*, never three manuscript commits the user wrote in a vault that is also a project repo.
+///
+/// Discriminated by message prefix, never by author: we commit *as* the user, so an author test
+/// would classify everything as ours. Both backends must apply the identical rule.
+#[test]
+fn a_hand_written_commit_stops_the_squash_on_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let setup = || {
+        let bare = tempdir().unwrap();
+        Command::new("git")
+            .args(["init", "--bare", bare.path().to_str().unwrap()])
+            .output()
+            .unwrap();
+        let work = tempdir().unwrap();
+        fs::create_dir_all(work.path().join("notes")).unwrap();
+        git::ensure_repo(work.path()).unwrap();
+        git::set_identity(work.path(), "Ada", "ada@example.org").unwrap();
+        git::set_remote(work.path(), bare.path().to_str().unwrap()).unwrap();
+        fs::write(work.path().join("notes/seed.md"), "seed\n").unwrap();
+        git::commit_all(work.path(), "auto: seed", &[work.path().join("notes/seed.md")]).unwrap();
+        (bare, work)
+    };
+
+    for backend in ["subprocess", "native"] {
+        let (bare, w) = setup();
+        let commit = if backend == "native" { git_native::commit_all } else { git::commit_all };
+        let push = if backend == "native" { git_native::push_squashed } else { git::push_squashed };
+        push(w.path(), "backup: first").unwrap();
+
+        // auto, auto, THEIR OWN commit, auto, auto.
+        for (i, msg) in [(0, "auto: a"), (1, "auto: b"), (2, "Chapter 3: the ants"), (3, "auto: c"), (4, "auto: d")] {
+            let f = w.path().join(format!("notes/1{i}.md"));
+            fs::write(&f, format!("{i}\n")).unwrap();
+            commit(w.path(), msg, &[f]).unwrap();
+        }
+
+        let squashed = push(w.path(), "backup: second").unwrap();
+        let log = String::from_utf8(
+            Command::new("git")
+                .args(["-C", bare.path().to_str().unwrap(), "log", "--format=%s"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+
+        assert_eq!(squashed, 2, "{backend}: only the two commits ABOVE the manuscript one");
+        assert!(
+            log.contains("Chapter 3: the ants"),
+            "{backend}: the user's own commit must survive verbatim:\n{log}"
+        );
+        assert!(log.contains("auto: a") && log.contains("auto: b"),
+            "{backend}: commits below the floor are untouched:\n{log}");
+    }
+}

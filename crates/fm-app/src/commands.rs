@@ -430,7 +430,7 @@ pub fn activity(
     since: &str,
 ) -> Result<Vec<EditEvent>, StoreError> {
     let mut events = Vec::new();
-    for t in fm_core::git::activity(vault_path, since)? {
+    for t in fm_core::vcs::activity(vault_path, since)? {
         let Ok(id) = t.id.parse::<Id>() else { continue };
         let Some(obj) = store.get(id)? else { continue };
         events.push(EditEvent {
