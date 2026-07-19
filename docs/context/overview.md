@@ -4,7 +4,11 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-19 — **`fm_core::vcs` is now the only way the app reaches git**: the
+_Last verified: 2026-07-19 — **a private git repo now clones onto a phone.** The trust store is
+loaded into libgit2 **from memory**, because `openssl-src` builds every Android target with
+`no-stdio` and no file-based certificate loading can work there at all — five diagnoses were spent
+producing better files before that was found (`sessions/2026-07-19-git-on-the-phone.md`). Prior:
+**`fm_core::vcs` is now the only way the app reaches git**: the
 libgit2 backend existed, was differentially tested, and was called by nothing, so a phone
 reported "git not installed" while carrying a working copy of it. A vault can also now be
 **acquired from elsewhere**, not only created

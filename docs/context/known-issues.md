@@ -4,7 +4,10 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-19, after multi-method vault acquisition and the stale-merge-driver fix
+_Last verified: 2026-07-19, after git-over-HTTPS started working on Android
+(`sessions/2026-07-19-git-on-the-phone.md`): the trust store is loaded into libgit2 from memory,
+because `openssl-src` builds every Android target with `no-stdio` and no file-based certificate
+loading can work there at all. Prior: multi-method vault acquisition and the stale-merge-driver fix
 (`sessions/2026-07-19-acquiring-a-vault.md`). Prior: 2026-07-18, after the dispatch extraction,
 the blob route, the sync loop and the
 scene merge (`sessions/2026-07-18-dispatch-and-blob-route.md`,
@@ -17,6 +20,29 @@ edit-gesture)._
 > looks like for each — is [outstanding.md](./outstanding.md).
 
 ## Known gaps / not fully working
+
+- **The Android git token is app-private storage, not the Keystore.** The owner chose
+  hardware-backed; what shipped is a 0600 file in the app's private directory. The kernel
+  isolates it per-UID so no other app can read it — genuinely stronger than the plaintext
+  `~/.git-credentials` that `credential.helper store` leaves on a Linux desktop — but it does
+  not survive root, does not stop someone holding the unlocked phone, and is not hardware-backed.
+  Closing it needs a Tauri Android plugin with a Kotlin/JNI layer this repo does not have.
+  Mitigated meanwhile by the UI telling the user to scope a fine-grained token to one repo with
+  an expiry, which is what actually bounds a leak (a PAT is a bearer token, **not** device-bound).
+
+- **The phone toolbar hides its trailing controls.** `.topbar` is `overflow-x: auto`, so on a
+  narrow screen the palette and Settings buttons scroll off the right edge with no affordance
+  saying so. During the TLS debugging this made Settings — the *only* diagnostic channel on a
+  MIUI device — reachable solely by swiping a bar nothing indicates is scrollable. On a phone
+  these belong in the bottom `ViewBar`, where the thumb already is.
+
+- **"Save token" is a separate action from "Join".** Typing a token and pressing Join silently
+  discards it; the token only reaches the backend via its own button. Reported from real use.
+
+- **Diagnostics cannot be read from a Xiaomi/MIUI device.** Rust's stderr is not routed to logcat
+  on Android at all, and MIUI suppresses app logcat output besides — `android_logger` output is
+  visible on the emulator and silent on the owner's phone. Anything that must be diagnosable on a
+  real device has to surface in the app's own UI (which is why `config` reports `ca_bundle`).
 
 - **~~A stale `merge.fm.driver` silently discarded a collaborator's edit~~ — FIXED 2026-07-19.**
   `install_merge_driver` registered an **absolute** path to `fm` and its guard was

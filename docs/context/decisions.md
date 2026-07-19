@@ -1145,3 +1145,36 @@ carry packs for git ones.
 because `backup` snapshots the vault's own directories and not its root. It is a
 *recovery*, not a *join*, and stating that before the button was preferred to
 widening what restic snapshots.
+
+
+## Android TLS: the trust store is loaded from memory, never from a file
+*(2026-07-19, `sessions/2026-07-19-git-on-the-phone.md`)*
+
+**Why:** `openssl-src` passes `no-stdio` to OpenSSL's configure on **every** Android target, so
+the vendored build has no `BIO_s_file`. `X509_load_cert_file` therefore fails with
+`X509_R_BIO_LIB` on a file that is present, correct and readable by the same process — measured
+on a device. `SSL_CERT_FILE`, `SSL_CERT_DIR` and `GIT_OPT_SET_SSL_CERT_LOCATIONS` all end in a
+file BIO, so **none of them can ever work there**. Five separate diagnoses were spent producing
+better files before this was found.
+
+**Consequence:** `fm_core::git_native::add_certs_from_pem` parses the bundle through a *memory*
+BIO and hands each `X509 *` to libgit2's `GIT_OPT_ADD_SSL_X509_CERT` (option 45, which
+`libgit2-sys` does not bind, hence the two extra `-sys` dependencies — both resolving to the
+libraries `git2` already links). `fm_app::ca_bundle` supplies the bytes from the device's own
+Conscrypt store. Two ordering rules are load-bearing and non-obvious:
+
+- It must run **before the first `git2` call in the process**, because `libgit2-sys` never
+  defines `GIT_OPENSSL_DYNAMIC` and OpenSSL is initialised **eagerly** inside
+  `git_libgit2_init()`.
+- It must **initialise libgit2 itself** first. Calling `git_libgit2_opts` raw skips the `init()`
+  that every `git2::opts::*` wrapper performs, and `git_openssl__add_x509_cert` then dereferences
+  a NULL `git__ssl_ctx` — a launch crash, not an error code.
+
+**Rejected:** shipping Mozilla's `cacert.pem` as an asset (what PuppyGit does). It works, but it
+is a trust store that goes stale the day it ships and can only be refreshed by a release. Reading
+the platform's means the app follows the device's own trust decisions and OS updates.
+
+**Also rejected, emphatically:** `certificate_check` returning `CertificateOk`. That is what
+GitSync does, and it skips hostname verification while sending `userpass_plaintext` over an
+unauthenticated connection. The leaf certificate libgit2 hands the callback has no chain, so real
+verification is not possible there either.
