@@ -301,28 +301,29 @@
 
   // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
   let commands = $derived([
-    { label: 'Open Board', run: () => addPane('board') },
-    { label: 'Open Agenda', run: () => addPane('agenda') },
-    { label: 'Open Timeline', run: () => addPane('timeline') },
-    { label: 'Open Search', run: () => addPane('search') },
-    { label: 'Open Activity', run: () => addPane('activity') },
-    ...views
+    // **Grouped, and deliberately not a second Settings.** The palette used to carry
+    // `Columns: 1..4` and a theme toggle — the same controls Settings owns — so the two drifted
+    // into two half-menus saying different things. Anything that is a *preference* now lives in
+    // Settings, and the palette's job is *actions*: open something, make something, do
+    // something to a vault. `Settings` is here as the door to the other half, not a copy of it.
+    { group: 'Open', label: 'Open Board', run: () => addPane('board') },
+    { group: 'Open', label: 'Open Agenda', run: () => addPane('agenda') },
+    { group: 'Open', label: 'Open Timeline', run: () => addPane('timeline') },
+    { group: 'Open', label: 'Open Search', run: () => addPane('search') },
+    { group: 'Open', label: 'Open Activity', run: () => addPane('activity') },
+    ...(views ?? [])
       .filter((v) => !v.error)
-      .map((v) => ({ label: `Open “${v.name}”`, run: () => addPane('view', { viewName: v.name }) })),
-    { label: 'New note', run: onNew },
-    { label: 'New board', run: onNewBoard },
-    { label: 'New vault', run: () => (newVaultOpen = true) },
-    { label: 'Toggle theme', run: toggleTheme },
-    { label: 'Back up the vault', run: onBackup },
-    { label: 'Settings', run: () => (settingsOpen = true) },
-    // Columns left the toolbar: the control is meaningless below 40rem (the workspace is
-    // forced to one column there) and it was a select occupying a row for a preference
-    // changed roughly never. Labels are spelled out because the palette filters on the label
-    // and nothing else — "col" finds all four.
-    ...[1, 2, 3, 4].map((n) => ({
-      label: `Columns: ${n}`,
-      run: () => setCols(n),
-    })),
+      .map((v) => ({
+        group: 'Open',
+        label: `Open “${v.name}”`,
+        run: () => addPane('view', { viewName: v.name }),
+      })),
+    { group: 'Create', label: 'New note', run: onNew },
+    { group: 'Create', label: 'New board', run: onNewBoard },
+    { group: 'Create', label: 'New vault', run: () => (newVaultOpen = true) },
+    { group: 'Vault', label: 'Back up the vault', run: onBackup },
+    { group: 'This view', label: 'Close this view', run: () => run('closePane') },
+    { group: 'App', label: 'Settings', run: () => (settingsOpen = true) }
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
@@ -997,6 +998,8 @@
         onkeyschanged={reloadKeys}
         columns={workspace.colMode === 'fixed' ? workspace.cols : 'auto'}
         oncolumns={setCols}
+        {theme}
+        ontheme={toggleTheme}
         onbackup={() => {
           settingsOpen = false;
           backupOpen = true;

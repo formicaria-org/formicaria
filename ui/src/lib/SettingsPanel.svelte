@@ -30,6 +30,8 @@
     onlayout,
     columns,
     oncolumns,
+    theme,
+    ontheme,
     onkeyschanged,
   }: {
     onclose: () => void;
@@ -39,6 +41,8 @@
     /** `auto` tracks the number of open views; a number pins the grid width. */
     columns: number | 'auto';
     oncolumns: (c: number | 'auto') => void;
+    theme: string;
+    ontheme: () => void;
     /** Told when a binding changes, so the shell re-reads it without a reload. */
     onkeyschanged?: () => void;
   } = $props();
@@ -114,6 +118,21 @@
       <p class="group">Preferences <span class="muted">— this browser, no vault touched</span></p>
 
       <section>
+        <h3>Theme</h3>
+        <p class="muted">
+          Stored in this browser. It followed the system setting until you chose here.
+        </p>
+        <ul class="caps">
+          <li>
+            <span class="k">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+            <button class="binding" onclick={ontheme}>
+              Switch to {theme === 'dark' ? 'light' : 'dark'}
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section>
         <h3>Layout</h3>
         <p class="muted">
           How views are arranged. <strong>Single</strong> is reachable here on any machine on
@@ -181,6 +200,10 @@
               </button>
               {#if clash}
                 <span class="warn">also {keys.LABELS[clash]}</span>
+              {:else if keys.reserved(keymap[cmd])}
+                <!-- The browser takes this before the page ever sees it, so the binding would
+                     simply not work. Said here rather than discovered by pressing it. -->
+                <span class="warn">the browser uses this</span>
               {/if}
             </li>
           {/each}

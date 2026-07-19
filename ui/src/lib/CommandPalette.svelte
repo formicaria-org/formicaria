@@ -3,6 +3,9 @@
   interface Command {
     label: string;
     run: () => void;
+    /** Which heading this sits under. Commands arrive already ordered by group; the palette
+     *  only draws the dividers. */
+    group?: string;
   }
   // `initial` lets a caller open the palette already scoped — the toolbar's "+" opens it on
   // "New", "+ view" on "Open". That is why this app has no dropdown menus: the palette is the
@@ -72,6 +75,9 @@
     />
     <ul role="listbox">
       {#each filtered as c, i (c.label)}
+        {#if c.group && c.group !== filtered[i - 1]?.group}
+          <li class="group" role="presentation">{c.group}</li>
+        {/if}
         <li
           role="option"
           aria-selected={i === active}
@@ -141,6 +147,20 @@
     font-size: var(--text-sm);
     color: var(--text);
     cursor: pointer;
+  }
+  /* A heading, not a target: it is skipped by the arrow keys because it is not in `filtered`
+     as a command — it is drawn between them. */
+  li.group {
+    padding: var(--space-2) var(--space-3) 2px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: default;
+  }
+  li.group:hover {
+    background: none;
   }
   li.active {
     background: var(--accent-subtle);

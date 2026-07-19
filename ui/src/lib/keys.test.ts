@@ -22,11 +22,30 @@ describe('bindings', () => {
   /** The bug this whole module exists to fix: with a note open, nothing could reach another
    *  view. Navigation is exempt from the typing guard — so it MUST require a modifier, or it
    *  would swallow ordinary typing instead. */
-  it('every command allowed while typing needs a modifier', () => {
+  it('every BOUND command allowed while typing needs a modifier', () => {
     for (const cmd of keys.WHILE_TYPING) {
       const b = keys.DEFAULTS[cmd];
+      if (!b.key) continue; // unbound: it cannot eat anything
       expect(b.mod || b.alt, `${cmd} would eat a keystroke while typing`).toBeTruthy();
     }
+  });
+
+  /** The browser takes these before the page sees them: Ctrl+digit switches tab, Ctrl+0 resets
+   *  zoom, Ctrl +/- zooms. The first defaults used Ctrl+1/2/9/0 — layout-stable, and every one
+   *  already spoken for, so pressing them zoomed or changed tab. Layout-safe is necessary and
+   *  not sufficient. */
+  it('ships no default the browser has already claimed', () => {
+    for (const cmd of Object.keys(keys.DEFAULTS) as keys.Command[]) {
+      expect(keys.reserved(keys.DEFAULTS[cmd]), `${cmd} is a browser shortcut`).toBe(false);
+    }
+  });
+
+  it('recognises a reserved binding the user tries to set', () => {
+    expect(keys.reserved({ key: '0', mod: true })).toBe(true);
+    expect(keys.reserved({ key: '1', mod: true })).toBe(true);
+    // A modifier the browser does not use makes it ours again.
+    expect(keys.reserved({ key: '1', mod: true, alt: true })).toBe(false);
+    expect(keys.reserved({ key: '.', mod: true })).toBe(false);
   });
 
   it('exempts navigation while typing, and does not exempt note creation', () => {

@@ -74,16 +74,36 @@ export const WHILE_TYPING: ReadonlySet<Command> = new Set<Command>([
 /// - Avoided: `[` `]` `/` `\` `;` `'` (AltGr or relocated), Ctrl+Tab and Ctrl+PageUp/Down (the
 ///   browser keeps those for its own tabs), Alt+Arrow (browser back/forward), and bare
 ///   Ctrl+Arrow (moves by word inside the editor, which these must not disturb).
+/// **The browser gets first refusal, and it does not give these back.** `Ctrl` plus a digit
+/// switches tabs; `Ctrl+0` resets zoom; `Ctrl` with `+`/`-` zooms. The first version bound
+/// `Ctrl+1/2/9/0` — chosen because digits are stable across layouts — and every one of them was
+/// already spoken for, so pressing them zoomed or changed tab instead. Layout-safe is necessary
+/// and not sufficient: it also has to be a combination nothing above us has claimed.
+const BROWSER_RESERVED = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '=', 'tab'];
+
+/// Deliberately few. Everything else lives in the command palette, which is searchable, grouped,
+/// and gains entries for free — binding a key to each would be a second menu to keep in step
+/// with the first. These are the ones worth reaching without leaving the keyboard; the rest can
+/// be bound in Settings by anyone who wants them.
 export const DEFAULTS: Record<Command, Binding> = {
   palette: { key: 'k', mod: true },
+  // `.` and `,` sit on the same unshifted keys across US, Italian, German, French and Spanish,
+  // are adjacent so the direction reads physically, and no browser claims them.
   nextPane: { key: '.', mod: true },
   prevPane: { key: ',', mod: true },
   newNote: { key: 'c' },
-  newView: { key: '1', mod: true },
-  focusSearch: { key: '2', mod: true },
-  closePane: { key: '0', mod: true },
-  backup: { key: '9', mod: true },
+  focusSearch: { key: '/' },
+  // Unbound by default: reachable from the palette, and there is no safe, layout-portable
+  // combination left that is worth spending on a command used once a session.
+  newView: { key: '' },
+  closePane: { key: '' },
+  backup: { key: '' },
 };
+
+/** Is this binding one the browser will take before the page sees it? */
+export function reserved(b: Binding): boolean {
+  return !!b.mod && !b.alt && !b.shift && BROWSER_RESERVED.includes(b.key.toLowerCase());
+}
 
 const STORAGE = 'fm-keys';
 
