@@ -88,16 +88,50 @@ fn certificates_in(text: &str) -> Vec<String> {
 /// cached bundle would pin the app to whatever was true at first run, and reading ~150 small
 /// files is a few milliseconds against a startup that already opens a SQLite index.
 pub fn install(dirs: &[&Path], out: &Path) -> Result<usize, String> {
+    let result = install_inner(dirs, out);
+    // Recorded so `config` can report it. **Startup diagnostics that only reach stderr are
+    // invisible on Android** — Rust's stderr is not routed to logcat, so the `eprintln!` here
+    // produced exactly nothing while an SSL failure was being debugged. A status the app can
+    // show is the only kind that helps.
+    let _ = STATUS.set(match &result {
+        Ok(n) => format!("{n} certificates"),
+        Err(e) => e.clone(),
+    });
+    result
+}
+
+/// The last CA-bundle outcome, for [`crate::dispatch`] to report. `None` on a desktop, where
+/// this is never called and the system store is used.
+pub fn status() -> Option<String> {
+    STATUS.get().cloned()
+}
+
+static STATUS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+fn install_inner(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     let n = build(dirs, out)?;
-    // **The authoritative half.** Routes to `SSL_CTX_load_verify_locations` inside libgit2, so
-    // it does not depend on having run before OpenSSL's lazy, once-per-process reading of its
-    // default verify paths — an ordering we do not control and should not have to reason about.
-    fm_core::vcs::set_cert_file(out).map_err(|e| format!("could not install the CA bundle: {e}"))?;
-    // And the environment too, harmlessly, for anything else in the process that reads it.
+
+    // **The environment first, because it cannot fail.** This used to run *after* the libgit2
+    // option with a `?` on it, so an option that errored took the environment variable down
+    // with it and left the process with no trust store at all — two mechanisms, and a failure
+    // in one discarded both. Order matters here for exactly that reason.
+    //
     // Safety: startup, before any network call and before other threads exist — the same
     // contract `configure_paths` relies on.
     unsafe { std::env::set_var("SSL_CERT_FILE", out) };
-    Ok(n)
+
+    // Then the explicit option, which routes to `SSL_CTX_load_verify_locations` and does not
+    // depend on having run before OpenSSL read its default verify paths. **Non-fatal**: if
+    // libgit2 refuses it, the environment variable above may still carry the day, and
+    // discarding a good bundle over it would be strictly worse.
+    match fm_core::vcs::set_cert_file(out) {
+        Ok(()) => Ok(n),
+        Err(e) => Err(format!(
+            "{n} certificates written to {}, but libgit2 refused them: {e} — falling back to \
+             SSL_CERT_FILE",
+            out.display()
+        )),
+    }
 }
 
 /// Write the bundle, and touch no global state.

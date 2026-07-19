@@ -434,6 +434,7 @@ pub fn dispatch(
                 restic_installed: backup::available(),
                 restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
                 vault_root: vaults::vault_root().map(|p| p.display().to_string()),
+                ca_bundle: crate::ca_bundle::status(),
             })
         }
         // The other way a vault comes into existence: someone else already has it. Same
@@ -749,6 +750,16 @@ struct Config {
     /// own. **Present on a phone, absent on a desktop** — and it is what tells the form
     /// whether to ask for a folder at all. See `vaults::vault_root`.
     vault_root: Option<String>,
+    /// What happened when this build tried to give its statically-linked OpenSSL a CA trust
+    /// store: a count, or the reason there is none. `null` on a desktop, which uses the
+    /// system's store and never builds one.
+    ///
+    /// **Reported because the alternative was unreadable.** Android does not route Rust's
+    /// stderr to logcat, so a startup diagnostic printed there is invisible — which is exactly
+    /// how "the SSL certificate is invalid" stayed unexplained through two builds. Whether a
+    /// trust store exists is the first question to ask when a remote will not verify, and the
+    /// app is the only thing in a position to answer it.
+    ca_bundle: Option<String>,
 }
 
 /// A vault's restic destination. Its own type rather than a field on `VaultInfo` because it

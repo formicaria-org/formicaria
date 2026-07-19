@@ -164,6 +164,20 @@
               and a vault cannot be restored from a backup on this machine.
             {/if}
           </li>
+          {#if cfg.ca_bundle}
+            <li>
+              <!-- Only on builds that carry their own OpenSSL (the phone). A desktop uses the
+                   system trust store and has nothing to report. -->
+              <span class="k">certificates</span>
+              {#if /^\d+ certificates$/.test(cfg.ca_bundle)}
+                <span class="ok">{cfg.ca_bundle}</span>
+              {:else}
+                <span class="none">{cfg.ca_bundle}</span> — HTTPS remotes cannot be verified
+                without a trust store, which git reports only as "the SSL certificate is
+                invalid".
+              {/if}
+            </li>
+          {/if}
           <li>
             <span class="k">restic password</span>
             {#if cfg.restic_password_set}

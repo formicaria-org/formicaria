@@ -455,6 +455,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // The desktop shape: the user picks their own locations. The managed-root path is a
         // phone, and is exercised there.
         vault_root: null,
+        ca_bundle: null, // the desktop shape: the system store is used, none is built
       } as T;
     case 'create_vault': {
       mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });

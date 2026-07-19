@@ -205,6 +205,9 @@ export interface Config {
    *  Present on a phone, absent on a desktop — and it is what decides whether the new-vault
    *  form asks for a folder at all. */
   vault_root: string | null;
+  /** What happened when this build gave its bundled OpenSSL a CA trust store — a count, or
+   *  why there is none. `null` on a desktop, which uses the system store. */
+  ca_bundle: string | null;
 }
 
 /** What asking a remote — without cloning it — told us. The three states need three different
