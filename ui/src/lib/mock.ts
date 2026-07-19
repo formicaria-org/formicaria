@@ -442,6 +442,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return created as T;
     }
+    case 'clone_vault': {
+      // Registers exactly like `create_vault` — the clone itself is git, which the mock does
+      // not model. It *does* enforce the identity, because that rule is the point of the
+      // command and a mock that skipped it would let the form ship a state the server refuses.
+      if (!String(args.url ?? '').trim()) throw new Error('a shared vault needs the URL of the repo to clone');
+      if (!String(args.gitName ?? '').trim() || !String(args.gitEmail ?? '').trim())
+        throw new Error('a shared vault needs your name and email');
+      if (!String(args.gitEmail ?? '').includes('@'))
+        throw new Error(`'${args.gitEmail}' is not an email address`);
+      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      const cloned: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
+      return cloned as T;
+    }
     // Saved views. The mock ships one so the sidebar's view list is exercised; a real
     // `.view` lives in the vault and is parsed server-side, which the mock does not model.
     case 'list_views': {

@@ -389,6 +389,16 @@ pub fn dispatch(
             json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &s("path")))
         }
         "create_vault" => json(create_vault(app, &s("name"), &s("path"))?),
+        // The other way a vault comes into existence: someone else already has it. Same
+        // registration as `create_vault`, with a clone in front and an identity behind.
+        "clone_vault" => json(clone_vault(
+            app,
+            &s("name"),
+            &s("path"),
+            &s("url"),
+            &s("gitName"),
+            &s("gitEmail"),
+        )?),
         // The user's saved `.view` files, aggregated across every vault: a view is
         // git-tracked *in* the vault it belongs to, but the query it defines runs against
         // the whole set (so `prop: vault` can narrow, or a dashboard can span audiences).
@@ -868,6 +878,91 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
         format!(
             "the vault directory at {} was created, but the vault list could not be \
              saved: {e} — it is not configured. Nothing was lost; fix that and create it again.",
+            path.display()
+        )
+    })?;
+
+    g.add(cfg, store);
+    let names = g.store.names();
+    Ok(infos(&g.configs(), &names))
+}
+
+/// Clone a collaborator's vault and register it — the other way a vault comes into being.
+///
+/// Same shape as [`create_vault`] with two additions, and the ordering between them is the
+/// whole design:
+///
+/// **The identity is validated before anything is fetched.** A clone that succeeds and then
+/// fails on a mistyped email would leave a real repo on disk that is not a registered vault,
+/// in a directory the user cannot retry into because it is no longer empty. Since the
+/// validation is pure, it costs nothing to do first — so a bad identity refuses the whole
+/// operation while the disk is still untouched.
+///
+/// **The identity is required, not optional.** A cloned vault has an audience by definition,
+/// which is exactly the case where committing as the placeholder attributes everyone's work
+/// to one fake person (`decisions.md`: a vault gains an identity when it gains an audience).
+/// `create_vault` can reasonably leave it to the placeholder; this cannot.
+fn clone_vault(
+    app: &App,
+    name: &str,
+    path: &str,
+    url: &str,
+    git_name: &str,
+    git_email: &str,
+) -> Result<Vec<VaultInfo>, String> {
+    let mut g = app.lock()?;
+
+    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+    if !check.ok {
+        return Err(refusal(&check, name));
+    }
+    if url.trim().is_empty() {
+        return Err("a shared vault needs the URL of the repo to clone".into());
+    }
+    // Pre-flight, mirroring `git::set_identity`'s own rules, so the failure lands here rather
+    // than after a clone has already written to disk.
+    if git_name.trim().is_empty() || git_email.trim().is_empty() {
+        return Err("a shared vault needs your name and email — they sign every commit you \
+                    make in it, and your collaborators see them"
+            .into());
+    }
+    if !git_email.contains('@') {
+        return Err(format!("'{git_email}' is not an email address"));
+    }
+    let config = app.config.clone().ok_or(
+        "there is nowhere to save the vault list on this machine — set FM_VAULTS".to_string(),
+    )?;
+    let path = PathBuf::from(vaults::expand_home(path));
+
+    fm_core::git::clone(url, &path).map_err(|e| format!("could not clone {}: {e}", url.trim()))?;
+    fm_core::git::set_identity(&path, git_name, git_email).map_err(|e| {
+        format!(
+            "cloned into {}, but could not set who you are in it: {e} — the clone is on disk \
+             and intact; nothing was configured",
+            path.display()
+        )
+    })?;
+
+    // Same as `create_vault`: eagerly, so the ignore lines refer to something visible.
+    for d in [&path.join("blobs"), &path.join("derived")] {
+        std::fs::create_dir_all(d).map_err(|e| format!("could not create {}: {e}", d.display()))?;
+    }
+
+    let store = fm_core::FileStore::named(&path, name).map_err(|e| {
+        format!(
+            "cloned into {}, but could not open it as a vault: {e} — the clone is on disk \
+             and intact; nothing was configured",
+            path.display()
+        )
+    })?;
+
+    let cfg = VaultConfig { name: name.to_string(), path: path.clone(), restic: None };
+    let mut list = g.configs();
+    list.push(cfg.clone());
+    vaults::save(&list, &config).map_err(|e| {
+        format!(
+            "the vault was cloned into {}, but the vault list could not be saved: {e} — it is \
+             not configured. Nothing was lost; fix that and add it again.",
             path.display()
         )
     })?;

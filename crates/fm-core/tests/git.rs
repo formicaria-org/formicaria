@@ -698,3 +698,90 @@ fn a_vault_of_only_our_commits_still_squashes_to_one() {
 
     assert_eq!(squashed, 2, "both auto commits collapse, exactly as before");
 }
+
+/// **The clone path — step 4 of the mobile sequence, on the backend that exists today.**
+///
+/// `git.rs` had no clone at all until now, so this is new code under every possible git
+/// backend rather than a port of something. Two things have to hold, and neither is
+/// obvious from the outside:
+///
+/// 1. **A clone is not yet a vault.** The `*.md merge=fm` attribute travels in the repo, but
+///    the `merge.fm.driver` *definition* lives in `.git/config` and deliberately does not —
+///    git will not let a repo ship a command that runs on your machine. A collaborator who
+///    clones and gets only half of that silently falls back to git's plain text merge and
+///    conflicts on the `updated:` line of every concurrent edit, which is the entire thing
+///    the driver exists to prevent. So `clone` installs it.
+/// 2. **The first commit must be attributable.** A cloned vault has an audience by
+///    definition — that is what makes the placeholder committer actively wrong there rather
+///    than merely unhelpful, and it is the hole ruling 5 was written to close.
+#[test]
+fn a_cloned_vault_gets_the_driver_and_commits_as_a_real_person() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    // A remote with one note already in it, exactly as a collaborator would leave it.
+    let bare = tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    let origin = tempdir().unwrap();
+    write_and_commit(origin.path(), "01.md", "theirs\n");
+    identify(origin.path());
+    git::set_remote(origin.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(origin.path(), "backup: first").unwrap();
+
+    // Clone into a path that does not exist yet — the real shape of "add a shared vault".
+    let parent = tempdir().unwrap();
+    let dest = parent.path().join("cloned-vault");
+    git::clone(bare.path().to_str().unwrap(), &dest).unwrap();
+
+    assert!(dest.join(".git").exists(), "it is a repo");
+    assert!(dest.join("notes/01.md").exists(), "their work came with it");
+
+    // `ensure_repo` ran: the merge attribute and the ignore rules are both here, on a repo
+    // this process did not create.
+    let attrs = fs::read_to_string(dest.join(".gitattributes")).unwrap();
+    assert!(attrs.contains("merge=fm"), "the merge attribute is present: {attrs}");
+    let ignore = fs::read_to_string(dest.join(".gitignore")).unwrap();
+    for line in ["index.sqlite", "derived/", "blobs/"] {
+        assert!(ignore.contains(line), "clone gets the ignore rules too, missing {line}:\n{ignore}");
+    }
+
+    // The *other* half of the driver — the `merge.fm.driver` definition in `.git/config` — is
+    // asserted in `fm-cli`'s `a_fresh_clone_gets_both_halves_of_the_driver`, not here.
+    // `ensure_repo` points the driver at the `fm` binary beside the running one and refuses to
+    // install one it cannot find; this test binary lives in `target/debug/deps`, where there is
+    // no `fm`. Asserting it here would test the layout of the test harness, not the product.
+
+    // The placeholder is what `ensure_repo` leaves when the machine has no identity. A clone
+    // must not commit on it, so set one and check the commit that lands.
+    git::set_identity(&dest, "Ravi Test", "ravi@example.org").unwrap();
+    write_and_commit(&dest, "02.md", "ours\n");
+
+    let author = Command::new("git")
+        .arg("-C")
+        .arg(&dest)
+        .args(["log", "-1", "--format=%ae"])
+        .output()
+        .unwrap();
+    let author = String::from_utf8_lossy(&author.stdout).trim().to_string();
+    assert_eq!(author, "ravi@example.org");
+    assert_ne!(author, "formicaria@localhost", "a shared vault must not commit as the placeholder");
+}
+
+/// Refuse before writing anything, rather than letting `git clone` create the directory and
+/// then fail inside it — a half-made vault is worse than none, and the message should be
+/// about what the user was doing.
+#[test]
+fn cloning_into_a_non_empty_directory_is_refused_and_writes_nothing() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let occupied = tempdir().unwrap();
+    fs::write(occupied.path().join("mine.md"), "do not touch\n").unwrap();
+
+    let err = git::clone("https://example.invalid/repo.git", occupied.path()).unwrap_err();
+    assert!(format!("{err}").contains("not empty"), "says why: {err}");
+    assert!(!occupied.path().join(".git").exists(), "and wrote nothing");
+    assert_eq!(fs::read_to_string(occupied.path().join("mine.md")).unwrap(), "do not touch\n");
+}

@@ -334,7 +334,17 @@ All verified **2026-07-19**.
    `lib*.so` naming trick plus `useLegacyPackaging = true`. iOS forbids it outright (no
    `fork`/`exec`, mandatory code signing, W^X). Consequence: any binary-shipping design is
    **Android-only forever**. Struck as an option anyway — see `decisions.md` 2026-07-19.
-9. **Syncthing is not a viable mobile backend.** Syncthing-Android was discontinued 2024-10-20
+9. **A bare remote whose `HEAD` names a branch it does not have clones to a silently empty
+   vault.** Found 2026-07-19 by making the mistake in a verification script: `git init --bare`
+   sets `HEAD` from this machine's `init.defaultBranch` (`master` here), so pushing to `main`
+   leaves `HEAD` dangling. `git clone` then checks out an empty `master`, `origin/main` exists
+   but is not checked out, and **the user gets a registered vault with no notes and no error** —
+   git behaved correctly, and nothing in our stack is wrong. Hosted remotes set `HEAD`
+   properly, so this bites **self-hosted** ones, which this project treats as first-class. Fix
+   on the server (`git symbolic-ref HEAD refs/heads/main`). Worth a check in `clone` if it ever
+   bites someone real: a clone that checks out nothing while the remote *has* branches is
+   reportable, and today it is indistinguishable from cloning a legitimately empty repo.
+10. **Syncthing is not a viable mobile backend.** Syncthing-Android was discontinued 2024-10-20
    (a Google Play storage-permission fight); the surviving fork went through an opaque
    signing-key handover that triggered an F-Droid security investigation. iOS never had an
    official app and **persistent background sync is structurally impossible there**. This does

@@ -74,9 +74,14 @@ pub fn available() -> bool {
     })
 }
 
-fn git(vault: &Path) -> Command {
+/// A git invocation with the non-interactive guards, but no working directory yet.
+///
+/// Split out for [`clone`], which is the one operation that cannot use [`git`]: the
+/// directory it would `-C` into does not exist until the clone creates it. The guards are
+/// the load-bearing half and must not be duplicated by hand — a clone that prompts is a
+/// clone that hangs a thread-per-connection server forever.
+fn git_cmd() -> Command {
     let mut c = Command::new("git");
-    c.arg("-C").arg(vault);
     // Never let git stop to ask a human. fm-serve is thread-per-connection and
     // has no TTY, so a credential or host-key prompt would hang the request
     // forever rather than fail. Authentication is whatever the user's ssh-agent
@@ -84,6 +89,60 @@ fn git(vault: &Path) -> Command {
     c.env("GIT_TERMINAL_PROMPT", "0");
     c.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
     c
+}
+
+fn git(vault: &Path) -> Command {
+    let mut c = git_cmd();
+    c.arg("-C").arg(vault);
+    c
+}
+
+/// Clone `url` into `dest` and make the result a formicaria vault.
+///
+/// **New code, on every possible backend.** `git.rs` never had a clone — every plan document
+/// that described the mobile M1 as "porting" this was wrong about what exists, and the
+/// correction is recorded in `docs/context/mobile-design.md`. It is written here, on the
+/// subprocess backend, because that is where it is testable today and because it is a
+/// prerequisite under every resolution of the git-backend question.
+///
+/// Calls [`ensure_repo`] itself rather than leaving it to the caller. A fresh clone needs the
+/// `.gitattributes` merge attribute *and* the `merge.fm.driver` definition — and the driver
+/// definition deliberately does not travel in a repo, so a collaborator who clones and does
+/// not run this silently falls back to git's plain text merge and hits the `updated:` conflict
+/// on every concurrent edit. That is the exact trap `a_fresh_clone_gets_both_halves_of_the_driver`
+/// exists to catch, and making it the caller's job is how it would be forgotten.
+///
+/// Does **not** set an identity: that is [`set_identity`], and the caller must do it before the
+/// first commit or every commit from this machine is attributed to the placeholder. A clone has
+/// an audience by definition, which is precisely when that matters.
+pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
+    if !available() {
+        return Err(StoreError::Io(
+            "git is not available on this machine, so there is nothing to clone with".into(),
+        ));
+    }
+    if url.trim().is_empty() {
+        return Err(StoreError::Io("a clone needs a remote URL".into()));
+    }
+    // `git clone` refuses a non-empty target on its own, but says it in terms of the
+    // directory rather than of what the user was doing — and by then it has already created
+    // the directory when it did not exist. Refuse first, and write nothing.
+    if dest.exists() && dest.read_dir().is_ok_and(|mut d| d.next().is_some()) {
+        return Err(StoreError::Io(format!(
+            "{} already exists and is not empty — clone into a new directory",
+            dest.display()
+        )));
+    }
+
+    let out = git_cmd().arg("clone").arg(url.trim()).arg(dest).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git clone", &out));
+    }
+
+    // The clone is a repo, but not yet a *vault*: the ignore rules and the merge driver are
+    // what make it one, and `ensure_repo` appends whatever the remote did not already carry.
+    ensure_repo(dest)?;
+    Ok(())
 }
 
 /// Initialize the vault as its own git repo if it isn't one yet, giving it a

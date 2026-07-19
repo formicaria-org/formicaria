@@ -200,6 +200,18 @@ export const checkPath = (name: string, path: string) =>
 export const createVault = (name: string, path: string) =>
   invoke<VaultInfo[]>('create_vault', { name, path });
 
+/** Clone a collaborator's vault and register it. The identity is **required**, not a
+ *  courtesy: a shared vault is exactly where committing as the placeholder would attribute
+ *  everyone's work to one fake person. Validated before anything is fetched, so a typo
+ *  refuses while the disk is still untouched. */
+export const cloneVault = (
+  name: string,
+  path: string,
+  url: string,
+  gitName: string,
+  gitEmail: string,
+) => invoke<VaultInfo[]>('clone_vault', { name, path, url, gitName, gitEmail });
+
 /** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
 export const listViews = () => invoke<ViewInfo[]>('list_views');
 /** Run one saved view by name — the query is defined server-side; we send only the name. */

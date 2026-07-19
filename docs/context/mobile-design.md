@@ -668,7 +668,19 @@ staked on a decision nobody has taken yet. Receipts:
     (traversal, absolute, wrong-vault, already-fixed — none reach the OS).
   - **Opening in the OS editor is the only action, and that is not an apology.** The note does
     not parse, so no editor of ours can load it.
-- **STEP 4 — write `clone` in `git.rs`**, on the subprocess backend where it is testable today.
+- **STEP 4 — ✅ SHIPPED 2026-07-19.** `git::clone` (new code, not a port — `git.rs` never had
+  one), a `clone_vault` dispatch arm, and a **Start empty / Clone a shared one** toggle in
+  `NewVault.svelte`, so the step ships visible UI rather than only Rust. Three design points
+  worth keeping: `clone` calls `ensure_repo` **itself** rather than leaving it to the caller
+  (the `merge.fm.driver` definition deliberately does not travel in a repo, so a clone that
+  skips it silently falls back to git's text merge and conflicts on every `updated:` line —
+  making that the caller's job is how it gets forgotten); the identity is **validated before
+  anything is fetched**, so a mistyped email cannot leave a real repo on disk that is not a
+  registered vault, in a directory too non-empty to retry into; and the identity is
+  **required**, because a cloned vault has an audience by definition. Verified end-to-end
+  against a live server, not only by unit test: their note arrives, is indexed and searchable,
+  the committer is a real person, and a bad email refuses while writing nothing. As planned:
+- **STEP 4 (as planned) — write `clone` in `git.rs`**, on the subprocess backend where it is testable today.
   `ensure_repo` → `set_identity` **before** the first commit, which finally makes the identity
   ruling real rather than theoretical. New `dispatch` arm beside `set_git_remote`, plus a
   "clone a vault" affordance in the desktop vault picker — so the step ships visible UI, not only
