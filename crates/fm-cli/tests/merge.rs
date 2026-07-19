@@ -165,6 +165,70 @@ fn a_real_conflict_lands_in_the_body_leaving_the_note_readable() {
     assert!(obj.body.contains("Their version of the line."), "both sides are offered");
 }
 
+/// A note with a `status`, which is what the Board, Agenda and Calendar actually query.
+fn task(updated: &str, status: &str, body: &str) -> String {
+    format!(
+        "---\nid: 01JQ0000000000000000000000\ntype: task\ntitle: shared task\ncreated: 2026-07-17T10:00:00Z\nupdated: {updated}\nstatus: {status}\n---\n\n{body}"
+    )
+}
+
+/// **Characterization test — this locks behaviour we chose to keep, not behaviour we like.**
+///
+/// Two people drag the same card to different columns. `status` genuinely diverges, so
+/// `merge_objects` returns `None` (`merge.rs`) and the whole file — YAML fence included —
+/// goes through the text merge. The markers therefore land *inside* the frontmatter, and
+/// `from_file` rightly refuses it: the note drops out of every view until a human fixes it.
+///
+/// That is ugly, and it is **deliberate**. The alternative — letting ours win the field —
+/// is forbidden in writing (`merge.rs`: *"silently dropping one side's status change is the
+/// same data loss this whole phase exists to stop"*), and it would be strictly worse here:
+/// the bodies are identical in the card-drag case, so the merge would come back **Clean**,
+/// auto-commit would fire, and the sync loop would push one person's column over the
+/// other's with nothing shown to anyone. Loud-and-absent beats quiet-and-wrong.
+///
+/// So the ruling is: keep this, and build the surface that lists skipped notes
+/// (`decisions.md`, 2026-07-19). **If this test fails, someone has reversed that ruling** —
+/// go read the decision before "fixing" the test.
+#[test]
+fn a_divergent_status_field_breaks_the_fence_and_keeps_both_values() {
+    if !have_git() {
+        eprintln!("skipping merge test: git not on PATH");
+        return;
+    }
+    let (ours, theirs) =
+        two_clones(&task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n"));
+    let rel = "notes/01JQ0000000000000000000000.md";
+
+    // Identical bodies on purpose: the card-drag case moves a card and touches nothing else.
+    fs::write(theirs.path().join(rel), task("2026-07-17T12:00:00Z", "done", "Ship the thing.\n"))
+        .unwrap();
+    g(theirs.path(), &["commit", "-am", "theirs: dragged to done"]);
+
+    fs::write(ours.path().join(rel), task("2026-07-17T11:00:00Z", "doing", "Ship the thing.\n"))
+        .unwrap();
+    g(ours.path(), &["commit", "-am", "ours: dragged to doing"]);
+
+    g(ours.path(), &["remote", "add", "them", theirs.path().to_str().unwrap()]);
+    g(ours.path(), &["fetch", "them"]);
+    let merge = g(ours.path(), &["merge", "them/main", "-m", "merge"]);
+    assert!(!merge.status.success(), "a divergent status really does conflict");
+
+    let merged = fs::read_to_string(ours.path().join(rel)).unwrap();
+
+    // The property that must never regress: nothing was resolved by fiat.
+    assert!(merged.contains("doing"), "our value survives:\n{merged}");
+    assert!(merged.contains("done"), "their value survives too:\n{merged}");
+    assert!(merged.contains("<<<<<<<"), "and the disagreement is shown:\n{merged}");
+
+    // The documented cost of that guarantee: unlike a body conflict, this one is *not*
+    // readable, because the markers are inside the YAML. The note is absent from every
+    // view until a human resolves it — and is surfaced by name as skipped, not lost.
+    assert!(
+        fm_core::frontmatter::from_file(&merged).is_err(),
+        "a fence-broken note does not parse — this is the known cost, see the doc comment:\n{merged}"
+    );
+}
+
 /// `pull` is the whole point of the guards that came before it: it is the thing that
 /// makes the tracking ref move, which is exactly what `push_squashed`'s ancestry guard
 /// exists to survive. Here it has to actually bring a collaborator's note home.

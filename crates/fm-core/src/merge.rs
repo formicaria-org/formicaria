@@ -188,11 +188,18 @@ fn merge_body(
     // the repo: the driver's working directory is the vault, and the auto-commit's
     // `git add -A` fires every 5s — a scratch file living there for the length of a
     // merge is a scratch file that can end up in someone's history.
+    // The name has to be unique per *call*, not per process. As the `fm merge-md` driver
+    // that is the same thing — one merge per one-shot subprocess — but the app is meant to
+    // call this in-process (a phone has no driver to invoke), and a threaded server merging
+    // two notes at once would otherwise have both writes race over the same three paths and
+    // hand one note a body assembled from the other. Clean exit, wrong content, no error.
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let dir = std::env::temp_dir();
     let stamp = std::process::id();
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let paths: Vec<_> = ["ours", "base", "theirs"]
         .iter()
-        .map(|n| dir.join(format!("fm-merge-{stamp}-{n}")))
+        .map(|n| dir.join(format!("fm-merge-{stamp}-{seq}-{n}")))
         .collect();
     for (path, text) in paths.iter().zip([ours, base, theirs]) {
         std::fs::write(path, text).map_err(io)?;

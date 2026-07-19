@@ -160,8 +160,18 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
 
 /** Swap the placeholder `<img>` for the element that best fits the MIME. Uses
  *  only native browser elements — an unknown/absent MIME stays an `<img>` (the
- *  browser content-sniffs it), and only a sniffed `application/pdf` reaches a
- *  sandboxed iframe, so no arbitrary-HTML sink is added. */
+ *  browser content-sniffs it), and only `application/pdf` reaches an iframe, so
+ *  no arbitrary-HTML sink is added.
+ *
+ *  What actually stops an HTML file wearing a PDF's MIME from scripting this
+ *  origin is **server-side**, not the `sandbox` attribute: `blob.rs` sends
+ *  `X-Content-Type-Options: nosniff` with an explicit `Content-Type`, and
+ *  `inline_safe()` is an allowlist that hands anything else
+ *  `Content-Disposition: attachment`. Both gates have to agree before a byte is
+ *  rendered here. This comment used to claim the iframe was sandboxed; it never
+ *  was, and it deliberately still is not — every browser's built-in PDF viewer
+ *  needs `allow-scripts allow-same-origin`, which together are a no-op, so the
+ *  attribute would buy a false sense of security at the cost of the viewer. */
 function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string): void {
   const mime = asset.mime;
   if (mime.startsWith('image/') || mime === '') {

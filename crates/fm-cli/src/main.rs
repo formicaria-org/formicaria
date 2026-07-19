@@ -2,10 +2,13 @@
 //! exercise each slice end-to-end: capture notes to disk, rebuild the index from
 //! the files, search, and edit properties.
 //!
-//! **This CLI drives `fm-core` directly and re-implements the command flows** rather than
-//! calling `fm_app::commands` — a fork that predates `fm_app::dispatch` and is the standing
-//! evidence for why that single surface exists (see its module doc). Migrating this onto
-//! `dispatch` is what would finally make "one command library" true rather than aspirational.
+//! **This CLI shares `fm_app::commands` where the logic is the same, and does not route through
+//! `fm_app::dispatch` — by decision, not by debt.** `dispatch` is a JSON *wire* surface for
+//! frontends that speak a protocol; a CLI has argv and a terminal, so putting one behind the
+//! other would buy nothing and cost a serialization round trip. The goal was ever one command
+//! *library*, not one command *door* (`docs/context/decisions.md`). What remains true, and is
+//! the thing to watch: a change to a command's behaviour has to be made where **both** callers
+//! see it, or `fm` and the server drift apart.
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};

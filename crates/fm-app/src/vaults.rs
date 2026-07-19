@@ -254,6 +254,17 @@ pub fn config_dir() -> Option<PathBuf> {
             .map(PathBuf::from)
             .or_else(|| home().map(|h| h.join("AppData").join("Roaming")))
     }
+    // Anywhere else — Android first, and the reason this arm exists at all. Without it the
+    // three `cfg`s above are all false, the block has no tail expression, and the crate does
+    // not *compile* for `target_os = "android"`. There is no ambient per-user config dir on a
+    // phone: the platform hands the app its own data directory at runtime, so the shell passes
+    // it in the same way `FM_VAULTS` already overrides this file's location on desktop.
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    {
+        std::env::var_os("FM_CONFIG_DIR")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute()) // a relative one would follow the cwd, which on a phone means nothing
+    }
 }
 
 /// The user's home, whatever this OS calls it.

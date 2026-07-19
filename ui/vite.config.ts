@@ -11,8 +11,10 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 // ER, pie, …) uses dagre, not cytoscape, and is unaffected.
 const cytoscapeStub = new URL('./src/lib/cytoscape-stub.ts', import.meta.url).pathname;
 
-// Tauri drives this dev server on a fixed port (see tauri.conf.json devUrl) and
-// wants its own console output left intact.
+// A fixed port and un-cleared console output, so `pixi run serve` prints a URL
+// that stays put across restarts. (This used to say Tauri drove the dev server
+// "see tauri.conf.json devUrl" — a fossil from before the browser pivot. There
+// is no tauri.conf.json and no src-tauri/ anywhere in the tree.)
 export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
