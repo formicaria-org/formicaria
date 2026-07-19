@@ -461,6 +461,52 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return created as T;
     }
+    case 'probe_remote': {
+      // Shaped like the real thing, including the states the form must render honestly. The
+      // mock models a desktop with a plaintext helper — which is a real and common setup, and
+      // the one whose advice is easiest to get wrong.
+      const url = String(args.url ?? '');
+      const state = !url.trim()
+        ? 'unreachable'
+        : url.includes('private')
+          ? 'needs_auth'
+          : url.includes('nope')
+            ? 'unreachable'
+            : 'reachable';
+      return {
+        state,
+        detail:
+          state === 'reachable'
+            ? 'This repo answered — you can clone it.'
+            : state === 'needs_auth'
+              ? 'This repo needs credentials.'
+              : url.trim()
+                ? `fatal: repository '${url}' not found`
+                : '',
+        helper: 'store',
+        helper_is_plaintext: true,
+      } as T;
+    }
+    case 'git_auth':
+      return {
+        storage: 'system',
+        have_credential: false,
+        helper: { configured: 'store', plaintext: true, better: 'libsecret' },
+      } as T;
+    case 'set_git_credential': {
+      if (!String(args.token ?? '').trim()) throw new Error('paste a token');
+      return {
+        storage: 'system',
+        have_credential: true,
+        helper: { configured: 'store', plaintext: true, better: 'libsecret' },
+      } as T;
+    }
+    case 'clear_git_credential':
+      return {
+        storage: 'system',
+        have_credential: false,
+        helper: { configured: 'store', plaintext: true, better: 'libsecret' },
+      } as T;
     case 'clone_vault': {
       // Registers exactly like `create_vault` — the clone itself is git, which the mock does
       // not model. It *does* enforce the identity, because that rule is the point of the

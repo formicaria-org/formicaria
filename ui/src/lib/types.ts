@@ -206,3 +206,30 @@ export interface Config {
    *  form asks for a folder at all. */
   vault_root: string | null;
 }
+
+/** What asking a remote — without cloning it — told us. The three states need three different
+ *  next steps, which is the whole reason this exists rather than showing git's raw stderr. */
+export interface RemoteProbe {
+  state: 'reachable' | 'needs_auth' | 'unreachable';
+  /** One sentence naming what to do next; git's own words when we did not recognise the error. */
+  detail: string;
+  /** The credential helper's program name, or null. **Never a secret.** */
+  helper: string | null;
+  /** The configured helper keeps credentials in plaintext (`store` does). */
+  helper_is_plaintext: boolean;
+}
+
+/** Where git credentials live on this machine. */
+export interface GitAuth {
+  /** `system` = git's helper owns it and we store nothing; `app` = no helper here, so
+   *  formicaria keeps the token; `none` = no git at all. */
+  storage: 'system' | 'app' | 'none';
+  have_credential: boolean;
+  helper: {
+    configured: string | null;
+    /** Credentials are kept in plaintext on disk. */
+    plaintext: boolean;
+    /** A better helper that is actually installed here, or null. */
+    better: string | null;
+  } | null;
+}

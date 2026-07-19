@@ -266,6 +266,151 @@ pub fn credential_helper() -> Option<String> {
     (!v.is_empty()).then_some(v)
 }
 
+/// Hand a credential to **git's own credential helper**, so the whole machine gets it.
+///
+/// # Why this, rather than a token formicaria keeps
+///
+/// `git credential approve` is the documented way to *write* into whatever helper is
+/// configured — libsecret or the GNOME keyring on Linux, the macOS Keychain, the Windows
+/// Credential Manager. So the user pastes a token into formicaria once and it lands in the
+/// platform's real credential store, where `git` in their terminal and every other tool finds
+/// it too.
+///
+/// That keeps **"the app holds no secret of its own"** literally true on the desktop rather
+/// than approximately true: nothing is written by us, nothing is ours to leak, and there is no
+/// second copy to go stale when they rotate the token. It is the same stance as shelling out
+/// to restic instead of reimplementing dedup — the tool already solves this whole.
+///
+/// **Silently a no-op when no helper is configured**, which is git's behaviour and not
+/// something we can change: with nowhere to store it, `approve` accepts the input and drops it.
+/// [`helper_advice`] exists so a caller can tell the user that *before* they paste anything.
+///
+/// The secret goes in on **stdin**, never as an argument — a command line is visible to every
+/// process on the machine via `/proc`, and that is the one mistake this function must not make.
+pub fn credential_approve(url: &str, username: &str, secret: &str) -> Result<(), StoreError> {
+    use std::io::Write;
+    if !available() {
+        return Err(StoreError::Io("git is not installed on this machine".into()));
+    }
+    if secret.trim().is_empty() {
+        return Err(StoreError::Io("a credential needs a token or password".into()));
+    }
+    // Newlines would forge extra fields in git's key=value protocol.
+    if [url, username, secret].iter().any(|v| v.contains('\n') || v.contains('\r')) {
+        return Err(StoreError::Io("a credential may not contain a line break".into()));
+    }
+    let mut child = git_cmd()
+        .args(["credential", "approve"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .map_err(spawn)?;
+    {
+        let mut si = child.stdin.take().ok_or_else(|| StoreError::Io("no stdin".into()))?;
+        // `url=` is git's own shorthand: it parses protocol, host and path out for us, so we
+        // never have to reimplement URL splitting and get it subtly different from git.
+        let payload = format!("url={}\nusername={}\npassword={}\n\n", url.trim(), username, secret);
+        si.write_all(payload.as_bytes()).map_err(io)?;
+    }
+    let out = child.wait_with_output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git credential approve", &out));
+    }
+    Ok(())
+}
+
+/// Does a usable credential for this URL already exist on this machine?
+///
+/// The answer to *"they could have been already set, like in this repo"* — and the reason the
+/// form should not ask for a token it does not need. `git credential fill` consults the
+/// configured helper; `GIT_TERMINAL_PROMPT=0` (set by [`git_cmd`]) turns "nothing stored" into
+/// a failure instead of a prompt that would hang a server with no TTY.
+///
+/// **The credential itself is never returned, logged, or looked at** — only whether one came
+/// back. There is no caller that needs the value, so there is no signature here that could
+/// leak it.
+pub fn credential_exists(url: &str) -> bool {
+    use std::io::Write;
+    if !available() || url.trim().is_empty() {
+        return false;
+    }
+    let Ok(mut child) = git_cmd()
+        .args(["credential", "fill"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    if let Some(mut si) = child.stdin.take() {
+        let _ = si.write_all(format!("url={}\n\n", url.trim()).as_bytes());
+    }
+    let Ok(out) = child.wait_with_output() else { return false };
+    if !out.status.success() {
+        return false;
+    }
+    // A helper that answered gives back a non-empty `password=` line. Checked as a prefix on a
+    // line rather than a substring, so a *host* containing the word never reads as a hit.
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .any(|l| l.strip_prefix("password=").is_some_and(|v| !v.is_empty()))
+}
+
+/// What this machine is set up to remember credentials with, and what it should be.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct HelperAdvice {
+    /// The configured helper's name, or `None`. A program name — never a secret.
+    pub configured: Option<String>,
+    /// It keeps credentials in **plaintext**. Only `store` does this, and most people running
+    /// it were told to by a tutorial rather than choosing it.
+    pub plaintext: bool,
+    /// A helper that exists on this machine and would encrypt at rest, when the configured one
+    /// does not. `None` when the current setup is already fine, or when we found nothing better
+    /// to suggest — an honest absence beats naming a program that is not installed.
+    pub better: Option<String>,
+}
+
+/// Which credential helper this machine uses, and whether there is a better one available.
+///
+/// **Suggests only what is actually installed.** Telling someone to configure
+/// `credential.helper libsecret` on a box where it was never built is how advice becomes noise;
+/// the candidates are probed by asking git whether it can run them.
+pub fn helper_advice() -> HelperAdvice {
+    let configured = credential_helper();
+    let plaintext = configured.as_deref() == Some("store");
+    let needs_better = configured.is_none() || plaintext;
+    let better = needs_better.then(pick_helper).flatten();
+    HelperAdvice { configured, plaintext, better }
+}
+
+/// The best credential helper installed here, or `None`.
+///
+/// Ordered by what each actually protects: a platform keychain encrypts at rest and unlocks
+/// with the login session; `cache` only holds things in memory for a while, which is still
+/// strictly better than a plaintext file on disk. `store` is never suggested — it is the thing
+/// we are suggesting a way out of.
+fn pick_helper() -> Option<String> {
+    let candidates: &[&str] = if cfg!(target_os = "macos") {
+        &["osxkeychain", "cache"]
+    } else if cfg!(target_os = "windows") {
+        &["manager", "wincred", "cache"]
+    } else {
+        &["libsecret", "gnome-keyring", "cache"]
+    };
+    candidates.iter().find(|h| helper_runs(h)).map(|h| (*h).to_string())
+}
+
+/// Can git actually run this helper? `git credential-<name>` exits non-zero on a bad argument
+/// but reports "not found" differently, which is the distinction we need.
+fn helper_runs(name: &str) -> bool {
+    Command::new(format!("git-credential-{name}"))
+        .arg("--help")
+        .output()
+        .map(|o| o.status.success() || !o.stderr.is_empty())
+        .unwrap_or(false)
+}
+
 /// Clone `url` into `dest` and make the result a formicaria vault.
 ///
 /// **New code, on every possible backend.** `git.rs` never had a clone — every plan document

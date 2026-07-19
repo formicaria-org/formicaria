@@ -450,6 +450,33 @@ pub fn dispatch(
         // directory. The three failures a clone cannot tell apart (typo, no credentials,
         // offline) need three different next steps.
         "probe_remote" => json(probe_remote(&s("url"))),
+        // Give this machine a credential for a private repo. **Where it goes depends on the
+        // platform, and that is the point** — a desktop hands it to git's own helper and keeps
+        // nothing; a phone has no helper, so the app keeps it.
+        "set_git_credential" => {
+            let (url, token) = (s("url"), s("token"));
+            if token.trim().is_empty() {
+                return Err("paste a token — an empty one would just fail at push time".into());
+            }
+            if fm_core::git::available() {
+                // The username is nearly always ignored for a PAT; every forge accepts any
+                // non-empty value beside it. Default to the conventional one.
+                let user = {
+                    let u = s("username");
+                    if u.trim().is_empty() { "x-access-token".to_string() } else { u }
+                };
+                fm_core::git::credential_approve(&url, &user, &token).map_err(err)?;
+            } else {
+                crate::secrets::save_token(&token)?;
+            }
+            json(git_auth(&url))
+        }
+        "clear_git_credential" => {
+            crate::secrets::clear_token()?;
+            json(git_auth(&s("url")))
+        }
+        // Where credentials come from here, and whether there already are any for this URL.
+        "git_auth" => json(git_auth(&s("url"))),
         // The third way in: a vault you already have, in a backup, on a machine that no
         // longer exists. Same registration as the other two, with a restic restore in front.
         "restore_vault" => {
@@ -1197,6 +1224,45 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     g.add(cfg, store);
     let names = g.store.names();
     Ok(infos(&g.configs(), &names))
+}
+
+/// Where this machine's git credentials live, and whether it has one for a given URL.
+#[derive(serde::Serialize)]
+struct GitAuth {
+    /// `system` — git's credential helper owns it, and we store nothing.
+    /// `app`    — no helper exists here, so formicaria keeps the token itself.
+    /// `none`   — no git at all; nothing to authenticate with.
+    storage: &'static str,
+    /// A credential is available for this URL right now. On the desktop this asks the helper,
+    /// which is how "it was already set up, like in this repo" answers itself without the user
+    /// having to know whether it was.
+    have_credential: bool,
+    /// Only meaningful for `system`: the helper's name, whether it is plaintext, and a better
+    /// one if this machine has it installed.
+    helper: Option<fm_core::git::HelperAdvice>,
+}
+
+/// The auth situation, as the form needs it.
+fn git_auth(url: &str) -> GitAuth {
+    if !fm_core::vcs::available() {
+        return GitAuth { storage: "none", have_credential: false, helper: None };
+    }
+    if fm_core::git::available() {
+        GitAuth {
+            storage: "system",
+            have_credential: fm_core::git::credential_exists(url),
+            helper: Some(fm_core::git::helper_advice()),
+        }
+    } else {
+        // A phone. There is no helper to ask, so the only question is whether we hold a token —
+        // and it is per device, not per URL, because one account per method per device is the
+        // stance this design took.
+        GitAuth {
+            storage: "app",
+            have_credential: crate::secrets::has_token(),
+            helper: None,
+        }
+    }
 }
 
 /// What the new-vault form shows under a repo URL: can we reach it, and if not, what to do.

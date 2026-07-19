@@ -11,8 +11,16 @@
   // zenity would mean the core spawns a process to do its own first run. So: a typed path,
   // and the server answers what is really there on every keystroke.
   import { onMount } from 'svelte';
-  import { checkPath, cloneVault, config as fetchConfig, createVault, restoreVault } from './ipc';
-  import type { PathCheck, VaultInfo } from './types';
+  import {
+    checkPath,
+    cloneVault,
+    config as fetchConfig,
+    createVault,
+    probeRemote,
+    restoreVault,
+    setGitCredential,
+  } from './ipc';
+  import type { GitAuth, PathCheck, RemoteProbe, VaultInfo } from './types';
   import { describe, historyNote } from './vaultCheck';
 
   interface Props {
@@ -71,6 +79,45 @@
   let gitName = $state('');
   let gitEmail = $state('');
   let repo = $state('');
+
+  // **Asked before the clone, not after it fails.** A typo, a private repo, and being offline
+  // all come out of `git clone` as the same unusable sentence about usernames; these are three
+  // different problems with three different next steps.
+  let probe = $state<RemoteProbe | null>(null);
+  let probing = $state(false);
+  // Write-only, always. Nothing ever reads this back out of the server — on a desktop it goes
+  // straight into git's own credential helper and formicaria keeps nothing at all.
+  let token = $state('');
+  let auth = $state<GitAuth | null>(null);
+  let authSaved = $state(false);
+  let authError = $state<string | null>(null);
+
+  let probeTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const u = url;
+    clearTimeout(probeTimer);
+    probe = null;
+    authSaved = false;
+    if (mode !== 'clone' || !u.trim()) return;
+    probing = true;
+    probeTimer = setTimeout(async () => {
+      probe = await probeRemote(u).catch(() => null);
+      probing = false;
+    }, 600); // longer than the path check: this one touches the network
+    return () => clearTimeout(probeTimer);
+  });
+
+  async function saveToken() {
+    authError = null;
+    try {
+      auth = await setGitCredential(url, token);
+      authSaved = true;
+      token = ''; // never keep it in the page once it is stored
+      probe = await probeRemote(url).catch(() => probe); // re-ask: it should be reachable now
+    } catch (e) {
+      authError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   // A route the machine cannot take is not offered. `null` means the heartbeat has not
   // answered yet, and we assume capable rather than flashing options away underneath a
@@ -205,9 +252,60 @@
           autocapitalize="off"
         />
         <small>
-          Cloned with your existing git credentials — this app stores no password of its own.
+          Cloned with your existing git credentials.
         </small>
       </label>
+
+      {#if probing}
+        <p class="lede small">Checking the repo…</p>
+      {:else if probe?.state === 'reachable'}
+        <p class="lede small good-line">✓ {probe.detail}</p>
+      {:else if probe?.state === 'unreachable' && probe.detail}
+        <!-- git's own words, deliberately. We did not recognise this, and inventing a
+             friendlier sentence would mean guessing — which is how someone ends up
+             configuring credentials for a URL they simply mistyped. -->
+        <p class="lede small caveat"><code>{probe.detail}</code></p>
+      {:else if probe?.state === 'needs_auth'}
+        <div class="auth">
+          <p class="lede small">{probe.detail}</p>
+          {#if authSaved}
+            <p class="lede small good-line">✓ Saved. Try the URL again.</p>
+          {:else}
+            <label>
+              <span>Access token</span>
+              <input
+                type="password"
+                bind:value={token}
+                placeholder="github_pat_…"
+                autocomplete="off"
+                spellcheck="false"
+                autocapitalize="off" />
+              <!-- The advice that actually limits a leak. A GitHub token is a *bearer*
+                   token — it is not tied to a device, and anyone holding the string can use
+                   it from anywhere — so scope and expiry are the only things that bound the
+                   damage. Said here because this is the one moment it is actionable. -->
+              <small>
+                Use a <strong>fine-grained</strong> token limited to this one repository, with
+                contents read/write and an expiry date. Tokens are not tied to a device: anyone
+                who has one can use it from anywhere, so a narrow token is the protection.
+              </small>
+            </label>
+            {#if probe.helper_is_plaintext}
+              <p class="lede small caveat">
+                Heads up: git on this machine uses the <code>store</code> helper, which keeps
+                credentials as <strong>plain text</strong> in <code>~/.git-credentials</code>.
+                That is where this token will go.
+              </p>
+            {/if}
+            <div class="actions">
+              <button type="button" onclick={() => void saveToken()} disabled={!token.trim()}>
+                Save token
+              </button>
+            </div>
+          {/if}
+          {#if authError}<p class="error" role="alert">{authError}</p>{/if}
+        </div>
+      {/if}
 
       <!-- Required, and the copy says why. This is the one place where leaving the committer
            unset is not merely untidy: a shared vault on the placeholder attributes everyone's
@@ -354,6 +452,20 @@
     margin: 0;
     color: var(--fg-muted);
     line-height: 1.5;
+  }
+  .small {
+    font-size: 0.85rem;
+  }
+  .good-line {
+    color: var(--text, inherit);
+  }
+  .auth {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
   }
   .caveat {
     font-size: 0.9rem;

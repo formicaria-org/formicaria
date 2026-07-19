@@ -4,10 +4,12 @@ import type {
   BackupStatus,
   Board,
   EditEvent,
+  GitAuth,
   NoteDetail,
   ObjectMeta,
   PathCheck,
   PullResult,
+  RemoteProbe,
   VaultInfo,
   ViewInfo,
   ViewResult,
@@ -241,6 +243,30 @@ export const cloneVault = (
   gitName: string,
   gitEmail: string,
 ) => invoke<VaultInfo[]>('clone_vault', { name, path, url, gitName, gitEmail });
+
+/** Can we reach this repo, and if not, why not — asked before a clone commits to a folder.
+ *  Never throws: every outcome is a state the form renders, because this runs while the user
+ *  is still typing and an error banner per keystroke would be worse than useless. */
+export const probeRemote = (url: string) =>
+  invoke<RemoteProbe>('probe_remote', { url });
+
+/** Where this machine keeps git credentials, and whether it has one for this URL. */
+export const gitAuth = (url = '') => invoke<GitAuth>('git_auth', { url });
+
+/** Give this machine a credential for a private repo.
+ *
+ *  **Where it lands depends on the platform, and that is deliberate.** With git installed it
+ *  goes to git's own credential helper — the platform keychain — and formicaria stores nothing,
+ *  so the terminal and every other tool get it too. On a phone there is no helper, so the app
+ *  keeps it in its own private storage.
+ *
+ *  The token is write-only from the UI's side: nothing ever reads it back. */
+export const setGitCredential = (url: string, token: string, username = '') =>
+  invoke<GitAuth>('set_git_credential', { url, token, username });
+
+/** Forget the token this device holds. Only meaningful where storage is `app`. */
+export const clearGitCredential = (url = '') =>
+  invoke<GitAuth>('clear_git_credential', { url });
 
 /** Restore a vault from a restic backup and register it — the third way a vault comes into
  *  being, and the one for a machine that is not the machine the vault was on.

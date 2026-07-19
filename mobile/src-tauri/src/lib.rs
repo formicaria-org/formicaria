@@ -97,6 +97,11 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             configure_paths(app.handle());
+            // The git token, if this device has one. **Only ever reached here**: a desktop
+            // delegates to git's credential helper and stores nothing, so this call is the
+            // mobile half of that split (`fm_app::secrets`). Must run before the first sync,
+            // and after `configure_paths` — it reads from the config directory that sets up.
+            fm_app::secrets::install_into_env();
             // Opening the vaults is the one slow thing at startup; do it after the paths are
             // set, and fail loudly rather than starting with a store that is not there.
             let (fm_app, skipped) = App::load().map_err(|e| -> Box<dyn std::error::Error> {
