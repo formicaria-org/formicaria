@@ -85,11 +85,11 @@ impl MultiStore {
 
     /// Notes no vault could read, prefixed with the vault they were in — otherwise
     /// "conflicted.md" names a file the user has three of.
-    pub fn skipped(&self) -> Vec<String> {
-        self.vaults
-            .iter()
-            .flat_map(|v| v.skipped().iter().map(|s| format!("{}: {s}", v.name())))
-            .collect()
+    /// Every vault's unreadable notes, concatenated. No longer prefixes the vault name
+    /// into a string: each child already stamps `vault` onto the entry, which is what
+    /// lets a caller group the list by audience instead of parsing one back out.
+    pub fn skipped(&self) -> Vec<crate::SkippedNote> {
+        self.vaults.iter().flat_map(|v| v.skipped().iter().cloned()).collect()
     }
 
     /// The child a note belongs to. An unnamed vault means "not from a store yet" — a

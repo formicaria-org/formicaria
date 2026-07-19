@@ -72,11 +72,34 @@ pub struct ReindexStats {
     /// re-read on every poll and never succeeds, so counting it as a change would
     /// tell the UI the vault moved on every beat, forever.
     pub removed: usize,
-    /// Notes that could not be read, as `filename: why`. Never an error: a vault
-    /// that refuses to open because one file is malformed is a vault you cannot
-    /// use to fix that file — and once several people share it, a conflicted merge
-    /// makes this the *expected* state, not a rarity. Report and carry on.
-    pub skipped: Vec<String>,
+    /// Notes that could not be read. Never an error: a vault that refuses to open
+    /// because one file is malformed is a vault you cannot use to fix that file —
+    /// and once several people share it, a conflicted merge makes this the
+    /// *expected* state, not a rarity. Report and carry on.
+    pub skipped: Vec<SkippedNote>,
+}
+
+/// One note the indexer could not read, and enough to *act* on it.
+///
+/// This used to be a formatted string (`"vault: file: why"`), which said what was wrong
+/// and then made it impossible to do anything about: the UI could not recover a path from
+/// it, so the only advice it could offer was "go find this file yourself". Carrying the
+/// path is what turns the notification into a place you can fix things from.
+///
+/// The set doubles as an **allowlist**. Handing a path to the OS is a capability, so the
+/// only paths openable this way are ones the indexer itself just reported as broken —
+/// there is no name the caller can supply that widens it, and therefore no traversal.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SkippedNote {
+    /// Which vault it belongs to — the audience, and the reason two vaults may hold
+    /// the same filename without the list being ambiguous.
+    pub vault: String,
+    /// The file's own name, e.g. `01JQ….md`. What a human recognises in a list.
+    pub name: String,
+    /// Where it actually is. The whole point of the struct.
+    pub path: std::path::PathBuf,
+    /// Why it could not be read, in the parser's own words.
+    pub reason: String,
 }
 
 /// The seam. Exactly five methods; nothing filesystem-shaped leaks through — no

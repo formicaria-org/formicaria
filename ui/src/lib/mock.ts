@@ -463,6 +463,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.
       return { changed: false, git: true, skipped: [] } as T;
+    case 'open_skipped':
+      // Nothing here is ever unreadable, so this is only reachable from a hand-crafted
+      // call. Fail the way the real arm does rather than pretending it worked.
+      throw new Error('not a currently-unreadable note');
     case 'commit':
       return false as T;
     case 'backup':

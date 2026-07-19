@@ -587,7 +587,9 @@ staked on a decision nobody has taken yet. Receipts:
   provably cannot reproduce Android's `dragstart` suppression. `adb` is outside pixi and that is
   acceptable — it enters neither the build graph nor the artifact — but say so rather than letting
   it pass as hermetic.
-- **STEP 1 — `merge.rs`, desktop-only, no new deps.** Extract
+- **STEP 1 — `merge.rs`, desktop-only, no new deps. — ◐ HALF SHIPPED 2026-07-19:** the temp-file
+  race below is fixed (names are unique per call now); **`merge_texts` is not extracted yet**,
+  and that extraction is the thing M4 and the whole body-engine question wait on. Extract
   `merge_texts(base, ours, theirs, marker_size)` from the path-shaped wrapper; keep `merge_files`
   as the thin driver-ABI shim (it is git's `%O %A %B` contract). **Fix the PID-only temp naming**
   (`merge.rs:192`): `blob.rs` already uses PID + `AtomicU64`, `merge.rs` uses PID alone and is
@@ -602,10 +604,18 @@ staked on a decision nobody has taken yet. Receipts:
   anything: that proves the harness, not the engine. **Risk 2 (*"wrong markers = silent data
   loss"*) currently has no gate at all**, because its only mitigation was parented to a refuted
   ruling.
-- **STEP 3 — the skipped-note surface (`ui/src/`).** A *place*, not a toast: list notes that
-  failed to parse, with an editor that opens them raw. This is the correct answer to the
-  frontmatter conflict (`decisions.md`), and it is the highest-value visible work available —
-  *"a phase that ships only Rust shipped nothing."*
+- **STEP 3 — the skipped-note surface — ✅ SHIPPED 2026-07-19.** `ui/src/lib/SkippedPanel.svelte`,
+  reached from a persistent toolbar chip (a banner is dismissible; this condition is not
+  transient). `ReindexStats.skipped` became `Vec<SkippedNote>` — `{vault, name, path, reason}` —
+  because the old formatted string said what was wrong and then made it impossible to act:
+  no path could be recovered from it. Two things worth keeping in mind:
+  - **The wire form omits the path.** The panel names the note back to a new `open_skipped`
+    arm, which resolves the path from the indexer's *own current* skipped set. So the set is
+    an **allowlist**, there is no path a caller can supply, and a panel left open across a fix
+    fails closed rather than opening something else. Guard tested in `fm-app/tests/skipped.rs`
+    (traversal, absolute, wrong-vault, already-fixed — none reach the OS).
+  - **Opening in the OS editor is the only action, and that is not an apology.** The note does
+    not parse, so no editor of ours can load it.
 - **STEP 4 — write `clone` in `git.rs`**, on the subprocess backend where it is testable today.
   `ensure_repo` → `set_identity` **before** the first commit, which finally makes the identity
   ruling real rather than theoretical. New `dispatch` arm beside `set_git_remote`, plus a

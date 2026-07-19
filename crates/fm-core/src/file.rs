@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 pub struct FileStore {
     notes: PathBuf,
     db: Connection,
-    skipped: Vec<String>,
+    skipped: Vec<crate::SkippedNote>,
     /// What this vault is called — the audience every note here belongs to. Stamped
     /// onto each object on the way out, because `Object.vault` is derived from
     /// location and never read from a file.
@@ -137,7 +137,7 @@ impl FileStore {
     /// everything else, which is the whole point — but the caller **must** say so,
     /// because a note that silently vanished from every view is a worse failure than
     /// the startup crash this replaced. Loud is recoverable; silent is not.
-    pub fn skipped(&self) -> &[String] {
+    pub fn skipped(&self) -> &[crate::SkippedNote] {
         &self.skipped
     }
 
@@ -395,7 +395,10 @@ impl Store for FileStore {
 
         let mut scanned = 0usize;
         let mut updated = 0usize;
-        let mut skipped = Vec::new();
+        let mut skipped: Vec<crate::SkippedNote> = Vec::new();
+        // Cloned once rather than read per push: the loop below also takes `&mut self`
+        // (`forget_path`), so holding a borrow of `self.name` across it would not compile.
+        let vault_name = self.name.clone();
         // A set, not a `Vec`. The deletion sweep below asks "is this indexed path still on
         // disk?" once per indexed note, so a linear membership test made the poll O(n²) —
         // ~10⁸ string comparisons per beat on a 10k-note vault, to discover that
@@ -423,7 +426,12 @@ impl Store for FileStore {
             let content = match fs::read_to_string(&path) {
                 Ok(c) => c,
                 Err(e) => {
-                    skipped.push(format!("{}: {e}", name()));
+                    skipped.push(crate::SkippedNote {
+                        vault: vault_name.clone(),
+                        name: name(),
+                        path: path.clone(),
+                        reason: e.to_string(),
+                    });
                     continue;
                 }
             };
@@ -445,13 +453,20 @@ impl Store for FileStore {
                     // recoverable" is the discipline the unreadable-note skip already sets.
                     if let Some(other) = self.path_of(obj.id)? {
                         if other != key && Path::new(&other).exists() {
-                            skipped.push(format!(
-                                "{}: duplicate id {} — already held by {}. Give one of them a \
-                                 fresh id; until then only the first is indexed.",
-                                name(),
-                                obj.id,
-                                Path::new(&other).file_name().unwrap_or_default().to_string_lossy()
-                            ));
+                            skipped.push(crate::SkippedNote {
+                                vault: vault_name.clone(),
+                                name: name(),
+                                path: path.clone(),
+                                reason: format!(
+                                    "duplicate id {} — already held by {}. Give one of them a \
+                                     fresh id; until then only the first is indexed.",
+                                    obj.id,
+                                    Path::new(&other)
+                                        .file_name()
+                                        .unwrap_or_default()
+                                        .to_string_lossy()
+                                ),
+                            });
                             continue;
                         }
                     }
@@ -468,7 +483,12 @@ impl Store for FileStore {
                     // markers in it): drop the stale row rather than keep serving a
                     // version of the note that is no longer on disk.
                     self.forget_path(&key)?;
-                    skipped.push(format!("{}: {e}", name()));
+                    skipped.push(crate::SkippedNote {
+                        vault: vault_name.clone(),
+                        name: name(),
+                        path: path.clone(),
+                        reason: e.to_string(),
+                    });
                 }
             }
         }

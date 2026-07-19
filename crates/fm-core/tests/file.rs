@@ -138,7 +138,7 @@ fn a_conflicted_note_is_skipped_and_named_rather_than_fatal() {
     assert_eq!(stats.updated, 1, "only the readable one indexed");
     assert_eq!(stats.skipped.len(), 1, "the conflict was skipped, not fatal");
     assert!(
-        stats.skipped[0].contains("conflicted.md"),
+        stats.skipped[0].name == "conflicted.md",
         "and named, so the user can be told which file to fix: {:?}",
         stats.skipped,
     );
@@ -346,7 +346,7 @@ fn a_duplicated_id_settles_instead_of_flapping() {
     // Whichever file lost, it is *named* rather than silently dropped.
     assert_eq!(store.skipped().len(), 1, "the loser is reported: {:?}", store.skipped());
     assert!(
-        store.skipped()[0].contains("duplicate id"),
+        store.skipped()[0].reason.contains("duplicate id"),
         "and says what is wrong: {:?}",
         store.skipped()
     );
@@ -444,7 +444,7 @@ fn a_note_that_breaks_mid_session_shows_up_in_skipped() {
 
     assert_eq!(store.skipped().len(), 1, "named after the poll, not only at open");
     assert!(
-        store.skipped()[0].contains("01JQ0000000000000000000000.md"),
+        store.skipped()[0].name == "01JQ0000000000000000000000.md",
         "and says which file: {:?}",
         store.skipped()
     );

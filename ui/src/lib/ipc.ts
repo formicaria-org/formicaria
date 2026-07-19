@@ -177,7 +177,18 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
  *  machine has git at all — **not a dependency, a capability**: the notebook works without
  *  it, only history does not. */
 export const ping = () =>
-  invoke<{ changed: boolean; git: boolean; skipped: string[] }>('ping');
+  invoke<{ changed: boolean; git: boolean; skipped: SkippedNote[] }>('ping');
+
+/** A note the vault could not read, and enough to show it in a list. No path: the backend
+ *  resolves that from the same set, so the only files openable this way are ones it just
+ *  reported as broken. */
+export type SkippedNote = { vault: string; name: string; reason: string };
+
+/** Hand an unreadable note to the OS editor — the one action available for a conflicted
+ *  merge, since by definition no editor of ours can parse it. Fails closed if the note has
+ *  since been fixed, which is what makes a stale panel harmless. */
+export const openSkipped = (vault: string, name: string) =>
+  invoke<void>('open_skipped', { vault, name });
 
 /** The audiences that exist. `[]` is the first-run signal — the one answer that means
  *  "nothing else in this app can work yet". */

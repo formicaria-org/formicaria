@@ -122,7 +122,13 @@ impl App {
             &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
         )
         .map_err(|e| format!("open vaults: {e}"))?;
-        let skipped = store.skipped();
+        // Flattened to strings here on purpose: this is the startup log line, which wants
+        // one readable sentence per note. The structured form is what rides the heartbeat.
+        let skipped = store
+            .skipped()
+            .iter()
+            .map(|s| format!("{}: {}: {}", s.vault, s.name, s.reason))
+            .collect();
         Ok((Self::new(store, vaults, config, config_writable), skipped))
     }
 
@@ -339,8 +345,36 @@ pub fn dispatch(
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
                 // this pass happened to re-read.
-                skipped: g.store.skipped(),
+                skipped: g.store.skipped().iter().map(SkippedOut::from).collect(),
             })
+        }
+        // Hand an unreadable note to whatever the platform thinks owns `.md`. This is the
+        // one thing you can actually *do* about a conflicted merge from inside the app:
+        // the note does not parse, so no editor of ours can open it.
+        //
+        // The vault+name pair is looked up in the *current* skipped set, and the path comes
+        // from there — never from the caller. So the only files this can open are ones the
+        // indexer just reported as broken, and a stale name from a panel left open since
+        // before the fix fails closed rather than opening something else.
+        "open_skipped" => {
+            // Resolve, then drop the guard: handing a path to the OS can block on anything.
+            let (vault, name) = (s("vault"), s("name"));
+            let path = {
+                let g = lock()?;
+                g.store
+                    .skipped()
+                    .iter()
+                    .find(|sk| sk.vault == vault && sk.name == name)
+                    .map(|sk| sk.path.clone())
+                    .ok_or_else(|| {
+                        format!(
+                            "not a currently-unreadable note: {vault}/{name} — it may have \
+                             been fixed already"
+                        )
+                    })?
+            };
+            host.open_external(&path)?;
+            nothing()
         }
         // The audiences that exist. `[]` is **the first-run signal** — the one command
         // that is meaningful with no vaults, and the reason it isn't folded into
@@ -557,7 +591,27 @@ struct Ping {
     /// Rides the heartbeat rather than being its own command because it must stay current —
     /// a conflicted note appears mid-session, when a pull lands, not at startup. Almost
     /// always empty, so it costs a `[]` per beat.
-    skipped: Vec<String>,
+    skipped: Vec<SkippedOut>,
+}
+
+/// One unreadable note, as the UI sees it.
+///
+/// **Deliberately without the path.** The panel does not need it — it names the note back
+/// to `open_skipped`, which resolves the path itself — and a filesystem path is not
+/// something to hand a browser for free. Keeping the resolution server-side is also what
+/// makes the skipped set an allowlist rather than an argument: there is no path a caller
+/// can name, so there is no traversal to guard against.
+#[derive(serde::Serialize)]
+struct SkippedOut {
+    vault: String,
+    name: String,
+    reason: String,
+}
+
+impl From<&fm_core::SkippedNote> for SkippedOut {
+    fn from(s: &fm_core::SkippedNote) -> Self {
+        Self { vault: s.vault.clone(), name: s.name.clone(), reason: s.reason.clone() }
+    }
 }
 
 /// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have

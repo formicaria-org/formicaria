@@ -250,6 +250,11 @@
   let paletteOpen = $state(false);
   let backupOpen = $state(false);
   let newVaultOpen = $state(false);
+  // Kept as state rather than read off the last ping, because the panel has to survive
+  // the beat that follows opening it — and because a note staying broken must not make
+  // the list flicker.
+  let skippedOpen = $state(false);
+  let skippedNotes = $state<import('./lib/ipc').SkippedNote[]>([]);
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
 
   // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
@@ -475,14 +480,18 @@
       // conflict that persists must not become a notification every fifteen seconds, and a
       // *new* one must not be swallowed because an older one is already showing.
       if (r) {
-        const key = r.skipped.join('\u0000');
+        skippedNotes = r.skipped;
+        const key = r.skipped.map((s) => `${s.vault}/${s.name}`).join(String.fromCharCode(0));
         if (key !== lastSkipped) {
           lastSkipped = key;
           if (r.skipped.length) {
+            // Names the count and points at the place, rather than pasting every
+            // filename and its parser error into a banner that scrolls away. The
+            // list -- and the one action available on it -- live in the panel.
             report(
               `${r.skipped.length} note(s) could not be read and are missing from every ` +
-                `view — usually a conflicted merge. Open them in an editor and resolve the ` +
-                `markers: ${r.skipped.join('; ')}`,
+                `view — usually a conflicted merge. Open "Unreadable notes" to see ` +
+                `which ones, and to fix them.`,
             );
           }
         }
@@ -795,6 +804,18 @@
       </button>
     {/if}
 
+    {#if skippedNotes.length}
+      <!-- Notes that are on disk but absent from every view because they do not parse.
+           A chip rather than only a banner: the banner is dismissible and this condition
+           is not transient — it persists until a human resolves the file. -->
+      <button
+        class="tb-chip moved"
+        onclick={() => (skippedOpen = true)}
+        title="Notes that could not be read — usually a conflicted merge">
+        {skippedNotes.length} unreadable
+      </button>
+    {/if}
+
     <button class="icon-btn" onclick={() => (paletteOpen = true)} aria-label="command palette" title="Command palette (Ctrl+K)">
       <Icon name="command" />
     </button>
@@ -859,6 +880,12 @@
   {#if paletteOpen}
     {#await import('./lib/CommandPalette.svelte') then { default: CommandPalette }}
       <CommandPalette {commands} onclose={() => (paletteOpen = false)} />
+    {/await}
+  {/if}
+
+  {#if skippedOpen}
+    {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
+      <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
     {/await}
   {/if}
 
