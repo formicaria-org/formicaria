@@ -221,9 +221,28 @@ pub fn commit_all(
 /// [`crate::merge::merge_texts`] directly.
 pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
     crate::git::check_clone_dest(url, dest)?;
-    Repository::clone(url.trim(), dest).map_err(map)?;
+    // **`Repository::clone` cannot be used here.** It builds its own default fetch options with
+    // no callbacks, so a private remote fails with libgit2's "remote authentication required but
+    // no callback set" — which reads like a missing token even when one is configured. Every
+    // other network call in this module attached credentials; clone was the one that did not,
+    // and a `file://` differential test cannot catch it because a local path never authenticates.
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.fetch_options(fetch_options());
+    builder.clone(url.trim(), dest).map_err(map)?;
     ensure_repo(dest)?;
     Ok(())
+}
+
+/// Fetch options carrying this machine's credentials — **the only way any code here should
+/// build them.**
+///
+/// Exists so the callback cannot be left off by accident: `clone` shipped without one and every
+/// other operation had it, which is exactly the shape a per-call-site decision produces. Anything
+/// that fetches goes through this.
+fn fetch_options<'a>() -> git2::FetchOptions<'a> {
+    let mut fo = git2::FetchOptions::new();
+    fo.remote_callbacks(credentials());
+    fo
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -507,8 +526,8 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     let repo = Repository::open(vault).map_err(map)?;
     {
         let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
-        let mut opts = git2::FetchOptions::new();
-        opts.remote_callbacks(credentials());
+        // Through the shared builder, so this cannot drift from the others.
+        let mut opts = fetch_options();
         // Empty refspec list = the remote's configured default, same as `git fetch origin`.
         rem.fetch(&[] as &[&str], Some(&mut opts), None).map_err(map)?;
     }
