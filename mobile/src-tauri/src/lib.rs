@@ -63,6 +63,24 @@ fn blob_response(
         return not_found();
     };
     let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+
+    // **The preflight, which is not optional here.** On Android the page is served from
+    // `http://tauri.localhost` and this handler answers on `http://fmblob.localhost` — a
+    // *different origin*. A POST carrying an image sets `Content-Type: image/jpeg`, which is not
+    // one of the three CORS-safelisted types, so the browser sends an `OPTIONS` first and will
+    // not send the real request until something answers it. Nothing did, which surfaces in the
+    // page as a bare `TypeError: Failed to fetch` with no status to explain it.
+    if method.eq_ignore_ascii_case("OPTIONS") {
+        return tauri::http::Response::builder()
+            .status(StatusCode::NO_CONTENT)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            .header("Access-Control-Allow-Headers", "*")
+            .header("Access-Control-Max-Age", "86400")
+            .body(Vec::new())
+            .unwrap_or_else(|_| not_found());
+    }
+
     let Some(state) = app.try_state::<Arc<App>>() else { return not_found() };
 
     // **Ingest rides the same scheme, in the other direction.** Tauri's raw IPC body does not

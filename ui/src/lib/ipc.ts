@@ -200,8 +200,15 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
   // with the File as the body, exactly as the browser path below does.
   if (isTauri) {
     const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
-    const res = await fetch(`${assetBase()}ingest?${q}`, { method: 'POST', body: file });
-    if (!res.ok) throw new Error((await res.text()) || res.statusText);
+    const url = `${assetBase()}ingest?${q}`;
+    // The URL is named in the failure. A cross-origin fetch that never leaves the page throws a
+    // bare `TypeError: Failed to fetch` with no status and no address, which says nothing about
+    // *where* it tried to go — and on a phone the address is derived, not written, so it is
+    // exactly the thing worth knowing.
+    const res = await fetch(url, { method: 'POST', body: file }).catch((e) => {
+      throw new Error(`could not reach ${url}: ${e instanceof Error ? e.message : String(e)}`);
+    });
+    if (!res.ok) throw new Error((await res.text()) || `${res.status} from ${url}`);
     return res.json();
   }
   if (import.meta.env.PROD) {
