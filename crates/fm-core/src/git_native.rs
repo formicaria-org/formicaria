@@ -290,8 +290,20 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
                 }
             }
         }
-        // No token: fall back to whatever the URL itself carries (a `file://` remote, or a
-        // credential already baked into the URL). Anything else is an honest failure.
+        // **Say what is actually wrong.** `Cred::default()` was the fallback here, and it is a
+        // NTLM/Negotiate credential — useless to a forge wanting HTTP basic auth. libgit2 then
+        // reports "remote authentication required but no callback set", which points at missing
+        // plumbing when the real answer is "nobody gave me a token". Measured: the callback runs,
+        // is handed `USER_PASS_PLAINTEXT`, returns a default credential, and produces that
+        // message anyway — an hour of debugging the wrong layer.
+        //
+        // `Cred::default()` is still right where the transport genuinely wants it, so it is kept
+        // for everything that is not a username/password ask.
+        if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+            return Err(git2::Error::from_str(
+                "this remote needs an access token, and none is configured on this device",
+            ));
+        }
         git2::Cred::default()
     });
     cb

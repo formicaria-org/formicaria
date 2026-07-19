@@ -443,3 +443,48 @@ fn adding_certificates_from_memory_initialises_libgit2_first() {
         .expect("certificates from memory must load");
     assert!(added > 0, "at least one certificate reached libgit2's store");
 }
+
+/// **The credentials callback must be attached to clone**, which is the one network call that
+/// shipped without it.
+///
+/// `Repository::clone` builds its own default fetch options carrying no callbacks, so a private
+/// remote fails with libgit2's "remote authentication required but no callback set" — a message
+/// that reads like a missing token even when one is configured. The `file://` clone test above
+/// cannot catch this, because a local path never authenticates.
+///
+/// This asks a real private URL **without** a token. The point is not that it succeeds — it must
+/// not — but *which* failure comes back: an authentication refusal means the callback ran and had
+/// nothing to offer, whereas "no callback set" means the plumbing is missing again.
+#[cfg(feature = "native-git")]
+#[test]
+fn clone_offers_credentials_rather_than_failing_for_want_of_a_callback() {
+    // No token, deliberately: this asserts the shape of the refusal, not access.
+    std::env::remove_var("FM_GIT_TOKEN");
+    // Bound to a local: `tempdir().unwrap().path()` drops the TempDir at the end of the
+    // statement and deletes the directory, so the clone would start with no parent.
+    let parent = tempdir().unwrap();
+    let dest = parent.path().join("clone-attempt");
+
+    let Err(e) = git_native::clone("https://github.com/singhbal-baljinder/personal-notes.git", &dest)
+    else {
+        panic!("a private repo must not clone without credentials");
+    };
+    let msg = format!("{e}").to_lowercase();
+
+    // Offline is not a failure of this test — it is a failure to run it.
+    if msg.contains("resolve") || msg.contains("could not connect") || msg.contains("timed out") {
+        eprintln!("skipping: no network ({msg})");
+        return;
+    }
+    assert!(
+        !msg.contains("no callback set"),
+        "clone must attach the credentials callback; got: {msg}"
+    );
+    // The callback ran and had nothing to offer, and says so in those terms. libgit2's own
+    // wording for this case is "no callback set", which is what the assertion above rejects:
+    // it describes missing plumbing and sends you to debug the wrong layer entirely.
+    assert!(
+        msg.contains("needs an access token"),
+        "expected the honest 'no token configured' message, got: {msg}"
+    );
+}
