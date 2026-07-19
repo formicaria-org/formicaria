@@ -134,3 +134,46 @@ transient. **A transport that moves the directory whole inverts that** — those
 atomic completeness — and `vault.json` has no field recording which kind a vault is. The same
 warning would mean "still in flight" for one population and "permanently lost" for the other.
 Decide that when the second bulk transport lands, not after.
+
+
+## Addendum — the seam that was missing, found by the owner asking a simple question
+
+*"So I can get my vault from git on my phone?"* — no, and the phone said so: **"git not
+installed"**.
+
+`git_native` was written, held byte-identical to `git` by two differential suites, and **called
+by nothing outside those tests**. All thirteen `git::` call sites in the app layer named the
+subprocess backend directly, so on Android `available()` shelled out to a binary that does not
+exist, answered false, and the UI correctly hid every history feature. A fully working libgit2
+was sitting inside the APK, unreachable.
+
+This is the trap `overview.md` already records about `boardOrder.ts` — *a unit test cannot catch
+a caller that stops calling*. Here no caller ever started. **A differential test proves two
+implementations agree; it cannot prove either one is wired to anything.**
+
+**`fm_core::vcs` is the seam.** A real `git` binary wins; libgit2 is the fallback. Chosen at
+*runtime*, not by `#[cfg]`, for two reasons: the desktop must not change behaviour because a
+feature flag got switched on, and the `.md` merge driver only exists for real git — where a
+binary exists we want the backend that uses it, because that is also the one a collaborator's
+terminal `git pull` will use.
+
+Three functions had to be ported to reach parity:
+
+- **`push_squashed`** — the owner chose full parity over "pull only". It rewrites local history
+  on the bet that a push lands, so it carries every guard its twin has: never squash the first
+  push, stop at the newest hand-written commit, refuse unless the remote's tip is an ancestor of
+  ours, roll back if the push fails. **The post-push verification stops being belt-and-braces
+  here.** `git.rs` says that check exists "for the client that replaces it" — this is that
+  client. Push is spoken by libgit2, so "success" is our own error mapping's opinion, and a
+  false success costs history already collapsed on its strength.
+- **`remote_moved`** — `connect` + `list`, the `ls-remote` question, no objects downloaded.
+- **`activity`** — ignores `since` and returns a *superset*, stated rather than hidden. Git's
+  `--since` takes a human string only its approxidate parser understands; since each note keeps
+  only its newest touch, walking further back can only fill in notes the desktop left blank.
+
+**Evidence it is genuinely wired:** the APK went from 19 MB to 26 MB. libgit2 and OpenSSL were
+already linked but dead, so the linker could strip most of them; they are reachable now.
+
+Two differential tests pin the squash — both backends collapse the same window to one commit,
+and both stop at a hand-written commit rather than eating it — with real `git` reading the far
+side of a bare `file://` remote in each case.

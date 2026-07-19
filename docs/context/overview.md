@@ -4,7 +4,10 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-19 — a vault can now be **acquired from elsewhere**, not only created
+_Last verified: 2026-07-19 — **`fm_core::vcs` is now the only way the app reaches git**: the
+libgit2 backend existed, was differentially tested, and was called by nothing, so a phone
+reported "git not installed" while carrying a working copy of it. A vault can also now be
+**acquired from elsewhere**, not only created
 locally: `clone_vault` (git, with history) and `restore_vault` (restic, notes + media, no
 history), both through the one shared `acquire::naturalise` step that strips per-machine state.
 The same pass fixed a live silent-data-loss path — a stale absolute `merge.fm.driver` made git
