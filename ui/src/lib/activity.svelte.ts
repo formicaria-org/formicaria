@@ -32,6 +32,29 @@ export function activityEvents(): EditEvent[] {
 }
 
 /** Distinct contributors seen in the current activity, sorted — the contributor filter chips. */
+/** The sentinel `ensure_repo` writes when nobody has said who they are. `git::identity` already
+ *  reports it as *absent* rather than as a person — this list has to agree, or a solo vault
+ *  grows a phantom collaborator called "formicaria". */
+const PLACEHOLDER_EMAIL = 'formicaria@localhost';
+
+/** The people who have touched these notes.
+ *
+ *  **Deduplicated by email, not by name.** One person is one contributor even when their commits
+ *  carry different name spellings — a vault signed `singhbal-baljinder` on one machine and
+ *  `Baljinder Singh` on another is still one human, and listing both invites the reasonable
+ *  conclusion that someone else is in there. The email is the stable half of a git identity; the
+ *  name is what gets shown, taking the most recent spelling.
+ *
+ *  The placeholder is excluded outright: commits made before an identity was set are
+ *  unattributed, which is a different thing from being by someone called "formicaria". */
 export function contributors(): string[] {
-  return [...new Set(state.events.map((e) => e.author))].sort((a, b) => a.localeCompare(b));
+  const byEmail = new Map<string, string>();
+  for (const e of state.events) {
+    const email = e.email?.trim().toLowerCase() ?? '';
+    if (email === PLACEHOLDER_EMAIL) continue;
+    const key = email || e.author;
+    // Events arrive newest-first, so the first spelling seen is the most recent one.
+    if (!byEmail.has(key)) byEmail.set(key, e.author);
+  }
+  return [...byEmail.values()].sort((a, b) => a.localeCompare(b));
 }

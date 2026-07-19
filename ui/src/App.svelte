@@ -823,7 +823,7 @@
       onclick={() => openSettings('commands')}
       title="Create — note, board, vault (Ctrl+K)"
       aria-label="create">
-      <Icon name="plus" size={15} /> New
+      <Icon name="plus" size={16} /><span class="btn-label">New</span>
     </button>
     <button
       type="button"
@@ -831,7 +831,7 @@
       onclick={() => openSettings('commands')}
       title="Open a view in a new pane"
       aria-label="open a view">
-      <Icon name="plus" size={15} /> View
+      <Icon name="plus" size={16} /><span class="btn-label">View</span>
     </button>
 
     {#if allVaults.length > 1}
@@ -1140,6 +1140,12 @@
   [data-layout='single'] .topbar .icon-btn {
     display: none;
   }
+  /* **Icon-only where width is scarce.** "＋ New" and "＋ View" spelled out cost more of a phone's
+     top bar than they earn — the plus already says "make one", and both are one tap from the
+     action list besides. The words come back as soon as there is room. */
+  [data-layout='single'] .topbar :global(.btn-label) {
+    display: none;
+  }
   /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
      relative to, and no ambiguity about which pane a close button means — so the container
      chrome goes and the content gets the room. Closing moved to the view bar. The pane's own
@@ -1292,6 +1298,9 @@
   }
   /* The create destination reads at a glance: a touch larger, full-contrast text, and an
      accent-tinted box so it stands out as *where new things land* rather than a quiet setting. */
+  .btn-label {
+    margin-left: 4px;
+  }
   .tb-create {
     font-size: var(--text-sm);
     color: var(--text);
