@@ -686,7 +686,22 @@ staked on a decision nobody has taken yet. Receipts:
   "clone a vault" affordance in the desktop vault picker — so the step ships visible UI, not only
   Rust. Test: offline clone of a `file://` remote, asserting the first commit's author is **not**
   `PLACEHOLDER_EMAIL`. **Prerequisite on every backend.**
-- **STEP 5 — harden `push_squashed`'s rollback.** It currently fires only on
+- **STEP 5 — ✅ SHIPPED 2026-07-19.** After a squashing push reports success, `push_squashed`
+  now asks the **remote** — `ls-remote` against the branch it just pushed — instead of trusting
+  the pusher's exit code. Three judgements inside it:
+  - **Only when something was squashed.** With `squashed == 0` nothing was collapsed, so a
+    false success costs an unpushed vault (which `backup_status` already surfaces) rather than
+    lost history — not worth a round trip on the common path.
+  - **A definite mismatch, and nothing else, rolls back.** If the remote cannot be asked, the
+    answer is *unknown*, and unknown must not roll back: undoing a push that actually landed
+    leaves local behind a remote that already has the work, and every later push is then
+    rejected as divergent. **Failing to verify is not the same as failing to push** — that
+    distinction is the whole safety of this check.
+  - **It never fires today, on purpose.** Subprocess git's exit code is trustworthy. This is
+    insurance for whatever replaces it, where "success" becomes our own parser's opinion and a
+    false success would charge the user their granular undo for a backup that never happened.
+  As planned:
+- **STEP 5 (as planned) — harden `push_squashed`'s rollback.** It currently fires only on
   `!out.status.success()`. Make it independent of the client's own verdict — confirm the remote
   ref actually moved via a separate `ls-remote` — because with any in-process client "success"
   becomes our own parser's opinion, and a false success destroys granular history for a backup

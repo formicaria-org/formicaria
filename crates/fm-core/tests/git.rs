@@ -785,3 +785,58 @@ fn cloning_into_a_non_empty_directory_is_refused_and_writes_nothing() {
     assert!(!occupied.path().join(".git").exists(), "and wrote nothing");
     assert_eq!(fs::read_to_string(occupied.path().join("mine.md")).unwrap(), "do not touch\n");
 }
+
+/// **Step 5: the push is verified against the remote, not against the pusher.**
+///
+/// A squashing push collapses the user's granular history on the bet that the push lands.
+/// With subprocess git the exit code is trustworthy and this never fires — it is here for
+/// whatever replaces it, where "success" becomes our own parser's opinion and a false
+/// success would charge the user their undo for a backup that never happened.
+///
+/// What is asserted is the invariant itself: after a squashing push returns Ok, the remote
+/// really does point at what we have locally.
+#[test]
+fn a_squashing_push_leaves_the_remote_holding_exactly_our_head() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let bare = tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+
+    let vault = tempdir().unwrap();
+    write_and_commit(vault.path(), "01.md", "one\n");
+    identify(vault.path());
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    // Several auto-commits, so the next push has something to collapse — the case where a
+    // false success would actually cost history.
+    write_and_commit(vault.path(), "02.md", "two\n");
+    write_and_commit(vault.path(), "03.md", "three\n");
+    let squashed = git::push_squashed(vault.path(), "backup: second").unwrap();
+    assert_eq!(squashed, 2, "both auto commits collapsed");
+
+    let local = Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap();
+    let local = String::from_utf8_lossy(&local.stdout).trim().to_string();
+
+    // Ask the remote directly, the same way the guard does.
+    let remote = Command::new("git")
+        .arg("-C")
+        .arg(vault.path())
+        .args(["ls-remote", "origin", "refs/heads/main", "refs/heads/master"])
+        .output()
+        .unwrap();
+    let remote = String::from_utf8_lossy(&remote.stdout);
+    let remote_sha = remote.split_whitespace().next().unwrap_or_default();
+
+    assert_eq!(remote_sha, local, "the remote holds exactly what we pushed\n{remote}");
+
+    // And the squash really did happen — the guard must not have quietly rolled it back.
+    assert_eq!(log_count(vault.path()), 2, "first push, then one squashed commit");
+}

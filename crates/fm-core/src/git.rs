@@ -726,7 +726,71 @@ pub fn push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError> {
         }
         return Err(failed("git push", &out));
     }
+
+    // The push says it worked. **Ask the remote, not the pusher.**
+    //
+    // With subprocess git this is belt and braces: git's exit code is trustworthy, so this
+    // never fires. It is here for the client that replaces it. The moment push is spoken by
+    // our own code — a hand-written `send-pack`, or a library whose error mapping we own —
+    // "success" becomes our own parser's opinion, and a *false* success is the one failure
+    // this function cannot survive: the squash already collapsed the user's granular history
+    // on the strength of it, so they pay their undo for a backup that never happened. Every
+    // other check here (ancestry, net-zero window) is about not destroying someone else's
+    // work; this one is about not destroying our own on a lie.
+    //
+    // Only when something was squashed. With `squashed == 0` nothing was collapsed, so a
+    // false success costs an unpushed vault — which `backup_status` already surfaces — rather
+    // than lost history, and it is not worth a round trip on the common path.
+    if squashed > 0 {
+        if let (Some(head), Some(branch)) = (rev_parse(vault, "HEAD").ok(), current_branch(vault)) {
+            // A *definite* mismatch, and nothing else. If the remote cannot be asked — it went
+            // away between the push and now, or does not publish this branch — the answer is
+            // unknown, and unknown must not roll back: undoing a push that actually landed
+            // leaves local behind a remote that already has the work, so every later push is
+            // rejected as divergent. Failing to verify is not the same as failing to push.
+            if let Ok(Some(there)) = remote_head(vault, &branch) {
+                if there != head {
+                    if let Some(h) = &head_before {
+                        let _ = git(vault).args(["reset", "--soft", h]).output();
+                    }
+                    return Err(StoreError::Io(format!(
+                        "the push reported success but {REMOTE} still points at {} — your \
+                         history has been put back the way it was, and nothing was backed up",
+                        &there[..there.len().min(8)]
+                    )));
+                }
+            }
+        }
+    }
     Ok(squashed)
+}
+
+/// The branch we are on, or `None` when there isn't one to name (a detached HEAD, which
+/// `push -u … HEAD` would refuse anyway). Used to ask the remote about the right ref.
+fn current_branch(vault: &Path) -> Option<String> {
+    let out = git(vault).args(["rev-parse", "--abbrev-ref", "HEAD"]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!name.is_empty() && name != "HEAD").then_some(name)
+}
+
+/// What the remote says its branch points at, straight from the wire — `None` when it does
+/// not have that branch at all, which is an honest "cannot tell", not a mismatch.
+fn remote_head(vault: &Path, branch: &str) -> Result<Option<String>, StoreError> {
+    let out = git(vault)
+        .args(["ls-remote", REMOTE, &format!("refs/heads/{branch}")])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git ls-remote", &out));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .next()
+        .filter(|s| !s.is_empty())
+        .map(str::to_string))
 }
 
 /// What a [`pull`] did. Every arm is a thing the user needs told differently, which is
