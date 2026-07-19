@@ -128,20 +128,24 @@ fn install_inner(dirs: &[&Path], out: &Path) -> Result<usize, String> {
     // contract `configure_paths` relies on.
     unsafe { std::env::set_var("SSL_CERT_FILE", out) };
 
-    // Then the explicit option, which routes to `SSL_CTX_load_verify_locations` and does not
-    // depend on having run before OpenSSL read its default verify paths. **Non-fatal**: if
-    // libgit2 refuses it, the environment variable above may still carry the day, and
-    // discarding a good bundle over it would be strictly worse.
-    // **Refusal here is expected, not a failure.** libgit2 creates its OpenSSL context lazily,
-    // on first stream use, so at startup there is usually no context to load into and this
-    // returns an error. That is precisely why the environment variable above is set first and
-    // why it is the mechanism actually relied on: OpenSSL reads `SSL_CERT_FILE` when libgit2
-    // eventually calls `SSL_CTX_set_default_verify_paths`, which happens after this point.
+    // **This result is the whole diagnostic, and discarding it was the mistake that hid the
+    // bug.** It had been `let _ =` on the theory that a refusal here was expected and harmless,
+    // because libgit2 creates its OpenSSL context lazily. It does not: `libgit2-sys` never
+    // defines `GIT_OPENSSL_DYNAMIC`, so `openssl_init()` runs eagerly inside
+    // `git_libgit2_init()` and the context always exists by now.
     //
-    // Reporting it as an error read as "TLS is broken" when the trust store was in fact ready —
-    // alarming, and wrong in the direction that wastes someone's evening.
-    let _ = fm_core::vcs::set_cert_file(out);
-    Ok(n)
+    // So this call genuinely reports whether the bundle loaded, and it is the *only* thing that
+    // does. The `SSL_CERT_FILE` route is read once during that eager init, and
+    // `X509_STORE_set_default_paths` calls `ERR_clear_error()` and returns success even when it
+    // loads nothing — a failure there is invisible by construction.
+    //
+    // A refusal therefore means the process has **no trusted roots at all**, and every HTTPS
+    // remote will fail with "the SSL certificate is invalid" — an error naming the server
+    // rather than the cause.
+    match fm_core::vcs::set_cert_file(out) {
+        Ok(()) => Ok(n),
+        Err(e) => Err(format!("{n} certs built, but libgit2 rejected them: {e}")),
+    }
 }
 
 /// Write the bundle, and touch no global state.
