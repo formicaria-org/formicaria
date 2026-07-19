@@ -15,6 +15,7 @@ import type {
   ViewResult,
 } from './types';
 import * as mock from './mock';
+import { blobBase } from './blobBase';
 
 // Two backends, one contract:
 //   • Production browser (served by `fm-serve`) → the Rust commands over HTTP
@@ -150,36 +151,20 @@ export async function alive(): Promise<void> {
 // A URL a media element can point at directly, so the browser fetches only the
 // bytes it needs. `<video>` seeking becomes a `Range` request instead of a
 // whole-file download, and nothing has to be revoked afterwards.
-/** The origin the shell's `fmblob` handler answers on, with a trailing slash.
- *
- *  Derived from `convertFileSrc` rather than written out, because a custom scheme is not the
- *  same string on every platform: Android's WebView cannot intercept one at all, so wry rewrites
- *  `fmblob://…` to `http://fmblob.localhost/…` (its `custom_protocol_workaround`). Asking Tauri
- *  to map a known path and then trimming it back is how this stays correct on a platform whose
- *  rewriting rules are not ours. */
+
+/** The derivation above, wired to whatever Tauri put on `window`. */
 function assetBase(): string {
   const internals = (window as unknown as {
-    __TAURI_INTERNALS__?: { convertFileSrc(path: string, protocol: string): string };
+    __TAURI_INTERNALS__?: { convertFileSrc?: (path: string, protocol: string) => string };
   }).__TAURI_INTERNALS__;
-  if (!internals) return 'fmblob://localhost/';
-  const probe = internals.convertFileSrc('__base__', 'fmblob');
-  return probe.slice(0, probe.lastIndexOf('__base__'));
+  return blobBase(internals?.convertFileSrc);
 }
 
 export const assetUrl = (reference: string) => {
   if (!isTauri) return `/api/blob/${encodeURIComponent(reference)}`;
-  // **Tauri maps the scheme, not us.** A custom scheme is not the same string on every platform:
-  // Android's WebView cannot intercept one at all, so wry rewrites `fmblob://…` to
-  // `http://fmblob.localhost/…` behind the scenes (its `custom_protocol_workaround`). Writing
-  // the URL by hand here worked on paper and would have addressed a scheme the WebView never
-  // sees. `convertFileSrc` is the function that already knows the right shape per platform.
-  const internals = (window as unknown as {
-    __TAURI_INTERNALS__?: { convertFileSrc(path: string, protocol: string): string };
-  }).__TAURI_INTERNALS__;
-  return internals
-    ? internals.convertFileSrc(reference, 'fmblob')
-    : `fmblob://localhost/${encodeURIComponent(reference)}`;
+  return `${assetBase()}${encodeURIComponent(reference)}`;
 };
+
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) =>

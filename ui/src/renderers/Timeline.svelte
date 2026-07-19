@@ -3,7 +3,7 @@
   import VaultBadge from '../lib/VaultBadge.svelte';
   import EditedBy from '../lib/EditedBy.svelte';
   import { lastEditFor } from '../lib/activity.svelte';
-  import { dayHeading } from '../lib/calendar';
+  import { dayHeading, ymd } from '../lib/calendar';
   import type { ObjectMeta } from '../lib/types';
 
   // A Logseq-style journal: every note under the day it was created, newest day
@@ -20,7 +20,12 @@
   let days = $derived.by(() => {
     const out: { key: string; heading: string; items: ObjectMeta[] }[] = [];
     for (const c of cards) {
-      const key = c.created.slice(0, 10);
+      // **The note's *local* day, not the UTC one.** `created` is an ISO instant, so slicing
+      // its first ten characters gives the day in UTC — while `dayHeading` compares against the
+      // local day. East of Greenwich those disagree from midnight until the offset elapses: at
+      // UTC+8 a note written at 00:30 was filed under "Yesterday" every night until 08:00.
+      // Caught by a test that ran past midnight.
+      const key = ymd(new Date(c.created));
       let bucket = out[out.length - 1];
       if (!bucket || bucket.key !== key) {
         bucket = { key, heading: dayHeading(key), items: [] };

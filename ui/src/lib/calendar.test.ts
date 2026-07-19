@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignLanes, clampRangeToWeek, isoDate, weekOf, type Day } from './calendar';
+import { assignLanes, clampRangeToWeek, dayHeading, isoDate, weekOf, ymd, type Day } from './calendar';
 
 // The week of 2026-07-13 (a Monday) → 13..19 July, Monday-first.
 const week: Day[] = weekOf('2026-07-15');
@@ -80,5 +80,31 @@ describe('assignLanes', () => {
   it('carries the segment payload through', () => {
     const lanes = assignLanes([{ startCol: 0, endCol: 0, id: 'x' }]);
     expect(lanes[0].id).toBe('x');
+  });
+});
+
+// ── A note written just after midnight belongs to today ──
+describe('day grouping across the UTC boundary', () => {
+  /** **The bug, in one assertion.** `created` is an ISO instant, so its first ten characters are
+   *  the day *in UTC*, while `dayHeading` compares against the *local* day. East of Greenwich
+   *  those disagree from midnight until the offset elapses — at UTC+8 a note written at 00:30
+   *  was filed under "Yesterday" every night until 08:00. Found because a test happened to run
+   *  past midnight, not because anyone was looking. */
+  it('files an instant under its local day, not its UTC day', () => {
+    // 00:30 local, whatever this machine's offset is.
+    const justAfterMidnight = new Date();
+    justAfterMidnight.setHours(0, 30, 0, 0);
+
+    // What the timeline now does…
+    const localKey = ymd(justAfterMidnight);
+    // …versus what it used to do: slice the ISO string.
+    const utcKey = justAfterMidnight.toISOString().slice(0, 10);
+
+    expect(dayHeading(localKey)).toBe('Today');
+    // The old key only matched when the machine is at or west of UTC. Asserting the *heading*
+    // rather than the offset keeps this true in every timezone CI might run in.
+    if (utcKey !== localKey) {
+      expect(dayHeading(utcKey)).not.toBe('Today');
+    }
   });
 });
