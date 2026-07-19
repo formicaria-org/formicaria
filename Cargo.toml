@@ -8,6 +8,11 @@
 [workspace]
 resolver = "2"
 members = ["crates/fm-model", "crates/fm-query", "crates/fm-core", "crates/fm-cli", "crates/fm-app", "crates/fm-serve"]
+# The mobile shell is deliberately NOT a member. It pulls Tauri and, through
+# `fm-core/native-git`, libgit2 + OpenSSL — none of which a desktop contributor should have to
+# resolve, and none of which `pixi run ci` should build. It has its own lockfile and is built
+# only by the Android tasks.
+exclude = ["mobile/src-tauri"]
 
 [workspace.package]
 edition = "2021"

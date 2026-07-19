@@ -40,9 +40,18 @@ tesseract = "*"
 # Kept out of the default environment on purpose: a contributor with no interest in Android
 # must not pay for these, and `pixi run ci` must stay green without them.
 [feature.android.dependencies]
+# All four Android ABIs: Tauri's `android init` installs every one, and a missing target
+# fails the whole build rather than just that ABI. arm64 is the phone, x86_64 the emulator;
+# the 32-bit pair is legacy but cheap and keeps `tauri android build` from breaking.
 rust-std-aarch64-linux-android = "*"   # the phone
 rust-std-x86_64-linux-android = "*"    # the emulator
-openjdk = "*"                          # sdkmanager and Gradle need a JVM; conda-forge has it, so it stays pinned
+rust-std-armv7-linux-androideabi = "*"
+rust-std-i686-linux-android = "*"
+# **Pinned to 21, not "*".** conda-forge's default is Java 25, whose class file version (69)
+# Gradle 8.14 refuses outright — the build dies in "semantic analysis" with "Unsupported class
+# file major version 69", which names neither Java nor Gradle. 21 is the current LTS and what
+# the Android Gradle Plugin targets. Bump only with a Gradle that says it supports it.
+openjdk = "21.*"
 
 # Point cargo and the `cc` crate at the NDK, **repo-relative**. Deliberately here rather than
 # in `.cargo/config.toml`: that file cannot express "relative to the project", so it would need
@@ -94,6 +103,13 @@ CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=
 # so it resolves to the android environment on its own: `pixi run android-check`.
 [feature.android.tasks]
 android-check = "sh ci/android-check.sh"
+# Build the APK. `PATH` puts our `rustup` shim first — Tauri shells out to `rustup target add`
+# and this project has no rustup (targets come from conda-forge, pinned in pixi.lock); the shim
+# verifies rather than pretends. `JAVA_HOME` is pinned because conda's default JDK is 25, whose
+# class files Gradle 8.14 refuses with an error naming neither Java nor Gradle.
+android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/.android/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64" }
+# Install the debug APK on whatever single device adb sees, and launch it.
+android-run = { cmd = "$ANDROID_HOME/../platform-tools/adb install -r mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk && $ANDROID_HOME/../platform-tools/adb shell am start -n dev.formicaria.notes/.MainActivity" }
 # Create the emulator once. Its data lives in `.android/avd`, not your home directory, so the
 # whole Android toolchain stays inside the checkout and `rm -rf .android` is a clean slate.
 android-avd = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n formicaria -k 'system-images;android-35;google_apis;x86_64' -d pixel_6 --force" }

@@ -40,3 +40,11 @@ ui/public/fonts/
 # entirely reconstructible from `android/toolchain.lock`, so never committed — the *lock* is
 # what is committed, and it is what makes the unpacked tree reproducible.
 .android/
+
+# The Android shell's generated Gradle project and build output. `tauri android init`
+# regenerates gen/android from tauri.conf.json + the package identifier, and it embeds absolute
+# paths, so committing it would be committing this machine. The hand-written half of the shell
+# (src-tauri/src, Cargo.toml, tauri.conf.json, icons) IS tracked.
+mobile/src-tauri/gen/
+mobile/src-tauri/target/
+mobile/node_modules/

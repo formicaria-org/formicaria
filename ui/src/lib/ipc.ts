@@ -21,7 +21,34 @@ import * as mock from './mock';
 //     backend at all.
 // `import.meta.env.PROD` is true only in the built bundle, so dev and tests hit
 // the mock while the shipped bundle hits real data over HTTP.
+// Is this bundle running inside the Tauri shell rather than a browser? Tauri v2 puts this on
+// `window` before any of our code runs.
+//
+// **The order matters, and it is the trap.** A Tauri build is `import.meta.env.PROD`, so
+// without this branch *first* the app would take the HTTP path and `fetch('/api/…')` against a
+// server that does not exist on the device. Same bundle, three backends, and the most specific
+// one has to win.
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+// Resolved once, lazily: importing `@tauri-apps/api` at module scope would pull it into the
+// web bundle, which never uses it.
+let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+async function nativeInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
+  if (!tauriInvoke) {
+    const core = await import('@tauri-apps/api/core');
+    tauriInvoke = core.invoke;
+  }
+  // One Rust command, `fm`, taking the name and the same JSON body the HTTP path posts —
+  // because the wire contract already is "name plus JSON". The shell forwards it straight to
+  // `fm_app::dispatch`, so there is exactly one command surface, not two.
+  const text = (await tauriInvoke('fm', { cmd, args })) as string;
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
 async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
+  if (isTauri) {
+    return nativeInvoke<T>(cmd, args);
+  }
   if (import.meta.env.PROD) {
     return http<T>(cmd, args);
   }

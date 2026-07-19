@@ -1,0 +1,11 @@
+{
+  "name": "formicaria-mobile",
+  "private": true,
+  "description": "The Android shell. Its own package so the Tauri CLI sits beside src-tauri — the layout Tauri's generated Gradle task assumes when it shells out to run the Rust build.",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

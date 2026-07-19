@@ -1,0 +1,28 @@
+# The Android shell. Thin by construction: it owns the window, the platform seam, and nothing
+# else — every command it answers goes straight to `fm_app::dispatch`, the same door `fm-serve`
+# uses. That is ruling 1 of the mobile design, and the reason a second frontend costs a file
+# rather than a fork.
+#
+# Outside the workspace on purpose (see the root Cargo.toml).
+[package]
+name = "formicaria-mobile"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+
+# `cdylib` is what Android loads; `staticlib` is iOS; `rlib` keeps it usable from a desktop
+# binary for debugging. Tauri's mobile entry point needs the library shape, not a bin.
+[lib]
+name = "formicaria_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"
+# The whole point: one command surface, reused. `native-git` because a phone has no `git`
+# binary to shell out to — verified on a real device.
+fm-app = { path = "../../crates/fm-app" }
+fm-core = { path = "../../crates/fm-core", features = ["native-git"] }
