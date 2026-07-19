@@ -169,15 +169,29 @@
   async function resolveAsset(ref: string): Promise<ResolvedAsset | null> {
     try {
       const status = await assetStatus(ref);
-      if (!status.has_blob) return null;
+      if (!status.has_blob) {
+        // **Say which of the two things went wrong.** A note that renders its filename as text
+        // looks identical whether the bytes are missing from this vault or the URL that would
+        // fetch them is wrong — and those need opposite fixes. The placeholder cannot carry a
+        // sentence, so the reason goes to the console, which is readable on a device.
+        console.warn(
+          `[asset] no blob for ${ref} in vault ${note?.vault ?? '(default)'} — ` +
+            `ingested elsewhere, or not synced here`,
+        );
+        return null;
+      }
       const mime = status.mime ?? '';
       if (streamsBlobs) return { url: assetUrl(ref), mime };
       const buf = await ipcResolveAsset(ref, 'full');
-      if (!buf || buf.byteLength === 0) return null;
+      if (!buf || buf.byteLength === 0) {
+        console.warn(`[asset] blob present for ${ref} but resolved to no bytes`);
+        return null;
+      }
       const url = URL.createObjectURL(new Blob([buf], mime ? { type: mime } : undefined));
       assetUrls.push(url);
       return { url, mime };
-    } catch {
+    } catch (e) {
+      console.warn(`[asset] ${ref} failed: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     }
   }
