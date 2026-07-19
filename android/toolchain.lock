@@ -34,6 +34,9 @@ platform-tools 37.0.0 linux 198ae156ab285fa555987219af237b31102fefe8b9d2bc274708
 # version, and `ci/checks.sh` fails if the two ever disagree.
 android-ndk-r27d 27.3 linux 601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be2829178c8ed15d9 https://dl.google.com/android/repository/android-ndk-r27d-linux.zip
 
-# cmdline-tools (sdkmanager, the emulator, system images) belongs here too, and is deliberately
-# absent until someone has fetched it and computed the checksum — an unverified line is worse
-# than a missing one. It is needed to *run* the app; the NDK above answers whether it *builds*.
+# cmdline-tools: `sdkmanager`, which is how the emulator, system images, build-tools and the
+# platform jars are fetched. Those are NOT pinned here — sdkmanager resolves them against
+# Google's own manifest at run time, which is exactly why the `android-apk` side is declared
+# **non-hermetic** in `docs/context/decisions.md`. This zip is pinned; what it downloads is not.
+# That is an honest boundary, not an oversight: pinning the whole SDK would mean mirroring it.
+cmdline-tools 13114758 linux 7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip

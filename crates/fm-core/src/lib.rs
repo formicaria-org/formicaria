@@ -27,6 +27,9 @@ pub use manifest::Manifest;
 pub use verify::{verify, Report, Severity};
 pub mod backup;
 pub mod git;
+// In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.
+#[cfg(feature = "native-git")]
+pub mod git_native;
 pub mod merge;
 pub mod scene;   // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
 

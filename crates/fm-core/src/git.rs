@@ -15,7 +15,7 @@ use std::process::{Command, Output};
 
 /// The one remote we manage. Git's own default name, so a vault stays an
 /// ordinary repo that behaves as expected in a terminal.
-const REMOTE: &str = "origin";
+pub(crate) const REMOTE: &str = "origin";
 
 /// The stand-in committer written for a vault nobody else can see. Git refuses to
 /// commit without *some* identity and cannot invent one on a machine whose hostname
@@ -37,8 +37,90 @@ const REMOTE: &str = "origin";
 /// are, and the provenance hole this exists to close is quietly open. It was safe to
 /// change once, while the only vaults in the world were the author's and none were on the
 /// placeholder. That will not be true a second time.
-const PLACEHOLDER_NAME: &str = "formicaria";
-const PLACEHOLDER_EMAIL: &str = "formicaria@localhost";
+pub(crate) const PLACEHOLDER_NAME: &str = "formicaria";
+pub(crate) const PLACEHOLDER_EMAIL: &str = "formicaria@localhost";
+
+
+// ---------------------------------------------------------------------------------------
+// Rules shared with the `native-git` backend (`crate::git_native`).
+//
+// These are here, once, because a second implementation of the sync path that disagrees with
+// this one about *what is allowed* is the corruption this whole design exists to prevent. A
+// backend may differ in how it talks to a repository; it may not differ in whether an email
+// without an `@` is acceptable, or whether a vault may gain a remote while nobody real signs
+// it. Two copies of a rule are two rules.
+// ---------------------------------------------------------------------------------------
+
+/// The identity rules. Trimmed values back, or the reason they are refused.
+pub(crate) fn check_identity(name: &str, email: &str) -> Result<(String, String), StoreError> {
+    let (name, email) = (name.trim(), email.trim());
+    if name.is_empty() || email.is_empty() {
+        return Err(StoreError::Io("a git identity needs both a name and an email".into()));
+    }
+    // Not validation — git does none either, and an address this app rejects is an address the
+    // user cannot use. This catches only the mistake that is invisible afterwards: a name typed
+    // into the email box, signed into history forever.
+    if !email.contains('@') || email == PLACEHOLDER_EMAIL {
+        return Err(StoreError::Io(format!("'{email}' is not an email address")));
+    }
+    Ok((name.to_string(), email.to_string()))
+}
+
+/// Turn a raw `user.name`/`user.email` pair into an [`Identity`], or `None` when nobody real
+/// signs this vault. The placeholder is a sentinel, not a person.
+pub(crate) fn identity_from(name: String, email: String) -> Option<Identity> {
+    (email != PLACEHOLDER_EMAIL).then_some(Identity { name, email })
+}
+
+/// Whether this vault may be given a remote yet — the moment it stops being private.
+pub(crate) fn check_remote_allowed(
+    _vault: &Path,
+    url: &str,
+    has_identity: bool,
+) -> Result<(), StoreError> {
+    // `git remote add origin ""` *succeeds*, and the resulting remote then reports its own name
+    // as its URL, so the vault would claim a destination it does not have.
+    if url.trim().is_empty() {
+        return Err(StoreError::Io("a remote needs a URL".into()));
+    }
+    // From here on every commit carries a name into somebody else's clone, and git history is
+    // forever. If that name is the placeholder, every "who touched this?" the product can ever
+    // answer is the same fake.
+    if !has_identity {
+        return Err(StoreError::Io(
+            "tell us who you are first — your name and email sign every commit you share".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// Whether this destination can be cloned into. Refuses *before* anything is written, so a
+/// failure never leaves a half-made vault in a directory too non-empty to retry into.
+pub(crate) fn check_clone_dest(url: &str, dest: &Path) -> Result<(), StoreError> {
+    if url.trim().is_empty() {
+        return Err(StoreError::Io("a clone needs a remote URL".into()));
+    }
+    if dest.exists() && dest.read_dir().is_ok_and(|mut d| d.next().is_some()) {
+        return Err(StoreError::Io(format!(
+            "{} already exists and is not empty — clone into a new directory",
+            dest.display()
+        )));
+    }
+    Ok(())
+}
+
+/// The files that make a repo a *vault*: the ignore rules and the merge attribute. Append-never-
+/// skip, because a repo you already own has both files and "skip if present" meant neither rule
+/// ever landed.
+pub(crate) fn write_vault_files(vault: &Path) -> Result<(), StoreError> {
+    write_gitignore(vault)?;
+    write_gitattributes(vault)?;
+    // Best-effort on a native backend: there is no `fm` binary beside a phone app to point a
+    // driver at, and libgit2 could not invoke it anyway. Failing here would refuse to open a
+    // perfectly good vault over a driver that platform can never use.
+    let _ = install_merge_driver(vault);
+    Ok(())
+}
 
 /// Who a vault's commits are attributed to — the name a collaborator sees when they
 /// ask who touched a note.
@@ -121,18 +203,9 @@ pub fn clone(url: &str, dest: &Path) -> Result<(), StoreError> {
             "git is not available on this machine, so there is nothing to clone with".into(),
         ));
     }
-    if url.trim().is_empty() {
-        return Err(StoreError::Io("a clone needs a remote URL".into()));
-    }
-    // `git clone` refuses a non-empty target on its own, but says it in terms of the
-    // directory rather than of what the user was doing — and by then it has already created
-    // the directory when it did not exist. Refuse first, and write nothing.
-    if dest.exists() && dest.read_dir().is_ok_and(|mut d| d.next().is_some()) {
-        return Err(StoreError::Io(format!(
-            "{} already exists and is not empty — clone into a new directory",
-            dest.display()
-        )));
-    }
+    // Refuse before writing: `git clone` says it in terms of the directory rather than of what
+    // the user was doing, and by then it has already created it.
+    check_clone_dest(url, dest)?;
 
     let out = git_cmd().arg("clone").arg(url.trim()).arg(dest).output().map_err(spawn)?;
     if !out.status.success() {
@@ -305,10 +378,7 @@ pub fn identity(vault: &Path) -> Option<Identity> {
         return None;
     }
     let email = config(vault, "user.email")?;
-    if email == PLACEHOLDER_EMAIL {
-        return None;
-    }
-    Some(Identity { name: config(vault, "user.name")?, email })
+    identity_from(config(vault, "user.name")?, email)
 }
 
 /// Record who the user is, repo-locally — the answer to the question
@@ -316,16 +386,8 @@ pub fn identity(vault: &Path) -> Option<Identity> {
 /// name you push to a lab repo need not be the one on your personal notes, and this
 /// app has no business editing anyone's global git config.
 pub fn set_identity(vault: &Path, name: &str, email: &str) -> Result<(), StoreError> {
-    let (name, email) = (name.trim(), email.trim());
-    if name.is_empty() || email.is_empty() {
-        return Err(StoreError::Io("a git identity needs both a name and an email".into()));
-    }
-    // Not validation — git does none either, and an address this app rejects is an
-    // address the user cannot use. This catches only the mistake that is invisible
-    // afterwards: a name typed into the email box, signed into history forever.
-    if !email.contains('@') || email == PLACEHOLDER_EMAIL {
-        return Err(StoreError::Io(format!("'{email}' is not an email address")));
-    }
+    let (name, email) = check_identity(name, email)?;
+    let (name, email) = (name.as_str(), email.as_str());
     ensure_repo(vault)?;
     for (key, value) in [("user.name", name), ("user.email", email)] {
         let out = git(vault).args(["config", key, value]).output().map_err(spawn)?;
@@ -468,9 +530,6 @@ pub fn set_remote(vault: &Path, url: &str) -> Result<(), StoreError> {
     // claiming a push destination it does not have. Refuse it here: a backup that
     // lies about where it went is the one failure worth being strict about.
     let url = url.trim();
-    if url.is_empty() {
-        return Err(StoreError::Io("a remote needs a URL".into()));
-    }
     ensure_repo(vault)?;
     // A remote is the moment this vault stops being private: from here on every
     // commit carries a name to somebody else's clone, and git history is forever.
@@ -478,11 +537,7 @@ pub fn set_remote(vault: &Path, url: &str) -> Result<(), StoreError> {
     // product can ever answer is the same fake — so ask now, once, while a human is
     // looking at the panel that sent us here. Anyone whose git is already configured
     // never sees this.
-    if identity(vault).is_none() {
-        return Err(StoreError::Io(
-            "tell us who you are first — your name and email sign every commit you share".into(),
-        ));
-    }
+    check_remote_allowed(vault, url, identity(vault).is_some())?;
     let sub = if remote(vault)?.is_some() { "set-url" } else { "add" };
     let out = git(vault).args(["remote", sub, REMOTE]).arg(url).output().map_err(spawn)?;
     if !out.status.success() {

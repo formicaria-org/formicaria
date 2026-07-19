@@ -42,6 +42,7 @@ tesseract = "*"
 [feature.android.dependencies]
 rust-std-aarch64-linux-android = "*"   # the phone
 rust-std-x86_64-linux-android = "*"    # the emulator
+openjdk = "*"                          # sdkmanager and Gradle need a JVM; conda-forge has it, so it stays pinned
 
 # Point cargo and the `cc` crate at the NDK, **repo-relative**. Deliberately here rather than
 # in `.cargo/config.toml`: that file cannot express "relative to the project", so it would need
@@ -173,6 +174,10 @@ docs = "mdbook build docs"                       # render the manual; broken lin
 #
 # Deliberately NOT in `pixi run ci`: a contributor with no Android toolchain must still get a
 # green gate. Opt-in, and the only thing that writes `.android/`.
+# Grade the in-process git backend against the subprocess one. Not in `pixi run ci`: the
+# feature builds libgit2 + OpenSSL from source, which a contributor with no interest in mobile
+# must not pay for. Run it whenever `git_native.rs` or the rules it shares change.
+test-native-git = "cargo test -p fm-core --features native-git --test git_differential"
 android-init = "sh ci/android-init.sh"
 
 [tasks.ci]
