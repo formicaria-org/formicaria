@@ -88,6 +88,46 @@ does not exist is how the wrong one gets built.
 
 ---
 
+### 2.4 Image → LaTeX (parked 2026-07-20, researched, not started)
+
+Photograph or screenshot a formula; get LaTeX in the note. The owner intends to **train the model
+and own the architecture**; this entry exists so the constraints found while surveying it are not
+re-derived later.
+
+**The licence constraint decides the design.** The target includes the phone, and Android has no
+subprocesses — so the model must run *inside* the WebView, i.e. ship inside an MIT app. That is
+distribution, not invocation, so the exemption that lets us shell out to GPL `pdftotext`/`libvips`
+does **not** apply (`deny.toml` states the rule in its first line). Consequence: **Texo** — the best
+lightweight option at 20M params, ONNX, in-browser — is **AGPL-3.0** and cannot be bundled. Training
+our own dissolves the problem, and Texo demonstrates 20M params suffices, so it is a reproduction
+rather than a research gamble.
+
+**Cost of shipping a model.** 4 bytes/param at fp32, 1 at int8 → **20M params ≈ 20 MB int8**
+(UniMERNet-tiny's 441 MB is ~110M at fp32). **PyTorch is a training dependency only**: export ONNX,
+quantise, run under ONNX Runtime Web / transformers.js — no Python in the shipped app and no new
+runtime in `pixi.lock`. The eager-JS budget is unaffected (lazy chunk, like KaTeX/Mermaid). **The
+sharp decision when it lands: bundling doubles the APK, 26 → 46 MB, and not bundling means the
+feature needs the network once, against a stated offline-first principle.**
+
+**Datasets** — UniMER-1M (1,061,791 pairs, HF `wanderkid/UniMER_Dataset`) for training;
+UniMER-Test (23,757, split SPE 6,762 / CPE 5,921 / SCE 4,742 / HWE 6,332) for evaluation, where
+**SCE and HWE are our real use case** and CPE is where the field separates (.678–.949).
+im2latex-100k (103,556, Zenodo 56198) as a legacy baseline; MathWriting (230k human + 400k
+synthetic, CC) is **digital ink, not images**, so strokes must be rendered.
+**Open question: UniMER-1M's own licence is not stated separately from the repo's Apache-2.0, and it
+determines whether a model trained on it can ship in an MIT app. Settle it first.**
+
+**Evaluate with CDM, not BLEU** (arXiv 2409.03643). `(x+y)+z` vs `\left(x+y\right)+z` render
+identically yet score BLEU 0.449 / ExpRate 0; a visibly wrong formula scored 0.907. Text metrics
+reward matching the training set's LaTeX *style*, which no user cares about.
+
+**Where it lands:** `crates/fm-core/src/ingest.rs`'s `extract_text` already dispatches on MIME
+(`Some("application/pdf") => pdftotext(blob)?`). An image arm makes formulas searchable for free via
+`Ingested.text`; inserting `$$…$$` at the cursor is a small change in `NotePanel.svelte`'s
+`ingestAll`, and KaTeX already renders it.
+
+---
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.
