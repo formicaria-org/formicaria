@@ -596,7 +596,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // call. Fail the way the real arm does rather than pretending it worked.
       throw new Error('not a currently-unreadable note');
     case 'commit':
-      return false as T;
+      // Nothing to commit, and nothing blocking it — the mock vault is never mid-merge.
+      return { committed: false, conflicts: [] } as T;
     case 'backup':
       return undefined as T;
     case 'backup_status': {

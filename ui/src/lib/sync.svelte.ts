@@ -24,7 +24,7 @@
 // they were content.
 
 import { commit, push, pull } from './ipc';
-import type { PullResult } from './types';
+import type { CommitResult, PullResult } from './types';
 
 /**
  * The three operations the sequence is made of, injectable so every branch of it can be
@@ -33,7 +33,7 @@ import type { PullResult } from './types';
  * against a real git remote and easy to get wrong.
  */
 export interface SyncOps {
-  commit(message: string, vault: string): Promise<unknown>;
+  commit(message: string, vault: string): Promise<CommitResult>;
   push(message: string, vault: string): Promise<unknown>;
   pull(vault: string): Promise<PullResult>;
 }
@@ -92,6 +92,37 @@ export function clearSync(vault: string): void {
 }
 
 /**
+ * Run the commit step, and report whether the sequence may continue.
+ *
+ * **A commit that committed nothing is not automatically fine.** `commit_all` refuses
+ * outright while the vault is mid-merge — right, because staging conflict markers would
+ * publish them as content — and every write after that is silently never committed for as
+ * long as the conflict sits there. Both callers below start with a commit, so both would
+ * have sailed past it and reported `synced` over a vault that had stopped recording
+ * anything. Reaching a terminal, nameable state is this module's whole reason to exist.
+ */
+async function commitStep(
+  vault: string,
+  message: string,
+  ops: SyncOps,
+): Promise<SyncPhase | null> {
+  let result: CommitResult;
+  try {
+    result = await ops.commit(message, vault);
+  } catch (e) {
+    // A commit that fails is not a sync problem to retry — it is the vault refusing,
+    // and pushing past it would be worse.
+    set(vault, { phase: 'failed', error: String(e) });
+    return 'failed';
+  }
+  if (!result?.committed && result?.conflicts?.length) {
+    set(vault, { phase: 'conflicts', conflicts: result.conflicts });
+    return 'conflicts';
+  }
+  return null; // carry on
+}
+
+/**
  * Commit and publish one vault, healing a moved remote once.
  *
  * `onChanged` is called whenever a pull actually brought work in, so the caller can re-run
@@ -108,14 +139,8 @@ export async function syncVault(
   ops: SyncOps = realOps,
 ): Promise<SyncPhase> {
   set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0 });
-  try {
-    await ops.commit(message, vault);
-  } catch (e) {
-    // A commit that fails is not a sync problem to retry — it is the vault refusing
-    // (mid-merge, most likely), and pushing past it would be worse.
-    set(vault, { phase: 'failed', error: String(e) });
-    return 'failed';
-  }
+  const stopped = await commitStep(vault, message, ops);
+  if (stopped) return stopped;
 
   set(vault, { phase: 'pushing' });
   try {
@@ -185,12 +210,8 @@ export async function pullVault(
   // when they reach for "get changes". This policy already existed in the backup panel and
   // not in the top-bar nudge; two spellings of one rule is how they drift.
   set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0 });
-  try {
-    await ops.commit(`auto: ${new Date().toISOString()}`, vault);
-  } catch (e) {
-    set(vault, { phase: 'failed', error: String(e) });
-    return 'failed';
-  }
+  const stopped = await commitStep(vault, `auto: ${new Date().toISOString()}`, ops);
+  if (stopped) return stopped;
 
   set(vault, { phase: 'pulling' });
   try {

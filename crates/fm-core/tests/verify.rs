@@ -94,3 +94,21 @@ fn manifest_round_trips_and_scrub_flags_a_vanished_blob() {
     assert!(!report.ok());
     assert!(report.issues.iter().any(|i| i.message.contains("missing from the store")));
 }
+
+/// **A vault whose notes live somewhere else must still be checked.** `verify` used to look in
+/// a hardcoded `notes/`, so a Track-V vault (`vault.json` → `notes: docs`) had that directory
+/// simply not exist: the loop never ran and `verify` reported "0 notes, 0 errors" and exited 0.
+/// A vault full of unparseable notes passed clean, silently — the exact inversion of what an
+/// integrity checker is for. `backup` had always asked the descriptor; this is the drift.
+#[test]
+fn a_vault_with_a_custom_notes_dir_is_actually_checked() {
+    let dir = tempdir().unwrap();
+    fs::write(dir.path().join("vault.json"), r#"{"notes":"docs"}"#).unwrap();
+    fs::create_dir_all(dir.path().join("docs")).unwrap();
+    fs::write(dir.path().join("docs/broken.md"), "no frontmatter fence here\n").unwrap();
+
+    let report = verify(dir.path(), false).unwrap();
+
+    assert_eq!(report.notes, 1, "the note was found where the vault says it lives");
+    assert!(!report.ok(), "and its breakage is reported, not silently passed over");
+}

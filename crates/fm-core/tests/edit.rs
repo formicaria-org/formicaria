@@ -17,6 +17,12 @@ fn set_property_is_written_to_disk_and_survives_reload() {
         let mut s = FileStore::open(dir.path()).unwrap();
         let mut o = Object::new(Kind::Note, "ship S2");
         let id = o.id;
+        // **Both stamps are pinned, and that is the point.** `Object::new` sets `created` to
+        // *now*, so leaving it there and hard-coding `updated` to a fixed instant made the
+        // final assertion a time bomb: it held only while the wall clock was behind that
+        // instant, and started failing the morning the clock passed it. A test that depends
+        // on today's date is a test that will fail on a day nobody changed anything.
+        o.created = datetime!(2026-07-19 9:00 UTC);
         s.put(&o).unwrap();
 
         // Edit: set status + due, stamp updated (what `fm set` does).

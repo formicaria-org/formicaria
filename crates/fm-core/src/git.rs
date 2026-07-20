@@ -501,7 +501,14 @@ fn write_gitattributes(vault: &Path) -> Result<(), StoreError> {
     // save, and the markers land inside the YAML fence where `from_file` rejects them. That
     // is exactly the disaster Track C Phase 1 exists to prevent, reintroduced by conversion,
     // and it is silent: nothing anywhere says the driver was meant to be running.
-    ensure_line(&vault.join(".gitattributes"), "*.md merge=fm text eol=lf")
+    ensure_line(&vault.join(".gitattributes"), "*.md merge=fm text eol=lf")?;
+    // The manifest is a `sha256 -> size` map of content-addressed blobs, and it is *staged on
+    // every commit*. Merged as ordinary text, two people ingesting a file on the same day get
+    // `<<<<<<<` markers inside a JSON document — a file no user wrote, can read, or can resolve
+    // — and once it is conflicted `commit_all` correctly refuses to commit anything else in the
+    // vault, so the whole thing silently stops recording. Merged as a union it cannot conflict
+    // at all: the key *is* the content, so agreement is structural.
+    ensure_line(&vault.join(".gitattributes"), "manifest.json merge=fm-manifest text eol=lf")
 }
 
 /// Make sure `line` is present in a line-oriented config file, leaving every other byte of
@@ -562,6 +569,9 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
         ("merge.fm.name", "formicaria frontmatter-aware note merge".to_string()),
         // %O base, %A ours (and where the answer goes), %B theirs, %L marker size.
         ("merge.fm.driver", format!("'{exe}' merge-md %O %A %B %L")),
+        ("merge.fm-manifest.name", "formicaria blob-inventory union merge".to_string()),
+        // No %L: a union has no conflict to mark.
+        ("merge.fm-manifest.driver", format!("'{exe}' merge-manifest %O %A %B")),
     ] {
         let out = git(vault).args(["config", &key, &value]).output().map_err(spawn)?;
         if !out.status.success() {
@@ -578,7 +588,9 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
 /// failure of anything. The only outcome that matters is that no *stale* definition survives
 /// this call, and an unset that could not run leaves us no worse than before.
 fn clear_merge_driver(vault: &Path) -> Result<(), StoreError> {
-    for key in ["merge.fm.driver", "merge.fm.name"] {
+    for key in
+        ["merge.fm.driver", "merge.fm.name", "merge.fm-manifest.driver", "merge.fm-manifest.name"]
+    {
         let _ = git(vault).args(["config", "--unset-all", key]).output();
     }
     Ok(())

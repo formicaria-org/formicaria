@@ -4,7 +4,19 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-20 — **media on Android works end to end**: attach a file, it lands in the
+_Last verified: 2026-07-20 (evening) — **four defects found by an adversarial review of this
+repo's own code were fixed**, and a second adversarial pass over those fixes found four of them
+incomplete; see `sessions/2026-07-20-four-bugs-a-review-found.md`. The durable lessons are in
+`decisions.md`. Also fixed: **`verify` was checking a hardcoded `notes/`**, so a Track-V vault whose
+`vault.json` puts notes in `docs/` got "verified 0 note(s): 0 error(s)" and exit 0 — an
+integrity checker passing a vault it never opened. `inspect_path` had the same hardcode and
+would preview such a folder as empty. Both now ask `Descriptor::notes_dir`, as `backup` always
+did. Standing traps that came out of it: a `copy_note`-style "strip user text" fix
+must enumerate the **typed** `Object` fields (`status`, `tags`) and not only `extra`, because a
+map-shaped fix silently misses them; and a git merge driver must **never exit non-zero**, since
+git reads that as a conflict while leaving the file clean.
+
+Prior: 2026-07-20 — **media on Android works end to end**: attach a file, it lands in the
 vault, the note renders it (`sessions/2026-07-20-capture-on-a-real-phone.md`). The bug that hid
 this for days was that **Android delivers no request body to a custom-scheme handler**, so every
 photo was stored as zero bytes while ingest reported success; the giveaway was that every capture
@@ -139,7 +151,12 @@ edit-gesture)._
   goes through `sync.svelte.ts`'s `pullVault` (commit first — git will not merge over a dirty
   tree — then name any conflicted notes rather than throwing a string). Still true: a
   conflicted note is surfaced only by name, and the `.md` driver puts the markers in the note
-  *body*, so it opens and resolves in the ordinary editor.
+  *body*, so it opens and resolves in the ordinary editor. **Also fixed 2026-07-20:** a
+  conflicted note used to stop *every* commit in that vault silently — `commit_all` says
+  "clean tree" and "I refuse, mid-merge" with the same `Ok(false)` — so writes kept landing on
+  disk and never being committed while the UI said nothing. `commit` now answers
+  `CommitResult { committed, conflicts }` and all three callers (the 5 s auto-commit in
+  `App.svelte`, `sync.svelte.ts`, `BackupPanel.svelte`) stop and name the notes.
 - **Reindex still stats every file, on every beat.** `Reindex::Incremental` re-*reads* only
   what moved (Phase 1), but the scan itself is still O(n) `stat`s, and the `ping` heartbeat
   runs it on every beat (15 s, and only while the tab is visible). Now gated by a perf-budget test at 10k notes

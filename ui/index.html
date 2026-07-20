@@ -16,8 +16,9 @@
     <!-- Serve Excalidraw's fonts ourselves. Unset, it downloads them from a CDN the first
          time you open a whiteboard — which would make "nothing phones home" untrue and
          leave boards in fallback fonts offline. It resolves `./fonts/<Family>/<file>` against
-         this base; `ui/scripts/copy-excalidraw-fonts.mjs` puts them in public/ at build time. -->
-    <script>window.EXCALIDRAW_ASSET_PATH = "/";</script>
+         this base; `ui/scripts/copy-excalidraw-fonts.mjs` puts them in public/ at build time.
+         Kept in its own file, not inline, so the CSP need not allow inline scripts. -->
+    <script src="/excalidraw-asset-path.js"></script>
   </head>
   <body>
     <div id="app"></div>

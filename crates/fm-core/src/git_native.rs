@@ -610,8 +610,32 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
             let (base_txt, our_txt, their_txt) = (blob(&c.ancestor), blob(&c.our), blob(&c.their));
 
             // THE call. Same engine as `fm merge-md`, so a phone and a desktop cannot disagree
-            // about what a merged note is.
-            let (merged, outcome) = crate::merge::merge_texts(&base_txt, &our_txt, &their_txt, 7)?;
+            // about what a merged note is — **except for `manifest.json`, which is not a note.**
+            //
+            // The desktop routes it by `.gitattributes` to a second driver (`merge=fm-manifest`);
+            // there is no attribute machinery here, so the path is the routing. Without this the
+            // manifest went through the note merger: frontmatter parse fails, so it fell to a
+            // line-based 3-way over a pretty-printed JSON file where every blob is its own line —
+            // and two people each attaching a file conflict on adjacent lines, or on the comma of
+            // the last one. That is the *entire* bug the desktop driver exists to fix, still live
+            // on the phone, with the full consequence chain: the UI tells the user to resolve
+            // markers in a "note" that is not one, and `commit_all` then refuses to commit
+            // anything in the vault until they do.
+            let (merged, outcome) = if path == "manifest.json" {
+                let m = |t: &str| {
+                    serde_json::from_str::<crate::Manifest>(t).ok().unwrap_or_default()
+                };
+                let union = crate::Manifest::merge(
+                    Some(&m(&base_txt)),
+                    &m(&our_txt),
+                    &m(&their_txt),
+                );
+                let text = serde_json::to_string_pretty(&union)
+                    .map_err(|e| StoreError::Io(e.to_string()))?;
+                (text + "\n", crate::merge::Merged::Clean)
+            } else {
+                crate::merge::merge_texts(&base_txt, &our_txt, &their_txt, 7)?
+            };
 
             let full = vault.join(&path);
             if let Some(parent) = full.parent() {

@@ -12,7 +12,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
-use fm_core::{merge, FileStore, Reindex, Store};
+use fm_core::{merge, FileStore, Manifest, Reindex, Store};
 use fm_model::{Id, Kind, Object};
 use fm_query::{Filter, Predicate, Query, SortKey};
 use std::path::PathBuf;
@@ -100,6 +100,19 @@ enum Cmd {
         #[arg(default_value_t = 7)]
         marker_size: usize,
     },
+    /// Git's merge driver for `manifest.json` — git calls this, you don't. The manifest is a
+    /// `sha256 -> size` map of content-addressed blobs, so the merge is a union and **cannot**
+    /// conflict; merged as plain text it produced `<<<<<<<` markers inside a JSON file no user
+    /// wrote or can resolve. Always exits 0.
+    #[command(hide = true)]
+    MergeManifest {
+        /// %O — the common ancestor.
+        base: PathBuf,
+        /// %A — our version, and where git expects the answer written.
+        ours: PathBuf,
+        /// %B — their version.
+        theirs: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -117,6 +130,37 @@ fn main() -> Result<()> {
             // stderr would print noise on a perfectly normal pull.
             merge::Merged::Conflicted => std::process::exit(1),
         };
+    }
+    // Same reasoning, and the same "before the store exists" rule: git runs this on three temp
+    // files during a pull, and opening a vault here would create one as a side effect.
+    //
+    // **This branch must never return Err, and that is a correctness requirement, not tidiness.**
+    // `main` is `Result`, so a `?` here becomes exit 1 — and git reads any non-zero exit from a
+    // merge driver as "I left you a conflict in %A" while %A is in fact untouched and
+    // marker-free. `git.rs::install_merge_driver` documents exactly that trap: the user sees a
+    // conflict, opens a file that looks perfectly normal, and resolves it by deleting the other
+    // side. Here it is worse than for notes, because `commit_all` refuses to commit *anything*
+    // in the vault while a path is unmerged — one unparseable manifest would freeze the lot.
+    //
+    // So every side is read leniently: a file that will not parse (a manifest committed with
+    // conflict markers by the old text merge, a future schema, a half-written temp file) is
+    // treated as *no information* rather than as a failure, and the union proceeds from
+    // whatever did parse. The worst outcome is a manifest missing some entries, which `verify`
+    // reports and `fm manifest` rebuilds.
+    if let Cmd::MergeManifest { base, ours, theirs } = &cli.cmd {
+        let lenient = |p| Manifest::read_file(p).ok().flatten();
+        let merged = Manifest::merge(
+            lenient(base).as_ref(),
+            &lenient(ours).unwrap_or_default(),
+            &lenient(theirs).unwrap_or_default(),
+        );
+        // A failed write leaves %A exactly as git staged it — ours, clean, no markers — which
+        // is a safe answer. Still exit 0: a conflict git cannot show is worse than a manifest
+        // that missed an entry.
+        if let Err(e) = merged.write_file(ours) {
+            eprintln!("fm merge-manifest: keeping our manifest ({e})");
+        }
+        return Ok(());
     }
 
     // Opening the vault rebuilds the index from files — this IS "reindex on
@@ -238,7 +282,9 @@ fn main() -> Result<()> {
             println!("restic repo OK{}", if read_data { " (data re-read)" } else { "" });
         }
         // Answered above, before the vault was opened.
-        Cmd::MergeMd { .. } => unreachable!("handled before the store is opened"),
+        Cmd::MergeMd { .. } | Cmd::MergeManifest { .. } => {
+            unreachable!("handled before the store is opened")
+        }
     }
     Ok(())
 }

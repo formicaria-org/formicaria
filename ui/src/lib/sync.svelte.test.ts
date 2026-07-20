@@ -12,7 +12,10 @@ import { clearSync, pullVault, syncFor, syncVault, type SyncOps } from './sync.s
 function ops(over: Partial<SyncOps> = {}) {
   const calls = { commit: 0, push: 0, pull: 0 };
   const base: SyncOps = {
-    commit: async () => void calls.commit++,
+    commit: async () => {
+      calls.commit++;
+      return { committed: true, conflicts: [] };
+    },
     push: async () => void calls.push++,
     pull: async () => {
       calls.pull++;
@@ -127,6 +130,38 @@ describe('syncVault', () => {
     expect(syncFor('v').error).toContain('merge to finish');
   });
 
+  // The silent freeze. `commit_all` does not *throw* while the vault is mid-merge — it
+  // returns "committed nothing", which is also what a clean tree returns. Read as success,
+  // every save after the conflict is written to disk and never committed, indefinitely,
+  // while the UI reports `synced`. The conflicted notes are the signal that tells them apart.
+  it('stops and names the notes when a conflict is silently blocking every commit', async () => {
+    clearSync('v');
+    const { calls, ops: o } = ops();
+    o.commit = async () => {
+      calls.commit++;
+      return { committed: false, conflicts: ['notes/01ARZ3.md'] };
+    };
+
+    expect(await syncVault('v', 'msg', undefined, o)).toBe('conflicts');
+
+    // Never publish over a vault that has stopped recording.
+    expect(calls.push).toBe(0);
+    expect(syncFor('v').conflicts).toEqual(['notes/01ARZ3.md']);
+  });
+
+  // ...but "committed nothing" on a clean tree is the ordinary case and must not stop it.
+  it('carries on when there was simply nothing to commit', async () => {
+    clearSync('v');
+    const { calls, ops: o } = ops();
+    o.commit = async () => {
+      calls.commit++;
+      return { committed: false, conflicts: [] };
+    };
+
+    expect(await syncVault('v', 'msg', undefined, o)).toBe('synced');
+    expect(calls.push).toBe(1);
+  });
+
   // Offline: both directions fail. The user asked to push, so that is the error to show.
   it('reports the push error, not the pull error, when both fail', async () => {
     clearSync('v');
@@ -168,7 +203,10 @@ describe('pullVault', () => {
     clearSync('v');
     const order: string[] = [];
     const { ops: o } = ops();
-    o.commit = async () => void order.push('commit');
+    o.commit = async () => {
+      order.push('commit');
+      return { committed: true, conflicts: [] };
+    };
     o.pull = async () => {
       order.push('pull');
       return { merged: 1, conflicts: [] };

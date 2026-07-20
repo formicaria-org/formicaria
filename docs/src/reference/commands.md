@@ -27,7 +27,7 @@ second copy of the table below.
 | `resolve_asset`  | `reference`, `kind`          | bytes (ArrayBuffer)    | `kind` = `full` \| `thumb`; whole blob in memory — prefer the blob route below |
 | `asset_status`   | `reference`                  | `{has_blob,has_thumb,mime}` | sniffed MIME |
 | `open_external`  | `reference`                  | —                      | opens the blob in the OS default app |
-| `commit`         | `message`                    | `bool`                 | git-commit the vault; `false` if clean |
+| `commit`         | `message`                    | `{committed, conflicts}` | git-commit the vault. `committed: false` with `conflicts` non-empty is **not** "nothing to do" — the vault is mid-merge and nothing will be committed until those notes are settled |
 | `push`           | `message`                    | `u32`                  | squash the unpushed window → push; returns commits squashed (0 on the first push) |
 | `backup_status`  | —                            | `BackupStatus`         | `{vaults, git, restic}`; each vault carries `{name, remote, unpushed, identity, remote_moved, conflicts, restic_repo, restic_ready}` — never the restic password |
 | `set_git_remote` | `vault`, `url`, `name`, `email` | —                   | sets the vault's `origin`, and its git identity when `name`/`email` are non-empty (asked only of a vault git has never met); blank URL refused |

@@ -3,6 +3,7 @@ import type {
   AssetStatus,
   BackupStatus,
   Board,
+  CommitResult,
   EditEvent,
   GitAuth,
   NoteDetail,
@@ -277,7 +278,7 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
 // every command below names the vault it acts on. An empty/absent name means the
 // default (the first configured vault), which is what a single-vault install always is.
 export const commit = (message: string, vault = '') =>
-  invoke<boolean>('commit', { message, vault });
+  invoke<CommitResult>('commit', { message, vault });
 /** Snapshot one vault's media into *its own* restic repo. Per vault because a restic
  *  repo is per repository — there is no one destination a set of vaults could share. */
 export const backup = (vault = '') => invoke<void>('backup', { vault });

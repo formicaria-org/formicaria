@@ -789,13 +789,31 @@
     commitTimer = setTimeout(() => {
       const stamp = new Date().toISOString();
       for (const v of vaults ?? []) {
-        commit(`auto: ${stamp}`, v.name).catch((e) => {
-          if (saidCommitFailed) return;
-          saidCommitFailed = true;
-          notice =
-            `Your notes are saved as files, but git could not record a change in '${v.name}': ${e}. ` +
-            `History and backup are paused until that is fixed.`;
-        });
+        commit(`auto: ${stamp}`, v.name)
+          .then((r) => {
+            // **A commit that committed nothing is not automatically fine.** `commit_all`
+            // refuses outright while the vault is mid-merge — correctly, since staging
+            // conflict markers would publish them as content — but it does not *throw*, so
+            // this used to fall through the `.catch` and say nothing at all. Every write
+            // after the conflict is then saved to disk and never committed, for as long as
+            // the conflict sits there. This is the path that matters: `git.rs::commit_all`
+            // notes the auto-commit is debounced 5s after any write, "so a pull that
+            // conflicts hits this within seconds — it is the default path, not an edge case".
+            if (r?.committed || !r?.conflicts?.length || saidCommitFailed) return;
+            saidCommitFailed = true;
+            notice =
+              `'${v.name}' has ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} ` +
+              `waiting on you: ${r.conflicts.join(', ')}. Nothing in this vault is being ` +
+              `committed until they are settled — open each one, both versions are marked in ` +
+              `the text.`;
+          })
+          .catch((e) => {
+            if (saidCommitFailed) return;
+            saidCommitFailed = true;
+            notice =
+              `Your notes are saved as files, but git could not record a change in '${v.name}': ${e}. ` +
+              `History and backup are paused until that is fixed.`;
+          });
       }
     }, 5000);
   }

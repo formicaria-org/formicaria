@@ -117,6 +117,15 @@ export interface BackupStatus {
   restic: boolean;
 }
 
+/** What a commit did. `committed: false` with conflicts listed is not "nothing to do" —
+ *  it is "this vault is mid-merge, so nothing will be committed until a human settles it".
+ *  Those two used to be the same `false`, which is how a conflicted note could silently
+ *  stop every later save from ever being committed. */
+export interface CommitResult {
+  committed: boolean;
+  conflicts: string[];
+}
+
 /** What a pull did. Conflicts are a result, not a failure. */
 export interface PullResult {
   merged: number;

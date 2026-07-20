@@ -312,9 +312,18 @@ pub fn inspect_path(path: &Path) -> PathFacts {
     let empty = is_dir
         && std::fs::read_dir(path).map(|mut d| d.next().is_none()).unwrap_or(false);
 
-    // Only `notes/*.md`, non-recursively — `FileStore::reindex` reads exactly that, so
-    // counting anything else here would promise notes that never appear.
-    let notes = std::fs::read_dir(path.join("notes"))
+    // Only the notes directory's `*.md`, non-recursively — `FileStore::reindex` reads exactly
+    // that, so counting anything else here would promise notes that never appear.
+    //
+    // **Which directory that is comes from the folder's own `vault.json`**, not from the
+    // literal `notes`. A folder being adopted may already be a formicaria vault (that is what
+    // `clone_vault` and `restore_vault` hand this), and one that puts its notes in `docs/`
+    // would otherwise be previewed as "0 notes" right before the app opened it and found
+    // hundreds — the preview contradicting the thing it is previewing.
+    let notes_dir = fm_core::descriptor::Descriptor::read(path)
+        .map(|d| d.notes_dir(path))
+        .unwrap_or_else(|_| path.join("notes"));
+    let notes = std::fs::read_dir(notes_dir)
         .map(|d| {
             d.flatten()
                 .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
@@ -535,6 +544,32 @@ pub fn copy_note(
     obj.updated = now;
     obj.vault = target_vault.to_string();
     obj.body = refs::strip_cross_vault(&src.body, with_assets);
+    // **Every piece of user-authored text, not just the body.** Stripping only the body let a
+    // pointer through into the copy — and so into permanent git history — against
+    // `decisions.md`'s "a copy can never point outside its new vault".
+    //
+    // The list below is the whole of `Object` that a human can type into. It is deliberately
+    // written out field by field rather than looped, because the first version of this fix
+    // handled `title` + `extra` and silently missed `status` and `tags` — they are *typed*
+    // fields, so they never appeared in the `extra` map the fix was reasoning about, and
+    // `frontmatter` parses hand-written `status:`/`tags:` straight into them. `status` is
+    // free-form (`board` groups by any string) and a tag is any string. Both went across
+    // verbatim. If a field is added to `Object` that holds user text, it belongs here.
+    //
+    // Not stripped, because they cannot carry a reference: `due`/`start` (typed stamps),
+    // `hard` (bool), `created`/`updated` (our own timestamps), `id`/`vault` (reset above).
+    obj.title = obj.title.map(|t| refs::strip_cross_vault(&t, with_assets));
+    obj.status = obj.status.map(|s| refs::strip_cross_vault(&s, with_assets));
+    obj.tags = obj.tags.iter().map(|t| refs::strip_cross_vault(t, with_assets)).collect();
+    // Keys as well as values: a property key is as user-typed as its value, and
+    // `note:01ARZ…: something` is a surviving pointer however silly it looks.
+    obj.extra = obj
+        .extra
+        .into_iter()
+        .map(|(k, v)| {
+            (refs::strip_cross_vault(&k, with_assets), refs::strip_value(&v, with_assets))
+        })
+        .collect();
     obj.code.clear(); // code blobs are not carried in v1 — never leave an outward pointer
     obj.extra.insert("copy_of".to_string(), PropertyValue::Text(token));
 

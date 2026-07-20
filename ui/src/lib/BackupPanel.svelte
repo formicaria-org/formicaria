@@ -117,9 +117,23 @@
     verdict = null;
     error = null;
     try {
-      await commit(`auto: ${new Date().toISOString()}`, v.name).catch(() => false);
-      const r = await pull(v.name);
-      if (r.conflicts.length) {
+      // Commit first (git will not merge over uncommitted edits) — but a commit that
+      // committed *nothing* because the vault is mid-merge must stop us here rather than fall
+      // into a pull that will only refuse, with git's wording instead of ours.
+      const c = await commit(`auto: ${new Date().toISOString()}`, v.name).catch(() => null);
+      const blocked = !!c && !c.committed && c.conflicts.length > 0;
+      if (blocked) {
+        // Not an early return: `busy = false` lives after this block, not in a `finally`,
+        // so returning here would leave the panel frozen.
+        steps.push({
+          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${c!.conflicts.join(', ')}. Nothing is being committed until they are settled — open each one, both versions are marked in the text.`,
+          ok: false,
+        });
+      }
+      const r = blocked ? { merged: 0, conflicts: [] } : await pull(v.name);
+      if (blocked) {
+        // nothing further to report; the line above is the answer
+      } else if (r.conflicts.length) {
         steps.push({
           text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${r.conflicts.join(', ')}. Open each one — both versions are marked in the text.`,
           ok: false,

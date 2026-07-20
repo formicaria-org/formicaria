@@ -29,6 +29,14 @@ fn note(updated: &str, tags: &str, body: &str) -> String {
 fn install_driver(repo: &Path) {
     let fm = Path::new(env!("CARGO_BIN_EXE_fm"));
     g(repo, &["config", "merge.fm.driver", &format!("'{}' merge-md %O %A %B %L", fm.display())]);
+    g(
+        repo,
+        &[
+            "config",
+            "merge.fm-manifest.driver",
+            &format!("'{}' merge-manifest %O %A %B", fm.display()),
+        ],
+    );
 }
 
 /// Set up one repo holding a note, and a clone of it, both ready to merge through us.
@@ -427,4 +435,67 @@ fn two_people_drawing_on_one_whiteboard_merge_element_wise() {
     // And the one we deleted stays deleted, even though their copy was newer. This is the
     // whole difference from Excalidraw's base-less `reconcileElements`.
     assert!(!ids.contains(&"doomed"), "a deleted shape must not come back: {ids:?}");
+}
+
+/// The same contract for `manifest.json`, and the reason it needed one.
+///
+/// The manifest is staged on **every** commit, so two people who each attach a file — an
+/// ordinary Tuesday in a shared vault — both rewrite it from the same base. Git's text merge
+/// then puts `<<<<<<<` markers inside a JSON document that no user wrote, can read, or can
+/// resolve; and while it sits conflicted `commit_all` refuses to commit anything else in the
+/// vault, so the whole thing silently stops recording. A union cannot conflict: the key *is*
+/// the content.
+#[test]
+fn two_people_attaching_files_do_not_conflict_in_the_manifest() {
+    if !have_git() {
+        eprintln!("skipping merge test: git not on PATH");
+        return;
+    }
+    let base = r#"{"schema":1,"blobs":{"aa":1}}"#;
+    let (ours, theirs) = two_clones_with_manifest(base);
+
+    fs::write(ours.path().join("manifest.json"), r#"{"schema":1,"blobs":{"aa":1,"bb":2}}"#)
+        .unwrap();
+    g(ours.path(), &["commit", "-am", "we attach a file"]);
+    fs::write(theirs.path().join("manifest.json"), r#"{"schema":1,"blobs":{"aa":1,"cc":3}}"#)
+        .unwrap();
+    g(theirs.path(), &["commit", "-am", "they attach a different file"]);
+
+    let out = g(theirs.path(), &["pull", "--no-rebase", "-q", "origin", "main"]);
+    let merged = fs::read_to_string(theirs.path().join("manifest.json")).unwrap();
+
+    assert!(
+        out.status.success(),
+        "the pull must not stop on the manifest:\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!merged.contains("<<<<<<<"), "no markers in a file a user cannot resolve:\n{merged}");
+    for hash in ["aa", "bb", "cc"] {
+        assert!(merged.contains(&format!("\"{hash}\"")), "{hash} survived the merge:\n{merged}");
+    }
+    // And it is still parseable JSON, which is the whole point of not text-merging it.
+    let parsed: serde_json::Value = serde_json::from_str(&merged).unwrap();
+    assert_eq!(parsed["blobs"].as_object().unwrap().len(), 3);
+}
+
+/// [`two_clones`] for the manifest: same shape, but the tracked file under test is
+/// `manifest.json` rather than a note.
+fn two_clones_with_manifest(initial: &str) -> (tempfile::TempDir, tempfile::TempDir) {
+    let ours = tempdir().unwrap();
+    git::ensure_repo(ours.path()).unwrap();
+    g(ours.path(), &["symbolic-ref", "HEAD", "refs/heads/main"]);
+    fs::write(ours.path().join("manifest.json"), initial).unwrap();
+    g(ours.path(), &["add", "-A"]);
+    g(ours.path(), &["commit", "-m", "base"]);
+
+    let theirs = tempdir().unwrap();
+    fs::remove_dir_all(theirs.path()).unwrap();
+    Command::new("git").arg("clone").arg(ours.path()).arg(theirs.path()).output().unwrap();
+    for (k, v) in [("user.email", "them@example.org"), ("user.name", "Them")] {
+        g(theirs.path(), &["config", k, v]);
+    }
+    // The clone's `origin` is our working tree, so it can pull from us directly.
+    install_driver(ours.path());
+    install_driver(theirs.path());
+    (ours, theirs)
 }

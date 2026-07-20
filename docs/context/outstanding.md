@@ -8,10 +8,18 @@ outcome into `known-issues.md` or `decisions.md` — the history lives in `sessi
 git. The first version of this file kept its fixed entries struck through, and within a day it
 had become a changelog with nothing to do in it. That is the failure mode to avoid.
 
-_Last reconciled: 2026-07-20, after media started working on Android end to end
-(`sessions/2026-07-20-capture-on-a-real-phone.md`). Photos are done; 1.2 is now video, which is
-gated on where a phone's blobs survive rather than on the transport. Prior: 2026-07-18, after the whole compiled queue was
-worked through (`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`)._
+_Last reconciled: 2026-07-20 (evening), after four defects were fixed, **re-reviewed
+adversarially, and four of the fixes found incomplete and repaired**
+(`sessions/2026-07-20-four-bugs-a-review-found.md`) — frontmatter leaking on copy (still leaking
+via `status`/`tags`), no CSP (and none on the phone at all), `manifest.json` conflicting as text
+(and its first merge rule was wrong for a gitignored, per-machine store), and a conflicted note
+silently freezing all commits (fixed everywhere but the auto-commit that actually runs). A
+threads backend was built and reverted in the same session; see §2.5. The Android CSP **loads clean on the real phone** (installed and launched, zero
+violations), but an image-bearing note and a whiteboard are still unopened — see §1.1. Earlier
+the same day: media working on Android end to end (`sessions/2026-07-20-capture-on-a-real-phone.md`);
+photos are done, 1.2 is now video, gated on where a phone's blobs survive rather than on the
+transport. Prior: 2026-07-18, after the whole compiled queue was worked through
+(`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`)._
 
 ---
 
@@ -37,6 +45,11 @@ pane workspace on a desktop, and on the phone each specific path it was opened f
 scroll-snap vs finger drag, the tap→move menu, a `<video>` seeking mid-file (the only exercise of
 `blob.rs`'s `Range` on real hardware), Excalidraw under a finger, thumb reach on the 2.75rem
 targets.
+
+**Two of those now also gate a security claim** (2026-07-20): the Android CSP was installed and
+launches clean, but `img-src` is only really proven by **a note with an image** (Android rewrites
+`fmblob://` to `http://fmblob.localhost`) and `worker-src`/fonts by **a whiteboard**. If either
+policy is wrong the symptom is a broken image, not a crash — so it will not announce itself.
 
 ### 1.2 Video on Android, and the storage question behind it
 Photos work end to end now (2026-07-20). Video does not: bytes reach the app only as base64 in a
@@ -125,6 +138,78 @@ reward matching the training set's LaTeX *style*, which no user cares about.
 (`Some("application/pdf") => pdftotext(blob)?`). An image arm makes formulas searchable for free via
 `Ingested.text`; inserting `$$…$$` at the cursor is a small change in `NotePanel.svelte`'s
 `ingestAll`, and KaTeX already renders it.
+
+---
+
+### 2.5 Discussions as notes (built 2026-07-20, reviewed, **reverted before commit**)
+
+`plan.md:279-287` and `collaboration-design.md:205` already specify it: **one message = one
+file**, ULID-named, `thread:`/`reply_to:` frontmatter. Maildir, and "the atom is the file"
+paying off. An adversarial review costed it, and the costs are the part worth not re-deriving:
+
+- **`capture` cannot set a custom property** (`commands.rs:105`) — body and vault only. A reply
+  through the existing path is `capture` + 2 × `set_property` = three whole-file rewrites and
+  three index updates for one message. It wants its own command.
+- **`Renderer::Thread` is impossible.** `Renderer` is the `.view` file's vocabulary and `base()`
+  returns a *static* query (`views.rs:130`); a thread is parameterised by a runtime ULID. It has
+  to be a new `dispatch` command, like `search`.
+- **Contamination breaks a daily gesture.** A message is `Kind::Note` in the strongest sense.
+  At 10k messages: Board puts all of them in `(none)`; Timeline/`recent` bury real notes below
+  the fold forever; and **the `/` note-picker calls `recent()`** (`NotePanel.svelte:723`), so
+  linking one note to another stops working. Agenda and Gallery survive.
+- **Use the property filter, not a separate directory** — reversing an earlier note here. A
+  directory sounded free because `Descriptor` carries `notes_dir`, but that is *one* directory:
+  `FileStore` scans exactly one and `path_for(id) = notes.join("{id}.md")`, so a second means
+  teaching `put`/`delete`/`path_for`/`reindex`/`verify`/`backup`/`written` which one a note is
+  in. Meanwhile the filter is four call sites behind **one shared constructor** (`views::base`
+  already had them behind a local closure), which is what the design doc specified all along.
+  And the performance argument for a directory is void: `candidates()` pushes nothing but
+  full-text down to SQL, so `Kind(Note)` is *already* evaluated in memory over the whole corpus
+  — board and `recent` parse every file on every request today.
+- **Must land with it, not after:** orphan/cycle handling (`reply_to` is unvalidated and hand-
+  editable; `a → b → a` is a blank pane, a deleted parent silently drops a subtree), vault badges
+  per message row (`decisions.md:481`), and `verify` reporting dangling `thread:` targets.
+- **Conflict-freedom is half true.** File-level, yes. But `push_squashed` refuses outright when
+  anyone else has replied since your last push (`git.rs:1078`), and a forum is *defined* by
+  concurrent writes — so the retry path is the normal path and must be exercised by a test.
+
+**What the 2026-07-20 build got wrong — fix these before rebuilding:**
+
+1. **Do not call the property `thread`.** It is an unnamespaced English word, `set_property` is
+   public, and `board` groups by *any* key — so grouping a board by `thread` and dragging one
+   card writes `thread: <column>` and the note disappears from every view: one gesture, silent,
+   no undo affordance, and `verify` will not even warn (its check only matched `Text`, and a
+   dragged value may be anything). Prefer `thread_of`. Whatever the name, the exclusion should
+   also require the value to *look like a ULID* before hiding a note.
+2. **Spell id-valued properties `note:<ulid>`, or teach `refs` about them.** A bare ULID is
+   invisible to `refs::strip_cross_vault`, which keys off `note:`/`asset:`/`sha256:` prefixes.
+   So `copy_note` carried a `thread:` pointer into another vault — a cross-vault reference in
+   permanent git history, a copy hidden from every view in its own vault, and a vault-B message
+   showing up inside vault A's thread. The leak fix and the feature were each correct alone.
+3. **`reply()` must re-root.** Replying to a *message* set `thread` to the message, so the reply
+   was in no view and no thread — and `REPLY_TO` exists precisely to express that action, making
+   the broken path the natural one. Re-root `thread` to the discussion root, set `reply_to`
+   automatically, and reject non-`Note` targets.
+4. **Compare ULIDs canonically, not as strings.** The argument normalises; a hand-written
+   lowercase `thread:` value does not, and orphans the message.
+5. **`activity()` needs the exclusion too** — it was missed. Every reply is a git touch, so a
+   40-message thread floods the recent-edits feed: the same pollution `recent()` was fixed for.
+6. **Budget the read.** `thread()` measured 170 ms at 30k notes — as much as listing the entire
+   vault — because a `Prop` filter has no index behind it. Add a `perf.rs` case before a
+   comments panel makes it hot.
+7. **Ship it with its UI.** The 2026-07-20 build was backend-only, so `ipc.ts`/`mock.ts` were
+   never updated (`docs/src/dev/adding-features.md` names four places; it touched two) and none
+   of the UI-side claims — the vault badge, indentation from a flat list — were exercised.
+
+**Then, and only then:** the **read half** of git review — branch list and diff, which are
+"collaboration is git, *exposed*" (`decisions.md:460`). Merge and delete are corruption-path
+writes needing their own decision and both backends (`git.rs` *and* `git_native.rs`, or the
+phone regresses to the bug that seam exists to prevent).
+
+**Not doing:** cloud LLM agents reviewing notes. Barred by `MASTERPLAN.md:63` (*no AI features
+in v1*), and the premise is gone — GitHub Models retires 30 July 2026, we are already inside the
+brownout window, and there is no free hosted successor. If any form returns it is the Lua hatch
+(`MASTERPLAN.md:353`): user-run, local, off by default.
 
 ---
 

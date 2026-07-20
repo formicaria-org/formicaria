@@ -6,7 +6,7 @@
 
 use fm_app::commands;
 use fm_core::{BlobStore, Manifest, MultiStore, Store};
-use fm_model::{Kind, Object};
+use fm_model::{Kind, Object, PropertyValue};
 use fm_query::Filter;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -62,6 +62,51 @@ fn capture_lands_in_the_named_vault_defaults_empty_and_refuses_unknown() {
     let mut typo = Object::new(Kind::Note, "oops");
     typo.vault = "nope".into();
     assert!(m.put(&typo).is_err(), "an unknown vault name is refused, not defaulted");
+}
+
+#[test]
+fn copy_leaks_no_reference_through_frontmatter_either() {
+    // The body was stripped from the start; frontmatter was not, so any custom property
+    // (or the title) carried a pointer out of its vault and into permanent git history.
+    let (_d, mut m, paths) = two();
+    seed_blob(&paths[0].1);
+    let mut n = Object::new(Kind::Note, "harmless prose");
+    n.vault = "personal".into();
+    n.title = Some(format!("Re: [Lab roadmap](note:{NOTE_ID})"));
+    // `status` and `tags` are *typed* fields, not `extra` entries — which is exactly how the
+    // first version of this fix missed them. They are still free-form user text: `board`
+    // groups by any string, and a tag is any string.
+    n.status = Some(format!("blocked on note:{NOTE_ID}"));
+    n.tags = vec!["real-tag".into(), format!("asset:sha256-{HASH}")];
+    n.extra.insert("source".into(), PropertyValue::Text(format!("note:{NOTE_ID}")));
+    n.extra.insert(
+        "attachments".into(),
+        PropertyValue::List(vec![PropertyValue::Text(format!("asset:sha256-{HASH}"))]),
+    );
+    // A pointer in a property *key*, not a value.
+    n.extra.insert(format!("note:{NOTE_ID}"), PropertyValue::Text("keyleak".into()));
+    n.extra.insert("count".into(), PropertyValue::Int(3));
+    m.put(&n).unwrap();
+
+    let r = commands::copy_note(&mut m, &n.id.to_string(), "lab", &paths, false).unwrap();
+    let copy = m.get(r.meta.id.parse().unwrap()).unwrap().unwrap();
+
+    // Assert over **everything a human can type into**, not a hand-picked pair of fields.
+    // The previous version of this test built its haystack from `title` + `extra` only, so it
+    // passed green while `status` and `tags` carried pointers straight into the target vault.
+    let frontmatter = format!(
+        "{:?} {:?} {:?} {:?}",
+        copy.title, copy.status, copy.tags, copy.extra
+    );
+    assert!(!frontmatter.contains(NOTE_ID), "no note id survives in frontmatter: {frontmatter}");
+    assert!(!frontmatter.contains(HASH), "no blob hash survives in frontmatter: {frontmatter}");
+    assert!(!frontmatter.contains("Lab roadmap"), "nor the link label: {frontmatter}");
+    assert!(copy.tags.iter().any(|t| t == "real-tag"), "an innocent tag survives: {frontmatter}");
+    assert_eq!(
+        copy.extra.get("count"),
+        Some(&PropertyValue::Int(3)),
+        "a value with no room for a reference is untouched"
+    );
 }
 
 #[test]

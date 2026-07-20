@@ -72,8 +72,13 @@ pub fn serve(
         // A `Range` header we understood, asking for bytes that aren't there. 416 must
         // report the real length so the client can ask again correctly.
         Some(None) => {
+            // Carries the same guards as every other exit from this module. It is the one
+            // branch that builds its own header block, which is exactly how it came to be the
+            // only response in the server without them.
             let header = format!(
                 "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{total}\r\n\
+                 Content-Security-Policy: default-src 'none'; sandbox\r\n\
+                 X-Content-Type-Options: nosniff\r\n\
                  Content-Length: 0\r\nConnection: close\r\n\r\n"
             );
             stream.write_all(header.as_bytes())?;
@@ -97,6 +102,10 @@ pub fn serve(
     // We sniffed the type ourselves; never let the browser second-guess it into something
     // executable. Pairs with the disposition below.
     header.push_str("X-Content-Type-Options: nosniff\r\n");
+    // Belt to the disposition's braces: if a blob ever *is* rendered as a document, it may
+    // load nothing and reach nowhere. Costs one header; means a future widening of
+    // `inline_safe` cannot quietly re-open the navigation hazard described below.
+    header.push_str("Content-Security-Policy: default-src 'none'; sandbox\r\n");
     if !inline_safe(&ctype) {
         // **The one real hazard this route introduces.** A blob is now at a same-origin URL
         // a browser can *navigate* to, where before it was bytes the page wrapped itself.

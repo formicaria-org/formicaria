@@ -4,7 +4,14 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-20 — **media works on a phone, end to end.** A file attached from a note
+_Last verified: 2026-07-20 (evening) — four defects found by reviewing this repo's own code
+were fixed, then re-reviewed adversarially and four of the fixes found incomplete and repaired:
+`copy_note` was still leaking through `status`/`tags`, the `manifest.json` merge had a deletion
+rule the format cannot support, its driver could exit non-zero (which git reads as a conflict on
+a clean file), and the commit-freeze fix missed the auto-commit caller. `fm-serve` now sends a
+Content-Security-Policy; the Android shell has one too, launched clean on the phone with zero
+violations, though images and boards are still unopened there. Prior entry:
+**media works on a phone, end to end.** A file attached from a note
 reaches `ingest_bytes` and renders back in the note. It travels as base64 through the `fm_ingest`
 IPC command, because Android delivers **no request body** to a custom-scheme handler and no raw
 IPC body either — a POST arrives empty and silent, which stored every photo as zero bytes until

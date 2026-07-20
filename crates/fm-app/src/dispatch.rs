@@ -280,7 +280,25 @@ pub fn dispatch(
             if made {
                 g.store.clear_written(&cfg.name);
             }
-            json(made)
+            // **Why nothing was committed matters.** `commit_all` refuses outright during a
+            // conflicted merge — correctly, since staging conflict markers would enshrine
+            // them — but it says so with the same `false` it uses for "clean tree, nothing
+            // to do". Those two are opposites: one is a no-op, the other is *every
+            // subsequent write silently never being committed*, for as long as the conflict
+            // sits there. Answering with the conflicted notes lets the sync loop stop and
+            // name them instead of reporting "synced" over a frozen vault.
+            //
+            // Gated on the vault actually being mid-merge, because `vcs::conflicts` shells out
+            // to `git status --porcelain` — a second one, since `commit_all` already ran it —
+            // and "committed nothing" is the *overwhelmingly* common answer for a debounced
+            // auto-commit over a clean tree. `.git/MERGE_HEAD` is git's own marker for an
+            // unfinished merge, so a stat answers the question for free in the common case.
+            let conflicts = if made || !cfg.path.join(".git/MERGE_HEAD").exists() {
+                Vec::new()
+            } else {
+                vcs::conflicts(&cfg.path).unwrap_or_default()
+            };
+            json(CommitResult { committed: made, conflicts })
         }
         "backup" => {
             run_backup(app, &s("vault"))?;
@@ -749,6 +767,15 @@ impl From<&fm_core::SkippedNote> for SkippedOut {
     fn from(s: &fm_core::SkippedNote) -> Self {
         Self { vault: s.vault.clone(), name: s.name.clone(), reason: s.reason.clone() }
     }
+}
+
+/// What a commit did. `committed: false` with a non-empty `conflicts` is the case worth
+/// distinguishing: the vault is mid-merge, so **nothing will be committed until a human
+/// settles it** — not "there was nothing to commit".
+#[derive(serde::Serialize)]
+struct CommitResult {
+    committed: bool,
+    conflicts: Vec<String>,
 }
 
 /// What a pull did. `conflicts` non-empty is a *result*, not an error: those notes have

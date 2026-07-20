@@ -10,6 +10,8 @@
 //! Deliberately no `regex` dependency — these are a handful of fixed-shape tokens
 //! and Markdown link/image spans, cheaper to scan by hand than to pull the crate.
 
+use fm_model::PropertyValue;
+
 /// What replaces a stripped reference. Carries **none** of the original label,
 /// name or path — that is the point (a filename could itself name private work).
 pub const REDACTION: &str = "⟨removed on copy⟩";
@@ -162,6 +164,24 @@ fn utf8_len(first: u8) -> usize {
         b if b >> 5 == 0b110 => 2,
         b if b >> 4 == 0b1110 => 3,
         _ => 4,
+    }
+}
+
+/// Strip cross-vault references out of a **property value**, recursing into lists.
+///
+/// Frontmatter is text the user typed just as much as the body is, so a custom
+/// property can hold a `note:`/`asset:` pointer — and a copy that carried one would
+/// point outside its new vault forever, in git history. `decisions.md` states that
+/// cannot happen; without this it could, through any property `to_file` round-trips
+/// via `Object::extra`. Non-text variants have no room for a reference and pass
+/// through untouched.
+pub fn strip_value(v: &PropertyValue, keep_assets: bool) -> PropertyValue {
+    match v {
+        PropertyValue::Text(s) => PropertyValue::Text(strip_cross_vault(s, keep_assets)),
+        PropertyValue::List(items) => {
+            PropertyValue::List(items.iter().map(|i| strip_value(i, keep_assets)).collect())
+        }
+        other => other.clone(),
     }
 }
 

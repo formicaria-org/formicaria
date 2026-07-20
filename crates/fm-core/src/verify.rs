@@ -68,7 +68,15 @@ pub fn verify(vault: &Path, scrub: bool) -> Result<Report, StoreError> {
     let blobs = BlobStore::new(vault);
 
     // 1. Parse every note; an unparseable one is an error. Collect blob refs.
-    let notes_dir = vault.join("notes");
+    //
+    // **Ask the descriptor, exactly as `backup` does.** This was `vault.join("notes")`, which is
+    // wrong for the whole point of Track V — a vault that is a repo you already own, with its
+    // notes in `docs/`. The failure was the worst possible shape for an integrity checker: the
+    // directory simply did not exist, so the loop never ran and `verify` reported
+    // *"verified 0 note(s): 0 error(s)"* and exited 0. A vault full of unparseable notes passed
+    // clean, silently, which is precisely the inversion of "loud is recoverable, silent is not"
+    // that this command exists to serve.
+    let notes_dir = crate::descriptor::Descriptor::read(vault)?.notes_dir(vault);
     let mut referenced: Vec<(String, String)> = Vec::new();
     if notes_dir.exists() {
         for entry in fs::read_dir(&notes_dir).map_err(io)? {
