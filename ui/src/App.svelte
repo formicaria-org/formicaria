@@ -542,11 +542,17 @@
   }
   $effect(() => {
     if (!import.meta.env.PROD) return; // network poll: production only (the mock has no remote)
-    void checkRemotes();
+    // **Not at t=0.** This shells out to `git ls-remote` *per vault*, so firing it as the app
+    // opens puts a network round trip per vault against the first paint. It never blocked
+    // rendering — `backup_status` drops the vault lock before the network, deliberately — but it
+    // competes for CPU and IO at the one moment the user is waiting. Nobody needs to know within
+    // three seconds that a collaborator pushed; they need their notes on screen.
+    const first = setTimeout(() => void checkRemotes(), 3000);
     const id = setInterval(() => void checkRemotes(), 45000);
     const onFocus = () => void checkRemotes();
     window.addEventListener('focus', onFocus);
     return () => {
+      clearTimeout(first);
       clearInterval(id);
       window.removeEventListener('focus', onFocus);
     };

@@ -275,6 +275,20 @@ edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **`pixi run` costs ~1.4s whenever its activation cache is cold**, against 0.07s warm — and
+  `--frozen` does *not* avoid it. Measured 2026-07-20 while hunting startup time. This is why
+  `packaging/formicaria.sh` execs `target/release/fm-serve` directly with the env's `bin` on PATH
+  instead of going through `pixi run app`: the server itself binds in 35–43ms, so pixi was ~97% of
+  a cold launch. **Beware measuring this by alternating the two forms** — the first attempt
+  "proved" `--frozen` was faster purely because plain always ran first and warmed the cache for
+  it. Time each form cold, separately, or the answer is an artefact.
+
+  What activation actually supplies at runtime is `PATH` and nothing else that matters: no
+  `LD_LIBRARY_PATH` is set at all, `git` comes from `/usr/bin`, and `pdftotext`/`vipsthumbnail`/
+  `restic` run from the env's `bin` with PATH alone (conda binaries carry their own RPATH). The
+  rest is the conda *build* toolchain, which a running server has no use for. The dev tasks still
+  go through `pixi run`, and must — they build.
+
 - **You cannot verify a UI change by grepping the APK — Tauri brotli-compresses the embedded
   frontend.** There is no `assets/*.js` in the APK at all: `frontendDist` is compiled into
   `libformicaria_mobile_lib.so` and compressed, so `strings` finds *zero* UI text (checked

@@ -119,12 +119,17 @@ fn main() {
     }
     println!("open  http://{addr}  in your browser");
 
-    // The launcher sets FM_OPEN so a double-click opens the default browser. A
-    // brief delay lets the listener accept before the browser's first request.
+    // The launcher sets FM_OPEN so a double-click opens the default browser.
+    //
+    // **No delay here, and there never needed to be one.** This slept 400ms first, to "let the
+    // listener accept before the browser's first request" — but `TcpListener::bind` above also
+    // calls `listen()`, so the kernel has been queueing connections since that line. A request
+    // arriving before `accept()` runs waits in the backlog; it cannot be refused. The accept loop
+    // starts a few lines below, microseconds away. So the sleep guarded against nothing and cost
+    // 400ms of every single launch — measured while looking for exactly this kind of leftover.
     if std::env::var_os("FM_OPEN").is_some() {
         let url = format!("http://{addr}");
         std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(400));
             let _ = open_native(std::ffi::OsStr::new(&url));
         });
     }

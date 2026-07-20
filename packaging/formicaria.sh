@@ -45,7 +45,29 @@ fi
 
 export FM_OPEN=1          # open the browser once the server is up
 export FM_AUTO_SHUTDOWN=1 # ...and quit the server when the tab is closed
-# Run the prebuilt release binary in the pixi env (no rebuild). `pixi run app`
-# activates the env so the ingest subprocesses (pdftotext, vipsthumbnail) are
-# found on PATH; the server opens the browser once it is bound.
+# Run the prebuilt release binary directly, with the pixi env's `bin` on PATH.
+#
+# **Skipping `pixi run` is the whole startup optimisation**, and it was measured rather than
+# assumed. `pixi run` costs **~1.4s whenever its activation cache is cold** — which is exactly the
+# double-click case — against 0.07s warm. `fm-serve` itself binds in 35–43ms with the real vaults.
+# So on the launch that matters most, pixi was ~97% of the wait.
+#
+# `--frozen` does **not** avoid it: that was measured too, and the first attempt to prove it was
+# wrong because the two forms were alternated and plain always ran first, warming the cache for
+# frozen. Cold, both pay it.
+#
+# **What activation actually provides here is PATH, and nothing else that matters.** Diffing
+# `pixi run env` against a plain one: no `LD_LIBRARY_PATH` is set at all, and the only runtime
+# names are `PATH` and `CONDA_PREFIX`. `git` comes from `/usr/bin`; `pdftotext`, `vipsthumbnail`
+# and `restic` live in the env's `bin` and were each run with PATH alone, resolving every shared
+# library (conda binaries carry their own RPATH). The rest of what activation sets is the conda
+# *build* toolchain — `CC`, `CFLAGS`, `CMAKE_ARGS` — which a running server has no use for.
+#
+# The fallback matters: with no env installed yet there is nothing to put on PATH, so hand over to
+# pixi, which will build it. That is the first-run path, where 1.4s is irrelevant next to a build.
+ENV_BIN="$REPO/.pixi/envs/default/bin"
+if [ -x "$REPO/target/release/fm-serve" ] && [ -d "$ENV_BIN" ]; then
+    export PATH="$ENV_BIN:$PATH"
+    exec "$REPO/target/release/fm-serve"
+fi
 exec "$PIXI" run app
