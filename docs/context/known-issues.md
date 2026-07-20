@@ -255,6 +255,15 @@ edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **You cannot verify a UI change by grepping the APK — Tauri brotli-compresses the embedded
+  frontend.** There is no `assets/*.js` in the APK at all: `frontendDist` is compiled into
+  `libformicaria_mobile_lib.so` and compressed, so `strings` finds *zero* UI text (checked
+  2026-07-20 — `asset-missing-inline`, `From the library` and even `svelte` all return 0 hits in a
+  binary that certainly contains them). The `.so`-grep that caught a phantom fix on 2026-07-19
+  worked because that string was **Rust**, and generalising it to UI strings would silently
+  "prove" every frontend change missing. Verify instead that the string is in `ui/dist/assets/*.js`
+  **and** that `ui/dist` is older than the APK — that pair is what shows the bundle was embedded.
+
 - **`pixi run ci | tail` reports the exit code of `tail`, not of CI.** A piped gate always looks
   green: on 2026-07-20 a failing test (221 tests, 1 red) was reported as "exit code 0" because the
   pipeline's status is its *last* command's. Run `pixi run ci` unpiped, or append
