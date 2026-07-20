@@ -122,3 +122,56 @@ fn hashing_a_whiteboard_sized_body_is_a_rounding_error() {
     );
     println!("sha256 of a 2.8 MB body: {each:?}");
 }
+
+/// **A full rebuild must stay linear in the note count.**
+///
+/// This is the test whose absence let an O(n²) rebuild ship. A wall-clock budget alone would not
+/// have caught it: at the few hundred notes a developer actually has, quadratic is invisible, and
+/// the cost only becomes absurd at the 10k the project claims to support. So this asserts the
+/// *shape* of the curve, not a duration — the per-note cost at 4x the notes must not have grown.
+///
+/// What it caught, measured on 2026-07-20 before the fix: 2 500 notes 2.2 s, 5 000 notes 10.3 s,
+/// 10 000 notes 54.7 s — ~5x per doubling. Two unindexed scans per note were responsible:
+/// `forget_path` deleting by `objects.path`, which had no index, and a `DELETE FROM fts` against
+/// an `UNINDEXED` id column. Afterwards: 0.29 s at 10 000, and a flat per-note cost.
+///
+/// Deliberately a ratio with a wide margin rather than a tight time: this runs on whatever machine
+/// CI has, and the failure being guarded against is 4x per doubling, not 20%.
+#[test]
+fn a_full_rebuild_stays_linear_in_the_note_count() {
+    /// Seed `n` notes and return how long one `Reindex::Full` over them takes.
+    fn rebuild_cost(n: usize) -> std::time::Duration {
+        let dir = tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        for i in 0..n {
+            let mut o = Object::new(Kind::Note, format!("body of note {i} with a few words in it"));
+            o.title = Some(format!("note {i}"));
+            std::fs::write(notes.join(format!("{}.md", o.id)), frontmatter::to_file(&o).unwrap())
+                .unwrap();
+        }
+        // `open` already performs one full rebuild; time a second so the files are cache-warm
+        // and the measurement is of the rebuild rather than of first-touch I/O.
+        let mut store = FileStore::open(dir.path()).unwrap();
+        let t = Instant::now();
+        store.reindex(Reindex::Full).unwrap();
+        t.elapsed()
+    }
+
+    let small = 2_000usize;
+    let large = 8_000usize;
+    let per_note_small = rebuild_cost(small).as_secs_f64() / small as f64;
+    let per_note_large = rebuild_cost(large).as_secs_f64() / large as f64;
+    let growth = per_note_large / per_note_small;
+
+    // Linear ⇒ ~1.0. Quadratic ⇒ ~4.0 at a 4x note count. 2.5 sits clear of both, so this fails
+    // on a reintroduced quadratic and not on a noisy machine.
+    assert!(
+        growth < 2.5,
+        "per-note rebuild cost grew {growth:.1}x when the vault grew 4x \
+         ({:.1} µs/note at {small} vs {:.1} µs/note at {large}) — a full rebuild has gone \
+         superlinear again, which is invisible at small vaults and unusable at large ones",
+        per_note_small * 1e6,
+        per_note_large * 1e6,
+    );
+}

@@ -275,6 +275,26 @@ edit-gesture)._
 
 ## Traps for whoever works here next
 
+- **A quadratic hides at the size you develop at.** The full index rebuild was O(n²) from the
+  start and nobody saw it, because at a few hundred notes it is milliseconds. Measured 2026-07-20
+  at the size the project claims to support: **2 500 notes 2.2 s, 5 000 notes 10.3 s, 10 000 notes
+  54.7 s** — ~5x per doubling — and 169 s for three vaults, against a MASTERPLAN budget of
+  "reindex < 10 s @ 10k". Cause: two unindexed scans per note (`forget_path` deleting by
+  `objects.path`, which had no index, plus a `DELETE FROM fts` against an `UNINDEXED` id).
+  After: **0.29 s at 10k, 0.87 s for 3x10k**, with a flat per-note cost.
+
+  The lesson for the next one: **assert the shape of the curve, not a duration.** A wall-clock
+  budget at 10k would have caught this only if someone had thought to write it at 10k; the
+  linearity test (`crates/fm-core/tests/perf.rs`) compares per-note cost at 2k against 8k and
+  fails at ~4x, which is what quadratic looks like at any absolute speed.
+
+- **Before optimising, measure — then measure again after the first fix.** The first fix here
+  (skipping the redundant FTS delete) was correct, reasoned from the code, and moved 10k from
+  54.7 s to 38.1 s while leaving the curve quadratic. It looked like progress and was not the
+  cause. Three separate profiling attempts were wrong before reading the loop body settled it:
+  SQLite itself does the same 10 000 inserts in **0.03 s**, which is what proved the problem was
+  never the database.
+
 - **`pixi run` costs ~1.4s whenever its activation cache is cold**, against 0.07s warm — and
   `--frozen` does *not* avoid it. Measured 2026-07-20 while hunting startup time. This is why
   `packaging/formicaria.sh` execs `target/release/fm-serve` directly with the env's `bin` on PATH

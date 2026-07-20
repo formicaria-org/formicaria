@@ -297,7 +297,7 @@ pub trait Store {
 a **15 s** incremental mtime poll for external edits, **suppressed while the tab is hidden**
 and paired with an unconditional refresh on `visibilitychange`. Liveness is a separate,
 lock-free `POST /api/alive` beat — it used to ride this poll, which is why the poll had to be
-3 s; in-app writes update the index in the same transaction; `fm reindex --full` = DROP+rebuild (<10 s @ 10k). A reindex-idempotence test proves the index is genuinely disposable.
+3 s; in-app writes update the index in the same transaction; `fm reindex --full` = DROP+rebuild. **Measured 2026-07-20: 0.29 s @ 10k, 0.87 s for 3 vaults x 10k.** Before that date it was 54.7 s @ 10k and quadratic — two unindexed scans per note — so the "<10 s @ 10k" written here was aspirational and 5x wrong for years; it is now asserted by a *linearity* test (`fm-core/tests/perf.rs`), which is the guard a duration budget could not be. **The claim that a reindex-idempotence test exists is false** — no such test is in the tree; the disposable-index property is currently argued, not proven.
 
 **`verify` + integrity manifest** (report-only, à la `git fsck`): unparseable frontmatter, unresolved code refs, missing blobs (→ warn), dangling links (v2). `manifest.json` is a plain (optionally minisign-signed) sha256 inventory; `fm verify --scrub` re-hashes blobs against it to catch bit-rot — the genuinely hard part of "lasts 10 years," treated as first-class.
 
