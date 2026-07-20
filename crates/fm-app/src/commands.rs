@@ -257,7 +257,14 @@ pub struct AssetStatus {
 pub fn asset_status(vault: &Path, reference: &str) -> Result<AssetStatus, StoreError> {
     let hash = parse_ref(reference)?;
     let store = BlobStore::new(vault);
-    let has_blob = store.exists(&hash);
+    // **A zero-byte blob is not media.** Ingest refuses an empty body now, so the only way one
+    // exists is as debris from before that guard: on Android every capture was stored as zero
+    // bytes, all colliding on the empty string's hash. Those notes would otherwise report a blob
+    // that is present, hand the UI a URL, and render as a broken image icon — which says nothing.
+    // Treated as absent, the note shows the ordinary "no bytes in this vault" placeholder, which
+    // is exactly what happened.
+    let has_blob = store.exists(&hash)
+        && std::fs::metadata(store.path_for(&hash)).map(|m| m.len() > 0).unwrap_or(false);
     Ok(AssetStatus {
         has_blob,
         has_thumb: ingest::thumb_path(vault, &hash).exists(),

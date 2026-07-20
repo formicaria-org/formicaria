@@ -195,3 +195,88 @@ fn an_ingest_with_no_bytes_is_refused_rather_than_stored() {
             .unwrap();
     assert_eq!(status["has_blob"], false, "nothing should have been written");
 }
+
+/// Walk every file under `root`, relative to it, sorted. Used to prove *where* an ingest wrote.
+fn tree(root: &Path) -> Vec<String> {
+    fn walk(dir: &Path, base: &Path, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(&p, base, out);
+            } else if let Ok(rel) = p.strip_prefix(base) {
+                out.push(rel.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(root, root, &mut out);
+    out.sort();
+    out
+}
+
+/// **The bytes land inside the vault, and nowhere else.**
+///
+/// The vault directory is the unit that gets synced, backed up and carried between machines, so
+/// an attachment written beside it rather than inside it is a file that quietly does not travel —
+/// and on a phone, where the vault is app-private storage, one that quietly does not exist after
+/// a reinstall. "Files-as-truth" means the vault directory *is* the truth.
+///
+/// This watches the whole parent directory, not just the vault, so a stray write to a sibling
+/// path (a cache dir, a temp file left behind, an app-data folder) fails the test rather than
+/// going unnoticed.
+#[test]
+fn an_ingested_file_is_written_inside_the_vault_and_nowhere_else() {
+    let home = tempdir().unwrap();
+    let vault = home.path().join("the-vault");
+    // A sibling that must stay empty: anything written here is an escape.
+    std::fs::create_dir_all(home.path().join("elsewhere")).unwrap();
+    let (_cfg, app) = app_with(&[("notes", vault.clone())]);
+
+    let before = tree(home.path());
+    let meta = call(&app, "ingest", json!({ "name": "photo.jpg", "vault": "" }), JPEG).unwrap();
+    let hash = meta["assets"][0].as_str().unwrap().strip_prefix("sha256:").unwrap().to_string();
+
+    // The blob is exactly where the content-addressed layout says, *under the vault*.
+    let expected = vault.join("blobs").join("sha256").join(&hash[0..2]).join(&hash[2..4]).join(&hash);
+    assert!(expected.is_file(), "the blob should be at {}", expected.display());
+    assert_eq!(std::fs::read(&expected).unwrap(), JPEG, "and it should be the bytes we sent");
+
+    // Everything new is inside the vault. Nothing landed beside it.
+    let new: Vec<String> =
+        tree(home.path()).into_iter().filter(|p| !before.contains(p)).collect();
+    assert!(!new.is_empty(), "the ingest wrote nothing at all");
+    for path in &new {
+        assert!(
+            path.starts_with("the-vault/"),
+            "ingest wrote outside the vault: {path} (all new files: {new:?})"
+        );
+    }
+}
+
+/// **A zero-byte blob reports as absent**, so notes written during the broken-transport window
+/// degrade to the ordinary placeholder rather than a broken image icon.
+///
+/// Ingest refuses an empty body now, so these can only be debris — but the debris is real: every
+/// photo taken on a phone before the fix was stored as zero bytes, and they all collide on the
+/// empty string's hash, so one leftover file stands behind every one of those notes.
+#[test]
+fn a_zero_byte_blob_from_the_broken_window_reports_as_absent() {
+    let dir = tempdir().unwrap();
+    let vault = dir.path().join("v");
+    let (_home, app) = app_with(&[("notes", vault.clone())]);
+
+    // Plant the artefact exactly as the broken build left it.
+    let empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    let at = vault.join("blobs").join("sha256").join("e3").join("b0").join(empty);
+    std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+    std::fs::write(&at, b"").unwrap();
+
+    let status =
+        call(&app, "asset_status", json!({ "reference": format!("asset:sha256-{empty}") }), &[])
+            .unwrap();
+    assert_eq!(
+        status["has_blob"], false,
+        "a 0-byte blob is not media; reporting it present renders a broken image icon"
+    );
+}
