@@ -166,6 +166,53 @@
     pick(options[(currentIndex + dir + options.length) % options.length].value);
   }
 
+  /// **The whole header rotates the view, not just the little label.**
+  ///
+  /// The rotator button worked and nobody found it — it is one small target among the header's
+  /// controls, and nothing about it says "scroll me". The header is the biggest thing in a pane
+  /// that is not content, it is already the drag handle, and it is where you look when you are
+  /// thinking about *this window* rather than what is in it. So the wheel anywhere across it
+  /// spins the view, and a horizontal swipe does the same on a touch screen.
+  ///
+  /// **Not the pane body.** A board scrolls horizontally by design and the agenda scrolls
+  /// vertically; stealing those gestures from the content would trade one discoverable action
+  /// for two broken ones.
+  ///
+  /// A note pane has no view to rotate, so it is exempt — `options` describes ways of looking at
+  /// a *collection*, and a note is one document.
+  const rotatable = $derived(pane.kind !== 'note');
+
+  function headWheel(e: WheelEvent) {
+    if (!rotatable) return;
+    // Only when the wheel is actually being turned vertically: a trackpad's horizontal flick is
+    // how you scroll a board, and it reaches here when the pointer is over the header.
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    e.preventDefault();
+    rotate(e.deltaY > 0 ? 1 : -1);
+  }
+
+  // Swipe: recorded on the header only, and deliberately generous about what counts as one.
+  let touchX = 0;
+  let touchY = 0;
+  /** Below this a swipe is a tap that wandered; ~1/8 of a phone's width. */
+  const SWIPE_MIN = 48;
+  function headTouchStart(e: TouchEvent) {
+    const t = e.changedTouches[0];
+    touchX = t?.clientX ?? 0;
+    touchY = t?.clientY ?? 0;
+  }
+  function headTouchEnd(e: TouchEvent) {
+    if (!rotatable) return;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - touchX;
+    const dy = t.clientY - touchY;
+    // Horizontal intent, not a vertical scroll that started on the header.
+    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) <= Math.abs(dy)) return;
+    // Swipe left = forward, matching every carousel: the content moves the way your finger did.
+    rotate(dx < 0 ? 1 : -1);
+  }
+
   // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
   // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
   // header did nothing while the drag still started and the cursor still said `grab`. An
@@ -227,8 +274,15 @@
     class="pane-head"
     class:grip-only={pane.kind === 'note'}
     use:gripDrag={index}
-    aria-label="drag pane"
-    title="Drag to rearrange this pane"
+    onwheel={headWheel}
+    ontouchstart={headTouchStart}
+    ontouchend={headTouchEnd}
+    role="toolbar"
+    tabindex="-1"
+    aria-label="pane controls — drag to rearrange, scroll or swipe to change the view"
+    title={rotatable
+      ? 'Drag to rearrange · scroll or swipe here to change the view'
+      : 'Drag to rearrange this pane'}
   >
     <span class="grip" aria-hidden="true">
       <Icon name="grip" size={13} />
@@ -241,11 +295,7 @@
         type="button"
         class="kind rotator"
         onclick={() => rotate(1)}
-        onwheel={(e) => {
-          e.preventDefault();
-          rotate(e.deltaY > 0 ? 1 : -1);
-        }}
-        title="Click or scroll to change the view"
+        title="Click, or scroll/swipe anywhere on this bar, to change the view"
         aria-label="pane view"
       >
         {currentLabel}

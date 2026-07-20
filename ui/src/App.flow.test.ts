@@ -1,13 +1,30 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 import { newPane } from './lib/panes';
 
-/** Reach a command the way a user now does: the toolbar's "+" buttons open **Settings**, whose
- *  first section is the action list. There is no command palette any more — one surface, one
- *  gear, so preferences and actions cannot drift apart. */
-async function runCommand(label: string, via: 'create' | 'view') {
-  await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
+/** Reach a command the way a user now does.
+ *
+ *  Two surfaces, and the distinction is the point. The toolbar's red **plus** makes things — a
+ *  note, a board, a window — and is deliberately three items long. Everything else, including
+ *  opening a named view, lives in **Settings**, whose first section is the action list. There is
+ *  no command palette any more: it was a second menu carrying preferences Settings also owned,
+ *  so the two could disagree about one thing.
+ *
+ *  Two details this encodes, both of which broke it once:
+ *  - The plus opens a real ARIA menu, so its entries are **`menuitem`**, not `button`.
+ *  - There are two buttons named "settings" — the toolbar gear and the bottom `ViewBar`'s, which
+ *    is where the control lives on a phone. Both open the same panel, so the duplication is
+ *    deliberate; the query is scoped to the top bar to say which one it means. */
+async function runCommand(label: string, via: 'create' | 'settings') {
+  if (via === 'create') {
+    await fireEvent.click(screen.getByRole('button', { name: 'make something new' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: label }));
+    return;
+  }
+  const topbar = document.querySelector('header.topbar');
+  if (!topbar) throw new Error('no top bar rendered');
+  await fireEvent.click(within(topbar as HTMLElement).getByRole('button', { name: 'settings' }));
   await fireEvent.click(await screen.findByRole('button', { name: label }));
 }
 

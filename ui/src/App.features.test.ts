@@ -1,13 +1,29 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
 
-/** Reach a command the way a user now does: the toolbar's "+" buttons open **Settings**, whose
- *  first section is the action list. There is no command palette any more — it was a second menu
- *  that carried preferences Settings also owned, so the two could disagree about one thing. One
- *  surface, one gear. */
-async function runCommand(label: string, via: 'create' | 'view') {
-  await fireEvent.click(screen.getByRole('button', { name: via === 'create' ? 'create' : 'open a view' }));
+/** Reach a command the way a user now does.
+ *
+ *  Two surfaces, and the distinction is the point. The toolbar's red **plus** makes things — a
+ *  note, a board, a window — and is deliberately three items long. Everything else, including
+ *  opening a named view, lives in **Settings**, whose first section is the action list. There is
+ *  no command palette any more: it was a second menu carrying preferences Settings also owned,
+ *  so the two could disagree about one thing.
+ *
+ *  Two details this encodes, both of which broke it once:
+ *  - The plus opens a real ARIA menu, so its entries are **`menuitem`**, not `button`.
+ *  - There are two buttons named "settings" — the toolbar gear and the bottom `ViewBar`'s, which
+ *    is where the control lives on a phone. Both open the same panel, so the duplication is
+ *    deliberate; the query is scoped to the top bar to say which one it means. */
+async function runCommand(label: string, via: 'create' | 'settings') {
+  if (via === 'create') {
+    await fireEvent.click(screen.getByRole('button', { name: 'make something new' }));
+    await fireEvent.click(await screen.findByRole('menuitem', { name: label }));
+    return;
+  }
+  const topbar = document.querySelector('header.topbar');
+  if (!topbar) throw new Error('no top bar rendered');
+  await fireEvent.click(within(topbar as HTMLElement).getByRole('button', { name: 'settings' }));
   await fireEvent.click(await screen.findByRole('button', { name: label }));
 }
 
@@ -153,6 +169,57 @@ describe('v2: property editing, timeline, delete', () => {
     expect(await screen.findByText(/GAE lambda interacts badly/)).toBeTruthy();
   });
 
+  // **The header rotates the view, not just the small label inside it.** The rotator button
+  // worked and nobody found it: one modest target among the header's controls, with nothing
+  // saying "scroll me". These pin the two gestures that replaced hunting for it.
+  it('changes a pane view by scrolling anywhere on its header', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+
+    await fireEvent.wheel(head, { deltaY: 1, deltaX: 0 });
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Agenda');
+    // And back the other way — a ring, so it spins in both directions.
+    await fireEvent.wheel(head, { deltaY: -1, deltaX: 0 });
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+  });
+
+  it('ignores a sideways trackpad flick over the header', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+
+    // Horizontal scrolling is how a board is read. Turning that into a view change would trade
+    // one discoverable action for a broken one.
+    await fireEvent.wheel(head, { deltaY: 0, deltaX: 40 });
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+  });
+
+  it('changes a pane view by swiping its header, but not on a stray tap', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const swipe = async (fromX: number, toX: number, toY = 0) => {
+      await fireEvent.touchStart(head, { changedTouches: [{ clientX: fromX, clientY: 0 }] });
+      await fireEvent.touchEnd(head, { changedTouches: [{ clientX: toX, clientY: toY }] });
+    };
+
+    // Left = forward, the way every carousel moves.
+    await swipe(200, 100);
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Agenda');
+    await swipe(100, 200);
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+
+    // A tap that wandered a few pixels is not a swipe — the header is also the drag handle,
+    // so a trigger-happy threshold would change the view every time a pane was picked up.
+    await swipe(200, 180);
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+
+    // Nor is a mostly-vertical drag that happened to start on the header.
+    await swipe(200, 140, 300);
+    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+  });
+
   it('copies a note to another vault behind a warning, then undoes it', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
@@ -237,7 +304,7 @@ describe('v2: property editing, timeline, delete', () => {
     await screen.findByText(/GAE lambda interacts badly/);
 
     // Open the Activity stream from the top bar.
-    await runCommand('Open Activity', 'view');
+    await runCommand('Open Activity', 'settings');
     const before = await waitFor(() => {
       const rows = container.querySelectorAll('.activity .row');
       expect(rows.length).toBeGreaterThan(1);

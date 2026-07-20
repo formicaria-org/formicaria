@@ -63,11 +63,16 @@ edit-gesture)._
   Mitigated meanwhile by the UI telling the user to scope a fine-grained token to one repo with
   an expiry, which is what actually bounds a leak (a PAT is a bearer token, **not** device-bound).
 
-- **The phone toolbar hides its trailing controls.** `.topbar` is `overflow-x: auto`, so on a
-  narrow screen the palette and Settings buttons scroll off the right edge with no affordance
-  saying so. During the TLS debugging this made Settings — the *only* diagnostic channel on a
-  MIUI device — reachable solely by swiping a bar nothing indicates is scrollable. On a phone
-  these belong in the bottom `ViewBar`, where the thumb already is.
+- **A round button needs both axes set, and the coarse-pointer rule only sets one.**
+  `@media (pointer: coarse)` gives toolbar controls `min-height: 2.75rem` and horizontal padding
+  — right for a pill-shaped chip, wrong for a circle, whose width comes from its own rule. The
+  red plus shipped to the emulator as a visible ellipse on 2026-07-20. `svelte-check` cannot see
+  this; one screenshot can.
+
+- **Narrow layouts hide every `.icon-btn` in the top bar** (`[data-layout='single']` *and* the
+  `auto` media query), because those controls live in the bottom `ViewBar` where the thumb is.
+  Reusing that class for anything that must stay visible on a phone makes it silently vanish
+  there — nearly shipped for the collapsed search button on 2026-07-20.
 
 - **"Save token" is a separate action from "Join".** Typing a token and pressing Join silently
   discards it; the token only reaches the backend via its own button. Reported from real use.

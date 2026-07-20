@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import Icon from './lib/Icon.svelte';
   import Pane from './lib/Pane.svelte';
   import {
@@ -41,7 +42,7 @@
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
-  // keyboard/新-pane actions target.
+  // keyboard/new-pane actions target.
   function loadWorkspace(): Workspace {
     try {
       const w = JSON.parse(localStorage.getItem('fm-workspace') ?? 'null');
@@ -301,6 +302,31 @@
   let skippedOpen = $state(false);
   let skippedNotes = $state<import('./lib/ipc').SkippedNote[]>([]);
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
+  let createOpen = $state(false);
+  let searchOpen = $state(false);
+
+  /** Open the collapsed search and put the caret in it. */
+  async function openSearch() {
+    searchOpen = true;
+    await tick(); // the input does not exist until the branch renders
+    searchEl?.focus();
+  }
+
+  /// What the red plus offers: **three things you can make**, and nothing else.
+  ///
+  /// A note and a board are documents. A **window** is a place to look at them — and it opens on
+  /// the board and is then *rotated* to whatever view you want, rather than being chosen from a
+  /// list of seven at the moment of creation. That is the whole simplification: listing every
+  /// view here made the menu grow with the app and asked you to decide before you could see
+  /// anything, when changing your mind afterwards costs one scroll or one swipe.
+  ///
+  /// **New vault is not here** either. You make a vault a handful of times ever; it lives in
+  /// Settings, which is where rare configuration belongs.
+  const CREATE_MENU: { group: string; label: string; run: () => void }[] = [
+    { group: 'Create', label: 'New note', run: onNew },
+    { group: 'Create', label: 'New board', run: onNewBoard },
+    { group: 'Create', label: 'New window', run: () => addPane('board') },
+  ];
 
   // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
   let commands = $derived([
@@ -309,11 +335,21 @@
     // into two half-menus saying different things. Anything that is a *preference* now lives in
     // Settings, and the palette's job is *actions*: open something, make something, do
     // something to a vault. `Settings` is here as the door to the other half, not a copy of it.
-    { group: 'Open', label: 'Open Board', run: () => addPane('board') },
-    { group: 'Open', label: 'Open Agenda', run: () => addPane('agenda') },
-    { group: 'Open', label: 'Open Timeline', run: () => addPane('timeline') },
-    { group: 'Open', label: 'Open Search', run: () => addPane('search') },
-    { group: 'Open', label: 'Open Activity', run: () => addPane('activity') },
+    // **The plus menu is spread in, not restated.** Its three items were written out a second
+    // time here with different labels, which is exactly how the last palette drifted into a
+    // second Settings that disagreed with the first.
+    ...CREATE_MENU,
+    // Only here: rare enough to be clutter in a menu reached dozens of times a day.
+    { group: 'Create', label: 'New vault', run: () => (newVaultOpen = true) },
+    // **Every view, by name — and only in the palette.** The plus deliberately stops at "new
+    // window" because a window is rotated after it opens, but the palette is the *searchable*
+    // surface: typing "timeline" should land on a timeline without knowing that a window is the
+    // thing that holds one. Opening a window already on the right view is strictly less work.
+    ...['board', 'agenda', 'timeline', 'search', 'activity'].map((k) => ({
+      group: 'Open',
+      label: `Open ${k[0].toUpperCase()}${k.slice(1)}`,
+      run: () => addPane(k as PaneKind),
+    })),
     ...(views ?? [])
       .filter((v) => !v.error)
       .map((v) => ({
@@ -321,9 +357,6 @@
         label: `Open “${v.name}”`,
         run: () => addPane('view', { viewName: v.name }),
       })),
-    { group: 'Create', label: 'New note', run: onNew },
-    { group: 'Create', label: 'New board', run: onNewBoard },
-    { group: 'Create', label: 'New vault', run: () => (newVaultOpen = true) },
     { group: 'Vault', label: 'Back up the vault', run: onBackup },
     { group: 'This view', label: 'Close this view', run: () => run('closePane') },
     { group: 'App', label: 'Settings', run: () => (settingsOpen = true) }
@@ -796,46 +829,85 @@
        space). Everything the rail held lives here in one row; the workspace gets the full
        height and width below it. -->
   <header class="topbar">
-    <span class="wordmark">formicaria</span>
+    <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
+         *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
+         and a wordmark saying one thing. The wordmark went too: the app does not need to tell
+         you its name on every screen of its own window, and on a phone that space is the
+         difference between the search field fitting and not.
 
-    <label class="searchfield">
-      <Icon name="search" size={15} />
-      <input
-        bind:this={searchEl}
-        class="topbar-search"
-        type="search"
-        placeholder="Search…"
-        bind:value={searchQuery}
-        oninput={onSearchInput}
-        spellcheck="false"
+         This is a real anchored menu, which the codebase previously avoided on the grounds that
+         `.topbar` is a scroll container that would clip one. It is `position: fixed` and
+         measured off the button, so no ancestor's overflow can clip it — and the alternative,
+         routing every creation through a full-screen palette, is what made "new note" feel like
+         a settings trip. -->
+    <div class="create-wrap">
+      <button
+        type="button"
+        class="plus-btn"
+        onclick={() => (createOpen = !createOpen)}
+        aria-expanded={createOpen}
+        aria-haspopup="menu"
+        title="Make something new (Ctrl+K)"
+        aria-label="make something new">
+        <Icon name="plus" size={18} />
+      </button>
+      {#if createOpen}
+        <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
+             tap that would otherwise land on whatever is behind the menu. -->
+        <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
+        <ul class="create-menu" role="menu">
+          {#each CREATE_MENU as item, i (item.label)}
+            <!-- The rule falls where "make something" turns into "look at something", worked out
+                 from the groups rather than flagged by hand — so it stays right when an item is
+                 added on either side of it. -->
+            {#if i > 0 && item.group !== CREATE_MENU[i - 1].group}
+              <li class="menu-sep" role="separator"></li>
+            {/if}
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                onclick={() => ((createOpen = false), item.run())}>{item.label}</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
+    <!-- Collapsed to its lens until wanted. A search field is the widest thing in the bar and
+         is used a fraction as often as it occupies space; open it and it takes the room it
+         needs. `searchOpen` starts false on every load, deliberately — a bar that remembers
+         being open is a bar that is usually open. -->
+    {#if searchOpen}
+      <label class="searchfield">
+        <Icon name="search" size={15} />
+        <input
+          bind:this={searchEl}
+          class="topbar-search"
+          type="search"
+          placeholder="Search…"
+          bind:value={searchQuery}
+          oninput={onSearchInput}
+          onblur={() => { if (!searchQuery.trim()) searchOpen = false; }}
+          spellcheck="false"
+          aria-label="search notes"
+        />
+      </label>
+    {:else}
+      <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
+           bar, because those controls also live in the bottom `ViewBar` where the thumb is.
+           Search does not, so reusing that class would have made the search button disappear on
+           exactly the screen this collapsing is for. -->
+      <button
+        type="button"
+        class="search-btn"
+        onclick={openSearch}
         aria-label="search notes"
-      />
-    </label>
-
-    <!-- Two buttons where there were eight controls. Both open the command palette already
-         scoped, rather than a dropdown: this codebase has deliberately never had one (see
-         `Pane.svelte` — "a rotator, not a dropdown"), `.topbar` is a scroll container that
-         would clip an anchored menu, and on a phone a full-height list beats a popover. The
-         palette is the menu. -->
-    <button
-      type="button"
-      class="tb-btn"
-      onclick={() => openSettings('commands')}
-      title="Create — note, board, vault (Ctrl+K)"
-      aria-label="create">
-      <Icon name="plus" size={16} /><span class="btn-label">New</span>
-    </button>
-    <button
-      type="button"
-      class="tb-btn ghost"
-      onclick={() => openSettings('commands')}
-      title="Open a view in a new pane"
-      aria-label="open a view">
-      <!-- **Not a second plus.** With the labels hidden on a phone the two buttons became
-           indistinguishable except by colour, which is not a distinction someone can act on. The
-           pane glyph says "another view" the way the plus says "another thing". -->
-      <Icon name="board" size={16} /><span class="btn-label">View</span>
-    </button>
+        aria-expanded={false}
+        title="Search">
+        <Icon name="search" size={16} />
+      </button>
+    {/if}
 
     {#if allVaults.length > 1}
       <!-- Where new notes/boards land. A destination, not a permission — it only picks the
@@ -1143,12 +1215,6 @@
   [data-layout='single'] .topbar .icon-btn {
     display: none;
   }
-  /* **Icon-only where width is scarce.** "＋ New" and "＋ View" spelled out cost more of a phone's
-     top bar than they earn — the plus already says "make one", and both are one tap from the
-     action list besides. The words come back as soon as there is room. */
-  [data-layout='single'] .topbar :global(.btn-label) {
-    display: none;
-  }
   /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
      relative to, and no ambiguity about which pane a close button means — so the container
      chrome goes and the content gets the room. Closing moved to the view bar. The pane's own
@@ -1188,9 +1254,6 @@
     [data-layout='auto'] .topbar .icon-btn {
       display: none;
     }
-    [data-layout='auto'] .topbar :global(.btn-label) {
-      display: none;
-    }
   }
 
   .body {
@@ -1225,12 +1288,74 @@
   }
 
   /* Top-bar controls. */
-  .wordmark {
-    font-weight: 700;
-    font-size: var(--text-md);
+  /* The one create control. Round and filled so it reads as *the* action in the bar rather than
+     one button among several, and sized to the 2.75rem touch target the phone work settled on. */
+  .create-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .plus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    cursor: pointer;
+  }
+  .plus-btn:hover {
+    filter: brightness(1.08);
+  }
+  /* `fixed`, not `absolute`: `.topbar` scrolls horizontally, and an absolutely-positioned menu
+     inside a scroll container is clipped by it. This is the constraint that kept the codebase
+     on full-screen palettes; anchoring to the viewport is what lifts it. */
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+  .create-menu {
+    position: fixed;
+    top: calc(var(--header-h) + env(safe-area-inset-top, 0px) - 2px);
+    left: var(--space-2);
+    z-index: 41;
+    min-width: 11rem;
+    max-height: 70vh;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    box-shadow: var(--shadow-lg);
+  }
+  .create-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    /* The touch target both platform guidelines ask for. */
+    min-height: 2.75rem;
+    padding: var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-2, 6px);
     color: var(--text);
-    white-space: nowrap;
-    padding-right: var(--space-1);
+    font: inherit;
+    cursor: pointer;
+  }
+  .create-menu button:hover {
+    background: var(--surface-hover);
+  }
+  .menu-sep {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--border);
   }
   .searchfield {
     display: flex;
@@ -1251,23 +1376,20 @@
     width: 9rem;
     outline: none;
   }
-  .tb-btn {
+  /* Styled like `.icon-btn` but exempt from the narrow-layout hide — see the markup. */
+  .search-btn {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-    font: inherit;
-    font-size: var(--text-sm);
-    padding: 4px 10px;
+    justify-content: center;
+    padding: 5px;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
-    background: var(--accent);
-    color: var(--accent-contrast);
+    background: none;
+    color: var(--text-muted);
     cursor: pointer;
   }
-  .tb-btn.ghost {
-    background: transparent;
-    border-color: var(--border);
+  .search-btn:hover {
+    background: var(--surface-hover);
     color: var(--text);
   }
   .tb-chip {
@@ -1312,9 +1434,6 @@
   }
   /* The create destination reads at a glance: a touch larger, full-contrast text, and an
      accent-tinted box so it stands out as *where new things land* rather than a quiet setting. */
-  .btn-label {
-    margin-left: 4px;
-  }
   .tb-create {
     font-size: var(--text-sm);
     color: var(--text);
@@ -1464,23 +1583,10 @@
       display: none;
     }
 
-    /* Rows, not controls, are what cost height — removing the columns selector above saved a
-       control and no space at all. At 411px the first row (wordmark + search + New note) is
-       full, so New board wraps onto a line of its own, and the trailing actions wrap onto
-       another. Reclaiming a row means making row one narrower.
-
-       The wordmark goes first: the app's name is the least useful thing on screen to someone
-       already looking at it, and it is ~90px. That is enough for New board to come up beside
-       New note. `<title>` still carries the name in the tab. */
-    .wordmark {
-      display: none;
-    }
-
-    /* Measured, not guessed: at 411px the first row came to ~423px with New board on it — over
-       by about a dozen pixels, which is why New board sat alone on a line of its own. The
-       search input is 9rem by default and is the only thing here with slack, so it gives up
-       3rem and the row closes. A placeholder is still legible at 6rem, and the field grows the
-       moment there is room. */
+    /* The row that used to overflow — wordmark, search field, "＋ New", "＋ View" — is now a
+       plus, a lens and a gear, so nothing here needs hiding to make it fit. What remains is the
+       search field *once opened*: it is the only elastic thing in the bar, and 6rem still shows
+       a legible placeholder while leaving room for the vault chips beside it. */
     .topbar-search {
       width: 6rem;
     }
@@ -1490,10 +1596,19 @@
      not the viewport width: a tablet is wide and still has no mouse. 2.75rem is the
      ~44px both platform guidelines ask for; several of these were 3px of padding. */
   @media (pointer: coarse) {
-    .tb-btn,
+    .search-btn,
     .tb-chip {
       min-height: 2.75rem;
       padding-inline: 0.75rem;
+    }
+    /* **Both axes, or it stops being a circle.** The rule above sets a min-height and horizontal
+       padding, which is right for a pill-shaped chip and wrong for a round button: the width
+       stayed 2rem while the height grew to 2.75rem, and the plus shipped as a visible ellipse.
+       Caught by screenshotting the emulator, not by any test. */
+    .plus-btn {
+      width: 2.75rem;
+      height: 2.75rem;
+      padding: 0;
     }
   }
 </style>
