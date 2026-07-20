@@ -51,6 +51,11 @@ leftover is **discarded** rather than carried, because carrying it is what turns
 scroll into four views. A pause or a **reversal** resets — and a reversal also clears the cooldown,
 since inertia never reverses, so scrolling back one answers at once instead of feeling stuck.
 
+**Then it went wrong twice more, the same way both times.** The lesson is worth more than the
+control: *what a step costs must depend on the gesture in front of you, never on what you did
+before it.* Both bugs were direction-dependent state, and both passed a single-example test while
+being obviously lopsided to use.
+
 **And then it only worked one way**, reported immediately after. The cooldown, when it blocked a
 step, *held* the accumulator at the threshold — meant to stop inertia banking steps, and what it
 actually did was leave the **same direction pre-charged**: continuing forward arrived already at
@@ -58,8 +63,21 @@ the threshold and turned on the very next event, while turning back started from
 second notch. One direction answered instantly and the other felt dead. Discarding the leftover
 instead is the only symmetric choice: every step, either way, costs one full gesture.
 
-The threshold came down to 80px in the same pass, because Chrome reports 100 for one detent on
-many mice and a 120 threshold made a single notch do nothing.
+The threshold came down in the same pass, because Chrome reports 100 for one detent on many mice
+and a 120 threshold made a single notch do nothing.
+
+**And that fix left its own asymmetry**, reported as *"rolling up seems to be sensitive
+differently than rolling down"*. The cooldown was cleared by a **reversal** but not by continuing
+— so after any step, the way you were already going waited 220ms and the opposite fired at once.
+Whichever way you had just gone felt sluggish. It was lopsided by construction, and I had put it
+there deliberately to make scroll-back responsive.
+
+The design now has **no direction memory at all**, which removes the whole class rather than the
+instance. A wheel event is judged on its own size: a **detent** (≥50px normalised) turns one view
+immediately, either way, because you cannot produce those faster than your fingers move and
+throttling a deliberate act only makes it feel ignored; **smooth scrolling** accumulates to 180px
+per step with a cooldown that applies identically in both directions, which is the only place
+inertia can bank anything.
 
 Deltas are normalised to pixels first: `deltaMode` is lines on Firefox and pages in some
 configurations, so comparing the raw number against a pixel threshold would make the same gesture

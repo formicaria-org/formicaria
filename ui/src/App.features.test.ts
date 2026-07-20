@@ -208,26 +208,48 @@ describe('v2: property editing, timeline, delete', () => {
   // accumulator at the threshold, which left the same direction pre-charged: continuing forward
   // turned on the very next event while turning back started from zero and cost a second notch.
   // Reported as "only one direction works".
-  it('costs the same to scroll back as to scroll on', async () => {
+  it('comes back to where it started when you scroll back the same amount', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
     const head = screen.getAllByRole('toolbar')[0];
     const view = () => screen.getByLabelText('pane view').textContent?.trim();
 
-    // A few notches forward in quick succession — the cooldown means only one step lands.
+    // Three detents forward is three views — a detent is a deliberate act and is never throttled,
+    // which is the difference between a control that feels calm and one that feels ignored.
     for (let i = 0; i < 3; i++) await fireEvent.wheel(head, { deltaY: 100, deltaX: 0 });
-    expect(view()).toBe('Agenda');
+    expect(view()).toBe('Search');
 
-    // **One** notch back must come back. Before the fix this did nothing at all, because the
-    // reversal reset to zero while 100 < the old 120 threshold.
-    await fireEvent.wheel(head, { deltaY: -100, deltaX: 0 });
+    // And three back is exactly back. The two shipped bugs both broke this: one made the return
+    // trip cost twice as much, the other made it cost half.
+    for (let i = 0; i < 3; i++) await fireEvent.wheel(head, { deltaY: -100, deltaX: 0 });
     expect(view()).toBe('Board');
+  });
 
-    // And it keeps working in both directions, one notch at a time.
-    await fireEvent.wheel(head, { deltaY: 100, deltaX: 0 });
-    expect(view()).toBe('Agenda');
-    await fireEvent.wheel(head, { deltaY: -100, deltaX: 0 });
-    expect(view()).toBe('Board');
+  // **Symmetry as a property, not an example.** Two direction-dependent bugs shipped from this
+  // one control in an hour — a held accumulator that pre-charged the way you were already going,
+  // then a cooldown that a reversal cleared and continuing did not. Both times a single example
+  // passed while the control was lopsided in use. This drives an arbitrary sequence of detents
+  // and requires the view to be exactly where the arithmetic says, which no direction-dependent
+  // rule can satisfy.
+  it('treats up and down identically over an arbitrary sequence of notches', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
+    // The rotator's ring, in order, as `Pane.svelte` builds it from KINDS.
+    const ring = ['Board', 'Agenda', 'Timeline', 'Search', 'Activity'];
+    const at = (i: number) => ring[((i % ring.length) + ring.length) % ring.length];
+
+    // Deliberately lopsided: runs of one direction, single reversals, and a long run back.
+    const moves = [1, 1, -1, 1, 1, 1, -1, -1, -1, -1, 1, -1, 1, 1, -1];
+    let expected = 0;
+    for (const dir of moves) {
+      await fireEvent.wheel(head, { deltaY: 100 * dir, deltaX: 0 });
+      expected += dir;
+      expect(view()).toBe(at(expected));
+    }
+    // Every notch spent exactly one step, so returning to zero returns to where it started.
+    expect(expected).toBe(moves.reduce((a, b) => a + b, 0));
   });
 
   it('turns the view once for a single mouse notch', async () => {

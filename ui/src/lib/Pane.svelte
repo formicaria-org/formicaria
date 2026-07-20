@@ -182,46 +182,52 @@
   /// a *collection*, and a note is one document.
   const rotatable = $derived(pane.kind !== 'note');
 
-  /// **One gesture is one step**, which the first version got badly wrong.
+  /// **One gesture is one step**, and the rule depends only on *how far* you scrolled.
   ///
-  /// A wheel does not emit one event per notch — a mouse sends a burst, and a trackpad sends a
-  /// long stream of small deltas plus inertia after your fingers have left it. Rotating on each
-  /// event meant a barely-there movement span several views before you could read any of them.
+  /// Two bugs came out of this control, both reported within minutes, and both were the same
+  /// mistake in different clothes: the amount a step cost depended on **history** rather than on
+  /// the gesture in front of it.
   ///
-  /// Three things together fix it, and all three are needed:
+  /// 1. Rotating on every event — a wheel sends a burst per detent and a trackpad sends a stream
+  ///    plus inertia, so a light movement span several views.
+  /// 2. Then the cooldown, when it blocked a step, was *cleared by a reversal* but not by
+  ///    continuing. So after any step the direction you were already going was throttled and the
+  ///    opposite fired instantly: "rolling up seems to be sensitive differently than rolling
+  ///    down". It was, by construction.
   ///
-  /// - **Accumulate to a threshold** rather than acting on each event, so many small deltas add
-  ///   up to one step instead of making many.
-  /// - **A cooldown**, so a hard flick's inertia cannot queue a run of steps after you have
-  ///   stopped. The leftover is *discarded* rather than carried, because carrying it is what
-  ///   turns one emphatic scroll into four views.
-  /// - **Reset on a pause or a reversal**, so each gesture starts from zero and scrolling back
-  ///   the other way responds immediately instead of first paying off what you just spent.
-  /// Below one notch, so a single detent always turns the view once — Chrome reports 100 or 120
-  /// for one, and a threshold at 120 meant some mice needed two. A trackpad's deltas are far
-  /// smaller than this, so it still takes a deliberate push there.
-  const WHEEL_STEP = 80;
-  const WHEEL_COOLDOWN = 250; // ms between steps, whatever the wheel is doing
-  const WHEEL_GAP = 350; // ms of quiet that ends a gesture
+  /// So there is no direction memory here at all any more, and nothing carries between gestures.
+  /// A wheel event is judged on its own size:
+  ///
+  /// - **A detent** — one click of a real wheel — turns the view once, at once, either way. You
+  ///   cannot produce these faster than your fingers move, so throttling them only ever makes a
+  ///   deliberate act feel ignored.
+  /// - **Smooth scrolling** — a trackpad, or a high-resolution wheel — accumulates, because its
+  ///   events are far smaller and far more numerous. Only there is a cooldown needed, and it
+  ///   applies the same in both directions.
+
+  /// Above this, a single event is a discrete detent. Chrome reports 100–120 for one, Firefox
+  /// three lines (120 normalised); a trackpad's individual deltas are an order of magnitude less.
+  const WHEEL_NOTCH = 50;
+  /// How much smooth scrolling makes one step. Deliberately several times a detent: these arrive
+  /// in long streams, and the original complaint was a barely-there movement spending views.
+  const WHEEL_SMOOTH_STEP = 180;
+  /// Only for smooth scrolling, and applied identically whichever way you are going — it exists
+  /// to stop inertia banking steps after your fingers have left the surface, nothing else.
+  const WHEEL_COOLDOWN = 220;
+  /// Quiet long enough to end a gesture, so nothing you scrolled a moment ago is still owed.
+  const WHEEL_GAP = 350;
+
   let wheelAccum = 0;
   let lastWheelAt = 0;
   let lastRotateAt = 0;
-  /// The direction of the last step, `0` before any. Reversal is judged against **this** and not
-  /// against the accumulator: the accumulator is zeroed the moment a step is spent, so comparing
-  /// with it means the very next event — the one that actually reverses — sees `0` and is treated
-  /// as a continuation, leaving the user's deliberate scroll-back stuck behind the cooldown.
-  let lastDir = 0;
 
   /// A wheel delta in pixels, whichever unit the browser chose to report.
   ///
-  /// `deltaMode` is lines on Firefox and pages on some configurations, so the raw number means
-  /// nothing on its own — comparing it against a pixel threshold without this makes the same
-  /// gesture ~16x less sensitive on one browser than another.
+  /// `deltaMode` is lines on Firefox and pages in some configurations, so the raw number means
+  /// nothing on its own. A line counts as 40px rather than the ~16 it really is, because Firefox
+  /// sends **three** lines per detent — the number that matters is the one that makes a detent
+  /// weigh the same in both browsers.
   function wheelPixels(e: WheelEvent): number {
-    // 40px per line, not the ~16px a line actually is: Firefox reports **3 lines** for one
-    // notch, so this is the number that makes one notch there weigh the same as one notch in
-    // Chrome. Getting it wrong does not break the control, it makes it need three flicks on one
-    // browser and one on another.
     const scale = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
     return e.deltaY * scale;
   }
@@ -235,34 +241,31 @@
 
     const now = performance.now();
     const dy = wheelPixels(e);
-    if (now - lastWheelAt > WHEEL_GAP) wheelAccum = 0; // a new gesture
-    if (lastDir !== 0 && Math.sign(dy) !== lastDir) {
-      // **Turning back is always deliberate**, so it also clears the cooldown. Inertia only ever
-      // continues in the direction you pushed — it never reverses — so nothing this lets through
-      // is what the cooldown exists to stop, and "scroll back one" answering at once is the
-      // difference between a control that feels calm and one that feels stuck.
-      wheelAccum = 0;
-      lastRotateAt = 0;
-    }
-    lastWheelAt = now;
-    wheelAccum += dy;
+    const dir = dy > 0 ? 1 : -1;
 
-    if (Math.abs(wheelAccum) < WHEEL_STEP) return;
-    if (now - lastRotateAt < WHEEL_COOLDOWN) {
-      // **Spend it, do not hold it.** Holding the accumulator at the threshold was meant to stop
-      // inertia banking steps, and it quietly made the control one-directional: continuing the
-      // same way arrived *already charged* and turned on the very next event, while turning back
-      // started from zero and cost a second notch. One direction answered instantly and the other
-      // felt dead. Discarding is the only symmetric choice — every step, either way, costs one
-      // full gesture.
+    // A detent: unambiguous, deliberate, and answered immediately in either direction.
+    if (Math.abs(dy) >= WHEEL_NOTCH) {
       wheelAccum = 0;
+      lastWheelAt = now;
+      lastRotateAt = now;
+      rotate(dir);
       return;
     }
-    lastRotateAt = now;
+
+    // Smooth scrolling: add up, and start over after a pause so nothing is carried into the
+    // next gesture.
+    if (now - lastWheelAt > WHEEL_GAP) wheelAccum = 0;
+    lastWheelAt = now;
+    wheelAccum += dy;
+    if (Math.abs(wheelAccum) < WHEEL_SMOOTH_STEP) return;
+    // Discarded rather than held: holding it at the threshold is what pre-charged one direction
+    // last time. Either way, a step always costs a whole gesture.
     wheelAccum = 0;
-    lastDir = Math.sign(dy);
-    rotate(dy > 0 ? 1 : -1);
+    if (now - lastRotateAt < WHEEL_COOLDOWN) return;
+    lastRotateAt = now;
+    rotate(dir);
   }
+
 
   // Swipe: recorded on the header only, and deliberately generous about what counts as one.
   let touchX = 0;

@@ -67,6 +67,17 @@ edit-gesture)._
   Mitigated meanwhile by the UI telling the user to scope a fine-grained token to one repo with
   an expiry, which is what actually bounds a leak (a PAT is a bearer token, **not** device-bound).
 
+- **A gesture control must not remember what you did last.** The pane-header wheel rotator shipped
+  two direction-dependent bugs within an hour on 2026-07-20, and both were the same mistake: what
+  a step *cost* depended on history rather than on the gesture in front of it. First a blocked
+  accumulator was *held* at the threshold, pre-charging the direction you were already going;
+  then a cooldown that a **reversal cleared and continuing did not**, so after any step one way
+  was throttled and the other fired instantly. Each passed a single-example test while being
+  visibly lopsided in use. It now has no direction memory at all — a detent turns one view
+  immediately either way, and only smooth scrolling accumulates. Pinned by a test that drives an
+  arbitrary lopsided sequence of notches and requires the view to land exactly where the
+  arithmetic says, which no direction-dependent rule can satisfy.
+
 - **A round button needs both axes set, and the coarse-pointer rule only sets one.**
   `@media (pointer: coarse)` gives toolbar controls `min-height: 2.75rem` and horizontal padding
   — right for a pill-shaped chip, wrong for a circle, whose width comes from its own rule. The
