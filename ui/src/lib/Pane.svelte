@@ -182,13 +182,74 @@
   /// a *collection*, and a note is one document.
   const rotatable = $derived(pane.kind !== 'note');
 
+  /// **One gesture is one step**, which the first version got badly wrong.
+  ///
+  /// A wheel does not emit one event per notch — a mouse sends a burst, and a trackpad sends a
+  /// long stream of small deltas plus inertia after your fingers have left it. Rotating on each
+  /// event meant a barely-there movement span several views before you could read any of them.
+  ///
+  /// Three things together fix it, and all three are needed:
+  ///
+  /// - **Accumulate to a threshold** rather than acting on each event, so many small deltas add
+  ///   up to one step instead of making many.
+  /// - **A cooldown**, so a hard flick's inertia cannot queue a run of steps after you have
+  ///   stopped. The leftover is *discarded* rather than carried, because carrying it is what
+  ///   turns one emphatic scroll into four views.
+  /// - **Reset on a pause or a reversal**, so each gesture starts from zero and scrolling back
+  ///   the other way responds immediately instead of first paying off what you just spent.
+  const WHEEL_STEP = 120; // one mouse notch, in normalised pixels
+  const WHEEL_COOLDOWN = 250; // ms between steps, whatever the wheel is doing
+  const WHEEL_GAP = 350; // ms of quiet that ends a gesture
+  let wheelAccum = 0;
+  let lastWheelAt = 0;
+  let lastRotateAt = 0;
+  /// The direction of the last step, `0` before any. Reversal is judged against **this** and not
+  /// against the accumulator: the accumulator is zeroed the moment a step is spent, so comparing
+  /// with it means the very next event — the one that actually reverses — sees `0` and is treated
+  /// as a continuation, leaving the user's deliberate scroll-back stuck behind the cooldown.
+  let lastDir = 0;
+
+  /// A wheel delta in pixels, whichever unit the browser chose to report.
+  ///
+  /// `deltaMode` is lines on Firefox and pages on some configurations, so the raw number means
+  /// nothing on its own — comparing it against a pixel threshold without this makes the same
+  /// gesture ~16x less sensitive on one browser than another.
+  function wheelPixels(e: WheelEvent): number {
+    const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    return e.deltaY * scale;
+  }
+
   function headWheel(e: WheelEvent) {
     if (!rotatable) return;
     // Only when the wheel is actually being turned vertically: a trackpad's horizontal flick is
     // how you scroll a board, and it reaches here when the pointer is over the header.
     if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
     e.preventDefault();
-    rotate(e.deltaY > 0 ? 1 : -1);
+
+    const now = performance.now();
+    const dy = wheelPixels(e);
+    if (now - lastWheelAt > WHEEL_GAP) wheelAccum = 0; // a new gesture
+    if (lastDir !== 0 && Math.sign(dy) !== lastDir) {
+      // **Turning back is always deliberate**, so it also clears the cooldown. Inertia only ever
+      // continues in the direction you pushed — it never reverses — so nothing this lets through
+      // is what the cooldown exists to stop, and "scroll back one" answering at once is the
+      // difference between a control that feels calm and one that feels stuck.
+      wheelAccum = 0;
+      lastRotateAt = 0;
+    }
+    lastWheelAt = now;
+    wheelAccum += dy;
+
+    if (Math.abs(wheelAccum) < WHEEL_STEP) return;
+    if (now - lastRotateAt < WHEEL_COOLDOWN) {
+      // Hold at the threshold rather than letting inertia bank several steps to spend later.
+      wheelAccum = Math.sign(wheelAccum) * WHEEL_STEP;
+      return;
+    }
+    lastRotateAt = now;
+    wheelAccum = 0;
+    lastDir = Math.sign(dy);
+    rotate(dy > 0 ? 1 : -1);
   }
 
   // Swipe: recorded on the header only, and deliberately generous about what counts as one.

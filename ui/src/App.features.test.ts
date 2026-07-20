@@ -176,12 +176,44 @@ describe('v2: property editing, timeline, delete', () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
     const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
 
-    await fireEvent.wheel(head, { deltaY: 1, deltaX: 0 });
-    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Agenda');
-    // And back the other way — a ring, so it spins in both directions.
-    await fireEvent.wheel(head, { deltaY: -1, deltaX: 0 });
-    expect(screen.getByLabelText('pane view').textContent?.trim()).toBe('Board');
+    // One mouse notch — 120px is what a wheel reports for one detent.
+    await fireEvent.wheel(head, { deltaY: 120, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+    // And back the other way — a ring, so it spins in both directions. Reversing is deliberate
+    // by definition, so it answers immediately rather than waiting out the cooldown.
+    await fireEvent.wheel(head, { deltaY: -120, deltaX: 0 });
+    expect(view()).toBe('Board');
+  });
+
+  // **The over-sensitivity that shipped**: a wheel emits a burst per gesture, and rotating on
+  // each event span several views before any of them could be read. Reported from real use.
+  it('spends one step per gesture, not one per wheel event', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
+
+    // A trackpad's stream: many small deltas well past a single notch in total.
+    for (let i = 0; i < 12; i++) await fireEvent.wheel(head, { deltaY: 30, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+
+    // Inertia keeps arriving after the fingers have gone. It must not bank further steps.
+    for (let i = 0; i < 20; i++) await fireEvent.wheel(head, { deltaY: 18, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+  });
+
+  it('measures a wheel in pixels whatever unit the browser reports', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
+
+    // Firefox reports lines (`deltaMode: 1`). Three lines is one notch; compared raw against a
+    // pixel threshold it would be ~40x too small and the control would feel dead there.
+    await fireEvent.wheel(head, { deltaY: 8, deltaX: 0, deltaMode: 1 });
+    expect(view()).toBe('Agenda');
   });
 
   it('ignores a sideways trackpad flick over the header', async () => {

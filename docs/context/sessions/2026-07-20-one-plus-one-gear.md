@@ -42,6 +42,19 @@ unfound, because it is one modest target among that header's controls with nothi
 - **A horizontal swipe** does the same on a touch screen. Left is forward, the way a carousel
   moves.
 
+**One gesture is one step.** The first version rotated on *every* wheel event, and the owner hit
+it immediately: *"I barely move my hand, several views change too quickly."* A wheel does not emit
+one event per notch — a mouse sends a burst and a trackpad sends a long stream plus inertia after
+your fingers have left it. Three things together, all needed: deltas **accumulate to a 120px
+threshold** (one notch), a **250ms cooldown** stops inertia banking a run of steps, and the
+leftover is **discarded** rather than carried, because carrying it is what turns one emphatic
+scroll into four views. A pause or a **reversal** resets — and a reversal also clears the cooldown,
+since inertia never reverses, so scrolling back one answers at once instead of feeling stuck.
+
+Deltas are normalised to pixels first: `deltaMode` is lines on Firefox and pages in some
+configurations, so comparing the raw number against a pixel threshold would make the same gesture
+~16x less sensitive there.
+
 Both are ignored when the intent is clearly something else: a wheel event whose `deltaX` exceeds
 its `deltaY` is a trackpad flick (that is how a board is read), a drag under 48px is a tap that
 wandered, and a mostly-vertical drag is a scroll that began on the header. The header is *also*

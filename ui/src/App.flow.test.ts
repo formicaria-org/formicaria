@@ -131,7 +131,9 @@ describe('the app, driven end to end as a user', () => {
     //    workspace model: each pane chooses what it shows.
     await fireEvent.click(screen.getByLabelText('pane view'));
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
-    await fireEvent.wheel(screen.getByLabelText('pane view'), { deltaY: -1 });
+    // One notch. A wheel is accumulated to a threshold now — a single event of `deltaY: -1` is
+    // a nudge, not a gesture, and deliberately does nothing.
+    await fireEvent.wheel(screen.getByLabelText('pane view'), { deltaY: -120 });
     await screen.findByText(/GAE lambda interacts badly/);
 
     // 4. Re-group the board pane by a custom property — no backend change.
