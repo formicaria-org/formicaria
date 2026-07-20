@@ -1069,6 +1069,26 @@ Chromium; ~9.6 MB release binary) — lighter than Electron (Logseq/Obsidian run
 mean rewriting the entire Svelte + KaTeX + Mermaid read view — not worth it.
 Now moot (browser), but do not propose a framework rewrite.
 
+## Which attachments travel is a per-vault size limit, in `vault.json`
+**Why:** the two-tier split below is right by default and too absolute in practice — a screenshot
+in a note is part of the note, and a 200 KB PNG has nothing in common with a 60 MB video except
+living in `blobs/`. So `git_assets_max` opts a vault in: blobs at or under it are committed and
+pushed with the notes; everything else stays local and restic's.
+
+**In the vault's own file, never in per-device Settings.** This decides what enters *shared,
+permanent history*. A per-device value would let the loosest machine decide for every
+collaborator, and git cannot take it back: a large file committed once is in every clone forever,
+and removing it means rewriting history others have pulled. In `vault.json` the rule travels with
+the vault, so everyone pushing to a repo obeys one limit. **Default is absent = notes only**, so
+pointing formicaria at someone's existing repo never starts writing binaries into it.
+
+**Consequence:** `git add -f`, per file — `blobs/` stays in `.gitignore` (git cannot filter by
+size, and un-ignoring the directory would let everything through). The walk is skipped entirely
+when the vault has no opinion, because `commit_all` runs on a 5-second debounce. Lowering the
+limit does not untrack what already travelled; the bytes are already in history, so it governs
+what travels next. `Descriptor::set_git_assets_max` is the one narrow exception to `write_new`'s
+never-overwrite rule, and preserves unknown keys.
+
 ## Backup is two tiers: git push (default) + restic (opt-in)
 **Why:** the vault holds two data classes with nothing in common. Notes are
 small, plain, mergeable → git carries them anywhere, authenticated by the user's

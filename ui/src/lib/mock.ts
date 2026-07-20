@@ -226,10 +226,26 @@ const gitVaults: Array<{
 
 /** The vaults `list_vaults` reports. Mutable: `create_vault` appends, so the first-run
  *  screen's success path is developable without a backend. */
-const mockVaults: Array<{ name: string; path: string }> = [
-  { name: 'personal', path: '/home/you/notes' },
-  { name: 'lab', path: '/home/you/lab-notes' },
+// `git_assets_max` is mutable here because `set_git_assets_max` writes it — the mock models the
+// setting round-tripping, which is the only way the Settings field can be developed against it.
+// `personal` starts off (the real default) and `lab` starts on, so both states are on screen.
+const mockVaults: Array<{ name: string; path: string; git_assets_max: number | null }> = [
+  { name: 'personal', path: '/home/you/notes', git_assets_max: null },
+  { name: 'lab', path: '/home/you/lab-notes', git_assets_max: 2_000_000 },
 ];
+
+/** The size grammar the Rust accepts, mirrored so the mock refuses what the backend refuses. */
+function parseSize(text: string): number | null {
+  const t = text.trim().toLowerCase();
+  if (!t || t === 'off' || t === 'none') return null;
+  const m = /^([0-9]*\.?[0-9]+)\s*(b|kb|mb|gb|kib|mib|gib)?$/.exec(t);
+  if (!m) throw new Error(`${JSON.stringify(text)} is not a size — try 2MB, 500kB, or leave it empty for none`);
+  const mult: Record<string, number> = {
+    '': 1, b: 1, kb: 1e3, mb: 1e6, gb: 1e9,
+    kib: 1024, mib: 1024 ** 2, gib: 1024 ** 3,
+  };
+  return Math.round(parseFloat(m[1]) * mult[m[2] ?? '']);
+}
 
 /** Resolve a vault by name; empty means the default. Unknown throws, exactly as the
  *  real backend refuses — a typo must not quietly write into another audience. */
@@ -411,6 +427,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const vaults: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return vaults as T;
     }
+    case 'set_git_assets_max': {
+      const target = String(args.vault ?? '');
+      const v = mockVaults.find((x) => x.name === target) ?? mockVaults[0];
+      v.git_assets_max = parseSize(String(args.max ?? ''));
+      const vaults: VaultInfo[] = mockVaults.map((x, i) => ({ ...x, default: i === 0 }));
+      return vaults as T;
+    }
     case 'check_path': {
       // Mirrors the real policy closely enough to develop the form against, and no
       // further: the server owns `ok`, and this file must never become a second opinion.
@@ -458,7 +481,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         ca_bundle: null, // the desktop shape: the system store is used, none is built
       } as T;
     case 'create_vault': {
-      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      mockVaults.push({
+        name: String(args.name ?? ''),
+        path: String(args.path ?? ''),
+        // A new or acquired vault has no opinion yet, which means notes only — the real default.
+        git_assets_max: null,
+      });
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return created as T;
     }
@@ -517,7 +545,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         throw new Error('a shared vault needs your name and email');
       if (!String(args.gitEmail ?? '').includes('@'))
         throw new Error(`'${args.gitEmail}' is not an email address`);
-      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      mockVaults.push({
+        name: String(args.name ?? ''),
+        path: String(args.path ?? ''),
+        // A new or acquired vault has no opinion yet, which means notes only — the real default.
+        git_assets_max: null,
+      });
       const cloned: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return cloned as T;
     }
@@ -528,7 +561,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // `clone_vault` is deliberate: a clone has an audience, a restore has one user.
       if (!String(args.repo ?? '').trim())
         throw new Error('restoring needs the restic repository the backup is in');
-      mockVaults.push({ name: String(args.name ?? ''), path: String(args.path ?? '') });
+      mockVaults.push({
+        name: String(args.name ?? ''),
+        path: String(args.path ?? ''),
+        // A new or acquired vault has no opinion yet, which means notes only — the real default.
+        git_assets_max: null,
+      });
       const restored: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return restored as T;
     }

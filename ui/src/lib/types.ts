@@ -132,6 +132,10 @@ export interface VaultInfo {
   path: string;
   /** Index 0 — where every fresh capture lands. */
   default: boolean;
+  /** Attachments up to this many bytes travel with this vault's notes; `null` means none do.
+   *  Lives in the vault's own `vault.json`, not in this browser, because it decides what enters
+   *  shared permanent history. */
+  git_assets_max: number | null;
 }
 
 /** What would happen if we created a vault at a path. The server owns `ok`: duplicating

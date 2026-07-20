@@ -15,9 +15,37 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import { onMount } from 'svelte';
-  import { config as fetchConfig } from './ipc';
+  import { config as fetchConfig, setGitAssetsMax } from './ipc';
   import type { Config } from './types';
   import * as keys from './keys';
+
+  /** A byte count as the shortest string a person would write — the same grammar the backend
+   *  parses, so what the field shows is what you could type back into it. */
+  function humanSize(bytes: number): string {
+    for (const [unit, mult] of [
+      ['GB', 1e9],
+      ['MB', 1e6],
+      ['kB', 1e3],
+    ] as const) {
+      const v = bytes / mult;
+      if (v >= 1) return Math.abs(v % 1) < 0.05 ? `${Math.round(v)}${unit}` : `${v.toFixed(1)}${unit}`;
+    }
+    return `${bytes}B`;
+  }
+
+  let assetError = $state<string | null>(null);
+
+  /** Write the vault's attachment limit and take the refreshed list back. The backend parses the
+   *  size, so a typo is refused there and reported here rather than being half-applied. */
+  async function setAssetMax(vault: string, raw: string) {
+    assetError = null;
+    try {
+      const vaults = await setGitAssetsMax(vault, raw.trim());
+      if (cfg) cfg = { ...cfg, vaults };
+    } catch (e) {
+      assetError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   // The one *setting* on this screen. Everything else here is a mirror of configuration the
   // backend owns and this panel cannot change (`vaults::save` is append-only). Layout is
@@ -297,6 +325,32 @@
             <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.
                  "Which folder is this actually?" had no answer inside the app. -->
             <p class="path"><code>{v.path}</code></p>
+            <!-- **The one vault setting that is editable here**, because it is the one that
+                 decides what a backup carries — and "what does Back up actually send?" is the
+                 question this whole panel exists to answer. It is written into the vault's own
+                 `vault.json`, so the rule travels with the vault instead of being one browser's
+                 opinion about everyone's shared history. -->
+            <label class="line assets">
+              <span>Send attachments under</span>
+              <input
+                type="text"
+                inputmode="text"
+                placeholder="off"
+                value={v.git_assets_max ? humanSize(v.git_assets_max) : ''}
+                onchange={(e) => setAssetMax(v.name, (e.currentTarget as HTMLInputElement).value)}
+                aria-label={`largest attachment to push for ${v.name}`}
+              />
+            </label>
+            <p class="muted small">
+              {#if v.git_assets_max}
+                Files up to {humanSize(v.git_assets_max)} are pushed with your notes. Anything
+                larger stays on this device — git history is permanent, so a large file committed
+                once is in every clone forever.
+              {:else}
+                Empty means <strong>notes only</strong> — the default. Attachments stay in the
+                vault and travel only via restic.
+              {/if}
+            </p>
             <p class="muted">
               restic:
               {#if resticFor(v.name)}
@@ -308,6 +362,9 @@
             </p>
           </div>
         {/each}
+        {#if assetError}
+          <p class="assets-error">{assetError}</p>
+        {/if}
         <p class="muted">
           Remotes and committer identity live in
           <button class="link" onclick={onbackup}>Back up</button>, which is also where they are
@@ -605,5 +662,32 @@
     border-radius: var(--radius-2, 6px);
     font-size: 0.85rem;
     cursor: pointer;
+  }
+
+  /* The one editable vault setting: label and field on one line, so it reads as a sentence
+     rather than a form. */
+  .assets {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+  }
+  .assets input {
+    width: 6rem;
+    padding: 4px 6px;
+    font: inherit;
+    font-size: var(--text-sm);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+  }
+  .muted.small {
+    font-size: var(--text-xs, 0.75rem);
+    margin-top: 2px;
+  }
+  .assets-error {
+    color: var(--danger, #b91c1c);
+    font-size: var(--text-sm);
   }
 </style>

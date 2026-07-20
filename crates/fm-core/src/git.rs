@@ -710,6 +710,30 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
     Ok(())
 }
 
+/// Blob files this vault is willing to put in git: every one at or under `git_assets_max`.
+///
+/// **Empty unless the vault opts in**, so the walk costs nothing in the default configuration —
+/// which matters, because `commit_all` runs on a 5-second debounce.
+///
+/// Already-tracked blobs above a *newly lowered* threshold are deliberately left alone. Untracking
+/// them would not remove them from history — the bytes are in every clone the moment they are
+/// pushed — so it would cost a confusing deletion commit and buy nothing. Lowering the limit
+/// governs what travels *next*, which is the only thing it can honestly govern.
+fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
+    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+        return Ok(Vec::new());
+    };
+    let store = crate::blob::BlobStore::new(vault);
+    let mut out: Vec<String> = store
+        .blob_paths()
+        .into_iter()
+        .filter(|p| std::fs::metadata(p).map(|m| m.len() <= max && m.len() > 0).unwrap_or(false))
+        .filter_map(|p| relative(vault, &p))
+        .collect();
+    out.sort();
+    Ok(out)
+}
+
 /// Stage the vault's own files and commit them. Returns false — not an error — when there
 /// is nothing of ours to commit; that is the common case for a debounced auto-commit and
 /// must not surface as a failure.
@@ -765,6 +789,28 @@ pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool
     let add = git(vault).arg("add").arg("-A").arg("--").args(&owned).output().map_err(spawn)?;
     if !add.status.success() {
         return Err(failed("git add", &add));
+    }
+
+    // **Small attachments, if this vault asked for them.** Off unless `vault.json` sets
+    // `git_assets_max`, which is why the default behaviour is exactly what it always was: notes
+    // travel, media does not.
+    //
+    // `-f` is required and is the whole trick: `ensure_repo` puts `blobs/` in `.gitignore`, and an
+    // ignored path is skipped by a plain `add`. Git cannot filter by size itself, so the selection
+    // happens here and each chosen file is named explicitly. Nothing else can slip in.
+    let blobs = blobs_within(vault)?;
+    if !blobs.is_empty() {
+        let add = git(vault)
+            .arg("add")
+            .arg("-f")
+            .arg("--")
+            .args(&blobs)
+            .output()
+            .map_err(spawn)?;
+        if !add.status.success() {
+            return Err(failed("git add (assets)", &add));
+        }
+        owned.extend(blobs);
     }
     // `status` reported the *repo* dirty, which in a project vault is usually someone
     // else's work. Ask what actually landed in the index, and keep only the paths under a

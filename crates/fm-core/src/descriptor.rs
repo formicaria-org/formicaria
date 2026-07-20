@@ -36,6 +36,63 @@ pub struct Descriptor {
     pub description: Option<String>,
     /// Where the notes live, relative to the vault root. `None` means `notes/`.
     pub notes: Option<PathBuf>,
+    /// **The largest attachment this vault will commit to git**, in bytes. `None` — the default —
+    /// means *none of them*: notes travel, media does not, which is the two-tier split the whole
+    /// backup design rests on.
+    ///
+    /// It lives here, in the vault's own file, rather than in per-device Settings, because it
+    /// decides what enters **shared, permanent history**. A per-device setting would let the
+    /// loosest machine decide for everyone, and git history cannot be un-decided: a 50 MB video
+    /// committed once is in every clone forever, and removing it means rewriting history that
+    /// collaborators have already pulled.
+    ///
+    /// Written as a number of bytes or a human string (`"2MB"`), because this is a file people
+    /// edit by hand.
+    pub git_assets_max: Option<u64>,
+}
+
+/// Parse a size a human would write: `2MB`, `500 kb`, `1.5 GiB`, or plain bytes.
+///
+/// Decimal units (MB = 10^6) rather than binary, because that is what a file manager shows and
+/// this number exists to be compared against what someone sees next to their photo. `MiB`/`GiB`
+/// are accepted and mean the binary thing, for anyone who wants to be exact.
+pub fn parse_size(s: &str) -> Option<u64> {
+    let t = s.trim().to_ascii_lowercase();
+    if t.is_empty() {
+        return None;
+    }
+    let split = t.find(|c: char| !c.is_ascii_digit() && c != '.').unwrap_or(t.len());
+    let (num, unit) = t.split_at(split);
+    let n: f64 = num.trim().parse().ok()?;
+    if n < 0.0 {
+        return None;
+    }
+    let mult: f64 = match unit.trim() {
+        "" | "b" => 1.0,
+        "k" | "kb" => 1e3,
+        "m" | "mb" => 1e6,
+        "g" | "gb" => 1e9,
+        "kib" => 1024.0,
+        "mib" => 1024.0 * 1024.0,
+        "gib" => 1024.0 * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    Some((n * mult) as u64)
+}
+
+/// A byte count as the shortest string a person would write, round-tripping through [`parse_size`].
+pub fn format_size(bytes: u64) -> String {
+    for (unit, mult) in [("GB", 1e9), ("MB", 1e6), ("kB", 1e3)] {
+        let v = bytes as f64 / mult;
+        if v >= 1.0 {
+            return if (v.fract()).abs() < 0.05 {
+                format!("{}{unit}", v.round() as u64)
+            } else {
+                format!("{v:.1}{unit}")
+            };
+        }
+    }
+    format!("{bytes}B")
 }
 
 impl Descriptor {
@@ -84,7 +141,82 @@ impl Descriptor {
             }
         };
 
-        Ok(Descriptor { name: field("name"), description: field("description"), notes })
+        // Accepts `"2MB"` or a raw byte count, because both are things a person writes. A value
+        // that is present but unparseable is an error for the same reason a malformed file is:
+        // silently ignoring it would apply a limit the user believes is in force — and here the
+        // consequence of getting it wrong is media in permanent history.
+        let git_assets_max = match v.get("git_assets_max") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::Number(n)) => Some(n.as_u64().ok_or_else(|| {
+                StoreError::Parse(format!("{}: `git_assets_max` must not be negative", path.display()))
+            })?),
+            Some(serde_json::Value::String(t)) => Some(parse_size(t).ok_or_else(|| {
+                StoreError::Parse(format!(
+                    "{}: `git_assets_max` — {t:?} is not a size (try \"2MB\")",
+                    path.display()
+                ))
+            })?),
+            Some(_) => {
+                return Err(StoreError::Parse(format!(
+                    "{}: `git_assets_max` must be a size like \"2MB\"",
+                    path.display()
+                )))
+            }
+        };
+
+        Ok(Descriptor {
+            name: field("name"),
+            description: field("description"),
+            notes,
+            git_assets_max,
+        })
+    }
+
+    /// **Change one key in `vault.json`, leaving every other byte alone.**
+    ///
+    /// Separate from [`write_new`] and deliberately so. That function refuses to overwrite because
+    /// the descriptor is the *user's* file: it may carry a description they wrote and keys this
+    /// version has never heard of, and `read` keeps none of them. This one is the narrow exception
+    /// a *setting* requires — it re-reads the file as raw JSON, replaces a single key, and writes
+    /// it back, so unknown keys and hand-written formatting choices survive.
+    ///
+    /// `None` removes the key rather than writing `null`, so "off" looks like a vault that never
+    /// had the setting — which is what it is.
+    pub fn set_git_assets_max(root: &Path, max: Option<u64>) -> Result<(), StoreError> {
+        let path = root.join("vault.json");
+        let mut v: serde_json::Value = match std::fs::read_to_string(&path) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| {
+                StoreError::Parse(format!("{} is not valid JSON: {e}", path.display()))
+            })?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Value::Object(serde_json::Map::new())
+            }
+            Err(e) => return Err(StoreError::Io(format!("{}: {e}", path.display()))),
+        };
+        let Some(obj) = v.as_object_mut() else {
+            return Err(StoreError::Parse(format!("{}: not a JSON object", path.display())));
+        };
+        match max {
+            Some(n) => {
+                obj.insert("git_assets_max".into(), serde_json::Value::String(format_size(n)));
+            }
+            None => {
+                obj.remove("git_assets_max");
+            }
+        }
+        if obj.is_empty() {
+            // Nothing left to say: do not leave `{}` behind for someone to wonder about.
+            if path.exists() {
+                std::fs::remove_file(&path)
+                    .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))?;
+            }
+            return Ok(());
+        }
+        let mut text =
+            serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
+        text.push('\n');
+        std::fs::write(&path, text)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
     }
 
     /// Where this vault's notes live, given its root. The single question `FileStore` asks.

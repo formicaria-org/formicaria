@@ -1016,3 +1016,98 @@ fn auth_failures_are_recognised_and_nothing_else_is() {
         }
     }
 }
+
+/// Write a blob into the vault's content-addressed store, as `ingest` would, and return its
+/// path relative to the vault.
+fn plant_blob(vault: &std::path::Path, hash: &str, bytes: usize) -> String {
+    let rel = format!("blobs/sha256/{}/{}/{hash}", &hash[0..2], &hash[2..4]);
+    let at = vault.join(&rel);
+    fs::create_dir_all(at.parent().unwrap()).unwrap();
+    fs::write(&at, vec![b'x'; bytes]).unwrap();
+    rel
+}
+
+fn tracked(vault: &std::path::Path) -> Vec<String> {
+    let out = Command::new("git").current_dir(vault).args(["ls-files"]).output().unwrap();
+    String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect()
+}
+
+/// **Media stays out of git unless the vault asks for it**, which is the default and the whole
+/// basis of the two-tier backup split.
+#[test]
+fn blobs_are_not_committed_when_the_vault_says_nothing() {
+    if !have_git() {
+        eprintln!("skipping: no git");
+        return;
+    }
+    let d = tempdir().unwrap();
+    let vault = d.path();
+    fs::create_dir_all(vault.join("notes")).unwrap();
+    git::ensure_repo(vault).unwrap();
+    fs::write(vault.join("notes/a.md"), "hello").unwrap();
+    let small = plant_blob(vault, &"aa".repeat(32), 10);
+
+    git::commit_all(vault, "auto: test", &notes_of(vault)).unwrap();
+    assert!(!tracked(vault).contains(&small), "a blob must not travel by default");
+}
+
+/// **With a threshold set, small attachments travel and large ones do not.**
+///
+/// The selection happens here rather than in git, which cannot filter by size — and each chosen
+/// file is named explicitly with `-f`, because `blobs/` is gitignored. That combination is the
+/// only reason this can be both opt-in and precise.
+#[test]
+fn a_vault_with_a_threshold_commits_small_blobs_and_leaves_big_ones() {
+    if !have_git() {
+        eprintln!("skipping: no git");
+        return;
+    }
+    let d = tempdir().unwrap();
+    let vault = d.path();
+    fs::create_dir_all(vault.join("notes")).unwrap();
+    git::ensure_repo(vault).unwrap();
+    fs::write(vault.join("vault.json"), "{\n  \"git_assets_max\": \"1kB\"\n}\n").unwrap();
+    fs::write(vault.join("notes/a.md"), "hello").unwrap();
+
+    let small = plant_blob(vault, &"aa".repeat(32), 500);
+    let big = plant_blob(vault, &"bb".repeat(32), 5000);
+    let empty = plant_blob(vault, &"cc".repeat(32), 0);
+
+    git::commit_all(vault, "auto: test", &notes_of(vault)).unwrap();
+    let files = tracked(vault);
+    assert!(files.contains(&small), "an attachment under the limit should travel: {files:?}");
+    assert!(!files.contains(&big), "one over it must not: {files:?}");
+    assert!(!files.contains(&empty), "a zero-byte blob is not media: {files:?}");
+    // The user's own ignore rule is untouched — the blob was force-added, not un-ignored.
+    let ignore = fs::read_to_string(vault.join(".gitignore")).unwrap();
+    assert!(ignore.lines().any(|l| l.trim() == "blobs/"), "blobs/ must stay ignored: {ignore}");
+}
+
+/// Setting the threshold **keeps every other key**, including ones this version never heard of.
+/// The descriptor is the user's file; a setting may not eat a description they wrote.
+#[test]
+fn setting_the_asset_limit_preserves_the_rest_of_vault_json() {
+    let d = tempdir().unwrap();
+    fs::write(
+        d.path().join("vault.json"),
+        "{\n \"name\": \"lab\",\n \"description\": \"mine\",\n \"future_key\": [1, 2]\n}\n",
+    )
+    .unwrap();
+
+    fm_core::descriptor::Descriptor::set_git_assets_max(d.path(), Some(2_000_000)).unwrap();
+    let text = fs::read_to_string(d.path().join("vault.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["name"], "lab");
+    assert_eq!(v["description"], "mine");
+    assert_eq!(v["future_key"], serde_json::json!([1, 2]), "unknown keys must survive");
+    assert_eq!(v["git_assets_max"], "2MB", "and it round-trips as a size a human would write");
+
+    let back = fm_core::descriptor::Descriptor::read(d.path()).unwrap();
+    assert_eq!(back.git_assets_max, Some(2_000_000));
+
+    // Turning it off removes the key rather than leaving `null` behind.
+    fm_core::descriptor::Descriptor::set_git_assets_max(d.path(), None).unwrap();
+    let text = fs::read_to_string(d.path().join("vault.json")).unwrap();
+    assert!(!text.contains("git_assets_max"), "off should look like never-set: {text}");
+    assert!(text.contains("\"name\""), "and must not have eaten the rest");
+}

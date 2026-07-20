@@ -33,7 +33,7 @@
     backupStatus,
   } from './lib/ipc';
   import { setActivity, lastEditFor, contributors } from './lib/activity.svelte';
-  import { pullVault, syncFor } from './lib/sync.svelte';
+  import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
   import { hashHue } from './lib/vaultColor';
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
@@ -801,6 +801,71 @@
     backupOpen = true;
   }
 
+  let backupMenuOpen = $state(false);
+  /** Non-null while a backup runs — doubles as the button's label and its disabled flag. */
+  let savingLabel = $state<string | null>(null);
+
+  /// **The default action: commit and push notes.**
+  ///
+  /// Every vault, because "back up" with several vaults open meaning only the first one is the
+  /// bug this panel already had once. Assets ride along only where that vault's `vault.json` sets
+  /// `git_assets_max` — a per-vault rule, so one device cannot decide what lands in shared
+  /// history for everyone.
+  async function backUpNotes() {
+    if (savingLabel) return;
+    savingLabel = 'Backing up…';
+    error = null;
+    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    try {
+      const results = await Promise.all(
+        allVaults.map((v) => syncVault(v, `backup: ${stamp}`, () => refresh())),
+      );
+      const failed = allVaults.filter((_, i) => results[i] === 'failed');
+      const conflicted = allVaults.filter((_, i) => results[i] === 'conflicts');
+      if (failed.length || conflicted.length) {
+        // Named, and pointed at the panel that can actually resolve it — a toolbar button is the
+        // wrong place to explain a merge conflict.
+        report(
+          `Backup needs you: ${[...failed, ...conflicted].join(', ')}. Open backup options for detail.`,
+        );
+      } else {
+        notice =
+          allVaults.length === 1
+            ? 'Notes backed up'
+            : `Notes backed up (${allVaults.length} vaults)`;
+      }
+    } catch (e) {
+      report(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      savingLabel = null;
+    }
+  }
+
+  /// The variants behind the chevron. Short on purpose: the button already does the common thing,
+  /// and everything here is either rarer or needs a screen of its own to be honest about.
+  let BACKUP_MENU = $derived([
+    {
+      label: 'Back up notes',
+      note: 'commit and push — what the button does',
+      run: backUpNotes,
+    },
+    {
+      label: 'Get their changes',
+      note: 'pull what others pushed',
+      run: getTheirChanges,
+    },
+    {
+      label: 'Backup options…',
+      note: 'media, remotes, per-vault detail',
+      run: onBackup,
+    },
+    {
+      label: 'Attachment settings…',
+      note: 'which assets travel with your notes',
+      run: () => openSettings(),
+    },
+  ] as { label: string; note: string; run: () => void }[]);
+
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -981,8 +1046,48 @@
       </button>
     {/if}
 
-    <!-- Theme and Back up moved into the palette: both are commands, neither is a thing you
-         reach for mid-thought, and the row they occupied is worth more than they are. -->
+    <!-- **Back up is a split button**, because "save" had become a question nobody could answer
+         from the screen. The wide half does the ordinary thing — commit and push **notes** — and
+         the narrow half opens the variants. That keeps one obvious action at one click while the
+         rarer choices stay reachable without a trip to Settings.
+         Pushes are user-triggered rather than on a timer: a push is a visible act with a remote
+         audience, and a cadence that fires on its own makes it one nobody chose. -->
+    <div class="create-wrap">
+      <button
+        type="button"
+        class="save-btn"
+        onclick={backUpNotes}
+        disabled={savingLabel !== null}
+        title="Commit and push your notes"
+        aria-label="back up notes">
+        <Icon name="backup" size={14} />
+        <span class="save-label">{savingLabel ?? 'Back up'}</span>
+      </button>
+      <button
+        type="button"
+        class="save-more"
+        onclick={() => (backupMenuOpen = !backupMenuOpen)}
+        aria-expanded={backupMenuOpen}
+        aria-haspopup="menu"
+        aria-label="other backup options"
+        title="Other backup options">
+        <Icon name="chevron-down" size={12} />
+      </button>
+      {#if backupMenuOpen}
+        <div class="menu-backdrop" role="presentation" onclick={() => (backupMenuOpen = false)}></div>
+        <ul class="create-menu right" role="menu">
+          {#each BACKUP_MENU as item (item.label)}
+            <li role="none">
+              <button type="button" role="menuitem" onclick={() => ((backupMenuOpen = false), item.run())}>
+                <span class="mi-label">{item.label}</span>
+                <span class="mi-note">{item.note}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
     <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
       <Icon name="gear" size={16} />
     </button>
@@ -1215,6 +1320,9 @@
   [data-layout='single'] .topbar .icon-btn {
     display: none;
   }
+  [data-layout='single'] .topbar .save-label {
+    display: none;
+  }
   /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
      relative to, and no ambiguity about which pane a close button means — so the container
      chrome goes and the content gets the room. Closing moved to the view bar. The pane's own
@@ -1376,6 +1484,61 @@
     width: 9rem;
     outline: none;
   }
+  /* **One control, two halves.** They sit flush and share an outline so the pair reads as a
+     single thing with a default action, which is the point of a split button: the wide half is
+     what you almost always want, the narrow half admits there are alternatives. Separating them
+     into two buttons would ask a question on every backup. */
+  .save-btn,
+  .save-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font: inherit;
+    font-size: var(--text-sm);
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .save-btn {
+    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+    border-right-color: transparent;
+    white-space: nowrap;
+  }
+  .save-more {
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding-inline: 6px;
+    color: var(--text-muted);
+  }
+  .save-btn:hover:not(:disabled),
+  .save-more:hover {
+    background: var(--surface-hover);
+  }
+  .save-btn:disabled {
+    cursor: default;
+    color: var(--text-muted);
+  }
+  /* The menu hangs off the right-hand control, so it aligns to that edge rather than the
+     viewport's left the way the create menu does. */
+  .create-menu.right {
+    left: auto;
+    right: var(--space-2);
+  }
+  .create-menu .mi-label {
+    display: block;
+  }
+  /* The second line is what makes the menu answerable without opening anything: "commit and
+     push" says what backing up *is*, which was the actual question. */
+  .create-menu .mi-note {
+    display: block;
+    font-size: var(--text-xs, 0.75rem);
+    color: var(--text-muted);
+  }
+  .create-menu button {
+    line-height: 1.3;
+  }
+
   /* Styled like `.icon-btn` but exempt from the narrow-layout hide — see the markup. */
   .search-btn {
     display: inline-flex;
@@ -1589,6 +1752,12 @@
        a legible placeholder while leaving room for the vault chips beside it. */
     .topbar-search {
       width: 6rem;
+    }
+    /* The icon says "back up" well enough at this width, and the word is the widest thing left
+       in the bar. Written here *and* under `[data-layout='single']` below, because `auto` is the
+       default and a phone matches only the media query — writing one half is silent. */
+    .save-label {
+      display: none;
     }
   }
 

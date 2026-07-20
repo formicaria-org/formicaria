@@ -384,6 +384,29 @@ pub fn dispatch(
             let g = lock()?;
             json(infos(&g.configs(), &g.store.names()))
         }
+        // **Which attachments travel with this vault's notes.** Written into the vault's own
+        // `vault.json`, so the rule follows the vault to every device and every collaborator
+        // rather than living in one browser's settings.
+        //
+        // `max` is a size a person writes ("2MB"), or empty/absent to turn it off. Parsed here
+        // rather than in the UI so the CLI and any future frontend get the same grammar.
+        "set_git_assets_max" => {
+            let vault = s("vault");
+            let raw = s("max");
+            let max = match raw.trim() {
+                "" | "off" | "none" => None,
+                t => Some(fm_core::descriptor::parse_size(t).ok_or_else(|| {
+                    format!("{t:?} is not a size — try 2MB, 500kB, or leave it empty for none")
+                })?),
+            };
+            // The guard is dropped before touching the disk, and retaken to report — the same
+            // shape every other arm here uses, so a slow filesystem never blocks a `ping`.
+            let path = lock()?.config(&vault)?.path;
+            fm_core::descriptor::Descriptor::set_git_assets_max(&path, max)
+                .map_err(|e| e.to_string())?;
+            let g = lock()?;
+            json(infos(&g.configs(), &g.store.names()))
+        }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
             let path = resolve_path(&s("name"), &s("path"))?;
@@ -801,6 +824,13 @@ struct VaultInfo {
     path: String,
     /// Index 0 — where every fresh capture lands. The UI has to be able to say so.
     default: bool,
+    /// Attachments up to this many bytes travel with this vault's notes. `None` — the default —
+    /// means none do, which is the two-tier split the backup design rests on.
+    ///
+    /// Read from the vault's own `vault.json` rather than from app settings, because it decides
+    /// what enters **shared, permanent history**: a per-device value would let the loosest
+    /// machine choose for every collaborator, and a pushed commit cannot be un-pushed.
+    git_assets_max: Option<u64>,
 }
 
 /// What the create-vault form needs: the filesystem facts, plus the ones only the vault
@@ -1438,6 +1468,13 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
             },
             path: e.path.to_string_lossy().into_owned(),
             default: i == 0,
+            // Best-effort: a vault whose descriptor will not parse still belongs in the list, and
+            // reports "off" — the same as having no opinion. `Descriptor::read` is where a
+            // malformed file is loudly an error; this call is the vault *list*, which must not
+            // fail to render because one vault has a typo in a setting.
+            git_assets_max: fm_core::descriptor::Descriptor::read(&e.path)
+                .ok()
+                .and_then(|d| d.git_assets_max),
         })
         .collect()
 }

@@ -180,6 +180,12 @@ export const assetUrl = (reference: string) => {
   return `${assetBase()}${encodeURIComponent(reference)}`;
 };
 
+/// Set which attachments this vault pushes with its notes. `max` is a size a person writes
+/// ("2MB"), or empty to turn it off. Returns the refreshed vault list, so the caller never has to
+/// guess what was actually stored — the backend normalises the size and it comes back formatted.
+export const setGitAssetsMax = (vault: string, max: string) =>
+  invoke<VaultInfo[]>('set_git_assets_max', { vault, max });
+
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
 export const openExternal = (reference: string) =>
