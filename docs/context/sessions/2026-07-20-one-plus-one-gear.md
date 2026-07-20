@@ -51,9 +51,21 @@ leftover is **discarded** rather than carried, because carrying it is what turns
 scroll into four views. A pause or a **reversal** resets — and a reversal also clears the cooldown,
 since inertia never reverses, so scrolling back one answers at once instead of feeling stuck.
 
+**And then it only worked one way**, reported immediately after. The cooldown, when it blocked a
+step, *held* the accumulator at the threshold — meant to stop inertia banking steps, and what it
+actually did was leave the **same direction pre-charged**: continuing forward arrived already at
+the threshold and turned on the very next event, while turning back started from zero and cost a
+second notch. One direction answered instantly and the other felt dead. Discarding the leftover
+instead is the only symmetric choice: every step, either way, costs one full gesture.
+
+The threshold came down to 80px in the same pass, because Chrome reports 100 for one detent on
+many mice and a 120 threshold made a single notch do nothing.
+
 Deltas are normalised to pixels first: `deltaMode` is lines on Firefox and pages in some
 configurations, so comparing the raw number against a pixel threshold would make the same gesture
-~16x less sensitive there.
+~16x less sensitive there. A line counts as 40px rather than the ~16px it really is, because
+Firefox reports **three** lines per notch — the number that matters is what makes one notch weigh
+the same in both browsers.
 
 Both are ignored when the intent is clearly something else: a wheel event whose `deltaX` exceeds
 its `deltaY` is a trackpad flick (that is how a board is read), a drag under 48px is a tap that

@@ -197,7 +197,10 @@
   ///   turns one emphatic scroll into four views.
   /// - **Reset on a pause or a reversal**, so each gesture starts from zero and scrolling back
   ///   the other way responds immediately instead of first paying off what you just spent.
-  const WHEEL_STEP = 120; // one mouse notch, in normalised pixels
+  /// Below one notch, so a single detent always turns the view once — Chrome reports 100 or 120
+  /// for one, and a threshold at 120 meant some mice needed two. A trackpad's deltas are far
+  /// smaller than this, so it still takes a deliberate push there.
+  const WHEEL_STEP = 80;
   const WHEEL_COOLDOWN = 250; // ms between steps, whatever the wheel is doing
   const WHEEL_GAP = 350; // ms of quiet that ends a gesture
   let wheelAccum = 0;
@@ -215,7 +218,11 @@
   /// nothing on its own — comparing it against a pixel threshold without this makes the same
   /// gesture ~16x less sensitive on one browser than another.
   function wheelPixels(e: WheelEvent): number {
-    const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+    // 40px per line, not the ~16px a line actually is: Firefox reports **3 lines** for one
+    // notch, so this is the number that makes one notch there weigh the same as one notch in
+    // Chrome. Getting it wrong does not break the control, it makes it need three flicks on one
+    // browser and one on another.
+    const scale = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
     return e.deltaY * scale;
   }
 
@@ -242,8 +249,13 @@
 
     if (Math.abs(wheelAccum) < WHEEL_STEP) return;
     if (now - lastRotateAt < WHEEL_COOLDOWN) {
-      // Hold at the threshold rather than letting inertia bank several steps to spend later.
-      wheelAccum = Math.sign(wheelAccum) * WHEEL_STEP;
+      // **Spend it, do not hold it.** Holding the accumulator at the threshold was meant to stop
+      // inertia banking steps, and it quietly made the control one-directional: continuing the
+      // same way arrived *already charged* and turned on the very next event, while turning back
+      // started from zero and cost a second notch. One direction answered instantly and the other
+      // felt dead. Discarding is the only symmetric choice — every step, either way, costs one
+      // full gesture.
+      wheelAccum = 0;
       return;
     }
     lastRotateAt = now;

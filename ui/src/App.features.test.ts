@@ -204,15 +204,54 @@ describe('v2: property editing, timeline, delete', () => {
     expect(view()).toBe('Agenda');
   });
 
+  // **The one-directional bug.** Blocking a step during the cooldown used to *hold* the
+  // accumulator at the threshold, which left the same direction pre-charged: continuing forward
+  // turned on the very next event while turning back started from zero and cost a second notch.
+  // Reported as "only one direction works".
+  it('costs the same to scroll back as to scroll on', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
+
+    // A few notches forward in quick succession — the cooldown means only one step lands.
+    for (let i = 0; i < 3; i++) await fireEvent.wheel(head, { deltaY: 100, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+
+    // **One** notch back must come back. Before the fix this did nothing at all, because the
+    // reversal reset to zero while 100 < the old 120 threshold.
+    await fireEvent.wheel(head, { deltaY: -100, deltaX: 0 });
+    expect(view()).toBe('Board');
+
+    // And it keeps working in both directions, one notch at a time.
+    await fireEvent.wheel(head, { deltaY: 100, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+    await fireEvent.wheel(head, { deltaY: -100, deltaX: 0 });
+    expect(view()).toBe('Board');
+  });
+
+  it('turns the view once for a single mouse notch', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    const head = screen.getAllByRole('toolbar')[0];
+    const view = () => screen.getByLabelText('pane view').textContent?.trim();
+
+    // Chrome reports 100 for one detent on many mice; a threshold above that made one notch do
+    // nothing and two do one step, which reads as an unresponsive control rather than a calm one.
+    await fireEvent.wheel(head, { deltaY: 100, deltaX: 0 });
+    expect(view()).toBe('Agenda');
+  });
+
   it('measures a wheel in pixels whatever unit the browser reports', async () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
     const head = screen.getAllByRole('toolbar')[0];
     const view = () => screen.getByLabelText('pane view').textContent?.trim();
 
-    // Firefox reports lines (`deltaMode: 1`). Three lines is one notch; compared raw against a
-    // pixel threshold it would be ~40x too small and the control would feel dead there.
-    await fireEvent.wheel(head, { deltaY: 8, deltaX: 0, deltaMode: 1 });
+    // Firefox reports lines (`deltaMode: 1`), and **three** lines is one notch. Compared raw
+    // against a pixel threshold that is ~40x too small, and the control feels dead there while
+    // working in Chrome.
+    await fireEvent.wheel(head, { deltaY: 3, deltaX: 0, deltaMode: 1 });
     expect(view()).toBe('Agenda');
   });
 
