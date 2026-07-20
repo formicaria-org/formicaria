@@ -36,16 +36,31 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 // Resolved once, lazily: importing `@tauri-apps/api` at module scope would pull it into the
 // web bundle, which never uses it.
 let tauriInvoke: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
-async function nativeInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
+/// Call a **real Tauri command** on the shell, and parse its reply.
+///
+/// Every command the mobile shell exposes returns a JSON *string*, so parsing belongs here rather
+/// than in each caller — forgetting it hands back a `string` that type-checks as whatever was
+/// asked for and then fails at the first property access (`meta.assets[0]` → "Cannot read
+/// properties of undefined").
+async function shellInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   if (!tauriInvoke) {
     const core = await import('@tauri-apps/api/core');
     tauriInvoke = core.invoke;
   }
-  // One Rust command, `fm`, taking the name and the same JSON body the HTTP path posts —
-  // because the wire contract already is "name plus JSON". The shell forwards it straight to
-  // `fm_app::dispatch`, so there is exactly one command surface, not two.
-  const text = (await tauriInvoke('fm', { cmd, args })) as string;
+  const text = (await tauriInvoke(cmd, args)) as string;
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/// The ordinary path: **one Rust command, `fm`**, taking a dispatch name and the same JSON body
+/// the HTTP path posts, because the wire contract already is "name plus JSON". The shell forwards
+/// it straight to `fm_app::dispatch`, so there is one command surface and not two.
+///
+/// `fm_ingest` is the single deliberate exception — it exists because Android cannot carry bytes
+/// through `dispatch`'s argument JSON, so it is a real second command and is called with
+/// `shellInvoke` directly. Sending it through here made it `dispatch("fm_ingest")`, which came
+/// back "unknown command: fm_ingest" — the dispatcher rightly saying it has no such thing.
+function nativeInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
+  return shellInvoke<T>('fm', { cmd, args });
 }
 
 async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -177,6 +192,35 @@ export const openExternal = (reference: string) =>
 // `vault` is the audience the file joins, and it matters: a PDF dropped onto a lab note
 // belongs in the lab vault, beside the notes that reference it and inside the boundary
 // its readers already have. Empty means the default vault.
+/// The ceiling on a single attachment **on Android only**, where the bytes ride inside a JSON
+/// string. Base64 inflates by a third and the payload is copied a few times between the page and
+/// Rust, so a large video is not slow here — it fails, or takes the app down with it.
+///
+/// 48 MB is chosen to sit comfortably above any photo a phone takes (a 12 MP JPEG is ~4 MB, a
+/// 48 MP one ~12 MB) while staying well inside what a WebView will serialise. Video is the case
+/// this does not serve, and saying so plainly beats an out-of-memory crash — a real fix is
+/// chunking, which is a larger piece and is recorded as such.
+const MAX_INGEST = 48 * 1024 * 1024;
+
+/// A `File` as standard base64, without the `data:` prefix.
+///
+/// `FileReader` rather than `btoa(String.fromCharCode(...bytes))`: spreading a multi-megabyte
+/// array into a call blows the argument limit and throws `RangeError` on exactly the files worth
+/// attaching. The browser does this conversion natively and in one pass.
+function base64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error(`could not read ${file.name}`));
+    r.onload = () => {
+      const s = String(r.result);
+      const comma = s.indexOf(',');
+      // `data:<mime>;base64,<payload>` — everything after the first comma is the payload.
+      resolve(comma >= 0 ? s.slice(comma + 1) : s);
+    };
+    r.readAsDataURL(file);
+  });
+}
+
 export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
   // **The same POST the desktop makes, to a different base.** Tauri's raw IPC body does not
   // exist on Android — its own docs: "On Android, InvokeBody::Raw is not supported." Sending a
@@ -184,17 +228,27 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
   // `fmblob` protocol handler receives a request body as bytes, so this is an ordinary `fetch`
   // with the File as the body, exactly as the browser path below does.
   if (isTauri) {
-    const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
-    const url = `${assetBase()}ingest?${q}`;
-    // The URL is named in the failure. A cross-origin fetch that never leaves the page throws a
-    // bare `TypeError: Failed to fetch` with no status and no address, which says nothing about
-    // *where* it tried to go — and on a phone the address is derived, not written, so it is
-    // exactly the thing worth knowing.
-    const res = await fetch(url, { method: 'POST', body: file }).catch((e) => {
-      throw new Error(`could not reach ${url}: ${e instanceof Error ? e.message : String(e)}`);
-    });
-    if (!res.ok) throw new Error((await res.text()) || `${res.status} from ${url}`);
-    return res.json();
+    // **Base64 over the IPC command, because Android has no other door.**
+    //
+    // This was a `fetch` POST to the `fmblob://` handler, which is correct-looking and silently
+    // sends nothing: wry intercepts through `WebViewClient.shouldInterceptRequest`, whose
+    // `WebResourceRequest` exposes the URL, method and headers — **and no body**. Android has no
+    // accessor for one. So every photo arrived as zero bytes, `ingest` hashed the empty string,
+    // and every capture produced the same reference. Tauri's raw IPC body is not available here
+    // either (its docs: "On Android, InvokeBody::Raw is not supported"), which leaves JSON, which
+    // means base64.
+    //
+    // The cost is real — about a third more bytes, and a few copies — and it is the price of the
+    // media arriving at all.
+    if (file.size > MAX_INGEST) {
+      throw new Error(
+        `${file.name} is ${Math.round(file.size / 1e6)} MB. On Android a file is carried inside a ` +
+          `text message to the app, so ${Math.round(MAX_INGEST / 1e6)} MB is the ceiling — ` +
+          `attach it from the desktop, where there is no such limit.`,
+      );
+    }
+    const data = await base64(file);
+    return shellInvoke<ObjectMeta>('fm_ingest', { name: file.name, vault, data });
   }
   if (import.meta.env.PROD) {
     const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;

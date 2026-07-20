@@ -64,17 +64,17 @@ fn blob_response(
     };
     let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
 
-    // **The preflight, which is not optional here.** On Android the page is served from
-    // `http://tauri.localhost` and this handler answers on `http://fmblob.localhost` — a
-    // *different origin*. A POST carrying an image sets `Content-Type: image/jpeg`, which is not
-    // one of the three CORS-safelisted types, so the browser sends an `OPTIONS` first and will
-    // not send the real request until something answers it. Nothing did, which surfaces in the
-    // page as a bare `TypeError: Failed to fetch` with no status to explain it.
+    // **The preflight is still answered, though nothing this app writes needs it now.** On
+    // Android the page is served from `http://tauri.localhost` while this handler answers on
+    // `http://fmblob.localhost` — a *different origin* — so any `fetch` here that is not a simple
+    // request gets an `OPTIONS` first and stalls until something replies. Nothing did once, and
+    // it surfaced in the page as a bare `TypeError: Failed to fetch` with no status to explain
+    // it. Four lines to keep that from being rediscovered.
     if method.eq_ignore_ascii_case("OPTIONS") {
         return tauri::http::Response::builder()
             .status(StatusCode::NO_CONTENT)
             .header("Access-Control-Allow-Origin", "*")
-            .header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            .header("Access-Control-Allow-Methods", "GET, OPTIONS")
             .header("Access-Control-Allow-Headers", "*")
             .header("Access-Control-Max-Age", "86400")
             .body(Vec::new())
@@ -83,40 +83,15 @@ fn blob_response(
 
     let Some(state) = app.try_state::<Arc<App>>() else { return not_found() };
 
-    // **Ingest rides the same scheme, in the other direction.** Tauri's raw IPC body does not
-    // exist on Android — its own docs say so: "On Android, InvokeBody::Raw is not supported. The
-    // enum will always contain InvokeBody::Json." A photo through JSON means base64, a third
-    // larger and copied several times. A protocol handler receives the request body as bytes, so
-    // a POST here carries the file exactly as the picker produced it.
+    // **Ingest does *not* ride this scheme, and cannot.** A POST here reaches this function
+    // with its body silently dropped: wry intercepts through
+    // `WebViewClient.shouldInterceptRequest(view, request: WebResourceRequest)`, and Android's
+    // `WebResourceRequest` has no body accessor — there is nothing for wry to pass on. This
+    // handler served `POST /ingest` for a while and stored every photo as zero bytes while
+    // reporting success. Ingest lives on the `fm_ingest` IPC command; see its note.
     //
-    // It also makes this identical in shape to the desktop, which POSTs the file to
-    // `/api/ingest`. One transport, two directions, and the same `dispatch` arm underneath.
-    if method.eq_ignore_ascii_case("POST") && path.starts_with("ingest") {
-        let param = |k: &str| {
-            query
-                .split('&')
-                .filter_map(|kv| kv.split_once('='))
-                .find(|(n, _)| *n == k)
-                .map(|(_, v)| percent_decode(v))
-                .unwrap_or_default()
-        };
-        let args = serde_json::json!({ "name": param("name"), "vault": param("vault") });
-        return match dispatch("ingest", &args, body, &state, &AndroidHost) {
-            Ok(out) => tauri::http::Response::builder()
-                .header("Content-Type", "application/json")
-                .header("Access-Control-Allow-Origin", "*")
-                .body(out.into_bytes())
-                .unwrap_or_else(|_| not_found()),
-            Err(e) => {
-                log::error!("ingest: {e}");
-                tauri::http::Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(e.into_bytes())
-                    .unwrap_or_else(|_| not_found())
-            }
-        };
-    }
+    // This scheme stays the way blobs come *out*, which is what it is good at: a GET streams,
+    // and `<video>` can seek without the file ever being held whole in memory.
 
     let reference = percent_decode(path);
     let args = serde_json::json!({ "reference": reference, "kind": "full" });
@@ -162,6 +137,77 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).into_owned()
+}
+
+/// **Ingest, the only way Android allows.**
+///
+/// The bytes arrive base64 in a JSON argument, which is wasteful and is nonetheless the only
+/// transport that exists here. Two doors were tried and both are closed by the platform:
+///
+/// - **Tauri's raw IPC body.** Tauri's own docs: *"On Android, `InvokeBody::Raw` is not
+///   supported. The enum will always contain `InvokeBody::Json`."*
+/// - **A POST to the custom scheme.** wry intercepts through
+///   `WebViewClient.shouldInterceptRequest(view, request: WebResourceRequest)`, and Android's
+///   `WebResourceRequest` exposes the URL, the method and the headers — **and no body**. There is
+///   no accessor to add; wry reads none because none exists. A POST reaches the handler with its
+///   body silently dropped, which is exactly how every photo taken on a phone came to be stored
+///   as zero bytes: `ingest` hashed nothing, and every capture produced the same reference,
+///   `e3b0c442…b855`, the SHA-256 of the empty string.
+///
+/// So base64 it is: a third larger and copied a few times, against media that does not arrive at
+/// all. The size ceiling that costs is real and is stated to the user rather than discovered as a
+/// crash — see `MAX_INGEST` below.
+#[tauri::command]
+fn fm_ingest(
+    name: String,
+    vault: String,
+    data: String,
+    app: tauri::State<'_, Arc<App>>,
+) -> Result<String, String> {
+    let bytes = b64_decode(&data).ok_or_else(|| format!("{name}: could not decode the file"))?;
+    let args = serde_json::json!({ "name": name, "vault": vault });
+    let out = dispatch("ingest", &args, &bytes, &app, &AndroidHost).inspect_err(|e| {
+        log::error!("ingest: {e}");
+    })?;
+    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
+}
+
+/// Standard base64 → bytes. Hand-rolled rather than adding a crate for one function on one
+/// platform: the alphabet is fixed, there is no padding subtlety worth a dependency, and this is
+/// the only place in the tree that decodes any.
+///
+/// Returns `None` on any character outside the alphabet, so a truncated or mangled payload fails
+/// loudly instead of ingesting a prefix of the photo.
+fn b64_decode(s: &str) -> Option<Vec<u8>> {
+    const fn val(c: u8) -> i8 {
+        match c {
+            b'A'..=b'Z' => (c - b'A') as i8,
+            b'a'..=b'z' => (c - b'a' + 26) as i8,
+            b'0'..=b'9' => (c - b'0' + 52) as i8,
+            b'+' => 62,
+            b'/' => 63,
+            _ => -1,
+        }
+    }
+    let mut out = Vec::with_capacity(s.len() / 4 * 3);
+    let mut acc: u32 = 0;
+    let mut bits = 0u8;
+    for &c in s.as_bytes() {
+        if c == b'=' || c == b'\n' || c == b'\r' {
+            continue;
+        }
+        let v = val(c);
+        if v < 0 {
+            return None;
+        }
+        acc = (acc << 6) | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Some(out)
 }
 
 #[tauri::command]
@@ -315,7 +361,7 @@ pub fn run() {
                 req.body(),
             )
         })
-        .invoke_handler(tauri::generate_handler![fm])
+        .invoke_handler(tauri::generate_handler![fm, fm_ingest])
         .run(tauri::generate_context!())
         .expect("error while running formicaria");
 }

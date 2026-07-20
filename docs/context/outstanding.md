@@ -8,9 +8,9 @@ outcome into `known-issues.md` or `decisions.md` — the history lives in `sessi
 git. The first version of this file kept its fixed entries struck through, and within a day it
 had become a changelog with nothing to do in it. That is the failure mode to avoid.
 
-_Last reconciled: 2026-07-20, after capture ran on a real phone
-(`sessions/2026-07-20-capture-on-a-real-phone.md`) — 1.2 is the open thread and the next action is
-to read a placeholder, not to write code. Prior: 2026-07-18, after the whole compiled queue was
+_Last reconciled: 2026-07-20, after media started working on Android end to end
+(`sessions/2026-07-20-capture-on-a-real-phone.md`). Photos are done; 1.2 is now video, which is
+gated on where a phone's blobs survive rather than on the transport. Prior: 2026-07-18, after the whole compiled queue was
 worked through (`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`)._
 
 ---
@@ -38,28 +38,23 @@ scroll-snap vs finger drag, the tap→move menu, a `<video>` seeking mid-file (t
 `blob.rs`'s `Range` on real hardware), Excalidraw under a finger, thumb reach on the 2.75rem
 targets.
 
-### 1.2 A captured photo does not render on the phone — **start here**
-Capture, ingest and the blob write are verified on real hardware (2026-07-20); display is not.
-The note shows the filename as text where the image should be. This is the last step of the
-feature that the owner said *"determines the usability of the mobile app"*, so nothing else in
-this file outranks it.
+### 1.2 Video on Android, and the storage question behind it
+Photos work end to end now (2026-07-20). Video does not: bytes reach the app only as base64 in a
+JSON string — the one binary transport Android leaves open — so `MAX_INGEST` caps an attachment at
+48 MB and anything larger is **refused with an explanation** rather than crashing. A phone video
+clears that in seconds.
 
-**The next action is to read, not to build.** A build that renders the failure reason in the
-placeholder is already installed on the phone (MD5 `d0796a29b271338e796e36b089b36a4e`, verified).
-Open the note and read the text after the dash:
+Two pieces, and the second is the one that matters:
 
-- `no bytes in vault "…"` → ingest returned a hash but nothing landed; follow the POST arm in
-  `mobile/src-tauri/src/lib.rs` and which vault `dispatch("ingest", …)` resolves `""` to.
-- `the vault has this blob but it read back empty` → the write is fine, the read is not.
-- anything else → `asset_status` threw and that text is the error.
+1. **Chunked ingest** would lift the ceiling: send the file in bounded slices and append, so peak
+   memory is one chunk rather than 1.33× the file.
+2. **Where the bytes then live.** A phone vault is app-private storage, wiped on uninstall;
+   `blobs/` is gitignored so a push does not carry it; restic is a binary Android does not have.
+   Lifting the size cap without answering this means inviting people to put the only copy of a
+   50 MB video somewhere one uninstall erases. **Do not do 1 before 2.**
 
-**Two dead ends already paid for, do not repeat them:** it is *not* a vault mismatch
-(`dispatch.rs`'s `asset_status` searches every registered vault) and *not* the reference format
-(`parse_ref` accepts `sha256-`). Both were asserted before being checked, and both were wrong.
-Nor is `console.warn` a way to find out — that device logs no JS at all.
-
-**Done looks like:** a photo taken on the phone appears in the note, and a test covers whichever
-seam turns out to be broken.
+**Done looks like:** a video attaches on a phone, and there is an honest answer to where its bytes
+survive.
 
 ---
 

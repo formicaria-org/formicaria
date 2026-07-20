@@ -4,10 +4,13 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-20 — **the phone's camera reaches the vault.** A photo taken from a note
-travels over the `fmblob://` handler (a `POST`, because `InvokeBody::Raw` is unsupported on
-Android) into `ingest_bytes` and lands as a blob; **it does not yet render back**, which is the
-one open thread (`sessions/2026-07-20-capture-on-a-real-phone.md`, queue item 1.2). Prior:
+_Last verified: 2026-07-20 — **media works on a phone, end to end.** A file attached from a note
+reaches `ingest_bytes` and renders back in the note. It travels as base64 through the `fm_ingest`
+IPC command, because Android delivers **no request body** to a custom-scheme handler and no raw
+IPC body either — a POST arrives empty and silent, which stored every photo as zero bytes until
+the repeated empty-string hash gave it away
+(`sessions/2026-07-20-capture-on-a-real-phone.md`). Video is still capped and refused, pending
+somewhere for a phone's blobs to survive. Prior:
 2026-07-19 — **a private git repo now clones onto a phone.** The trust store is
 loaded into libgit2 **from memory**, because `openssl-src` builds every Android target with
 `no-stdio` and no file-based certificate loading can work there at all — five diagnoses were spent

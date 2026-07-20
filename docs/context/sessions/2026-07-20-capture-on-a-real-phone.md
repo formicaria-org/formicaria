@@ -3,23 +3,23 @@
 Continues `2026-07-19-media-on-the-phone.md`, which built the byte path but ended with capture
 **unverified on real hardware** — the emulator has no camera and the owner needed their phone.
 
-## What is now verified on the phone
-
-The capture pipeline works end to end **except display**:
+**Media on Android now works end to end.** Attach a file, it lands in the vault, the note renders
+it. That took most of the day and two false summits; the account below is in the order it
+happened, because the wrong turns are the useful part.
 
 | Step | State |
 |---|---|
-| Capture menu → system camera Intent | works — the camera opens, no plugin, no declared permission |
-| Photo bytes → `POST fmblob://…/ingest` | works, after two fixes below |
-| `ingest_bytes` → blob in the vault | works — a hash comes back and the reference is inserted |
-| Reference → rendered image | **fails** — the note shows the filename as text |
+| Capture menu → system camera Intent | works — no plugin, no declared permission |
+| File bytes → the app | works, **via `fm_ingest` over IPC** — the POST design could never work, see below |
+| `ingest_bytes` → blob in the vault | works — hash verified against `sha256sum` |
+| Reference → rendered image | **works**, verified on Android |
 
-Two fixes were needed to get the bytes moving, both Android-specific and neither visible on the
-emulator:
+Two Android-specific fixes were needed even to get a *request* through, neither visible on the
+emulator at the time:
 
 - **`InvokeBody::Raw` is unsupported on Android.** The raw-IPC-body design from the plan cannot
-  work there at all; ingest moved to a `POST` on the `fmblob://` protocol handler, which is the
-  same transport blobs already stream out over. One transport, both directions.
+  work there at all, so ingest moved to a `POST` on the `fmblob://` protocol handler.
+  **This was also wrong**, for a deeper reason — see "the bytes never left the page".
 - **The CORS preflight was unanswered.** The custom scheme is rewritten to an `http` origin, so
   the page's own request to its own handler is *cross-origin*; without an `OPTIONS` arm every
   capture died as `TypeError: Failed to fetch`.
@@ -70,14 +70,66 @@ Reading either one takes a minute. This is the same failure as the five wrong TL
   which is UTC, so at UTC+8 everything written after midnight appeared under "Yesterday" for eight
   hours. Now `ymd(new Date(...))`, which is local. Pre-existing, unrelated to mobile.
 
-## Still open — first thing tomorrow
+## Solved: the bytes never left the page
 
-**The captured photo does not render.** A build carrying the on-screen reason is installed
-(MD5 `d0796a29b271338e796e36b089b36a4e`, verified against the phone). The placeholder will now
-say which of these it is:
+**`fetch(url, { body: file })` sends nothing through a custom scheme on Android**, and nothing
+errors. `ingest` hashed zero bytes, stored the empty blob, and returned a reference — so **every
+photo ever taken produced the same one**:
 
-- `no bytes in vault "…"` — ingest returned a hash but nothing landed
-- `the vault has this blob but it read back empty`
-- any other text — `asset_status` threw, and the text is the error
+```
+asset:sha256-e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+```
 
-One look at the note answers it. **Do not theorise before reading that line.**
+That constant is the SHA-256 of the empty string, and recognising it is what finally identified
+this after two wrong hypotheses about vaults and reference formats. The lesson is cheap and
+general: **a content-addressed store makes its own failures legible** — the hash of nothing is a
+fixed, recognisable value, and it was sitting in the note the whole time.
+
+### Why the transport had to change
+
+This is a **platform limit, not a bug to fix**. wry intercepts requests through
+`WebViewClient.shouldInterceptRequest(view, request: WebResourceRequest)`, and Android's
+`WebResourceRequest` exposes the URL, the method and the headers — **and no body**. There is no
+accessor for one; wry reads none because none exists. A POST arrives with its body silently
+dropped. Combined with Tauri's own *"On Android, `InvokeBody::Raw` is not supported"*, both binary
+doors are shut, and the only remaining transport is a **JSON string**.
+
+So ingest moved to `fm_ingest`, a real second Tauri command taking the file base64-encoded. That
+costs a third more bytes and a few copies, against media that did not arrive at all. `MAX_INGEST`
+is 48 MB — comfortably above any phone photo, honestly below video, and it **says so** rather than
+running out of memory. Chunking is the real answer for video and is a separate piece.
+
+The `fmblob://` scheme keeps the job it is good at: blobs coming *out*, streamed, seekable.
+
+### Three failures on the way, each worth one line
+
+1. `nativeInvoke` wraps everything into the single `fm` command, so calling it with `fm_ingest`
+   became `dispatch("fm_ingest")` → *"unknown command: fm_ingest"*. Real shell commands need a
+   direct call; `shellInvoke` is now that, and `nativeInvoke` is one line on top of it.
+2. Shell commands return JSON **text**. Forgetting to parse hands back a `string` that
+   type-checks as anything and dies at the first property access.
+3. The first fix — reading the `File` into an `ArrayBuffer` — was reasonable and **did not help**,
+   because the body was never the problem; the transport was.
+
+### Verified, on Android, end to end
+
+A JPEG pushed to the emulator, picked through the real system picker, ingested, and **rendered in
+the note**. The reference's hash matches `sha256sum` of the file byte for byte.
+
+## Guards so this cannot recur quietly
+
+- **`ingest` refuses an empty body**, in `dispatch`, where every frontend crosses. Attaching a
+  genuinely empty file gains nothing; accepting one *silently* hid a broken byte path behind a
+  success message for days. The message says it is a transport problem, not a bad file.
+- **The client refuses to send an empty body for a non-empty file** — the contradiction that
+  names the bug at the moment it appears.
+- `capture_round_trip.rs` covers the round trip through `dispatch` and pins the empty-blob
+  refusal, including that no blob is left behind.
+
+## Still open
+
+- **In-app audio recording** (`getUserMedia` + `MediaRecorder`, the `RECORD_AUDIO` permission and
+  wry's permission plumbing). The picker ships a working feature meanwhile.
+- **Video on Android.** Above `MAX_INGEST` it is refused with an explanation. Chunked ingest would
+  lift it, and the storage question behind it — a phone vault holds the only copy, and restic is
+  not available there — is still unanswered.

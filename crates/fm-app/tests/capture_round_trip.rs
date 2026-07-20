@@ -4,8 +4,15 @@
 //! # Why this file exists
 //!
 //! On 2026-07-20 a photo taken on a real phone ingested cleanly — a hash came back, a blob landed,
-//! the reference was inserted — and then **rendered as its own filename**, because looking the
-//! asset back up said it was not there. Every existing asset test passed throughout.
+//! the reference was inserted — and then **rendered as its own filename**. Every existing asset
+//! test passed throughout.
+//!
+//! **What it actually was:** the bytes never left the page. `fetch(url, { body: file })` is
+//! correct in a browser and sends an *empty* body through the Android shell's custom-scheme
+//! handler, because a `File` is stream-backed. So `ingest` hashed zero bytes and stored the empty
+//! blob, and every photo ever taken produced the *same* reference —
+//! `e3b0c442…b855`, the SHA-256 of the empty string. That constant is what finally identified it,
+//! after two wrong hypotheses about vaults and reference formats.
 //!
 //! They passed because they call `commands::asset_status(vault_path, reference)` with a path they
 //! already hold. That is not what the app does. The app calls **`dispatch`**, which resolves a
@@ -156,4 +163,35 @@ fn an_absent_blob_answers_honestly_instead_of_failing() {
     let status = call(&app, "asset_status", json!({ "reference": absent }), &[])
         .expect("media absence is a warning, never an error");
     assert_eq!(status["has_blob"], false);
+}
+
+/// **An ingest with no bytes is refused**, and this is the test that would have caught the bug
+/// this file was written for.
+///
+/// A photo picked on Android was sent as `fetch(url, { body: file })`, which is correct in a
+/// browser and delivers an *empty* body through the shell's custom-scheme handler. Nothing
+/// errored: ingest hashed zero bytes, stored the empty blob, and returned a reference whose hash
+/// is `e3b0c442…b855` — the SHA-256 of the empty string. Every capture produced that same
+/// reference, so every one of them rendered a placeholder.
+///
+/// Accepting an empty file buys nothing; accepting it *silently* hides a broken byte path behind
+/// a success message, which cost several days.
+#[test]
+fn an_ingest_with_no_bytes_is_refused_rather_than_stored() {
+    let dir = tempdir().unwrap();
+    let (_home, app) = app_with(&[("notes", dir.path().join("v"))]);
+
+    let err = call(&app, "ingest", json!({ "name": "photo.jpg", "vault": "" }), &[])
+        .expect_err("an empty body must not be stored as a blob");
+    assert!(
+        err.contains("no bytes"),
+        "the refusal should say the bytes never arrived, not blame the file: {err}"
+    );
+
+    // And the empty blob is not left behind for a note to point at.
+    let empty_hash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+    let status =
+        call(&app, "asset_status", json!({ "reference": format!("sha256:{empty_hash}") }), &[])
+            .unwrap();
+    assert_eq!(status["has_blob"], false, "nothing should have been written");
 }

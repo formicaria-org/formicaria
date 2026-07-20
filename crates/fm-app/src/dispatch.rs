@@ -523,6 +523,20 @@ pub fn dispatch(
             //
             // The owned `config` is what makes this borrow-check: `&mut g.store` and a
             // `&VaultConfig` borrowed from the same guard cannot coexist.
+            // **Zero bytes is a transport failure, not a file.** Storing it silently is what made
+            // a phone photo unrenderable: the empty blob hashes to `e3b0c442…b855`, ingest
+            // reported success, and the note got a reference to nothing. Every capture produced
+            // the same hash and nothing said so.
+            //
+            // Refused here rather than only in the UI because this is the seam every frontend
+            // crosses, and the cost is asymmetric: attaching a genuinely empty file gains
+            // nothing, while accepting one hides a broken byte path behind a success message.
+            if body.is_empty() {
+                return Err(format!(
+                    "{name} arrived with no bytes — nothing was stored. The file did not reach \
+                     the vault; this is a transport problem, not a problem with the file."
+                ));
+            }
             let mut g = lock()?;
             let into = g.config(&s("vault"))?;
             json(commands::ingest(&mut g.store, &into.path, &into.name, &name, body).map_err(err)?)

@@ -4,10 +4,12 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-20, after capture ran on real hardware
-(`sessions/2026-07-20-capture-on-a-real-phone.md`) — the camera, the ingest POST and the blob write
-all work on the phone; **display does not**, and that is the open thread. Ingest moved from a raw
-IPC body to a `POST` on the protocol handler, because `InvokeBody::Raw` is unsupported on Android.
+_Last verified: 2026-07-20 — **media on Android works end to end**: attach a file, it lands in the
+vault, the note renders it (`sessions/2026-07-20-capture-on-a-real-phone.md`). The bug that hid
+this for days was that **Android delivers no request body to a custom-scheme handler**, so every
+photo was stored as zero bytes while ingest reported success; the giveaway was that every capture
+produced the same reference — the SHA-256 of the empty string. Ingest now goes through the
+`fm_ingest` IPC command as base64, which is the only binary transport the platform leaves open.
 Prior: 2026-07-19, the Android byte path for media
 (`sessions/2026-07-19-media-on-the-phone.md`) — blobs stream over a `fmblob://` protocol handler,
 because a phone has no HTTP server and media worked in neither direction before. Prior: after git-over-HTTPS started working on Android
@@ -27,13 +29,15 @@ edit-gesture)._
 
 ## Known gaps / not fully working
 
-- **A captured photo does not render on the phone.** Capture, ingest and the blob write are all
-  verified on real hardware now (2026-07-20) — the camera opens, bytes arrive, a hash comes back
-  and the reference is inserted — but the note shows the filename as text instead of the image.
-  Two hypotheses were offered and both were wrong on inspection: `asset_status` searches *every*
-  registered vault, so it cannot be a vault mismatch, and `parse_ref` accepts `sha256-`, so it is
-  not the reference format. A build carrying the reason on screen is installed and unread. **Read
-  the placeholder before theorising** — see `sessions/2026-07-20-capture-on-a-real-phone.md`.
+- **Android can carry bytes to the app only as base64 in a JSON string**, and that is a platform
+  limit with no workaround at this layer. Both binary doors are shut: Tauri states *"On Android,
+  `InvokeBody::Raw` is not supported"*, and wry intercepts through
+  `WebViewClient.shouldInterceptRequest(view, request: WebResourceRequest)` — Android's
+  `WebResourceRequest` has **no body accessor**, so a POST to a custom scheme arrives with its
+  body silently dropped. That silence stored every phone photo as zero bytes for days. Ingest
+  therefore goes through `fm_ingest` with the file base64-encoded, capped at `MAX_INGEST` (48 MB)
+  — above any phone photo, below video. **Video on Android is refused with an explanation**;
+  chunked ingest would lift it and is not built.
 
 - **The owner's phone has no diagnostic channel except the app's own UI.** `eprintln!`/stdout
   never reaches logcat from a Tauri Android shell, and — found the hard way on 2026-07-20 — the
