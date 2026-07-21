@@ -548,30 +548,15 @@
     }
   }
 
-  // ---- Selection formatting toolbar ----
+  // ---- Formatting toolbar ----
   //
-  // Select text in the editor and a small toolbar floats above it: Bold, Italic, Highlight, Code,
-  // Colour, Link, Quote. Each **wraps the selected bytes** in the right Markdown (or the closed-vocab
-  // `[…]{.token}`), so it stays byte-for-byte source — the mobile answer to "who types `[x]{.warn}`".
-  let fmtBar = $state<{ top: number; left: number } | null>(null);
+  // A **persistent** bar above the editor: Bold, Italic, Highlight, Code, Colour, Link, and a ¶ block
+  // menu. Each wraps the **selected bytes** in the right Markdown (or the closed-vocab `[…]{.token}`),
+  // byte-for-byte source — the answer to "who types `[x]{.warn}`". It is deliberately *not* a
+  // float-on-selection popup: on Android that popup is hidden behind the system Cut/Copy menu, so the
+  // bar stays put where the OS menu never covers it — select, then reach up and tap.
   let colorOpen = $state(false);
   let blockOpen = $state(false);
-
-  function onEditorSelect() {
-    const el = editorEl;
-    if (!el) return;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
-    if (s === e) {
-      fmtBar = null;
-      colorOpen = false;
-      blockOpen = false;
-      return;
-    }
-    const { top, left } = caretXY(el, s);
-    const BAR_H = 40;
-    fmtBar = { top: top - BAR_H < 0 ? top + 22 : top - BAR_H, left: clamp(left, 220, el.clientWidth) };
-  }
 
   // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
   async function wrapSel(before: string, after: string, placeholder = '') {
@@ -598,7 +583,6 @@
       el.selectionStart = s + before.length;
       el.selectionEnd = s + before.length + text.length;
     }
-    onEditorSelect();
   }
 
   // A link keeps the selected text as the label and drops the caret in an empty `()` to type the URL.
@@ -614,7 +598,6 @@
     el.focus();
     const caret = s + text.length + 3; // after "[text]("
     el.selectionStart = el.selectionEnd = caret;
-    fmtBar = null;
   }
 
   // Block formats work on whole lines: expand the selection to the lines it touches, transform each,
@@ -636,7 +619,6 @@
     el.focus();
     el.selectionStart = from;
     el.selectionEnd = from + out.length;
-    onEditorSelect();
   }
 
   // Set the heading level, replacing any marker already there (so H2 over an H1 line just re-levels).
@@ -669,7 +651,6 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 500);
     detectSlash();
-    onEditorSelect(); // typing replaces the selection → refresh/hide the toolbar
   }
 
   async function save() {
@@ -1581,18 +1562,51 @@
         <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
       {:else if editing}
         <div class="editor-wrap">
+          <!-- A **persistent** formatting bar, above the editor. Not a float-on-selection popup: on
+               Android that popup hides behind the system Cut/Copy menu, so this stays put where the
+               OS menu never covers it — select text, then reach up and tap. `pointerdown` is prevented
+               so a button press keeps the textarea's selection (the whole trick). Scrolls sideways on
+               a narrow phone rather than wrapping. -->
+          <div class="fmt-bar" role="toolbar" tabindex="-1" aria-label="format text" onpointerdown={(e) => e.preventDefault()}>
+            <button class="fmt-btn" title="Bold" aria-label="bold" onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button>
+            <button class="fmt-btn" title="Italic" aria-label="italic" onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button>
+            <button class="fmt-btn" title="Highlight" aria-label="highlight" onclick={() => wrapSel('==', '==', 'text')}>==</button>
+            <button class="fmt-btn code" title="Code" aria-label="code" onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button>
+            <div class="fmt-color">
+              <button class="fmt-btn" title="Colour" aria-label="colour" aria-expanded={colorOpen} onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button>
+              {#if colorOpen}
+                <ul class="fmt-colors" role="listbox" aria-label="colour token">
+                  {#each TEXT_TOKENS as t (t)}
+                    <li><button class="fmt-color-opt" data-token={t} onclick={() => wrapSel('[', `]{.${t}}`, 'text')}>{t}</button></li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+            <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
+            <div class="fmt-color">
+              <button class="fmt-btn" title="Block format" aria-label="block format" aria-expanded={blockOpen} onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button>
+              {#if blockOpen}
+                <ul class="fmt-colors" role="listbox" aria-label="block format">
+                  <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
+                  <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
+                  <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
+                  <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
+                  <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
+                  <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
+                  <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
+                </ul>
+              {/if}
+            </div>
+          </div>
           <textarea
             class="editor"
             bind:this={editorEl}
             bind:value={draft}
             oninput={onInput}
             onkeydown={onEditorKeydown}
-            onselect={onEditorSelect}
-            onmouseup={onEditorSelect}
-            onkeyup={onEditorSelect}
             ondragover={onDragOver}
             ondrop={onDrop}
-            onblur={() => setTimeout(() => { closeSlash(); fmtBar = null; }, 120)}
+            onblur={() => setTimeout(closeSlash, 120)}
             spellcheck="false"
             aria-label="note body (Markdown)"
           ></textarea>
@@ -1627,48 +1641,6 @@
                 {/if}
               </li>
             </ul>
-          {/if}
-          {#if fmtBar && !slash.open}
-            <!-- The selection formatting toolbar. `pointerdown` is prevented so a button press keeps
-                 the textarea's selection (the whole trick); each action wraps the selected bytes. -->
-            <div
-              class="fmt-bar"
-              role="toolbar"
-              tabindex="-1"
-              aria-label="format selection"
-              style="top: {fmtBar.top}px; left: {fmtBar.left}px"
-              onpointerdown={(e) => e.preventDefault()}
-            >
-              <button class="fmt-btn" title="Bold" aria-label="bold" onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button>
-              <button class="fmt-btn" title="Italic" aria-label="italic" onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button>
-              <button class="fmt-btn" title="Highlight" aria-label="highlight" onclick={() => wrapSel('==', '==', 'text')}>==</button>
-              <button class="fmt-btn code" title="Code" aria-label="code" onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button>
-              <div class="fmt-color">
-                <button class="fmt-btn" title="Colour" aria-label="colour" aria-expanded={colorOpen} onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button>
-                {#if colorOpen}
-                  <ul class="fmt-colors" role="listbox" aria-label="colour token">
-                    {#each TEXT_TOKENS as t (t)}
-                      <li><button class="fmt-color-opt" data-token={t} onclick={() => wrapSel('[', `]{.${t}}`, 'text')}>{t}</button></li>
-                    {/each}
-                  </ul>
-                {/if}
-              </div>
-              <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
-              <div class="fmt-color">
-                <button class="fmt-btn" title="Block format" aria-label="block format" aria-expanded={blockOpen} onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button>
-                {#if blockOpen}
-                  <ul class="fmt-colors" role="listbox" aria-label="block format">
-                    <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
-                    <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
-                    <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
-                    <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
-                    <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
-                    <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
-                    <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
-                  </ul>
-                {/if}
-              </div>
-            </div>
           {/if}
         </div>
         <p class="editor-hint">
@@ -2276,18 +2248,25 @@
   .slash-menu.embedding {
     border-color: var(--accent);
   }
-  /* The selection formatting toolbar: floats above the selected text in the editor. */
+  /* The formatting toolbar: a persistent row above the editor (not a float-on-selection popup, which
+     Android hides behind the system Cut/Copy menu). Scrolls sideways on a narrow phone. */
   .fmt-bar {
-    position: absolute;
-    z-index: 55;
     display: flex;
     align-items: center;
     gap: 1px;
+    margin-bottom: var(--space-1);
     padding: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
+  }
+  .fmt-bar::-webkit-scrollbar {
+    display: none;
+  }
+  .fmt-btn {
+    flex: none;
   }
   .fmt-btn {
     display: grid;
