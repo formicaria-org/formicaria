@@ -1688,7 +1688,7 @@
             onkeyup={onEditorSelect}
             ondragover={onDragOver}
             ondrop={onDrop}
-            onblur={() => setTimeout(() => { closeSlash(); fmtBar = null; }, 120)}
+            onblur={() => (fmtBar = null)}
             spellcheck="false"
             aria-label="note body (Markdown)"
           ></textarea>
@@ -1701,16 +1701,22 @@
               role="listbox"
               aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
               style="top: {slash.at.top}px; left: {slash.at.left}px"
+              use:clickOutside={closeSlash}
+              onpointerdown={(e) => {
+                // Mouse: keep the textarea focused so the menu doesn't blur-close. Touch: do NOT
+                // preventDefault — that would block scrolling the list (and select on thumb-down).
+                if (e.pointerType === 'mouse') e.preventDefault();
+              }}
             >
               {#each slash.results as r, i (r.id)}
+                <!-- Keyboard selection is the editor's Arrow/Enter path (onEditorKeydown); the click
+                     is the pointer shortcut, so no per-item key handler is needed. -->
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <li
                   role="option"
                   aria-selected={i === slash.active}
                   class:active={i === slash.active}
-                  onpointerdown={(e) => {
-                    e.preventDefault(); // keep the textarea focused/selected (touch + mouse)
-                    chooseSlash(r, e.shiftKey);
-                  }}
+                  onclick={(e) => chooseSlash(r, e.shiftKey)}
                 >
                   <span class="slash-type" data-type={r.type}>{r.type}</span>
                   <span class="slash-title">{r.title ?? r.preview}</span>
