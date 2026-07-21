@@ -75,6 +75,37 @@ fn commit_all_commits_changes_then_reports_a_clean_tree() {
     assert!(!git::commit_all(vault.path(), "no-op", &notes_of(vault.path())).unwrap(), "clean tree → nothing to commit");
 }
 
+/// A note captured *and* deleted before the debounced auto-commit runs is in the batch `paths`
+/// (the store recorded both the write and the delete) but is neither on disk nor tracked. Git
+/// cannot name it, so `git add -A -- <it>` rejects the whole batch — which used to pause history
+/// and backup for every other change too. It must be dropped silently, and the real change commit.
+#[test]
+fn a_note_created_then_deleted_before_its_first_commit_does_not_brick_the_commit() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let vault = tempdir().unwrap();
+    let notes = vault.path().join("notes");
+    fs::create_dir_all(&notes).unwrap();
+    fs::write(notes.join("real.md"), "kept\n").unwrap();
+
+    // The phantom: recorded as touched, never written to disk (created-then-deleted). Not on disk,
+    // not tracked — the exact pathspec `git add` cannot match.
+    let phantom = notes.join("phantom.md");
+    assert!(!phantom.exists());
+    let paths = vec![notes.join("real.md"), phantom];
+
+    let committed = git::commit_all(vault.path(), "phantom in the batch", &paths)
+        .expect("a create-then-delete must not brick the commit");
+    assert!(committed, "the real note was still committed");
+
+    let ls = Command::new("git").arg("-C").arg(vault.path()).args(["ls-files"]).output().unwrap();
+    let files = String::from_utf8_lossy(&ls.stdout);
+    assert!(files.contains("notes/real.md"), "the real note is tracked");
+    assert!(!files.contains("phantom"), "the phantom never entered git");
+}
+
 /// Commit a note, so each call adds exactly one commit to the vault's history.
 fn write_and_commit(vault: &std::path::Path, name: &str, body: &str) {
     let notes = vault.join("notes");

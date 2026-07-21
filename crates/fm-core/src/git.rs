@@ -794,6 +794,24 @@ pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool
             owned.push(f.to_string());
         }
     }
+    // **Drop phantom paths git cannot name.** A note captured *and* deleted before its first
+    // commit is in `paths` (`FileStore` recorded the write and the delete) yet is neither on disk
+    // nor tracked. `git add -A -- <it>` rejects the WHOLE batch on it ("pathspec did not match any
+    // file"), which pauses history and backup for every *other* change too — a create-then-delete
+    // must not brick the vault. Such a path has nothing to record (git never saw it), so keep only
+    // the nameable ones: a path that is tracked (a real modify/delete) or exists on disk (an add).
+    if !owned.is_empty() {
+        let ls = git(vault).arg("ls-files").arg("-z").arg("--").args(&owned).output().map_err(spawn)?;
+        if !ls.status.success() {
+            return Err(failed("git ls-files", &ls));
+        }
+        let tracked: std::collections::HashSet<&str> = std::str::from_utf8(&ls.stdout)
+            .unwrap_or("")
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .collect();
+        owned.retain(|o| tracked.contains(o.as_str()) || vault.join(o).exists());
+    }
     if owned.is_empty() {
         return Ok(false); // nothing of ours changed
     }
