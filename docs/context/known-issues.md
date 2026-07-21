@@ -267,9 +267,11 @@ edit-gesture)._
   a single number deserves the number re-measured.** (2) The canvas renders only in a real
   browser, so
   it's **unverified in headless CI** (build, code-split, and the board round-trip
-  are tested; the visual editor is not). (3) A board can't yet be **embedded in a
-  note** — it's a standalone note you open on its own. Planned in
-  [plan.md](./plan.md) (Track S #4).
+  are tested; the visual editor is not). (3) Whole-note **embeds** shipped
+  2026-07-21 (`![](note:id)`), but a **board** embedded renders its raw Excalidraw
+  *scene JSON* as a body, not the canvas — the embed path is the Markdown renderer,
+  which never invokes the board widget. So a board is still effectively open-on-its-own;
+  canvas-inside-an-embed is the remaining gap. Planned in [plan.md](./plan.md) (Track S #4).
 
 ## Deferred (intentionally not built yet)
 
