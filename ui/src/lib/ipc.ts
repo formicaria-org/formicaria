@@ -6,10 +6,12 @@ import type {
   CommitResult,
   EditEvent,
   GitAuth,
+  DiscussionSummary,
   NoteDetail,
   ObjectMeta,
   PathCheck,
   PullResult,
+  ThreadView,
   RemoteProbe,
   VaultInfo,
   ViewInfo,
@@ -115,6 +117,48 @@ export const recent = () => invoke<ObjectMeta[]>('recent');
 // aggregated newest-first. One command behind the "edited by" labels, the activity stream, and
 // the contributor filter — git already knows, we only read.
 export const activity = () => invoke<EditEvent[]>('activity');
+
+// Discussion, as notes: one message = one file, ULID-named, in the vault of the note it is
+// about. There is no `vault` argument — a reply joins the target's audience, which is not a
+// choice to leave to a UI.
+//
+// `reply` takes the note OR another message: replying to a message re-roots to the same
+// discussion server-side, so the natural "reply to this comment" gesture cannot create a
+// thread nothing can reach.
+export const reply = (id: string, body: string) =>
+  invoke<ObjectMeta>('reply', { id, body });
+export const thread = (id: string) => invoke<ThreadView>('thread', { id });
+
+// A first-class discussion: a note that is the root of its own thread (`thread_of` points at
+// itself). Created explicitly — `create_discussion` writes the self-anchor, which `set_property`
+// refuses, the same way `reply` (not `set_property`) writes a message's pointers. `vault` is the
+// audience it joins; empty means the default.
+export const createDiscussion = (title: string, vault = '') =>
+  invoke<ObjectMeta>('create_discussion', { title, vault });
+
+/** Every first-class discussion across vaults, most-recently-active first — the Discussions view's
+ *  feed. Each carries its root note (title + vault), a message count, and the participants (git
+ *  authorship). Comment threads hanging off an ordinary note are deliberately not here — those stay
+ *  with their note. */
+export const discussions = () => invoke<DiscussionSummary[]>('discussions');
+
+/** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
+ *  newest first. The Collaboration surface's feed.
+ *
+ *  A store query like `recent`, **not** a per-vault git read: it lists the proposal *notes* that
+ *  exist. Whether each branch is still open, merged, or gone is derived from git elsewhere — a
+ *  proposal naming a branch that no longer resolves is still listed, because the discussion
+ *  outlives the branch. Returns plain `ObjectMeta`; branch/base/status badges arrive with the
+ *  deferred diff surface. */
+export const proposals = () => invoke<ObjectMeta[]>('proposals');
+
+/** Notes nothing has touched since `since` (a git `--since` value), oldest first.
+ *
+ *  **Derived from git, stored nowhere** — there is no `stale:` property to keep true, and the
+ *  threshold is this argument rather than a setting on disk. A vault with no history is
+ *  skipped rather than reported as entirely stale: "no evidence" and "old" are different
+ *  answers. */
+export const staleNotes = (since = '') => invoke<ObjectMeta[]>('stale', { since });
 
 // Copy a note into another vault. Restrictive by default: only the prose travels —
 // links & attached files are stripped, so the copy can never point at anything outside

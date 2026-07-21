@@ -320,7 +320,8 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
 
     // The Copy-to control opens a popover that warns this is permanent in the target's history.
-    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     expect(await screen.findByText(/permanent in that vault/i)).toBeTruthy();
     // Restrictive by default: the "also copy the files" opt-in starts unchecked.
     expect((screen.getByLabelText('also copy the files') as HTMLInputElement).checked).toBe(false);
@@ -338,7 +339,8 @@ describe('v2: property editing, timeline, delete', () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
-    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
 
     // Tick "also copy the files" — the sharper path.
     await fireEvent.click(screen.getByLabelText('also copy the files'));
@@ -367,12 +369,14 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
 
     // First copy (prose-only, first time) goes straight through — nothing to replace.
-    await fireEvent.click(await screen.findByLabelText('copy to another vault'));
+    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     await fireEvent.click(screen.getByTitle('Copy into lab'));
     expect(await screen.findByText(/Copied to lab/)).toBeTruthy();
 
     // Copying the same note again is warned as a replace, not a duplicate.
-    await fireEvent.click(screen.getByLabelText('copy to another vault'));
+    await fireEvent.click(screen.getByLabelText('more actions'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     await fireEvent.click(screen.getByTitle('Copy into lab'));
     expect(await screen.findByText(/copying again replaces it/i)).toBeTruthy();
     await fireEvent.click(screen.getByRole('button', { name: 'Replace copy' }));
@@ -420,13 +424,15 @@ describe('v2: property editing, timeline, delete', () => {
     await runCommand('New note', 'create');
     await screen.findByLabelText('note body (Markdown)'); // panel open in edit mode
 
-    // First click only arms the confirmation — the panel is still open.
-    await fireEvent.click(await screen.findByLabelText('delete note'));
+    // Delete lives in the ⋯ overflow now; opening it and clicking Delete only arms
+    // the confirmation — the panel is still open.
+    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await screen.findByText(/permanently/i);
     expect(screen.queryByLabelText('close')).not.toBeNull();
 
-    // The confirm button's accessible name is "Delete" (the header button uses
-    // the aria-label "delete note"), so this targets the second, final click.
+    // Clicking the menu item closed the menu, so the only remaining "Delete" is the
+    // confirm strip's — this targets the second, final click.
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByLabelText('close')).toBeNull());
   });

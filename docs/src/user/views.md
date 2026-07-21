@@ -21,13 +21,27 @@ views can be on screen at once, side by side.
   log. Nothing is stored for it: git already knows, so this is a view of history
   rather than a record of its own. It is also where the contributor filter comes
   from — hiding a person there hides their notes everywhere.
+- **Collaboration** — the open [proposals](./collaboration.md#proposals) across
+  your vaults: notes that propose a change to a git branch, newest first. Open one
+  to read it and its discussion. (Conflicts awaiting resolution are surfaced by the
+  backup panel, not here.)
 - **Search** — full-text search across every note (and the extracted text of
   ingested PDFs). Type to filter; click a result to open it.
 
-The Board, Agenda and Timeline show **notes only**. An [asset](./assets.md) is a
-file a note refers to, not something you plan, so it never gets a card of its
-own — open one from the note that references it, or find it in Search, which does
-cover assets (including the text extracted from a PDF).
+The Board, Agenda and Timeline show **notes only** — which excludes three kinds of
+note that are not things you plan. An [asset](./assets.md) is a file a note refers
+to, so it never gets a card of its own — open one from the note that references it.
+A **discussion message** (a reply, see [Notes](./notes.md#discussion)) belongs to
+the note it is about, not to your board, so it stays in that note's discussion
+panel. A **proposal** (see [Collaboration](./collaboration.md#proposals)) is a note
+that proposes a change to a git branch; it lives in the **Collaboration** view, not
+on your board. All three still turn up in **Search** — a message or a proposal you
+cannot find in five years would defeat the point of keeping it in the vault at all.
+
+> **Property-filtered by choice.** Messages and proposals are kept out of the
+> planning views by a *property* (`thread_of`, `proposes`) parsed at query time —
+> not by a separate folder or note *type*. That is deliberate ("resist adding kinds,
+> add properties"); do not "harmonize" it into a hidden directory.
 
 Urgency and grouping are **derived**, never stored — there is no priority field;
 nudging a note's `due` date is the whole reprioritization gesture.

@@ -9,6 +9,7 @@
     feedKey,
     reorder,
     rendererKind,
+    BUILTIN_PANES,
     MAX_PANES,
     type Workspace,
     type Layout,
@@ -20,6 +21,9 @@
     getBoard,
     getAgenda,
     recent,
+    proposals,
+    createDiscussion,
+    discussions as fetchDiscussions,
     capture,
     setProperty,
     search as ipcSearch,
@@ -325,6 +329,7 @@
   const CREATE_MENU: { group: string; label: string; run: () => void }[] = [
     { group: 'Create', label: 'New note', run: onNew },
     { group: 'Create', label: 'New board', run: onNewBoard },
+    { group: 'Create', label: 'New discussion', run: onNewDiscussion },
     { group: 'Create', label: 'New window', run: () => addPane('board') },
   ];
 
@@ -345,10 +350,10 @@
     // window" because a window is rotated after it opens, but the palette is the *searchable*
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
     // thing that holds one. Opening a window already on the right view is strictly less work.
-    ...['board', 'agenda', 'timeline', 'search', 'activity'].map((k) => ({
+    ...BUILTIN_PANES.map((b) => ({
       group: 'Open',
-      label: `Open ${k[0].toUpperCase()}${k.slice(1)}`,
-      run: () => addPane(k as PaneKind),
+      label: `Open ${b.label}`,
+      run: () => addPane(b.kind),
     })),
     ...(views ?? [])
       .filter((v) => !v.error)
@@ -461,6 +466,18 @@
       const cards = arg ? await ipcSearch(arg) : [];
       learnStatuses(cards);
       return { cards };
+    }
+    if (type === 'collaboration') {
+      // A flat list of proposal notes, rendered through the Timeline renderer like any other
+      // flat feed. No git read here — branch state is derived later, with the diff surface.
+      const cards = await proposals();
+      learnStatuses(cards);
+      return { cards };
+    }
+    if (type === 'discussions') {
+      // The ongoing discussions, most-active-first, each with its participants. Its own feed field
+      // because a discussion summary is richer than an ObjectMeta card.
+      return { discussions: await fetchDiscussions() };
     }
     if (type === 'view') {
       const r = await runView(arg);
@@ -712,6 +729,20 @@
       const meta = await capture(scene, createTarget);
       await setProperty(meta.id, 'view', 'board');
       await setProperty(meta.id, 'title', 'Untitled board');
+      openNoteInPane(meta.id);
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  // "New discussion": a first-class discussion — a note that is the root of its own thread. It is
+  // created through `create_discussion` (not capture + setProperty, because setProperty refuses the
+  // `thread_of` self-anchor), given a default title, then opened. Being self-rooted it is an
+  // `is_message` note, so it never lands on the board/timeline — it lives in the Discussions view.
+  async function onNewDiscussion() {
+    try {
+      const meta = await createDiscussion('Untitled discussion', createTarget);
       openNoteInPane(meta.id);
       scheduleCommit();
     } catch (err) {

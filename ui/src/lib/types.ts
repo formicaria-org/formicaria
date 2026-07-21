@@ -55,6 +55,41 @@ export interface NoteDetail extends ObjectMeta {
   version: string;
 }
 
+/** One message in a note's discussion.
+ *
+ *  A message is an ordinary note carrying `thread_of` — there is no message *kind*. `depth` is
+ *  computed on the server from a flat list, so the UI never walks `reply_to` itself: that
+ *  pointer is hand-editable frontmatter and can dangle or cycle, and a client-side walk would
+ *  meet those as a blank pane or a hang. */
+export interface ThreadMessage extends ObjectMeta {
+  body: string;
+  /** The message this answers, or null when it answers the note (or the pointer is unusable). */
+  reply_to: string | null;
+  /** Indentation level, already capped. Derived, never stored. */
+  depth: number;
+}
+
+/** A note's discussion. `root` is null when the note itself has been deleted — the reasoning
+ *  about a note outlives the note. */
+export interface ThreadView {
+  root: ObjectMeta | null;
+  count: number;
+  messages: ThreadMessage[];
+}
+
+/** One first-class discussion, as the Discussions view shows it at a glance. The `ObjectMeta`
+ *  fields are the discussion's own note (a self-rooted note — `thread_of` points at itself), so
+ *  `title` and `vault` render directly. */
+export interface DiscussionSummary extends ObjectMeta {
+  /** Messages in the discussion (not counting the root note). */
+  count: number;
+  /** ISO-8601 of the newest message, or the discussion's own creation when empty — the sort key. */
+  last_activity: string;
+  /** Who has posted, newest-first, from git authorship (never stored). Empty when the vault has no
+   *  history yet — the discussion still shows its title and vault. */
+  participants: Identity[];
+}
+
 /** Whether a referenced asset can be shown, and its sniffed MIME. */
 export interface AssetStatus {
   has_blob: boolean;

@@ -35,6 +35,12 @@ second copy of the table below.
 | `pull`           | `vault`                      | `{merged, conflicts}`  | fetch + merge through the `.md` driver; `conflicts` is a *result*, not an error |
 | `delete`         | `id`                         | —                      | unlinks the file and both index rows |
 | `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log |
+| `reply`          | `id`, `body`                 | `ObjectMeta`           | post a [discussion](../user/notes.md#discussion) message on a note (or another message — it re-roots to the same thread). One file, ULID-named, in the target's vault. No `vault` arg: a reply joins the audience of the note it is about |
+| `thread`         | `id`                         | `ThreadView`           | a note's discussion — `{root, count, messages[]}`, each message with a server-computed `depth`. `root: null` when the note itself was deleted (the discussion survives it) |
+| `proposals`      | —                            | `ObjectMeta[]`         | every open [proposal](../user/collaboration.md#proposals) across vaults (notes carrying `proposes: branch:<name>`), newest first. A store query like `recent`, not a git read — it lists proposal *notes*; branch state is derived elsewhere |
+| `create_discussion` | `title`, `vault`          | `ObjectMeta`           | create a first-class [discussion](../user/notes.md#discussion) — a note that is the root of its own thread (`thread_of` points at itself). A dedicated command because `set_property` refuses `thread_of` |
+| `discussions`    | —                            | `DiscussionSummary[]`  | every first-class discussion across vaults, most-recently-active first: `{…root, count, last_activity, participants}`. Participants come from git authorship. Comment threads on an ordinary note are *not* here — they stay with their note |
+| `stale`          | `since`                      | `ObjectMeta[]`         | notes untouched in git since `since` (a `--since` value, default `90 days ago`), oldest first. **Derived from git, stored nowhere**; a vault with no history is skipped, not reported as wholly stale |
 | `ping`           | —                            | `{changed, git}`       | the 15 s visible-tab reindex poll |
 | `list_vaults`    | —                            | `VaultInfo[]`          | `[]` **is the first-run signal** |
 | `check_path` / `create_vault` | `name`, `path`  | `PathCheck` / `VaultInfo[]` | the surface owns the verdict, not the form |

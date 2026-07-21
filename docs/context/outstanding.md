@@ -17,8 +17,9 @@ silently freezing all commits (fixed everywhere but the auto-commit that actuall
 threads backend was built and reverted in the same session; see §2.5. The Android CSP **loads clean on the real phone** (installed and launched, zero
 violations), but an image-bearing note and a whiteboard are still unopened — see §1.1. Earlier
 the same day: media working on Android end to end (`sessions/2026-07-20-capture-on-a-real-phone.md`);
-photos are done, 1.2 is now video, gated on where a phone's blobs survive rather than on the
-transport. Prior: 2026-07-18, after the whole compiled queue was worked through
+photos are done and **video too (owner-confirmed 2026-07-20 evening)**, so 1.2 is no longer about
+the transport at all — it is the storage question underneath: a phone-captured video currently has
+one copy, in app-private storage an uninstall erases. Prior: 2026-07-18, after the whole compiled queue was worked through
 (`sessions/2026-07-18-vault-as-a-repo-and-the-queue.md`)._
 
 ---
@@ -51,23 +52,24 @@ launches clean, but `img-src` is only really proven by **a note with an image** 
 `fmblob://` to `http://fmblob.localhost`) and `worker-src`/fonts by **a whiteboard**. If either
 policy is wrong the symptom is a broken image, not a crash — so it will not announce itself.
 
-### 1.2 Video on Android, and the storage question behind it
-Photos work end to end now (2026-07-20). Video does not: bytes reach the app only as base64 in a
-JSON string — the one binary transport Android leaves open — so `MAX_INGEST` caps an attachment at
-48 MB and anything larger is **refused with an explanation** rather than crashing. A phone video
-clears that in seconds.
+### 1.2 Where a phone's media actually survives
+**Video attaches and plays on a real phone (owner-confirmed, 2026-07-20)** — this entry used to
+say it did not, which was overstated. Photos and video both go through the same base64 `fm_ingest`
+IPC path, the one binary transport Android leaves open, and `MAX_INGEST` caps an attachment at
+48 MB; over that it is **refused with an explanation** rather than crashing. So the transport is
+not the open question. Two are:
 
-Two pieces, and the second is the one that matters:
+1. **Where the bytes live — the one that matters.** A phone vault is app-private storage, wiped
+   on uninstall; `blobs/` is gitignored so a push does not carry it; restic is a binary Android
+   does not have. Today a video attached on a phone has **exactly one copy, in the place a single
+   uninstall erases**. That is true right now, for media that already works — it is not gated on
+   anything below.
+2. **Chunked ingest**, only if the 48 MB cap turns out to bite: send the file in bounded slices
+   and append, so peak memory is one chunk rather than 1.33× the file. **Do not do 2 before 1** —
+   lifting the ceiling without an answer to 1 invites people to trust it with more.
 
-1. **Chunked ingest** would lift the ceiling: send the file in bounded slices and append, so peak
-   memory is one chunk rather than 1.33× the file.
-2. **Where the bytes then live.** A phone vault is app-private storage, wiped on uninstall;
-   `blobs/` is gitignored so a push does not carry it; restic is a binary Android does not have.
-   Lifting the size cap without answering this means inviting people to put the only copy of a
-   50 MB video somewhere one uninstall erases. **Do not do 1 before 2.**
-
-**Done looks like:** a video attaches on a phone, and there is an honest answer to where its bytes
-survive.
+**Done looks like:** an honest, stated answer to where a phone-captured video survives — and the
+app saying it, rather than the user discovering it.
 
 ---
 

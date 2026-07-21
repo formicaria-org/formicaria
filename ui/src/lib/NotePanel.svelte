@@ -16,6 +16,8 @@
     ingestFile,
     search,
     recent,
+    reply as ipcReply,
+    thread as ipcThread,
   } from './ipc';
   import { renderInto, type AssetFailure, type ResolvedAsset, type ResolvedNote } from './render';
   import { parseStamp, toStamp } from './stamp';
@@ -26,7 +28,7 @@
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
   import Whiteboard from './Whiteboard.svelte';
-  import type { NoteDetail, ObjectMeta } from './types';
+  import type { NoteDetail, ObjectMeta, ThreadMessage } from './types';
 
   let {
     id,
@@ -70,6 +72,13 @@
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
+
+  // The header's "more actions" overflow (⋯). Holds the rare/destructive actions — Copy to…,
+  // Delete — so the row keeps only identity (vault, who edited) and the primaries (status, Edit).
+  // A `⋯`, not a `＋`: `＋` already means "add media" here and "new note" in the create menu. Its
+  // items set their target state and close the menu, so the overflow and a popover are never both
+  // open (mirrors `capture()` clearing `captureOpen`).
+  let menuOpen = $state(false);
 
   // Copying a note into another vault is sensitive: it writes into that vault's repo
   // (permanent in its git history). So the button opens a popover that states this plainly,
@@ -295,6 +304,110 @@
   // edited on a canvas instead of as text. Detection is a plain property check —
   // no new Kind (the model resists that).
   let isBoard = $derived(note?.props?.view === 'board');
+
+  // A first-class discussion — a note that is the root of its own thread (`thread_of` points at
+  // itself, the self-anchor `create_discussion` writes). Its content is the conversation, not a
+  // document, so the pane suppresses the read/edit body and shows the thread as the body.
+  let isDiscussion = $derived(!!note && note.props?.thread_of === `note:${note.id}`);
+
+  // Copy-to only makes sense when there is another vault to copy into — and not for a discussion,
+  // whose "body" is a thread, so copying its (empty) prose is meaningless. Derived once so the
+  // overflow item's guard and the copy popover's guard cannot disagree.
+  let canCopy = $derived(otherVaults.length > 0 && !isDiscussion);
+
+  // ── Discussion ────────────────────────────────────────────────────────────────────────
+  // Collapsed by default and fetched on open. That is not laziness for its own sake: a
+  // thread read is one full-corpus query on the server, so paying it on every note open
+  // would put it on the hot path for notes nobody has discussed.
+  let discOpen = $state(false);
+  let discCount = $state(0);
+  let discMessages = $state<ThreadMessage[]>([]);
+  let replyDraft = $state('');
+  let replyTo = $state('');
+  let discBusy = $state(false);
+  let discError = $state<string | null>(null);
+
+  async function loadThread() {
+    if (!note) return;
+    try {
+      const t = await ipcThread(note.id);
+      discMessages = t.messages;
+      discCount = t.count;
+      discError = null;
+    } catch (e) {
+      discError = String(e);
+    }
+  }
+
+  async function toggleDiscussion() {
+    discOpen = !discOpen;
+    if (discOpen) {
+      replyTo = note?.id ?? '';
+      await loadThread();
+    }
+  }
+
+  // A discussion opens straight onto its conversation: the thread is shown and fetched as soon as
+  // the note loads, never collapsed. A plain note starts collapsed (and this also clears a prior
+  // discussion's open state when the pane switches notes). Runs on note-change, not on toggle —
+  // it reads `note?.id`/`isDiscussion`, so a manual toggle below does not re-trigger it.
+  $effect(() => {
+    const id = note?.id;
+    if (isDiscussion && id) {
+      discOpen = true;
+      replyTo = id;
+      void loadThread();
+    } else if (!isDiscussion) {
+      discOpen = false;
+    }
+  });
+
+  // Rename a discussion. Its title is the at-a-glance label in the Discussions view, and a
+  // discussion has no edit mode (its body is the thread), so it is set here directly.
+  async function renameDiscussion(title: string) {
+    if (!note) return;
+    try {
+      await setProperty(note.id, 'title', title);
+      note = { ...note, title: title || null };
+      onsaved?.();
+    } catch (e) {
+      discError = String(e);
+    }
+  }
+
+  function startReply(id: string) {
+    replyTo = id;
+    discError = null;
+  }
+
+  async function sendReply() {
+    const body = replyDraft.trim();
+    if (!note || !body || discBusy) return;
+    discBusy = true;
+    discError = null;
+    try {
+      // The target is the message being answered, or the note itself. Replying to a message
+      // re-roots server-side, so this cannot create a thread nothing can reach.
+      await ipcReply(replyTo || note.id, body);
+      replyDraft = '';
+      replyTo = note.id;
+      await loadThread();
+      // A message is a file write like any other, so it rides the same signal the editor
+      // uses — which is what schedules the debounced commit. No second path.
+      onsaved?.();
+    } catch (e) {
+      discError = String(e);
+    } finally {
+      discBusy = false;
+    }
+  }
+
+  function onReplyKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      void sendReply();
+    }
+  }
   let boardTheme: 'dark' | 'light' = $derived(
     document.documentElement.dataset.theme === 'light' ? 'light' : 'dark',
   );
@@ -795,20 +908,45 @@
             {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
           {/if}
         </button>
-        <button class="edit danger" onclick={() => (confirmingDelete = true)} aria-label="delete note" title="Delete this note">
-          Delete
-        </button>
-        {#if otherVaults.length}
+        <!-- The rare/destructive actions live behind one "more actions" overflow, so the row
+             stays legible. `⋯` (not `＋`, which means add) is the universal trigger; Delete is
+             last and red per platform guidance; its confirm strip (below) is kept because a
+             formicaria delete is irreversible. Reuses the `capture-menu` dropdown verbatim. -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="capture" onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)}>
           <button
             class="edit"
-            onclick={() => (copyOpen = !copyOpen)}
-            aria-expanded={copyOpen}
-            aria-label="copy to another vault"
-            title="Copy this note into another vault"
-          >
-            Copy to…
-          </button>
-        {/if}
+            onclick={() => (menuOpen = !menuOpen)}
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+            aria-label="more actions"
+            title="More actions">⋯</button>
+          {#if menuOpen}
+            <!-- A plain button group, exactly like the media `capture-menu`: without roving
+                 arrow-key focus a `role=menu` would announce a menu the keyboard can't drive, so
+                 real buttons are the more honest a11y choice here. -->
+            <ul class="capture-menu">
+              {#if canCopy}
+                <li>
+                  <button
+                    onclick={() => {
+                      menuOpen = false;
+                      copyOpen = true;
+                    }}
+                    title="Copy this note into another vault">Copy to…</button>
+                </li>
+              {/if}
+              <li>
+                <button
+                  class="danger"
+                  onclick={() => {
+                    menuOpen = false;
+                    confirmingDelete = true;
+                  }}>Delete</button>
+              </li>
+            </ul>
+          {/if}
+        </div>
       {/if}
       {#if note && editing}
         <!-- Only while editing: capture exists to put something *into* the text you are
@@ -995,7 +1133,9 @@
           </label>
         </div>
       {/if}
-      {#if isBoard}
+      {#if isDiscussion}
+        <!-- A discussion has no document body; its content is the thread below, always shown. -->
+      {:else if isBoard}
         <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
       {:else if editing}
         <div class="editor-wrap">
@@ -1068,6 +1208,66 @@
           }}
           title="Double-click to edit"
         ></div>
+      {/if}
+
+      <!-- Discussion. Inside the note's own pane rather than a pane of its own: a discussion
+           is *about* a note, and two panes could drift apart on screen (panes are capped at 8
+           anyway). Collapsed by default and fetched on open, so a note that nobody has
+           discussed costs nothing to display. -->
+      {#if note && !isBoard}
+        <section class="discussion" class:is-discussion={isDiscussion}>
+          {#if isDiscussion}
+            <!-- The discussion IS the note; its title is the at-a-glance label, editable here
+                 because a discussion has no separate edit mode. -->
+            <input
+              class="disc-title"
+              value={note.title ?? ''}
+              onchange={(e) => renameDiscussion(e.currentTarget.value)}
+              placeholder="Discussion title"
+              aria-label="discussion title"
+            />
+          {:else}
+            <button class="disc-toggle" onclick={toggleDiscussion} aria-expanded={discOpen}>
+              <span class="disc-caret" class:open={discOpen}>▸</span>
+              Discussion{#if discCount > 0}<span class="disc-count">{discCount}</span>{/if}
+            </button>
+          {/if}
+          {#if discOpen}
+            {#each discMessages as m (m.id)}
+              <!-- Indent from the server's `depth`: it is capped and cycle-guarded there, so a
+                   hand-edited `reply_to` cannot push a row off-screen or hang this loop. -->
+              <div class="disc-msg" style="margin-left: {m.depth * 1.1}rem">
+                <div class="disc-meta">
+                  {#if m.vault}<VaultBadge vault={m.vault} />{/if}
+                  <EditedBy edit={lastEditFor(m.id)} />
+                  <button class="disc-reply" onclick={() => startReply(m.id)}>Reply</button>
+                </div>
+                <p class="disc-body">{m.body}</p>
+              </div>
+            {/each}
+            <div class="disc-compose">
+              {#if replyTo && replyTo !== note?.id}
+                <p class="disc-replying">
+                  Replying to a message ·
+                  <button class="disc-cancel" onclick={() => (replyTo = note?.id ?? '')}>to the note instead</button>
+                </p>
+              {/if}
+              <textarea
+                class="disc-input"
+                bind:value={replyDraft}
+                onkeydown={onReplyKeydown}
+                placeholder="Add to the discussion…"
+                aria-label="write a message"
+              ></textarea>
+              <div class="disc-actions">
+                {#if discError}<span class="disc-error">{discError}</span>{/if}
+                <button class="disc-send" disabled={!replyDraft.trim() || discBusy} onclick={sendReply}>
+                  {discBusy ? 'Posting…' : 'Reply'}
+                </button>
+              </div>
+            </div>
+          {/if}
+        </section>
       {/if}
     {:else if !error}
       <p class="loading">Loading…</p>
@@ -1314,6 +1514,10 @@
   .capture-menu button:hover {
     background: var(--surface-hover);
   }
+  /* Destructive action, last in the menu, red — the platform convention for Delete. */
+  .capture-menu button.danger {
+    color: var(--danger-fg);
+  }
   /* Hidden, never `display: none`: a display-none input cannot be opened by `.click()` in
      every engine, and this one is only ever driven programmatically. */
   .capture-input {
@@ -1478,6 +1682,155 @@
   .slash-title {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* ── Discussion ─────────────────────────────────────────────────────────────────────
+     Deliberately quieter than the note body: this is commentary *about* the note, and it
+     sits below it, so it must not compete with the thing it is about. */
+  .discussion {
+    border-top: 1px solid var(--border);
+    padding: var(--space-2) var(--space-5) var(--space-4);
+  }
+  /* A discussion pane is the thread, so it has no top border (nothing above it to divide from). */
+  .discussion.is-discussion {
+    border-top: 0;
+  }
+  .disc-title {
+    width: 100%;
+    margin: 0 0 var(--space-2);
+    padding: var(--space-1) 0;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+  .disc-title:focus {
+    outline: none;
+    border-bottom-color: var(--accent);
+  }
+  .disc-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-2) 0;
+    background: none;
+    border: 0;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    text-align: left;
+  }
+  .disc-toggle:hover {
+    color: var(--text);
+  }
+  .disc-caret {
+    display: inline-block;
+    transition: transform 120ms ease;
+  }
+  .disc-caret.open {
+    transform: rotate(90deg);
+  }
+  .disc-count {
+    margin-left: var(--space-1);
+    padding: 0 0.4em;
+    border-radius: 999px;
+    background: var(--surface-hover);
+    font-size: var(--text-xs);
+  }
+  .disc-msg {
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--border-subtle, var(--border));
+  }
+  .disc-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+  }
+  .disc-reply {
+    margin-left: auto;
+    background: none;
+    border: 0;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .disc-reply:hover {
+    color: var(--accent, var(--text));
+    text-decoration: underline;
+  }
+  .disc-body {
+    margin: var(--space-1) 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .disc-compose {
+    margin-top: var(--space-3);
+  }
+  .disc-replying {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+  }
+  .disc-cancel {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: var(--text-xs);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .disc-input {
+    width: 100%;
+    min-height: 3.5rem;
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    resize: vertical;
+  }
+  .disc-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    justify-content: flex-end;
+    margin-top: var(--space-1);
+  }
+  .disc-error {
+    margin-right: auto;
+    font-size: var(--text-xs);
+    color: var(--danger, #dc2626);
+  }
+  .disc-send {
+    /* 2.75rem is this app's touch target on a coarse pointer — same rule as every other
+       primary control here, so a thumb can reach it on the phone. */
+    min-height: 2.25rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--surface-hover);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .disc-send:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  @media (pointer: coarse) {
+    .disc-send {
+      min-height: 2.75rem;
+    }
   }
   .editor-hint {
     margin: 0;

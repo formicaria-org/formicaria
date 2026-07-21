@@ -12,7 +12,7 @@
   // Rendered always and hidden by CSS in `tiled`, so there is no conditional component tree —
   // the same discipline the rest of the layout follows.
   import Icon from './Icon.svelte';
-  import { paneTitle, type Pane } from './panes';
+  import { paneTitle, BUILTIN_PANES, type Pane } from './panes';
 
   let {
     panes,
@@ -29,14 +29,11 @@
     onsettings: () => void;
   } = $props();
 
-  // The pane kinds map onto icons we already ship; anything without one (a saved view, a note)
-  // falls back to a dot rather than inventing art.
+  // The pane kinds map onto icons we already ship; anything without one (a saved view) falls back
+  // to a dot rather than inventing art. Built-in icons come from the one registry, so a new kind
+  // added there is iconed here automatically; `note` is added on top (it is not a built-in pane).
   const ICONS: Record<string, string> = {
-    board: 'board',
-    agenda: 'calendar',
-    timeline: 'timeline',
-    search: 'search',
-    activity: 'inbox',
+    ...Object.fromEntries(BUILTIN_PANES.map((b) => [b.kind, b.icon])),
     note: 'pen',
   };
 </script>

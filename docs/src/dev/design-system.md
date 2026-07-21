@@ -38,6 +38,16 @@ file and renderers never need editing to be re-skinned.
 - **Respect reduced motion.** Transitions collapse under
   `prefers-reduced-motion` — keep animations compositor-only (`transform` /
   `opacity`).
+- **A header shows identity + primaries; everything else goes behind `⋯`.** For a
+  note/board/discussion pane header the operational test is: **visible** = identity
+  (which vault, who edited) plus what *mutates the note's primary content in place*
+  (the status chip, Edit/Details); the **`⋯` "more actions" overflow** = lifecycle /
+  cross-cutting / destructive actions (Copy to…, Delete), with the destructive one
+  **last and red**. The trigger is `⋯`, **never `＋`** — `＋` means *add / create*
+  (it is already "add media" and "new note"). When a new action is kind-specific,
+  let the *action* declare which kinds it applies to; never keep a per-kind list of
+  actions (that is a menu fork). This keeps the overflow from re-accreting into a
+  junk drawer.
 
 ## Adding a theme
 

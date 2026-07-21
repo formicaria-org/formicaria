@@ -32,7 +32,11 @@ function parseStampOrThrow(key: string, value: string): string | null {
 let seq = 0;
 function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMeta {
   const stamp = new Date(Date.now() - seq * 60000).toISOString();
-  const id = 'MOCK' + String(seq).padStart(22, '0');
+  // `M0CK`, not `MOCK`: a ULID is Crockford base32, which excludes I, L, O and U. The old
+  // prefix meant no mock id ever parsed as a ULID, so anything that checks id *shape* — the
+  // discussion-message test, for one — behaved differently here than against the server.
+  // Still readable as "mock", now actually well-formed.
+  const id = 'M0CK' + String(seq).padStart(22, '0');
   seq += 1;
   return {
     id,
@@ -99,7 +103,30 @@ function valueOf(n: ObjectMeta, key: string): string {
 // an asset is a blob a note references, not something you plan. Mirror that here
 // so the mock backend answers like the real one. `search`/`gallery` still see
 // assets, which is how you find one (and how the `/` menu inserts a reference).
-const isNote = (n: ObjectMeta) => n.type !== 'asset';
+/** A discussion message: an ordinary note carrying a well-formed `thread_of`. Mirrors
+ *  `fm_app::thread::is_message` — the value must *parse as a reference*, so a note whose
+ *  `thread_of` holds a stray word (a board drop, a typo) is still an ordinary note. */
+const isMessage = (n: ObjectMeta) =>
+  typeof n.props?.thread_of === 'string' &&
+  /^note:[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/.test(n.props.thread_of as string);
+
+/** A proposal: an ordinary note carrying a well-formed `proposes: branch:<name>`. Mirrors
+ *  `fm_app::thread::is_proposal` (and `fm_model::parse_branch_ref`) — a non-empty name with no
+ *  internal whitespace, surrounding whitespace tolerated — so a stray word in `proposes` leaves
+ *  the note ordinary. */
+const isProposal = (n: ObjectMeta) =>
+  typeof n.props?.proposes === 'string' &&
+  /^branch:\s*\S+\s*$/.test(n.props.proposes as string);
+
+/** A first-class discussion: a note that is the root of its own thread (`thread_of` points at
+ *  itself). Mirrors `fm_app::thread::is_discussion_root`. Being a well-formed `thread_of`, it is
+ *  already a message for `isNote`, so it drops out of the planning views for free. */
+const isDiscussion = (n: ObjectMeta) => n.props?.thread_of === `note:${n.id}`;
+
+/** What the planning views show. Mirrors `fm_app::thread::notes_base()`: not an asset, not a
+ *  discussion message, and not a proposal. **Keep these in step** — a mock that disagrees with
+ *  the server is a mock that hides a server bug (and vice versa). */
+const isNote = (n: ObjectMeta) => n.type !== 'asset' && !isMessage(n) && !isProposal(n);
 
 function buildBoard(groupBy: string): Board {
   const sorted = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
@@ -173,7 +200,7 @@ export const SAMPLE_BODY = [
   '',
   // A reference to another note, alongside the asset reference above — the two
   // are deliberately the same shape. `MOCK…0001` is the clipping-ablation note.
-  'Follow-up on [the clipping ablation](note:MOCK0000000000000000000001).',
+  'Follow-up on [the clipping ablation](note:M0CK0000000000000000000001).',
   '',
   '- pin `unicode61 remove_diacritics 2`',
   '- measure the worst case',
@@ -292,9 +319,110 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const meta: ObjectMeta = captureNote(String(args.body), String(args.vault ?? ''));
       return meta as T;
     }
-    case 'set_property':
-      setProp(String(args.id), String(args.key), String(args.value));
+    case 'set_property': {
+      const key = String(args.key);
+      // Mirror the server's refusal: discussion structure is written by `reply`, never by
+      // hand — which is what stops a board grouped by `thread_of` erasing a note on one drag.
+      if (key === 'thread_of' || key === 'reply_to') {
+        throw new Error(`\`${key}\` is discussion structure — reply to a note instead`);
+      }
+      setProp(String(args.id), key, String(args.value));
       return undefined as T;
+    }
+    // A first-class discussion — a note that is the root of its own thread. Created explicitly
+    // because the self-anchor `thread_of` is refused by `set_property` (mirrors the server).
+    case 'create_discussion': {
+      const title = String(args.title ?? '').trim();
+      if (!title) throw new Error('a discussion needs a title');
+      const d = makeNote({ preview: '', title, vault: String(args.vault || 'personal') });
+      d.props = { thread_of: `note:${d.id}` };
+      notes.unshift(d);
+      return d as T;
+    }
+    // Every first-class discussion, most-recently-active first, with a message count and fake
+    // participants (the server reads these from git; the mock invents them like `activity` does).
+    case 'discussions': {
+      const people = ['Ada Lovelace', 'Ravi Kumar'];
+      const list = notes
+        .filter(isDiscussion)
+        .map((r) => {
+          const msgs = notes.filter((n) => n.props?.thread_of === `note:${r.id}` && n.id !== r.id);
+          const names = [
+            ...new Set(msgs.map((m) => people[Number(m.id.replace(/\D/g, '')) % people.length])),
+          ];
+          const participants = names.map((name) => ({
+            name,
+            email: `${name.split(' ')[0].toLowerCase()}@example.org`,
+          }));
+          const last = msgs.reduce((acc, m) => (m.created > acc ? m.created : acc), r.created);
+          return { ...r, count: msgs.length, last_activity: last, participants };
+        })
+        .sort((a, b) => b.last_activity.localeCompare(a.last_activity));
+      return list as T;
+    }
+    case 'reply': {
+      const target = notes.find((n) => n.id === String(args.id));
+      if (!target) throw new Error('no such note');
+      const body = String(args.body);
+      if (!body.trim()) throw new Error('a message needs something in it');
+      // Re-root exactly as the server does: replying to a message joins that message's
+      // discussion rather than starting one hanging off a note no view can reach.
+      const rootRef =
+        (isMessage(target) && (target.props.thread_of as string)) || `note:${target.id}`;
+      const m = makeNote({ preview: body, vault: target.vault });
+      m.props = { thread_of: rootRef, reply_to: `note:${target.id}` };
+      notes.unshift(m);
+      return m as T;
+    }
+    case 'thread': {
+      const rootId = String(args.id);
+      const ref = `note:${rootId}`;
+      // Sorted by **id**, not by `created`. On the server those are the same order, because a
+      // ULID is time-sortable and that is exactly why messages are ULID-named. Here they are
+      // not: `makeNote` back-dates each fixture note so the seeded list looks like a timeline,
+      // which would read a thread backwards. Sorting by id reproduces the server's semantics
+      // rather than the shape of its code.
+      const messages = notes
+        // Exclude the root itself: a first-class discussion is self-anchored, so it would
+        // otherwise appear as the first message in its own thread (mirrors the server).
+        .filter((n) => n.props?.thread_of === ref && n.id !== rootId)
+        .sort((a, b) => a.id.localeCompare(b.id));
+      const at = new Map(messages.map((m, i) => [m.id, i]));
+      return {
+        root: notes.find((n) => n.id === rootId) ?? null,
+        count: messages.length,
+        messages: messages.map((m) => {
+          // Depth by walking parents, cycle-guarded and capped — the same shape as the
+          // server, so the mock cannot make an indent the real backend would not produce.
+          let depth = 0;
+          const seen = new Set<string>();
+          let cur = m;
+          for (;;) {
+            const parent = String(cur.props?.reply_to ?? '').replace('note:', '');
+            const i = at.get(parent);
+            if (i === undefined || seen.has(cur.id) || depth >= 4) break;
+            seen.add(cur.id);
+            depth += 1;
+            cur = messages[i];
+          }
+          return {
+            ...m,
+            // A message's body IS its text — short, and written straight into the preview.
+            body: bodyOverrides.get(m.id) ?? m.preview,
+            reply_to: String(m.props?.reply_to ?? '').replace('note:', '') || null,
+            depth,
+          };
+        }),
+      } as T;
+    }
+    // Derived from git on the server; here, simply the oldest notes, so the panel has data.
+    case 'stale': {
+      return notes
+        .filter(isNote)
+        .slice()
+        .sort((a, b) => a.updated.localeCompare(b.updated))
+        .slice(0, 5) as T;
+    }
     case 'update_body': {
       const id = String(args.id);
       const body = String(args.body);
@@ -377,11 +505,23 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.created.localeCompare(a.created));
       return recent as T;
     }
+    // The Collaboration surface's feed: proposals only — the complement of the exclusion above,
+    // newest-first, exactly what `commands::proposals` returns.
+    case 'proposals': {
+      const list: ObjectMeta[] = notes
+        .filter(isProposal)
+        .sort((a, b) => b.created.localeCompare(a.created));
+      return list as T;
+    }
     // Fake git authorship for dev/tests: attribute each note to one of two people, newest-first,
     // so the "edited by" labels, the activity stream, and the contributor filter all have data.
     case 'activity': {
       const people = ['Ada Lovelace', 'Ravi Kumar'];
+      // Messages are excluded here too. The server does it by hand because `activity` is a
+      // `git log` read-model with no filter to hang a predicate on; the mock mirrors that
+      // rather than the shape of the code.
       return notes
+        .filter(isNote)
         .map((n, i) => ({
           id: n.id,
           title: n.title ?? n.preview,

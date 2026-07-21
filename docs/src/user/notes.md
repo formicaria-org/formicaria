@@ -71,6 +71,55 @@ right (you reached those *through* it); closing the first closes the trail.
 
 > Backlinks — seeing what links *to* a note — are not built yet.
 
+## Discussion
+
+Every note has a **Discussion** panel below its read view — collapsed, showing a
+count, opened with a click. It is where the conversation *about* a note lives:
+questions, second opinions, "why did we drop the second arm?" — the reasoning
+that used to end up in a chat app where it is unfindable in a year.
+
+**Reply** posts a message (Ctrl/Cmd+Enter sends it). Reply to the note, or to a
+particular message — either way it joins the same discussion, indented under what
+it answers. Each message carries who wrote it and, when the note is shared, a
+badge for the vault (audience) it belongs to.
+
+The design is the same one the rest of the app uses: **a message is just a note.**
+
+- One message is **one Markdown file**, ULID-named, living in the **same vault as
+  the note it is about** — so the conversation shares exactly the audience the
+  note does, and travels with it to collaborators through git like everything else.
+  Two people replying at once are writing different files, so there is nothing to
+  conflict.
+- Because messages are notes, they are **fully searchable** — a decision recorded
+  in a reply is as findable in five years as one in a note body.
+- But they are **kept out of the planning views**: a reply never appears on the
+  Board, the Agenda or the Timeline, and is never offered as a `/` link target, so
+  a busy thread cannot bury your real notes. (This is why `thread_of` / `reply_to`
+  are managed for you and cannot be set by hand — see the
+  [frontmatter reference](../reference/frontmatter.md).)
+- Deleting a note **does not delete its discussion**: the reasoning about a
+  decision outlives the note that prompted it.
+
+### Standalone discussions
+
+A discussion does not have to hang off one note. **New discussion** (in the `+`
+menu) starts a discussion that **stands on its own** — a place to talk about a
+topic, or about several notes and whiteboards at once. Give it a title, then talk;
+as the conversation goes, link whatever notes or whiteboards are relevant **inside
+your messages** (a `note:` link renders as a chip), rather than fixing the subject
+up front.
+
+All your standalone discussions are listed in the **Discussions** view, most
+recently active first, showing each one's title, its vault, and who has posted —
+so you can see at a glance where the conversation is happening. Open one and it
+*is* the conversation (there is no document body to edit; the messages are the
+content).
+
+Under the hood a discussion is still just a note — one that is the root of its own
+thread — so it is searchable, travels through git, and stays out of the Board and
+Timeline like any other message. There is no new "type"; the same reply mechanism
+carries it.
+
 ## Organizing
 
 There are no folders to manage. You organize by **properties** and see the

@@ -5,11 +5,20 @@
 //
 // Pure data + helpers here (unit-testable); the rendering lives in Pane.svelte and App.svelte.
 
-import type { ObjectMeta, Board, Renderer } from './types';
+import type { ObjectMeta, Board, DiscussionSummary, Renderer } from './types';
 
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
-export type PaneKind = 'board' | 'agenda' | 'timeline' | 'search' | 'activity' | 'note' | 'view';
+export type PaneKind =
+  | 'board'
+  | 'agenda'
+  | 'timeline'
+  | 'search'
+  | 'activity'
+  | 'collaboration'
+  | 'discussions'
+  | 'note'
+  | 'view';
 
 export interface Pane {
   id: string;
@@ -108,6 +117,11 @@ export function feedKey(p: Pane): string | null {
       return 'timeline';
     case 'search':
       return `search:${p.query}`;
+    case 'collaboration':
+      // The proposals feed — a flat `ObjectMeta` list like `timeline`, fetched once and shared.
+      return 'collaboration';
+    case 'discussions':
+      return 'discussions';
     case 'view':
       return p.viewName ? `view:${p.viewName}` : null;
     case 'note':
@@ -123,10 +137,11 @@ export function distinctFeeds(panes: Pane[]): string[] {
   return [...new Set(panes.map(feedKey).filter((k): k is string => k !== null))];
 }
 
-/** Whatever a feed holds: a grouped board, or a flat card list. */
+/** Whatever a feed holds: a grouped board, a flat card list, or the discussions summary list. */
 export interface Feed {
   board?: Board;
   cards?: ObjectMeta[];
+  discussions?: DiscussionSummary[];
 }
 
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or
@@ -159,12 +174,38 @@ export function paneTitle(p: Pane): string {
       return p.query ? `Search · ${p.query}` : 'Search';
     case 'activity':
       return 'Activity';
+    case 'collaboration':
+      return 'Collaboration';
+    case 'discussions':
+      return 'Discussions';
     case 'view':
       return p.viewName ?? 'View';
     case 'note':
       return 'Note';
   }
 }
+
+/** The built-in panes, in the order they appear everywhere they are enumerated. **One list, so
+ *  the three surfaces that list them cannot drift** — the ⌘K "Open …" commands, the pane
+ *  view-picker, and the bottom-bar icons all derive from this, so a new kind added here shows up
+ *  in all three at once (the "load-bearing literal spread across files" this exists to prevent).
+ *  `note`/`view` are deliberately absent: a note opens by being clicked, a saved view from its own
+ *  list. */
+export interface BuiltinPane {
+  kind: PaneKind;
+  label: string;
+  /** An `Icon.svelte` name; the bottom bar falls back to a dot for anything it does not know. */
+  icon: string;
+}
+export const BUILTIN_PANES: BuiltinPane[] = [
+  { kind: 'board', label: 'Board', icon: 'board' },
+  { kind: 'agenda', label: 'Agenda', icon: 'calendar' },
+  { kind: 'timeline', label: 'Timeline', icon: 'timeline' },
+  { kind: 'search', label: 'Search', icon: 'search' },
+  { kind: 'activity', label: 'Activity', icon: 'inbox' },
+  { kind: 'collaboration', label: 'Collaboration', icon: 'merge' },
+  { kind: 'discussions', label: 'Discussions', icon: 'chat' },
+];
 
 /** Map a saved-`.view` renderer onto the pane kind that draws it (they share renderers). */
 export function rendererKind(r: Renderer): PaneKind {

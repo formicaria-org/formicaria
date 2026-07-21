@@ -2,7 +2,11 @@
 
 Each note is Markdown with a YAML frontmatter header. Well-known fields are
 below; **any additional key you add is preserved** and immediately usable for
-grouping (e.g. `project: alpha`).
+grouping (e.g. `project: alpha`) — with the reserved exceptions noted in the
+table (`thread_of` / `reply_to`, and `proposes` / `base`), which mark a note as a
+[discussion message](../user/notes.md#discussion) or a
+[proposal](../user/collaboration.md#proposals) and are managed for you rather than
+set by hand.
 
 | Field     | Type                | Meaning                                             |
 |-----------|---------------------|-----------------------------------------------------|
@@ -19,7 +23,32 @@ grouping (e.g. `project: alpha`).
 | `code`    | list of strings     | code references (repo + commit).                    |
 | `created` | datetime (RFC 3339) | set once, on creation.                              |
 | `updated` | datetime (RFC 3339) | bumped on every edit.                               |
+| `thread_of`| `note:<ULID>`      | **reserved.** Marks this note as a message in another note's [discussion](../user/notes.md#discussion). A note carrying it is hidden from Board/Agenda/Timeline and is not offered as a link target — so it is **not** groupable like a custom key. Set by *Reply*, not by hand or `set_property`. |
+| `reply_to` | `note:<ULID>`      | **reserved.** The message (or note) this one answers, for indentation only. Same handling as `thread_of`. |
+| `proposes` | `branch:<name>`    | **reserved.** Marks this note as a [proposal](../user/collaboration.md#proposals) of a git branch. Like a message, a note carrying it is hidden from Board/Agenda/Timeline and gathered by the Collaboration view instead. See *Proposal semantics* below. |
+| `base`    | commit SHA          | **reserved.** The commit a proposal's branch is measured against (an immutable SHA, not a branch name). Used by the diff, not for grouping. |
 | *(custom)*| any                 | preserved verbatim; groupable with no code change.  |
+
+## Proposal semantics
+
+A [proposal](../user/collaboration.md#proposals) is an ordinary note that names a git branch it
+proposes merging. Four rules keep it honest, because a note lives in git history **forever** while
+a branch does not:
+
+- **`proposes` is a tolerant, historical pointer — not live state.** A branch may be merged,
+  renamed, or deleted while the note remains. A proposal whose branch no longer resolves is shown
+  with a *warning*, never treated as an error or hidden. Whether a proposal is open, merged, or
+  abandoned is read **from git**, never from the note.
+- **`status` on a proposal means author *readiness* only** — `draft` (don't review yet) or `ready`
+  (please review). It is the same `status` field, reused. It never carries lifecycle
+  (`merged`/`closed`/`rejected`): that is derived from git, because a stored lifecycle would be a
+  lie the moment the branch moved.
+- **`base` is an immutable commit SHA**, so the diff still resolves years later. A branch name
+  would dangle.
+- **Who proposed it is git's answer, not a field.** There is no `author`/`agent`/`proposed_by`
+  key — a proposal by an AI agent differs from a human's only in the git commit identity, which
+  the "edited by" label already shows. A proposal can never be *accepted* (merged) by an agent;
+  that is a human action.
 
 ## Stamps: `start` and `due`
 

@@ -12,9 +12,10 @@
   import Timeline from '../renderers/Timeline.svelte';
   import Search from '../renderers/Search.svelte';
   import Activity from '../renderers/Activity.svelte';
+  import Discussions from '../renderers/Discussions.svelte';
   import Icon from './Icon.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
-  import { paneTitle, clampSpan } from './panes';
+  import { paneTitle, clampSpan, BUILTIN_PANES } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT } from './types';
   import { orderColumns, moveValue } from './boardOrder';
 
@@ -134,14 +135,12 @@
       : null,
   );
 
-  // The picker's options: the built-in kinds plus each saved `.view` (by name).
-  const KINDS: { value: string; label: string }[] = [
-    { value: 'board', label: 'Board' },
-    { value: 'agenda', label: 'Agenda' },
-    { value: 'timeline', label: 'Timeline' },
-    { value: 'search', label: 'Search' },
-    { value: 'activity', label: 'Activity' },
-  ];
+  // The picker's options: the built-in kinds (from the one registry, so a new kind appears here,
+  // in the ⌘K palette, and in the bottom bar together) plus each saved `.view` (by name).
+  const KINDS: { value: string; label: string }[] = BUILTIN_PANES.map((b) => ({
+    value: b.kind,
+    label: b.label,
+  }));
 
   function pick(value: string) {
     if (value.startsWith('view:')) {
@@ -452,6 +451,8 @@
       <Search {cards} query={pane.query} {onopen} />
     {:else if pane.kind === 'activity'}
       <Activity {shown} {onopen} />
+    {:else if pane.kind === 'discussions'}
+      <Discussions discussions={feed?.discussions ?? []} {shown} {onopen} />
     {:else if pane.kind === 'agenda'}
       {#if pane.agendaMode === 'list'}
         <Agenda {cards} {onopen} />
