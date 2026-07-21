@@ -131,13 +131,14 @@ describe('v2: property editing, timeline, delete', () => {
   });
 
   // Two ways into the editor, and both must reach the SAME thing: the property
-  // form plus the body textarea. Double-click is the shortcut; the button is the
-  // discoverable route and stays on every note.
-  it('opens the editor — with its property form — from the Edit button', async () => {
+  // form plus the body textarea. Double-click is the shortcut; the Edit action in
+  // the options window is the discoverable route and stays on every note.
+  it('opens the editor — with its property form — from the Edit action', async () => {
     render(App);
     await screen.findByText(/Muesli/);
     await fireEvent.click(screen.getByText(/Muesli/));
 
+    await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
     expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
     for (const field of ['status', 'due', 'start', 'title', 'tags']) {
@@ -320,7 +321,7 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
 
     // The Copy-to control opens a popover that warns this is permanent in the target's history.
-    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     expect(await screen.findByText(/permanent in that vault/i)).toBeTruthy();
     // Restrictive by default: the "also copy the files" opt-in starts unchecked.
@@ -339,7 +340,7 @@ describe('v2: property editing, timeline, delete', () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
-    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
 
     // Tick "also copy the files" — the sharper path.
@@ -369,13 +370,13 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(screen.getByText(/GAE lambda interacts badly/));
 
     // First copy (prose-only, first time) goes straight through — nothing to replace.
-    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     await fireEvent.click(screen.getByTitle('Copy into lab'));
     expect(await screen.findByText(/Copied to lab/)).toBeTruthy();
 
     // Copying the same note again is warned as a replace, not a duplicate.
-    await fireEvent.click(screen.getByLabelText('more actions'));
+    await fireEvent.click(screen.getByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Copy to…' }));
     await fireEvent.click(screen.getByTitle('Copy into lab'));
     expect(await screen.findByText(/copying again replaces it/i)).toBeTruthy();
@@ -426,7 +427,7 @@ describe('v2: property editing, timeline, delete', () => {
 
     // Delete lives in the ⋯ overflow now; opening it and clicking Delete only arms
     // the confirmation — the panel is still open.
-    await fireEvent.click(await screen.findByLabelText('more actions'));
+    await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await screen.findByText(/permanently/i);
     expect(screen.queryByLabelText('close')).not.toBeNull();

@@ -23,7 +23,6 @@
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
-  import StatusChip from './StatusChip.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -73,12 +72,11 @@
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
 
-  // The header's "more actions" overflow (⋯). Holds the rare/destructive actions — Copy to…,
-  // Delete — so the row keeps only identity (vault, who edited) and the primaries (status, Edit).
-  // A `⋯`, not a `＋`: `＋` already means "add media" here and "new note" in the create menu. Its
-  // items set their target state and close the menu, so the overflow and a popover are never both
-  // open (mirrors `capture()` clearing `captureOpen`).
-  let menuOpen = $state(false);
+  // The note "options" window opened by the single `＋` in the header. Only identity — the vault
+  // (audience) and who last edited — stays on the row; Edit, Copy, Delete (and the properties, via
+  // Edit) live here, so a phone header stays legible and refinement is one tap away. It is a
+  // *window* (a card), not a dropdown; every item closes it, and it dismisses on outside-tap/Escape.
+  let optionsOpen = $state(false);
 
   // Copying a note into another vault is sensitive: it writes into that vault's repo
   // (permanent in its git history). So the button opens a popover that states this plainly,
@@ -361,6 +359,18 @@
       discOpen = false;
     }
   });
+
+  // Close a popover when a pointer lands outside it — the behaviour expected on a phone (tap
+  // elsewhere) and a laptop (click elsewhere) alike. `pointerdown` in the capture phase fires
+  // before the target's own handlers and covers touch + mouse in one path; the listener is torn
+  // down with the element it guards.
+  function clickOutside(node: HTMLElement, onOutside: () => void) {
+    const handler = (e: Event) => {
+      if (!node.contains(e.target as Node)) onOutside();
+    };
+    document.addEventListener('pointerdown', handler, true);
+    return { destroy: () => document.removeEventListener('pointerdown', handler, true) };
+  }
 
   // Rename a discussion. Its title is the at-a-glance label in the Discussions view, and a
   // discussion has no edit mode (its body is the thread), so it is set here directly.
@@ -880,78 +890,22 @@
       {#if note?.vault}<VaultBadge vault={note.vault} />{/if}
       {#if note}<EditedBy edit={lastEditFor(note.id)} />{/if}
       {#if note}
-        <!-- Always visible, no edit mode needed: rotating status is the most
-             frequent edit a note gets. Typing a brand-new value is Details' job. -->
-        <StatusChip
-          status={note.status}
-          {statuses}
-          onchange={(next) => setProp('status', next ?? '')}
-        />
-      {/if}
-      {#if note && note.type === 'asset' && note.assets.length}
+        <!-- **One button, one window.** Only identity — vault (audience) + who last edited — stays
+             on the row; Edit, Copy, Delete (and the properties, via Edit) live behind this single
+             `＋`, which opens an options *window* (a card, not a dropdown). Keeps a phone header
+             legible; refinement is one tap away when wanted. -->
         <button
-          class="edit"
-          onclick={() => openExternal(note!.assets[0]).catch((e) => (error = String(e)))}
-        >
-          Open
-        </button>
-      {/if}
-      {#if note}
-        <!-- The button is the discoverable way in and stays on every note.
-             Double-clicking the read view is the same action without the trip to
-             the header (a board's canvas owns double-click, so there the button is
-             the only way — hence "Details" rather than "Edit"). -->
-        <button class="edit" onclick={toggleEdit}>
-          {#if isBoard}
-            {editing ? 'Done' : 'Details'}
-          {:else}
-            {editing ? (saved ? 'Done' : 'Saving…') : 'Edit'}
-          {/if}
-        </button>
-        <!-- The rare/destructive actions live behind one "more actions" overflow, so the row
-             stays legible. `⋯` (not `＋`, which means add) is the universal trigger; Delete is
-             last and red per platform guidance; its confirm strip (below) is kept because a
-             formicaria delete is irreversible. Reuses the `capture-menu` dropdown verbatim. -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="capture" onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)}>
-          <button
-            class="edit"
-            onclick={() => (menuOpen = !menuOpen)}
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-            aria-label="more actions"
-            title="More actions">⋯</button>
-          {#if menuOpen}
-            <!-- A plain button group, exactly like the media `capture-menu`: without roving
-                 arrow-key focus a `role=menu` would announce a menu the keyboard can't drive, so
-                 real buttons are the more honest a11y choice here. -->
-            <ul class="capture-menu">
-              {#if canCopy}
-                <li>
-                  <button
-                    onclick={() => {
-                      menuOpen = false;
-                      copyOpen = true;
-                    }}
-                    title="Copy this note into another vault">Copy to…</button>
-                </li>
-              {/if}
-              <li>
-                <button
-                  class="danger"
-                  onclick={() => {
-                    menuOpen = false;
-                    confirmingDelete = true;
-                  }}>Delete</button>
-              </li>
-            </ul>
-          {/if}
-        </div>
+          class="edit options-btn"
+          onclick={() => (optionsOpen = true)}
+          aria-haspopup="dialog"
+          aria-expanded={optionsOpen}
+          aria-label="note options"
+          title="Options">＋</button>
       {/if}
       {#if note && editing}
         <!-- Only while editing: capture exists to put something *into* the text you are
              writing, and the caret it inserts at only means something in the editor. -->
-        <div class="capture">
+        <div class="capture" use:clickOutside={() => (captureOpen = false)}>
           <button
             class="edit"
             onclick={() => (captureOpen = !captureOpen)}
@@ -982,6 +936,36 @@
       <button class="close" onclick={onclose} aria-label="close">✕</button>
           </div>
     </header>
+    {#if optionsOpen && note}
+      <!-- The options *window*: a card, not a dropdown. Dismissed by tapping/clicking outside,
+           Escape, or its ✕ — identically on a phone and a laptop. Each action closes it, so it and
+           a popover are never both open. Edit reveals the property form (the fine refinement). -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="options-window"
+        role="dialog"
+        tabindex="-1"
+        aria-label="note options"
+        use:clickOutside={() => (optionsOpen = false)}
+        onkeydown={(e) => e.key === 'Escape' && (optionsOpen = false)}>
+        <div class="options-head">
+          <span>Options</span>
+          <button class="opt-close" onclick={() => (optionsOpen = false)} aria-label="close options">✕</button>
+        </div>
+        {#if !isDiscussion}
+          <button class="opt" onclick={() => { optionsOpen = false; void toggleEdit(); }}>
+            {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
+          </button>
+        {/if}
+        {#if note.type === 'asset' && note.assets.length}
+          <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
+        {/if}
+        {#if canCopy}
+          <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
+        {/if}
+        <button class="opt danger" onclick={() => { optionsOpen = false; confirmingDelete = true; }}>Delete</button>
+      </div>
+    {/if}
     {#if confirmingDelete}
       <div class="confirm" role="alertdialog" aria-label="confirm delete">
         <span>Delete this note permanently? This can't be undone.</span>
@@ -992,7 +976,14 @@
       </div>
     {/if}
     {#if copyOpen && otherVaults.length}
-      <div class="copy-pop" role="dialog" aria-label="copy to another vault">
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="copy-pop"
+        role="dialog"
+        tabindex="-1"
+        aria-label="copy to another vault"
+        use:clickOutside={() => (copyOpen = false)}
+        onkeydown={(e) => e.key === 'Escape' && (copyOpen = false)}>
         <p class="copy-warn">
           Copying writes a <strong>new note</strong> into another vault's repository —
           <strong>permanent in that vault's git history</strong>. By default only the text is
@@ -1514,8 +1505,60 @@
   .capture-menu button:hover {
     background: var(--surface-hover);
   }
-  /* Destructive action, last in the menu, red — the platform convention for Delete. */
-  .capture-menu button.danger {
+  /* The note-options window: a card anchored under the header's `＋`, not a dropdown list. */
+  .options-window {
+    position: absolute;
+    right: var(--space-3);
+    top: 3.4rem;
+    z-index: 20;
+    min-width: 13rem;
+    max-width: min(20rem, 88vw);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-2);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+  }
+  .options-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .opt-close {
+    background: none;
+    border: 0;
+    color: var(--text-subtle);
+    font: inherit;
+    cursor: pointer;
+    line-height: 1;
+  }
+  /* Full-width rows with the ~44px touch target both platforms ask for — this window is for phones. */
+  .opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    min-height: 2.75rem;
+    padding: var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-2, 6px);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .opt:hover {
+    background: var(--surface-hover);
+  }
+  .opt.danger {
     color: var(--danger-fg);
   }
   /* Hidden, never `display: none`: a display-none input cannot be opened by `.click()` in
