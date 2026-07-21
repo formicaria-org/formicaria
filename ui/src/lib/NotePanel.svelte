@@ -137,6 +137,9 @@
     query: string;
     results: ObjectMeta[];
     active: number;
+    // `//` opens the menu in embed mode — a tap inserts an inline embed instead of a chip link, so
+    // embedding needs no Shift key (the phone has none handy). `/` stays link mode.
+    embed: boolean;
     at: { top: number; left: number };
   };
   let slash = $state<SlashState>({
@@ -145,6 +148,7 @@
     query: '',
     results: [],
     active: 0,
+    embed: false,
     at: { top: 0, left: 0 },
   });
   let slashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -861,10 +865,16 @@
     let i = caret - 1;
     while (i >= 0 && !/\s/.test(draft[i]) && draft[i] !== '/') i--;
     if (i < 0 || draft[i] !== '/') return closeSlash();
-    if (i !== 0 && !/\s/.test(draft[i - 1])) return closeSlash();
+    // A second `/` immediately before this one = embed mode (tap-friendly, no Shift). The token
+    // starts at the first slash so both are replaced on insert; the query is what follows both.
+    const embed = i - 1 >= 0 && draft[i - 1] === '/';
+    const from = embed ? i - 1 : i;
+    // The token must begin the line or follow whitespace — checking the char before the token, so
+    // `https://` (the `//` follows a `:`) never triggers it.
+    if (from !== 0 && !/\s/.test(draft[from - 1])) return closeSlash();
     const query = draft.slice(i + 1, caret);
     if (/\s/.test(query)) return closeSlash();
-    slash = { ...slash, open: true, from: i, query, active: 0, at: slashAnchor(el, i) };
+    slash = { ...slash, open: true, from, query, active: 0, embed, at: slashAnchor(el, from) };
     clearTimeout(slashTimer);
     slashTimer = setTimeout(runSlashSearch, 150);
   }
@@ -904,12 +914,13 @@
   function closeSlash() {
     if (slash.open) slash = { ...slash, open: false, results: [] };
   }
-  // `embed` (Shift+Enter / Shift-click) inserts the inline-embed form instead of a chip link.
-  async function chooseSlash(meta: ObjectMeta, embed = false) {
+  // Inserts an inline embed when the menu is in embed mode (`//`) OR when forced (Shift+Enter /
+  // Shift-click); otherwise a chip link. The `//` path is the one that works with a tap alone.
+  async function chooseSlash(meta: ObjectMeta, forceEmbed = false) {
     const el = editorEl;
     if (!el) return;
     const caret = el.selectionStart;
-    const ref = embed ? embedFor(meta) : refFor(meta);
+    const ref = forceEmbed || slash.embed ? embedFor(meta) : refFor(meta);
     draft = draft.slice(0, slash.from) + ref + draft.slice(caret);
     closeSlash();
     onInput();
@@ -1201,8 +1212,9 @@
           {#if slash.open && slash.results.length}
             <ul
               class="slash-menu"
+              class:embedding={slash.embed}
               role="listbox"
-              aria-label="insert a link or embed"
+              aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
               style="top: {slash.at.top}px; left: {slash.at.left}px"
             >
               {#each slash.results as r, i (r.id)}
@@ -1220,14 +1232,18 @@
                 </li>
               {/each}
               <li class="slash-hint" aria-hidden="true">
-                <kbd>↵</kbd> link · <kbd>⇧↵</kbd> embed
+                {#if slash.embed}
+                  <kbd>//</kbd> embedding — tap to insert
+                {:else}
+                  <kbd>↵</kbd> link · <kbd>⇧↵</kbd> or <kbd>//</kbd> embed
+                {/if}
               </li>
             </ul>
           {/if}
         </div>
         <p class="editor-hint">
-          Drag files in to attach · type <kbd>/</kbd> to link a note or asset
-          (<kbd>⇧</kbd> to embed) · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
+          Drag files in to attach · <kbd>/</kbd> to link a note or asset,
+          <kbd>//</kbd> to embed one · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
         </p>
       {:else}
         <!-- Chips are built by render.ts, so one delegated listener beats
@@ -1787,6 +1803,10 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
+  }
+  /* Embed mode (`//`) gets an accent frame so it's clear a tap will embed, not link. */
+  .slash-menu.embedding {
+    border-color: var(--accent);
   }
   .slash-menu li {
     display: flex;

@@ -500,4 +500,25 @@ describe('v2: property editing, timeline, delete', () => {
       expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
     );
   });
+
+  // `//` opens the menu in embed mode, so a plain Enter (a tap on a phone — no Shift) embeds.
+  it('the // menu embeds on a plain Enter (no Shift needed)', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+
+    // "//reviewer" — two slashes → embed mode.
+    body.value = '//reviewer';
+    body.selectionStart = body.selectionEnd = body.value.length;
+    await fireEvent.input(body, { target: { value: '//reviewer' } });
+    await screen.findByRole('option', { name: /reviewer/i });
+
+    // Plain Enter, no Shift — because the menu is already in embed mode, it inserts the embed and
+    // consumes both slashes (no leading `/` left behind).
+    await fireEvent.keyDown(body, { key: 'Enter' });
+    await waitFor(() =>
+      expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
+    );
+  });
 });
