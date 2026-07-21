@@ -14,8 +14,33 @@ fi
 
 echo "[check] seam: fm-query source must not reference the filesystem..."
 # Match code, not the doc comments that merely mention these names.
-if grep -REn 'std::(fs|path)|std::io::[A-Za-z]*File' crates/fm-query/src | grep -v '//'; then
+#
+# The filter drops lines whose CONTENT begins with `//` — i.e. comment-only lines — by
+# anchoring past grep's own `path:lineno:` prefix. It used to be a bare `grep -v '//'`, which
+# dropped any line containing `//` anywhere, so `use std::fs; // temporary` sailed straight
+# through the guard. Verified: with the old filter that line is MISSED, with this one it is
+# CAUGHT. A guard that is disarmed by adding a comment is worse than no guard, because it
+# reads as protection.
+if grep -REn 'std::(fs|path)|std::io::[A-Za-z]*File' crates/fm-query/src \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//'; then
     echo "  FAIL: fm-query references a filesystem API — the seam is broken."
+    fail=1
+fi
+
+echo "[check] seam: the notes-only base filter has exactly one definition..."
+# `decisions.md`, from the assets exclusion that came first: "Filtering in each renderer was
+# rejected — it must be repeated per view and silently forgotten by the next one." That
+# prediction came true twice: the discussion ruling enumerated three surfaces, and by the time
+# anyone built it `.view` presets and `activity` had shipped in between. So the base filter
+# lives in `thread::notes_base()` and nowhere else, and this check is what keeps it there.
+#
+# `activity` is deliberately exempt: it is a `git log` read-model with no `Filter` to hang a
+# predicate on, so it uses `thread::is_message` / `thread::is_proposal` instead. That is why the
+# exemption is a *file* and not a blanket allowance.
+if grep -REn 'Predicate::Kind\(vec!\[Kind::Note\]\)' crates/fm-app/src \
+    | grep -v '^crates/fm-app/src/thread.rs:'; then
+    echo "  FAIL: build the notes-only filter with thread::notes_base(), not by hand —"
+    echo "        a hand-rolled Kind(Note) omits the message and proposal exclusions."
     fail=1
 fi
 

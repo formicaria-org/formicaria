@@ -131,7 +131,9 @@ pub struct ViewResult {
 /// build. Kept here so a `.view` starts from the identical filter; the string `"done"` and
 /// `Kind(Note)` live in exactly these arms.
 fn base(renderer: Renderer, group_by: Option<&str>) -> Query {
-    let notes = || Filter::new().and(Predicate::Kind(vec![Kind::Note]));
+    // The same base the built-in commands use, from its single definition — so a `.view`
+    // file cannot be the one surface that forgets the assets or the message exclusion.
+    let notes = crate::thread::notes_base;
     match renderer {
         Renderer::Board => Query {
             filter: notes(),

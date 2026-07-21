@@ -197,3 +197,98 @@ fn opt_text(o: &Option<String>) -> PropertyValue {
 fn list_text(v: &[String]) -> PropertyValue {
     PropertyValue::List(v.iter().cloned().map(PropertyValue::Text).collect())
 }
+
+/// How an id-valued **property** spells a pointer at another note: `note:<ULID>`.
+///
+/// Two reasons it is not a bare ULID, both learned the hard way.
+///
+/// 1. **`refs::strip_cross_vault` keys off this prefix.** It is what stops `copy_note` carrying
+///    a pointer into another vault's permanent git history (`decisions.md`, "a copy can never
+///    point outside its new vault"). A bare ULID is invisible to it, so a property holding one
+///    silently defeats a guarantee the product makes in writing.
+/// 2. **It is the same spelling the body already uses**, so the reverse index, when it lands,
+///    sees frontmatter pointers through the machinery it already needs for `[..](note:<ulid>)`
+///    — one discovery mechanism rather than two.
+pub fn note_ref(id: Id) -> String {
+    format!("note:{id}")
+}
+
+/// The inverse of [`note_ref`], and **the only way to compare one**.
+///
+/// Never compare these as strings. `Ulid`'s parse is case-insensitive over Crockford base32,
+/// so a hand-typed lowercase pointer names the same note as an uppercase one — but
+/// `"note:01arz…" != "note:01ARZ…"` as text, which would silently orphan the message from its
+/// own thread. Parse both sides, compare `Id`s.
+///
+/// Returns `None` for anything that is not a well-formed reference, which is what lets a
+/// caller distinguish "this property points at a note" from "a user typed a word here".
+pub fn parse_note_ref(s: &str) -> Option<Id> {
+    s.strip_prefix("note:")?.trim().parse().ok()
+}
+
+/// A pointer to a git branch: `branch:<name>`. The durable frontmatter of a *proposal* note
+/// (`proposes: branch:<name>`) — a proposal is a branch plus a note that carries the discussion.
+///
+/// It is deliberately the same `<kind>:<value>` shape as [`note_ref`], for the same reason:
+/// a value hides a proposal note from the planning views only when it *parses as one of these*,
+/// so a stray word a board drag might write into the key can never erase a note. See
+/// [`parse_branch_ref`].
+pub fn branch_ref(name: &str) -> String {
+    format!("branch:{name}")
+}
+
+/// The inverse of [`branch_ref`], and the guard that distinguishes "this note proposes a branch"
+/// from "a user typed a word into `proposes`".
+///
+/// Returns the branch name only for a well-formed `branch:<name>` with a non-empty name and no
+/// whitespace/control characters (git branch names have none). **This is a shape test, not a
+/// git-validity test** — whether the branch actually exists, or is a legal ref, is the write
+/// half's concern; here all that matters is that a bare column-name value never reads as a
+/// pointer (the same hazard [`parse_note_ref`] guards, one property over).
+pub fn parse_branch_ref(s: &str) -> Option<&str> {
+    let name = s.strip_prefix("branch:")?.trim();
+    if name.is_empty() || name.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return None;
+    }
+    Some(name)
+}
+
+#[cfg(test)]
+mod ref_tests {
+    use super::*;
+
+    #[test]
+    fn a_note_ref_round_trips_and_is_case_insensitive() {
+        let id = Ulid::new();
+        assert_eq!(parse_note_ref(&note_ref(id)), Some(id));
+        // The case a hand-edited file produces: same note, different spelling.
+        assert_eq!(parse_note_ref(&note_ref(id).to_lowercase()), Some(id));
+    }
+
+    #[test]
+    fn anything_that_is_not_a_reference_is_none() {
+        // A bare ULID is deliberately NOT a reference — that spelling is invisible to the
+        // cross-vault strip, so accepting it here would re-open the leak.
+        assert_eq!(parse_note_ref(&Ulid::new().to_string()), None);
+        // And the value a board drag would write, which must never read as a pointer.
+        for s in ["doing", "", "note:", "note:not-a-ulid", "2026-07-20"] {
+            assert_eq!(parse_note_ref(s), None, "{s:?} must not parse as a note reference");
+        }
+    }
+
+    #[test]
+    fn a_branch_ref_round_trips() {
+        assert_eq!(parse_branch_ref(&branch_ref("fix-protocol")), Some("fix-protocol"));
+        assert_eq!(parse_branch_ref("branch:feature/rework"), Some("feature/rework"));
+        // Leading/trailing space around the name is tolerated (a hand-edited file).
+        assert_eq!(parse_branch_ref("branch:  trimmed  "), Some("trimmed"));
+    }
+
+    #[test]
+    fn a_stray_value_never_reads_as_a_branch() {
+        // The column names a board drag would write into `proposes` must never hide the note.
+        for s in ["doing", "todo", "", "branch:", "branch:   ", "branch:has space", "2026-07-20"] {
+            assert_eq!(parse_branch_ref(s), None, "{s:?} must not parse as a branch reference");
+        }
+    }
+}

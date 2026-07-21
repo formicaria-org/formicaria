@@ -7,7 +7,7 @@
 //! same contract with SQLite FTS5. Both satisfy one interface, so search is not
 //! special and storage stays swappable.
 
-use fm_model::{Kind, Object, PropertyValue};
+use fm_model::{Id, Kind, Object, PropertyValue};
 use indexmap::IndexMap;
 use time::Date;
 
@@ -57,6 +57,36 @@ pub enum Predicate {
     Not(Box<Predicate>),
     /// Disjunction (OR) of predicates.
     Any(Vec<Predicate>),
+    /// `key` holds a well-formed `note:<ULID>` reference — to `id` specifically when given,
+    /// or to *any* note when `None`.
+    ///
+    /// **Why this is not expressible with [`Predicate::Prop`], and why it is one variant and
+    /// not two.** It does two jobs that are only correct together:
+    ///
+    /// - `id: None` asks *"is this value shaped like a note reference?"* — a **type test**.
+    ///   `Op` has `Eq/Ne/Lt/…/Exists`, none of which can shape-check an unknown value, so an
+    ///   `Exists` test would hide a note the moment a user (or a board drag) put any text in
+    ///   the property at all.
+    /// - `id: Some(_)` asks *"does it point at this note?"* compared as **parsed `Id`s**, never
+    ///   as strings, so a hand-typed lowercase pointer still resolves to its thread.
+    ///
+    /// Deliberately has no `.view` spelling: a `.view` may only narrow the renderer's base
+    /// filter, so nothing is lost by keeping this out of the user-facing DSL.
+    NoteRef {
+        key: String,
+        id: Option<Id>,
+    },
+    /// `key` holds a well-formed `branch:<name>` reference — the durable frontmatter of a
+    /// *proposal* note (`proposes: branch:<name>`).
+    ///
+    /// The sibling of [`Predicate::NoteRef`] one property over, and it exists for the identical
+    /// reason: proposals are a hidden note-class (like messages), so the planning views exclude
+    /// them — but only when the value *parses as a branch reference*, never on bare presence.
+    /// `Prop{Exists}` would hide any note the instant a board drag wrote a column name into
+    /// `proposes`. A branch name is not a ULID, so this cannot reuse `NoteRef`.
+    BranchRef {
+        key: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -147,6 +177,22 @@ fn eval(pred: &Predicate, obj: &Object) -> bool {
         }
         Predicate::Not(inner) => !eval(inner, obj),
         Predicate::Any(preds) => preds.iter().any(|p| eval(p, obj)),
+        Predicate::NoteRef { key, id } => match obj.get(key) {
+            // Parse, never string-compare: `note:01arz…` and `note:01ARZ…` name the same note,
+            // and a value that is not a reference at all (a word a board drag wrote) is not a
+            // pointer no matter what it says.
+            PropertyValue::Text(s) => match fm_model::parse_note_ref(&s) {
+                Some(found) => id.is_none_or(|want| found == want),
+                None => false,
+            },
+            _ => false,
+        },
+        Predicate::BranchRef { key } => match obj.get(key) {
+            // Shape test only: a value counts when it parses as `branch:<name>`, so a stray
+            // word (a board drop, a typo) never reads as a proposal pointer.
+            PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).is_some(),
+            _ => false,
+        },
     }
 }
 
@@ -212,4 +258,87 @@ fn group_rows(rows: &[&Object], key: &str) -> Vec<Group> {
         .into_iter()
         .map(|(k, rows)| Group { label: k.display(), key: k, rows })
         .collect()
+}
+
+#[cfg(test)]
+mod noteref_tests {
+    use super::*;
+    // `Id` is `fm_model`'s alias for a ULID. Used rather than depending on `ulid` here: the
+    // whole point of this crate is that its dependency list stays minimal and storage-free.
+    use fm_model::{Id, Kind, Object};
+
+    fn note_with(key: &str, value: &str) -> Object {
+        let mut o = Object::new(Kind::Note, "body");
+        o.extra.insert(key.into(), PropertyValue::Text(value.into()));
+        o
+    }
+
+    /// The guard that stops a board drag erasing a note. `board` groups by *any* property and
+    /// writes the column name back on drop, so an `Exists` test would hide a note the moment
+    /// any text landed in the key. Only a well-formed reference counts.
+    #[test]
+    fn only_a_well_formed_reference_reads_as_one() {
+        let any = |key: &str| Predicate::NoteRef { key: key.into(), id: None };
+        let root = Id::new();
+
+        assert!(eval(&any("thread_of"), &note_with("thread_of", &fm_model::note_ref(root))));
+        // What a board drop, a typo, or a bare id would put there — none is a pointer.
+        for bad in ["doing", "", "note:", "note:nope", &root.to_string()] {
+            assert!(
+                !eval(&any("thread_of"), &note_with("thread_of", bad)),
+                "{bad:?} must not read as a note reference"
+            );
+        }
+        // A non-text value cannot be a pointer either.
+        let mut n = Object::new(Kind::Note, "b");
+        n.extra.insert("thread_of".into(), PropertyValue::Int(3));
+        assert!(!eval(&any("thread_of"), &n));
+        // And a note that simply has no such property is not a message.
+        assert!(!eval(&any("thread_of"), &Object::new(Kind::Note, "ordinary")));
+    }
+
+    /// Targets are compared as parsed ULIDs. A hand-edited lowercase pointer names the same
+    /// note; comparing the strings would silently orphan the message from its own thread.
+    #[test]
+    fn a_target_is_matched_by_parsed_id_not_by_spelling() {
+        let root = Id::new();
+        let other = Id::new();
+        let to_root = Predicate::NoteRef { key: "thread_of".into(), id: Some(root) };
+
+        assert!(eval(&to_root, &note_with("thread_of", &fm_model::note_ref(root))));
+        assert!(eval(&to_root, &note_with("thread_of", &fm_model::note_ref(root).to_lowercase())));
+        assert!(!eval(&to_root, &note_with("thread_of", &fm_model::note_ref(other))));
+    }
+
+    /// The exclusion shape the views use: notes that are NOT messages.
+    #[test]
+    fn negating_it_gives_the_view_exclusion() {
+        let not_a_message =
+            Predicate::Not(Box::new(Predicate::NoteRef { key: "thread_of".into(), id: None }));
+
+        assert!(eval(&not_a_message, &Object::new(Kind::Note, "a real note")));
+        assert!(!eval(
+            &not_a_message,
+            &note_with("thread_of", &fm_model::note_ref(Id::new()))
+        ));
+    }
+
+    /// `BranchRef` reads only a well-formed `branch:<name>`, so a proposal is hidden from the
+    /// planning views only when it genuinely names a branch — never on a stray property value.
+    #[test]
+    fn only_a_well_formed_branch_reference_reads_as_one() {
+        let proposes = Predicate::BranchRef { key: "proposes".into() };
+
+        assert!(eval(&proposes, &note_with("proposes", &fm_model::branch_ref("fix-protocol"))));
+        assert!(eval(&proposes, &note_with("proposes", "branch:feature/x")));
+        // The column names a board drop would write, and other non-references.
+        for bad in ["doing", "todo", "", "branch:", "branch:has space"] {
+            assert!(
+                !eval(&proposes, &note_with("proposes", bad)),
+                "{bad:?} must not read as a branch reference"
+            );
+        }
+        // A note with no such property is not a proposal.
+        assert!(!eval(&proposes, &Object::new(Kind::Note, "ordinary")));
+    }
 }

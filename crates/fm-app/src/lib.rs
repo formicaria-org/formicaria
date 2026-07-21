@@ -25,6 +25,7 @@ pub mod dto;
 pub mod refs;
 // A git token, only on platforms with no credential helper to delegate to (i.e. Android).
 pub mod secrets;
+pub mod thread;
 pub mod vaults;
 pub mod views;
 

@@ -9,6 +9,7 @@ use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
+use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use ulid::Ulid;
 
@@ -22,7 +23,7 @@ use ulid::Ulid;
 /// and [`recent`]; `search` and [`gallery`] deliberately still see assets.
 pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
     let q = Query {
-        filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
+        filter: crate::thread::notes_base(),
         group_by: Some(group_by.to_string()),
         sort: vec![SortKey::desc("created")],
         ..Default::default()
@@ -67,8 +68,7 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// it stays out of the renderers (a `.view` file could override it).
 pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
-        filter: Filter::new()
-            .and(Predicate::Kind(vec![Kind::Note]))
+        filter: crate::thread::notes_base()
             .and(Predicate::Prop {
                 key: "due".into(),
                 op: Op::Exists,
@@ -107,6 +107,359 @@ pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectM
     obj.vault = vault.to_string();
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
+}
+
+/// Notes nothing has touched since `since` — **derived from git, stored nowhere.**
+///
+/// Ruling 15 settles the mechanism before the feature is designed: *"Presence/status →
+/// **derived** from git log or pushed by the peer, **stored nowhere**. … Status is not
+/// knowledge."* A `stale: true` property would be the exact violation: it would be wrong the
+/// moment you edited the note, it would travel into a collaborator's clone as an opinion, and
+/// it would be one more thing to keep true. Git already knows when each file last changed, so
+/// this asks it — the same "collaboration is git, *exposed*" stance `activity` takes, pointed
+/// at absence instead of presence.
+///
+/// `since` is a git `--since` value (`"90 days ago"`), so the threshold is the caller's and
+/// nothing is configured, stored, or defaulted on disk.
+///
+/// **Reports, never acts.** Same discipline as `verify`: naming an old note is awareness;
+/// deciding what to do about it is the human's. Nothing here archives, deletes, or flags.
+///
+/// Messages are excluded with everything else via [`crate::thread::notes_base`] — a five-word
+/// reply from March is not a stale note, it is a finished sentence.
+pub fn stale(
+    store: &dyn Store,
+    vault_path: &Path,
+    since: &str,
+) -> Result<Vec<ObjectMeta>, StoreError> {
+    // **Refuse rather than mislead.** Without history there is no evidence of staleness, and
+    // both silent answers are lies: an empty list says "nothing is old", a full one says
+    // "everything is". Git is a capability this product declares, not one it assumes.
+    if !vault_path.join(".git").exists() {
+        return Err(StoreError::Io(
+            "staleness is read from git history, and this vault has none yet".into(),
+        ));
+    }
+    let touched: std::collections::HashSet<String> = fm_core::vcs::activity(vault_path, since)?
+        .into_iter()
+        .map(|t| t.id)
+        .collect();
+
+    let q = Query {
+        filter: crate::thread::notes_base(),
+        // Oldest first: the answer to "what have I not looked at" wants the worst offender at
+        // the top. `updated` is the note's own claim; git is what decided it was stale.
+        sort: vec![SortKey::asc("updated")],
+        ..Default::default()
+    };
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .filter(|o| !touched.contains(&o.id.to_string()))
+        .map(ObjectMeta::from)
+        .collect())
+}
+
+/// One message in a discussion. `depth` is derived, never stored.
+#[derive(Serialize)]
+pub struct Message {
+    #[serde(flatten)]
+    pub meta: ObjectMeta,
+    pub body: String,
+    /// The message this answers, as a plain id — `None` when it answers the root, or when the
+    /// stored pointer is unusable (dangling, circular, hand-mangled).
+    pub reply_to: Option<String>,
+    /// Indentation, computed here so the two frontends cannot each invent it. Capped, and
+    /// cycle-safe: see [`thread`].
+    pub depth: u8,
+}
+
+/// A note's discussion: the root (absent if it was deleted) and its messages, oldest first.
+#[derive(Serialize)]
+pub struct ThreadView {
+    pub root: Option<ObjectMeta>,
+    pub count: usize,
+    pub messages: Vec<Message>,
+}
+
+/// How deep a reply may be shown. Beyond this the indent stops growing — a hand-edited chain
+/// forty deep must not push a pane off the side of the screen.
+const MAX_DEPTH: u8 = 4;
+
+/// Post a message to a note's discussion — **one file write.**
+///
+/// It is its own command rather than a composition of existing ones because `capture` takes a
+/// body and a vault and nothing else: a reply built from it would be `capture` + two
+/// `set_property` calls, i.e. three whole-file rewrites and three index updates to post one
+/// line, with no transaction around them (`MASTERPLAN.md`: *no atomic multi-object
+/// transactions*).
+///
+/// **Replying to a message re-roots.** `thread_of` always names the root note, never another
+/// message — so a reply-to-a-reply joins the same discussion instead of starting an invisible
+/// one hanging off a note that no view can reach. The parent is preserved in `reply_to`, which
+/// is what "reply to this comment" actually means. Getting this backwards is how the first
+/// attempt made the natural gesture the broken one.
+///
+/// The message joins the **target's vault**, never a caller-chosen one. A vault is an
+/// audience; a reply that landed elsewhere would be invisible to the discussion or visible to
+/// people the note was never shared with, and that is not a choice to leave to a UI.
+pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMeta, StoreError> {
+    let target_id: Id =
+        target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
+    let target_obj = store.get(target_id)?.ok_or(StoreError::NotFound(target_id))?;
+    if target_obj.kind != Kind::Note {
+        return Err(StoreError::Io("you can only reply to a note".into()));
+    }
+    if body.trim().is_empty() {
+        return Err(StoreError::Io("a message needs something in it".into()));
+    }
+
+    // If the target is itself a message, its root is the discussion; otherwise the target is
+    // the root. A malformed `thread_of` on the target falls through to "the target is a root",
+    // so garbage is never propagated into a new file.
+    let root = match target_obj.get(crate::thread::THREAD_OF) {
+        PropertyValue::Text(s) => fm_model::parse_note_ref(&s).unwrap_or(target_id),
+        _ => target_id,
+    };
+
+    let mut obj = Object::new(Kind::Note, body);
+    obj.vault = target_obj.vault.clone();
+    obj.extra
+        .insert(crate::thread::THREAD_OF.into(), PropertyValue::Text(fm_model::note_ref(root)));
+    obj.extra
+        .insert(crate::thread::REPLY_TO.into(), PropertyValue::Text(fm_model::note_ref(target_id)));
+    store.put(&obj)?;
+    Ok(ObjectMeta::from(&obj))
+}
+
+/// One note's discussion, oldest first.
+///
+/// Sorted by `created`, which for ULID-named files is also creation order — the same sequence
+/// on every machine, with no clock to disagree about.
+///
+/// **The reader is flat, and derives depth defensively.** `reply_to` is ordinary frontmatter a
+/// human can hand-edit, so it can dangle (the parent was deleted) or cycle (`a → b → a`). A
+/// recursive builder meets those as a silently dropped subtree and an infinite loop. Here every
+/// message that exists is returned exactly once whatever its pointer says; a broken pointer
+/// costs indentation, never visibility. An unreachable note is a failure mode this project
+/// names by hand and refuses.
+///
+/// A deleted root yields `root: None` with the messages intact — the discussion is not
+/// swallowed by its subject's deletion.
+pub fn thread(store: &dyn Store, root: &str) -> Result<ThreadView, StoreError> {
+    let root_id: Id = root.parse().map_err(|_| StoreError::Parse(format!("invalid id: {root}")))?;
+    let q = Query {
+        // No `Kind(Note)` conjunct, and that is deliberate rather than an oversight: carrying a
+        // well-formed `thread_of` *is* what makes something a message, and only `reply` writes
+        // one (which refuses a non-note target and creates a `Kind::Note`). Adding the kind
+        // would be a second, weaker spelling of the same condition — and it would trip the CI
+        // grep that keeps the notes-only base in one place, for a query that deliberately wants
+        // the opposite of that base.
+        filter: Filter::new().and(Predicate::NoteRef {
+            key: crate::thread::THREAD_OF.into(),
+            id: Some(root_id),
+        }),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    // Exclude the root itself. It normally is not a match (an ordinary note has no `thread_of`),
+    // but a **first-class discussion** is self-anchored (`thread_of: note:<own-id>`, see
+    // [`crate::thread::is_discussion_root`]), so it would otherwise appear as the first message in
+    // its own thread. One line, and it leaves ordinary note-rooted threads untouched.
+    let rows: Vec<Object> = store.query(&q)?.rows.into_iter().filter(|o| o.id != root_id).collect();
+
+    // Parent lookup over exactly the messages in this thread. A pointer to anything outside it
+    // (the root itself, a deleted message, another vault) simply is not found → depth 0.
+    let present: std::collections::HashMap<Id, usize> =
+        rows.iter().enumerate().map(|(i, o)| (o.id, i)).collect();
+    let parent_of = |o: &Object| -> Option<usize> {
+        match o.get(crate::thread::REPLY_TO) {
+            PropertyValue::Text(s) => fm_model::parse_note_ref(&s).and_then(|p| present.get(&p).copied()),
+            _ => None,
+        }
+    };
+
+    let messages = rows
+        .iter()
+        .map(|o| {
+            // Walk to the root counting hops, refusing to visit any message twice. The visited
+            // set is what makes a hand-edited cycle terminate; the cap is what stops a long
+            // legitimate chain from indenting off-screen.
+            let mut depth = 0u8;
+            let mut seen = std::collections::HashSet::new();
+            let mut cur = o;
+            while let Some(i) = parent_of(cur) {
+                if !seen.insert(cur.id) || depth >= MAX_DEPTH {
+                    break;
+                }
+                depth += 1;
+                cur = &rows[i];
+            }
+            Message {
+                meta: ObjectMeta::from(o),
+                body: o.body.clone(),
+                reply_to: match o.get(crate::thread::REPLY_TO) {
+                    PropertyValue::Text(s) => fm_model::parse_note_ref(&s).map(|i| i.to_string()),
+                    _ => None,
+                },
+                depth,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(ThreadView {
+        root: store.get(root_id)?.as_ref().map(ObjectMeta::from),
+        count: messages.len(),
+        messages,
+    })
+}
+
+/// Create a **first-class discussion** — a note that is the root of its own thread.
+///
+/// A dedicated command, not `capture` + `set_property`: `capture` sets only body and vault, and
+/// `set_property` *refuses* `thread_of` (structure is not hand-settable — the same guard that stops
+/// a board drag erasing a note). So the self-anchor is written here, once, under the app's control,
+/// exactly as `reply` writes a message's pointers.
+///
+/// The `title` is what the Discussions view shows at a glance; the body is empty because a
+/// discussion's content is the conversation, not a document.
+pub fn create_discussion(
+    store: &mut dyn Store,
+    title: &str,
+    vault: &str,
+) -> Result<ObjectMeta, StoreError> {
+    let title = title.trim();
+    if title.is_empty() {
+        return Err(StoreError::Io("a discussion needs a title".into()));
+    }
+    let mut obj = Object::new(Kind::Note, "");
+    obj.vault = vault.to_string();
+    obj.title = Some(title.to_string());
+    // Self-anchor: the discussion is the root of its own thread (see `thread::is_discussion_root`).
+    // This is what makes it a discussion — and, being a well-formed `thread_of`, it is an
+    // `is_message` note, so it drops out of every planning view for free.
+    obj.extra
+        .insert(crate::thread::THREAD_OF.into(), PropertyValue::Text(fm_model::note_ref(obj.id)));
+    store.put(&obj)?;
+    Ok(ObjectMeta::from(&obj))
+}
+
+/// A person who has posted in a discussion — `name` for display, `email` for the avatar hue. It is
+/// [`fm_core::git::Identity`] because that is exactly what it is: git authorship (Ruling 14), the
+/// same source as the "edited by" labels, derived and never stored.
+pub type Participant = fm_core::git::Identity;
+
+/// One discussion, as the Discussions view shows it at a glance.
+#[derive(Serialize)]
+pub struct DiscussionSummary {
+    #[serde(flatten)]
+    pub root: ObjectMeta,
+    /// How many messages the discussion holds (not counting the root itself).
+    pub count: usize,
+    /// RFC-3339 of the newest message, or the discussion's own creation when empty — the sort key.
+    pub last_activity: String,
+    /// Who left a message, filled from git by the dispatcher (Ruling 14). Empty here (the pure
+    /// `Store` layer has no authorship) and empty for a vault with no history yet — a discussion
+    /// still shows its title and vault in that case.
+    pub participants: Vec<Participant>,
+}
+
+/// Every first-class discussion, most-recently-active first — the Discussions view's feed.
+///
+/// A discussion is a self-rooted note (`thread_of` pointing at itself, [`crate::thread::is_discussion_root`]);
+/// its messages are notes whose `thread_of` names it. This lists the roots and counts their
+/// messages. **Comment threads hanging off an ordinary note are deliberately *not* here** — their
+/// root is not a discussion, so they stay with their note (the per-note discussion panel), and this
+/// view is only the discussions that "live on their own".
+///
+/// `participants` is left empty; the dispatcher fills it from each vault's git log, because
+/// authorship is a git fact and this layer is storage-only. Same `candidates()`/`load_all()` cost
+/// as `thread`/`recent`, already accepted — no index.
+pub fn discussions(store: &dyn Store) -> Result<Vec<DiscussionSummary>, StoreError> {
+    // Every message-class note in one pass: roots (self-anchored) and replies alike.
+    let q = Query {
+        filter: Filter::new()
+            .and(Predicate::NoteRef { key: crate::thread::THREAD_OF.into(), id: None }),
+        ..Default::default()
+    };
+    let msgs = store.query(&q)?.rows;
+
+    use std::collections::HashMap;
+    let mut roots: Vec<Object> = Vec::new();
+    let mut count: HashMap<Id, usize> = HashMap::new();
+    let mut last: HashMap<Id, OffsetDateTime> = HashMap::new();
+    for o in &msgs {
+        if crate::thread::is_discussion_root(o) {
+            roots.push(o.clone());
+            // A brand-new, empty discussion is at least as "recent" as its own creation.
+            let e = last.entry(o.id).or_insert(o.created);
+            if o.created > *e {
+                *e = o.created;
+            }
+        } else if let PropertyValue::Text(s) = o.get(crate::thread::THREAD_OF) {
+            if let Some(root) = fm_model::parse_note_ref(&s) {
+                *count.entry(root).or_default() += 1;
+                let e = last.entry(root).or_insert(o.created);
+                if o.created > *e {
+                    *e = o.created;
+                }
+            }
+        }
+    }
+
+    let mut out: Vec<DiscussionSummary> = roots
+        .iter()
+        .map(|r| DiscussionSummary {
+            root: ObjectMeta::from(r),
+            count: count.get(&r.id).copied().unwrap_or(0),
+            last_activity: last
+                .get(&r.id)
+                .copied()
+                .unwrap_or(r.created)
+                .format(&Rfc3339)
+                .unwrap_or_default(),
+            participants: Vec::new(),
+        })
+        .collect();
+    // Most-recently-active first — the point of the view is "what is going on now".
+    out.sort_by(|a, b| b.last_activity.cmp(&a.last_activity));
+    Ok(out)
+}
+
+/// Who has posted in each discussion, from **one vault's git log** — `root id → participants`,
+/// newest-first, deduped by email. The dispatcher calls this per vault and merges the results into
+/// `DiscussionSummary::participants`.
+///
+/// Split out from the dispatcher so the grouping is testable with real git. A discussion root and
+/// its replies are all messages, and [`activity`] deliberately drops messages, so their authorship
+/// cannot be read from there — it is gathered here. `since` is a git `--since` value; a wide
+/// window is used in practice, because the roots are already listed by [`discussions`] and this only
+/// adds authorship.
+pub fn discussion_participants(
+    store: &dyn Store,
+    vault_path: &Path,
+    since: &str,
+) -> Result<std::collections::HashMap<String, Vec<Participant>>, StoreError> {
+    let mut who: std::collections::HashMap<String, Vec<Participant>> = std::collections::HashMap::new();
+    for t in fm_core::vcs::activity(vault_path, since)? {
+        let Ok(id) = t.id.parse::<Id>() else { continue };
+        let Some(obj) = store.get(id)? else { continue };
+        // A reply names its root; a discussion root names itself. Anything else — an ordinary note,
+        // or a comment on an ordinary note — is not a first-class discussion and is skipped.
+        let root = match obj.get(crate::thread::THREAD_OF) {
+            PropertyValue::Text(s) => match fm_model::parse_note_ref(&s) {
+                Some(r) => r.to_string(),
+                None => continue,
+            },
+            _ => continue,
+        };
+        let list = who.entry(root).or_default();
+        if !list.iter().any(|p| p.email == t.email) {
+            list.push(Participant { name: t.author, email: t.email });
+        }
+    }
+    Ok(who)
 }
 
 /// Replace a note's body and write it back to disk (bumping `updated`). The
@@ -201,7 +554,28 @@ pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreEr
 /// journal.
 pub fn recent(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
-        filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
+        filter: crate::thread::notes_base(),
+        sort: vec![SortKey::desc("created")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
+/// Every open proposal in one vault — the notes carrying a well-formed `proposes: branch:<name>`,
+/// newest first. The Collaboration surface's feed, and the exact complement of the proposal
+/// exclusion in [`crate::thread::notes_base`]: proposals are kept out of the planning views
+/// precisely so they can be gathered here instead.
+///
+/// **Read-only, and derived.** This lists the proposal *notes* that exist; whether each branch is
+/// still open, merged, or gone is a git question answered elsewhere (Ruling 15) — a note naming a
+/// branch that no longer resolves is shown, not hidden, because the discussion outlives the branch.
+///
+/// Same `candidates()` seam and same O(corpus) cost as [`recent`] — a `BranchRef` predicate is
+/// evaluated in memory over `load_all()`, never pushed to SQL. Proposals are a rare handful, so
+/// this is deliberately left un-indexed; do not add one.
+pub fn proposals(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: crate::thread::proposals_base(),
         sort: vec![SortKey::desc("created")],
         ..Default::default()
     };
@@ -449,6 +823,14 @@ pub fn activity(
     for t in fm_core::vcs::activity(vault_path, since)? {
         let Ok(id) = t.id.parse::<Id>() else { continue };
         let Some(obj) = store.get(id)? else { continue };
+        // A `git log` read-model has no `Filter` to hang the exclusion on, so the hidden
+        // note-classes are applied here by hand — the same list `notes_base()` excludes, on the
+        // one surface a predicate cannot reach. Every reply and every proposal is a new file and
+        // therefore a git touch: without this a busy thread (or a pile of proposals) floods the
+        // recent-edits feed, the contributor filter and the `EditedBy` labels.
+        if crate::thread::is_message(&obj) || crate::thread::is_proposal(&obj) {
+            continue;
+        }
         events.push(EditEvent {
             id: t.id,
             title: obj.title.clone(),

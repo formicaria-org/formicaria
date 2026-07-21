@@ -179,6 +179,11 @@ pub fn dispatch(
         "get" => json(commands::get(&lock()?.store, &s("id")).map_err(err)?),
         "search" => json(commands::search(&lock()?.store, &s("query")).map_err(err)?),
         "recent" => json(commands::recent(&lock()?.store).map_err(err)?),
+        // The Collaboration surface's feed: every open proposal (a note carrying
+        // `proposes: branch:<name>`), across vaults. A store query like `recent`, not a per-vault
+        // git read — it lists proposal *notes*; whether each branch is still open is a git
+        // question answered later, when the write half and the diff land.
+        "proposals" => json(commands::proposals(&lock()?.store).map_err(err)?),
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and
         // the contributor filter. Aggregated across vaults, newest-first.
@@ -202,6 +207,63 @@ pub fn dispatch(
             let mut g = lock()?;
             let into = g.config(&s("vault"))?;
             json(commands::capture(&mut g.store, &s("body"), &into.name).map_err(err)?)
+        }
+        // Notes nothing has touched lately, read from git. Per vault, because history is per
+        // repo — and a vault with no history is *skipped*, not reported as entirely stale:
+        // "no evidence" and "old" are different answers and only one of them is true.
+        "stale" => {
+            let since = {
+                let s = s("since");
+                if s.is_empty() { "90 days ago".to_string() } else { s }
+            };
+            let g = lock()?;
+            let mut all = Vec::new();
+            for cfg in g.configs() {
+                match commands::stale(&g.store, &cfg.path, &since) {
+                    Ok(rows) => all.extend(rows),
+                    // A vault without git is not a failure of the whole query — the others
+                    // still have an honest answer.
+                    Err(fm_core::StoreError::Io(_)) => continue,
+                    Err(e) => return Err(err(e)),
+                }
+            }
+            json(all)
+        }
+        // Discussion, as notes. No `vault` argument on either, deliberately: a reply joins the
+        // vault of the note it is about, because a vault is an audience.
+        "reply" => json(commands::reply(&mut lock()?.store, &s("id"), &s("body")).map_err(err)?),
+        "thread" => json(commands::thread(&lock()?.store, &s("id")).map_err(err)?),
+        // A first-class discussion — a note that is the root of its own thread. `vault` is the
+        // audience it joins (validated up front, unknown name refused), like `capture`.
+        "create_discussion" => {
+            let mut g = lock()?;
+            let into = g.config(&s("vault"))?;
+            json(commands::create_discussion(&mut g.store, &s("title"), &into.name).map_err(err)?)
+        }
+        // Every first-class discussion, newest-active first, enriched with who has posted in it.
+        // Roots + counts come from the store (so they list even with no git); participants are
+        // read from each vault's git log by hand — a discussion root and its replies are all
+        // messages, and `activity` deliberately drops messages, so their authorship is gathered
+        // here rather than reused.
+        "discussions" => {
+            let g = lock()?;
+            let mut summaries = commands::discussions(&g.store).map_err(err)?;
+            // Fill participants from each vault's git log, merging across vaults. A wide `--since`
+            // because the roots are already listed by the store — this only adds authorship, and
+            // an old-but-still-open discussion deserves its participants. No git → no authors, the
+            // discussion still lists with its title and vault.
+            for cfg in g.configs() {
+                let Ok(mut who) = commands::discussion_participants(&g.store, &cfg.path, "1970-01-01")
+                else {
+                    continue;
+                };
+                for sum in &mut summaries {
+                    if let Some(list) = who.remove(&sum.root.id) {
+                        sum.participants = list;
+                    }
+                }
+            }
+            json(summaries)
         }
         "set_property" => {
             commands::set_property(&mut lock()?.store, &s("id"), &s("key"), &s("value"))

@@ -37,6 +37,18 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
         "id" | "created" | "updated" | "schema" => {
             return Err(StoreError::Parse(format!("`{key}` is not editable")))
         }
+        // Discussion structure is written by `reply`, never by hand — and this refusal is a
+        // safety guard, not tidiness. `board` groups by **any** property and writes the column
+        // name back on drop, so without this a board grouped by `thread_of` plus one drag would
+        // stamp `thread_of: doing` onto a note. The value would not parse as a note reference,
+        // so the views would not hide it — but the note would now claim to be part of a
+        // discussion, and a later fix that trusted the key would lose it. Refuse loudly at the
+        // one gesture that can reach it.
+        "thread_of" | "reply_to" => {
+            return Err(StoreError::Parse(format!(
+                "`{key}` is discussion structure — reply to a note instead of setting it"
+            )))
+        }
         other => {
             if raw.is_empty() {
                 obj.extra.remove(other);
