@@ -880,6 +880,160 @@ pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool
     Ok(true)
 }
 
+/// Create a **proposal branch**: a new branch off the current `HEAD` whose *only* difference is one
+/// file (`rel_path`) set to `content`. It holds the proposed change; a proposal *note* — written
+/// separately, on the current branch — points at it via `proposes: branch:<name>`.
+///
+/// **Pure plumbing: it never checks out, and never touches the working tree, the real index, or
+/// `HEAD`.** A proposal is built entirely in the object store and a new ref, so the user keeps
+/// working uninterrupted and a total failure leaves the vault exactly as it was — the write-side
+/// half of "a proposal is safe because it only ever adds a branch". `hash-object -w` writes a blob;
+/// a *temp* index (seeded from `HEAD` via `GIT_INDEX_FILE`) yields a new tree; `commit-tree` makes
+/// the commit; `update-ref` names the branch. Nothing here can corrupt an existing note.
+///
+/// Refuses when the branch already exists (a proposal owns a fresh-ULID branch, so a collision is a
+/// bug, not a race) or when the repo has no commit yet (nothing to propose a change against).
+pub fn create_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+) -> Result<(), StoreError> {
+    // No `ensure_repo` here on purpose: proposing a change must never rewrite the vault's own setup
+    // (`.gitignore`/`.gitattributes`) — the repo is already configured when it was opened. We only
+    // read `HEAD` and add a branch. `ensure_identity` is safe (it writes `.git/config`, never the
+    // working tree) and gives `commit-tree` a committer when the vault has none of its own.
+    ensure_identity(vault);
+
+    // The tip we branch from. No commit yet ⇒ there is no note to change and nowhere to anchor.
+    let parent = git(vault).args(["rev-parse", "HEAD"]).output().map_err(spawn)?;
+    if !parent.status.success() {
+        return Err(StoreError::Io(
+            "this vault has no commits yet — nothing to propose a change to".into(),
+        ));
+    }
+    let parent = String::from_utf8_lossy(&parent.stdout).trim().to_string();
+
+    // Never clobber an existing branch.
+    let exists = git(vault)
+        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+        .output()
+        .map_err(spawn)?;
+    if exists.status.success() {
+        return Err(StoreError::Io(format!("proposal branch {branch:?} already exists")));
+    }
+
+    // 1. The proposed content as a blob. `-w` writes it to the object store and nothing else.
+    let mut child = git(vault)
+        .args(["hash-object", "-w", "--stdin"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(spawn)?;
+    use std::io::Write as _;
+    child
+        .stdin
+        .take()
+        .expect("piped stdin")
+        .write_all(content.as_bytes())
+        .map_err(io)?;
+    let blob_out = child.wait_with_output().map_err(spawn)?;
+    if !blob_out.status.success() {
+        return Err(failed("git hash-object", &blob_out));
+    }
+    let blob = String::from_utf8_lossy(&blob_out.stdout).trim().to_string();
+
+    // 2. Build the new tree in a TEMP index seeded from HEAD, so the real index is untouched. The
+    //    index path is absolute and unique; `GIT_INDEX_FILE` steers every plumbing call at it.
+    let temp_index = vault.join(".git").join(format!("fm-proposal-{}.index", branch.replace('/', "-")));
+    let with_index = |args: &[&str]| -> Result<Output, StoreError> {
+        git(vault).env("GIT_INDEX_FILE", &temp_index).args(args).output().map_err(spawn)
+    };
+    let cleanup = || {
+        let _ = std::fs::remove_file(&temp_index);
+    };
+    let step = |label: &str, out: Output| -> Result<Output, StoreError> {
+        if out.status.success() {
+            Ok(out)
+        } else {
+            Err(failed(label, &out))
+        }
+    };
+
+    let result = (|| {
+        step("git read-tree", with_index(&["read-tree", &parent])?)?;
+        step(
+            "git update-index",
+            with_index(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{rel_path}")])?,
+        )?;
+        let tree = step("git write-tree", with_index(&["write-tree"])?)?;
+        let tree = String::from_utf8_lossy(&tree.stdout).trim().to_string();
+
+        let commit = step(
+            "git commit-tree",
+            git(vault).args(["commit-tree", &tree, "-p", &parent, "-m", message]).output().map_err(spawn)?,
+        )?;
+        let commit = String::from_utf8_lossy(&commit.stdout).trim().to_string();
+
+        step(
+            "git update-ref",
+            git(vault).args(["update-ref", &format!("refs/heads/{branch}"), &commit]).output().map_err(spawn)?,
+        )?;
+        Ok(())
+    })();
+    cleanup();
+    result
+}
+
+/// The vault's current **open-proposal load**: how many `proposal/*` branches exist, and the total
+/// bytes of the files they change. Feeds the per-vault guardrails (`fm_core::proposal`): a vault
+/// bounds both how many proposals it holds open and their aggregate weight.
+///
+/// "Open" means *the branch still exists* — a merged or deleted proposal frees its slot, so this
+/// never grows without bound the way counting the immortal proposal *notes* would. A branch that
+/// cannot be read (no merge-base, gone mid-read) is skipped, not fatal: a load probe must never be
+/// the thing that blocks every new proposal.
+pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
+    let refs = git(vault)
+        .args(["for-each-ref", "--format=%(refname:short)", "refs/heads/proposal/"])
+        .output()
+        .map_err(spawn)?;
+    if !refs.status.success() {
+        return Err(failed("git for-each-ref", &refs));
+    }
+    let branches: Vec<String> = String::from_utf8_lossy(&refs.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    let mut bytes = 0u64;
+    for b in &branches {
+        // The files this branch changes, measured from where it forked off `main` — so unrelated
+        // commits that landed on `main` since are not counted against the proposal.
+        let base = git(vault).args(["merge-base", "HEAD", b]).output().map_err(spawn)?;
+        if !base.status.success() {
+            continue;
+        }
+        let base = String::from_utf8_lossy(&base.stdout).trim().to_string();
+        let diff = git(vault).args(["diff", "--name-only", "-z", &base, b]).output().map_err(spawn)?;
+        if !diff.status.success() {
+            continue;
+        }
+        for f in String::from_utf8_lossy(&diff.stdout).split('\0').filter(|s| !s.is_empty()) {
+            let sz = git(vault).args(["cat-file", "-s", &format!("{b}:{f}")]).output().map_err(spawn)?;
+            if sz.status.success() {
+                if let Ok(n) = String::from_utf8_lossy(&sz.stdout).trim().parse::<u64>() {
+                    bytes = bytes.saturating_add(n);
+                }
+            }
+        }
+    }
+    Ok((branches.len(), bytes))
+}
+
 /// Where the vault pushes to, or None when no remote is configured yet. Absence
 /// is the normal state of a fresh vault, never an error.
 pub fn remote(vault: &Path) -> Result<Option<String>, StoreError> {

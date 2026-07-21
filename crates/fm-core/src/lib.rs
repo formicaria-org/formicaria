@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 pub mod descriptor;   // <vault>/vault.json — the facts git cannot supply
+pub mod proposal;     // hard guardrails on a proposal's size (vault policy, pure check)
 pub mod frontmatter;
 mod file;
 pub use file::FileStore;

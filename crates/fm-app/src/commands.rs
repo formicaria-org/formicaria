@@ -582,6 +582,79 @@ pub fn proposals(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
+/// Create a **proposal** to change an existing note: the change lands on a fresh `proposal/<id>`
+/// branch (never `main`), and a proposal note carrying `proposes: branch:<name>` records it for the
+/// Collaboration view. The by-hand caller and (later) the study agent both come through here, so the
+/// blast-radius bound is enforced in exactly **one** place.
+///
+/// **Guardrailed and fail-closed** ([`fm_core::proposal::ProposalLimits`]): the change is one file
+/// of a known size, checked against the vault's per-proposal *and* per-vault ceilings, and a breach
+/// is **refused, never truncated**. The branch is built first — additive, no `main` write — and the
+/// proposal note is recorded only if that succeeds, so a refused or failed proposal leaves nothing
+/// dangling. `vault_path` is the target's own vault (the caller resolves it); `limits` come from that
+/// vault's `vault.json`.
+pub fn create_proposal(
+    store: &mut dyn Store,
+    vault_path: &Path,
+    target: &str,
+    new_body: &str,
+    limits: &fm_core::proposal::ProposalLimits,
+) -> Result<ObjectMeta, StoreError> {
+    let id: Id = target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
+    let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
+    if obj.kind != Kind::Note {
+        return Err(StoreError::Io("you can only propose a change to a note".into()));
+    }
+
+    // The proposed file: the target note with its new body, serialized **exactly** as it would be
+    // written to disk — the branch holds real note bytes (files-as-truth), not a diff.
+    obj.body = new_body.to_string();
+    let content =
+        fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+
+    // The target note's repo-relative file path, from the vault's own notes directory.
+    let desc = fm_core::descriptor::Descriptor::read(vault_path)?;
+    let notes_abs = desc.notes_dir(vault_path);
+    let rel = notes_abs
+        .strip_prefix(vault_path)
+        .unwrap_or(&notes_abs)
+        .join(format!("{id}.md"))
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    // Guardrails: one file of `content.len()` bytes, against the vault's ceilings and current load.
+    // Refused **before** any write.
+    let (open, open_bytes) = fm_core::git::proposal_load(vault_path)?;
+    limits
+        .check(
+            fm_core::proposal::ProposalSize { files: 1, bytes: content.len() as u64 },
+            fm_core::proposal::VaultLoad { open, open_bytes },
+        )
+        .map_err(|b| StoreError::Io(b.to_string()))?;
+
+    // The proposal note — its own id names the branch, tying the two together.
+    let title = obj.title.clone().unwrap_or_else(|| "note".into());
+    let mut note = Object::new(Kind::Note, format!("Proposed change to **{title}**."));
+    note.vault = obj.vault.clone();
+    note.title = Some(format!("Proposal: {title}"));
+    let branch = format!("proposal/{}", note.id);
+    note.extra.insert(
+        crate::thread::PROPOSES.into(),
+        PropertyValue::Text(fm_model::branch_ref(&branch)),
+    );
+
+    // Build the branch first (additive, no `main` write); record the note only on success.
+    fm_core::git::create_proposal_branch(
+        vault_path,
+        &branch,
+        &rel,
+        &content,
+        &format!("propose: change to {title}"),
+    )?;
+    store.put(&note)?;
+    Ok(ObjectMeta::from(&note))
+}
+
 /// Notes that link **to** `id` — the reverse of the `note:` references a body makes. "What points
 /// here", the backlinks panel's feed, newest-updated first.
 ///

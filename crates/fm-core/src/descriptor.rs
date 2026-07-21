@@ -49,6 +49,12 @@ pub struct Descriptor {
     /// Written as a number of bytes or a human string (`"2MB"`), because this is a file people
     /// edit by hand.
     pub git_assets_max: Option<u64>,
+
+    /// **Hard guardrails on a proposal's size** (see [`crate::proposal`]). Here, not in per-device
+    /// Settings, for the same reason as `git_assets_max`: a proposal enters shared history, so the
+    /// vault — not the loosest device — bounds how large a single proposal, and how many at once,
+    /// it will hold. Absent config is the conservative built-in [default](crate::proposal::ProposalLimits::default).
+    pub proposal_limits: crate::proposal::ProposalLimits,
 }
 
 /// Parse a size a human would write: `2MB`, `500 kb`, `1.5 GiB`, or plain bytes.
@@ -164,11 +170,84 @@ impl Descriptor {
             }
         };
 
+        // Proposal guardrails — the vault's blast-radius policy. A nested object, so the keys read
+        // as one concern; any missing key keeps its conservative default, and a present-but-
+        // unparseable value is an error (silently ignoring it would apply a limit the user believes
+        // is in force — the same stance as `git_assets_max`).
+        let proposal_limits = {
+            let mut limits = crate::proposal::ProposalLimits::default();
+            match v.get("proposals") {
+                None | Some(serde_json::Value::Null) => {}
+                Some(serde_json::Value::Object(p)) => {
+                    let size = |key: &str| -> Result<Option<u64>, StoreError> {
+                        match p.get(key) {
+                            None | Some(serde_json::Value::Null) => Ok(None),
+                            Some(serde_json::Value::Number(n)) => Ok(Some(n.as_u64().ok_or_else(|| {
+                                StoreError::Parse(format!(
+                                    "{}: `proposals.{key}` must not be negative",
+                                    path.display()
+                                ))
+                            })?)),
+                            Some(serde_json::Value::String(t)) => Ok(Some(parse_size(t).ok_or_else(
+                                || {
+                                    StoreError::Parse(format!(
+                                        "{}: `proposals.{key}` — {t:?} is not a size (try \"256kB\")",
+                                        path.display()
+                                    ))
+                                },
+                            )?)),
+                            Some(_) => Err(StoreError::Parse(format!(
+                                "{}: `proposals.{key}` must be a size like \"256kB\"",
+                                path.display()
+                            ))),
+                        }
+                    };
+                    let count = |key: &str| -> Result<Option<usize>, StoreError> {
+                        match p.get(key) {
+                            None | Some(serde_json::Value::Null) => Ok(None),
+                            Some(serde_json::Value::Number(n)) => Ok(Some(
+                                n.as_u64().and_then(|x| usize::try_from(x).ok()).ok_or_else(|| {
+                                    StoreError::Parse(format!(
+                                        "{}: `proposals.{key}` must be a non-negative whole number",
+                                        path.display()
+                                    ))
+                                })?,
+                            )),
+                            Some(_) => Err(StoreError::Parse(format!(
+                                "{}: `proposals.{key}` must be a whole number",
+                                path.display()
+                            ))),
+                        }
+                    };
+                    if let Some(n) = count("max_files")? {
+                        limits.max_files = n;
+                    }
+                    if let Some(n) = size("max_change")? {
+                        limits.max_change_bytes = n;
+                    }
+                    if let Some(n) = count("max_open")? {
+                        limits.max_open = n;
+                    }
+                    if let Some(n) = size("max_total")? {
+                        limits.max_open_bytes = n;
+                    }
+                }
+                Some(_) => {
+                    return Err(StoreError::Parse(format!(
+                        "{}: `proposals` must be an object of limits",
+                        path.display()
+                    )))
+                }
+            }
+            limits
+        };
+
         Ok(Descriptor {
             name: field("name"),
             description: field("description"),
             notes,
             git_assets_max,
+            proposal_limits,
         })
     }
 
