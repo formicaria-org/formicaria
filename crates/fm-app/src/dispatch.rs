@@ -263,9 +263,15 @@ pub fn dispatch(
             let cfg = g.config(&vault_name)?;
             let limits =
                 fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
-            // A person proposing by hand: no model identity, so it falls back to the vault's own.
+            // An agent passes its model's identity (`authorName`/`authorEmail`) so the proposal is
+            // attributed to the model; a person proposing by hand sends neither and falls back to the
+            // vault's own identity. A git author is a *label*, never a trust boundary (the human merge
+            // gate is the sole authority), so accepting it from the caller is fine.
+            let author_name = args.get("authorName").and_then(Value::as_str);
+            let author_email = args.get("authorEmail").and_then(Value::as_str);
+            let author = author_name.zip(author_email);
             let made =
-                commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits, None)
+                commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits, author)
                     .map_err(err)?;
             // Commit the proposal *note* (best-effort) so the Collaboration feed lists it after a
             // restart; the branch is already its own commit.
