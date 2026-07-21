@@ -401,6 +401,17 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       notes.unshift(m);
       return m as T;
     }
+    case 'create_proposal': {
+      const target = notes.find((n) => n.id === String(args.id));
+      if (!target) throw new Error('no such note');
+      // The mock has no git, so it records the proposal *note* the Collaboration feed lists; the
+      // real backend also builds the `proposal/<id>` branch and enforces the vault's size guardrails.
+      const title = target.title ?? 'note';
+      const p = makeNote({ preview: `Proposed change to ${title}`, title: `Proposal: ${title}`, vault: target.vault });
+      p.props = { proposes: `branch:proposal/${p.id}` };
+      notes.unshift(p);
+      return p as T;
+    }
     case 'thread': {
       const rootId = String(args.id);
       const ref = `note:${rootId}`;

@@ -245,6 +245,36 @@ pub fn dispatch(
             let into = g.config(&s("vault"))?;
             json(commands::create_discussion(&mut g.store, &s("title"), &into.name).map_err(err)?)
         }
+        // Propose a change to an existing note: the change lands on a `proposal/<id>` branch (never
+        // `main`) and a `proposes:` note records it for the Collaboration view. The target's *own*
+        // vault decides the path and the size guardrails, so resolve it from the note first — and,
+        // like `ingest`/`copy_note`, resolve the config to an owned value so `&mut g.store` and the
+        // config can coexist. Refused (never truncated) when over a limit.
+        "create_proposal" => {
+            let id = s("id");
+            let mut g = lock()?;
+            let note_id = id.parse().map_err(|_| format!("invalid id: {id}"))?;
+            let vault_name = g
+                .store
+                .get(note_id)
+                .map_err(err)?
+                .ok_or_else(|| format!("no such note: {id}"))?
+                .vault;
+            let cfg = g.config(&vault_name)?;
+            let limits =
+                fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
+            let made = commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits)
+                .map_err(err)?;
+            // Commit the proposal *note* (best-effort) so the Collaboration feed lists it after a
+            // restart; the branch is already its own commit.
+            if vcs::available() {
+                let paths = g.store.written(&vault_name);
+                if vcs::commit_all(&cfg.path, "backup: proposal", &paths).unwrap_or(false) {
+                    g.store.clear_written(&vault_name);
+                }
+            }
+            json(made)
+        }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
         // Roots + counts come from the store (so they list even with no git); participants are
         // read from each vault's git log by hand — a discussion root and its replies are all

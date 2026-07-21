@@ -164,6 +164,14 @@ export const conflicts = () => invoke<ObjectMeta[]>('conflicts');
  *  deferred diff surface. */
 export const proposals = () => invoke<ObjectMeta[]>('proposals');
 
+/** Propose a change to an existing note. The change lands on a `proposal/<id>` branch (never `main`)
+ *  and a proposal note records it for the Collaboration view; a person reviews and merges it. It is
+ *  **refused, never truncated**, when it exceeds the target vault's guardrails (`vault.json` →
+ *  `proposals`: max files/size per proposal, max open count/size per vault). Returns the proposal
+ *  note. This is also the single write path the study agent uses — it can only ever edit one note. */
+export const createProposal = (id: string, body: string) =>
+  invoke<ObjectMeta>('create_proposal', { id, body });
+
 /** Notes nothing has touched since `since` (a git `--since` value), oldest first.
  *
  *  **Derived from git, stored nowhere** — there is no `stale:` property to keep true, and the
