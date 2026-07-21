@@ -934,14 +934,47 @@
         <!-- **One button, one window.** Only identity — vault (audience) + who last edited — stays
              on the row; Edit, Copy, Delete (and the properties, via Edit) live behind this single
              `＋`, which opens an options *window* (a card, not a dropdown). Keeps a phone header
-             legible; refinement is one tap away when wanted. -->
-        <button
-          class="edit options-btn"
-          onclick={() => (optionsOpen = true)}
-          aria-haspopup="dialog"
-          aria-expanded={optionsOpen}
-          aria-label="note options"
-          title="Options">＋</button>
+             legible; refinement is one tap away when wanted. The window is nested in this
+             `position:relative` wrapper — the same shape as `＋ Media` — so it opens *directly
+             under the button* at any scroll offset, never adrift at the panel's edge. -->
+        <div class="options" use:clickOutside={() => (optionsOpen = false)}>
+          <button
+            class="edit options-btn"
+            onclick={() => (optionsOpen = !optionsOpen)}
+            aria-haspopup="dialog"
+            aria-expanded={optionsOpen}
+            aria-label="note options"
+            title="Options">＋</button>
+          {#if optionsOpen}
+            <!-- Dismissed by tapping outside (the wrapper's clickOutside), Escape, or its ✕ —
+                 identically on a phone and a laptop. Each action closes it, so it and a popover are
+                 never both open. Edit reveals the property form (the fine refinement). -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <div
+              class="options-window"
+              role="dialog"
+              tabindex="-1"
+              aria-label="note options"
+              onkeydown={(e) => e.key === 'Escape' && (optionsOpen = false)}>
+              <div class="options-head">
+                <span>Options</span>
+                <button class="opt-close" onclick={() => (optionsOpen = false)} aria-label="close options">✕</button>
+              </div>
+              {#if !isDiscussion}
+                <button class="opt" onclick={() => { optionsOpen = false; void toggleEdit(); }}>
+                  {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
+                </button>
+              {/if}
+              {#if note.type === 'asset' && note.assets.length}
+                <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
+              {/if}
+              {#if canCopy}
+                <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
+              {/if}
+              <button class="opt danger" onclick={() => { optionsOpen = false; confirmingDelete = true; }}>Delete</button>
+            </div>
+          {/if}
+        </div>
       {/if}
       {#if note && editing}
         <!-- Only while editing: capture exists to put something *into* the text you are
@@ -976,38 +1009,6 @@
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
           </div>
-    {#if optionsOpen && note}
-      <!-- The options *window*: a card, not a dropdown. It lives **inside** the sticky header so it
-           opens under the `＋` no matter how far the note is scrolled — anchored to the panel it
-           drifted to the note's unscrolled top. Dismissed by tapping/clicking outside, Escape, or
-           its ✕ — identically on a phone and a laptop. Each action closes it, so it and a popover
-           are never both open. Edit reveals the property form (the fine refinement). -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="options-window"
-        role="dialog"
-        tabindex="-1"
-        aria-label="note options"
-        use:clickOutside={() => (optionsOpen = false)}
-        onkeydown={(e) => e.key === 'Escape' && (optionsOpen = false)}>
-        <div class="options-head">
-          <span>Options</span>
-          <button class="opt-close" onclick={() => (optionsOpen = false)} aria-label="close options">✕</button>
-        </div>
-        {#if !isDiscussion}
-          <button class="opt" onclick={() => { optionsOpen = false; void toggleEdit(); }}>
-            {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
-          </button>
-        {/if}
-        {#if note.type === 'asset' && note.assets.length}
-          <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
-        {/if}
-        {#if canCopy}
-          <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
-        {/if}
-        <button class="opt danger" onclick={() => { optionsOpen = false; confirmingDelete = true; }}>Delete</button>
-      </div>
-    {/if}
     </header>
     {#if confirmingDelete}
       <div class="confirm" role="alertdialog" aria-label="confirm delete">
@@ -1570,13 +1571,19 @@
   .capture-menu button:hover {
     background: var(--surface-hover);
   }
-  /* The note-options window: a card anchored under the header's `＋`, not a dropdown list.
-     It is a child of the sticky header, so `top: 100%` drops it just below the header and it
-     tracks the `＋` on scroll — anchored to the scrollable panel it opened at the note's
-     unscrolled top instead (the "weird places" bug). */
+  /* The `＋`-options button and its window share one relative wrapper (the `.capture` shape),
+     so the window is positioned against the *button*, not the header edge. */
+  .options {
+    position: relative;
+    display: inline-flex;
+  }
+  /* The note-options window: a card anchored directly under the `＋`, not a dropdown list.
+     `left: 0` hangs it from the button's left edge, opening rightward, so it sits beside the `＋`
+     at any scroll offset — anchored to the header/panel it drifted to a corner of the pane (the
+     "weird places" bug). Clamped so a narrow phone pane never pushes it off-screen. */
   .options-window {
     position: absolute;
-    right: var(--space-3);
+    left: 0;
     top: calc(100% + 4px);
     z-index: 20;
     min-width: 13rem;
