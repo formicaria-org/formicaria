@@ -93,6 +93,28 @@ incremental `.view` polish to do on demand, not a speculative build.
   the process-hygiene memory: create/edit via the **server API** when it's live; only use the CLI on
   a stopped vault. This is why the demo notes above were made over `POST /api/*`, not the CLI.
 
+## A backup-bricking bug the demo notes exposed (`c75feec`)
+
+Consolidating the templates (create a few, delete a few via the API) paused history/backup:
+*"git add failed: pathspec 'notes/<id>.md' did not match any files."* Root cause: a note captured
+**and** deleted before the 5-second debounced auto-commit is in the batch `paths` (`FileStore`
+recorded both the write and the delete) yet is **neither on disk nor tracked**. `commit_all`
+(`git.rs`) stages the exact batch with `git add -A -- <paths>` — deliberately not a blanket `-A`, so
+it never sweeps a project vault's own work — and git rejects the *whole* batch on that one
+unnameable pathspec, so every other change is stuck too. **Files were never harmed** (`fm verify`:
+0 errors); a `git add -A && commit` in the vault unstuck it. Fix: filter the batch to paths git can
+name (tracked, or present on disk) before staging — a phantom has nothing to record. Regression test
+drives a phantom through `commit_all`.
+
+**Parity note:** the phone's `git_native.rs::commit_all` was already immune — its loop does
+`add_path` if the file exists, `remove_path` if it's tracked, **else skip**, so a phantom falls
+through. The libgit2 path had the right shape all along; the shell-git path was the outlier, and the
+fix makes `git.rs` match it. No phone change.
+
+**Operational reminder reinforced:** this surfaced because notes were created via the API in bursts;
+combined with the earlier reindex scare, the standing rule holds — mutate a live vault only through
+the server's own API and let *it* own the git, never a second writer.
+
 ## Commits
 `c62c1b6` header window + outside-click · `7b9403b` customization + XSS guards · `6ea1f98` embeds ·
 `86bc69b` backlinks · `75e2446` header options-window (first fix) + click-header-to-finish ·
