@@ -77,6 +77,34 @@
   // Transient success line (e.g. after a drag-drop copy). Auto-clears.
   let notice = $state<string | null>(null);
   let editing = $state(false);
+
+  // **Pure full-screen board.** A phone is small and Excalidraw's own floating tools already eat
+  // into it, so a board can fill the *entire* viewport — nothing but the canvas, no note header, no
+  // app chrome. Entering pushes a history state so the **phone's Back button** (which fires
+  // `popstate`) leaves full screen instead of the app; a small floating ✕ is the on-screen twin.
+  let boardFull = $state(false);
+  // Excalidraw sizes to its container; nudge it after the size changes so the canvas fills the new box.
+  async function nudgeResize() {
+    await tick();
+    window.dispatchEvent(new Event('resize'));
+  }
+  function enterBoardFull() {
+    boardFull = true;
+    try {
+      history.pushState({ boardFull: true }, '');
+    } catch {
+      /* no history (rare) — the ✕ still exits */
+    }
+    void nudgeResize();
+  }
+  // Both the Back button and the ✕ funnel through `history.back()`, so `popstate` is the single exit
+  // path — no double-pop, no dangling history entry.
+  function onPopState() {
+    if (boardFull) {
+      boardFull = false;
+      void nudgeResize();
+    }
+  }
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
@@ -211,6 +239,7 @@
   $effect(() => {
     note = null;
     editing = false;
+    boardFull = false; // opening a different note leaves any full-screen board
     revokeAssets();
     getNote(id)
       .then((n) => {
@@ -550,13 +579,40 @@
 
   // ---- Formatting toolbar ----
   //
-  // A **persistent** bar above the editor: Bold, Italic, Highlight, Code, Colour, Link, and a ¶ block
-  // menu. Each wraps the **selected bytes** in the right Markdown (or the closed-vocab `[…]{.token}`),
-  // byte-for-byte source — the answer to "who types `[x]{.warn}`". It is deliberately *not* a
-  // float-on-selection popup: on Android that popup is hidden behind the system Cut/Copy menu, so the
-  // bar stays put where the OS menu never covers it — select, then reach up and tap.
+  // Bold, Italic, Highlight, Code, Colour, Link, and a ¶ block menu. Each wraps the **selected
+  // bytes** in the right Markdown (or the closed-vocab `[…]{.token}`), byte-for-byte source.
+  //
+  // **Two presentations, by pointer.** Where a pointer is precise (a desktop mouse), the bar
+  // *floats above the selection* — a discrete presence that appears only when you select something,
+  // the way it should be. On **touch** (coarse pointer), it is a *persistent* row above the editor
+  // instead, because on Android the float hides behind the system Cut/Copy menu that pops over any
+  // selection. One set of actions, shown two ways.
+  const coarsePointer =
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(pointer: coarse)').matches
+      : false;
+  let fmtBar = $state<{ top: number; left: number } | null>(null); // float position — fine pointer only
   let colorOpen = $state(false);
   let blockOpen = $state(false);
+
+  // Position (or hide) the floating bar for the current selection. A no-op on touch, where the bar
+  // is always shown.
+  function onEditorSelect() {
+    if (coarsePointer) return;
+    const el = editorEl;
+    if (!el) return;
+    const s = el.selectionStart;
+    const e = el.selectionEnd;
+    if (s === e) {
+      fmtBar = null;
+      colorOpen = false;
+      blockOpen = false;
+      return;
+    }
+    const { top, left } = caretXY(el, s);
+    const BAR_H = 40;
+    fmtBar = { top: top - BAR_H < 0 ? top + 22 : top - BAR_H, left: clamp(left, 220, el.clientWidth) };
+  }
 
   // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
   async function wrapSel(before: string, after: string, placeholder = '') {
@@ -583,6 +639,7 @@
       el.selectionStart = s + before.length;
       el.selectionEnd = s + before.length + text.length;
     }
+    onEditorSelect();
   }
 
   // A link keeps the selected text as the label and drops the caret in an empty `()` to type the URL.
@@ -598,6 +655,7 @@
     el.focus();
     const caret = s + text.length + 3; // after "[text]("
     el.selectionStart = el.selectionEnd = caret;
+    fmtBar = null;
   }
 
   // Block formats work on whole lines: expand the selection to the lines it touches, transform each,
@@ -619,6 +677,7 @@
     el.focus();
     el.selectionStart = from;
     el.selectionEnd = from + out.length;
+    onEditorSelect();
   }
 
   // Set the heading level, replacing any marker already there (so H2 over an H1 line just re-levels).
@@ -651,6 +710,7 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 500);
     detectSlash();
+    onEditorSelect(); // typing replaces the selection → refresh/hide the float
   }
 
   async function save() {
@@ -1297,9 +1357,13 @@
   }
 </script>
 
-<svelte:window onkeydown={onPaneKey} />
+<svelte:window onkeydown={onPaneKey} onpopstate={onPopState} />
 
-<article class="panel" class:wide class:solo bind:this={paneEl}>
+<article class="panel" class:wide class:solo class:board-full={boardFull} bind:this={paneEl}>
+    {#if boardFull}
+      <!-- The only chrome in full-screen: a small floating exit. Back button does the same. -->
+      <button class="board-exit" onclick={() => history.back()} aria-label="exit full screen" title="Exit full screen (or press Back)">✕</button>
+    {/if}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <header
@@ -1392,8 +1456,13 @@
           bind:this={captureEl}
           onchange={onCaptured} />
       {/if}
-      <button class="icon-toggle" onclick={ontogglewide} aria-pressed={wide} aria-label="toggle full screen" title={wide ? 'Exit full screen' : 'Full screen'}>
-        {wide ? '⤡' : '⤢'}
+      <button
+        class="icon-toggle"
+        onclick={isBoard ? enterBoardFull : ontogglewide}
+        aria-pressed={isBoard ? boardFull : wide}
+        aria-label="full screen"
+        title={isBoard ? 'Full screen board (Back to exit)' : wide ? 'Exit full screen' : 'Full screen'}>
+        {isBoard ? '⛶' : wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
           </div>
@@ -1562,12 +1631,7 @@
         <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
       {:else if editing}
         <div class="editor-wrap">
-          <!-- A **persistent** formatting bar, above the editor. Not a float-on-selection popup: on
-               Android that popup hides behind the system Cut/Copy menu, so this stays put where the
-               OS menu never covers it — select text, then reach up and tap. `pointerdown` is prevented
-               so a button press keeps the textarea's selection (the whole trick). Scrolls sideways on
-               a narrow phone rather than wrapping. -->
-          <div class="fmt-bar" role="toolbar" tabindex="-1" aria-label="format text" onpointerdown={(e) => e.preventDefault()}>
+          {#snippet fmtButtons()}
             <button class="fmt-btn" title="Bold" aria-label="bold" onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button>
             <button class="fmt-btn" title="Italic" aria-label="italic" onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button>
             <button class="fmt-btn" title="Highlight" aria-label="highlight" onclick={() => wrapSel('==', '==', 'text')}>==</button>
@@ -1597,16 +1661,26 @@
                 </ul>
               {/if}
             </div>
-          </div>
+          {/snippet}
+          {#if coarsePointer}
+            <!-- Touch: a persistent bar above the editor — the float would hide behind Android's
+                 system Cut/Copy menu. `pointerdown` prevented so a press keeps the selection. -->
+            <div class="fmt-bar fmt-bar-static" role="toolbar" tabindex="-1" aria-label="format text" onpointerdown={(e) => e.preventDefault()}>
+              {@render fmtButtons()}
+            </div>
+          {/if}
           <textarea
             class="editor"
             bind:this={editorEl}
             bind:value={draft}
             oninput={onInput}
             onkeydown={onEditorKeydown}
+            onselect={onEditorSelect}
+            onmouseup={onEditorSelect}
+            onkeyup={onEditorSelect}
             ondragover={onDragOver}
             ondrop={onDrop}
-            onblur={() => setTimeout(closeSlash, 120)}
+            onblur={() => setTimeout(() => { closeSlash(); fmtBar = null; }, 120)}
             spellcheck="false"
             aria-label="note body (Markdown)"
           ></textarea>
@@ -1641,6 +1715,19 @@
                 {/if}
               </li>
             </ul>
+          {/if}
+          {#if !coarsePointer && fmtBar && !slash.open}
+            <!-- Desktop: a discrete bar that floats above the selection, only while text is selected. -->
+            <div
+              class="fmt-bar fmt-bar-float"
+              role="toolbar"
+              tabindex="-1"
+              aria-label="format selection"
+              style="top: {fmtBar.top}px; left: {fmtBar.left}px"
+              onpointerdown={(e) => e.preventDefault()}
+            >
+              {@render fmtButtons()}
+            </div>
           {/if}
         </div>
         <p class="editor-hint">
@@ -1816,6 +1903,43 @@
      when wide); a second pane joining makes them fall back to their own width and scroll. */
   .panel.solo {
     width: 100%;
+  }
+  /* Pure full-screen board: the pane covers the whole viewport, over all app chrome — nothing but
+     the canvas. The note header is hidden; only the floating ✕ (and the Back button) remain. */
+  .panel.board-full {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    width: 100vw;
+    height: 100%;
+    height: 100dvh; /* excludes the phone's URL/nav bars where supported */
+    max-width: none;
+    overflow: hidden;
+    box-shadow: none;
+    animation: none;
+  }
+  .panel.board-full > header {
+    display: none;
+  }
+  .board-exit {
+    position: fixed;
+    top: max(env(safe-area-inset-top, 0px), var(--space-2));
+    right: max(env(safe-area-inset-right, 0px), var(--space-2));
+    z-index: 210;
+    display: grid;
+    place-items: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-elevated);
+    color: var(--text);
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0.85;
+  }
+  .board-exit:hover {
+    opacity: 1;
   }
   @keyframes sheet-in {
     from {
@@ -2248,21 +2372,30 @@
   .slash-menu.embedding {
     border-color: var(--accent);
   }
-  /* The formatting toolbar: a persistent row above the editor (not a float-on-selection popup, which
-     Android hides behind the system Cut/Copy menu). Scrolls sideways on a narrow phone. */
+  /* The formatting toolbar. Two presentations share this base: a discrete float on desktop, a
+     persistent row on touch. Kept small — a discrete presence, never a big band across the editor. */
   .fmt-bar {
     display: flex;
     align-items: center;
     gap: 1px;
-    margin-bottom: var(--space-1);
     padding: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
     background: var(--surface-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
   }
-  .fmt-bar::-webkit-scrollbar {
+  /* Desktop: floats above the selection, only while selecting. */
+  .fmt-bar-float {
+    position: absolute;
+    z-index: 55;
+    box-shadow: var(--shadow-md);
+  }
+  /* Touch: a persistent strip above the editor; scrolls sideways on a narrow phone. */
+  .fmt-bar-static {
+    margin-bottom: var(--space-1);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fmt-bar-static::-webkit-scrollbar {
     display: none;
   }
   .fmt-btn {
