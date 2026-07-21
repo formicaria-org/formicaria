@@ -108,7 +108,11 @@ title and status, so you can see what a note points at without opening it. A
 reference whose note no longer exists shows as a dashed placeholder rather than
 disappearing.
 
-**Embed a whole note** by writing the reference as an image — `![](note:<id>)`.
+**Embed a whole note** straight from the `/` menu: search, then press
+**Shift+Enter** (or Shift-click) instead of Enter — where Enter inserts a chip
+link, Shift+Enter inserts an **embed**. The menu shows the hint. Under the hood an
+embed is just the reference written as an image — `![](note:<id>)` — so you can also
+type it by hand, or turn an existing link into an embed by adding a `!` in front.
 Instead of a chip, the target note's content is rendered **inline**, in a card, so
 a hub note can pull several others together on one screen. It is always the whole
 note (never a fragment — the file is the unit), a missing target degrades to a

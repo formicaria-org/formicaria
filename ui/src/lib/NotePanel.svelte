@@ -721,6 +721,14 @@
     return meta.type === 'asset' ? assetRef(meta) : noteRef(meta);
   }
 
+  // The embed form of a note reference — image syntax on the `note:` scheme, so the target renders
+  // inline instead of as a chip (`resolveEmbeds` in render.ts). The title rides along as the alt so
+  // a missing target still degrades to a labelled placeholder. Assets are already `![…](asset:…)`,
+  // so an embed request on one is just its ordinary ref.
+  function embedFor(meta: ObjectMeta): string {
+    return meta.type === 'asset' ? assetRef(meta) : `![${escapeLabel(meta.title ?? 'note')}](note:${meta.id})`;
+  }
+
   function onDragOver(e: DragEvent) {
     if (e.dataTransfer?.types.includes('Files')) {
       e.preventDefault();
@@ -834,8 +842,10 @@
       e.preventDefault();
       slash = { ...slash, active: (slash.active - 1 + slash.results.length) % slash.results.length };
     } else if (e.key === 'Enter') {
+      // Enter inserts a chip link; Shift+Enter inserts an inline embed. preventDefault stops the
+      // textarea's own newline — but only while the menu is open (we returned early otherwise).
       e.preventDefault();
-      chooseSlash(slash.results[slash.active]);
+      chooseSlash(slash.results[slash.active], e.shiftKey);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       closeSlash();
@@ -894,11 +904,12 @@
   function closeSlash() {
     if (slash.open) slash = { ...slash, open: false, results: [] };
   }
-  async function chooseSlash(meta: ObjectMeta) {
+  // `embed` (Shift+Enter / Shift-click) inserts the inline-embed form instead of a chip link.
+  async function chooseSlash(meta: ObjectMeta, embed = false) {
     const el = editorEl;
     if (!el) return;
     const caret = el.selectionStart;
-    const ref = refFor(meta);
+    const ref = embed ? embedFor(meta) : refFor(meta);
     draft = draft.slice(0, slash.from) + ref + draft.slice(caret);
     closeSlash();
     onInput();
@@ -1191,7 +1202,7 @@
             <ul
               class="slash-menu"
               role="listbox"
-              aria-label="insert a link"
+              aria-label="insert a link or embed"
               style="top: {slash.at.top}px; left: {slash.at.left}px"
             >
               {#each slash.results as r, i (r.id)}
@@ -1201,19 +1212,22 @@
                   class:active={i === slash.active}
                   onmousedown={(e) => {
                     e.preventDefault();
-                    chooseSlash(r);
+                    chooseSlash(r, e.shiftKey);
                   }}
                 >
                   <span class="slash-type" data-type={r.type}>{r.type}</span>
                   <span class="slash-title">{r.title ?? r.preview}</span>
                 </li>
               {/each}
+              <li class="slash-hint" aria-hidden="true">
+                <kbd>↵</kbd> link · <kbd>⇧↵</kbd> embed
+              </li>
             </ul>
           {/if}
         </div>
         <p class="editor-hint">
-          Drag files in to attach · type <kbd>/</kbd> to link a note or asset ·
-          <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
+          Drag files in to attach · type <kbd>/</kbd> to link a note or asset
+          (<kbd>⇧</kbd> to embed) · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
         </p>
       {:else}
         <!-- Chips are built by render.ts, so one delegated listener beats
@@ -1800,6 +1814,21 @@
   .slash-title {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* A non-interactive footer teaching the one modifier: Enter links, Shift+Enter embeds. */
+  .slash-hint {
+    cursor: default;
+    margin-top: var(--space-1);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--border);
+    color: var(--text-subtle);
+    font-size: var(--text-xs);
+  }
+  .slash-hint:hover {
+    background: none;
+  }
+  .slash-hint kbd {
+    font-size: inherit;
   }
   /* ── Discussion ─────────────────────────────────────────────────────────────────────
      Deliberately quieter than the note body: this is commentary *about* the note, and it

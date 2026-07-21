@@ -476,4 +476,28 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(fromTemplate);
     expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
   });
+
+  // The `/` menu inserts a chip link on Enter and an inline embed on Shift+Enter — the modifier
+  // is the only way to reach an embed from the picker, so it's the wiring worth proving.
+  it('the / menu inserts an embed (not a link) on Shift+Enter', async () => {
+    render(App);
+    // Wait on a unique control, not note text: earlier tests may have left a note open whose body
+    // repeats a card's text, which would make a text match ambiguous.
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+
+    // Open the / menu: "/reviewer" with the caret at the end so the token is detected. The seeded
+    // "Reply to reviewer 2" note is the FTS hit.
+    body.value = '/reviewer';
+    body.selectionStart = body.selectionEnd = body.value.length;
+    await fireEvent.input(body, { target: { value: '/reviewer' } });
+    await screen.findByRole('option', { name: /reviewer/i });
+
+    // Shift+Enter → the embed form (image syntax `![…](note:…)`), not a chip link `[…](note:…)`.
+    await fireEvent.keyDown(body, { key: 'Enter', shiftKey: true });
+    await waitFor(() =>
+      expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
+    );
+  });
 });
