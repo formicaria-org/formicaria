@@ -133,6 +133,9 @@ test = "cargo test --workspace"
 fetch-model = "bash agents/fetch.sh"
 # Serve the fetched model as a warm, localhost-only llama-server the agent talks to (Ctrl-C stops it).
 serve-model = "bash agents/serve.sh"
+# Serve the model TIED to formicaria's life: it stops when fm-serve stops answering (model on with
+# the app, off with it — no orphan). Watches fm-serve on :8765 by default.
+agent-serve = "bash agents/agent-serve.sh"
 # Invoke the study assistant: propose an edit to one note (never main). Needs a served model.
 #   pixi run agent-propose -- --vault . --note <ULID> --ask "..." [--search "..."] [--input <ULID>]
 agent-propose = "cargo run -q -p fm-agent-run --bin fm-agent-run --"
