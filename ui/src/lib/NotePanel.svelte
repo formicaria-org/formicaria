@@ -520,6 +520,19 @@
     editing = !editing;
   }
 
+  // Leaving the editor should feel like putting the pen down, not hunting for a "Done" button:
+  // clicking the header chrome — the title and the note's identity line — flushes the draft and
+  // drops back to the read view, the same as Ctrl+S or Escape. An intuitive trigger beats an
+  // explicit command. Only the header's own controls keep their meaning (the ＋ options and its
+  // window, ＋ Media, full-screen, close); everything else in the header is "done".
+  function onHeaderClick(e: MouseEvent) {
+    if (!editing) return;
+    if ((e.target as HTMLElement | null)?.closest('button, input, a, select, .capture, .options-window')) {
+      return;
+    }
+    void toggleEdit();
+  }
+
   // Double-click the read view to edit it — there is no Edit button any more.
   async function startEdit(e: MouseEvent) {
     // Skip the targets that already mean something: a reference chip navigates, a
@@ -899,7 +912,12 @@
 <svelte:window onkeydown={onPaneKey} />
 
 <article class="panel" class:wide class:solo bind:this={paneEl}>
-    <header>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <header
+      class:editing={!!(note && editing)}
+      onclick={onHeaderClick}
+      title={note && editing ? 'Click here (or press Ctrl+S / Esc) to finish editing' : undefined}>
       <!-- **The title gets its own line.** It used to share one flex row with the vault badge,
            the last editor, the status chip and every action button, so a title of any real
            length was squeezed into whatever those left over — unreadable on a narrow pane and
@@ -958,11 +976,12 @@
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
           </div>
-    </header>
     {#if optionsOpen && note}
-      <!-- The options *window*: a card, not a dropdown. Dismissed by tapping/clicking outside,
-           Escape, or its ✕ — identically on a phone and a laptop. Each action closes it, so it and
-           a popover are never both open. Edit reveals the property form (the fine refinement). -->
+      <!-- The options *window*: a card, not a dropdown. It lives **inside** the sticky header so it
+           opens under the `＋` no matter how far the note is scrolled — anchored to the panel it
+           drifted to the note's unscrolled top. Dismissed by tapping/clicking outside, Escape, or
+           its ✕ — identically on a phone and a laptop. Each action closes it, so it and a popover
+           are never both open. Edit reveals the property form (the fine refinement). -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="options-window"
@@ -989,6 +1008,7 @@
         <button class="opt danger" onclick={() => { optionsOpen = false; confirmingDelete = true; }}>Delete</button>
       </div>
     {/if}
+    </header>
     {#if confirmingDelete}
       <div class="confirm" role="alertdialog" aria-label="confirm delete">
         <span>Delete this note permanently? This can't be undone.</span>
@@ -1369,6 +1389,13 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
   }
+  /* While editing, the header doubles as "Done": clicking its chrome (title, identity line —
+     anything but a control) flushes the draft and returns to the read view, the intuitive twin
+     of Ctrl+S / Esc. The accent underline is the mode signal; the pointer cursor the invitation. */
+  header.editing {
+    cursor: pointer;
+    border-bottom-color: var(--accent);
+  }
   .title-row {
     display: flex;
     align-items: baseline;
@@ -1543,11 +1570,14 @@
   .capture-menu button:hover {
     background: var(--surface-hover);
   }
-  /* The note-options window: a card anchored under the header's `＋`, not a dropdown list. */
+  /* The note-options window: a card anchored under the header's `＋`, not a dropdown list.
+     It is a child of the sticky header, so `top: 100%` drops it just below the header and it
+     tracks the `＋` on scroll — anchored to the scrollable panel it opened at the note's
+     unscrolled top instead (the "weird places" bug). */
   .options-window {
     position: absolute;
     right: var(--space-3);
-    top: 3.4rem;
+    top: calc(100% + 4px);
     z-index: 20;
     min-width: 13rem;
     max-width: min(20rem, 88vw);

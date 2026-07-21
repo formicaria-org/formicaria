@@ -16,12 +16,16 @@ these buttons chooses which vault the new file lands in.
 ## Editing a note
 
 Click any card to open it. It shows the rendered read view. To edit it, either
-click **Edit** in the header or **double-click anywhere in the note** — the
-shortcut saves you the trip to the header, and both land in the same place.
-**Ctrl+S** saves and drops you back to the read view, as does Escape or the
-**Done** button (your typing is autosaved either way). Double-clicking a
-reference chip, a link, or embedded media does what that element does instead of
+open the header's **＋ options** window and pick **Edit**, or — quicker —
+**double-click anywhere in the note**; both land in the same place. Double-clicking
+a reference chip, a link, or embedded media does what that element does instead of
 opening the editor.
+
+**To finish, click the header** — the title and the note's identity line turn into
+a "done" target while you edit (an accent underline and a pointer cursor mark it),
+so putting the pen down is a tap where your eye already is, not a hunt for a button.
+**Ctrl+S** and **Escape** do the same. Your typing is autosaved either way, so none
+of these can lose work.
 
 The editor also gives you a **properties form**:
 

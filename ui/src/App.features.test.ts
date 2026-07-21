@@ -437,4 +437,22 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByLabelText('close')).toBeNull());
   });
+
+  // Leaving the editor is an intuitive gesture, not a hunt for a "Done" button: clicking the
+  // header chrome (the note's title / identity line — anything but a control) flushes the draft
+  // and drops back to the read view, the twin of Ctrl+S / Escape. Runs on a throwaway note so it
+  // neither depends on nor perturbs the shared seed.
+  it('clicking the header while editing returns to the read view', async () => {
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+
+    await runCommand('New note', 'create');
+    await screen.findByLabelText('note body (Markdown)'); // opens straight in edit mode
+
+    // The title in the header is not a control, so a click on it means "done".
+    await fireEvent.click(screen.getByRole('heading', { level: 2 }));
+    await waitFor(() =>
+      expect(screen.queryByLabelText('note body (Markdown)')).toBeNull(),
+    );
+  });
 });
