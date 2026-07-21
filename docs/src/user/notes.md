@@ -90,6 +90,13 @@ title and status, so you can see what a note points at without opening it. A
 reference whose note no longer exists shows as a dashed placeholder rather than
 disappearing.
 
+**Embed a whole note** by writing the reference as an image — `![](note:<id>)`.
+Instead of a chip, the target note's content is rendered **inline**, in a card, so
+a hub note can pull several others together on one screen. It is always the whole
+note (never a fragment — the file is the unit), a missing target degrades to a
+placeholder, and a note that embeds itself (or a loop) stops with a small marker
+rather than recursing forever.
+
 **Click a chip** and that note opens in a pane to the right, with the note you
 came from still on screen — follow a chain and the whole trail stays visible, so
 you can see the path you took. Closing a pane also closes everything to its

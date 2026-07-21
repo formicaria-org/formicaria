@@ -308,6 +308,24 @@ body {
 .read .callout-quote {
   border-left-color: var(--muted);
 }
+/* A `![alt](note:id)` embed: the target note's body rendered inline in a bordered card. */
+.read .note-embed {
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.read .note-embed-title {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+.read .note-embed-cycle {
+  color: var(--muted);
+  font-style: italic;
+}
 .read img {
   max-width: 100%;
   border-radius: var(--radius-md);

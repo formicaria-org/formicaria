@@ -465,3 +465,35 @@ describe('renderInto — decorative extensions (highlight, colour, callout)', ()
     expect(el.innerHTML).not.toContain('onerror');
   });
 });
+
+describe('renderInto — note embeds (transclusion)', () => {
+  const ID = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+
+  it('inlines the target note body for ![alt](note:id)', async () => {
+    const el = pane();
+    const resolveEmbed = async (id: string) =>
+      id === ID ? { title: 'Target', body: 'embedded **body**' } : null;
+    await renderInto(el, `see ![](note:${ID})`, noAsset, undefined, resolveEmbed);
+    const embed = el.querySelector('.note-embed');
+    expect(embed).not.toBeNull();
+    expect(embed?.querySelector('.note-embed-title')?.textContent).toBe('Target');
+    // The embedded body was rendered as Markdown, not dumped as text.
+    expect(embed?.querySelector('strong')?.textContent).toBe('body');
+  });
+
+  it('shows a placeholder for a missing embed target, keeping its label', async () => {
+    const el = pane();
+    const resolveEmbed = async () => null;
+    await renderInto(el, `![the plan](note:${ID})`, noAsset, undefined, resolveEmbed);
+    expect(el.querySelector('.note-embed')).toBeNull();
+    expect(el.querySelector('.note-missing-inline')?.textContent).toBe('the plan');
+  });
+
+  it('stops a cycle (a note embedding itself) with a marker instead of hanging', async () => {
+    const el = pane();
+    const resolveEmbed = async (id: string) => ({ title: 't', body: `loop ![](note:${id})` });
+    await renderInto(el, `![](note:${ID})`, noAsset, undefined, resolveEmbed);
+    expect(el.querySelector('.note-embed')).not.toBeNull(); // rendered one level
+    expect(el.querySelector('.note-embed-cycle')).not.toBeNull(); // then refused to recurse
+  });
+});

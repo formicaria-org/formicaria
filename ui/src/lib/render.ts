@@ -128,6 +128,15 @@ export interface ResolvedNote {
 }
 export type NoteResolver = (id: string) => Promise<ResolvedNote | null>;
 
+/** What a `![alt](note:id)` **embed** needs: the target's title and its raw body, rendered inline
+ *  (transclusion). Whole-note only — an embed is a *file*, never a block, so it never needs the
+ *  per-block ids that would change the atom (MASTERPLAN:110). */
+export interface ResolvedEmbed {
+  title: string | null;
+  body: string;
+}
+export type EmbedResolver = (id: string) => Promise<ResolvedEmbed | null>;
+
 /** Render `body` into `el`, then upgrade math, diagrams, asset images, and
  *  `note:` references. `resolveNote` is optional: without it a note reference
  *  stays the plain link marked produced, which is what the unit tests and any
@@ -137,6 +146,9 @@ export async function renderInto(
   body: string,
   resolveAsset: AssetResolver,
   resolveNote?: NoteResolver,
+  resolveEmbed?: EmbedResolver,
+  depth = 0,
+  seen: Set<string> = new Set(),
 ): Promise<void> {
   // Math is pulled out of the source *before* Markdown so the parser can never
   // mangle a formula (underscores, backslashes, asterisks) and a stray `$` can't
@@ -150,8 +162,65 @@ export async function renderInto(
   el.innerHTML = sanitize(marked.parse(text, { async: false, gfm: true }) as string); // sink-ok: DOMPurify-sanitized
   await resolveAssets(el, resolveAsset);
   if (resolveNote) await resolveNotes(el, resolveNote);
+  if (resolveEmbed) await resolveEmbeds(el, resolveAsset, resolveNote, resolveEmbed, depth, seen);
   await renderMath(el, math);
   await renderMermaid(el);
+}
+
+/** The most a `![](note:…)` embed may nest before it stops recursing — a hand-built chain of
+ *  embeds must not push the pane off the side of the screen or (with a cycle) never terminate. */
+const MAX_EMBED_DEPTH = 3;
+
+/** Resolve `![alt](note:id)` embeds — a `<img src="note:…">` marked produced — into the target
+ *  note's **rendered body**, inline. Mirrors `resolveAssets`/`resolveNotes` (recognise the scheme
+ *  after sanitize), but recurses: the embedded body is rendered by `renderInto` again, so it is
+ *  sanitized at its own level and its own chips/assets/embeds resolve too. `seen` (the ancestor
+ *  ids) plus `MAX_EMBED_DEPTH` make a cycle (`a` embeds `b` embeds `a`) or a very deep chain
+ *  terminate with a visible marker rather than a hang — the same defensive stance the thread
+ *  reader takes with `reply_to`. A missing target degrades to a placeholder keeping its label. */
+async function resolveEmbeds(
+  el: HTMLElement,
+  resolveAsset: AssetResolver,
+  resolveNote: NoteResolver | undefined,
+  resolveEmbed: EmbedResolver,
+  depth: number,
+  seen: Set<string>,
+): Promise<void> {
+  const imgs = Array.from(el.querySelectorAll('img'));
+  for (const img of imgs) {
+    const src = img.getAttribute('src') ?? '';
+    if (!src.startsWith('note:')) continue;
+    const id = src.slice('note:'.length);
+    const label = img.getAttribute('alt') ?? '';
+    if (depth >= MAX_EMBED_DEPTH || seen.has(id)) {
+      const ph = document.createElement('span');
+      ph.className = 'note-embed-cycle';
+      ph.textContent = label || `↪ ${id}`;
+      img.replaceWith(ph);
+      continue;
+    }
+    const embed = await resolveEmbed(id).catch(() => null);
+    if (!embed) {
+      const ph = document.createElement('span');
+      ph.className = 'note-missing-inline';
+      ph.textContent = label || 'note not available';
+      img.replaceWith(ph);
+      continue;
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'note-embed';
+    const head = document.createElement('div');
+    head.className = 'note-embed-title';
+    // Title is user text — textContent, never innerHTML.
+    head.textContent = label || embed.title || id;
+    wrap.appendChild(head);
+    const bodyEl = document.createElement('div');
+    wrap.appendChild(bodyEl);
+    const nextSeen = new Set(seen);
+    nextSeen.add(id);
+    await renderInto(bodyEl, embed.body, resolveAsset, resolveNote, resolveEmbed, depth + 1, nextSeen);
+    img.replaceWith(wrap);
+  }
 }
 
 export interface MathSpan {

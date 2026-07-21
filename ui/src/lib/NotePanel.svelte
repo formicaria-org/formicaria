@@ -19,7 +19,13 @@
     reply as ipcReply,
     thread as ipcThread,
   } from './ipc';
-  import { renderInto, type AssetFailure, type ResolvedAsset, type ResolvedNote } from './render';
+  import {
+    renderInto,
+    type AssetFailure,
+    type ResolvedAsset,
+    type ResolvedNote,
+    type ResolvedEmbed,
+  } from './render';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
@@ -227,7 +233,7 @@
   $effect(() => {
     if (note && content && !editing) {
       revokeAssets();
-      renderInto(content, note.body, resolveAsset, resolveNote).catch((e) => (error = String(e)));
+      renderInto(content, note.body, resolveAsset, resolveNote, resolveEmbed).catch((e) => (error = String(e)));
     }
   });
 
@@ -238,6 +244,13 @@
   async function resolveNote(refId: string): Promise<ResolvedNote | null> {
     const n = await getNote(refId);
     return n && { id: n.id, type: n.type, title: n.title, status: n.status };
+  }
+
+  // A `![alt](note:id)` embed needs the target's body to render it inline. `get` returns it; the
+  // recursion depth/cycle guard lives in render.ts. A missing target degrades to a placeholder.
+  async function resolveEmbed(refId: string): Promise<ResolvedEmbed | null> {
+    const n = await getNote(refId).catch(() => null);
+    return n && { title: n.title, body: n.body };
   }
 
   // One delegated listener for every chip in the pane — chips are created by
