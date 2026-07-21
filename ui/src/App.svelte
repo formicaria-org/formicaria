@@ -40,6 +40,7 @@
   } from './lib/ipc';
   import { setActivity, lastEditFor, contributors } from './lib/activity.svelte';
   import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
+  import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
   import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
@@ -584,9 +585,10 @@
       const phase = await pullVault(v, refresh);
       if (phase === 'conflicts') {
         const s = syncFor(v);
+        const names = (await conflictLabels(s.conflicts)).join(', ');
         notice =
           `'${v}': ${s.conflicts.length} note(s) came back with conflicting edits — ` +
-          `they still open, with both versions marked in the body: ${s.conflicts.join(', ')}`;
+          `they still open, with both versions marked in the body. Open ${names} and merge the two.`;
       } else if (phase === 'failed') {
         report(syncFor(v).error ?? `could not pull '${v}'`);
       }

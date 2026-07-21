@@ -22,6 +22,7 @@
   import { onMount } from 'svelte';
   import { backup, backupStatus, commit, pull, setGitRemote } from './ipc';
   import { syncVault, syncFor } from './sync.svelte';
+  import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import type { BackupStatus, VaultStatus } from './types';
 
@@ -126,7 +127,7 @@
         // Not an early return: `busy = false` lives after this block, not in a `finally`,
         // so returning here would leave the panel frozen.
         steps.push({
-          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${c!.conflicts.join(', ')}. Nothing is being committed until they are settled — open each one, both versions are marked in the text.`,
+          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Nothing is being committed until they are settled — open each one, both versions are marked in the text.`,
           ok: false,
         });
       }
@@ -135,7 +136,7 @@
         // nothing further to report; the line above is the answer
       } else if (r.conflicts.length) {
         steps.push({
-          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${r.conflicts.join(', ')}. Open each one — both versions are marked in the text.`,
+          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${(await conflictLabels(r.conflicts)).join(', ')}. Open each one — both versions are marked in the text.`,
           ok: false,
         });
       } else if (r.merged) {
@@ -197,7 +198,7 @@
         steps.push({
           text:
             `Notes${of(v)} NOT pushed — ${s.conflicts.length} note(s) came back with ` +
-            `conflicting edits and need you first: ${s.conflicts.join(', ')}`,
+            `conflicting edits and need you first: ${(await conflictLabels(s.conflicts)).join(', ')}`,
           ok: false,
         });
         stuck.push(v.name);
