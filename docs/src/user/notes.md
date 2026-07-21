@@ -108,6 +108,16 @@ title and status, so you can see what a note points at without opening it. A
 reference whose note no longer exists shows as a dashed placeholder rather than
 disappearing.
 
+**Places & maps.** A `geo:` link opens a place in your device's own map app —
+`[tap to open](geo:1.2807,103.8720)` (latitude, longitude). formicaria loads no
+map itself (nothing phones home — the app stays true to that); the link just hands
+the coordinates to Google Maps / OSMand / Apple Maps. Ordinary
+`https://openstreetmap.org/…` links work too and open in a browser. The **Place**
+template pairs both, so a saved spot is one tap from directions. An in-app
+interactive map is deliberately *not* provided: live tiles would mean the app
+reaching out to a server on every note you open, which is exactly what formicaria
+refuses to do.
+
 **Embed a whole note** straight from the picker. Two ways in, so it works on a phone
 as well as a keyboard:
 

@@ -98,8 +98,13 @@ marked.use({
 // those three, and nothing else. (The `<span data-math>` placeholders survive for free —
 // span + data-* are allowed by default.) These schemes are inert in a browser and are fully
 // replaced before display, so allowing them adds no sink.
+//
+// `geo:` is allowed too, but for a different reason: it is a *terminal* link, not a pipeline
+// placeholder — `geo:<lat>,<lon>` (RFC 5870) hands a place's coordinates to the OS map app on
+// click. It runs no script and, crucially, formicaria fetches nothing for it (the no-phone-home
+// line holds — the handoff is the OS's, not ours), so it is as inert as `tel:`/`mailto:`.
 const URI_ALLOWED =
-  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|note|asset|sha256):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo|note|asset|sha256):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: URI_ALLOWED });

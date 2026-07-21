@@ -278,6 +278,21 @@ describe('renderInto — characterization of the real sample note', () => {
     expect(el.querySelector('img[src^="asset:"]')).toBeNull();
   });
 
+  // `geo:` is allowed so a place's coordinates open the OS map app — but only `geo:`, not the
+  // dangerous schemes. This pins both halves: the useful one survives, the script one dies.
+  it('keeps geo: links but still strips javascript:', async () => {
+    const el = pane();
+    await renderInto(
+      el,
+      '[map](geo:1.2807,103.8720) and [x](javascript:alert(1))',
+      noAsset,
+    );
+    expect(el.querySelector('a[href^="geo:"]')?.getAttribute('href')).toBe('geo:1.2807,103.8720');
+    // The javascript: URL must not survive as an href — sanitize drops it.
+    expect(el.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(el.innerHTML).not.toContain('javascript:');
+  });
+
   // The other half of the trap: the math/diagram pipeline runs in passes AFTER sanitize, on
   // placeholders sanitize must keep. If DOMPurify ate the `<span data-math>` or the mermaid
   // code block, math and diagrams would silently stop rendering. Assert both survive and both
