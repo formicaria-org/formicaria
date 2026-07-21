@@ -27,6 +27,7 @@
     type ResolvedNote,
     type ResolvedEmbed,
   } from './render';
+  import { CALLOUT_TYPES } from './render-vocab';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
@@ -239,23 +240,28 @@
     if (note && content && !editing) {
       revokeAssets();
       renderInto(content, note.body, resolveAsset, resolveNote, resolveEmbed)
-        .then(enableTasks)
+        .then(enableReadWidgets)
         .catch((e) => (error = String(e)));
     }
   });
 
-  // GFM renders `- [ ]` as a *disabled* checkbox — inert. Enable this note's own boxes so a tap can
-  // toggle them (a decided feature: an interactive toggle that rewrites the body bytes, no id).
-  // **Embedded notes' boxes stay disabled** — `![](note:id)` renders another file's atom inline, and
-  // it is read-only here; its owner toggles it in its own pane. This is also what keeps the tap→
-  // source ordinal counting only *our* boxes.
-  function enableTasks() {
+  // Make this note's own read-view widgets interactive after each render. **Embedded notes' widgets
+  // stay inert** — `![](note:id)` renders another file's atom inline; it is read-only here (its owner
+  // edits it in its own pane), and excluding it is what keeps the tap→source ordinals counting only
+  // *our* elements.
+  function enableReadWidgets() {
     if (!content) return;
+    // GFM renders `- [ ]` as a *disabled* checkbox — enable ours so a tap flips the body byte.
     for (const box of content.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
       if (box.closest('.note-embed')) continue;
       box.disabled = false;
       box.classList.add('task-toggle');
       box.closest('li')?.classList.toggle('task-done', box.checked); // strike done items on load
+    }
+    // A callout's type badge becomes a picker handle on ours (embedded callouts stay a plain label).
+    for (const kind of content.querySelectorAll<HTMLElement>('.callout-kind')) {
+      if (kind.closest('.note-embed')) continue;
+      kind.classList.add('pickable');
     }
   }
 
@@ -284,6 +290,12 @@
       // We drive `checked` from the source we patch, not the browser's default toggle.
       e.preventDefault();
       toggleTask(box);
+      return;
+    }
+    const kind = el?.closest<HTMLElement>('.callout-kind');
+    if (kind && !kind.closest('.note-embed')) {
+      e.preventDefault();
+      openCalloutPicker(kind);
       return;
     }
     const chip = el?.closest<HTMLElement>('.note-chip');
@@ -329,6 +341,61 @@
     draft = draft.slice(0, at) + (checked ? ' ' : 'x') + draft.slice(at + 1);
     box.checked = !checked;
     box.closest('li')?.classList.toggle('task-done', !checked);
+    void saveTask();
+  }
+
+  // The callout-type picker. `at` anchors a small menu under the tapped type badge; `el`/`idx` say
+  // which callout the pick rewrites. The vocabulary is the closed `CALLOUT_TYPES` — data SELECTS a
+  // type from a fixed set, it never supplies one (the no-plugin-API line).
+  let calloutPick = $state<{ el: HTMLElement; idx: number; top: number; left: number } | null>(null);
+  const CALLOUT_OPTIONS = CALLOUT_TYPES;
+
+  // The `[!type]` token span of each valid callout, in document order, skipping fenced code —
+  // exactly the callouts `marked` renders, so the Nth here is the Nth in the read view.
+  function calloutTypePositions(src: string): { at: number; len: number }[] {
+    const out: { at: number; len: number }[] = [];
+    let fenced = false;
+    let offset = 0;
+    for (const line of src.split('\n')) {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+      } else if (!fenced) {
+        const m = /^> \[!([a-z]+)\]/.exec(line);
+        if (m && (CALLOUT_TYPES as readonly string[]).includes(m[1])) {
+          out.push({ at: offset + m[0].indexOf('[!') + 2, len: m[1].length });
+        }
+      }
+      offset += line.length + 1;
+    }
+    return out;
+  }
+
+  function openCalloutPicker(kindEl: HTMLElement) {
+    if (!note || editing || !content) return;
+    const callouts = [...content.querySelectorAll<HTMLElement>('.callout')].filter(
+      (c) => !c.closest('.note-embed'),
+    );
+    const idx = callouts.indexOf(kindEl.closest('.callout') as HTMLElement);
+    if (idx < 0) return;
+    const r = kindEl.getBoundingClientRect();
+    calloutPick = { el: kindEl, idx, top: r.bottom + 4, left: r.left };
+  }
+
+  // Rewrite the tapped callout's `[!type]` to the chosen kind, in place (swap the class + label, no
+  // whole-note re-render), and persist the one-token source change.
+  function pickCallout(kind: string) {
+    const pick = calloutPick;
+    calloutPick = null;
+    if (!pick || !note) return;
+    const positions = calloutTypePositions(draft);
+    if (pick.idx >= positions.length) return; // ordinal drift — bail rather than mis-edit
+    const { at, len } = positions[pick.idx];
+    if (draft.slice(at, at + len) === kind) return; // no change
+    draft = draft.slice(0, at) + kind + draft.slice(at + len);
+    const callout = pick.el.closest('.callout');
+    if (callout) callout.className = `callout callout-${kind}`;
+    pick.el.textContent = kind;
+    pick.el.dataset.kind = kind;
     void saveTask();
   }
 
@@ -1443,6 +1510,23 @@
     {:else if !error}
       <p class="loading">Loading…</p>
     {/if}
+    {#if calloutPick}
+      <!-- Tap a callout's type badge to change its kind. A small menu of the closed callout
+           vocabulary, anchored under the badge; dismissed by tapping outside or Escape. -->
+      <ul
+        class="callout-picker"
+        role="listbox"
+        aria-label="callout type"
+        style="top: {calloutPick.top}px; left: {calloutPick.left}px"
+        use:clickOutside={() => (calloutPick = null)}
+      >
+        {#each CALLOUT_OPTIONS as t (t)}
+          <li>
+            <button type="button" class="callout-opt callout-{t}" onclick={() => pickCallout(t)}>{t}</button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
 </article>
 
 <style>
@@ -1898,6 +1982,55 @@
   /* Embed mode (`//`) gets an accent frame so it's clear a tap will embed, not link. */
   .slash-menu.embedding {
     border-color: var(--accent);
+  }
+  /* The callout-type picker: a small menu anchored (fixed, to the viewport) under the tapped badge. */
+  .callout-picker {
+    position: fixed;
+    z-index: 60;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    min-width: 8rem;
+    max-width: min(14rem, 90vw);
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+  .callout-opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    min-height: 2.25rem;
+    padding: var(--space-1) var(--space-2);
+    background: none;
+    border: none;
+    border-left: 3px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
+    text-transform: capitalize;
+    cursor: pointer;
+  }
+  .callout-opt:hover {
+    background: var(--surface-hover);
+  }
+  /* Each option carries its own accent, so the menu previews what the callout will look like. */
+  .callout-opt.callout-note,
+  .callout-opt.callout-info {
+    border-left-color: var(--tint-a);
+  }
+  .callout-opt.callout-tip {
+    border-left-color: var(--tint-b);
+  }
+  .callout-opt.callout-warning {
+    border-left-color: var(--tint-c);
+  }
+  .callout-opt.callout-danger {
+    border-left-color: var(--accent);
+  }
+  .callout-opt.callout-quote {
+    border-left-color: var(--muted);
   }
   .slash-menu li {
     display: flex;

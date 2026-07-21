@@ -464,6 +464,10 @@ describe('renderInto — decorative extensions (highlight, colour, callout)', ()
     // An unknown type is not a callout — it degrades to an ordinary blockquote.
     expect(el.querySelector('.callout-bogus')).toBeNull();
     expect(el.querySelectorAll('blockquote').length).toBeGreaterThan(0);
+    // A type badge names the kind and carries it in data-kind — the tap handle the picker uses.
+    const badge = callout?.querySelector<HTMLElement>('.callout-kind');
+    expect(badge?.textContent).toBe('warning');
+    expect(badge?.dataset.kind).toBe('warning');
   });
 
   // The templates (Meeting action-points, Trip budget) put colour tokens in table cells, so pin

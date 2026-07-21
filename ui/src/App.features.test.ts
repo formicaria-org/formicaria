@@ -552,4 +552,35 @@ describe('v2: property editing, timeline, delete', () => {
       ),
     );
   });
+
+  // Tapping a callout's type badge opens a picker of the closed callout vocabulary; choosing one
+  // rewrites just that `[!type]` token in the source — the callout analog of the checkbox toggle.
+  it('tapping a callout type badge picks a new type and rewrites [!type] in the source', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: '> [!note] heads up\n> body\n' } });
+    await fireEvent.keyDown(body, { key: 's', ctrlKey: true }); // save + leave to read view
+
+    // The rendered callout carries a "note" type badge; tap it → the picker of types appears.
+    const badge = await waitFor(() => {
+      const b = document.querySelector<HTMLElement>('.read .callout-kind');
+      if (!b) throw new Error('callout not rendered yet');
+      return b;
+    });
+    expect(badge.textContent).toBe('note');
+    await fireEvent.click(badge);
+
+    // Choose "warning" → the source `[!note]` becomes `[!warning]`.
+    const warning = await screen.findByRole('button', { name: 'warning' });
+    await fireEvent.click(warning);
+    await openEditor();
+    await waitFor(() =>
+      expect((screen.getByLabelText('note body (Markdown)') as HTMLTextAreaElement).value).toBe(
+        '> [!warning] heads up\n> body\n',
+      ),
+    );
+  });
 });

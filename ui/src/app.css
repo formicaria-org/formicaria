@@ -305,6 +305,43 @@ body {
   margin: 0 0 var(--space-1);
   font-weight: 600;
 }
+/* The type badge: names the callout's kind and, on this note's own callouts (`.pickable`), is the
+   tap target for the type picker. Coloured to match the callout's accent (per-type rules below). */
+.read .callout-kind {
+  display: inline-block;
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-subtle);
+}
+.read .callout-kind.pickable {
+  cursor: pointer;
+}
+.read .callout-kind.pickable:hover {
+  text-decoration: underline;
+}
+.read .callout-note .callout-kind,
+.read .callout-info .callout-kind {
+  color: var(--tint-a);
+}
+.read .callout-tip .callout-kind {
+  color: var(--tint-b);
+}
+.read .callout-warning .callout-kind {
+  color: var(--tint-c);
+}
+.read .callout-danger .callout-kind {
+  color: var(--accent);
+}
+.read .callout-quote .callout-kind {
+  color: var(--muted);
+}
 .read .callout > :last-child {
   margin-bottom: 0;
 }

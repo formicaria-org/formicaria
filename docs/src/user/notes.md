@@ -88,7 +88,9 @@ readable in **any** Markdown editor (nothing here is app-only HTML):
   > this stands out.
   ```
 
-  An unrecognised type is just an ordinary blockquote.
+  An unrecognised type is just an ordinary blockquote. In the read view each callout shows its
+  kind as a small badge — **tap the badge to change the type** from a picker, which rewrites just
+  that `[!type]` word in the file (a badge inside an embedded note is a plain label, not a picker).
 - **Coloured text** — `[some words]{.token}` colours a phrase. The token is a **meaning**, not a
   colour: `accent`, `info`, `ok`, `warn`, `muted` — so the note stays readable when you switch
   light/dark or change theme. An unknown token is left as the literal text.

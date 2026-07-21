@@ -77,7 +77,11 @@ marked.use({
         const title = this.parser.parseInline(token.titleTokens ?? []);
         const body = this.parser.parse(token.tokens ?? []);
         const head = title ? `<p class="callout-title">${title}</p>` : '';
-        return `<div class="callout callout-${token.calloutType}">${head}${body}</div>`;
+        // A type badge, GitHub-style: it names the callout's kind AND is the tap handle the note
+        // editor wires to a type picker (`kind` is a closed-vocabulary word, validated above). In a
+        // read-only context (an embed, a preview) it is just an inert label.
+        const kind = `<button type="button" class="callout-kind" data-kind="${token.calloutType}">${token.calloutType}</button>`;
+        return `<div class="callout callout-${token.calloutType}">${kind}${head}${body}</div>`;
       },
     },
   ],
