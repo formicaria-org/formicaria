@@ -102,7 +102,10 @@ came from still on screen — follow a chain and the whole trail stays visible, 
 you can see the path you took. Closing a pane also closes everything to its
 right (you reached those *through* it); closing the first closes the trail.
 
-> Backlinks — seeing what links *to* a note — are not built yet.
+Open a note and, below its content, a **Linked from** panel lists every note whose
+body references *this* one (a `note:` link or an embed) — the backlinks, so you can
+walk the connection in either direction. It appears only when something links here,
+and is derived by scanning (no index to keep in sync).
 
 ## Discussion
 

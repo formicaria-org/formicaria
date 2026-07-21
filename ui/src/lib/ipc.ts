@@ -142,6 +142,10 @@ export const createDiscussion = (title: string, vault = '') =>
  *  with their note. */
 export const discussions = () => invoke<DiscussionSummary[]>('discussions');
 
+/** Notes that link **to** `id` — "what links here" (a `note:` mention or an `![](note:id)` embed).
+ *  Derived by scanning bodies, not indexed; newest-updated first. */
+export const backlinks = (id: string) => invoke<ObjectMeta[]>('backlinks', { id });
+
 /** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
  *  newest first. The Collaboration surface's feed.
  *

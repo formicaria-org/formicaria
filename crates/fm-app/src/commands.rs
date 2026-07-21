@@ -582,6 +582,34 @@ pub fn proposals(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
+/// Notes that link **to** `id` — the reverse of the `note:` references a body makes. "What points
+/// here", the backlinks panel's feed, newest-updated first.
+///
+/// **Derived by scanning, never indexed.** `refs::references` extracts each note's outbound `note:`
+/// refs (the same primitive `copy_note` uses); a note is a backlink when `id` is among them — a
+/// plain `note:` mention or an `![](note:id)` embed both count. Same `candidates()`/`load_all()`
+/// O(corpus) cost as `recent`/`thread`, already accepted at 10k scale, so there is **no reverse
+/// index to keep true** — the files stay the one truth. The target itself is never its own backlink.
+pub fn backlinks(store: &dyn Store, id: &str) -> Result<Vec<ObjectMeta>, StoreError> {
+    let target: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let q = Query {
+        filter: crate::thread::notes_base(),
+        sort: vec![SortKey::desc("updated")],
+        ..Default::default()
+    };
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .filter(|o| o.id != target)
+        .filter(|o| {
+            let (_assets, notes) = refs::references(&o.body);
+            notes.iter().any(|n| n.parse::<Id>().ok() == Some(target))
+        })
+        .map(ObjectMeta::from)
+        .collect())
+}
+
 /// Normalize an asset reference to its blob hash. Notes, the gallery, and the
 /// mock all spell the same blob differently — stored as `sha256:<hex>`, written
 /// in Markdown as `asset:sha256-<hex>`, or passed bare — so every asset path

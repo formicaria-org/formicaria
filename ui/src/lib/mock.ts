@@ -360,6 +360,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.last_activity.localeCompare(a.last_activity));
       return list as T;
     }
+    // "What links here" — scan bodies for `note:<target>`, mirroring the server's ref scan.
+    case 'backlinks': {
+      const target = String(args.id);
+      const list = notes
+        .filter(isNote)
+        .filter((n) => n.id !== target)
+        .filter((n) => (bodyOverrides.get(n.id) ?? n.preview).includes(`note:${target}`))
+        .sort((a, b) => b.updated.localeCompare(a.updated));
+      return list as T;
+    }
     case 'reply': {
       const target = notes.find((n) => n.id === String(args.id));
       if (!target) throw new Error('no such note');

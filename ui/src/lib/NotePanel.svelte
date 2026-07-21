@@ -18,6 +18,7 @@
     recent,
     reply as ipcReply,
     thread as ipcThread,
+    backlinks as ipcBacklinks,
   } from './ipc';
   import {
     renderInto,
@@ -333,6 +334,15 @@
   let discOpen = $state(false);
   let discCount = $state(0);
   let discMessages = $state<ThreadMessage[]>([]);
+
+  // "Linked from": notes whose body references this one. Fetched when the note changes (a store
+  // scan on the server, no reverse index); shown only when there is at least one.
+  let backRefs = $state<ObjectMeta[]>([]);
+  $effect(() => {
+    const id = note?.id;
+    backRefs = [];
+    if (id) void ipcBacklinks(id).then((r) => (backRefs = r)).catch(() => {});
+  });
   let replyDraft = $state('');
   let replyTo = $state('');
   let discBusy = $state(false);
@@ -1218,6 +1228,21 @@
            is *about* a note, and two panes could drift apart on screen (panes are capped at 8
            anyway). Collapsed by default and fetched on open, so a note that nobody has
            discussed costs nothing to display. -->
+      {#if backRefs.length}
+        <!-- "Linked from": the reverse of the note references in this note's body, shown only when
+             non-empty. Clicking one opens it in a pane, the same navigation as a chip. -->
+        <section class="backlinks">
+          <div class="backlinks-head">Linked from</div>
+          <div class="backlinks-list">
+            {#each backRefs as b (b.id)}
+              <button class="backlink" onclick={() => onnavigate?.(b.id)} title={b.title ?? b.id}>
+                {#if b.vault}<VaultBadge vault={b.vault} />{/if}
+                <span class="backlink-title">{b.title || b.preview || b.id}</span>
+              </button>
+            {/each}
+          </div>
+        </section>
+      {/if}
       {#if note && !isBoard}
         <section class="discussion" class:is-discussion={isDiscussion}>
           {#if isDiscussion}
@@ -1742,6 +1767,45 @@
   /* ── Discussion ─────────────────────────────────────────────────────────────────────
      Deliberately quieter than the note body: this is commentary *about* the note, and it
      sits below it, so it must not compete with the thing it is about. */
+  .backlinks {
+    border-top: 1px solid var(--border);
+    padding: var(--space-2) var(--space-5) var(--space-3);
+  }
+  .backlinks-head {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-subtle);
+  }
+  .backlinks-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .backlink {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: 100%;
+    padding: var(--space-1) var(--space-2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .backlink:hover {
+    border-color: var(--accent);
+  }
+  .backlink-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .discussion {
     border-top: 1px solid var(--border);
     padding: var(--space-2) var(--space-5) var(--space-4);
