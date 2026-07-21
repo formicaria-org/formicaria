@@ -263,8 +263,10 @@ pub fn dispatch(
             let cfg = g.config(&vault_name)?;
             let limits =
                 fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
-            let made = commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits)
-                .map_err(err)?;
+            // A person proposing by hand: no model identity, so it falls back to the vault's own.
+            let made =
+                commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits, None)
+                    .map_err(err)?;
             // Commit the proposal *note* (best-effort) so the Collaboration feed lists it after a
             // restart; the branch is already its own commit.
             if vcs::available() {
@@ -302,8 +304,11 @@ pub fn dispatch(
             // because the roots are already listed by the store — this only adds authorship, and
             // an old-but-still-open discussion deserves its participants. No git → no authors, the
             // discussion still lists with its title and vault.
+            // `@0` (git's epoch-seconds date) means "since the beginning" — NOT `1970-01-01`, which
+            // git parses as local-midnight and underflows to 1969 UTC in positive-offset timezones,
+            // where `git log --since` then wrongly returns *nothing* (git 2.53). `@0` is timezone-safe.
             for cfg in g.configs() {
-                let Ok(mut who) = commands::discussion_participants(&g.store, &cfg.path, "1970-01-01")
+                let Ok(mut who) = commands::discussion_participants(&g.store, &cfg.path, "@0")
                 else {
                     continue;
                 };

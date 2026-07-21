@@ -91,7 +91,7 @@ fn who_left_a_message_is_read_from_git() {
     let paths = store.written();
     assert!(fm_core::git::commit_all(dir.path(), "seed", &paths).unwrap());
 
-    let who = discussion_participants(&store, dir.path(), "1970-01-01").unwrap();
+    let who = discussion_participants(&store, dir.path(), "@0").unwrap();
     let parts = who.get(&d.id).expect("the discussion has participants");
     assert!(parts.iter().any(|p| p.email == "ada@example.org"), "the poster is listed");
 }
