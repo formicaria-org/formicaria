@@ -42,7 +42,7 @@ fn it_creates_a_branch_with_the_change_and_touches_nothing_else() {
     let p = dir.path();
     let head_before = out(p, &["rev-parse", "HEAD"]);
 
-    git::create_proposal_branch(p, "proposal/01ABC", "notes/x.md", "PROPOSED body", "propose: edit x")
+    git::create_proposal_branch(p, "proposal/01ABC", "notes/x.md", "PROPOSED body", "propose: edit x", None)
         .unwrap();
 
     // The branch exists and carries the proposed content.
@@ -72,7 +72,7 @@ fn a_brand_new_file_is_added_on_the_branch_only() {
     let dir = repo_with_a_note();
     let p = dir.path();
 
-    git::create_proposal_branch(p, "proposal/01NEW", "notes/fresh.md", "a new note", "propose: new note")
+    git::create_proposal_branch(p, "proposal/01NEW", "notes/fresh.md", "a new note", "propose: new note", None)
         .unwrap();
 
     // On the branch the new file exists; on HEAD it does not.
@@ -88,8 +88,8 @@ fn it_refuses_to_clobber_an_existing_branch() {
     }
     let dir = repo_with_a_note();
     let p = dir.path();
-    git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "one", "m").unwrap();
-    let err = git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "two", "m").unwrap_err();
+    git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "one", "m", None).unwrap();
+    let err = git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "two", "m", None).unwrap_err();
     assert!(format!("{err}").contains("already exists"), "got: {err}");
     // The first proposal's content is intact — the refused second write changed nothing.
     assert_eq!(out(p, &["show", "proposal/01DUP:notes/x.md"]), "one");
@@ -103,6 +103,6 @@ fn it_refuses_when_the_repo_has_no_commits() {
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path();
     g(p, &["init"]);
-    let err = git::create_proposal_branch(p, "proposal/01EMPTY", "notes/x.md", "body", "m").unwrap_err();
+    let err = git::create_proposal_branch(p, "proposal/01EMPTY", "notes/x.md", "body", "m", None).unwrap_err();
     assert!(format!("{err}").contains("no commits"), "got: {err}");
 }

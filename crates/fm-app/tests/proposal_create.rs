@@ -35,7 +35,7 @@ fn a_proposal_lands_on_a_branch_and_a_note_leaving_main_untouched() {
     let p = dir.path();
 
     let prop =
-        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default())
+        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default(), None)
             .unwrap();
     let branch = format!("proposal/{}", prop.id);
 
@@ -63,7 +63,7 @@ fn an_over_size_change_is_refused_not_truncated() {
     let (dir, mut store, target) = vault_with_a_note();
     // A tiny per-change ceiling: the serialized note is far larger than 10 bytes.
     let tight = ProposalLimits { max_change_bytes: 10, ..ProposalLimits::default() };
-    let err = commands::create_proposal(&mut store, dir.path(), &target, "revised body", &tight)
+    let err = commands::create_proposal(&mut store, dir.path(), &target, "revised body", &tight, None)
         .unwrap_err();
     assert!(format!("{err}").contains("at most"), "expected a guardrail refusal, got: {err}");
     // Nothing was created — no proposal branch, no proposal note.
@@ -85,7 +85,7 @@ fn a_proposals_diff_shows_its_change_and_tolerates_a_gone_branch() {
     let (dir, mut store, target) = vault_with_a_note();
     let p = dir.path();
     let prop =
-        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default())
+        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default(), None)
             .unwrap();
 
     let diff = commands::proposal_diff(&store, p, &prop.id).unwrap();
@@ -103,6 +103,33 @@ fn a_proposals_diff_shows_its_change_and_tolerates_a_gone_branch() {
 }
 
 #[test]
+fn a_proposal_is_attributed_to_its_model_when_one_is_given() {
+    if !have_git() {
+        return;
+    }
+    let (dir, mut store, target) = vault_with_a_note();
+    let p = dir.path();
+    // An agent proposes as its model — the commit's author reflects that.
+    let author = Some(("lfm2.5-230m", "lfm2.5-230m@fm-agents.local"));
+    let prop =
+        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default(), author)
+            .unwrap();
+    let branch = format!("proposal/{}", prop.id);
+    let who = String::from_utf8_lossy(
+        &Command::new("git")
+            .arg("-C")
+            .arg(p)
+            .args(["log", "-1", "--format=%an <%ae>", &branch])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .trim()
+    .to_string();
+    assert_eq!(who, "lfm2.5-230m <lfm2.5-230m@fm-agents.local>");
+}
+
+#[test]
 fn the_per_vault_open_count_is_enforced() {
     if !have_git() {
         return;
@@ -113,8 +140,8 @@ fn the_per_vault_open_count_is_enforced() {
     let one = ProposalLimits { max_open: 1, ..ProposalLimits::default() };
 
     // First proposal: fine (0 open + this one = 1).
-    commands::create_proposal(&mut store, p, &target, "first take", &one).unwrap();
+    commands::create_proposal(&mut store, p, &target, "first take", &one, None).unwrap();
     // Second: refused (1 already open + this one = 2 > 1).
-    let err = commands::create_proposal(&mut store, p, &target, "second take", &one).unwrap_err();
+    let err = commands::create_proposal(&mut store, p, &target, "second take", &one, None).unwrap_err();
     assert!(format!("{err}").contains("open proposals"), "expected an open-count refusal, got: {err}");
 }

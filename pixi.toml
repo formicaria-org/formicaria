@@ -131,6 +131,9 @@ test = "cargo test --workspace"
 # Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
 # `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
 fetch-model = "bash agents/fetch.sh"
+# Invoke the study assistant: propose an edit to one note (never main). Needs a served model.
+#   pixi run agent-propose -- --vault . --note <ULID> --ask "..." [--search "..."] [--input <ULID>]
+agent-propose = "cargo run -q -p fm-agent-run --"
 # Run the app in your browser against the REAL vault — this is how formicaria
 # runs. Builds the UI, then serves it + a JSON/bytes API over the same commands,
 # and (via FM_OPEN, set by the launcher) opens your default browser. Lean default

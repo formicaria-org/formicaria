@@ -599,6 +599,7 @@ pub fn create_proposal(
     target: &str,
     new_body: &str,
     limits: &fm_core::proposal::ProposalLimits,
+    author: Option<(&str, &str)>,
 ) -> Result<ObjectMeta, StoreError> {
     let id: Id = target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
@@ -650,6 +651,7 @@ pub fn create_proposal(
         &rel,
         &content,
         &format!("propose: change to {title}"),
+        author,
     )?;
     store.put(&note)?;
     Ok(ObjectMeta::from(&note))

@@ -899,6 +899,7 @@ pub fn create_proposal_branch(
     rel_path: &str,
     content: &str,
     message: &str,
+    author: Option<(&str, &str)>,
 ) -> Result<(), StoreError> {
     // No `ensure_repo` here on purpose: proposing a change must never rewrite the vault's own setup
     // (`.gitignore`/`.gitattributes`) — the repo is already configured when it was opened. We only
@@ -970,10 +971,20 @@ pub fn create_proposal_branch(
         let tree = step("git write-tree", with_index(&["write-tree"])?)?;
         let tree = String::from_utf8_lossy(&tree.stdout).trim().to_string();
 
-        let commit = step(
-            "git commit-tree",
-            git(vault).args(["commit-tree", &tree, "-p", &parent, "-m", message]).output().map_err(spawn)?,
-        )?;
+        // Attribute the proposal commit to its author. An agent passes its **model's** identity
+        // (e.g. `lfm2.5-230m`), so a proposal is legibly "who proposed this" — descriptive, never a
+        // trust boundary (the human merge gate is the sole authority). A human proposer passes
+        // `None` and falls back to the vault's own identity.
+        let mut commit_cmd = git(vault);
+        commit_cmd.args(["commit-tree", &tree, "-p", &parent, "-m", message]);
+        if let Some((name, email)) = author {
+            commit_cmd
+                .env("GIT_AUTHOR_NAME", name)
+                .env("GIT_AUTHOR_EMAIL", email)
+                .env("GIT_COMMITTER_NAME", name)
+                .env("GIT_COMMITTER_EMAIL", email);
+        }
+        let commit = step("git commit-tree", commit_cmd.output().map_err(spawn)?)?;
         let commit = String::from_utf8_lossy(&commit.stdout).trim().to_string();
 
         step(
