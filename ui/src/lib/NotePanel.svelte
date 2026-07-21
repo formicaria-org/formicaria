@@ -28,6 +28,7 @@
     type ResolvedEmbed,
   } from './render';
   import { CALLOUT_TYPES } from './render-vocab';
+  import { clickOutside } from './clickOutside';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
@@ -544,18 +545,6 @@
       discOpen = false;
     }
   });
-
-  // Close a popover when a pointer lands outside it — the behaviour expected on a phone (tap
-  // elsewhere) and a laptop (click elsewhere) alike. `pointerdown` in the capture phase fires
-  // before the target's own handlers and covers touch + mouse in one path; the listener is torn
-  // down with the element it guards.
-  function clickOutside(node: HTMLElement, onOutside: () => void) {
-    const handler = (e: Event) => {
-      if (!node.contains(e.target as Node)) onOutside();
-    };
-    document.addEventListener('pointerdown', handler, true);
-    return { destroy: () => document.removeEventListener('pointerdown', handler, true) };
-  }
 
   // Rename a discussion. Its title is the at-a-glance label in the Discussions view, and a
   // discussion has no edit mode (its body is the thread), so it is set here directly.

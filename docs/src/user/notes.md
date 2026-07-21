@@ -52,11 +52,13 @@ The editor also gives you a **properties form**:
 | Title   | an optional title         | free text                                |
 | Tags    | tags                      | comma- or space-separated                |
 
-**Status has a shortcut.** The chip beside the note's title — and on every board
-and timeline card — rotates through the statuses your vault already uses, then
-through "no status", one click at a time. Use it to set a status you already have
-without opening the editor; use the form's Status field to invent a new one (it
-joins the rotation as soon as a note carries it).
+**Status has a shortcut.** The status chip on every board and timeline card
+rotates through the statuses your vault already uses, then through "no status",
+one **tap** at a time — the fast way to nudge a card along. To jump straight to a
+distant status (or clear it) without stepping through the rotation, **long-press
+the chip** (or right-click on a laptop) for a **picker** of all your statuses. Use
+either to set a status you already have without opening the editor; use the form's
+Status field to invent a new one (it joins the rotation as soon as a note carries it).
 
 Every change writes back to the note's YAML frontmatter immediately. The body is
 plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render in
