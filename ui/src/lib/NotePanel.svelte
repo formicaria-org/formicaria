@@ -27,7 +27,7 @@
     type ResolvedNote,
     type ResolvedEmbed,
   } from './render';
-  import { CALLOUT_TYPES } from './render-vocab';
+  import { CALLOUT_TYPES, TEXT_TOKENS } from './render-vocab';
   import { clickOutside } from './clickOutside';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
@@ -425,6 +425,97 @@
     }
   }
 
+  // ---- Selection formatting toolbar ----
+  //
+  // Select text in the editor and a small toolbar floats above it: Bold, Italic, Highlight, Code,
+  // Colour, Link, Quote. Each **wraps the selected bytes** in the right Markdown (or the closed-vocab
+  // `[…]{.token}`), so it stays byte-for-byte source — the mobile answer to "who types `[x]{.warn}`".
+  let fmtBar = $state<{ top: number; left: number } | null>(null);
+  let colorOpen = $state(false);
+
+  function onEditorSelect() {
+    const el = editorEl;
+    if (!el) return;
+    const s = el.selectionStart;
+    const e = el.selectionEnd;
+    if (s === e) {
+      fmtBar = null;
+      colorOpen = false;
+      return;
+    }
+    const { top, left } = caretXY(el, s);
+    const BAR_H = 40;
+    fmtBar = { top: top - BAR_H < 0 ? top + 22 : top - BAR_H, left: clamp(left, 220, el.clientWidth) };
+  }
+
+  // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
+  async function wrapSel(before: string, after: string, placeholder = '') {
+    const el = editorEl;
+    if (!el) return;
+    colorOpen = false;
+    const s = el.selectionStart;
+    const e = el.selectionEnd;
+    const inner = draft.slice(s, e);
+    const wrapped = draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after;
+    if (wrapped) {
+      draft = draft.slice(0, s - before.length) + inner + draft.slice(e + after.length);
+      onInput();
+      await tick();
+      el.focus();
+      el.selectionStart = s - before.length;
+      el.selectionEnd = e - before.length;
+    } else {
+      const text = inner || placeholder;
+      draft = draft.slice(0, s) + before + text + after + draft.slice(e);
+      onInput();
+      await tick();
+      el.focus();
+      el.selectionStart = s + before.length;
+      el.selectionEnd = s + before.length + text.length;
+    }
+    onEditorSelect();
+  }
+
+  // A link keeps the selected text as the label and drops the caret in an empty `()` to type the URL.
+  async function insertLink() {
+    const el = editorEl;
+    if (!el) return;
+    const s = el.selectionStart;
+    const e = el.selectionEnd;
+    const text = draft.slice(s, e) || 'text';
+    draft = draft.slice(0, s) + `[${text}]()` + draft.slice(e);
+    onInput();
+    await tick();
+    el.focus();
+    const caret = s + text.length + 3; // after "[text]("
+    el.selectionStart = el.selectionEnd = caret;
+    fmtBar = null;
+  }
+
+  // Quote: prefix each selected line with `> ` (turning it into a blockquote — one `[!type]` away
+  // from a callout, which the read-view badge can then set).
+  async function quoteSel() {
+    const el = editorEl;
+    if (!el) return;
+    const s = el.selectionStart;
+    const e = el.selectionEnd;
+    const from = draft.lastIndexOf('\n', s - 1) + 1;
+    const nl = draft.indexOf('\n', e);
+    const to = nl === -1 ? draft.length : nl;
+    const quoted = draft
+      .slice(from, to)
+      .split('\n')
+      .map((l) => `> ${l}`)
+      .join('\n');
+    draft = draft.slice(0, from) + quoted + draft.slice(to);
+    onInput();
+    await tick();
+    el.focus();
+    el.selectionStart = from;
+    el.selectionEnd = from + quoted.length;
+    onEditorSelect();
+  }
+
   // Debounced save: typing stops -> 500 ms -> atomic write via update_body.
   // Also re-evaluate the slash-menu trigger against the new caret.
   function onInput() {
@@ -432,6 +523,7 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 500);
     detectSlash();
+    onEditorSelect(); // typing replaces the selection → refresh/hide the toolbar
   }
 
   async function save() {
@@ -1349,9 +1441,12 @@
             bind:value={draft}
             oninput={onInput}
             onkeydown={onEditorKeydown}
+            onselect={onEditorSelect}
+            onmouseup={onEditorSelect}
+            onkeyup={onEditorSelect}
             ondragover={onDragOver}
             ondrop={onDrop}
-            onblur={() => setTimeout(closeSlash, 120)}
+            onblur={() => setTimeout(() => { closeSlash(); fmtBar = null; }, 120)}
             spellcheck="false"
             aria-label="note body (Markdown)"
           ></textarea>
@@ -1386,6 +1481,34 @@
                 {/if}
               </li>
             </ul>
+          {/if}
+          {#if fmtBar && !slash.open}
+            <!-- The selection formatting toolbar. `pointerdown` is prevented so a button press keeps
+                 the textarea's selection (the whole trick); each action wraps the selected bytes. -->
+            <div
+              class="fmt-bar"
+              role="toolbar"
+              aria-label="format selection"
+              style="top: {fmtBar.top}px; left: {fmtBar.left}px"
+              onpointerdown={(e) => e.preventDefault()}
+            >
+              <button class="fmt-btn" title="Bold" aria-label="bold" onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button>
+              <button class="fmt-btn" title="Italic" aria-label="italic" onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button>
+              <button class="fmt-btn" title="Highlight" aria-label="highlight" onclick={() => wrapSel('==', '==', 'text')}>==</button>
+              <button class="fmt-btn code" title="Code" aria-label="code" onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button>
+              <div class="fmt-color">
+                <button class="fmt-btn" title="Colour" aria-label="colour" aria-expanded={colorOpen} onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button>
+                {#if colorOpen}
+                  <ul class="fmt-colors" role="listbox" aria-label="colour token">
+                    {#each TEXT_TOKENS as t (t)}
+                      <li><button class="fmt-color-opt" data-token={t} onclick={() => wrapSel('[', `]{.${t}}`, 'text')}>{t}</button></li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+              <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
+              <button class="fmt-btn" title="Quote" aria-label="quote" onclick={quoteSel}>❝</button>
+            </div>
           {/if}
         </div>
         <p class="editor-hint">
@@ -1971,6 +2094,94 @@
   /* Embed mode (`//`) gets an accent frame so it's clear a tap will embed, not link. */
   .slash-menu.embedding {
     border-color: var(--accent);
+  }
+  /* The selection formatting toolbar: floats above the selected text in the editor. */
+  .fmt-bar {
+    position: absolute;
+    z-index: 55;
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    padding: 2px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+  .fmt-btn {
+    display: grid;
+    place-items: center;
+    min-width: 1.9rem;
+    height: 1.9rem;
+    padding: 0 0.35rem;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .fmt-btn:hover {
+    background: var(--surface-hover);
+  }
+  .fmt-btn.code {
+    font-family: var(--mono, monospace);
+    font-size: var(--text-xs);
+  }
+  .fmt-btn .caret {
+    font-size: 0.6em;
+    margin-left: 1px;
+  }
+  .fmt-color {
+    position: relative;
+    display: inline-flex;
+  }
+  .fmt-colors {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 56;
+    min-width: 6rem;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+  .fmt-color-opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    min-height: 2rem;
+    padding: 0.1rem 0.4rem;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    font: inherit;
+    font-weight: 600;
+    text-transform: capitalize;
+    cursor: pointer;
+  }
+  .fmt-color-opt:hover {
+    background: var(--surface-hover);
+  }
+  .fmt-color-opt[data-token='accent'] {
+    color: var(--accent);
+  }
+  .fmt-color-opt[data-token='info'] {
+    color: var(--tint-a);
+  }
+  .fmt-color-opt[data-token='ok'] {
+    color: var(--tint-b);
+  }
+  .fmt-color-opt[data-token='warn'] {
+    color: var(--tint-c);
+  }
+  .fmt-color-opt[data-token='muted'] {
+    color: var(--muted);
   }
   /* The callout-type picker: a small menu anchored (fixed, to the viewport) under the tapped badge. */
   .callout-picker {

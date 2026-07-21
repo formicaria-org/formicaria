@@ -583,4 +583,26 @@ describe('v2: property editing, timeline, delete', () => {
       ),
     );
   });
+
+  // Selecting text in the editor floats a toolbar that wraps the selection in the right syntax —
+  // byte-for-byte source, no typed markup. Bold, then a colour token from the closed set.
+  it('the selection toolbar wraps the selection (bold, then a colour token)', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'make this pop' } });
+
+    // Select "pop" (chars 10–13) and raise the toolbar.
+    body.selectionStart = 10;
+    body.selectionEnd = 13;
+    await fireEvent.select(body);
+    await fireEvent.click(await screen.findByRole('button', { name: 'bold' }));
+    await waitFor(() => expect(body.value).toBe('make this **pop**'));
+
+    // The wrap re-selects "pop"; now colour it. Open the colour menu and pick "ok".
+    await fireEvent.click(screen.getByRole('button', { name: 'colour' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'ok' }));
+    await waitFor(() => expect(body.value).toBe('make this **[pop]{.ok}**'));
+  });
 });

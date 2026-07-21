@@ -78,6 +78,12 @@ note stay read-only — you tick those off by opening that note itself.
 A note's body is Markdown, so **bold**, *italic*, lists, tables, headings, `code`, and
 fenced ```mermaid diagrams / `$math$` all render in the read view. For a **mind-map or tree**,
 a Mermaid flowchart (`graph TD`) draws the hierarchy — no plugin and no extra download.
+
+**You don't have to type the syntax.** Select any text in the editor and a small **toolbar** floats
+above it — **Bold · Italic · Highlight · Code · Colour · Link · Quote**. Each just wraps the selected
+text in the plain-Markdown (or `[…]{.token}`) form, so the file stays byte-for-byte and readable
+anywhere; it's the fast way to format on a phone. Tap a button again over the same text to remove it.
+
 On top of standard Markdown there are three light additions, each chosen so the raw text stays
 readable in **any** Markdown editor (nothing here is app-only HTML):
 
