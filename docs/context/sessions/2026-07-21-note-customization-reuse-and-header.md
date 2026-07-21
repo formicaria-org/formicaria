@@ -67,7 +67,35 @@ would duplicate it for no gain and violate "resist adding kinds". The owner chos
 done**: embeds + backlinks + templates are the substantive wants; richer tables/queries is small
 incremental `.view` polish to do on demand, not a speculative build.
 
+## Follow-ups the owner drove (same day, later)
+
+- **Templates were undiscoverable** ("typed template, saw nothing"): they were palette-only. Moved
+  "New from …" into the **`＋` "make something new" menu** (own group, refreshed on open), kept in
+  the palette for name-filtering. App-level test proves the ＋ menu surfaces a tagged note and
+  creates one. `37df2a8`.
+- **Embed from the `/` menu** (embedding needed the hand-typed `!` trick): **Enter = link,
+  Shift+Enter = embed** (`257adb1`); then, because a phone has no handy Shift, **`//` opens the
+  picker in embed mode** — a tap inserts the embed, accent-framed, both slashes consumed;
+  `https://` never triggers it (the `//` follows a `:`). `bdb693f`.
+- **Places & maps** (`d2a508a`): a live in-app map is refused — external tiles/iframe/fetch all
+  violate the CSP that makes "nothing phones home" true (`img/frame/connect-src` are `self`). The
+  aligned answer is **`geo:<lat>,<lon>` links** that hand coordinates to the OS map app on tap;
+  formicaria loads nothing. Widened the sanitizer URI allowlist by exactly `geo:` (a terminal,
+  script-less scheme like `tel:`); test pins `geo:` survives while `javascript:` is stripped.
+- **Showcase templates** created in the `vault` (via the server API, tagged `template`): **Meeting**
+  (participants / notes / decisions callout / action-points table), **Trip plan** (day tables,
+  places checklist, don't-forget callout, Mermaid route), **Trip journal** (per-day entries),
+  **Place** (a `geo:` map-app link + an OSM https link). Plus a **Feature demo — formatting** note
+  and a **Hub: links + embed** note showing every decoration/embed/backlink rendered natively.
+- **Operational lesson (durable):** a CLI `fm reindex` on `vault` *while `fm-serve` had it open*
+  made all 24 notes show as "could not be read" — two index writers, the running server's view went
+  inconsistent. **Files were fine** (`fm verify`: 0 errors); a server restart fixed it. Rule now in
+  the process-hygiene memory: create/edit via the **server API** when it's live; only use the CLI on
+  a stopped vault. This is why the demo notes above were made over `POST /api/*`, not the CLI.
+
 ## Commits
 `c62c1b6` header window + outside-click · `7b9403b` customization + XSS guards · `6ea1f98` embeds ·
 `86bc69b` backlinks · `75e2446` header options-window (first fix) + click-header-to-finish ·
-`ccd51ac` options-window anchored to the ＋ wrapper (final fix) · `908ef5d` templates.
+`ccd51ac` options-window anchored to the ＋ wrapper (final fix) · `908ef5d` templates ·
+`37df2a8` templates in the ＋ menu · `257adb1` embed via Shift+Enter · `bdb693f` `//` embed mode ·
+`d2a508a` `geo:` links for places/maps.
