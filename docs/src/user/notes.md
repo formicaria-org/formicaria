@@ -63,6 +63,14 @@ plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render i
 the read view). Nothing is ever rewritten behind your back — the file round-trips
 byte-for-byte.
 
+## Ticking things off
+
+A task list — `- [ ] milk` — renders with a real checkbox in the read view, and you can **tap it
+to toggle** without opening the editor. A tap flips just that one `[ ]`↔`[x]` in the file (the same
+one byte a text editor would change — nothing else moves), strikes the line through when done, and
+saves. It's the quickest way to work a checklist on a phone. Checkboxes shown inside an **embedded**
+note stay read-only — you tick those off by opening that note itself.
+
 ## Formatting text
 
 A note's body is Markdown, so **bold**, *italic*, lists, tables, headings, `code`, and

@@ -238,9 +238,26 @@
   $effect(() => {
     if (note && content && !editing) {
       revokeAssets();
-      renderInto(content, note.body, resolveAsset, resolveNote, resolveEmbed).catch((e) => (error = String(e)));
+      renderInto(content, note.body, resolveAsset, resolveNote, resolveEmbed)
+        .then(enableTasks)
+        .catch((e) => (error = String(e)));
     }
   });
+
+  // GFM renders `- [ ]` as a *disabled* checkbox — inert. Enable this note's own boxes so a tap can
+  // toggle them (a decided feature: an interactive toggle that rewrites the body bytes, no id).
+  // **Embedded notes' boxes stay disabled** — `![](note:id)` renders another file's atom inline, and
+  // it is read-only here; its owner toggles it in its own pane. This is also what keeps the tap→
+  // source ordinal counting only *our* boxes.
+  function enableTasks() {
+    if (!content) return;
+    for (const box of content.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) {
+      if (box.closest('.note-embed')) continue;
+      box.disabled = false;
+      box.classList.add('task-toggle');
+      box.closest('li')?.classList.toggle('task-done', box.checked); // strike done items on load
+    }
+  }
 
   // A `note:` chip needs the target's live title/status. `get` already returns
   // them (it over-fetches the body, which a chip ignores — not worth a second IPC
@@ -258,12 +275,86 @@
     return n && { title: n.title, body: n.body };
   }
 
-  // One delegated listener for every chip in the pane — chips are created by
-  // render.ts, so binding per-chip would mean re-binding on every render.
+  // One delegated listener for every chip and checkbox in the pane — both are created by
+  // render.ts, so binding per-element would mean re-binding on every render.
   function onReadClick(e: MouseEvent) {
-    const chip = (e.target as HTMLElement | null)?.closest<HTMLElement>('.note-chip');
+    const el = e.target as HTMLElement | null;
+    const box = el?.closest<HTMLInputElement>('input[type="checkbox"]');
+    if (box && !box.closest('.note-embed')) {
+      // We drive `checked` from the source we patch, not the browser's default toggle.
+      e.preventDefault();
+      toggleTask(box);
+      return;
+    }
+    const chip = el?.closest<HTMLElement>('.note-chip');
     const target = chip?.dataset.noteId;
     if (target) onnavigate?.(target);
+  }
+
+  // The byte offset of the state char inside each GFM task marker (`- [ ]` / `- [x]`), in document
+  // order, skipping fenced code blocks — which `marked` also does, so the Nth position here lines up
+  // exactly with the Nth rendered checkbox. A task marker is a literal token, so this ordinal is
+  // exact (unlike locate.ts's word-ordinal, which invisible syntax can shift).
+  function taskMarkerPositions(src: string): number[] {
+    const out: number[] = [];
+    let fenced = false;
+    let offset = 0;
+    for (const line of src.split('\n')) {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+      } else if (!fenced) {
+        const m = /^(\s*[-*+] +)\[[ xX]\]/.exec(line);
+        if (m) out.push(offset + m[1].length + 1); // the char between the brackets
+      }
+      offset += line.length + 1; // + the '\n'
+    }
+    return out;
+  }
+
+  // Toggle the tapped checkbox by flipping exactly its `[ ]`↔`[x]` byte in the source, then persist.
+  // The rendered box is updated in place (no full re-render — that would re-run KaTeX/Mermaid over
+  // the whole note for one tap); the read view and the source stay in agreement because a checkbox's
+  // rendered state is a total function of the byte we just wrote.
+  function toggleTask(box: HTMLInputElement) {
+    if (!note || editing || !content) return;
+    const boxes = [...content.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')].filter(
+      (b) => !b.closest('.note-embed'),
+    );
+    const idx = boxes.indexOf(box);
+    const positions = taskMarkerPositions(draft);
+    // If the counts ever disagree (an edge the ordinal can't resolve), bail rather than mis-toggle.
+    if (idx < 0 || idx >= positions.length) return;
+    const at = positions[idx];
+    const checked = draft[at] !== ' ';
+    draft = draft.slice(0, at) + (checked ? ' ' : 'x') + draft.slice(at + 1);
+    box.checked = !checked;
+    box.closest('li')?.classList.toggle('task-done', !checked);
+    void saveTask();
+  }
+
+  // A checkbox tap must not be violent on conflict. Where `save`/`onSaveRejected` reopens the editor
+  // with `<<<<<<<` markers (right for a lost paragraph), a tap just re-syncs to disk and asks for a
+  // re-tap — losing nothing, since the only edit was one byte we can safely redo.
+  async function saveTask() {
+    if (!note) return;
+    try {
+      base = await updateBody(note.id, draft, base);
+      note = { ...note, body: draft };
+      saved = true;
+      onsaved?.();
+    } catch (e) {
+      if (String(e).includes('changed on disk')) {
+        const fresh = await getNote(note.id).catch(() => null);
+        if (fresh) {
+          note = fresh;
+          draft = fresh.body;
+          base = fresh.version;
+        }
+        error = 'This note changed on disk — reloaded it. Tap again.';
+      } else {
+        error = String(e);
+      }
+    }
   }
 
   // Debounced save: typing stops -> 500 ms -> atomic write via update_body.
@@ -542,7 +633,7 @@
     // Skip the targets that already mean something: a reference chip navigates, a
     // link follows, media has its own controls, and double-clicking to select a
     // word inside them should not throw you into the editor.
-    if ((e.target as HTMLElement | null)?.closest('.note-chip, a, button, video, audio, iframe')) {
+    if ((e.target as HTMLElement | null)?.closest('.note-chip, a, button, input, video, audio, iframe')) {
       return;
     }
     await openEditor(clickedOffset());

@@ -255,6 +255,22 @@ body {
   border-left: 3px solid var(--border);
   color: var(--muted);
 }
+/* Tappable task-list checkboxes. GFM renders `- [ ]` disabled; NotePanel enables this note's own
+   boxes so a tap flips the `[ ]`↔`[x]` byte in the source. Global (not scoped) because the read
+   body is injected via innerHTML. A comfortable tap target and a struck-through done line. */
+.read input.task-toggle {
+  cursor: pointer;
+  width: 1.05em;
+  height: 1.05em;
+  margin-right: 0.35em;
+  vertical-align: -0.15em;
+  accent-color: var(--accent);
+}
+.read li.task-done {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
 /* Read-view decorations from render.ts marked extensions. Colours are **semantic theme tokens**,
    never hex/colour names, so a note stays truthful across themes (the vocab is in render-vocab.ts). */
 .read mark {

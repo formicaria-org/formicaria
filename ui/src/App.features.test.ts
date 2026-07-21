@@ -521,4 +521,35 @@ describe('v2: property editing, timeline, delete', () => {
       expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
     );
   });
+
+  // Tapping a rendered checkbox flips only its `[ ]`↔`[x]` byte in the source — a surgical patch,
+  // byte-for-byte everywhere else, exactly what a Vim user toggling that box would produce.
+  it('tapping a checkbox in the read view toggles [ ]↔[x] in the source', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+
+    // A note with two tasks: first unchecked, second done. Author it in the editor, then leave.
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    const SRC = '# chores\n\n- [ ] milk\n- [x] eggs\n';
+    await fireEvent.input(body, { target: { value: SRC } });
+    await fireEvent.keyDown(body, { key: 's', ctrlKey: true }); // save + leave edit → read view
+
+    // The read view renders real checkboxes; the first is unchecked.
+    const boxes = await waitFor(() => {
+      const found = document.querySelectorAll<HTMLInputElement>('.read input[type="checkbox"]');
+      if (found.length < 2) throw new Error('checkboxes not rendered yet');
+      return found;
+    });
+    expect(boxes[0].checked).toBe(false);
+
+    // Tap the first checkbox → its source `[ ]` becomes `[x]`; the second task is untouched.
+    await fireEvent.click(boxes[0]);
+    await openEditor(); // reopen the editor to read the saved source back
+    await waitFor(() =>
+      expect((screen.getByLabelText('note body (Markdown)') as HTMLTextAreaElement).value).toBe(
+        '# chores\n\n- [x] milk\n- [x] eggs\n',
+      ),
+    );
+  });
 });
