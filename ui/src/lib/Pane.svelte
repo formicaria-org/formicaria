@@ -14,6 +14,7 @@
   import Activity from '../renderers/Activity.svelte';
   import Discussions from '../renderers/Discussions.svelte';
   import Icon from './Icon.svelte';
+  import VaultBadge from './VaultBadge.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT } from './types';
@@ -128,6 +129,8 @@
 
   // Cards this pane shows, after the global vault filter.
   const cards = $derived((feed?.cards ?? []).filter(shown));
+  // Conflicted notes for the Collaboration surface, vault-filtered like the cards.
+  const conflictNotes = $derived((feed?.conflicts ?? []).filter(shown));
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -453,6 +456,26 @@
       <Activity {shown} {onopen} />
     {:else if pane.kind === 'discussions'}
       <Discussions discussions={feed?.discussions ?? []} {shown} {onopen} />
+    {:else if pane.kind === 'collaboration'}
+      <!-- Two things that need a person: conflicts (urgent — an unresolved merge blocks every
+           commit) surface first, then proposals through the usual Timeline. -->
+      {#if conflictNotes.length}
+        <section class="conflicts-feed">
+          <h3 class="conflicts-head">⚠ Needs resolution</h3>
+          <ul>
+            {#each conflictNotes as c (c.id)}
+              <li>
+                <button class="conflict-row" onclick={() => onopen(c.id)}>
+                  <VaultBadge vault={c.vault} />
+                  <span class="conflict-title">{c.title ?? c.preview}</span>
+                  <span class="conflict-tag">conflict</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+      <Timeline {cards} {onopen} {statuses} onstatus={onstatus} />
     {:else if pane.kind === 'agenda'}
       {#if pane.agendaMode === 'list'}
         <Agenda {cards} {onopen} />
@@ -659,5 +682,53 @@
   .pane-empty {
     padding: var(--space-4);
     color: var(--text-muted);
+  }
+  /* Conflicts sit above the proposals in the Collaboration surface — urgent, so accent-framed. */
+  .conflicts-feed {
+    margin: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+  .conflicts-head {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--accent);
+  }
+  .conflicts-feed ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .conflict-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .conflict-row:hover {
+    background: var(--surface-hover);
+  }
+  .conflict-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .conflict-tag {
+    flex: none;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--accent);
   }
 </style>

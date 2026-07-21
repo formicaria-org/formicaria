@@ -142,6 +142,8 @@ export interface Feed {
   board?: Board;
   cards?: ObjectMeta[];
   discussions?: DiscussionSummary[];
+  /** Conflicted notes (Collaboration surface) — shown above proposals as "needs resolution". */
+  conflicts?: ObjectMeta[];
 }
 
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or

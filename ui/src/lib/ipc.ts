@@ -150,6 +150,10 @@ export const backlinks = (id: string) => invoke<ObjectMeta[]>('backlinks', { id 
  *  template is just a tagged note; tag one to make it a starting point, untag to unmake it. */
 export const templates = () => invoke<ObjectMeta[]>('templates');
 
+/** Notes that came back from a merge in conflict — both versions marked in the body, needing a
+ *  human. Derived by scanning for the markers, so the list is always current (resolve one → it drops). */
+export const conflicts = () => invoke<ObjectMeta[]>('conflicts');
+
 /** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
  *  newest first. The Collaboration surface's feed.
  *

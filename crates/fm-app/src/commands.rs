@@ -610,6 +610,45 @@ pub fn backlinks(store: &dyn Store, id: &str) -> Result<Vec<ObjectMeta>, StoreEr
         .collect())
 }
 
+/// True when a note body still carries git conflict markers — a merge left both versions in place
+/// and a human must reconcile them. Requires both an opening and a closing marker to avoid flagging
+/// a note that merely *mentions* one.
+fn has_conflict_markers(body: &str) -> bool {
+    let mut opened = false;
+    let mut closed = false;
+    for line in body.lines() {
+        if line.starts_with("<<<<<<<") {
+            opened = true;
+        } else if line.starts_with(">>>>>>>") {
+            closed = true;
+        }
+    }
+    opened && closed
+}
+
+/// Notes that came back from a merge **in conflict** — both versions are marked in the body and a
+/// human must settle them. The Collaboration surface lists these beside proposals: both are "needs a
+/// person", and a conflict left unresolved blocks every commit, so it must be findable, not just a
+/// toast that scrolled away.
+///
+/// **Derived by scanning, no stored state** (like `recent`/`backlinks`): a note is in conflict iff
+/// its body holds the markers, so the list is always exactly the current truth on disk — resolve a
+/// note and it drops off by itself. Same O(corpus) `load_all()` cost, accepted at 10k scale.
+pub fn conflicts(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: crate::thread::notes_base(),
+        sort: vec![SortKey::desc("updated")],
+        ..Default::default()
+    };
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .filter(|o| has_conflict_markers(&o.body))
+        .map(ObjectMeta::from)
+        .collect())
+}
+
 /// The tag that marks a note as a template — a starting point to spin new notes from.
 pub const TEMPLATE_TAG: &str = "template";
 

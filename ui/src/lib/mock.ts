@@ -370,6 +370,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.updated.localeCompare(a.updated));
       return list as T;
     }
+    case 'conflicts': {
+      // A note is in conflict iff its body carries both markers — same rule as the server.
+      const marked = (s: string) => /^<{7}/m.test(s) && /^>{7}/m.test(s);
+      return notes
+        .filter(isNote)
+        .filter((n) => marked(bodyOverrides.get(n.id) ?? n.preview))
+        .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
+    }
     case 'templates': {
       // A template is just a note tagged `template`, exactly as the server sees it (a `TagsAll`
       // filter over the plain note set) — no hidden class, most-recently-touched first.

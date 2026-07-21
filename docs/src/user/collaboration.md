@@ -31,17 +31,22 @@ offers the proposal path; it never forces it.
 ### The Collaboration view
 
 The **Collaboration** view (open it from the view picker, or “Open Collaboration” in the command
-palette) lists the open proposals across your vaults, newest first. Open one to read it and its
-discussion, and to take part.
+palette) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
+notes still in conflict (both versions marked in their bodies after a merge), and below it the open
+**proposals** across your vaults, newest first. Open a conflict to merge the two versions by hand;
+open a proposal to read it and its discussion, and to take part.
+
+The conflict list is *derived* — a note is in it exactly while its body carries the merge markers, so
+resolving a note makes it drop off by itself (nothing to dismiss). It matters that it lives here and
+not only in a toast: an unresolved conflict blocks every commit, so it must stay **findable**.
 
 Proposals are kept out of the Board, Agenda and Timeline — like a discussion message, a proposal
 is not something you *plan* — but they remain fully searchable.
 
-> **What is here today.** You can **view and discuss** proposals in this view. Creating a proposal
-> from a note or whiteboard, seeing its diff, and accepting (merging) it are being built next; a
-> proposal is created today by putting a note carrying `proposes: branch:<name>` in the vault (by
-> hand, or by an agent). Conflicts awaiting resolution are surfaced by the
-> [backup panel](./backup.md), not here.
+> **What is here today.** You can **view and discuss** proposals, and **find and open** conflicts.
+> Creating a proposal from a note or whiteboard, seeing its diff, and accepting (merging) it are
+> being built next; a proposal is created today by putting a note carrying `proposes: branch:<name>`
+> in the vault (by hand, or by an agent).
 
 ### How a proposal ages
 

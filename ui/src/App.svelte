@@ -22,6 +22,7 @@
     getAgenda,
     recent,
     proposals,
+    conflicts,
     createDiscussion,
     discussions as fetchDiscussions,
     templates as fetchTemplates,
@@ -504,11 +505,12 @@
       return { cards };
     }
     if (type === 'collaboration') {
-      // A flat list of proposal notes, rendered through the Timeline renderer like any other
-      // flat feed. No git read here — branch state is derived later, with the diff surface.
-      const cards = await proposals();
+      // Two things that need a person: proposals (branch + note) and notes still in conflict (both
+      // versions marked in the body). Both are derived scans — no git read here. Conflicts render
+      // above proposals as "needs resolution", so an unresolved merge is findable, not just a toast.
+      const [cards, confl] = await Promise.all([proposals(), conflicts()]);
       learnStatuses(cards);
-      return { cards };
+      return { cards, conflicts: confl };
     }
     if (type === 'discussions') {
       // The ongoing discussions, most-active-first, each with its participants. Its own feed field
