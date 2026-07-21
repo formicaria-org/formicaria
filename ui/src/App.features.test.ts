@@ -629,4 +629,67 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(await screen.findByRole('button', { name: /Callout/ }));
     await waitFor(() => expect(body.value).toBe('> [!note] ## a plain line'));
   });
+
+  // Tapping a table cell edits it in place, patching ONLY that cell's bytes — every other cell,
+  // the pipes, and the alignment row are left exactly as they were.
+  it('tapping a table cell edits it in place and patches only that cell', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: '| A | B |\n|---|---|\n| 1 | 2 |\n' } });
+    await fireEvent.keyDown(body, { key: 's', ctrlKey: true }); // read view
+
+    // Tap the body cell showing "1".
+    const cell = await waitFor(() => {
+      const c = [...document.querySelectorAll('.read tbody td')].find(
+        (td) => td.textContent?.trim() === '1',
+      );
+      if (!c) throw new Error('table not rendered yet');
+      return c as HTMLTableCellElement;
+    });
+    await fireEvent.click(cell);
+
+    // The overlay input is prefilled with the cell's SOURCE text; change it and commit with Enter.
+    const input = (await screen.findByLabelText('edit cell')) as HTMLInputElement;
+    expect(input.value).toBe('1');
+    await fireEvent.input(input, { target: { value: '9' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+
+    await openEditor();
+    await waitFor(() =>
+      expect((screen.getByLabelText('note body (Markdown)') as HTMLTextAreaElement).value).toBe(
+        '| A | B |\n|---|---|\n| 9 | 2 |\n',
+      ),
+    );
+  });
+
+  // A pipe typed into a cell would break the table — so it's escaped, keeping the file a valid table.
+  it('escapes a pipe typed into a table cell so the table cannot break', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: '| A |\n|---|\n| x |\n' } });
+    await fireEvent.keyDown(body, { key: 's', ctrlKey: true });
+
+    const cell = await waitFor(() => {
+      const c = [...document.querySelectorAll('.read tbody td')].find(
+        (td) => td.textContent?.trim() === 'x',
+      );
+      if (!c) throw new Error('table not rendered yet');
+      return c as HTMLTableCellElement;
+    });
+    await fireEvent.click(cell);
+    const input = (await screen.findByLabelText('edit cell')) as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: 'a|b' } });
+    await fireEvent.keyDown(input, { key: 'Enter' });
+
+    await openEditor();
+    await waitFor(() =>
+      expect((screen.getByLabelText('note body (Markdown)') as HTMLTextAreaElement).value).toBe(
+        '| A |\n|---|\n| a\\|b |\n',
+      ),
+    );
+  });
 });

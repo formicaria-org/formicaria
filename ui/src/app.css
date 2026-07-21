@@ -270,6 +270,11 @@ body {
   color: var(--text-muted);
   text-decoration: line-through;
 }
+/* A tap-to-edit table cell shows a text cursor (NotePanel overlays an input on click). */
+.read td.cell-edit,
+.read th.cell-edit {
+  cursor: text;
+}
 
 /* Read-view decorations from render.ts marked extensions. Colours are **semantic theme tokens**,
    never hex/colour names, so a note stays truthful across themes (the vocab is in render-vocab.ts). */

@@ -106,6 +106,12 @@ readable in **any** Markdown editor (nothing here is app-only HTML):
   colour: `accent`, `info`, `ok`, `warn`, `muted` — so the note stays readable when you switch
   light/dark or change theme. An unknown token is left as the literal text.
 
+**Editing tables.** In the read view, **tap a table cell** to edit it in place — a little box opens
+over the cell, prefilled with its text; Enter or tap-away saves, Escape cancels. It rewrites only
+that one cell (a typed `|` is escaped so the table can't break), and only works on plain
+pipe-bordered tables — an unusual cell is simply left to the full editor. It's far kinder than
+lining up pipes by hand, especially on a phone.
+
 Colours come from the theme, never a raw colour or hex code — a deliberate limit so a note written
 today still looks right under a theme designed years from now, and so a note body can never carry
 arbitrary HTML/styles (which would be both unportable and a security hole in a shared vault).

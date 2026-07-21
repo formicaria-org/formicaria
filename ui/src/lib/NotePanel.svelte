@@ -264,6 +264,11 @@
       if (kind.closest('.note-embed')) continue;
       kind.classList.add('pickable');
     }
+    // Table cells in our own tables get a text cursor — a tap edits them in place.
+    for (const cell of content.querySelectorAll<HTMLElement>('td, th')) {
+      if (cell.closest('.note-embed')) continue;
+      cell.classList.add('cell-edit');
+    }
   }
 
   // A `note:` chip needs the target's live title/status. `get` already returns
@@ -301,7 +306,15 @@
     }
     const chip = el?.closest<HTMLElement>('.note-chip');
     const target = chip?.dataset.noteId;
-    if (target) onnavigate?.(target);
+    if (target) {
+      onnavigate?.(target);
+      return;
+    }
+    const cell = el?.closest<HTMLTableCellElement>('td, th');
+    if (cell && !cell.closest('.note-embed')) {
+      e.preventDefault();
+      openCellEditor(cell);
+    }
   }
 
   // The byte offset of the state char inside each GFM task marker (`- [ ]` / `- [x]`), in document
@@ -398,6 +411,116 @@
     pick.el.textContent = kind;
     pick.el.dataset.kind = kind;
     void saveTask();
+  }
+
+  // ---- Table cell editing (deliberately conservative) ----
+  //
+  // Tap a cell in one of this note's tables to edit it in place. It only handles a plain **bordered**
+  // GFM row (`| a | b |`) and **bails** on anything it can't map exactly — ragged rows, a column past
+  // the source, a non-bordered row — rather than risk mangling a table. Byte-for-byte beats coverage.
+  let cellEdit = $state<
+    { at: number; len: number; value: string; top: number; left: number; width: number; height: number } | null
+  >(null);
+
+  function isTableSeparator(line: string): boolean {
+    return line.includes('-') && /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line);
+  }
+
+  // The lines of the Nth GFM table block in the source (skipping fenced code), each with its byte
+  // offset. Index 0 is the header, 1 the separator, 2+ the body rows — matching the read DOM.
+  function nthTableBlock(src: string, n: number): { text: string; offset: number }[] | null {
+    const lines = src.split('\n');
+    const offsets: number[] = [];
+    let o = 0;
+    for (const l of lines) {
+      offsets.push(o);
+      o += l.length + 1;
+    }
+    let fenced = false;
+    let count = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\s*(```|~~~)/.test(lines[i])) {
+        fenced = !fenced;
+        continue;
+      }
+      if (fenced) continue;
+      if (lines[i].includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+        let j = i + 2;
+        while (j < lines.length && lines[j].includes('|') && !/^\s*(```|~~~)/.test(lines[j])) j++;
+        count++;
+        if (count === n) {
+          const out: { text: string; offset: number }[] = [];
+          for (let k = i; k < j; k++) out.push({ text: lines[k], offset: offsets[k] });
+          return out;
+        }
+        i = j - 1;
+      }
+    }
+    return null;
+  }
+
+  // The cells of one bordered row (`| a | b |`) as byte ranges of the content between consecutive
+  // unescaped pipes. null for a non-bordered row — we don't edit those.
+  function parseBorderedRow(line: string): { start: number; end: number; text: string }[] | null {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return null;
+    const pipes: number[] = [];
+    for (let k = 0; k < line.length; k++) if (line[k] === '|' && line[k - 1] !== '\\') pipes.push(k);
+    if (pipes.length < 2) return null;
+    const cells: { start: number; end: number; text: string }[] = [];
+    for (let k = 0; k < pipes.length - 1; k++) {
+      cells.push({ start: pipes[k] + 1, end: pipes[k + 1], text: line.slice(pipes[k] + 1, pipes[k + 1]) });
+    }
+    return cells;
+  }
+
+  // Map a tapped DOM cell to its exact source byte range, or null if it can't be mapped safely.
+  function cellSourceSpan(cell: HTMLTableCellElement): { at: number; len: number; value: string } | null {
+    if (!content) return null;
+    const table = cell.closest('table');
+    if (!table) return null;
+    const tables = [...content.querySelectorAll('table')].filter((t) => !t.closest('.note-embed'));
+    const tIdx = tables.indexOf(table);
+    if (tIdx < 0) return null;
+    const tr = cell.closest('tr');
+    if (!tr) return null;
+    const inHead = !!cell.closest('thead');
+    const bodyRows = [...table.querySelectorAll('tbody tr')];
+    const lineIdx = inHead ? 0 : 2 + bodyRows.indexOf(tr);
+    const block = nthTableBlock(draft, tIdx);
+    if (!block || lineIdx < 0 || lineIdx >= block.length) return null;
+    const cells = parseBorderedRow(block[lineIdx].text);
+    const col = cell.cellIndex;
+    if (!cells || col < 0 || col >= cells.length) return null;
+    const c = cells[col];
+    return { at: block[lineIdx].offset + c.start, len: c.end - c.start, value: c.text.trim() };
+  }
+
+  function openCellEditor(cell: HTMLTableCellElement) {
+    if (!note || editing) return;
+    const span = cellSourceSpan(cell);
+    if (!span) return; // can't map safely — leave the cell read-only
+    const r = cell.getBoundingClientRect();
+    cellEdit = { ...span, top: r.top, left: r.left, width: r.width, height: r.height };
+  }
+
+  // Replace just this cell's content, escaping any pipe and flattening newlines so the table can't
+  // break; save re-renders the table with the new (Markdown) content — the one place a re-render is
+  // the point, not a cost.
+  function commitCell() {
+    const c = cellEdit;
+    cellEdit = null;
+    if (!c || !note) return;
+    const clean = c.value.replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').trim();
+    const replacement = ` ${clean} `;
+    if (draft.slice(c.at, c.at + c.len) === replacement) return; // no change
+    draft = draft.slice(0, c.at) + replacement + draft.slice(c.at + c.len);
+    void saveTask();
+  }
+
+  function autofocus(node: HTMLInputElement) {
+    node.focus();
+    node.select();
   }
 
   // A checkbox tap must not be violent on conflict. Where `save`/`onSaveRejected` reopens the editor
@@ -1659,6 +1782,27 @@
     {:else if !error}
       <p class="loading">Loading…</p>
     {/if}
+    {#if cellEdit}
+      <!-- Tap-to-edit a table cell: a single-line input overlaid on the cell, prefilled with its
+           *source* text. Enter or blur commits (patching just that cell); Escape cancels. -->
+      <input
+        class="cell-input"
+        style="top: {cellEdit.top}px; left: {cellEdit.left}px; width: {cellEdit.width}px; height: {cellEdit.height}px"
+        bind:value={cellEdit.value}
+        aria-label="edit cell"
+        onkeydown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitCell();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cellEdit = null;
+          }
+        }}
+        onblur={commitCell}
+        use:autofocus
+      />
+    {/if}
     {#if calloutPick}
       <!-- Tap a callout's type badge to change its kind. A small menu of the closed callout
            vocabulary, anchored under the badge; dismissed by tapping outside or Escape. -->
@@ -2236,6 +2380,19 @@
   }
   .fmt-color-opt[data-token='muted'] {
     color: var(--muted);
+  }
+  /* The tap-to-edit table cell input, overlaid on the cell (fixed, to the viewport). */
+  .cell-input {
+    position: fixed;
+    z-index: 55;
+    box-sizing: border-box;
+    min-height: 1.8rem;
+    padding: 0 0.4rem;
+    background: var(--surface-elevated);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
   }
   /* The callout-type picker: a small menu anchored (fixed, to the viewport) under the tapped badge. */
   .callout-picker {
