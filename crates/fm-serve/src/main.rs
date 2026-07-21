@@ -50,6 +50,11 @@ struct AppState {
     /// Set once the first request lands, so we grant a longer grace for a cold
     /// browser to make contact before the idle timeout applies.
     connected: AtomicBool,
+    /// The port we serve on — the study agent needs it to know which fm-serve to watch.
+    port: u16,
+    /// Whether the study agent has already been spawned this run, so toggling the setting on while
+    /// it is already running does not start a second one.
+    agent_running: AtomicBool,
 }
 
 /// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
@@ -65,6 +70,27 @@ fn agent_enabled() -> bool {
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .map(|v| v["enabled"].as_bool().unwrap_or(false))
         .unwrap_or(false)
+}
+
+/// Spawn the local study agent — the opt-in script in `agents/`, told which fm-serve port to watch.
+/// Returns whether it started. The agent (a separate process) then follows this server's liveness and
+/// stops itself when we stop answering, so it needs no supervision from here.
+fn spawn_agent(port: u16) -> bool {
+    let script = std::path::Path::new("agents/start-agent.sh");
+    if !script.exists() {
+        eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
+        return false;
+    }
+    match std::process::Command::new("bash").arg(script).arg(port.to_string()).spawn() {
+        Ok(_) => {
+            println!("study agent: starting — it comes up in a few seconds");
+            true
+        }
+        Err(e) => {
+            eprintln!("study agent: could not start: {e}");
+            false
+        }
+    }
 }
 
 /// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
@@ -127,6 +153,8 @@ fn main() {
         origins,
         last_seen: Mutex::new(Instant::now()),
         connected: AtomicBool::new(false),
+        port: port.parse().unwrap_or(8765),
+        agent_running: AtomicBool::new(false),
     });
 
     match &state.dist {
@@ -176,17 +204,8 @@ fn main() {
     // learns the agent exists, and with no `agents/` directory nothing is spawned (pure formicaria).
     // The agent dies with formicaria: it watches this very port and stops the model when we stop
     // answering, so a closed app leaves nothing running.
-    if agent_enabled() {
-        let script = std::path::Path::new("agents/start-agent.sh");
-        if script.exists() {
-            let port = addr.rsplit(':').next().unwrap_or("8765").to_string();
-            match std::process::Command::new("bash").arg(script).arg(&port).spawn() {
-                Ok(_) => println!("study agent: starting (enabled) — it will come up in a few seconds"),
-                Err(e) => eprintln!("study agent: could not start: {e}"),
-            }
-        } else {
-            eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
-        }
+    if agent_enabled() && spawn_agent(state.port) {
+        state.agent_running.store(true, Ordering::Relaxed);
     }
 
     for stream in listener.incoming().flatten() {
@@ -368,7 +387,18 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
             .and_then(|v| v["enabled"].as_bool())
             .unwrap_or(false);
         return match set_agent_enabled(enabled) {
-            Ok(()) => write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}"),
+            Ok(()) => {
+                // Turning it ON starts it **immediately** — no relaunch. The atomic swap makes sure
+                // only one is ever spawned. (Turning it OFF just persists the setting: the running
+                // agent stops when the app closes and will not start next launch.)
+                if enabled
+                    && !state.agent_running.swap(true, Ordering::Relaxed)
+                    && !spawn_agent(state.port)
+                {
+                    state.agent_running.store(false, Ordering::Relaxed);
+                }
+                write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}")
+            }
             Err(e) => write_response(&mut stream, "500 Internal Server Error", "text/plain", e.as_bytes()),
         };
     }
@@ -651,6 +681,8 @@ mod tests {
             origins,
             last_seen: Mutex::new(Instant::now()),
             connected: AtomicBool::new(false),
+            port: 0,
+            agent_running: AtomicBool::new(false),
         };
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
