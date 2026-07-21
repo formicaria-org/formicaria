@@ -1310,6 +1310,14 @@
   // out of the pane. Where there is no layout engine (jsdom) caretXY reports
   // zeros and this degrades to the editor's top-left — never a crash.
   function slashAnchor(el: HTMLTextAreaElement, from: number): { top: number; left: number } {
+    // **Touch: pin to the top of the editor, in viewport coords (`.slash-menu` is `position: fixed`
+    // on coarse).** Anchoring at the caret is unreliable on a phone — the space "below" the caret
+    // that `slashAnchor` measures against the textarea's height is usually *behind the keyboard*, so
+    // the menu opened where it couldn't be seen. The top of the textarea is always above the keyboard.
+    if (coarsePointer) {
+      const r = el.getBoundingClientRect();
+      return { top: r.top + 2, left: r.left + 2 };
+    }
     const { top, left, lineHeight } = caretXY(el, from);
     const MENU_W = 256; // 16rem, the popup's min-width
     const MENU_H = 224; // 14rem, its max-height
@@ -1689,6 +1697,7 @@
             <ul
               class="slash-menu"
               class:embedding={slash.embed}
+              class:fixed-pos={coarsePointer}
               role="listbox"
               aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
               style="top: {slash.at.top}px; left: {slash.at.left}px"
@@ -1698,8 +1707,8 @@
                   role="option"
                   aria-selected={i === slash.active}
                   class:active={i === slash.active}
-                  onmousedown={(e) => {
-                    e.preventDefault();
+                  onpointerdown={(e) => {
+                    e.preventDefault(); // keep the textarea focused/selected (touch + mouse)
                     chooseSlash(r, e.shiftKey);
                   }}
                 >
@@ -2371,6 +2380,12 @@
   /* Embed mode (`//`) gets an accent frame so it's clear a tap will embed, not link. */
   .slash-menu.embedding {
     border-color: var(--accent);
+  }
+  /* Touch: fixed to the viewport (anchored at the top of the editor, above the keyboard), so it is
+     always visible — the caret-anchored spot lands behind the on-screen keyboard on a phone. */
+  .slash-menu.fixed-pos {
+    position: fixed;
+    max-width: min(20rem, 92vw);
   }
   /* The formatting toolbar. Two presentations share this base: a discrete float on desktop, a
      persistent row on touch. Kept small — a discrete presence, never a big band across the editor. */
