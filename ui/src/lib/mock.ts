@@ -293,8 +293,17 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
  * nothing, so UI tests passed against a shape the Rust never sends. Binding first means a
  * mock that answers the wrong shape fails `check-ui` rather than a user.
  */
+// The study-assistant on/off setting, mocked (the real one is a per-device launcher setting served
+// by fm-serve, not a vault command).
+let mockAgentEnabled = false;
+
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
+    case 'agent_status':
+      return { enabled: mockAgentEnabled } as T;
+    case 'set_agent':
+      mockAgentEnabled = Boolean(args.enabled);
+      return { ok: true } as T;
     case 'board': {
       const board: Board = buildBoard(String(args.groupBy));
       return board as T;

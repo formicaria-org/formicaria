@@ -15,7 +15,7 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import { onMount } from 'svelte';
-  import { config as fetchConfig, setGitAssetsMax } from './ipc';
+  import { config as fetchConfig, setGitAssetsMax, agentStatus, setAgent } from './ipc';
   import type { Config } from './types';
   import * as keys from './keys';
 
@@ -129,7 +129,26 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+    // The study-assistant toggle. `null` = unavailable here (e.g. a build without the agent), which
+    // hides the row rather than showing a control that does nothing.
+    try {
+      agentOn = (await agentStatus()).enabled;
+    } catch {
+      agentOn = null;
+    }
   });
+
+  // The local study assistant: whether it auto-starts with formicaria. Off by default; a change
+  // takes effect at the next launch. `null` while unknown/unavailable.
+  let agentOn = $state<boolean | null>(null);
+  async function toggleAgent(next: boolean) {
+    try {
+      await setAgent(next);
+      agentOn = next;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   const resticFor = (name: string) => cfg?.restic.find((r) => r.vault === name)?.repo ?? null;
 
@@ -230,6 +249,35 @@
           {/each}
         </ul>
       </section>
+
+      {#if agentOn !== null}
+        <section>
+          <h3>Study assistant</h3>
+          <p class="muted">
+            A small local model that reads your notes and answers in discussions — mention it by name
+            (e.g. <code>@lfm2.5-230m</code>) and it replies; it can propose edits you review, and never
+            touches your notes on its own. It runs entirely on this device, starts and stops
+            <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change takes
+            effect at the next launch.
+          </p>
+          <ul class="caps">
+            <li>
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  checked={agentOn}
+                  onchange={(e) => toggleAgent(e.currentTarget.checked)} />
+                <span class="k">{agentOn ? 'On' : 'Off'}</span>
+                <span class="muted">
+                  {agentOn
+                    ? 'Starts with formicaria on the next launch.'
+                    : 'Formicaria runs pure and super-light.'}
+                </span>
+              </label>
+            </li>
+          </ul>
+        </section>
+      {/if}
 
       <section>
         <h3>Columns</h3>

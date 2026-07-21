@@ -52,6 +52,36 @@ struct AppState {
     connected: AtomicBool,
 }
 
+/// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
+/// dev/override), otherwise from the per-device setting `<config>/agent.json` (`{"enabled": true}`)
+/// that the settings screen writes. **Default off** — opt-in, so a user who never turns it on runs
+/// pure, super-light formicaria.
+fn agent_enabled() -> bool {
+    if std::env::var_os("FM_AGENT").is_some() {
+        return true;
+    }
+    agent_config_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .map(|v| v["enabled"].as_bool().unwrap_or(false))
+        .unwrap_or(false)
+}
+
+/// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
+fn agent_config_path() -> Option<PathBuf> {
+    fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("agent.json"))
+}
+
+/// Persist the on/off setting (written by the settings screen via `/api/set_agent`). Takes effect at
+/// the next launch — the agent auto-starts (or not) with formicaria.
+fn set_agent_enabled(enabled: bool) -> Result<(), String> {
+    let path = agent_config_path().ok_or("no config directory on this OS")?;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&path, format!("{{\"enabled\": {enabled}}}\n")).map_err(|e| e.to_string())
+}
+
 /// This platform's answer to "open this file with whatever owns it" — the one thing
 /// `fm_app::dispatch` cannot know for itself. See [`fm_app::Host`].
 struct Desktop;
@@ -139,6 +169,24 @@ fn main() {
     // does NOT set it, so the dev loop keeps the server up until Ctrl-C.
     if std::env::var_os("FM_AUTO_SHUTDOWN").is_some() {
         spawn_watchdog(Arc::clone(&state));
+    }
+
+    // **Auto-start the local study agent, if it is enabled** (a per-device opt-in). fm-serve just
+    // runs an *opt-in script in `agents/`* — the shared command core (`fm_app`/`dispatch`) never
+    // learns the agent exists, and with no `agents/` directory nothing is spawned (pure formicaria).
+    // The agent dies with formicaria: it watches this very port and stops the model when we stop
+    // answering, so a closed app leaves nothing running.
+    if agent_enabled() {
+        let script = std::path::Path::new("agents/start-agent.sh");
+        if script.exists() {
+            let port = addr.rsplit(':').next().unwrap_or("8765").to_string();
+            match std::process::Command::new("bash").arg(script).arg(&port).spawn() {
+                Ok(_) => println!("study agent: starting (enabled) — it will come up in a few seconds"),
+                Err(e) => eprintln!("study agent: could not start: {e}"),
+            }
+        } else {
+            eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
+        }
     }
 
     for stream in listener.incoming().flatten() {
@@ -304,6 +352,25 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // `dispatch` would push a transport concern into the shared surface.
     if path == "/api/alive" {
         return write_response(&mut stream, "200 OK", "text/plain", b"");
+    }
+
+    // The study-agent on/off setting — a *transport/launcher* concern (like the auto-shutdown
+    // watchdog), deliberately NOT a `dispatch` command, so the shared command core never learns the
+    // agent exists. The settings screen reads `/api/agent_status` and writes `/api/set_agent`; the
+    // change takes effect at the next launch (the agent auto-starts, or not, with formicaria).
+    if path == "/api/agent_status" {
+        let body = format!("{{\"enabled\": {}}}", agent_enabled());
+        return write_response(&mut stream, "200 OK", "application/json", body.as_bytes());
+    }
+    if path == "/api/set_agent" {
+        let enabled = serde_json::from_slice::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["enabled"].as_bool())
+            .unwrap_or(false);
+        return match set_agent_enabled(enabled) {
+            Ok(()) => write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}"),
+            Err(e) => write_response(&mut stream, "500 Internal Server Error", "text/plain", e.as_bytes()),
+        };
     }
 
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {

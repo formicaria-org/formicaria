@@ -165,6 +165,13 @@ export const conflicts = () => invoke<ObjectMeta[]>('conflicts');
  *  deferred diff surface. */
 export const proposals = () => invoke<ObjectMeta[]>('proposals');
 
+/** The local study-assistant on/off setting — a per-device *launcher* setting (served by fm-serve,
+ *  not a vault command). When on, the agent (a small local model that reads your notes and answers
+ *  in discussions) auto-starts with formicaria and stops when you close it; off is pure, super-light
+ *  formicaria. Takes effect at the next launch. */
+export const agentStatus = () => invoke<{ enabled: boolean }>('agent_status');
+export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
+
 /** Propose a change to an existing note. The change lands on a `proposal/<id>` branch (never `main`)
  *  and a proposal note records it for the Collaboration view; a person reviews and merges it. It is
  *  **refused, never truncated**, when it exceeds the target vault's guardrails (`vault.json` →
