@@ -370,6 +370,15 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.updated.localeCompare(a.updated));
       return list as T;
     }
+    case 'templates': {
+      // A template is just a note tagged `template`, exactly as the server sees it (a `TagsAll`
+      // filter over the plain note set) — no hidden class, most-recently-touched first.
+      const list = notes
+        .filter(isNote)
+        .filter((n) => n.tags.includes('template'))
+        .sort((a, b) => b.updated.localeCompare(a.updated));
+      return list as T;
+    }
     case 'reply': {
       const target = notes.find((n) => n.id === String(args.id));
       if (!target) throw new Error('no such note');

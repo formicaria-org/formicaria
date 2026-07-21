@@ -146,6 +146,10 @@ export const discussions = () => invoke<DiscussionSummary[]>('discussions');
  *  Derived by scanning bodies, not indexed; newest-updated first. */
 export const backlinks = (id: string) => invoke<ObjectMeta[]>('backlinks', { id });
 
+/** Every note tagged `template` — the "New from template" list, most-recently-touched first. A
+ *  template is just a tagged note; tag one to make it a starting point, untag to unmake it. */
+export const templates = () => invoke<ObjectMeta[]>('templates');
+
 /** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
  *  newest first. The Collaboration surface's feed.
  *

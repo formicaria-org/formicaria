@@ -187,6 +187,7 @@ pub fn dispatch(
         // "What links here" — notes whose body references this note (a `note:` mention or an embed).
         // A store scan like `recent`, not a git read; no reverse index.
         "backlinks" => json(commands::backlinks(&lock()?.store, &s("id")).map_err(err)?),
+        "templates" => json(commands::templates(&lock()?.store).map_err(err)?),
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and
         // the contributor filter. Aggregated across vaults, newest-first.

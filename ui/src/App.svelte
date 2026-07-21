@@ -24,6 +24,8 @@
     proposals,
     createDiscussion,
     discussions as fetchDiscussions,
+    templates as fetchTemplates,
+    getNote,
     capture,
     setProperty,
     search as ipcSearch,
@@ -242,6 +244,17 @@
   // a pane's view picker; opening one adds/retargets a pane.
   let views = $state<ViewInfo[]>([]);
 
+  // The notes tagged `template`, surfaced in the palette as "New from …". Same cadence as views:
+  // a template is authored (tagged) rarely, so this is fetched on load and when Settings (which
+  // hosts the "New from …" actions) opens — not polled. Declared here, above `commands`, because
+  // the palette reads it.
+  let templates = $state<ObjectMeta[]>([]);
+  function reloadTemplates() {
+    void fetchTemplates()
+      .then((t) => (templates = t))
+      .catch(() => (templates = []));
+  }
+
   // Contributor filter — the git-authorship twin of the vault filter. `contributors()` (reactive,
   // from the activity module) drives the chips; `hiddenAuthors` is a HIDE list like `hiddenVaults`,
   // persisted the same way. A note whose last editor is hidden is filtered out; a note git knows
@@ -296,6 +309,7 @@
   function openSettings(section = '') {
     settingsSection = section;
     settingsOpen = true;
+    reloadTemplates(); // the "New from …" actions live here — a note tagged since load may be one
   }
   let settingsOpen = $state(false);
   let backupOpen = $state(false);
@@ -346,6 +360,15 @@
     ...CREATE_MENU,
     // Only here: rare enough to be clutter in a menu reached dozens of times a day.
     { group: 'Create', label: 'New vault', run: () => (newVaultOpen = true) },
+    // **Templates live only in the palette, by name.** A template is a note you tagged `template`;
+    // "New from …" spins a fresh note off its body. The `＋` menu stays fixed (New note/board/
+    // discussion/window) — a per-vault, user-defined list belongs on the *searchable* surface, the
+    // same reasoning that keeps every saved view here and out of the plus.
+    ...(templates ?? []).map((t) => ({
+      group: 'Create',
+      label: `New from “${t.title || t.preview || 'Untitled'}”`,
+      run: () => onNewFromTemplate(t.id),
+    })),
     // **Every view, by name — and only in the palette.** The plus deliberately stops at "new
     // window" because a window is rotated after it opens, but the palette is the *searchable*
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
@@ -693,6 +716,8 @@
       .catch(() => (views = []));
   });
 
+  $effect(reloadTemplates);
+
   // Open a note as a pane, deduped by its id: a note already in a pane is *focused*, never
   // opened a second time — two panes over one file would be two editors racing `updateBody`
   // and losing writes (the invariant the old trail's truncation protected). This is the one
@@ -744,6 +769,22 @@
     try {
       const meta = await createDiscussion('Untitled discussion', createTarget);
       openNoteInPane(meta.id);
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  // "New from template": start a note pre-filled with a template's body. A template is just a
+  // note tagged `template`, so this copies its **body** (the scaffold — headings, checklists,
+  // callouts) into a fresh note and opens it in the editor. Only the body travels: the copy is
+  // its own untitled note, not another template, so the `template` tag (and the rest of the
+  // frontmatter) is deliberately left behind rather than cloned.
+  async function onNewFromTemplate(id: string) {
+    try {
+      const tpl = await getNote(id);
+      const meta = await capture(tpl?.body ?? '', createTarget);
+      openNoteInPane(meta.id, { editing: true });
       scheduleCommit();
     } catch (err) {
       error = String(err);

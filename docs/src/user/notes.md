@@ -13,6 +13,19 @@ There is no "type" to pick. Everything is a **note**, and you tell them apart wi
 you ingest a file. With more than one vault configured, an **in** selector beside
 these buttons chooses which vault the new file lands in.
 
+## Templates
+
+To reuse a layout — a meeting scaffold, a paper-reading checklist, a daily log — make
+a note with that body and **tag it `template`**. It then shows up in the command
+palette (Ctrl+K) as **New from "…"**, once per template, and picking it opens a fresh
+note pre-filled with the template's body, ready to edit.
+
+A template is nothing special: **just a note with the `template` tag**. Untag it and it
+stops being one; there is no separate "template type" to manage, and the template itself
+stays a normal, searchable note. "New from" copies only the **body** (the scaffold you
+actually reuse) — the new note is its own untitled note, not another template, so the
+`template` tag is left behind rather than cloned.
+
 ## Editing a note
 
 Click any card to open it. It shows the rendered read view. To edit it, either

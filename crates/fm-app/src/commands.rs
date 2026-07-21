@@ -610,6 +610,27 @@ pub fn backlinks(store: &dyn Store, id: &str) -> Result<Vec<ObjectMeta>, StoreEr
         .collect())
 }
 
+/// The tag that marks a note as a template — a starting point to spin new notes from.
+pub const TEMPLATE_TAG: &str = "template";
+
+/// Every note tagged [`TEMPLATE_TAG`] — the "New from template" list, most-recently-touched first.
+///
+/// **A template is just a tagged note**, nothing more: no new `Kind`, no reserved property, no
+/// hidden note-class. Tag any note `template` (in the editor's Tags field) and it becomes a
+/// starting point; untag it and it stops being one. Because it stays an ordinary note it still
+/// shows on the board/timeline and is fully searchable — the honest cost of not inventing a type.
+///
+/// Same in-memory `TagsAll` filter and O(corpus) `load_all()` cost as [`recent`]/[`backlinks`] —
+/// templates are a rare handful, so there is deliberately no index.
+pub fn templates(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
+    let q = Query {
+        filter: crate::thread::notes_base().and(Predicate::TagsAll(vec![TEMPLATE_TAG.into()])),
+        sort: vec![SortKey::desc("updated")],
+        ..Default::default()
+    };
+    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+}
+
 /// Normalize an asset reference to its blob hash. Notes, the gallery, and the
 /// mock all spell the same blob differently — stored as `sha256:<hex>`, written
 /// in Markdown as `asset:sha256-<hex>`, or passed bare — so every asset path
