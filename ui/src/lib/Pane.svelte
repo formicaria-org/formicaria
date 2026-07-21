@@ -15,6 +15,7 @@
   import Discussions from '../renderers/Discussions.svelte';
   import Icon from './Icon.svelte';
   import VaultBadge from './VaultBadge.svelte';
+  import ProposalReview from './ProposalReview.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT } from './types';
@@ -131,6 +132,9 @@
   const cards = $derived((feed?.cards ?? []).filter(shown));
   // Conflicted notes for the Collaboration surface, vault-filtered like the cards.
   const conflictNotes = $derived((feed?.conflicts ?? []).filter(shown));
+  // Which proposals have their diff expanded — so a proposal's diff is fetched only when opened,
+  // not once per proposal on render.
+  let openProposal = $state<Record<string, boolean>>({});
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -475,7 +479,39 @@
           </ul>
         </section>
       {/if}
-      <Timeline {cards} {onopen} {statuses} onstatus={onstatus} />
+      <!-- Proposals: each expands to its diff (fetched lazily on open); "open" jumps to the
+           proposal note itself, where its discussion lives. -->
+      {#if cards.length}
+        <section class="proposals-feed">
+          <h3 class="proposals-head">Proposals</h3>
+          <ul>
+            {#each cards as p (p.id)}
+              <li>
+                <details bind:open={openProposal[p.id]}>
+                  <summary class="proposal-row">
+                    <VaultBadge vault={p.vault} />
+                    <span class="proposal-title">{p.title ?? p.preview}</span>
+                    <button
+                      class="proposal-open"
+                      onclick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onopen(p.id);
+                      }}
+                      title="Open the proposal note and its discussion">open</button
+                    >
+                  </summary>
+                  {#if openProposal[p.id]}
+                    <ProposalReview id={p.id} />
+                  {/if}
+                </details>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {:else}
+        <p class="no-proposals">No open proposals.</p>
+      {/if}
     {:else if pane.kind === 'agenda'}
       {#if pane.agendaMode === 'list'}
         <Agenda {cards} {onopen} />
@@ -730,5 +766,58 @@
     font-weight: 700;
     text-transform: uppercase;
     color: var(--accent);
+  }
+
+  .proposals-feed {
+    margin: var(--space-2);
+  }
+  .proposals-head {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+  .proposals-feed ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .proposals-feed li {
+    border-bottom: 1px solid var(--border, rgba(127, 127, 127, 0.18));
+  }
+  .proposal-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    cursor: pointer;
+    list-style: none;
+  }
+  .proposal-row::-webkit-details-marker {
+    display: none;
+  }
+  .proposal-row:hover {
+    background: var(--surface-hover);
+  }
+  .proposal-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .proposal-open {
+    flex: none;
+    font: inherit;
+    font-size: var(--text-xs);
+    padding: 0 var(--space-1);
+    background: none;
+    border: 1px solid var(--border, rgba(127, 127, 127, 0.3));
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .no-proposals {
+    margin: var(--space-3);
+    color: var(--muted);
+    font-size: var(--text-sm);
   }
 </style>
