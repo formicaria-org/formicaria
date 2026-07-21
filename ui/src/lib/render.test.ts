@@ -422,3 +422,46 @@ describe('renderInto — note references become chips', () => {
     expect(el.querySelector('.note-chip-status')?.textContent).toBe(evil);
   });
 });
+
+describe('renderInto — decorative extensions (highlight, colour, callout)', () => {
+  it('renders ==text== as a <mark>', async () => {
+    const el = pane();
+    await renderInto(el, 'a ==key point== here', noAsset);
+    expect(el.querySelector('mark')?.textContent).toBe('key point');
+  });
+
+  it('renders [text]{.token} as a semantic colour span, and leaves an unknown token literal', async () => {
+    const el = pane();
+    await renderInto(el, 'this is [important]{.accent} and [nope]{.bogus}', noAsset);
+    expect(el.querySelector('span.tk-accent')?.textContent).toBe('important');
+    // An unknown token is not a class — the bytes degrade to readable text.
+    expect(el.querySelector('.tk-bogus')).toBeNull();
+    expect(el.textContent).toContain('[nope]{.bogus}');
+  });
+
+  it('renders > [!type] as a callout with a title, and an unknown type stays a blockquote', async () => {
+    const el = pane();
+    await renderInto(el, '> [!warning] Heads up\n> be careful\n\n> [!bogus] plain\n> quote', noAsset);
+    const callout = el.querySelector('div.callout.callout-warning');
+    expect(callout).not.toBeNull();
+    expect(callout?.querySelector('.callout-title')?.textContent).toBe('Heads up');
+    expect(callout?.textContent).toContain('be careful');
+    // An unknown type is not a callout — it degrades to an ordinary blockquote.
+    expect(el.querySelector('.callout-bogus')).toBeNull();
+    expect(el.querySelectorAll('blockquote').length).toBeGreaterThan(0);
+  });
+
+  // The extensions run BEFORE the single sanitize, so hostile HTML inside a decoration is still
+  // stripped: adding syntax does not move the security boundary.
+  it('sanitizes hostile HTML inside a highlight or a callout', async () => {
+    const el = pane();
+    await renderInto(
+      el,
+      '==<script>evil()</script>== and\n> [!note] <img src=x onerror=hack()>\n> body',
+      noAsset,
+    );
+    expect(el.querySelector('script')).toBeNull();
+    expect(el.querySelector('img[onerror]')).toBeNull();
+    expect(el.innerHTML).not.toContain('onerror');
+  });
+});

@@ -38,6 +38,16 @@ file and renderers never need editing to be re-skinned.
 - **Respect reduced motion.** Transitions collapse under
   `prefers-reduced-motion` — keep animations compositor-only (`transform` /
   `opacity`).
+- **Note-body decorations are closed-vocabulary, semantic-token, and sanitize-safe.** Highlights,
+  callouts, and coloured text are `marked` extensions in `render.ts` that run **upstream of the
+  single DOMPurify pass** (pure syntax→HTML belongs in a marked extension; only async vault
+  resolution is a post-sanitize DOM walk). They emit a DOMPurify-default element (`mark`/`span`/
+  `div`) + a class drawn from a **closed set** (`render-vocab.ts`) — the sanitizer never learns the
+  vocabulary, and an unknown value degrades to literal Markdown. **Colours are semantic tokens**
+  (`accent`/`ok`/`warn`/…), never a colour name or hex, so a note stays truthful across themes; a
+  new theme must define those tokens. A note body **never** carries arbitrary HTML/CSS (unportable
+  + a shared-vault XSS hole). New body syntax follows this shape; user-supplied *rendering* is the
+  off-by-default Lua hatch, never a widened render seam.
 - **A header shows identity + primaries; everything else goes behind `⋯`.** For a
   note/board/discussion pane header the operational test is: **visible** = identity
   (which vault, who edited) plus what *mutates the note's primary content in place*

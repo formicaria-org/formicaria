@@ -6,6 +6,82 @@
 // note never blanks the pane.
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { TEXT_TOKENS, CALLOUT_TYPES } from './render-vocab';
+
+// Decorative Markdown extensions, registered once at module load. **They run inside
+// `marked.parse` (below), upstream of the single `sanitize()` call — never as a post-`innerHTML`
+// pass.** That is the maintainable dividing line already in this file: pure *syntax→HTML* belongs
+// in a marked extension (pre-sanitize, so there is no new pass to misorder and no bytes are
+// mutated); only *async vault resolution* is a post-sanitize DOM walk (`resolveAssets`/
+// `resolveNotes`). Each extension emits a DOMPurify-default-allowed element (`mark`/`span`/`div`)
+// with a class from a CLOSED vocabulary (`render-vocab.ts`); the sanitizer never learns the
+// vocabulary, and an unknown value degrades to literal, readable Markdown (MASTERPLAN:326).
+marked.use({
+  extensions: [
+    // `==highlight==` → `<mark>`. Near-standard (Obsidian/CommonMark); degrades to literal `==`.
+    {
+      name: 'highlight',
+      level: 'inline',
+      start(src: string) {
+        return src.indexOf('==');
+      },
+      tokenizer(src: string) {
+        const m = /^==(?=\S)([\s\S]*?\S)==(?!=)/.exec(src);
+        if (m) return { type: 'highlight', raw: m[0], tokens: this.lexer.inlineTokens(m[1]) };
+      },
+      renderer(token) {
+        return `<mark>${this.parser.parseInline(token.tokens ?? [])}</mark>`;
+      },
+    },
+    // `[text]{.token}` → `<span class="tk-token">`, a semantic colour (Pandoc/djot bracketed-span
+    // attributes). A plain viewer shows `[text]{.token}` with the words intact; `.token` is a
+    // named intent, never a colour/hex, so it stays truthful across themes. Unknown → literal.
+    {
+      name: 'coloredText',
+      level: 'inline',
+      start(src: string) {
+        return src.indexOf('[');
+      },
+      tokenizer(src: string) {
+        const m = /^\[([^\]\n]+)\]\{\.([a-z]+)\}/.exec(src);
+        if (m && (TEXT_TOKENS as readonly string[]).includes(m[2])) {
+          return { type: 'coloredText', raw: m[0], token: m[2], tokens: this.lexer.inlineTokens(m[1]) };
+        }
+      },
+      renderer(token) {
+        return `<span class="tk-${token.token}">${this.parser.parseInline(token.tokens ?? [])}</span>`;
+      },
+    },
+    // `> [!type] title` → `<div class="callout callout-type">`. GitHub/Obsidian standard; a plain
+    // viewer shows an ordinary blockquote with a visible `[!type]` line. Closed type set → an
+    // unknown kind stays a plain blockquote.
+    {
+      name: 'callout',
+      level: 'block',
+      start(src: string) {
+        return src.indexOf('> [!');
+      },
+      tokenizer(src: string) {
+        const m = /^> \[!([a-z]+)\]([^\n]*)((?:\n>[^\n]*)*)/.exec(src);
+        if (!m || !(CALLOUT_TYPES as readonly string[]).includes(m[1])) return;
+        const inner = m[3].replace(/^\n/, '').split('\n').map((l) => l.replace(/^>\s?/, '')).join('\n');
+        return {
+          type: 'callout',
+          raw: m[0],
+          calloutType: m[1],
+          titleTokens: this.lexer.inlineTokens(m[2].trim()),
+          tokens: this.lexer.blockTokens(inner),
+        };
+      },
+      renderer(token) {
+        const title = this.parser.parseInline(token.titleTokens ?? []);
+        const body = this.parser.parse(token.tokens ?? []);
+        const head = title ? `<p class="callout-title">${title}</p>` : '';
+        return `<div class="callout callout-${token.calloutType}">${head}${body}</div>`;
+      },
+    },
+  ],
+});
 
 // A note body is now untrusted input. Before the collaboration work it was only ever the
 // author's own text; now bodies arrive from other people through the `.md` merge driver, and
@@ -71,7 +147,7 @@ export async function renderInto(
   // Markdown → HTML → sanitized. Fenced ```mermaid becomes <pre><code class="language-mermaid">.
   // Sanitize BEFORE the resolve passes so they operate on already-clean DOM, and so a
   // hostile `onerror` never reaches the parser's output at all.
-  el.innerHTML = sanitize(marked.parse(text, { async: false, gfm: true }) as string);
+  el.innerHTML = sanitize(marked.parse(text, { async: false, gfm: true }) as string); // sink-ok: DOMPurify-sanitized
   await resolveAssets(el, resolveAsset);
   if (resolveNote) await resolveNotes(el, resolveNote);
   await renderMath(el, math);
@@ -322,7 +398,7 @@ async function renderMath(el: HTMLElement, math: MathSpan[]): Promise<void> {
     const s = math[Number(host.dataset.math)];
     if (!s) continue;
     try {
-      host.innerHTML = katex.renderToString(s.tex, { displayMode: s.display, throwOnError: true });
+      host.innerHTML = katex.renderToString(s.tex, { displayMode: s.display, throwOnError: true }); // sink-ok: KaTeX, throwOnError
     } catch (e) {
       host.className = 'math-error';
       host.textContent = raw(s);
@@ -353,7 +429,7 @@ async function renderMermaid(el: HTMLElement): Promise<void> {
         // for exactly this. We deliberately do NOT re-run DOMPurify here: its SVG profile can
         // drop the `foreignObject` Mermaid uses for text wrapping, a visual regression headless
         // CI cannot see, traded against a control that already holds. Keep 'strict'.
-        wrap.innerHTML = svg;
+        wrap.innerHTML = svg; // sink-ok: Mermaid securityLevel:'strict' (see comment above)
         host.replaceWith(wrap);
       } catch {
         // Diagram didn't parse — leave the code block as written.

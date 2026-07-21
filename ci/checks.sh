@@ -54,6 +54,31 @@ else
     echo "  (skip: ui/src/renderers does not exist yet)"
 fi
 
+echo "[check] no unaudited HTML sink in the UI (note bodies are untrusted in a shared vault)..."
+# A note body arrives from collaborators through the `.md` merge driver, so any `innerHTML`/
+# `{@html}` is a stored-XSS sink. There are exactly three legitimate ones, all in render.ts and all
+# guarded (DOMPurify / KaTeX throwOnError / Mermaid securityLevel:'strict'); each is tagged
+# `// sink-ok:`. A new, untagged sink fails the build — forcing a conscious review, not a silent
+# reopening. Same comment-anchor trick as the fm-query guard above.
+# Match only *writes* — `.innerHTML =`/`.outerHTML =` (assignment, not the `==` of a read
+# comparison), `insertAdjacentHTML(`, and Svelte `{@html`. Reads (`x = el.innerHTML`, a test
+# assertion) are not sinks. Test files are excluded — they do not ship.
+if grep -REn '\.(inner|outer)HTML[[:space:]]*=[^=]|insertAdjacentHTML|\{@html' ui/src \
+    | grep -vE '\.test\.ts:' \
+    | grep -vE 'sink-ok'; then
+    echo "  FAIL: unaudited HTML sink. After review, tag the line '// sink-ok: <reason>', or remove it."
+    fail=1
+fi
+
+echo "[check] Mermaid must never run with securityLevel 'loose'..."
+# 'strict' strips HTML from diagram labels and disables click-bound scripts — the control that
+# holds the one untrusted innerHTML sink (the rendered SVG). 'loose' reopens CVE-2025-54881-class
+# stored XSS from a collaborator's diagram. Pin it.
+if grep -REn "securityLevel:[[:space:]]*['\"]loose['\"]" ui/src; then
+    echo "  FAIL: Mermaid securityLevel 'loose' reopens diagram-label XSS; keep it 'strict'."
+    fail=1
+fi
+
 echo "[check] a crate that vendors code under an undeclared licence must be in the notices..."
 # The gap this defends, and why it is here rather than in deny.toml:
 #

@@ -45,6 +45,32 @@ plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render i
 the read view). Nothing is ever rewritten behind your back — the file round-trips
 byte-for-byte.
 
+## Formatting text
+
+A note's body is Markdown, so **bold**, *italic*, lists, tables, headings, `code`, and
+fenced ```mermaid diagrams / `$math$` all render in the read view. For a **mind-map or tree**,
+a Mermaid flowchart (`graph TD`) draws the hierarchy — no plugin and no extra download.
+On top of standard Markdown there are three light additions, each chosen so the raw text stays
+readable in **any** Markdown editor (nothing here is app-only HTML):
+
+- **Highlight** — `==important==` renders as a highlight. Elsewhere it reads as `==important==`.
+- **Callouts** — a blockquote whose first line is `[!type]` becomes a coloured callout
+  (GitHub/Obsidian style). The types are `note`, `tip`, `info`, `warning`, `danger`, `quote`:
+
+  ```markdown
+  > [!warning] Heads up
+  > this stands out.
+  ```
+
+  An unrecognised type is just an ordinary blockquote.
+- **Coloured text** — `[some words]{.token}` colours a phrase. The token is a **meaning**, not a
+  colour: `accent`, `info`, `ok`, `warn`, `muted` — so the note stays readable when you switch
+  light/dark or change theme. An unknown token is left as the literal text.
+
+Colours come from the theme, never a raw colour or hex code — a deliberate limit so a note written
+today still looks right under a theme designed years from now, and so a note body can never carry
+arbitrary HTML/styles (which would be both unportable and a security hole in a shared vault).
+
 ## Linking notes together
 
 A note can reference another note. While editing, **type `/`** and search — the

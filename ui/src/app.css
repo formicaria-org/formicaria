@@ -255,6 +255,59 @@ body {
   border-left: 3px solid var(--border);
   color: var(--muted);
 }
+/* Read-view decorations from render.ts marked extensions. Colours are **semantic theme tokens**,
+   never hex/colour names, so a note stays truthful across themes (the vocab is in render-vocab.ts). */
+.read mark {
+  background: var(--tint-c);
+  color: #1a1a1a;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.read .tk-accent {
+  color: var(--accent);
+}
+.read .tk-info {
+  color: var(--tint-a);
+}
+.read .tk-ok {
+  color: var(--tint-b);
+}
+.read .tk-warn {
+  color: var(--tint-c);
+}
+.read .tk-muted {
+  color: var(--muted);
+}
+.read .callout {
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.read .callout-title {
+  margin: 0 0 var(--space-1);
+  font-weight: 600;
+}
+.read .callout > :last-child {
+  margin-bottom: 0;
+}
+.read .callout-note,
+.read .callout-info {
+  border-left-color: var(--tint-a);
+}
+.read .callout-tip {
+  border-left-color: var(--tint-b);
+}
+.read .callout-warning {
+  border-left-color: var(--tint-c);
+}
+.read .callout-danger {
+  border-left-color: var(--accent);
+}
+.read .callout-quote {
+  border-left-color: var(--muted);
+}
 .read img {
   max-width: 100%;
   border-radius: var(--radius-md);

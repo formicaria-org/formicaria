@@ -58,5 +58,6 @@
 >
   {#if title}<title>{title}</title>{/if}
   <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-  {@html ICONS[name] ?? ''}
+  {@html ICONS[name] ?? ''}<!-- sink-ok: closed icon set, SVG hardcoded in this file -->
+
 </svg>
