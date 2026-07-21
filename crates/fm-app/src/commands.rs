@@ -655,6 +655,36 @@ pub fn create_proposal(
     Ok(ObjectMeta::from(&note))
 }
 
+/// A proposal's change, for review: whether its branch still resolves, the files it touches, and the
+/// unified diff. `exists: false` (with an empty diff) is the normal, non-error answer for a proposal
+/// whose branch has been merged or deleted — the note outlives the branch.
+#[derive(Serialize)]
+pub struct ProposalDiff {
+    pub exists: bool,
+    pub files: Vec<String>,
+    pub patch: String,
+}
+
+/// Read the diff of the proposal note `id` — resolve its `proposes: branch:<name>` and diff that
+/// branch against `main`. Refuses a note that is not a proposal (no well-formed `proposes:`), the
+/// read-side twin of [`create_proposal`]. `vault_path` is the proposal's own vault.
+pub fn proposal_diff(
+    store: &dyn Store,
+    vault_path: &Path,
+    id: &str,
+) -> Result<ProposalDiff, StoreError> {
+    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    let branch = match obj.get(crate::thread::PROPOSES) {
+        PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+        _ => None,
+    }
+    .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
+
+    let (exists, files, patch) = fm_core::git::branch_diff(vault_path, &branch)?;
+    Ok(ProposalDiff { exists, files, patch })
+}
+
 /// Notes that link **to** `id` — the reverse of the `note:` references a body makes. "What points
 /// here", the backlinks panel's feed, newest-updated first.
 ///

@@ -10,6 +10,7 @@ import type {
   NoteDetail,
   ObjectMeta,
   PathCheck,
+  ProposalDiff,
   PullResult,
   ThreadView,
   RemoteProbe,
@@ -171,6 +172,11 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
  *  note. This is also the single write path the study agent uses — it can only ever edit one note. */
 export const createProposal = (id: string, body: string) =>
   invoke<ObjectMeta>('create_proposal', { id, body });
+
+/** The read half of review: a proposal's change as a unified diff against `main`, plus the files it
+ *  touches. `exists: false` (empty diff) is the normal answer for a proposal whose branch is merged
+ *  or gone — the note outlives its branch, so this reports "nothing to show", never an error. */
+export const proposalDiff = (id: string) => invoke<ProposalDiff>('proposal_diff', { id });
 
 /** Notes nothing has touched since `since` (a git `--since` value), oldest first.
  *

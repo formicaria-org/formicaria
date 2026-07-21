@@ -77,6 +77,15 @@ export interface ThreadView {
   messages: ThreadMessage[];
 }
 
+/** A proposal's change, for review: the unified diff against `main` and the files it touches.
+ *  `exists` is false (with an empty diff) when the branch is gone — merged or deleted — because a
+ *  proposal note outlives its branch. */
+export interface ProposalDiff {
+  exists: boolean;
+  files: string[];
+  patch: string;
+}
+
 /** One first-class discussion, as the Discussions view shows it at a glance. The `ObjectMeta`
  *  fields are the discussion's own note (a self-rooted note — `thread_of` points at itself), so
  *  `title` and `vault` render directly. */

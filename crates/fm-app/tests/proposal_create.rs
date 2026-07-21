@@ -78,6 +78,31 @@ fn an_over_size_change_is_refused_not_truncated() {
 }
 
 #[test]
+fn a_proposals_diff_shows_its_change_and_tolerates_a_gone_branch() {
+    if !have_git() {
+        return;
+    }
+    let (dir, mut store, target) = vault_with_a_note();
+    let p = dir.path();
+    let prop =
+        commands::create_proposal(&mut store, p, &target, "revised body", &ProposalLimits::default())
+            .unwrap();
+
+    let diff = commands::proposal_diff(&store, p, &prop.id).unwrap();
+    assert!(diff.exists);
+    assert!(diff.patch.contains("revised body"), "diff should show the change: {}", diff.patch);
+    assert!(diff.files.iter().any(|f| f.contains(target.as_str())), "the changed file is listed");
+
+    // Delete the branch: the proposal note outlives it, so the diff reports `exists: false` rather
+    // than erroring.
+    let branch = format!("proposal/{}", prop.id);
+    Command::new("git").arg("-C").arg(p).args(["branch", "-D", &branch]).output().unwrap();
+    let gone = commands::proposal_diff(&store, p, &prop.id).unwrap();
+    assert!(!gone.exists);
+    assert!(gone.patch.is_empty());
+}
+
+#[test]
 fn the_per_vault_open_count_is_enforced() {
     if !have_git() {
         return;

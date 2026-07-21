@@ -1034,6 +1034,50 @@ pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
     Ok((branches.len(), bytes))
 }
 
+/// The change a proposal branch would introduce — what a human reviews before merging. Returns
+/// `(exists, files, patch)`: the unified diff plus the list of files it touches, measured from the
+/// **merge-base** with `HEAD` (so commits that landed on `main` since the proposal forked are not
+/// shown as part of it).
+///
+/// `exists` is false with empty diff when the branch is gone (merged, renamed, deleted): a proposal
+/// note **outlives** its branch, so a reviewer opening an old proposal must be told "nothing to show"
+/// rather than shown an error — the same tolerance the `proposes:` pointer itself has.
+pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError> {
+    let exists = git(vault)
+        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+        .output()
+        .map_err(spawn)?
+        .status
+        .success();
+    if !exists {
+        return Ok((false, Vec::new(), String::new()));
+    }
+
+    let base = git(vault).args(["merge-base", "HEAD", branch]).output().map_err(spawn)?;
+    let base = if base.status.success() {
+        String::from_utf8_lossy(&base.stdout).trim().to_string()
+    } else {
+        "HEAD".to_string()
+    };
+
+    let names = git(vault).args(["diff", "--name-only", &base, branch]).output().map_err(spawn)?;
+    if !names.status.success() {
+        return Err(failed("git diff --name-only", &names));
+    }
+    let files = String::from_utf8_lossy(&names.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .collect();
+
+    let patch = git(vault).args(["diff", &base, branch]).output().map_err(spawn)?;
+    if !patch.status.success() {
+        return Err(failed("git diff", &patch));
+    }
+    Ok((true, files, String::from_utf8_lossy(&patch.stdout).to_string()))
+}
+
 /// Where the vault pushes to, or None when no remote is configured yet. Absence
 /// is the normal state of a fresh vault, never an error.
 pub fn remote(vault: &Path) -> Result<Option<String>, StoreError> {

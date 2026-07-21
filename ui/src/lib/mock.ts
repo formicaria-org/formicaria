@@ -401,6 +401,17 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       notes.unshift(m);
       return m as T;
     }
+    case 'proposal_diff': {
+      const prop = notes.find((n) => n.id === String(args.id));
+      if (!prop || !isProposal(prop)) throw new Error('not a proposal');
+      // The mock has no git, so it returns a stand-in patch (there is no real branch to diff). The
+      // real backend diffs `proposal/<id>` against `main`. Shape matches the server's `ProposalDiff`.
+      return {
+        exists: true,
+        files: ['notes/(preview).md'],
+        patch: '@@ preview @@\n+ (the real diff appears against a live backend)\n',
+      } as T;
+    }
     case 'create_proposal': {
       const target = notes.find((n) => n.id === String(args.id));
       if (!target) throw new Error('no such note');

@@ -275,6 +275,21 @@ pub fn dispatch(
             }
             json(made)
         }
+        // The read half of review: a proposal's branch diff against `main`. Resolve the proposal
+        // note's own vault (immutable store read, so no `&mut` juggling), then diff.
+        "proposal_diff" => {
+            let id = s("id");
+            let g = lock()?;
+            let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
+            let vault_name = g
+                .store
+                .get(pid)
+                .map_err(err)?
+                .ok_or_else(|| format!("no such proposal: {id}"))?
+                .vault;
+            let cfg = g.config(&vault_name)?;
+            json(commands::proposal_diff(&g.store, &cfg.path, &id).map_err(err)?)
+        }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
         // Roots + counts come from the store (so they list even with no git); participants are
         // read from each vault's git log by hand — a discussion root and its replies are all
