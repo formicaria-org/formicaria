@@ -103,6 +103,11 @@
     flex: 1;
     min-height: 0;
     width: 100%;
+    /* Confine Excalidraw's internal z-indexes to this box. Without a stacking context here, its
+       toolbar (z-index ~4) leaks up and paints OVER the note header (z-index 2) — so the `＋`
+       options window (with Delete) opens *behind* the canvas and can't be tapped, which is why a
+       board couldn't be deleted on the phone. `isolate` keeps the whole board below the chrome. */
+    isolation: isolate;
   }
   .board-error {
     padding: 1rem;
