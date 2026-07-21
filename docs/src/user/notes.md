@@ -16,9 +16,10 @@ these buttons chooses which vault the new file lands in.
 ## Templates
 
 To reuse a layout — a meeting scaffold, a paper-reading checklist, a daily log — make
-a note with that body and **tag it `template`**. It then shows up in the command
-palette (Ctrl+K) as **New from "…"**, once per template, and picking it opens a fresh
-note pre-filled with the template's body, ready to edit.
+a note with that body and **tag it `template`** (in the editor's Tags field). It then
+shows up in the **＋ "make something new" menu** as **New from "…"**, once per template
+— and in the Ctrl+K palette too, where you can filter to one by name. Picking it opens a
+fresh note pre-filled with the template's body, ready to edit.
 
 A template is nothing special: **just a note with the `template` tag**. Untag it and it
 stops being one; there is no separate "template type" to manage, and the template itself

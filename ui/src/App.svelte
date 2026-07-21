@@ -347,6 +347,19 @@
     { group: 'Create', label: 'New window', run: () => addPane('board') },
   ];
 
+  // The `＋` menu, plus one "New from …" per template. Templates belong here — the `＋` is literally
+  // "make something new", and making a note from a template is exactly that — not only buried in the
+  // searchable palette. A template is a note you tagged `template`; this is its own group so it gets
+  // a separator, and the list is refreshed each time the menu opens (see the `＋` button).
+  const createItems = $derived([
+    ...CREATE_MENU,
+    ...(templates ?? []).map((t) => ({
+      group: 'Template',
+      label: `New from “${t.title || t.preview || 'Untitled'}”`,
+      run: () => onNewFromTemplate(t.id),
+    })),
+  ]);
+
   // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
   let commands = $derived([
     // **Grouped, and deliberately not a second Settings.** The palette used to carry
@@ -360,10 +373,9 @@
     ...CREATE_MENU,
     // Only here: rare enough to be clutter in a menu reached dozens of times a day.
     { group: 'Create', label: 'New vault', run: () => (newVaultOpen = true) },
-    // **Templates live only in the palette, by name.** A template is a note you tagged `template`;
-    // "New from …" spins a fresh note off its body. The `＋` menu stays fixed (New note/board/
-    // discussion/window) — a per-vault, user-defined list belongs on the *searchable* surface, the
-    // same reasoning that keeps every saved view here and out of the plus.
+    // **Templates appear in the `＋` menu (discoverable) and here (searchable).** A template is a
+    // note you tagged `template`; "New from …" spins a fresh note off its body. Kept in the palette
+    // too so you can filter to one by name when there are many, the same as every saved view.
     ...(templates ?? []).map((t) => ({
       group: 'Create',
       label: `New from “${t.title || t.preview || 'Untitled'}”`,
@@ -1005,7 +1017,10 @@
       <button
         type="button"
         class="plus-btn"
-        onclick={() => (createOpen = !createOpen)}
+        onclick={() => {
+          createOpen = !createOpen;
+          if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
+        }}
         aria-expanded={createOpen}
         aria-haspopup="menu"
         title="Make something new (Ctrl+K)"
@@ -1017,11 +1032,11 @@
              tap that would otherwise land on whatever is behind the menu. -->
         <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
         <ul class="create-menu" role="menu">
-          {#each CREATE_MENU as item, i (item.label)}
+          {#each createItems as item, i (item.label)}
             <!-- The rule falls where "make something" turns into "look at something", worked out
                  from the groups rather than flagged by hand — so it stays right when an item is
                  added on either side of it. -->
-            {#if i > 0 && item.group !== CREATE_MENU[i - 1].group}
+            {#if i > 0 && item.group !== createItems[i - 1].group}
               <li class="menu-sep" role="separator"></li>
             {/if}
             <li role="none">

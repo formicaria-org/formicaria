@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App.svelte';
+import * as mock from './lib/mock';
 
 /** Reach a command the way a user now does.
  *
@@ -454,5 +455,25 @@ describe('v2: property editing, timeline, delete', () => {
     await waitFor(() =>
       expect(screen.queryByLabelText('note body (Markdown)')).toBeNull(),
     );
+  });
+
+  // Templates must be *discoverable*: a note tagged `template` shows up in the ＋ "make something
+  // new" menu as "New from …", and picking it opens a fresh, pre-filled editor. Seeded through the
+  // mock (the debounced tags field is covered by the property tests) so this isolates the App
+  // wiring a mock-only test misses — that the ＋ menu actually surfaces the template and runs it.
+  it('a note tagged `template` appears in the ＋ menu and creates a note when picked', async () => {
+    const tpl = await mock.handle<{ id: string }>('capture', { body: '# Weekly review' });
+    await mock.handle('set_property', { id: tpl.id, key: 'tags', value: 'template' });
+
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+
+    // Open the ＋ menu — the template is offered as "New from …".
+    await fireEvent.click(screen.getByRole('button', { name: 'make something new' }));
+    const fromTemplate = await screen.findByRole('menuitem', { name: /New from/ });
+
+    // Picking it opens a fresh editor (a new note spun off the template's body).
+    await fireEvent.click(fromTemplate);
+    expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
   });
 });
