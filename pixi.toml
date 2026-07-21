@@ -136,6 +136,9 @@ serve-model = "bash agents/serve.sh"
 # Serve the model TIED to formicaria's life: it stops when fm-serve stops answering (model on with
 # the app, off with it — no orphan). Watches fm-serve on :8765 by default.
 agent-serve = "bash agents/agent-serve.sh"
+# The local web-search proxy (Python stdlib, no key): gives the agent web search on 127.0.0.1:8888.
+#   pixi run search-proxy   then   pixi run agent-serve -- --searxng-port 8888
+search-proxy = "python3 agents/search-proxy.py 8888"
 # Invoke the study assistant: propose an edit to one note (never main). Needs a served model.
 #   pixi run agent-propose -- --vault . --note <ULID> --ask "..." [--search "..."] [--input <ULID>]
 agent-propose = "cargo run -q -p fm-agent-run --bin fm-agent-run --"
