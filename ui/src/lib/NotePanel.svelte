@@ -432,6 +432,7 @@
   // `[…]{.token}`), so it stays byte-for-byte source — the mobile answer to "who types `[x]{.warn}`".
   let fmtBar = $state<{ top: number; left: number } | null>(null);
   let colorOpen = $state(false);
+  let blockOpen = $state(false);
 
   function onEditorSelect() {
     const el = editorEl;
@@ -441,6 +442,7 @@
     if (s === e) {
       fmtBar = null;
       colorOpen = false;
+      blockOpen = false;
       return;
     }
     const { top, left } = caretXY(el, s);
@@ -492,29 +494,50 @@
     fmtBar = null;
   }
 
-  // Quote: prefix each selected line with `> ` (turning it into a blockquote — one `[!type]` away
-  // from a callout, which the read-view badge can then set).
-  async function quoteSel() {
+  // Block formats work on whole lines: expand the selection to the lines it touches, transform each,
+  // and reselect the result. Byte-for-byte source, same as the inline wraps.
+  async function transformLines(fn: (lines: string[]) => string[]) {
     const el = editorEl;
     if (!el) return;
+    colorOpen = false;
+    blockOpen = false;
     const s = el.selectionStart;
     const e = el.selectionEnd;
     const from = draft.lastIndexOf('\n', s - 1) + 1;
     const nl = draft.indexOf('\n', e);
     const to = nl === -1 ? draft.length : nl;
-    const quoted = draft
-      .slice(from, to)
-      .split('\n')
-      .map((l) => `> ${l}`)
-      .join('\n');
-    draft = draft.slice(0, from) + quoted + draft.slice(to);
+    const out = fn(draft.slice(from, to).split('\n')).join('\n');
+    draft = draft.slice(0, from) + out + draft.slice(to);
     onInput();
     await tick();
     el.focus();
     el.selectionStart = from;
-    el.selectionEnd = from + quoted.length;
+    el.selectionEnd = from + out.length;
     onEditorSelect();
   }
+
+  // Set the heading level, replacing any marker already there (so H2 over an H1 line just re-levels).
+  const heading = (n: number) =>
+    transformLines((lines) => lines.map((l) => '#'.repeat(n) + ' ' + l.replace(/^#{1,6}\s+/, '')));
+  // Bullet list — a toggle: if every line is already a bullet, strip it.
+  const bullets = () =>
+    transformLines((lines) =>
+      lines.every((l) => /^\s*[-*+]\s+/.test(l))
+        ? lines.map((l) => l.replace(/^(\s*)[-*+]\s+/, '$1'))
+        : lines.map((l) => '- ' + l.replace(/^\s*[-*+]\s+/, '')),
+    );
+  const numbered = () =>
+    transformLines((lines) => lines.map((l, i) => `${i + 1}. ` + l.replace(/^\s*\d+\.\s+/, '')));
+  const quoteSel = () => transformLines((lines) => lines.map((l) => `> ${l.replace(/^>\s?/, '')}`));
+  // Callout: a blockquote whose first line carries `[!note]` — the read-view badge then re-types it.
+  const calloutBlock = () =>
+    transformLines((lines) =>
+      lines.map((l, i) =>
+        i === 0
+          ? `> [!note] ${l.replace(/^>\s?(\[!\w+\]\s?)?/, '')}`
+          : `> ${l.replace(/^>\s?/, '')}`,
+      ),
+    );
 
   // Debounced save: typing stops -> 500 ms -> atomic write via update_body.
   // Also re-evaluate the slash-menu trigger against the new caret.
@@ -1488,6 +1511,7 @@
             <div
               class="fmt-bar"
               role="toolbar"
+              tabindex="-1"
               aria-label="format selection"
               style="top: {fmtBar.top}px; left: {fmtBar.left}px"
               onpointerdown={(e) => e.preventDefault()}
@@ -1507,7 +1531,20 @@
                 {/if}
               </div>
               <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
-              <button class="fmt-btn" title="Quote" aria-label="quote" onclick={quoteSel}>❝</button>
+              <div class="fmt-color">
+                <button class="fmt-btn" title="Block format" aria-label="block format" aria-expanded={blockOpen} onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button>
+                {#if blockOpen}
+                  <ul class="fmt-colors" role="listbox" aria-label="block format">
+                    <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
+                    <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
+                    <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
+                    <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
+                    <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
+                    <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
+                    <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
+                  </ul>
+                {/if}
+              </div>
             </div>
           {/if}
         </div>
@@ -2166,6 +2203,23 @@
     cursor: pointer;
   }
   .fmt-color-opt:hover {
+    background: var(--surface-hover);
+  }
+  .fmt-block-opt {
+    display: block;
+    width: 100%;
+    text-align: left;
+    min-height: 2rem;
+    padding: 0.1rem 0.5rem;
+    background: none;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .fmt-block-opt:hover {
     background: var(--surface-hover);
   }
   .fmt-color-opt[data-token='accent'] {

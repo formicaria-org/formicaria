@@ -605,4 +605,28 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'ok' }));
     await waitFor(() => expect(body.value).toBe('make this **[pop]{.ok}**'));
   });
+
+  // The block submenu applies line-level formats: heading, lists, quote, callout. Whole-line, so a
+  // selection anywhere in the line counts; the callout drops in a `[!note]` the read-view badge can retype.
+  it('the block menu applies heading and callout formats to the line', async () => {
+    render(App);
+    await screen.findByRole('button', { name: 'make something new' });
+    await runCommand('New note', 'create');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    await fireEvent.input(body, { target: { value: 'a plain line' } });
+
+    body.selectionStart = 2;
+    body.selectionEnd = 7; // inside the line
+    await fireEvent.select(body);
+
+    // Heading 2 → prefixes the whole line.
+    await fireEvent.click(await screen.findByRole('button', { name: 'block format' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Heading 2' }));
+    await waitFor(() => expect(body.value).toBe('## a plain line'));
+
+    // Now Callout → a `[!note]` blockquote (the heading marker is inside the quoted text).
+    await fireEvent.click(screen.getByRole('button', { name: 'block format' }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Callout/ }));
+    await waitFor(() => expect(body.value).toBe('> [!note] ## a plain line'));
+  });
 });

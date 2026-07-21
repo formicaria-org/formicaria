@@ -80,9 +80,12 @@ fenced ```mermaid diagrams / `$math$` all render in the read view. For a **mind-
 a Mermaid flowchart (`graph TD`) draws the hierarchy — no plugin and no extra download.
 
 **You don't have to type the syntax.** Select any text in the editor and a small **toolbar** floats
-above it — **Bold · Italic · Highlight · Code · Colour · Link · Quote**. Each just wraps the selected
-text in the plain-Markdown (or `[…]{.token}`) form, so the file stays byte-for-byte and readable
-anywhere; it's the fast way to format on a phone. Tap a button again over the same text to remove it.
+above it — **Bold · Italic · Highlight · Code · Colour · Link**, and a **¶ block menu** for
+**headings, bullet/numbered lists, quote, and callout**. Inline buttons wrap the selection in the
+plain-Markdown (or `[…]{.token}`) form; the block menu re-formats the whole line(s). Everything stays
+byte-for-byte and readable anywhere, so it's the fast way to format on a phone — tap a button again
+over the same text to remove it. (A callout drops in a `[!note]`; then tap its badge in the read view
+to change the type.)
 
 On top of standard Markdown there are three light additions, each chosen so the raw text stays
 readable in **any** Markdown editor (nothing here is app-only HTML):
