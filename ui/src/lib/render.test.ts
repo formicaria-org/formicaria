@@ -466,6 +466,16 @@ describe('renderInto — decorative extensions (highlight, colour, callout)', ()
     expect(el.querySelectorAll('blockquote').length).toBeGreaterThan(0);
   });
 
+  // The templates (Meeting action-points, Trip budget) put colour tokens in table cells, so pin
+  // that inline decorations survive GFM table parsing — a cell is inline-tokenized, and the
+  // coloredText extension is inline, so it must fire there too.
+  it('renders a colour token inside a table cell', async () => {
+    const el = pane();
+    await renderInto(el, '| Task | Status |\n|---|---|\n| ship | [done]{.ok} |', noAsset);
+    const cell = el.querySelector('td span.tk-ok');
+    expect(cell?.textContent).toBe('done');
+  });
+
   // The extensions run BEFORE the single sanitize, so hostile HTML inside a decoration is still
   // stripped: adding syntax does not move the security boundary.
   it('sanitizes hostile HTML inside a highlight or a callout', async () => {
