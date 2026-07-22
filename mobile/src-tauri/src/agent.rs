@@ -6,11 +6,11 @@
 //! orchestration loop itself ([`fm_agent_run::watch::serve_loop`]) is byte-for-byte the desktop's.
 //!
 //! The model is a local `llama-server` (the prebuilt android-arm64 build) launched under the same
-//! watchdog, talking over `127.0.0.1:<port>` — exactly as on the desktop. It lives, with the model
-//! file, under an `agents/` directory in app storage (`models.toml` + `models/` + `runtime/`); how it
-//! gets there — bundled in the APK's native libs, or fetched on first enable — is a packaging concern,
-//! not this module's. If it is absent, [`start`] returns an error the caller logs and the app runs on
-//! without the agent.
+//! watchdog, talking over `127.0.0.1:<port>` — exactly as on the desktop. The **runtime binary + its
+//! libs** are bundled in the APK's `jniLibs` and run from the app's native-library dir (the only place
+//! Android permits `exec`); the **weights** are fetched into app storage (`agents/models/`) on first
+//! enable. If the runtime isn't bundled or the model can't be fetched yet, the agent simply doesn't
+//! start and the app runs on as a notebook.
 
 use crate::AndroidHost;
 use fm_agent::launch::SupervisedModel;
@@ -18,12 +18,23 @@ use fm_agent::preflight::Need;
 use fm_agent::watchdog::{Limits, SystemMonitor};
 use fm_agent_run::fmserve::VaultAccess;
 use fm_agent_run::manifest::Manifest;
+use fm_agent_run::nativelib::native_lib_dir;
 use fm_agent_run::watch::{serve_loop, wait_ready};
 use fm_agent_run::Agent;
 use fm_app::{dispatch, App};
 use serde_json::{json, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
+
+/// The model catalogue, shipped **with the app** so first run has one without any asset plumbing —
+/// the same `agents/models.toml` the desktop uses (its `runtime_url` is desktop-only and ignored here,
+/// since the phone's runtime is bundled in `jniLibs`, not fetched). Written to app storage once, then
+/// user-editable.
+const EMBEDDED_MANIFEST: &str = include_str!("../../../agents/models.toml");
+
+/// The bundled runtime binary's name in `jniLibs` — `llama-server` renamed to a `lib*.so` so Android
+/// packages it and lets us `exec` it from `nativeLibraryDir` (see [`native_lib_dir`]).
+const SERVER_LIB: &str = "libllama-server.so";
 
 /// The in-process [`VaultAccess`]: every call is one `fm_app::dispatch`, the exact door the shell's
 /// `fm` command already uses. No socket, no fm-serve — the vault cannot "go away," so `alive()` is
@@ -76,50 +87,89 @@ impl VaultAccess for DispatchVault {
     fn present(&self, _name: &str) {}
 }
 
-/// Start the in-process agent: launch the local model under the watchdog, then run the shared watch
-/// loop on a background thread against a [`DispatchVault`]. `agents_dir` holds `models.toml`,
-/// `models/`, and `runtime/llama-server` (+ its libs). Returns an error (which the caller logs) if the
-/// manifest or model isn't present — the app is a working notebook without the agent.
+/// Start the in-process agent. The model **runtime** (`llama-server` + its `ggml`/`llama` libs) is
+/// bundled in the APK's `jniLibs` and lives in the app's native-library dir — the only place Android
+/// lets us `exec` it; the **model file** is fetched into app storage on first enable. `agents_dir`
+/// (app storage) holds `models.toml` and `models/`.
+///
+/// Returns quickly. All the slow, may-fail work — writing the first-run manifest, downloading ~150 MB
+/// of weights, cold-loading the model — happens on a background thread; if any of it fails, the app is
+/// a working notebook without the agent (the failure is logged, never surfaced as a crash).
 pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
-    let manifest = Manifest::read(&agents_dir.join("models.toml"))?;
+    // First run has no manifest — ship one with the app rather than require a fetch to even know
+    // which model to fetch.
+    let manifest_path = agents_dir.join("models.toml");
+    if !manifest_path.exists() {
+        std::fs::create_dir_all(&agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
+        std::fs::write(&manifest_path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
+    }
+    let manifest = Manifest::read(&manifest_path)?;
     let model_name = manifest.default.clone();
-    let file = manifest
-        .file(&model_name)
-        .ok_or_else(|| format!("model '{model_name}' is not in {}/models.toml", agents_dir.display()))?;
-    let model_gguf = agents_dir.join("models").join(file);
-    let runtime = agents_dir.join("runtime");
-    let port = manifest.port;
 
-    let mut cmd = std::process::Command::new(runtime.join("llama-server"));
-    cmd.env("LD_LIBRARY_PATH", &runtime)
-        .arg("-m")
-        .arg(&model_gguf)
-        .args([
-            "--host", "127.0.0.1",
-            "--port", &port.to_string(),
-            "-c", &manifest.ctx.to_string(),
-            "-t", &manifest.threads.to_string(),
-            "--no-warmup",
-        ]);
-    let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000);
-    let model = SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident())?;
+    // The runtime is exec'd from the native-library dir; refuse early (before spawning) if it isn't
+    // bundled, so the reason is one clear log line rather than a launch failure deep in the thread.
+    let runtime_dir = native_lib_dir("libformicaria_mobile_lib.so")
+        .ok_or_else(|| "cannot locate the native-library dir from /proc/self/maps".to_string())?;
+    let server_bin = runtime_dir.join(SERVER_LIB);
+    if !server_bin.exists() {
+        return Err(format!("no bundled model runtime at {} — build the APK with the runtime staged into jniLibs", server_bin.display()));
+    }
 
-    let agent = Agent {
-        fm: DispatchVault { app },
-        model_port: port,
-        model: model_name.clone(),
-        searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
-        max_reply_chars: 600,
-        retrieve: 3,
-        history_budget: 4000,
-    };
+    let models_dir = agents_dir.join("models");
+    // A writable place for the runner's timing log (the runtime dir is read-only extracted libs).
+    let logs_dir = agents_dir.join("runtime");
+    let _ = std::fs::create_dir_all(&logs_dir);
+    let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.threads);
 
-    // Off the UI thread: wait for the model to warm, then watch discussions until it ends.
     std::thread::spawn(move || {
+        // Fetch the weights if this is the first enable (resumable + checksum). Slow, and offline on
+        // first run just means "not yet" — logged, not fatal.
+        let model_gguf = match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &model_name, &|done, total| {
+            match total {
+                Some(t) => log::info!("study agent: fetching {model_name} {}/{} MB", done / 1_000_000, t / 1_000_000),
+                None => log::info!("study agent: fetching {model_name} {} MB", done / 1_000_000),
+            }
+        }) {
+            Ok(p) => p,
+            Err(e) => {
+                log::info!("study agent: no model yet ({e})");
+                return;
+            }
+        };
+
+        let mut cmd = std::process::Command::new(&server_bin);
+        cmd.env("LD_LIBRARY_PATH", &runtime_dir)
+            .arg("-m")
+            .arg(&model_gguf)
+            .args([
+                "--host", "127.0.0.1",
+                "--port", &port.to_string(),
+                "-c", &ctx.to_string(),
+                "-t", &threads.to_string(),
+                "--no-warmup",
+            ]);
+        let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000);
+        let model = match SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident()) {
+            Ok(m) => m,
+            Err(e) => {
+                log::warn!("study agent: model failed to launch: {e}");
+                return;
+            }
+        };
+
+        let agent = Agent {
+            fm: DispatchVault { app },
+            model_port: port,
+            model: model_name.clone(),
+            searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
+            max_reply_chars: 600,
+            retrieve: 3,
+            history_budget: 4000,
+        };
         wait_ready(port);
         log::info!("study agent listening in-process — @{model_name}");
         let stopper = model.stopper();
-        serve_loop(&agent, &model_name, &runtime, 1, &|| model.finished(), &|| stopper.stop());
+        serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
         let _ = model.wait();
         log::info!("study agent stopped");
     });
