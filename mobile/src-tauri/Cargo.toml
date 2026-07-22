@@ -27,7 +27,9 @@ tauri-build = { version = "2", features = [] }
 # Enforced structurally by ci/checks.sh (no Android toolchain in `pixi run ci`).
 [features]
 default = ["agent"]
-agent = ["dep:fm-agent", "dep:fm-agent-run"]
+# `fm-agent-run/download` gives the phone the in-app model fetcher (resumable + checksum) — no `curl`
+# on Android, so the GGUF is fetched on first enable from Rust.
+agent = ["dep:fm-agent", "dep:fm-agent-run", "fm-agent-run/download"]
 
 [dependencies]
 tauri = { version = "2", features = [] }

@@ -128,6 +128,10 @@ android = { features = ["android"] }
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
 test = "cargo test --workspace"
+# The `download` feature is off by default (the desktop uses fetch.sh), so `test` above never builds
+# the in-app model fetcher. Exercise its hermetic (localhost) tests explicitly, so the single gate
+# still covers it.
+test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
 # Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
 # `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
 fetch-model = "bash agents/fetch.sh"
@@ -228,4 +232,4 @@ test-native-git = { cmd = "cargo test -p fm-core --features native-git --test gi
 android-init = "sh ci/android-init.sh"
 
 [tasks.ci]
-depends-on = ["test", "test-ui", "check-ui", "deny", "checks", "docs"]
+depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "docs"]
