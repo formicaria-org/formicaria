@@ -47,8 +47,14 @@ if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
         exit 0
     fi
     echo "formicaria: a newer build or model config is present — restarting the server" >&2
+    # Stop the WHOLE stack, not just fm-serve. If only fm-serve is killed and a new one is started on
+    # the same port, the old `agent-serve` — which watches that port for liveness — finds the NEW
+    # fm-serve there before it notices its own parent died, gets "adopted", and never shuts down,
+    # keeping the model (and its GPU VRAM) pinned forever. So take the model + agent down too.
     pkill -x fm-serve 2>/dev/null || true
-    # Wait for the port to free (fm-serve gone, agent self-stopped) before a fresh start.
+    pkill -x agent-serve 2>/dev/null || true
+    pkill -x llama-server 2>/dev/null || true
+    # Wait for the port to free before a fresh start.
     for _ in $(seq 1 12); do (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null || break; sleep 1; done
 fi
 
