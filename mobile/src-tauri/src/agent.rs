@@ -122,12 +122,17 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.threads);
 
     std::thread::spawn(move || {
-        // Fetch the weights if this is the first enable (resumable + checksum). Slow, and offline on
-        // first run just means "not yet" — logged, not fatal.
+        // Fetch the weights if this is the first enable (resumable + checksum, retrying through the
+        // mobile-network drops). Slow, and offline just means "not yet" — logged, not fatal. Log once
+        // per MB, not per 64 KB chunk.
+        let last_mb = std::cell::Cell::new(u64::MAX);
         let model_gguf = match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &model_name, &|done, total| {
-            match total {
-                Some(t) => log::info!("study agent: fetching {model_name} {}/{} MB", done / 1_000_000, t / 1_000_000),
-                None => log::info!("study agent: fetching {model_name} {} MB", done / 1_000_000),
+            let mb = done / 1_000_000;
+            if last_mb.replace(mb) != mb {
+                match total {
+                    Some(t) => log::info!("study agent: fetching {model_name} {mb}/{} MB", t / 1_000_000),
+                    None => log::info!("study agent: fetching {model_name} {mb} MB"),
+                }
             }
         }) {
             Ok(p) => p,
