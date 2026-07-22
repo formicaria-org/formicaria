@@ -42,6 +42,24 @@ stutter the interface. (On the laptop, `-t 8` of 16 leaves 8 for the system.)
 - Wiring the laptop's **RTX 3050** (a CUDA `llama-server`) would push the laptop far higher and free
   its CPU entirely — the biggest available smoothness win there — but needs a CUDA runtime, deferred.
 
+## Verified on-device inference of the picked models (real prompts, not just llama-bench)
+
+Tried each **research pick** on its device with a real study prompt ("Summarize the difference between
+mRNA and DNA vaccines in exactly 3 bullet points"). Both produced correct, well-formatted, instruction-
+following answers (3 clean bullets) — a night-and-day jump over the 230M's leaked-context garbage.
+
+| Device | Model | decode t/s (real run) | prefill t/s | model on disk | ~RAM | quality |
+|---|---|---|---|---|---|---|
+| Phone (Dimensity 7300, t=4) | LFM2.5-1.2B-Instruct | **15.9** | 92 | 697 MB | ~1.4 GB | 3 correct bullets, followed "exactly 3" |
+| Laptop (i7-11800H CPU, t=8) | Qwen3-4B-Instruct-2507 | **14.0** (llama-bench) | 99 | 2.32 GiB | ~2.6 GB | detailed, accurate, well-formatted |
+
+**Key cost observation:** on **CPU**, the laptop's 4B (~14 t/s) is *no faster than* the phone's 1.2B
+(~14-16 t/s) — the laptop's win is running a **bigger/better** model at an acceptable-but-not-fast
+speed, not running the same model faster. **Wiring the RTX 3050 (CUDA llama.cpp) is the laptop's real
+unlock** — it would take the 4B from ~14 t/s to comfortably interactive and free the CPU entirely.
+Also observed: running large models in `/data/local/tmp` alongside the app can pressure Android LMKD
+into reaping the app — reinforcing that the phone should stay at ~1.2B, not push toward 4B.
+
 ## Mechanism note
 
 `models.toml` has a single `default`, and the mobile build embeds that same file (`include_str!`). To
