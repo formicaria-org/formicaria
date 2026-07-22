@@ -26,6 +26,7 @@ use fm_app::{dispatch, App, Host, Output};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -55,6 +56,22 @@ struct AppState {
     /// Whether the study agent has already been spawned this run, so toggling the setting on while
     /// it is already running does not start a second one.
     agent_running: AtomicBool,
+    /// What the study agent is doing *right now*, per discussion — a transient, in-memory pipeline
+    /// status the orchestrator reports as it moves through its stages (reading notes → searching the
+    /// web → thinking), so the discussion view can show a live "working…" wheel with the current
+    /// stage and hide it the instant the reply lands or a timeout clears it. Never touches the vault
+    /// (transport-shaped, like `last_seen` — the command core never learns the agent exists). Keyed
+    /// by discussion id; the agent writes it, the browser reads it.
+    agent_activity: Mutex<HashMap<String, Activity>>,
+}
+
+/// One discussion's live agent status. `since` is when this turn began — the poll returns the
+/// elapsed seconds so the UI can show "slow" distinctly from "hung", and a stale entry (the agent
+/// died mid-turn without clearing) auto-expires so the wheel never spins forever.
+struct Activity {
+    stage: String,
+    question: String,
+    since: Instant,
 }
 
 /// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
@@ -155,6 +172,7 @@ fn main() {
         connected: AtomicBool::new(false),
         port: port.parse().unwrap_or(8765),
         agent_running: AtomicBool::new(false),
+        agent_activity: Mutex::new(HashMap::new()),
     });
 
     match &state.dist {
@@ -401,6 +419,54 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
             }
             Err(e) => write_response(&mut stream, "500 Internal Server Error", "text/plain", e.as_bytes()),
         };
+    }
+
+    // The study agent's live pipeline status, per discussion — a transient, in-memory side channel so
+    // the discussion view can show a turning wheel with the current stage ("searching the web…") while
+    // the agent works, and hide it the instant the reply lands or a timeout clears it. Transport-shaped
+    // like the liveness and on/off endpoints above: never a `dispatch` command, so the vault core stays
+    // agent-agnostic and this never reaches disk. The agent WRITES it; the browser page READS it.
+    if path == "/api/agent_activity" {
+        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
+        let disc = v["discussion"].as_str().unwrap_or("").to_string();
+        if !disc.is_empty() {
+            let mut act = state.agent_activity.lock().unwrap();
+            if v["done"].as_bool().unwrap_or(false) {
+                act.remove(&disc);
+            } else {
+                // Keep the original start time across stage updates, so elapsed reflects the whole turn.
+                let since = act.get(&disc).map(|a| a.since).unwrap_or_else(Instant::now);
+                act.insert(
+                    disc,
+                    Activity {
+                        stage: v["stage"].as_str().unwrap_or("working").to_string(),
+                        question: v["question"].as_str().unwrap_or("").to_string(),
+                        since,
+                    },
+                );
+            }
+        }
+        return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
+    }
+    if path == "/api/agent_activity_poll" {
+        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
+        let disc = v["discussion"].as_str().unwrap_or("");
+        let mut act = state.agent_activity.lock().unwrap();
+        // A turn that ran past the worst-case pipeline means the agent died without clearing — expire
+        // it so the wheel never spins forever (the failure every tool we studied shares).
+        if act.get(disc).is_some_and(|a| a.since.elapsed() > Duration::from_secs(180)) {
+            act.remove(disc);
+        }
+        let payload = match act.get(disc) {
+            Some(a) => serde_json::json!({
+                "active": true,
+                "stage": a.stage,
+                "question": a.question,
+                "elapsed_secs": a.since.elapsed().as_secs(),
+            }),
+            None => serde_json::json!({ "active": false }),
+        };
+        return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
     }
 
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
@@ -683,6 +749,7 @@ mod tests {
             connected: AtomicBool::new(false),
             port: 0,
             agent_running: AtomicBool::new(false),
+            agent_activity: Mutex::new(HashMap::new()),
         };
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

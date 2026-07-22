@@ -172,6 +172,22 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
 export const agentStatus = () => invoke<{ enabled: boolean }>('agent_status');
 export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
 
+/** What the study agent is doing *right now* in a discussion — a transient, in-memory status served
+ *  by fm-serve (not a vault command), so the discussion view can show a live "working…" wheel with
+ *  the current pipeline stage (`searching the web`, `thinking`) and elapsed seconds, and hide it the
+ *  instant the reply lands or a timeout clears it. Degrades to inactive where the endpoint is absent
+ *  (the mobile shell has no agent yet), so it never throws in a caller's poll loop. */
+export type AgentActivity = {
+  active: boolean;
+  stage?: string;
+  question?: string;
+  elapsed_secs?: number;
+};
+export const agentActivity = (discussion: string) =>
+  invoke<AgentActivity>('agent_activity_poll', { discussion }).catch(
+    () => ({ active: false }) as AgentActivity,
+  );
+
 /** Propose a change to an existing note. The change lands on a `proposal/<id>` branch (never `main`)
  *  and a proposal note records it for the Collaboration view; a person reviews and merges it. It is
  *  **refused, never truncated**, when it exceeds the target vault's guardrails (`vault.json` →

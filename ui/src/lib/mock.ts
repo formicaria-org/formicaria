@@ -304,6 +304,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'set_agent':
       mockAgentEnabled = Boolean(args.enabled);
       return { ok: true } as T;
+    case 'agent_activity_poll':
+      return { active: false } as T;
     case 'board': {
       const board: Board = buildBoard(String(args.groupBy));
       return board as T;

@@ -18,6 +18,7 @@
     recent,
     reply as ipcReply,
     thread as ipcThread,
+    agentActivity as ipcAgentActivity,
     backlinks as ipcBacklinks,
   } from './ipc';
   import {
@@ -801,6 +802,49 @@
       discError = String(e);
     }
   }
+
+  // What the study agent is doing right now in this discussion — drives the live "working…" wheel.
+  // `null` when idle, so the row shows only while a turn is in flight.
+  let agentWorking = $state<{ stage: string; elapsed: number } | null>(null);
+
+  // While a discussion is open, poll the agent's live status *and* refresh the thread — the agent's
+  // reply arrives asynchronously a few seconds after the user asks, and its stage updates in
+  // between. One cheap poll does both: it shows the wheel with the current stage, and it picks up
+  // the reply the moment it lands (and clears the wheel). Torn down when the discussion closes or
+  // the note changes, so nothing polls in the background.
+  async function pollAgent() {
+    if (!note) return;
+    let a;
+    try {
+      a = await ipcAgentActivity(note.id);
+    } catch {
+      a = { active: false } as const;
+    }
+    const wasWorking = agentWorking !== null;
+    agentWorking = a.active ? { stage: a.stage ?? 'working', elapsed: a.elapsed_secs ?? 0 } : null;
+    // Reload the thread while the agent works, and once right after it finishes (the reply just
+    // landed) — but only reassign if something actually changed, to avoid needless re-render.
+    if (a.active || wasWorking) {
+      try {
+        const t = await ipcThread(note.id);
+        if (t.count !== discCount || t.messages.at(-1)?.id !== discMessages.at(-1)?.id) {
+          discMessages = t.messages;
+          discCount = t.count;
+        }
+      } catch {
+        /* transient — the next poll retries */
+      }
+    }
+  }
+
+  $effect(() => {
+    if (!(discOpen && isDiscussion && note?.id)) return;
+    const timer = setInterval(pollAgent, 1500);
+    return () => {
+      clearInterval(timer);
+      agentWorking = null;
+    };
+  });
 
   async function toggleDiscussion() {
     discOpen = !discOpen;
@@ -1829,6 +1873,18 @@
                 <p class="disc-body">{m.body}</p>
               </div>
             {/each}
+            {#if agentWorking}
+              <!-- The turning wheel: shows the whole pipeline is at work (not only the LLM), names
+                   the current stage, and shows elapsed seconds so "slow" reads differently from
+                   "hung". It disappears the instant the reply lands or a timeout clears the status. -->
+              <div class="disc-working" role="status" aria-live="polite">
+                <span class="disc-spinner" aria-hidden="true"></span>
+                <span class="disc-working-text">{agentWorking.stage}…</span>
+                {#if agentWorking.elapsed >= 3}
+                  <span class="disc-working-elapsed">{agentWorking.elapsed}s</span>
+                {/if}
+              </div>
+            {/if}
             <div class="disc-compose">
               {#if replyTo && replyTo !== note?.id}
                 <p class="disc-replying">
@@ -2743,6 +2799,41 @@
     margin: var(--space-1) 0 0;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  .disc-working {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-2) 0;
+    color: var(--text-muted, #666);
+    font-size: 0.9em;
+  }
+  .disc-spinner {
+    width: 0.9em;
+    height: 0.9em;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: disc-spin 0.8s linear infinite;
+    flex: none;
+  }
+  @keyframes disc-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .disc-working-text {
+    font-style: italic;
+  }
+  .disc-working-elapsed {
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .disc-spinner {
+      animation-duration: 2.4s;
+    }
   }
   .disc-compose {
     margin-top: var(--space-3);

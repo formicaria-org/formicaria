@@ -249,6 +249,9 @@ mod tests {
             origins: Vec::new(),
             last_seen: Mutex::new(Instant::now()),
             connected: AtomicBool::new(false),
+            port: 0,
+            agent_running: AtomicBool::new(false),
+            agent_activity: std::sync::Mutex::new(std::collections::HashMap::new()),
         };
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
