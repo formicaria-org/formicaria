@@ -890,6 +890,9 @@
     void ipcDiscussions()
       .then((ds) => {
         const names = new Set<string>();
+        // Every collaborator who has posted in the vault — humans AND agents, current or past. None
+        // are forgotten; the ones you can chat with *right now* are marked active in the picker (a
+        // green dot) vs. inactive (red), from the live `agentsOnline` list.
         for (const d of ds) for (const p of d.participants ?? []) if (p.name) names.add(p.name);
         collaborators = [...names];
       })
@@ -2042,7 +2045,13 @@
                             e.preventDefault();
                             chooseAtMention(name);
                           }}
-                        >@{name}</button>
+                        ><span
+                            class="at-dot"
+                            class:online={agentsOnline.some((n) => n.toLowerCase() === name.toLowerCase())}
+                            title={agentsOnline.some((n) => n.toLowerCase() === name.toLowerCase())
+                              ? 'active — ready to reply'
+                              : 'not running'}
+                          ></span>@{name}</button>
                       </li>
                     {/each}
                   </ul>
@@ -3034,7 +3043,9 @@
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
   }
   .at-option {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1, 4px);
     width: 100%;
     text-align: left;
     padding: var(--space-1) var(--space-2);
@@ -3044,6 +3055,18 @@
     color: var(--text);
     font: inherit;
     cursor: pointer;
+  }
+  /* Active = the agent is running and can reply now (green); otherwise a past collaborator not
+     currently running (red). Humans and old agents still appear — none are forgotten. */
+  .at-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger, #e5484d);
+  }
+  .at-dot.online {
+    background: var(--success, #30a46c);
   }
   .at-option.active,
   .at-option:hover {

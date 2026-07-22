@@ -221,17 +221,34 @@ fn fm(
     cmd: String,
     args: serde_json::Value,
     app: tauri::State<'_, Arc<App>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    // `agents` is a **transport** concern — "which assistants are online", the data behind the UI's
-    // `@`-mention picker. On the desktop fm-serve answers it from its presence registry; the core
-    // `dispatch` never has it (that keeps the core agent-agnostic). So the phone answers it the same
-    // way, here in the shell, from the in-process agent's presence — never dispatched into the vault.
+    // `agents`/`agent_status`/`set_agent` are **transport** concerns — the assistant's presence and its
+    // on/off setting, the data behind the UI's `@`-picker and the Settings toggle. On the desktop
+    // fm-serve answers these; the core `dispatch` never has them (that keeps the core agent-agnostic).
+    // So the phone answers them the same way, here in the shell — never dispatched into the vault.
     if cmd == "agents" {
         #[cfg(feature = "agent")]
         return Ok(serde_json::json!({ "agents": agent::online_agents() }).to_string());
         #[cfg(not(feature = "agent"))]
         return Ok("{\"agents\":[]}".to_string());
     }
+    #[cfg(feature = "agent")]
+    if cmd == "agent_status" || cmd == "set_agent" {
+        use tauri::Manager;
+        let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
+        if cmd == "set_agent" {
+            let on = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
+            agent::set_running(app.inner().clone(), dir, on)?;
+            return Ok("{\"ok\":true}".to_string());
+        }
+        return Ok(serde_json::json!({ "enabled": agent::is_enabled(&dir) }).to_string());
+    }
+    #[cfg(not(feature = "agent"))]
+    if cmd == "agent_status" || cmd == "set_agent" {
+        return Ok("{\"enabled\":false,\"ok\":true}".to_string());
+    }
+    let _ = &app_handle;
     // **Logged before it is returned.** The UI shows the message, but a phone screen is not
     // somewhere a stack of failures can be compared — and the whole point of the tag is that
     // a failing clone can be read off `adb logcat` instead of retyped by hand.
@@ -392,6 +409,15 @@ pub fn run() {
             )
         })
         .invoke_handler(tauri::generate_handler![fm, fm_ingest])
-        .run(tauri::generate_context!())
-        .expect("error while running formicaria");
+        .build(tauri::generate_context!())
+        .expect("error while running formicaria")
+        .run(|_app, event| {
+            // When the app exits, stop the study agent's model — trip its off-switch so the
+            // llama-server child is killed rather than left to be reaped (PDEATHSIG is the backstop).
+            #[cfg(feature = "agent")]
+            if let tauri::RunEvent::Exit = event {
+                agent::stop();
+            }
+            let _ = &event;
+        });
 }

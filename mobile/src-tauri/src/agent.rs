@@ -60,6 +60,73 @@ fn set_present(name: &str, present: bool) {
     }
 }
 
+/// The agent's live control state — is a model running, and the off-switch to stop it. The desktop
+/// mirror is fm-serve's `AgentState` + `agent.json`; on the phone the user drives it from Settings
+/// (the `agent_status` / `set_agent` transport calls, answered in [`crate::fm`]). "Off" means **no
+/// model in memory**: the watch loop is stopped and the `llama-server` child killed.
+struct Control {
+    running: bool,
+    stopper: Option<fm_agent::watchdog::StopFlag>,
+}
+fn control() -> &'static std::sync::Mutex<Control> {
+    static C: std::sync::OnceLock<std::sync::Mutex<Control>> = std::sync::OnceLock::new();
+    C.get_or_init(|| std::sync::Mutex::new(Control { running: false, stopper: None }))
+}
+
+/// Is a model running right now? (What Settings shows, and the guard against a double launch.)
+pub fn is_running() -> bool {
+    control().lock().map(|c| c.running).unwrap_or(false)
+}
+
+/// Clear the running state — called on every exit path of the runner thread, so the slot frees up for
+/// a future on-toggle whether the model stopped cleanly or failed to start.
+fn clear_running() {
+    if let Ok(mut c) = control().lock() {
+        c.running = false;
+        c.stopper = None;
+    }
+}
+
+/// The persisted on/off setting (`<agents_dir>/agent.json`, `{"enabled": bool}`). **Default on** on the
+/// phone (where the assistant has always run), so an app update does not silently turn off a working
+/// agent; the user turns it off in Settings when they want it gone from memory.
+pub fn is_enabled(agents_dir: &std::path::Path) -> bool {
+    std::fs::read_to_string(agents_dir.join("agent.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| v["enabled"].as_bool())
+        .unwrap_or(true)
+}
+
+fn write_enabled(agents_dir: &std::path::Path, on: bool) {
+    let _ = std::fs::create_dir_all(agents_dir);
+    let _ = std::fs::write(agents_dir.join("agent.json"), format!("{{ \"enabled\": {on} }}\n"));
+}
+
+/// Stop the running model now (trip its off-switch → the watchdog kills the `llama-server` child →
+/// the watch loop ends and the thread clears the control state). Idempotent; used by the off toggle
+/// and by app exit.
+pub fn stop() {
+    if let Ok(mut c) = control().lock() {
+        if let Some(s) = c.stopper.take() {
+            s.stop();
+        }
+        c.running = false;
+    }
+}
+
+/// Turn the agent on or off at runtime (from Settings). Persists the choice and starts/stops the model
+/// immediately, so "off" frees its memory and "on" brings it back — no relaunch needed.
+pub fn set_running(app: Arc<App>, agents_dir: PathBuf, on: bool) -> Result<(), String> {
+    write_enabled(&agents_dir, on);
+    if on {
+        launch(app, agents_dir)
+    } else {
+        stop();
+        Ok(())
+    }
+}
+
 /// The in-process [`VaultAccess`]: every call is one `fm_app::dispatch`, the exact door the shell's
 /// `fm` command already uses. No socket, no fm-serve — the vault cannot "go away," so `alive()` is
 /// always true and only the model ending stops the loop.
@@ -111,15 +178,28 @@ impl VaultAccess for DispatchVault {
     fn present(&self, _name: &str) {}
 }
 
-/// Start the in-process agent. The model **runtime** (`llama-server` + its `ggml`/`llama` libs) is
-/// bundled in the APK's `jniLibs` and lives in the app's native-library dir — the only place Android
-/// lets us `exec` it; the **model file** is fetched into app storage on first enable. `agents_dir`
-/// (app storage) holds `models.toml` and `models/`.
-///
-/// Returns quickly. All the slow, may-fail work — writing the first-run manifest, downloading ~150 MB
-/// of weights, cold-loading the model — happens on a background thread; if any of it fails, the app is
-/// a working notebook without the agent (the failure is logged, never surfaced as a crash).
+/// Start the agent **only if it is enabled** (the persisted on/off setting) and not already running.
+/// Called at app launch and by the on-toggle — a no-op when off, so "off" truly runs nothing.
 pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
+    if !is_enabled(&agents_dir) {
+        log::info!("study agent: off — enable it in Settings");
+        return Ok(());
+    }
+    launch(app, agents_dir)
+}
+
+/// Launch the in-process agent (unconditional). The model **runtime** (`llama-server` + its
+/// `ggml`/`llama` libs) is bundled in the APK's `jniLibs` and lives in the app's native-library dir —
+/// the only place Android lets us `exec` it; the **model file** is fetched into app storage on first
+/// enable. `agents_dir` (app storage) holds `models.toml` and `models/`.
+///
+/// Returns quickly. All the slow, may-fail work — writing the first-run manifest, downloading the
+/// weights, cold-loading the model — happens on a background thread; if any of it fails, the app is a
+/// working notebook without the agent (the failure is logged, never surfaced as a crash).
+fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
+    if is_running() {
+        return Ok(()); // already up — the on-toggle is idempotent
+    }
     // Write the shipped catalogue on every start, not just first run: the phone's models.toml is app
     // *config* (there is no editor for it on device), so an app update must be able to change the
     // model and the per-device defaults. A stale first-run copy is exactly why the phone kept running
@@ -146,6 +226,12 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     let _ = std::fs::create_dir_all(&logs_dir);
     let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.mobile_threads());
 
+    // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
+    // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
+    if let Ok(mut c) = control().lock() {
+        c.running = true;
+    }
+
     std::thread::spawn(move || {
         // Fetch the weights if this is the first enable (resumable + checksum, retrying through the
         // mobile-network drops). Slow, and offline just means "not yet" — logged, not fatal. Log once
@@ -163,6 +249,7 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             Ok(p) => p,
             Err(e) => {
                 log::info!("study agent: no model yet ({e})");
+                clear_running();
                 return;
             }
         };
@@ -192,14 +279,29 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 "-t", &threads.to_string(),
                 "--no-warmup",
             ]);
+        // If the app process dies (swiped away, or LMKD reaps it), take the model child down with it —
+        // a safety net beneath the explicit stop() on app exit, so a `llama-server` can never orphan.
+        #[cfg(target_os = "android")]
+        unsafe {
+            use std::os::unix::process::CommandExt;
+            cmd.pre_exec(|| {
+                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong);
+                Ok(())
+            });
+        }
         let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000);
         let model = match SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident()) {
             Ok(m) => m,
             Err(e) => {
                 log::warn!("study agent: model failed to launch: {e}");
+                clear_running();
                 return;
             }
         };
+        // Register the off-switch so Settings-off (and app exit) can stop this model now.
+        if let Ok(mut c) = control().lock() {
+            c.stopper = Some(model.stopper());
+        }
 
         let agent = Agent {
             fm: DispatchVault { app },
@@ -217,6 +319,7 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
         set_present(&model_name, false);
         let _ = model.wait();
+        clear_running();
         log::info!("study agent stopped");
     });
     Ok(())

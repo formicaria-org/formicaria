@@ -1066,6 +1066,7 @@ dependencies = [
  "fm-agent-run",
  "fm-app",
  "fm-core",
+ "libc",
  "log",
  "serde_json",
  "tauri",
