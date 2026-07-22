@@ -120,13 +120,13 @@ impl VaultAccess for DispatchVault {
 /// of weights, cold-loading the model — happens on a background thread; if any of it fails, the app is
 /// a working notebook without the agent (the failure is logged, never surfaced as a crash).
 pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
-    // First run has no manifest — ship one with the app rather than require a fetch to even know
-    // which model to fetch.
+    // Write the shipped catalogue on every start, not just first run: the phone's models.toml is app
+    // *config* (there is no editor for it on device), so an app update must be able to change the
+    // model and the per-device defaults. A stale first-run copy is exactly why the phone kept running
+    // the old default after an update. Cheap (a few hundred bytes) and idempotent.
     let manifest_path = agents_dir.join("models.toml");
-    if !manifest_path.exists() {
-        std::fs::create_dir_all(&agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
-        std::fs::write(&manifest_path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
-    }
+    std::fs::create_dir_all(&agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
+    std::fs::write(&manifest_path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
     let manifest = Manifest::read(&manifest_path)?;
     // The phone's own pick (default_mobile) — a smaller model than the laptop default.
     let model_name = manifest.mobile_default().to_string();
@@ -166,6 +166,20 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 return;
             }
         };
+
+        // Reclaim space: once the current model is in place, delete any other weights left over from a
+        // previous default (e.g. after an app update changed the pick). Keep only the model in use.
+        if let Ok(entries) = std::fs::read_dir(&models_dir) {
+            for e in entries.flatten() {
+                let p = e.path();
+                let ext = p.extension().and_then(|x| x.to_str()).unwrap_or("");
+                if p != model_gguf && (ext == "gguf" || ext == "part") {
+                    if std::fs::remove_file(&p).is_ok() {
+                        log::info!("study agent: removed unused model {}", p.display());
+                    }
+                }
+            }
+        }
 
         let mut cmd = std::process::Command::new(&server_bin);
         cmd.env("LD_LIBRARY_PATH", &runtime_dir)
