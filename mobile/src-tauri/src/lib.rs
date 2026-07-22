@@ -222,6 +222,16 @@ fn fm(
     args: serde_json::Value,
     app: tauri::State<'_, Arc<App>>,
 ) -> Result<String, String> {
+    // `agents` is a **transport** concern — "which assistants are online", the data behind the UI's
+    // `@`-mention picker. On the desktop fm-serve answers it from its presence registry; the core
+    // `dispatch` never has it (that keeps the core agent-agnostic). So the phone answers it the same
+    // way, here in the shell, from the in-process agent's presence — never dispatched into the vault.
+    if cmd == "agents" {
+        #[cfg(feature = "agent")]
+        return Ok(serde_json::json!({ "agents": agent::online_agents() }).to_string());
+        #[cfg(not(feature = "agent"))]
+        return Ok("{\"agents\":[]}".to_string());
+    }
     // **Logged before it is returned.** The UI shows the message, but a phone screen is not
     // somewhere a stack of failures can be compared — and the whole point of the tag is that
     // a failing clone can be read off `adb logcat` instead of retyped by hand.

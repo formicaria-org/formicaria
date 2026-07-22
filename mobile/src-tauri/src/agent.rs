@@ -36,6 +36,30 @@ const EMBEDDED_MANIFEST: &str = include_str!("../../../agents/models.toml");
 /// packages it and lets us `exec` it from `nativeLibraryDir` (see [`native_lib_dir`]).
 const SERVER_LIB: &str = "libllama-server.so";
 
+/// The in-process presence board — the mobile mirror of fm-serve's `AgentRegistry`. A phone has no
+/// server to hold "who is online", so the shell holds it here: the runner marks its model present once
+/// it is serving and absent when it stops, and the `agents` transport call ([`crate::fm`]) reads it to
+/// feed the webview's `@`-mention picker. Kept off the vault-command path so the core stays
+/// agent-agnostic, exactly as `agents` is an fm-serve endpoint and never a dispatch command.
+fn presence() -> &'static std::sync::Mutex<Vec<String>> {
+    static P: std::sync::OnceLock<std::sync::Mutex<Vec<String>>> = std::sync::OnceLock::new();
+    P.get_or_init(|| std::sync::Mutex::new(Vec::new()))
+}
+
+/// The `@name`s of agents serving right now — what the `@`-picker lists. Empty until a model is up.
+pub fn online_agents() -> Vec<String> {
+    presence().lock().map(|g| g.clone()).unwrap_or_default()
+}
+
+fn set_present(name: &str, present: bool) {
+    if let Ok(mut g) = presence().lock() {
+        g.retain(|n| n != name);
+        if present {
+            g.push(name.to_string());
+        }
+    }
+}
+
 /// The in-process [`VaultAccess`]: every call is one `fm_app::dispatch`, the exact door the shell's
 /// `fm` command already uses. No socket, no fm-serve — the vault cannot "go away," so `alive()` is
 /// always true and only the model ending stops the loop.
@@ -173,8 +197,10 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         };
         wait_ready(port);
         log::info!("study agent listening in-process — @{model_name}");
+        set_present(&model_name, true); // now the @-picker can suggest it
         let stopper = model.stopper();
         serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
+        set_present(&model_name, false);
         let _ = model.wait();
         log::info!("study agent stopped");
     });
