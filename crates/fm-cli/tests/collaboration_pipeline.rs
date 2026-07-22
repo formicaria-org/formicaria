@@ -13,6 +13,8 @@
 //! own separate concern. The single-user propose→review→accept cycle is covered in
 //! `fm-app/tests/proposal_cycle.rs`.
 
+use fm_app::commands;
+use fm_core::proposal::ProposalLimits;
 use fm_core::{git, FileStore};
 use std::path::Path;
 use std::process::Command;
@@ -243,5 +245,54 @@ fn concurrent_edits_to_the_same_line_conflict_visibly_and_can_be_resolved() {
         pull(ada.path()).unwrap();
         let ada_final = fm_app::commands::get(&open(ada.path()), &id).unwrap().unwrap().body;
         assert_eq!(ada_final, ravi_final, "[{backend}] both users converge on the resolution");
+    }
+}
+
+#[test]
+fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
+    if !have_git() {
+        return;
+    }
+    for (backend, pull) in backends() {
+        let (_remote, ada, ravi) = two_users();
+
+        // Ada writes a note, then proposes a change to it. `create_proposal` pushes the
+        // `proposal/<id>` branch to the remote; the proposal note rides `main`.
+        let mut ada_store = open(ada.path());
+        let host = commands::capture(&mut ada_store, "# Doc\n\noriginal", "").unwrap().id;
+        commit_push(ada.path(), &ada_store, "note: doc");
+        let prop = commands::create_proposal(
+            &mut ada_store,
+            ada.path(),
+            &host,
+            "# Doc\n\nrevised by Ada",
+            &ProposalLimits::default(),
+            Some(("Ada", "ada@example.org")),
+        )
+        .unwrap();
+        commit_push(ada.path(), &ada_store, "backup: proposal");
+
+        // Ravi pulls — gets the proposal note on `main` and fetches `origin/proposal/<id>` — and can
+        // REVIEW it: the branch resolves through the remote-tracking ref, not a local branch he lacks.
+        pull(ravi.path()).unwrap();
+        let ravi_store = open(ravi.path());
+        let diff = commands::proposal_diff(&ravi_store, ravi.path(), &prop.id).unwrap();
+        assert!(diff.exists, "[{backend}] Ravi can review Ada's proposal across the sync");
+        assert!(diff.patch.contains("revised by Ada"), "[{backend}] the diff shows Ada's change: {}", diff.patch);
+
+        // Ravi ACCEPTS it — merges `origin/proposal/<id>` into main and deletes the shared branch.
+        assert_eq!(
+            commands::accept_proposal(&ravi_store, ravi.path(), &prop.id).unwrap(),
+            git::Accepted::Merged,
+            "[{backend}] Ravi accepts the cross-user proposal cleanly"
+        );
+        g(ravi.path(), &["push", "origin", "main"]);
+
+        // Live for Ravi, and Ada converges on it after a pull.
+        let ravi_body = commands::get(&open(ravi.path()), &host).unwrap().unwrap().body;
+        assert!(ravi_body.contains("revised by Ada"), "[{backend}] the accepted change is live for Ravi: {ravi_body}");
+        pull(ada.path()).unwrap();
+        let ada_body = commands::get(&open(ada.path()), &host).unwrap().unwrap().body;
+        assert_eq!(ada_body, ravi_body, "[{backend}] both users converge on the accepted proposal");
     }
 }

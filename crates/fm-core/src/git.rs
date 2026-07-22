@@ -1079,25 +1079,48 @@ pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
 /// `exists` is false with empty diff when the branch is gone (merged, renamed, deleted): a proposal
 /// note **outlives** its branch, so a reviewer opening an old proposal must be told "nothing to show"
 /// rather than shown an error — the same tolerance the `proposes:` pointer itself has.
-pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError> {
-    let exists = git(vault)
-        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
-        .output()
-        .map_err(spawn)?
-        .status
-        .success();
-    if !exists {
-        return Ok((false, Vec::new(), String::new()));
+/// Push a single branch to the remote. Used to **share a proposal branch** so another user can review
+/// and accept it — a push of `main` alone never carries `proposal/*`. Caller decides how to treat
+/// failure (proposal creation treats it best-effort: the proposal still exists locally).
+pub fn push_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
+    let out = git(vault).args(["push", REMOTE, branch]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git push (branch)", &out));
     }
+    Ok(())
+}
 
-    let base = git(vault).args(["merge-base", "HEAD", branch]).output().map_err(spawn)?;
+/// Resolve a proposal branch name to a committish that exists **here** — the local `proposal/<id>` if
+/// present, else the remote-tracking `origin/proposal/<id>` (which any `pull`'s fetch brings down).
+/// `None` if neither exists (merged, deleted, or never shared). This is what lets a *second* user
+/// review and accept a proposal whose branch was created on the proposer's clone.
+fn resolve_proposal_ref(vault: &Path, branch: &str) -> Option<String> {
+    for candidate in [format!("refs/heads/{branch}"), format!("refs/remotes/{REMOTE}/{branch}")] {
+        let ok = git(vault)
+            .args(["rev-parse", "--verify", "--quiet", &candidate])
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        if ok {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError> {
+    let Some(refname) = resolve_proposal_ref(vault, branch) else {
+        return Ok((false, Vec::new(), String::new()));
+    };
+
+    let base = git(vault).args(["merge-base", "HEAD", &refname]).output().map_err(spawn)?;
     let base = if base.status.success() {
         String::from_utf8_lossy(&base.stdout).trim().to_string()
     } else {
         "HEAD".to_string()
     };
 
-    let names = git(vault).args(["diff", "--name-only", &base, branch]).output().map_err(spawn)?;
+    let names = git(vault).args(["diff", "--name-only", &base, &refname]).output().map_err(spawn)?;
     if !names.status.success() {
         return Err(failed("git diff --name-only", &names));
     }
@@ -1108,7 +1131,7 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
         .map(String::from)
         .collect();
 
-    let patch = git(vault).args(["diff", &base, branch]).output().map_err(spawn)?;
+    let patch = git(vault).args(["diff", &base, &refname]).output().map_err(spawn)?;
     if !patch.status.success() {
         return Err(failed("git diff", &patch));
     }
@@ -1137,18 +1160,14 @@ pub enum Accepted {
 /// driver, so the manufactured `updated:` collision is a non-event exactly as it is on a pull.
 pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<Accepted, StoreError> {
     ensure_identity(vault);
-    let exists = git(vault)
-        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
-        .output()
-        .map_err(spawn)?
-        .status
-        .success();
-    if !exists {
+    // Accept whichever ref carries the proposal — the local branch, or a proposer's branch we only
+    // hold as `origin/proposal/<id>` (the cross-user case).
+    let Some(refname) = resolve_proposal_ref(vault, branch) else {
         return Ok(Accepted::AlreadyGone);
-    }
+    };
 
     let merged = git(vault)
-        .args(["merge", "--no-ff", "-m", &format!("accept: merge {branch}"), branch])
+        .args(["merge", "--no-ff", "-m", &format!("accept: merge {branch}"), &refname])
         .output()
         .map_err(spawn)?;
     if !merged.status.success() {
@@ -1158,8 +1177,12 @@ pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<Accepted, Sto
         let _ = git(vault).args(["merge", "--abort"]).output();
         return Ok(Accepted::Conflicted);
     }
-    // Merged: drop the branch so `proposals`/the review surface report it as done.
+    // Merged: drop the branch so `proposals`/the review surface report it as done — the local branch
+    // if we have one, and the shared remote branch (best-effort) so it stops showing for everyone.
     let _ = git(vault).args(["branch", "-D", branch]).output();
+    if remote(vault)?.is_some() {
+        let _ = git(vault).args(["push", REMOTE, "--delete", branch]).output();
+    }
     Ok(Accepted::Merged)
 }
 

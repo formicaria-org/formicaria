@@ -687,6 +687,12 @@ pub fn create_proposal(
         &format!("propose: change to {title}"),
         author,
     )?;
+    // Share the branch so *another user* can review and accept it — a push of `main` never carries
+    // `proposal/*`. Best-effort: a vault with no remote (or an offline push) still has a valid local
+    // proposal; it just stays single-user until the branch reaches the remote.
+    if fm_core::git::remote(vault_path)?.is_some() {
+        let _ = fm_core::git::push_branch(vault_path, &branch);
+    }
     store.put(&note)?;
     Ok(ObjectMeta::from(&note))
 }

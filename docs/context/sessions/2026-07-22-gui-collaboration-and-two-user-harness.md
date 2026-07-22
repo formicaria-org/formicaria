@@ -56,7 +56,16 @@ works unmodified — rather than side-stepping it with a raw `git merge` the way
 CI: the driver backend runs in `pixi run ci` (`test` = `cargo test --workspace`); the native backend is
 added to the `test-native-git` task (native-git is a separate opt-in gate, as for `git_native_merge`).
 
+## Cross-user proposals now sync too (follow-up, same day)
+`create_proposal` pushes the `proposal/<id>` branch to the remote (best-effort, only when a remote is
+set); `branch_diff`/`merge_proposal_branch` resolve the branch as the local head **or**
+`origin/proposal/<id>` (any pull fetches it); accept deletes the shared branch. So a second user reviews
+and accepts a proposal entirely in the GUI. Proven on both backends by
+`a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other`.
+
 ## Not yet done
-- **Cross-user proposal review/accept** (needs pushing the `proposal/*` branch, or a different transport).
-- More pipeline combinations (access-type matrix: private vs shared vaults; three-way; delete/rename races).
-- Both devices were rebuilt + installed with the GUI-collaboration commit (`a1ae28f`).
+- Wider pipeline combinations (access-type matrix: private vs shared vaults; three-way; delete/rename
+  races; a stale local `proposal/*` branch lingers on the *proposer's* clone after someone else accepts —
+  cosmetic, `proposal_load` still counts it).
+- Devices rebuilt/installed with `a1ae28f`; the cross-user-proposal change is a further runtime commit to
+  ship to both.
