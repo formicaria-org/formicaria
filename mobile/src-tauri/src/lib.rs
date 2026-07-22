@@ -13,6 +13,10 @@ use std::sync::Arc;
 
 use fm_app::{dispatch, App, Host};
 
+// Behind the `agent` feature (default on). A `--no-default-features` build compiles none of it, so
+// a notes-only APK never links the model runner — the mobile half of "the core never knows the
+// agent exists." See Cargo.toml.
+#[cfg(feature = "agent")]
 mod agent;
 
 /// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the
@@ -355,7 +359,9 @@ pub fn run() {
             let app_state = Arc::new(fm_app);
             // Start the study agent **in-process** if its model is installed (an `agents/` dir in app
             // storage: models.toml + models/ + runtime/llama-server). Best-effort — without it the app
-            // is a working notebook, exactly as before.
+            // is a working notebook, exactly as before. Behind the `agent` feature: a notes-only build
+            // does not compile this block at all, so it cannot start (or link) anything.
+            #[cfg(feature = "agent")]
             {
                 use tauri::Manager;
                 if let Ok(dir) = app.handle().path().app_data_dir() {

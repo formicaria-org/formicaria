@@ -118,3 +118,54 @@ agents) *and* the one that stays single across platforms.
 
 The biggest unknown — *does the maintained binding build in this toolchain* — is now **answered yes**.
 What remains is the migration work above, done in verified increments.
+
+## UPDATE — the FFI-one-path decision is REVERSED (owner, later 2026-07-22)
+
+Two evidence passes (both ≤5 agents, ≤1M tokens) overturned the FFI-everywhere plan above; the plan's
+migration steps 5–6 (delete the subprocess path, run llama.cpp in-process on the phone) are **dropped**.
+
+- **Adversarial review of the forward plan** (`forward-plan-review-2026-07-22.md`) found the "one path"
+  argument *inverted*: the subprocess/HTTP path (`OpenAiStep` + `SupervisedModel`) is *already* one
+  code path that ran unchanged on desktop-x64 **and** android-arm64 this session — the per-platform
+  difference is a prebuilt binary (data in `runtime/`), the repo's own sanctioned pattern. FFI-
+  *everywhere* is what fragments into N per-platform native builds. And in-process FFI silently trades
+  away the load-bearing property: today the model is a child process, so `Watchdog::kill()` is an
+  **unconditional, un-prompt-injectable OS off-switch** and a model crash/OOM **cannot touch the
+  notebook**; in-process, "stop" becomes a cooperative `drop(llama_context)` and a libllama
+  segfault/OOM faults the notes-only user's process.
+- **Field evidence — apps like us** (`agent-backed-apps-runtime-2026-07-22.md`): of ~18 primary-app
+  analogs (notes/KB apps with an LLM agent — Reor, Obsidian+Copilot, AppFlowy, Trilium, Khoj,
+  AnythingLLM, Joplin+Jarvis, Standard Notes, Continue.dev…), **every one keeps the generative model
+  out-of-process behind an OpenAI/Ollama-compatible HTTP seam**; **zero** embed a generative LLM in the
+  app process. The only in-process-FFI examples are chatbots/demos (PocketPal, ChatterUI, SmolChat,
+  Google AI Edge Gallery) — cited for the exact whole-app SIGSEGV/OOM/LMKD-kill failures we feared. On
+  Android no serious notes app embeds a model in the vault-bearing process.
+
+**The decided path now:** keep the model **out-of-process behind the OpenAI-compatible HTTP seam as the
+default, load-bearing path** (`OpenAiStep` + `models.toml runtime_url` + `SupervisedModel`/`Watchdog`
+stay — they are also the remote/LAN-provider seam). Make the runtime a `ModelRuntime`/`LlmStep` seam
+with the proven subprocess as the sole shipping impl; any FFI/in-process is at most a feature-gated,
+desktop-only, degraded-isolation *option*, **never** the phone's sole path and **never** a deletion of
+the subprocess path. If a turnkey single-artifact is wanted, follow **Reor's playbook**: bundle
+`libllama` but **spawn it as a supervised child process** — isolation *and* one build. Model "no model
+available" as a **typed, non-fatal state** (AppFlowy's pattern).
+
+**First actionable step — DONE.** The mobile agent was **not feature-gated at all**; now it is, mirroring
+`fm-serve`'s `agent` feature: `mobile/src-tauri/Cargo.toml` gains `default = ["agent"]` +
+`agent = ["dep:fm-agent", "dep:fm-agent-run"]` with both crates `optional = true`; `lib.rs` gates
+`mod agent;` and the `agent::start` block behind `#[cfg(feature = "agent")]`; and `ci/checks.sh` grows a
+structural guard (no Android toolchain in `pixi run ci`, so a grep: the two crates must be `optional`,
+`default` must keep `"agent"`, and `mod agent;` must carry the cfg). **Verified on the aarch64 target:**
+both configs `cargo check` clean; `cargo tree --no-default-features -i fm-agent` → "did not match any
+packages" (agent-free), default graph lists both. So a notes-only APK provably links neither agent crate.
+
+**On plan steps 2–3 — the tree is already in the recommended end-state.** The decided path is "keep the
+model out-of-process behind `OpenAiStep`/`SupervisedModel`; make FFI at most a feature-gated option;
+delete nothing." The tree already matches that: desktop *and* mobile already run a subprocess
+`llama-server` talked to via `OpenAiStep`; there is **no FFI code in the tree** (it was only de-risked in
+a throwaway project). So there is nothing to unify or delete. A `ModelRuntime` selection seam over a
+**single** subprocess impl would be speculative generality (the `LlmStep` seam already abstracts the
+model call) — deferred until a real second runtime is actually on the table. Mobile already treats a
+missing model as a **typed, non-fatal state** (`agent::start` returns `Err`, `lib.rs` logs "study agent
+not started" and the app runs on as a notebook) — the AppFlowy pattern, already satisfied. Step 3
+(on-device FFI de-risk) needs the physical phone and stays deferred behind the feature.

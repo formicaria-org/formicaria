@@ -109,6 +109,36 @@ for crate in libgit2-sys openssl-src; do
     fi
 done
 
+echo "[check] the mobile study agent stays behind the 'agent' feature (notes-only pays nothing)..."
+# The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
+# mobile shell must give the same guarantee, or a notes-only APK silently links the whole model
+# runner. `pixi run ci` has no Android toolchain (ruling 3), so this is a structural grep rather
+# than a --no-default-features build: the two agent crates must be `optional` (else they stay in the
+# graph with the feature off), and lib.rs must gate `mod agent` behind the feature.
+mobile_toml=mobile/src-tauri/Cargo.toml
+mobile_lib=mobile/src-tauri/src/lib.rs
+for dep in fm-agent fm-agent-run; do
+    line=$(grep -E "^${dep}[[:space:]]*=" "$mobile_toml" 2>/dev/null || true)
+    if [ -z "$line" ]; then
+        echo "  FAIL: $mobile_toml has no '$dep = ...' line to check."
+        fail=1
+    elif ! printf '%s' "$line" | grep -q 'optional = true'; then
+        echo "  FAIL: $dep must be 'optional = true' in $mobile_toml, or a --no-default-features"
+        echo "        notes-only APK still links the agent. Put it behind the 'agent' feature."
+        fail=1
+    fi
+done
+if ! grep -Eq '^default[[:space:]]*=[[:space:]]*\[[^]]*"agent"' "$mobile_toml" 2>/dev/null; then
+    echo "  FAIL: $mobile_toml must keep 'default = [\"agent\"]' so the shipped APK has the agent."
+    fail=1
+fi
+# The gate itself: `mod agent;` must be preceded by the cfg, never bare.
+if grep -Eq '^[[:space:]]*mod agent;' "$mobile_lib" 2>/dev/null \
+    && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(feature = "agent")'; then
+    echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(feature = \"agent\")]."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi
