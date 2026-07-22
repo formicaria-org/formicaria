@@ -115,6 +115,36 @@ fn a_note_discussion_yields_a_proposal_that_is_reviewed_then_accepted() {
     assert!(!done.exists && done.patch.is_empty(), "a merged proposal's branch is gone; the note lives on");
 }
 
+/// Accepting through the app's own command — the backend behind the GUI's "Accept" button — rather
+/// than raw `git merge`. A UI-only user never runs git, so this path has to work: resolve the
+/// proposal's branch, merge it into main, delete the branch, and be idempotent if pressed twice.
+#[test]
+fn accept_proposal_the_gui_button_merges_the_branch_into_main() {
+    if !have_git() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    let mut store = FileStore::open(p).unwrap();
+
+    let host = commands::capture(&mut store, "# Note\n\noriginal", "").unwrap().id;
+    git::commit_all(p, "note", &store.written()).unwrap();
+    let prop = commands::create_proposal(&mut store, p, &host, "# Note\n\nrevised", &ProposalLimits::default(), None)
+        .unwrap();
+    git::commit_all(p, "backup: proposal", &store.written()).unwrap();
+
+    // Accept — the merge the GUI button triggers.
+    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::Merged);
+
+    // The change is live on main...
+    let after = std::fs::read_to_string(p.join(format!("notes/{host}.md"))).unwrap();
+    assert!(after.contains("revised") && !after.contains("original"), "the accepted edit is on main: {after}");
+    // ...the branch is gone, so the review surface reports it done...
+    assert!(!commands::proposal_diff(&store, p, &prop.id).unwrap().exists, "the branch is deleted after accept");
+    // ...and pressing Accept again is a harmless no-op, not an error.
+    assert_eq!(commands::accept_proposal(&store, p, &prop.id).unwrap(), git::Accepted::AlreadyGone);
+}
+
 /// The realistic cycle: the first draft is **not** accepted. The user reads it, is unhappy with
 /// *specific parts*, says so, the agent revises, and this repeats **several rounds** before the user
 /// finally accepts. Each round is a fresh `proposal/<id>` branch; a version the user rejects is

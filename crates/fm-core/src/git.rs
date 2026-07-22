@@ -1115,6 +1115,54 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
     Ok((true, files, String::from_utf8_lossy(&patch.stdout).to_string()))
 }
 
+/// The outcome of accepting a proposal — what the UI tells the user.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Accepted {
+    /// Merged cleanly into the current branch; the proposal branch was deleted.
+    Merged,
+    /// Could not merge cleanly. The merge was **aborted** and the working tree left exactly as it
+    /// was — accepting never leaves a half-merged or conflicted tree (which would block every commit).
+    Conflicted,
+    /// The branch was already gone (already merged, or deleted) — treated as already-accepted.
+    AlreadyGone,
+}
+
+/// Accept a proposal: merge its `branch` into the current branch (main) as a legible no-ff unit, then
+/// delete the branch so it stops showing as open. This is the write half of the review surface — the
+/// GUI's "Accept" button, the only way a UI-only user merges a proposal (there is no CLI here).
+///
+/// **Fail-closed on conflict.** If the merge cannot complete cleanly it is aborted and `main` is left
+/// untouched (`Accepted::Conflicted`); the app must never be left mid-merge, since a conflicted tree
+/// blocks every subsequent commit. A clean merge still routes `.md` files through the `merge=fm`
+/// driver, so the manufactured `updated:` collision is a non-event exactly as it is on a pull.
+pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<Accepted, StoreError> {
+    ensure_identity(vault);
+    let exists = git(vault)
+        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+        .output()
+        .map_err(spawn)?
+        .status
+        .success();
+    if !exists {
+        return Ok(Accepted::AlreadyGone);
+    }
+
+    let merged = git(vault)
+        .args(["merge", "--no-ff", "-m", &format!("accept: merge {branch}"), branch])
+        .output()
+        .map_err(spawn)?;
+    if !merged.status.success() {
+        // Conflict, or refused against a dirty tree: abort so `main` and the working tree are left
+        // exactly as they were. `--abort` is best-effort — if no merge actually started (a dirty-tree
+        // refusal), it errors harmlessly and nothing was changed anyway.
+        let _ = git(vault).args(["merge", "--abort"]).output();
+        return Ok(Accepted::Conflicted);
+    }
+    // Merged: drop the branch so `proposals`/the review surface report it as done.
+    let _ = git(vault).args(["branch", "-D", branch]).output();
+    Ok(Accepted::Merged)
+}
+
 /// Where the vault pushes to, or None when no remote is configured yet. Absence
 /// is the normal state of a fresh vault, never an error.
 pub fn remote(vault: &Path) -> Result<Option<String>, StoreError> {

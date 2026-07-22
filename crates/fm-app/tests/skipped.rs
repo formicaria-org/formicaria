@@ -126,3 +126,96 @@ fn open_skipped_refuses_anything_not_currently_unreadable() {
         host.0.lock().unwrap()
     );
 }
+
+// --- The in-app raw editor (decisions.md #4): read + resolve a note that won't render, on ANY device
+// (the phone has no external editor to `open_skipped` into). No semantic change, no picking a side for
+// the user — they see the raw markers and choose. ---
+
+/// The raw text of a skipped note is handed back verbatim — markers and all — so the user can see the
+/// conflict and resolve it themselves.
+#[test]
+fn read_skipped_returns_the_raw_text_so_the_user_can_see_the_conflict() {
+    let (_dir, app) = vault_with_one_broken_note();
+    let host = Recording(Mutex::new(Vec::new()));
+    call(&app, &host, "ping", json!({})).expect("ping");
+
+    let out = call(&app, &host, "read_skipped", json!({ "vault": "home", "name": "broken.md" }))
+        .expect("reads the raw text");
+    let text = out["text"].as_str().expect("text field");
+    assert!(
+        text.contains("<<<<<<<") && text.contains("status: doing") && text.contains("status: done"),
+        "both sides and the markers are handed back for the user to resolve: {text}"
+    );
+}
+
+/// The user removes the markers (picking a side) and saves; the note re-parses and returns to the
+/// vault on the next heartbeat. This is the whole conflict-resolution loop, in-app, on any device.
+#[test]
+fn resolve_skipped_writes_the_fix_and_the_note_returns_to_the_vault() {
+    let (_dir, app) = vault_with_one_broken_note();
+    let host = Recording(Mutex::new(Vec::new()));
+    call(&app, &host, "ping", json!({})).expect("ping");
+
+    let resolved = "---\nid: 01JQ0000000000000000000000\ntype: task\ntitle: broken\n\
+        created: 2026-07-17T10:00:00Z\nupdated: 2026-07-17T10:00:00Z\nstatus: done\n---\n\nBody.\n";
+    let out = call(
+        &app,
+        &host,
+        "resolve_skipped",
+        json!({ "vault": "home", "name": "broken.md", "text": resolved }),
+    )
+    .expect("resolves");
+    assert_eq!(out["parses"], json!(true), "the resolved text parses");
+
+    // Next heartbeat: it is no longer skipped, and it is served — it renders.
+    let ping = call(&app, &host, "ping", json!({})).expect("ping");
+    assert!(ping["skipped"].as_array().unwrap().is_empty(), "the note left the skipped set: {ping:?}");
+    let search = call(&app, &host, "search", json!({ "query": "broken" })).expect("search");
+    assert!(!search.as_array().unwrap().is_empty(), "the resolved note is served and renders");
+}
+
+/// A save that still has markers in it (an incremental edit) is written, but reported as not-yet-parsing
+/// — so the UI can keep the raw editor open and say "still has conflict markers".
+#[test]
+fn resolve_skipped_reports_when_the_text_still_will_not_parse() {
+    let (_dir, app) = vault_with_one_broken_note();
+    let host = Recording(Mutex::new(Vec::new()));
+    call(&app, &host, "ping", json!({})).expect("ping");
+
+    let out = call(
+        &app,
+        &host,
+        "resolve_skipped",
+        json!({ "vault": "home", "name": "broken.md", "text": BROKEN }),
+    )
+    .expect("writes even when unresolved");
+    assert_eq!(out["parses"], json!(false), "still has markers → reported as not resolved");
+}
+
+/// The same allowlist guard as `open_skipped`: neither reader nor writer can name a file that is not a
+/// currently-unreadable note. **This is the security boundary** — the writer especially must never be
+/// coaxed into overwriting an arbitrary path.
+#[test]
+fn read_and_resolve_skipped_refuse_anything_not_currently_unreadable() {
+    let (_dir, app) = vault_with_one_broken_note();
+    let host = Recording(Mutex::new(Vec::new()));
+    call(&app, &host, "ping", json!({})).expect("ping");
+
+    for (vault, name) in [
+        ("home", "fine.md"),             // parses, so not ours
+        ("home", "nope.md"),             // does not exist
+        ("home", "../../../etc/passwd"), // traversal
+        ("home", "/etc/passwd"),         // absolute
+        ("other", "broken.md"),          // right file, wrong audience
+    ] {
+        assert!(
+            call(&app, &host, "read_skipped", json!({ "vault": vault, "name": name })).is_err(),
+            "read_skipped must refuse {vault}/{name}"
+        );
+        assert!(
+            call(&app, &host, "resolve_skipped", json!({ "vault": vault, "name": name, "text": "x" }))
+                .is_err(),
+            "resolve_skipped must refuse {vault}/{name} — it must never overwrite an arbitrary path"
+        );
+    }
+}

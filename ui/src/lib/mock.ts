@@ -57,6 +57,10 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
   };
 }
 
+// Proposals accepted this session — with no git, "the branch was merged and deleted" is modelled as
+// membership here, which flips `proposal_diff` to the merged/gone answer.
+const acceptedProposals = new Set<string>();
+
 const notes: ObjectMeta[] = [
   makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
   makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: '2026-07-16', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
@@ -418,6 +422,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'proposal_diff': {
       const prop = notes.find((n) => n.id === String(args.id));
       if (!prop || !isProposal(prop)) throw new Error('not a proposal');
+      // Once accepted, the branch is gone — the proposal *note* outlives it, so the diff reports
+      // "nothing to show", exactly as the real backend does after a merge.
+      if (acceptedProposals.has(prop.id)) return { exists: false, files: [], patch: '' } as T;
       // The mock has no git, so it returns a stand-in patch (there is no real branch to diff). The
       // real backend diffs `proposal/<id>` against `main`. Shape matches the server's `ProposalDiff`.
       return {
@@ -425,6 +432,15 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         files: ['notes/(preview).md'],
         patch: '@@ preview @@\n+ (the real diff appears against a live backend)\n',
       } as T;
+    }
+    case 'accept_proposal': {
+      // No git in the mock, so "merging the branch" is modelled by marking the proposal accepted: its
+      // note stays (immortal), but its branch is now gone, so `proposal_diff` reports it done. The real
+      // backend merges `proposal/<id>` into main and deletes the branch.
+      const prop = notes.find((n) => n.id === String(args.id) && isProposal(n));
+      if (!prop) return { outcome: 'already_gone' } as T;
+      acceptedProposals.add(prop.id);
+      return { outcome: 'merged' } as T;
     }
     case 'create_proposal': {
       const target = notes.find((n) => n.id === String(args.id));
@@ -795,8 +811,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // because the mock models a working machine; the no-git path is exercised for real.
       return { changed: false, git: true, restic: true, skipped: [] } as T;
     case 'open_skipped':
-      // Nothing here is ever unreadable, so this is only reachable from a hand-crafted
-      // call. Fail the way the real arm does rather than pretending it worked.
+    case 'read_skipped':
+    case 'resolve_skipped':
+      // Nothing here is ever unreadable, so these are only reachable from a hand-crafted
+      // call. Fail the way the real arms do rather than pretending they worked.
       throw new Error('not a currently-unreadable note');
     case 'commit':
       // Nothing to commit, and nothing blocking it — the mock vault is never mid-merge.

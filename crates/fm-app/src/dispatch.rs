@@ -370,6 +370,31 @@ pub fn dispatch(
             let cfg = g.config(&vault_name)?;
             json(commands::proposal_diff(&g.store, &cfg.path, &id).map_err(err)?)
         }
+        // Accept a proposal from the review surface — the GUI's merge button, since a UI-only user has
+        // no `git merge`. Resolve the vault as `proposal_diff` does, merge the branch into main, then
+        // re-read (the merge wrote the accepted note behind the index's back, like a pull). Fail-closed:
+        // a conflicted merge is reported, not forced, and main is left untouched.
+        "accept_proposal" => {
+            let id = s("id");
+            let mut g = lock()?;
+            let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
+            let vault_name = g
+                .store
+                .get(pid)
+                .map_err(err)?
+                .ok_or_else(|| format!("no such proposal: {id}"))?
+                .vault;
+            let path = g.config(&vault_name)?.path.clone();
+            let outcome = commands::accept_proposal(&g.store, &path, &id).map_err(err)?;
+            g.store.reindex(Reindex::Incremental).map_err(err)?;
+            json(serde_json::json!({
+                "outcome": match outcome {
+                    fm_core::git::Accepted::Merged => "merged",
+                    fm_core::git::Accepted::Conflicted => "conflicted",
+                    fm_core::git::Accepted::AlreadyGone => "already_gone",
+                }
+            }))
+        }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
         // Roots + counts come from the store (so they list even with no git); participants are
         // read from each vault's git log by hand — a discussion root and its replies are all
@@ -576,22 +601,34 @@ pub fn dispatch(
         "open_skipped" => {
             // Resolve, then drop the guard: handing a path to the OS can block on anything.
             let (vault, name) = (s("vault"), s("name"));
-            let path = {
-                let g = lock()?;
-                g.store
-                    .skipped()
-                    .iter()
-                    .find(|sk| sk.vault == vault && sk.name == name)
-                    .map(|sk| sk.path.clone())
-                    .ok_or_else(|| {
-                        format!(
-                            "not a currently-unreadable note: {vault}/{name} — it may have \
-                             been fixed already"
-                        )
-                    })?
-            };
+            // Resolve, then drop the guard: handing a path to the OS can block on anything.
+            let path = skipped_path(&lock()?, &vault, &name)?;
             host.open_external(&path)?;
             nothing()
+        }
+        // The **in-app** half of the skipped-note surface — the raw editor decisions.md #4 names as the
+        // fix for a note that will not render (a genuine frontmatter conflict, or corrupt YAML). Unlike
+        // `open_skipped`, which hands the path to an external editor, these work on **any device** —
+        // the phone has no external editor — by reading and rewriting the raw file text directly.
+        //
+        // Same security model as `open_skipped`: the path is resolved from the store's *current
+        // skipped set*, never from the caller, so neither can touch a file that is not a
+        // currently-unreadable note. `resolve_skipped` writes exactly what it is given (files-as-truth,
+        // byte-for-byte) and does not commit — the normal save/commit flow finishes the merge once the
+        // note is readable again — but it reports whether the new text parses, so the UI can tell
+        // "resolved" from "still has conflict markers".
+        "read_skipped" => {
+            let (vault, name) = (s("vault"), s("name"));
+            let path = skipped_path(&lock()?, &vault, &name)?;
+            let text = std::fs::read_to_string(&path).map_err(err)?;
+            json(serde_json::json!({ "text": text }))
+        }
+        "resolve_skipped" => {
+            let (vault, name) = (s("vault"), s("name"));
+            let path = skipped_path(&lock()?, &vault, &name)?;
+            std::fs::write(&path, s("text")).map_err(err)?;
+            let parses = fm_core::frontmatter::from_file(&s("text")).is_ok();
+            json(serde_json::json!({ "parses": parses }))
         }
         // The audiences that exist. `[]` is **the first-run signal** — the one command
         // that is meaningful with no vaults, and the reason it isn't folded into
@@ -901,6 +938,22 @@ impl Vaults {
         }
         Err(format!("blob not present in any vault: {reference}"))
     }
+}
+
+/// Resolve a currently-unreadable note's path from the store's skipped allowlist — the shared security
+/// gate for `open_skipped`/`read_skipped`/`resolve_skipped`. The path comes from the indexer's own
+/// skipped set, never from the caller, so none of the three can be tricked into naming an arbitrary
+/// file (a traversal, `/etc/passwd`, a readable note in another vault). Takes the live lock guard so
+/// all three arms resolve against the same borrowed set.
+fn skipped_path(g: &MutexGuard<'_, Vaults>, vault: &str, name: &str) -> Result<PathBuf, String> {
+    g.store
+        .skipped()
+        .iter()
+        .find(|sk| sk.vault == vault && sk.name == name)
+        .map(|sk| sk.path.clone())
+        .ok_or_else(|| {
+            format!("not a currently-unreadable note: {vault}/{name} — it may have been fixed already")
+        })
 }
 
 fn err<E: std::fmt::Display>(e: E) -> String {

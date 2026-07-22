@@ -351,6 +351,22 @@ mod tests {
     }
 
     #[test]
+    fn a_body_conflict_is_preserved_verbatim_for_the_user_to_resolve() {
+        // The intended shape of a note conflict (the fm merge driver keeps conflicts in the BODY, never
+        // the frontmatter): the frontmatter parses, and the body's git markers are left exactly as
+        // written — so the note renders and opens in the editor with the markers visible for the user
+        // to resolve. Nothing in the body is auto-resolved. (A conflict in the *frontmatter* is a
+        // separate, deliberate "loud-and-absent" case — see decisions.md #4 and merge.rs:32-35.)
+        let body = "before\n<<<<<<< HEAD\nours line\n=======\ntheirs line\n>>>>>>> branch\nafter";
+        let text = format!(
+            "---\nschema: 1\nid: 01ARZ3NDEKTSV4RRFFQ69G5FAV\ntype: note\n\
+             created: 2026-07-14T09:00:00Z\nupdated: 2026-07-14T09:00:00Z\n---\n{body}"
+        );
+        let o = from_file(&text).expect("a body conflict never blocks parsing");
+        assert_eq!(o.body, body, "body conflict markers are preserved verbatim for the user");
+    }
+
+    #[test]
     fn custom_properties_round_trip_and_are_queryable() {
         let mut o = Object::new(Kind::Note, "body");
         o.extra.insert("project".into(), PropertyValue::Text("alpha".into()));

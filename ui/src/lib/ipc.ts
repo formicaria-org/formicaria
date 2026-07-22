@@ -209,6 +209,14 @@ export const createProposal = (id: string, body: string) =>
  *  or gone — the note outlives its branch, so this reports "nothing to show", never an error. */
 export const proposalDiff = (id: string) => invoke<ProposalDiff>('proposal_diff', { id });
 
+/** The write half of review — accept a proposal by merging its branch into `main`. The GUI's merge
+ *  button, since a UI-only user has no `git merge`. `'merged'` = landed on main (branch deleted);
+ *  `'conflicted'` = could not merge cleanly, so it was aborted and main left untouched; `'already_gone'`
+ *  = the branch was already merged/deleted (pressing Accept twice). Fail-closed: never leaves a
+ *  half-merged tree. */
+export const acceptProposal = (id: string) =>
+  invoke<{ outcome: 'merged' | 'conflicted' | 'already_gone' }>('accept_proposal', { id });
+
 /** Notes nothing has touched since `since` (a git `--since` value), oldest first.
  *
  *  **Derived from git, stored nowhere** — there is no `stale:` property to keep true, and the
@@ -417,11 +425,23 @@ export const ping = () =>
  *  reported as broken. */
 export type SkippedNote = { vault: string; name: string; reason: string };
 
-/** Hand an unreadable note to the OS editor — the one action available for a conflicted
- *  merge, since by definition no editor of ours can parse it. Fails closed if the note has
- *  since been fixed, which is what makes a stale panel harmless. */
+/** Hand an unreadable note to the OS editor. A desktop convenience only — on the phone there
+ *  is no OS editor, so the in-app raw editor (`readSkipped`/`resolveSkipped`) is the real path.
+ *  Fails closed if the note has since been fixed, which is what makes a stale panel harmless. */
 export const openSkipped = (vault: string, name: string) =>
   invoke<void>('open_skipped', { vault, name });
+
+/** The **raw text** of an unreadable note, for the in-app editor — markers and all. Same
+ *  allowlist as `openSkipped`: the path is resolved from the backend's current skipped set,
+ *  never the caller. This is what lets a conflict be fixed in-app, including on the phone. */
+export const readSkipped = (vault: string, name: string) =>
+  invoke<{ text: string }>('read_skipped', { vault, name });
+
+/** Write the user's resolved raw text back over an unreadable note (byte-for-byte, no
+ *  side-picking). Returns whether it now parses, so the editor can tell "resolved" from
+ *  "still has conflict markers". The note re-enters every view on the next poll. */
+export const resolveSkipped = (vault: string, name: string, text: string) =>
+  invoke<{ parses: boolean }>('resolve_skipped', { vault, name, text });
 
 /** The audiences that exist. `[]` is the first-run signal — the one answer that means
  *  "nothing else in this app can work yet". */

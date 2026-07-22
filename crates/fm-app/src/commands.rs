@@ -721,6 +721,26 @@ pub fn proposal_diff(
     Ok(ProposalDiff { exists, files, patch })
 }
 
+/// Accept the proposal note `id`: resolve its `proposes: branch:<name>` (exactly as [`proposal_diff`]
+/// does) and merge that branch into the current branch. The write half of review — the GUI's "Accept"
+/// button. Fail-closed: an unclean merge is aborted and `main` is left untouched
+/// ([`fm_core::git::Accepted::Conflicted`]). Refuses a note that is not a proposal.
+pub fn accept_proposal(
+    store: &dyn Store,
+    vault_path: &Path,
+    id: &str,
+) -> Result<fm_core::git::Accepted, StoreError> {
+    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    let branch = match obj.get(crate::thread::PROPOSES) {
+        PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+        _ => None,
+    }
+    .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
+
+    fm_core::git::merge_proposal_branch(vault_path, &branch)
+}
+
 /// Notes that link **to** `id` — the reverse of the `note:` references a body makes. "What points
 /// here", the backlinks panel's feed, newest-updated first.
 ///

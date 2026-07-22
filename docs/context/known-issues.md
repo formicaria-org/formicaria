@@ -8,12 +8,19 @@ trap, add one. Newest concerns first within each section.
 
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
-- **No in-app "accept proposal".** The propose→review cycle is whole — an agent (or human) creates a
-  `proposal/<id>` branch (`create_proposal`) and it is reviewed as a diff (`proposal_diff` /
-  `ProposalReview.svelte`, read-only) — but **accepting is a manual `git merge` of that branch**; there
-  is no `accept_proposal`/`merge` command or button. The end-to-end cycle (note discussion → agent
-  proposal → review → accept) is proven in `crates/fm-app/tests/proposal_cycle.rs`, where the accept
-  step is raw git. An in-app accept command should reproduce exactly that test's merge behaviour.
+- **~~No in-app "accept proposal"~~ — FIXED 2026-07-22.** The whole propose→review→**accept** cycle is
+  now in the GUI: `accept_proposal` (`commands`/`dispatch`) merges the `proposal/<id>` branch into main
+  (`fm_core::git::merge_proposal_branch`, no-ff, deletes the branch), fail-closed — an unclean merge is
+  aborted and main left untouched (`Accepted::Conflicted`), never a half-merged tree. `ProposalReview.svelte`
+  gained an **Accept & merge** button. Covered by `accept_proposal_the_gui_button_merges_the_branch_into_main`
+  (fm-app) and a `ProposalReview.svelte.test.ts` case. (A conflict-on-accept still can't be resolved from
+  the GUI beyond "ask the author to redo against latest" — rare, since main rarely moves the same note.)
+- **~~A conflicted / unparseable note could not be resolved in the GUI~~ — FIXED 2026-07-22.** A note whose
+  frontmatter won't parse is still "loud-and-absent" (decisions.md #4 — the parser stays strict, no
+  side-picking by fiat), but the `SkippedPanel` now has an **in-app raw editor** (`read_skipped` /
+  `resolve_skipped`, same allowlist as `open_skipped`) so a conflict can be fixed on **any device**,
+  including the phone (which has no OS editor). `open_skipped`→external editor is now a desktop-only
+  convenience. Covered in `fm-app/tests/skipped.rs` + `SkippedPanel.svelte.test.ts`.
 - **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
   retrieval fed a tiny model unrelated fragments it parroted. Broader RAG is deferred pending its own
   research (owner: bad RAG is worse than none).
