@@ -60,6 +60,33 @@ unlock** — it would take the 4B from ~14 t/s to comfortably interactive and fr
 Also observed: running large models in `/data/local/tmp` alongside the app can pressure Android LMKD
 into reaping the app — reinforcing that the phone should stay at ~1.2B, not push toward 4B.
 
+## Measured device-resource usage (per-process — the model's own load, not system absolute)
+
+RAM figures elsewhere in this doc were *estimates*; these are **measured**. Each number is the model
+**process's own** peak RSS and CPU% (laptop via `/usr/bin/time -v` on `llama-bench`; phone via
+`/proc/<pid>/status` and `top` on the separate `libllama-server.so` process during a real generation).
+Because they are per-process, they are the model's **incremental** footprint — independent of whatever
+else is running (browser, etc.).
+
+| Device | Model | peak RSS (measured) | CPU during generation | cores used / total | % of RAM |
+|---|---|---|---|---|---|
+| Laptop (t=8) | Qwen3-4B-2507 | **4.06 GB** | **741%** | ~7.4 / 16 threads | ~4.0 of ~5 GB free |
+| Laptop (t=8) | LFM2.5-1.2B | **1.19 GB** | 624% | ~6.2 / 16 threads | small |
+| Phone (t=4) | LFM2.5-1.2B | **~0.90–0.95 GB** | **~340–450% (avg ~385%)** | ~4 of 8 cores | ~12% of 8 GB |
+
+**What this means for "good performance without blocking":**
+- **Phone is comfortable.** The 1.2B holds ~0.9 GB (of ~3.4 GB free) and its 4 threads use ~4 of 8
+  cores — **4 cores stay free for the UI**, confirming the interface isn't starved. This is the
+  measured basis for the "doesn't block" claim, not an assumption.
+- **Laptop 4B is memory-tight.** Its **real peak is ~4.06 GB** (not the ~2.5 GB the model file
+  suggests — KV cache + compute buffers add up), against ~5 GB free. With a browser and other apps
+  running this leaves little headroom; if the laptop feels pressured, the fallback is `lfm2.5-1.2b`
+  there too (1.19 GB) or wiring the RTX 3050 (moves weights to VRAM, frees system RAM).
+- **CPU at the benchmark-optimal thread count is high** (7.4 cores on the laptop, ~4 on the phone) —
+  fine while a reply streams for a few seconds, but it is a *burst*, not steady load; the agent only
+  runs during a turn. *(Observation to revisit: the phone's model process runs at `nice -10` — elevated
+  priority; the 4-core cap protects the UI regardless, but a neutral/positive nice would be safer.)*
+
 ## Mechanism note
 
 `models.toml` has a single `default`, and the mobile build embeds that same file (`include_str!`). To
