@@ -153,7 +153,9 @@ impl VaultAccess for DispatchVault {
         self.call("thread", json!({ "id": note }))
     }
     fn discussions(&self) -> Result<Value, String> {
-        self.call("discussions", json!({}))
+        // `thread_roots`, not `discussions`: watch note comment threads too, so an @-mention in a
+        // note's discussion (e.g. "First talk with Arne") is seen — not only first-class discussions.
+        self.call("thread_roots", json!({}))
     }
     fn alive(&self) -> bool {
         true

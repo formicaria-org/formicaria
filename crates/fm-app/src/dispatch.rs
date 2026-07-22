@@ -398,6 +398,9 @@ pub fn dispatch(
             }
             json(summaries)
         }
+        // Every thread with messages — first-class discussions AND ordinary notes with comment
+        // threads — for the study agent to watch. Not the Discussions view (that is `discussions`).
+        "thread_roots" => json(commands::thread_roots(&lock()?.store).map_err(err)?),
         "set_property" => {
             commands::set_property(&mut lock()?.store, &s("id"), &s("key"), &s("value"))
                 .map_err(err)?;

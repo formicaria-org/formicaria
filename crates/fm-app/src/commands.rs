@@ -427,6 +427,40 @@ pub fn discussions(store: &dyn Store) -> Result<Vec<DiscussionSummary>, StoreErr
     Ok(out)
 }
 
+/// A watched thread: a root note id and how many messages hang off it.
+#[derive(Serialize)]
+pub struct ThreadRoot {
+    pub id: String,
+    pub count: usize,
+}
+
+/// **Every** thread with messages — first-class discussions *and* ordinary notes that have a comment
+/// thread. Unlike [`discussions`] (which lists only first-class discussion roots for the Discussions
+/// view), this is what the **study agent** watches, so an `@`-mention posted anywhere — in a note's
+/// comments as much as in a stand-alone discussion — is seen and answered. Same `{id, count}` shape.
+pub fn thread_roots(store: &dyn Store) -> Result<Vec<ThreadRoot>, StoreError> {
+    let q = Query {
+        filter: Filter::new().and(Predicate::NoteRef { key: crate::thread::THREAD_OF.into(), id: None }),
+        ..Default::default()
+    };
+    let msgs = store.query(&q)?.rows;
+    let mut count: std::collections::HashMap<Id, usize> = std::collections::HashMap::new();
+    for o in &msgs {
+        if let PropertyValue::Text(s) = o.get(crate::thread::THREAD_OF) {
+            if let Some(root) = fm_model::parse_note_ref(&s) {
+                // Register every root any message points at. A first-class discussion is self-anchored
+                // (its own `thread_of` names itself) — that self-message is not a reply, so it just
+                // registers the root at 0; replies (pointing at another note) add to that note's count.
+                let e = count.entry(root).or_insert(0);
+                if root != o.id {
+                    *e += 1;
+                }
+            }
+        }
+    }
+    Ok(count.into_iter().map(|(id, count)| ThreadRoot { id: id.to_string(), count }).collect())
+}
+
 /// Who has posted in each discussion, from **one vault's git log** — `root id → participants`,
 /// newest-first, deduped by email. The dispatcher calls this per vault and merges the results into
 /// `DiscussionSummary::participants`.
