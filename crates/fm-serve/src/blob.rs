@@ -243,17 +243,7 @@ mod tests {
 
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
-        let state = AppState {
-            app: fm_app::App::new(store, vec![cfg], None, false),
-            dist: None,
-            origins: Vec::new(),
-            last_seen: Mutex::new(Instant::now()),
-            connected: AtomicBool::new(false),
-            port: 0,
-            agent_running: AtomicBool::new(false),
-            agent_activity: std::sync::Mutex::new(std::collections::HashMap::new()),
-            agent_present: std::sync::Mutex::new(std::collections::HashMap::new()),
-        };
+        let state = AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, Vec::new(), 0);
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();

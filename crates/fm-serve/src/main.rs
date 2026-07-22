@@ -20,13 +20,15 @@
 // self-contained file rather than a binary that needs its assets shipped beside it.
 include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
 
+mod agent_registry;
 mod blob;
+
+use agent_registry::AgentRegistry;
 
 use fm_app::{dispatch, App, Host, Output};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -56,27 +58,54 @@ struct AppState {
     /// Whether the study agent has already been spawned this run, so toggling the setting on while
     /// it is already running does not start a second one.
     agent_running: AtomicBool,
-    /// What the study agent is doing *right now*, per discussion — a transient, in-memory pipeline
-    /// status the orchestrator reports as it moves through its stages (reading notes → searching the
-    /// web → thinking), so the discussion view can show a live "working…" wheel with the current
-    /// stage and hide it the instant the reply lands or a timeout clears it. Never touches the vault
-    /// (transport-shaped, like `last_seen` — the command core never learns the agent exists). Keyed
-    /// by discussion id; the agent writes it, the browser reads it.
-    agent_activity: Mutex<HashMap<String, Activity>>,
-    /// Which study agents are alive right now, by name → last heartbeat. Each agent pings while it
-    /// runs; an entry older than a few seconds is treated as offline. Lets the app list online agents
-    /// (the @-picker) and warn — instead of going silent — when a mention arrives while none is up.
-    /// Transport-shaped like the rest here: never a dispatch command, never on disk.
-    agent_present: Mutex<HashMap<String, Instant>>,
+    /// The study agent's transient side channel — per-discussion activity (the "working…" wheel) and
+    /// presence (who's online, for the @-picker and offline warning). In-memory, never on disk,
+    /// transport-shaped like `last_seen`; its TTL rules live and are tested in `agent_registry`, not
+    /// inline in the handlers. The command core still never learns the agent exists.
+    agent: AgentRegistry,
 }
 
-/// One discussion's live agent status. `since` is when this turn began — the poll returns the
-/// elapsed seconds so the UI can show "slow" distinctly from "hung", and a stale entry (the agent
-/// died mid-turn without clearing) auto-expires so the wheel never spins forever.
-struct Activity {
+impl AppState {
+    /// The one constructor. Everything but `(app, dist, origins, port)` is a fixed initial state, so
+    /// the three call sites (serve, and two test harnesses) can't drift in what they default.
+    fn new(app: App, dist: Option<PathBuf>, origins: Vec<String>, port: u16) -> Self {
+        AppState {
+            app,
+            dist,
+            origins,
+            last_seen: Mutex::new(Instant::now()),
+            connected: AtomicBool::new(false),
+            port,
+            agent_running: AtomicBool::new(false),
+            agent: AgentRegistry::new(),
+        }
+    }
+}
+
+/// Typed bodies for the agent side-channel endpoints — parsed with serde rather than poking a `Value`,
+/// so a malformed body degrades to an empty default instead of a chain of `unwrap_or`s.
+#[derive(serde::Deserialize, Default)]
+struct ActivityReq {
+    #[serde(default)]
+    discussion: String,
+    #[serde(default)]
     stage: String,
+    #[serde(default)]
     question: String,
-    since: Instant,
+    #[serde(default)]
+    done: bool,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct DiscReq {
+    #[serde(default)]
+    discussion: String,
+}
+
+#[derive(serde::Deserialize, Default)]
+struct PresentReq {
+    #[serde(default)]
+    name: String,
 }
 
 /// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
@@ -169,17 +198,7 @@ fn main() {
         }
         eprintln!("  (a conflicted merge? resolve the markers and reload.)");
     }
-    let state = Arc::new(AppState {
-        app,
-        dist,
-        origins,
-        last_seen: Mutex::new(Instant::now()),
-        connected: AtomicBool::new(false),
-        port: port.parse().unwrap_or(8765),
-        agent_running: AtomicBool::new(false),
-        agent_activity: Mutex::new(HashMap::new()),
-        agent_present: Mutex::new(HashMap::new()),
-    });
+    let state = Arc::new(AppState::new(app, dist, origins, port.parse().unwrap_or(8765)));
 
     match &state.dist {
         // Told to read from disk, but there is nothing there.
@@ -433,42 +452,25 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // like the liveness and on/off endpoints above: never a `dispatch` command, so the vault core stays
     // agent-agnostic and this never reaches disk. The agent WRITES it; the browser page READS it.
     if path == "/api/agent_activity" {
-        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
-        let disc = v["discussion"].as_str().unwrap_or("").to_string();
-        if !disc.is_empty() {
-            let mut act = state.agent_activity.lock().unwrap();
-            if v["done"].as_bool().unwrap_or(false) {
-                act.remove(&disc);
+        let req: ActivityReq = serde_json::from_slice(&body).unwrap_or_default();
+        if !req.discussion.is_empty() {
+            if req.done {
+                state.agent.clear_activity(&req.discussion);
             } else {
-                // Keep the original start time across stage updates, so elapsed reflects the whole turn.
-                let since = act.get(&disc).map(|a| a.since).unwrap_or_else(Instant::now);
-                act.insert(
-                    disc,
-                    Activity {
-                        stage: v["stage"].as_str().unwrap_or("working").to_string(),
-                        question: v["question"].as_str().unwrap_or("").to_string(),
-                        since,
-                    },
-                );
+                let stage = if req.stage.is_empty() { "working" } else { &req.stage };
+                state.agent.set_activity(&req.discussion, stage, &req.question);
             }
         }
         return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
     }
     if path == "/api/agent_activity_poll" {
-        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
-        let disc = v["discussion"].as_str().unwrap_or("");
-        let mut act = state.agent_activity.lock().unwrap();
-        // A turn that ran past the worst-case pipeline means the agent died without clearing — expire
-        // it so the wheel never spins forever (the failure every tool we studied shares).
-        if act.get(disc).is_some_and(|a| a.since.elapsed() > Duration::from_secs(180)) {
-            act.remove(disc);
-        }
-        let payload = match act.get(disc) {
+        let req: DiscReq = serde_json::from_slice(&body).unwrap_or_default();
+        let payload = match state.agent.activity(&req.discussion) {
             Some(a) => serde_json::json!({
                 "active": true,
                 "stage": a.stage,
                 "question": a.question,
-                "elapsed_secs": a.since.elapsed().as_secs(),
+                "elapsed_secs": a.elapsed_secs,
             }),
             None => serde_json::json!({ "active": false }),
         };
@@ -478,23 +480,14 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // Agent presence: the agent heartbeats its name here while it runs; the app asks who is online so
     // it can offer the @-picker and warn instead of going silent when a mention has no one to answer.
     if path == "/api/agent_present" {
-        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
-        if let Some(name) = v["name"].as_str() {
-            if !name.is_empty() {
-                state.agent_present.lock().unwrap().insert(name.to_string(), Instant::now());
-            }
+        let req: PresentReq = serde_json::from_slice(&body).unwrap_or_default();
+        if !req.name.is_empty() {
+            state.agent.heartbeat(&req.name);
         }
         return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
     }
     if path == "/api/agents" {
-        let mut present = state.agent_present.lock().unwrap();
-        // A heartbeat is every poll (~1s); anything not seen in 8s is treated as gone.
-        // Comfortably longer than the agent's ~5s heartbeat, with margin for a slow poll — a missed
-        // beat or two must not flip a live agent to "offline".
-        present.retain(|_, seen| seen.elapsed() < Duration::from_secs(20));
-        let mut names: Vec<&String> = present.keys().collect();
-        names.sort();
-        let payload = serde_json::json!({ "agents": names });
+        let payload = serde_json::json!({ "agents": state.agent.online() });
         return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
     }
 
@@ -770,17 +763,7 @@ mod tests {
         std::fs::create_dir_all(vault.join("notes")).unwrap();
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
-        let state = AppState {
-            app: fm_app::App::new(store, vec![cfg], None, false),
-            dist: None,
-            origins,
-            last_seen: Mutex::new(Instant::now()),
-            connected: AtomicBool::new(false),
-            port: 0,
-            agent_running: AtomicBool::new(false),
-            agent_activity: Mutex::new(HashMap::new()),
-            agent_present: Mutex::new(HashMap::new()),
-        };
+        let state = AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, origins, 0);
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
