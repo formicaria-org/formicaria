@@ -489,7 +489,9 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     if path == "/api/agents" {
         let mut present = state.agent_present.lock().unwrap();
         // A heartbeat is every poll (~1s); anything not seen in 8s is treated as gone.
-        present.retain(|_, seen| seen.elapsed() < Duration::from_secs(8));
+        // Comfortably longer than the agent's ~5s heartbeat, with margin for a slow poll — a missed
+        // beat or two must not flip a live agent to "offline".
+        present.retain(|_, seen| seen.elapsed() < Duration::from_secs(20));
         let mut names: Vec<&String> = present.keys().collect();
         names.sort();
         let payload = serde_json::json!({ "agents": names });
