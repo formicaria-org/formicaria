@@ -188,7 +188,55 @@ pub fn dispatch(
         // A store scan like `recent`, not a git read; no reverse index.
         "backlinks" => json(commands::backlinks(&lock()?.store, &s("id")).map_err(err)?),
         "templates" => json(commands::templates(&lock()?.store).map_err(err)?),
-        "conflicts" => json(commands::conflicts(&lock()?.store).map_err(err)?),
+        "conflicts" => {
+            let g = lock()?;
+            let mut list = commands::conflicts(&g.store).map_err(err)?;
+            // Union in git's unmerged paths — the authoritative "nothing is being committed" source
+            // that the warning reads — so a conflicted **discussion message or proposal** (which the
+            // body-marker scan skips via `notes_base`) still shows up here, exactly where the
+            // "waiting on you" warning tells the user to look. Map each unmerged `<dir>/<id>.md` back
+            // to its indexed note; a note whose markers corrupted its frontmatter won't be indexed and
+            // is the one case this can't recover (rare — markers usually land in the body).
+            let configs = g.configs();
+            let mut seen: std::collections::HashSet<String> = list.iter().map(|m| m.id.clone()).collect();
+            for cfg in &configs {
+                for path in vcs::conflicts(&cfg.path).unwrap_or_default() {
+                    let Some(stem) = std::path::Path::new(&path).file_stem().and_then(|s| s.to_str())
+                    else {
+                        continue;
+                    };
+                    if seen.contains(stem) {
+                        continue;
+                    }
+                    seen.insert(stem.to_string());
+                    // Prefer the indexed note; but a delete/modify conflict leaves the file unindexed
+                    // (no both-markers text either), so fall back to a stub — the point is that every
+                    // note the "waiting on you" warning names is *findable* here, never a dangling
+                    // toast. Clicking through then shows it can't be opened, which is the truth.
+                    let meta = match stem.parse::<fm_model::Id>().ok().and_then(|id| g.store.get(id).ok().flatten()) {
+                        Some(obj) => crate::dto::ObjectMeta::from(&obj),
+                        None => crate::dto::ObjectMeta {
+                            id: stem.to_string(),
+                            kind: "note".into(),
+                            title: Some("conflict — resolve in git".into()),
+                            preview: format!("Unmerged in “{}” — settle it so commits can resume.", cfg.name),
+                            status: None,
+                            due: None,
+                            start: None,
+                            hard: false,
+                            created: String::new(),
+                            updated: String::new(),
+                            tags: Vec::new(),
+                            assets: Vec::new(),
+                            props: Default::default(),
+                            vault: cfg.name.clone(),
+                        },
+                    };
+                    list.push(meta);
+                }
+            }
+            json(list)
+        }
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and
         // the contributor filter. Aggregated across vaults, newest-first.

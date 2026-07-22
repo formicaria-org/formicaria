@@ -19,6 +19,7 @@
     reply as ipcReply,
     thread as ipcThread,
     agentActivity as ipcAgentActivity,
+    onlineAgents as ipcOnlineAgents,
     backlinks as ipcBacklinks,
   } from './ipc';
   import {
@@ -806,6 +807,19 @@
   // What the study agent is doing right now in this discussion — drives the live "working…" wheel.
   // `null` when idle, so the row shows only while a turn is in flight.
   let agentWorking = $state<{ stage: string; elapsed: number } | null>(null);
+  // Which assistants are alive right now (by `@name`) — feeds the `@`-picker and the offline warning.
+  let agentsOnline = $state<string[]>([]);
+  // The `@`-mention picker: open while the caret sits on an `@token`, listing matching live agents.
+  // `at` is the index of the `@` in the draft, so a pick can replace exactly the token.
+  let atMenu = $state<{ open: boolean; query: string; results: string[]; index: number; at: number }>({
+    open: false,
+    query: '',
+    results: [],
+    index: 0,
+    at: 0,
+  });
+  // A gentle notice under the composer — e.g. you addressed an assistant that isn't running.
+  let agentNotice = $state<string | null>(null);
 
   // While a discussion is open, poll the agent's live status *and* refresh the thread — the agent's
   // reply arrives asynchronously a few seconds after the user asks, and its stage updates in
@@ -814,6 +828,8 @@
   // the note changes, so nothing polls in the background.
   async function pollAgent() {
     if (!note) return;
+    // Refresh who's online (for the picker + offline warning) alongside the activity poll.
+    ipcOnlineAgents().then((names) => (agentsOnline = names));
     let a;
     try {
       a = await ipcAgentActivity(note.id);
@@ -887,17 +903,30 @@
     discError = null;
   }
 
+  // Names the draft addresses with `@` (allowing the `.`/`-` in model names like `lfm2.5-230m`).
+  function mentionedNames(text: string): string[] {
+    return [...text.matchAll(/@([\w.-]+)/g)].map((m) => m[1]);
+  }
+
   async function sendReply() {
     const body = replyDraft.trim();
     if (!note || !body || discBusy) return;
     discBusy = true;
     discError = null;
+    atMenu = { ...atMenu, open: false };
+    // If the message calls an assistant that isn't running, say so — a mention posted while it's off
+    // won't be answered (it only picks up messages that arrive while it watches). Never block sending.
+    const online = agentsOnline.map((n) => n.toLowerCase());
+    const offline = mentionedNames(body).filter((n) => !online.includes(n.toLowerCase()));
     try {
       // The target is the message being answered, or the note itself. Replying to a message
       // re-roots server-side, so this cannot create a thread nothing can reach.
       await ipcReply(replyTo || note.id, body);
       replyDraft = '';
       replyTo = note.id;
+      agentNotice = offline.length
+        ? `“@${offline[0]}” isn’t running, so it won’t answer. Turn the assistant on in Settings, then ask again.`
+        : null;
       await loadThread();
       // A message is a file write like any other, so it rides the same signal the editor
       // uses — which is what schedules the debounced commit. No second path.
@@ -909,7 +938,52 @@
     }
   }
 
+  // Open/refresh the @-picker when the caret sits just after an `@token`, listing live agents.
+  function onReplyInput(e: Event) {
+    agentNotice = null;
+    const ta = e.target as HTMLTextAreaElement;
+    const caret = ta.selectionStart ?? replyDraft.length;
+    const m = replyDraft.slice(0, caret).match(/@([\w.-]*)$/);
+    if (m && agentsOnline.length) {
+      const q = m[1].toLowerCase();
+      const results = agentsOnline.filter((n) => n.toLowerCase().startsWith(q));
+      atMenu = { open: results.length > 0, query: m[1], results, index: 0, at: caret - m[0].length };
+    } else if (atMenu.open) {
+      atMenu = { ...atMenu, open: false };
+    }
+  }
+
+  // Replace the `@token` under the caret with the chosen `@name ` and close the picker.
+  function chooseAtMention(name: string) {
+    const before = replyDraft.slice(0, atMenu.at);
+    const after = replyDraft.slice(atMenu.at + 1 + atMenu.query.length);
+    replyDraft = `${before}@${name} ${after}`;
+    atMenu = { ...atMenu, open: false };
+  }
+
   function onReplyKeydown(e: KeyboardEvent) {
+    if (atMenu.open && atMenu.results.length) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        atMenu = { ...atMenu, index: (atMenu.index + 1) % atMenu.results.length };
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        atMenu = { ...atMenu, index: (atMenu.index - 1 + atMenu.results.length) % atMenu.results.length };
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        chooseAtMention(atMenu.results[atMenu.index]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        atMenu = { ...atMenu, open: false };
+        return;
+      }
+    }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       void sendReply();
@@ -1892,13 +1966,36 @@
                   <button class="disc-cancel" onclick={() => (replyTo = note?.id ?? '')}>to the note instead</button>
                 </p>
               {/if}
-              <textarea
-                class="disc-input"
-                bind:value={replyDraft}
-                onkeydown={onReplyKeydown}
-                placeholder="Add to the discussion…"
-                aria-label="write a message"
-              ></textarea>
+              <div class="disc-compose-box">
+                <textarea
+                  class="disc-input"
+                  bind:value={replyDraft}
+                  onkeydown={onReplyKeydown}
+                  oninput={onReplyInput}
+                  onblur={() => setTimeout(() => (atMenu = { ...atMenu, open: false }), 120)}
+                  placeholder="Add to the discussion… type @ to call an assistant"
+                  aria-label="write a message"
+                ></textarea>
+                {#if atMenu.open}
+                  <ul class="at-menu" role="listbox">
+                    {#each atMenu.results as name, i (name)}
+                      <li>
+                        <button
+                          class="at-option"
+                          class:active={i === atMenu.index}
+                          role="option"
+                          aria-selected={i === atMenu.index}
+                          onmousedown={(e) => {
+                            e.preventDefault();
+                            chooseAtMention(name);
+                          }}
+                        >@{name}</button>
+                      </li>
+                    {/each}
+                  </ul>
+                {/if}
+              </div>
+              {#if agentNotice}<p class="disc-agent-notice">{agentNotice}</p>{/if}
               <div class="disc-actions">
                 {#if discError}<span class="disc-error">{discError}</span>{/if}
                 <button class="disc-send" disabled={!replyDraft.trim() || discBusy} onclick={sendReply}>
@@ -2853,6 +2950,9 @@
     text-decoration: underline;
     cursor: pointer;
   }
+  .disc-compose-box {
+    position: relative;
+  }
   .disc-input {
     width: 100%;
     min-height: 3.5rem;
@@ -2863,6 +2963,43 @@
     color: var(--text);
     font: inherit;
     resize: vertical;
+  }
+  .at-menu {
+    position: absolute;
+    left: var(--space-2);
+    bottom: calc(100% + 2px);
+    z-index: 20;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    min-width: 12rem;
+    max-height: 12rem;
+    overflow-y: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  }
+  .at-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-radius: var(--radius-1, 4px);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+  .at-option.active,
+  .at-option:hover {
+    background: var(--accent-soft, rgba(120, 140, 255, 0.18));
+  }
+  .disc-agent-notice {
+    margin: var(--space-1) 0 0;
+    font-size: 0.9em;
+    color: var(--text-muted, #777);
   }
   .disc-actions {
     display: flex;

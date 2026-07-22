@@ -188,6 +188,14 @@ export const agentActivity = (discussion: string) =>
     () => ({ active: false }) as AgentActivity,
   );
 
+/** The study agents that are alive right now (by `@name`), served by fm-serve's presence registry.
+ *  Powers the `@`-picker and the "assistant is offline" warning. Empty where the endpoint is absent
+ *  or nobody is running, so callers never throw. */
+export const onlineAgents = () =>
+  invoke<{ agents: string[] }>('agents', {})
+    .then((r) => r.agents ?? [])
+    .catch(() => [] as string[]);
+
 /** Propose a change to an existing note. The change lands on a `proposal/<id>` branch (never `main`)
  *  and a proposal note records it for the Collaboration view; a person reviews and merges it. It is
  *  **refused, never truncated**, when it exceeds the target vault's guardrails (`vault.json` →

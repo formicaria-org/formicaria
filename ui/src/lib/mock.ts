@@ -306,6 +306,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { ok: true } as T;
     case 'agent_activity_poll':
       return { active: false } as T;
+    case 'agents':
+      // In the mock, the "enabled" toggle stands in for a live agent, so the @-picker is demoable.
+      return { agents: mockAgentEnabled ? ['lfm2.5-230m'] : [] } as T;
     case 'board': {
       const board: Board = buildBoard(String(args.groupBy));
       return board as T;
