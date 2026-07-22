@@ -13,8 +13,9 @@
 #     runs with `pixi run build`. The only auto-build is the first launch (or one
 #     after a `cargo clean`), when no binary exists yet.
 #
-# The server keeps running in the background after you close the tab; stop it
-# with `pkill -x fm-serve`.
+# Closing the browser tab shuts the server down (FM_AUTO_SHUTDOWN, set below), so
+# a launched-by-icon server does not linger — double-click to start, close to stop.
+# (A dev server from `pixi run serve` does NOT set that flag and will keep running.)
 set -euo pipefail
 
 # The repo root is this script's parent directory (packaging/ lives at the repo
@@ -28,10 +29,27 @@ PORT="${ADDR##*:}"
 URL="http://${ADDR}"
 
 # Is a server already listening? Probe the port with bash's /dev/tcp (no curl/nc
-# dependency). If so, just (re)open a browser tab and stop here.
+# dependency). If so, REUSE it — just (re)open a browser tab — **unless it is stale**:
+# started before the current binaries, UI or model config were last changed (a
+# `pixi run build`, or editing `models.toml` to switch the model). Reusing a stale
+# server is exactly how a double-click kept serving the OLD model after a change.
+# When stale, stop it (the agent self-stops with it) and fall through to a fresh
+# start, so a click after any change always runs the current version.
 if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
-    xdg-open "$URL" >/dev/null 2>&1 || true
-    exit 0
+    pid="$(pgrep -x fm-serve | head -1)"
+    started="$(date -d "$(ps -o lstart= -p "$pid" 2>/dev/null)" +%s 2>/dev/null || echo 0)"
+    stale=0
+    for f in target/release/fm-serve target/release/agent-serve agents/models.toml ui/dist; do
+        [ -e "$f" ] && [ "$(stat -c %Y "$f" 2>/dev/null || echo 0)" -gt "$started" ] && stale=1
+    done
+    if [ "$stale" -eq 0 ]; then
+        xdg-open "$URL" >/dev/null 2>&1 || true   # current — reuse; the browser focuses an open tab
+        exit 0
+    fi
+    echo "formicaria: a newer build or model config is present — restarting the server" >&2
+    pkill -x fm-serve 2>/dev/null || true
+    # Wait for the port to free (fm-serve gone, agent self-stopped) before a fresh start.
+    for _ in $(seq 1 12); do (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null || break; sleep 1; done
 fi
 
 # pixi may not be on a desktop launcher's minimal PATH — find it explicitly.
