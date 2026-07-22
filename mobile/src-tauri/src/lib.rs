@@ -13,6 +13,8 @@ use std::sync::Arc;
 
 use fm_app::{dispatch, App, Host};
 
+mod agent;
+
 /// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the
 /// JVM. Wiring that is a later milestone (`tauri-plugin-opener`); until then this says so
 /// rather than pretending, because a silent no-op here looks like a broken PDF to a user.
@@ -350,7 +352,19 @@ pub fn run() {
                 // swallowed. The UI surfaces these on the heartbeat.
                 log::warn!("unreadable notes: {}", skipped.join("; "));
             }
-            tauri::Manager::manage(app, Arc::new(fm_app));
+            let app_state = Arc::new(fm_app);
+            // Start the study agent **in-process** if its model is installed (an `agents/` dir in app
+            // storage: models.toml + models/ + runtime/llama-server). Best-effort — without it the app
+            // is a working notebook, exactly as before.
+            {
+                use tauri::Manager;
+                if let Ok(dir) = app.handle().path().app_data_dir() {
+                    if let Err(e) = agent::start(app_state.clone(), dir.join("agents")) {
+                        log::info!("study agent not started: {e}");
+                    }
+                }
+            }
+            tauri::Manager::manage(app, app_state);
             Ok(())
         })
         .register_uri_scheme_protocol("fmblob", |ctx, req| {

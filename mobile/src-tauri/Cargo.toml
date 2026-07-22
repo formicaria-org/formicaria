@@ -26,6 +26,10 @@ serde_json = "1"
 # binary to shell out to — verified on a real device.
 fm-app = { path = "../../crates/fm-app" }
 fm-core = { path = "../../crates/fm-core", features = ["native-git"] }
+# The study agent, run IN-PROCESS on the phone: the same runner as the desktop, but its VaultAccess
+# calls fm_app::dispatch directly (no localhost fm-serve, which Android has none of).
+fm-agent = { path = "../../crates/fm-agent" }
+fm-agent-run = { path = "../../crates/fm-agent-run" }
 
 # **So a diagnostic is readable.** Android routes neither Rust's stdout nor its stderr to
 # logcat, so every `eprintln!` in this shell has been writing to nowhere — which is how an SSL
