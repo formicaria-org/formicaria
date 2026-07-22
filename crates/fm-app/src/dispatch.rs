@@ -284,7 +284,31 @@ pub fn dispatch(
         }
         // Discussion, as notes. No `vault` argument on either, deliberately: a reply joins the
         // vault of the note it is about, because a vault is an audience.
-        "reply" => json(commands::reply(&mut lock()?.store, &s("id"), &s("body")).map_err(err)?),
+        "reply" => {
+            let mut g = lock()?;
+            let meta = commands::reply(&mut g.store, &s("id"), &s("body")).map_err(err)?;
+            // A collaborator identity (the agent passes its model's) commits *this one message* under
+            // it right now, so its authorship is the agent, not the vault's default — the same
+            // git-author provenance a human collaborator gets from their own clone (Ruling 14).
+            // Humans omit it and ride the normal batched commit under their own identity. Committing
+            // only the message file leaves the user's other pending writes untouched, and a re-commit
+            // by the later batch is a no-op (nothing changed). Best-effort: never fails a reply.
+            let (an, ae) = (s("authorName"), s("authorEmail"));
+            if !an.is_empty() && !ae.is_empty() {
+                if let Ok(cfg) = g.config(&meta.vault) {
+                    let mine: Vec<std::path::PathBuf> = g
+                        .store
+                        .written(&cfg.name)
+                        .into_iter()
+                        .filter(|p| p.to_string_lossy().contains(&meta.id))
+                        .collect();
+                    if !mine.is_empty() {
+                        let _ = vcs::commit_all_as(&cfg.path, &format!("message from {an}"), &mine, &an, &ae);
+                    }
+                }
+            }
+            json(meta)
+        }
         "thread" => json(commands::thread(&lock()?.store, &s("id")).map_err(err)?),
         // A first-class discussion — a note that is the root of its own thread. `vault` is the
         // audience it joins (validated up front, unknown name refused), like `capture`.

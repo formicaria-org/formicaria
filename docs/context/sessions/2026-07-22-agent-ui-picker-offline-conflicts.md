@@ -22,15 +22,20 @@ warning named never appeared under Collaboration.
   shows as "conflict — resolve in git". `mock.ts` gains an `agents` case (the enable toggle stands in
   for a live agent, so the picker is demoable in dev).
 
-## Still open — per-message author labels (agent vs person)
+## Per-message author labels (agent vs person) — shipped
 
-Not shipped. Message authorship is a **git fact** (`lastEditFor` ← the `activity` feed ← git commit
-author), and the agent's `reply` does `store.put` with **no distinct author** — the commit is the
-vault's batched auto-commit under the owner's identity, so agent messages are indistinguishable from
-the owner's. Making them distinct needs the agent's writes committed under the **model git identity**
-(as `create_proposal` already does for proposals) — a commit-flow change, and currently moot anyway
-because the owner's vault has commits **blocked by the `UD` conflict above**. Do this after the
-conflict is resolved, as a focused change.
+Message authorship is a **git fact** (`lastEditFor` ← the `activity` feed ← git commit author), and
+the owner's insight was right: every collaborator already has a git identity, so reuse it. Added
+`git::commit_all_as` / `vcs::commit_all_as` (the same `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env trick
+`create_proposal_branch` already uses), and the `"reply"` dispatch now, **when an author is given**,
+commits *just that one message file* under it immediately — leaving the user's other pending writes
+untouched, idempotent against the later batch. `FmServe::reply_as` sends the agent's model identity;
+`handle` and the timeout-notice use it, while plain `reply` (recording a *user's* message) stays
+unattributed. Verified live in the clean `notes` vault: the agent's reply is authored
+`lfm2.5-230m <lfm2.5-230m@fm-agents.local>`, distinct from the owner's `baljinder` commits, so the
+discussion's `EditedBy` now distinguishes them. Caveat: during a conflicted merge `commit_all` refuses
+(correctly), so in the owner's currently-`UD`-conflicted `vault` the attribution defers until the
+conflict is resolved.
 
 ## State
 

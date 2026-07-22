@@ -123,6 +123,19 @@ pub fn commit_all(
     crate::git::commit_all(vault, message, paths)
 }
 
+/// Like [`commit_all`] but attributed to a specific collaborator `(name, email)` — the study agent's
+/// model identity, so its own messages are authored by it, not the vault default. Always the git-CLI
+/// path: authored commits are an occasional agent op, and `native-git` is a differential-test feature.
+pub fn commit_all_as(
+    vault: &Path,
+    message: &str,
+    paths: &[std::path::PathBuf],
+    name: &str,
+    email: &str,
+) -> Result<bool, StoreError> {
+    crate::git::commit_all_as(vault, message, paths, name, email)
+}
+
 #[cfg(test)]
 mod tests {
     /// On a machine with git, the seam must be the subprocess backend and nothing else — the

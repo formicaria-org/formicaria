@@ -754,6 +754,29 @@ fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
 /// this runs every few seconds. It must never touch a file formicaria did not write, and
 /// must never disturb an index the user staged themselves.
 pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, None)
+}
+
+/// Like [`commit_all`], but attribute the commit to `(name, email)` — a specific collaborator's git
+/// identity (Ruling 14). The study agent uses it so **its** messages are authored by the model, not
+/// by the vault's default identity, exactly as [`create_proposal_branch`] attributes a proposal. A
+/// *label*, not a trust boundary (unauthenticated, forgeable) — provenance for legibility only.
+pub fn commit_all_as(
+    vault: &Path,
+    message: &str,
+    paths: &[PathBuf],
+    name: &str,
+    email: &str,
+) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, Some((name, email)))
+}
+
+fn commit_all_inner(
+    vault: &Path,
+    message: &str,
+    paths: &[PathBuf],
+    author: Option<(&str, &str)>,
+) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     let status = git(vault).arg("status").arg("--porcelain").output().map_err(spawn)?;
     if !status.status.success() {
@@ -865,15 +888,18 @@ pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool
     // `--only` with explicit paths: commit the index we just built for these paths and
     // nothing else, so a file the user had staged elsewhere stays staged rather than being
     // swept into our commit.
-    let out = git(vault)
-        .arg("commit")
-        .arg("--only")
-        .arg("-m")
-        .arg(message)
-        .arg("--")
-        .args(&ours)
-        .output()
-        .map_err(spawn)?;
+    let mut commit = git(vault);
+    commit.arg("commit").arg("--only").arg("-m").arg(message).arg("--").args(&ours);
+    // Attribute to the given collaborator when asked (the agent's model identity), the same env the
+    // proposal path uses; otherwise git falls back to the vault's configured `user.*`.
+    if let Some((name, email)) = author {
+        commit
+            .env("GIT_AUTHOR_NAME", name)
+            .env("GIT_AUTHOR_EMAIL", email)
+            .env("GIT_COMMITTER_NAME", name)
+            .env("GIT_COMMITTER_EMAIL", email);
+    }
+    let out = commit.output().map_err(spawn)?;
     if !out.status.success() {
         return Err(failed("git commit", &out));
     }
