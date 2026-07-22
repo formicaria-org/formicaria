@@ -108,6 +108,35 @@ pixi global install git poppler libvips restic
 Windows: `winget install Git.Git`; the remainder through [pixi](https://pixi.sh).
 </details>
 
+## Study assistant (optional, local AI)
+
+formicaria can run a small **local AI assistant** that answers in a note's discussion, researches the
+web, and drafts note edits you review. It is **off by default**, runs **entirely on your device** (no
+account, no API key, no cloud — your notes never leave the machine), and is fully removable.
+
+```sh
+pixi run fetch-model lfm2.5-1.2b   # download a local model into agents/ (gitignored)
+pixi run search-proxy              # optional: keyless web search for /search
+# then turn it on in Settings → Study assistant, and in any discussion:
+#   @lfm2.5-1.2b summarize this in 3 bullets /search
+```
+
+It can only **reply** or **propose a change on a review branch** — never write to `main`. Full guide:
+[the study assistant](docs/src/user/assistant.md).
+
+## Android
+
+formicaria also runs on Android, with the assistant on-device. Build a signed APK and install it:
+
+```sh
+pixi run android-init      # fetch the Android toolchain into ./.android (one time)
+pixi run android-release   # → a signed, 16 KB-aligned APK at mobile/formicaria-<abi>.apk
+```
+
+Install it with `adb install -r mobile/formicaria-*.apk` (or copy it to the phone and open it). The
+assistant downloads its model on first enable and then runs offline. Built `--no-default-features`,
+the app contains none of the assistant — a lighter notes-only build.
+
 ## Vaults
 
 A vault is a directory: notes in `vault/notes/*.md`, media in `vault/blobs/` addressed by

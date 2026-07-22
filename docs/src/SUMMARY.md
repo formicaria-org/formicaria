@@ -8,6 +8,7 @@
 - [Views](./user/views.md)
 - [Creating & organizing notes](./user/notes.md)
 - [Assets & media](./user/assets.md)
+- [The study assistant](./user/assistant.md)
 - [Collaboration](./user/collaboration.md)
 - [Backup & versioning](./user/backup.md)
 - [The vault format](./user/vault.md)
