@@ -20,6 +20,7 @@
     thread as ipcThread,
     agentActivity as ipcAgentActivity,
     onlineAgents as ipcOnlineAgents,
+    discussions as ipcDiscussions,
     backlinks as ipcBacklinks,
   } from './ipc';
   import {
@@ -812,8 +813,14 @@
   // between hitting send and the wheel appearing. `baseCount` is the thread size right after our
   // message, so a reply (count grows) clears it.
   let pending = $state<{ since: number; baseCount: number } | null>(null);
-  // Which assistants are alive right now (by `@name`) — feeds the `@`-picker and the offline warning.
+  // Which assistants are alive right now (by `@name`) — feeds the offline warning, and the `@`-picker.
   let agentsOnline = $state<string[]>([]);
+  // The vault's git collaborators — everyone (human or agent) who has posted in a discussion. Fetched
+  // when the discussion opens, so `@` can suggest people and agents you can address here even when no
+  // agent is running right now. (The owner: `@` should list the git users you can discuss with.)
+  let collaborators = $state<string[]>([]);
+  // Everyone the `@`-picker offers: live agents first, then the vault's collaborators, de-duplicated.
+  let mentionCandidates = $derived([...new Set([...agentsOnline, ...collaborators])]);
   // The `@`-mention picker: open while the caret sits on an `@token`, listing matching live agents.
   // `at` is the index of the `@` in the draft, so a pick can replace exactly the token.
   let atMenu = $state<{ open: boolean; query: string; results: string[]; index: number; at: number }>({
@@ -873,6 +880,16 @@
 
   $effect(() => {
     if (!(discOpen && isDiscussion && note?.id)) return;
+    // Who can be @-mentioned here — the vault's collaborators (git authors of every discussion),
+    // fetched once when it opens. Unioned with the live agents in `mentionCandidates`. Best-effort:
+    // a git-less or empty vault just leaves the picker to the online agents.
+    void ipcDiscussions()
+      .then((ds) => {
+        const names = new Set<string>();
+        for (const d of ds) for (const p of d.participants ?? []) if (p.name) names.add(p.name);
+        collaborators = [...names];
+      })
+      .catch(() => {});
     const timer = setInterval(pollAgent, 1500);
     return () => {
       clearInterval(timer);
@@ -976,9 +993,9 @@
     const ta = e.target as HTMLTextAreaElement;
     const caret = ta.selectionStart ?? replyDraft.length;
     const m = replyDraft.slice(0, caret).match(/@([\w.-]*)$/);
-    if (m && agentsOnline.length) {
+    if (m && mentionCandidates.length) {
       const q = m[1].toLowerCase();
-      const results = agentsOnline.filter((n) => n.toLowerCase().startsWith(q));
+      const results = mentionCandidates.filter((n) => n.toLowerCase().startsWith(q));
       atMenu = { open: results.length > 0, query: m[1], results, index: 0, at: caret - m[0].length };
     } else if (atMenu.open) {
       atMenu = { ...atMenu, open: false };
