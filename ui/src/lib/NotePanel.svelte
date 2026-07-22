@@ -916,8 +916,15 @@
     atMenu = { ...atMenu, open: false };
     // If the message calls an assistant that isn't running, say so — a mention posted while it's off
     // won't be answered (it only picks up messages that arrive while it watches). Never block sending.
-    const online = agentsOnline.map((n) => n.toLowerCase());
-    const offline = mentionedNames(body).filter((n) => !online.includes(n.toLowerCase()));
+    // Check presence *fresh at send time*: the polled `agentsOnline` starts empty and only fills on
+    // the next 1.5s tick, so relying on it would falsely warn "not running" for the first second after
+    // opening a discussion. A mention only matters when the message actually addresses a name.
+    const mentioned = mentionedNames(body);
+    let offline: string[] = [];
+    if (mentioned.length) {
+      const online = (await ipcOnlineAgents()).map((n) => n.toLowerCase());
+      offline = mentioned.filter((n) => !online.includes(n.toLowerCase()));
+    }
     try {
       // The target is the message being answered, or the note itself. Replying to a message
       // re-roots server-side, so this cannot create a thread nothing can reach.
