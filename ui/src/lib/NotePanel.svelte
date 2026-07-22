@@ -1233,6 +1233,25 @@
     }
   }
 
+  // Delete one message from the discussion — a message IS a note, so this is the same `delete` the
+  // note itself uses. Works in a first-class discussion AND an ordinary note's comment thread, and
+  // leaves the host note itself untouched (you're removing the conversation, not the note). Two-click
+  // guard against a stray tap; git keeps the history, so this is recoverable.
+  let confirmingMsg = $state<string | null>(null);
+  async function deleteMessage(id: string) {
+    if (confirmingMsg !== id) {
+      confirmingMsg = id;
+      return;
+    }
+    confirmingMsg = null;
+    try {
+      await deleteNote(id);
+      await loadThread();
+    } catch (e) {
+      discError = String(e);
+    }
+  }
+
   function flashNotice(msg: string) {
     notice = msg;
     setTimeout(() => (notice = null), 3000);
@@ -1999,6 +2018,12 @@
                   {#if m.vault}<VaultBadge vault={m.vault} />{/if}
                   <EditedBy edit={lastEditFor(m.id)} />
                   <button class="disc-reply" onclick={() => startReply(m.id)}>Reply</button>
+                  <button
+                    class="disc-del"
+                    class:confirming={confirmingMsg === m.id}
+                    onclick={() => deleteMessage(m.id)}
+                    onblur={() => { if (confirmingMsg === m.id) confirmingMsg = null; }}
+                  >{confirmingMsg === m.id ? 'Delete?' : 'Delete'}</button>
                 </div>
                 <p class="disc-body">{m.body}</p>
               </div>
@@ -2952,6 +2977,19 @@
   }
   .disc-reply:hover {
     color: var(--accent, var(--text));
+    text-decoration: underline;
+  }
+  .disc-del {
+    background: none;
+    border: 0;
+    color: var(--text-subtle);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .disc-del:hover,
+  .disc-del.confirming {
+    color: var(--danger, #e5484d);
     text-decoration: underline;
   }
   .disc-body {
