@@ -8,9 +8,38 @@ trap, add one. Newest concerns first within each section.
 
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
+- **No in-app "accept proposal".** The propose→review cycle is whole — an agent (or human) creates a
+  `proposal/<id>` branch (`create_proposal`) and it is reviewed as a diff (`proposal_diff` /
+  `ProposalReview.svelte`, read-only) — but **accepting is a manual `git merge` of that branch**; there
+  is no `accept_proposal`/`merge` command or button. The end-to-end cycle (note discussion → agent
+  proposal → review → accept) is proven in `crates/fm-app/tests/proposal_cycle.rs`, where the accept
+  step is raw git. An in-app accept command should reproduce exactly that test's merge behaviour.
 - **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
   retrieval fed a tiny model unrelated fragments it parroted. Broader RAG is deferred pending its own
   research (owner: bad RAG is worse than none).
+- **Multi-round proposal refinement — context notes** (surfaced 2026-07-22 while testing the
+  propose→refine→accept cycle; mechanics proven in `fm-app/tests/proposal_cycle.rs`):
+  1. **~~Oldest constraints drop out first~~ — FIXED 2026-07-22.** `Agent::history` used to keep only
+     the recent tail and drop the oldest turns past `history_budget`, so a long back-and-forth silently
+     lost the earliest requirement ("keep the action items") and the model re-broke it (oscillation).
+     Now it **pins both ends** — the first turn (the original ask + standing constraints) and the latest
+     — and trims from the *middle*, marking the gap. Simple, deterministic, no model call. Pinned by
+     `history_pins_the_original_ask_and_the_latest_turn_when_it_overflows` (+ fits / two-turn / lone-turn
+     edge tests) in `fm-agent-run`.
+  2. **The agent can't see its own previous draft** (still open, deliberately — kept out for
+     simplicity). Context is the *current* host note (still the pre-proposal text until accept) + linked
+     notes + discussion; the previous proposal's body lives on a branch, not in any of those. So each
+     round **re-generates from prose feedback** rather than *editing* the last draft — a weak model can
+     drop things it got right before. Fix when we act on it: feed the open proposal's body back in as
+     "your current draft." Larger change (new vault query for the host's open proposal), so not bundled
+     with the history fix.
+  - **Cross-device angle (owner, 2026-07-22):** the cycle is fully agent-/device-agnostic *mechanically*
+    (a round can be qwen on the laptop, the next lfm2.5 on the phone — proven by the cross-device
+    assertions in `a_user_iterates_with_the_agent_over_several_rounds_before_accepting`). But the phone
+    model has a **smaller context window and weaker instruction-following**, so a thread that refines
+    cleanly on the laptop can still regress mid-cycle on the phone, and alternating models can mix
+    formatting styles. `history_budget`/`ctx` are per-model in `models.toml`; the both-ends pin above
+    matters most on the phone's tighter budget.
 - **Deleting a first-class discussion root orphans its replies** (they keep a `thread_of` to a gone
   note). Pre-existing; per-message Delete now exists but there's no "delete the whole thread".
 - **`pixi run build` does NOT rebuild `agent-serve`** (only fm-serve + UI). After changing the agent,

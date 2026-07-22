@@ -944,6 +944,7 @@ dependencies = [
 name = "fm-agent"
 version = "0.0.0"
 dependencies = [
+ "libc",
  "serde_json",
  "thiserror 2.0.19",
 ]
@@ -1066,7 +1067,6 @@ dependencies = [
  "fm-agent-run",
  "fm-app",
  "fm-core",
- "libc",
  "log",
  "serde_json",
  "tauri",
