@@ -63,6 +63,11 @@ struct AppState {
     /// (transport-shaped, like `last_seen` — the command core never learns the agent exists). Keyed
     /// by discussion id; the agent writes it, the browser reads it.
     agent_activity: Mutex<HashMap<String, Activity>>,
+    /// Which study agents are alive right now, by name → last heartbeat. Each agent pings while it
+    /// runs; an entry older than a few seconds is treated as offline. Lets the app list online agents
+    /// (the @-picker) and warn — instead of going silent — when a mention arrives while none is up.
+    /// Transport-shaped like the rest here: never a dispatch command, never on disk.
+    agent_present: Mutex<HashMap<String, Instant>>,
 }
 
 /// One discussion's live agent status. `since` is when this turn began — the poll returns the
@@ -173,6 +178,7 @@ fn main() {
         port: port.parse().unwrap_or(8765),
         agent_running: AtomicBool::new(false),
         agent_activity: Mutex::new(HashMap::new()),
+        agent_present: Mutex::new(HashMap::new()),
     });
 
     match &state.dist {
@@ -469,6 +475,27 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
         return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
     }
 
+    // Agent presence: the agent heartbeats its name here while it runs; the app asks who is online so
+    // it can offer the @-picker and warn instead of going silent when a mention has no one to answer.
+    if path == "/api/agent_present" {
+        let v = serde_json::from_slice::<Value>(&body).unwrap_or(Value::Null);
+        if let Some(name) = v["name"].as_str() {
+            if !name.is_empty() {
+                state.agent_present.lock().unwrap().insert(name.to_string(), Instant::now());
+            }
+        }
+        return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
+    }
+    if path == "/api/agents" {
+        let mut present = state.agent_present.lock().unwrap();
+        // A heartbeat is every poll (~1s); anything not seen in 8s is treated as gone.
+        present.retain(|_, seen| seen.elapsed() < Duration::from_secs(8));
+        let mut names: Vec<&String> = present.keys().collect();
+        names.sort();
+        let payload = serde_json::json!({ "agents": names });
+        return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
+    }
+
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
         api(&path[5..], &body, state)
     } else if method == "GET" || method == "HEAD" {
@@ -750,6 +777,7 @@ mod tests {
             port: 0,
             agent_running: AtomicBool::new(false),
             agent_activity: Mutex::new(HashMap::new()),
+            agent_present: Mutex::new(HashMap::new()),
         };
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();

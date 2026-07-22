@@ -252,6 +252,7 @@ mod tests {
             port: 0,
             agent_running: AtomicBool::new(false),
             agent_activity: std::sync::Mutex::new(std::collections::HashMap::new()),
+            agent_present: std::sync::Mutex::new(std::collections::HashMap::new()),
         };
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
