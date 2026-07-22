@@ -51,5 +51,3 @@ fm-agent-run = { path = "../../crates/fm-agent-run", optional = true }
 log = "0.4"
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.14"
-# For PR_SET_PDEATHSIG on the model child, so it dies with the app process (no orphaned llama-server).
-libc = "0.2"

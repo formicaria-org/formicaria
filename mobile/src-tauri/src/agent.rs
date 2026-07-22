@@ -282,16 +282,9 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 "-t", &threads.to_string(),
                 "--no-warmup",
             ]);
-        // If the app process dies (swiped away, or LMKD reaps it), take the model child down with it —
-        // a safety net beneath the explicit stop() on app exit, so a `llama-server` can never orphan.
-        #[cfg(target_os = "android")]
-        unsafe {
-            use std::os::unix::process::CommandExt;
-            cmd.pre_exec(|| {
-                libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL as libc::c_ulong);
-                Ok(())
-            });
-        }
+        // The "model dies with its supervisor" backstop (PR_SET_PDEATHSIG) now lives inside
+        // SupervisedModel::launch — one shared path for desktop and phone, exercised by fm-agent's CI
+        // tests — so it no longer needs repeating here.
         let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000);
         let model = match SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident()) {
             Ok(m) => m,

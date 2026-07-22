@@ -25,7 +25,10 @@ trap, add one. Newest concerns first within each section.
   the fm-serve binary mtime is the real UI signal.
 
 _Last verified: 2026-07-22 — the **study assistant shipped on-device on both platforms** (see the
-"Study assistant — current gaps" section above and `overview.md`). Prior: 2026-07-20 (evening) —
+"Study assistant — current gaps" section above and `overview.md`); the **"the agent goes out when
+formicaria does" teardown is now unit-tested** on both seams (watch-loop `!alive()→stop_model`, and the
+shared `PR_SET_PDEATHSIG` backstop moved into `SupervisedModel::launch` — see
+`sessions/2026-07-22-lifecycle-ci-tests.md`). Prior: 2026-07-20 (evening) —
 **four defects found by an adversarial review of this repo's own code were fixed**, and a second adversarial pass over those fixes found four of them
 incomplete; see `sessions/2026-07-20-four-bugs-a-review-found.md`. The durable lessons are in
 `decisions.md`. Also fixed: **`verify` was checking a hardcoded `notes/`**, so a Track-V vault whose
