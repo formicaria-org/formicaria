@@ -78,3 +78,43 @@ noted follow-ups.
 Desktop agent fully working (offline-warning + instant-wheel fixes live — reload the browser). Phone
 cleaned + disconnected. Repo fully committed at `4fcea3b`. The mobile in-process agent code is done
 and compiles for the phone; the last mile above is scoped and decided, not yet built.
+
+## UPDATE — runtime decided and de-risked: **one path, FFI** (owner, later 2026-07-22)
+
+The owner insisted on **one maintainable path, no forks/patches, portable, longevity, and it must not
+break the other platforms.** That *resolves* the subprocess-vs-FFI fork: subprocess-on-desktop +
+FFI-on-mobile would be **two** paths, so the single path is **in-process FFI llama.cpp everywhere**,
+and the subprocess/`OpenAiStep`-local path gets **removed** (once FFI is proven on both). This
+supersedes the earlier "subprocess, one path" argument — FFI is the shipping standard (both research
+agents) *and* the one that stays single across platforms.
+
+- **Binding = `llama-cpp-2`** (utilityai), MIT/Apache, the maintained standard Rust wrapper — no fork,
+  no patch.
+- **De-risked on desktop (proven this session):** `llama-cpp-2` v0.1.152 builds here (cmake compiles
+  llama.cpp, bindgen generates bindings, ~72s) and **runs** (backend inits). The *only* wrinkle was a
+  one-line fix: bindgen's clang couldn't find `stdbool.h`, solved with
+  `BINDGEN_EXTRA_CLANG_ARGS='-I<pixi>/lib/gcc/x86_64-conda-linux-gnu/14.3.0/include'`.
+- **`cmake` + a C++ toolchain go in an agent-only pixi feature env** (like `media`/`android`), **not**
+  the default env — the core stays light; a notes-only contributor never pays for them.
+- **Two last-mile fears already handled by the repo:** 16 KB page alignment is *already* forced for
+  Android (`-Wl,-z,max-page-size=16384` in the android rustflags), and `android-apk`/`android-release`
+  (signed)/`android-install` tasks already exist.
+
+### The migration (incremental, desktop never breaks)
+
+1. Agent pixi feature env with `cmake`/`cxx-compiler`; `llama-cpp-2` behind an `ffi-model` cargo
+   feature on `fm-agent` (the core links none of it).
+2. A new **`LlmStep` FFI impl** (`LlamaStep`) — load the GGUF, tokenize, sample, generate — *alongside*
+   the existing `OpenAiStep` (nothing breaks).
+3. Rework the model **lifecycle**: `SupervisedModel` supervises a *subprocess*; in-process FFI has no
+   subprocess — "stop" = drop the `llama_context`, preflight before load, memory-monitor while
+   resident. The `watchdog`/`preflight` seams adapt; `serve_loop` is unchanged.
+4. Prove the FFI runner on **desktop**, then cross-build `llama-cpp-2` for **android** (the next
+   de-risk: bindgen + cmake against the NDK sysroot — same `stdbool.h` class of fix expected).
+5. Switch `run_agent` to the FFI model and **delete** the subprocess path (`OpenAiStep`-local,
+   `llama-server` spawn, `models.toml` `runtime_url`).
+6. Bundle `libllama` in `jniLibs` (it's a normal `.so` now — no W^X exec trick), first-run GGUF fetch,
+   foreground service, `tauri android build` → install.
+
+The biggest unknown — *does the maintained binding build in this toolchain* — is now **answered yes**.
+What remains is the migration work above, done in verified increments.
