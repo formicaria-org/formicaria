@@ -15,6 +15,12 @@ trap, add one. Newest concerns first within each section.
   gained an **Accept & merge** button. Covered by `accept_proposal_the_gui_button_merges_the_branch_into_main`
   (fm-app) and a `ProposalReview.svelte.test.ts` case. (A conflict-on-accept still can't be resolved from
   the GUI beyond "ask the author to redo against latest" — rare, since main rarely moves the same note.)
+- **Cross-*user* proposal review/accept doesn't sync.** A `proposal/<id>` branch lives only on the
+  proposer's clone; a push sends `main`, not `proposal/*`, so a second user sees the proposal *note* but
+  `branch_diff` finds no branch → `exists:false` → nothing to review or accept. In-vault (agent, or
+  same user) propose→review→accept works and is covered; cross-user needs pushing the proposal branch
+  (or another transport). Surfaced by the two-user harness (`crates/fm-cli/tests/collaboration_pipeline.rs`),
+  which therefore covers cross-user note create/edit/**conflict-resolve** but not proposals.
 - **~~A conflicted / unparseable note could not be resolved in the GUI~~ — FIXED 2026-07-22.** A note whose
   frontmatter won't parse is still "loud-and-absent" (decisions.md #4 — the parser stays strict, no
   side-picking by fiat), but the `SkippedPanel` now has an **in-app raw editor** (`read_skipped` /
