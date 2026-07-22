@@ -20,10 +20,11 @@
 // self-contained file rather than a binary that needs its assets shipped beside it.
 include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
 
+#[cfg(feature = "agent")]
+mod agent;
+#[cfg(feature = "agent")]
 mod agent_registry;
 mod blob;
-
-use agent_registry::AgentRegistry;
 
 use fm_app::{dispatch, App, Host, Output};
 use serde_json::Value;
@@ -53,110 +54,30 @@ struct AppState {
     /// Set once the first request lands, so we grant a longer grace for a cold
     /// browser to make contact before the idle timeout applies.
     connected: AtomicBool,
-    /// The port we serve on — the study agent needs it to know which fm-serve to watch.
-    port: u16,
-    /// Whether the study agent has already been spawned this run, so toggling the setting on while
-    /// it is already running does not start a second one.
-    agent_running: AtomicBool,
-    /// The study agent's transient side channel — per-discussion activity (the "working…" wheel) and
-    /// presence (who's online, for the @-picker and offline warning). In-memory, never on disk,
-    /// transport-shaped like `last_seen`; its TTL rules live and are tested in `agent_registry`, not
-    /// inline in the handlers. The command core still never learns the agent exists.
-    agent: AgentRegistry,
+    /// All the study-agent state — registry, spawn flag, watched port — in one field behind the
+    /// `agent` feature. Without the feature this field (and every route that reads it) is gone, so the
+    /// core is provably agent-free. Its own module keeps the command core agnostic even *with* it.
+    #[cfg(feature = "agent")]
+    agent: agent::AgentState,
 }
 
 impl AppState {
     /// The one constructor. Everything but `(app, dist, origins, port)` is a fixed initial state, so
-    /// the three call sites (serve, and two test harnesses) can't drift in what they default.
+    /// the three call sites (serve, and two test harnesses) can't drift in what they default. `port`
+    /// is only the agent's (it watches this port); without that feature it is unused.
     fn new(app: App, dist: Option<PathBuf>, origins: Vec<String>, port: u16) -> Self {
+        #[cfg(not(feature = "agent"))]
+        let _ = port;
         AppState {
             app,
             dist,
             origins,
             last_seen: Mutex::new(Instant::now()),
             connected: AtomicBool::new(false),
-            port,
-            agent_running: AtomicBool::new(false),
-            agent: AgentRegistry::new(),
+            #[cfg(feature = "agent")]
+            agent: agent::AgentState::new(port),
         }
     }
-}
-
-/// Typed bodies for the agent side-channel endpoints — parsed with serde rather than poking a `Value`,
-/// so a malformed body degrades to an empty default instead of a chain of `unwrap_or`s.
-#[derive(serde::Deserialize, Default)]
-struct ActivityReq {
-    #[serde(default)]
-    discussion: String,
-    #[serde(default)]
-    stage: String,
-    #[serde(default)]
-    question: String,
-    #[serde(default)]
-    done: bool,
-}
-
-#[derive(serde::Deserialize, Default)]
-struct DiscReq {
-    #[serde(default)]
-    discussion: String,
-}
-
-#[derive(serde::Deserialize, Default)]
-struct PresentReq {
-    #[serde(default)]
-    name: String,
-}
-
-/// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
-/// dev/override), otherwise from the per-device setting `<config>/agent.json` (`{"enabled": true}`)
-/// that the settings screen writes. **Default off** — opt-in, so a user who never turns it on runs
-/// pure, super-light formicaria.
-fn agent_enabled() -> bool {
-    if std::env::var_os("FM_AGENT").is_some() {
-        return true;
-    }
-    agent_config_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .map(|v| v["enabled"].as_bool().unwrap_or(false))
-        .unwrap_or(false)
-}
-
-/// Spawn the local study agent — the opt-in script in `agents/`, told which fm-serve port to watch.
-/// Returns whether it started. The agent (a separate process) then follows this server's liveness and
-/// stops itself when we stop answering, so it needs no supervision from here.
-fn spawn_agent(port: u16) -> bool {
-    let script = std::path::Path::new("agents/start-agent.sh");
-    if !script.exists() {
-        eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
-        return false;
-    }
-    match std::process::Command::new("bash").arg(script).arg(port.to_string()).spawn() {
-        Ok(_) => {
-            println!("study agent: starting — it comes up in a few seconds");
-            true
-        }
-        Err(e) => {
-            eprintln!("study agent: could not start: {e}");
-            false
-        }
-    }
-}
-
-/// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
-fn agent_config_path() -> Option<PathBuf> {
-    fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("agent.json"))
-}
-
-/// Persist the on/off setting (written by the settings screen via `/api/set_agent`). Takes effect at
-/// the next launch — the agent auto-starts (or not) with formicaria.
-fn set_agent_enabled(enabled: bool) -> Result<(), String> {
-    let path = agent_config_path().ok_or("no config directory on this OS")?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&path, format!("{{\"enabled\": {enabled}}}\n")).map_err(|e| e.to_string())
 }
 
 /// This platform's answer to "open this file with whatever owns it" — the one thing
@@ -247,9 +168,8 @@ fn main() {
     // learns the agent exists, and with no `agents/` directory nothing is spawned (pure formicaria).
     // The agent dies with formicaria: it watches this very port and stops the model when we stop
     // answering, so a closed app leaves nothing running.
-    if agent_enabled() && spawn_agent(state.port) {
-        state.agent_running.store(true, Ordering::Relaxed);
-    }
+    #[cfg(feature = "agent")]
+    agent::spawn_at_launch(&state);
 
     for stream in listener.incoming().flatten() {
         let state = Arc::clone(&state);
@@ -416,79 +336,13 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
         return write_response(&mut stream, "200 OK", "text/plain", b"");
     }
 
-    // The study-agent on/off setting — a *transport/launcher* concern (like the auto-shutdown
-    // watchdog), deliberately NOT a `dispatch` command, so the shared command core never learns the
-    // agent exists. The settings screen reads `/api/agent_status` and writes `/api/set_agent`; the
-    // change takes effect at the next launch (the agent auto-starts, or not, with formicaria).
-    if path == "/api/agent_status" {
-        let body = format!("{{\"enabled\": {}}}", agent_enabled());
-        return write_response(&mut stream, "200 OK", "application/json", body.as_bytes());
-    }
-    if path == "/api/set_agent" {
-        let enabled = serde_json::from_slice::<serde_json::Value>(&body)
-            .ok()
-            .and_then(|v| v["enabled"].as_bool())
-            .unwrap_or(false);
-        return match set_agent_enabled(enabled) {
-            Ok(()) => {
-                // Turning it ON starts it **immediately** — no relaunch. The atomic swap makes sure
-                // only one is ever spawned. (Turning it OFF just persists the setting: the running
-                // agent stops when the app closes and will not start next launch.)
-                if enabled
-                    && !state.agent_running.swap(true, Ordering::Relaxed)
-                    && !spawn_agent(state.port)
-                {
-                    state.agent_running.store(false, Ordering::Relaxed);
-                }
-                write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}")
-            }
-            Err(e) => write_response(&mut stream, "500 Internal Server Error", "text/plain", e.as_bytes()),
-        };
-    }
-
-    // The study agent's live pipeline status, per discussion — a transient, in-memory side channel so
-    // the discussion view can show a turning wheel with the current stage ("searching the web…") while
-    // the agent works, and hide it the instant the reply lands or a timeout clears it. Transport-shaped
-    // like the liveness and on/off endpoints above: never a `dispatch` command, so the vault core stays
-    // agent-agnostic and this never reaches disk. The agent WRITES it; the browser page READS it.
-    if path == "/api/agent_activity" {
-        let req: ActivityReq = serde_json::from_slice(&body).unwrap_or_default();
-        if !req.discussion.is_empty() {
-            if req.done {
-                state.agent.clear_activity(&req.discussion);
-            } else {
-                let stage = if req.stage.is_empty() { "working" } else { &req.stage };
-                state.agent.set_activity(&req.discussion, stage, &req.question);
-            }
-        }
-        return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
-    }
-    if path == "/api/agent_activity_poll" {
-        let req: DiscReq = serde_json::from_slice(&body).unwrap_or_default();
-        let payload = match state.agent.activity(&req.discussion) {
-            Some(a) => serde_json::json!({
-                "active": true,
-                "stage": a.stage,
-                "question": a.question,
-                "elapsed_secs": a.elapsed_secs,
-            }),
-            None => serde_json::json!({ "active": false }),
-        };
-        return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
-    }
-
-    // Agent presence: the agent heartbeats its name here while it runs; the app asks who is online so
-    // it can offer the @-picker and warn instead of going silent when a mention has no one to answer.
-    if path == "/api/agent_present" {
-        let req: PresentReq = serde_json::from_slice(&body).unwrap_or_default();
-        if !req.name.is_empty() {
-            state.agent.heartbeat(&req.name);
-        }
-        return write_response(&mut stream, "200 OK", "application/json", b"{\"ok\":true}");
-    }
-    if path == "/api/agents" {
-        let payload = serde_json::json!({ "agents": state.agent.online() });
-        return write_response(&mut stream, "200 OK", "application/json", payload.to_string().as_bytes());
+    // The study agent's transport routes — the on/off setting, the live "working…" activity, and
+    // presence — all live in the `agent` module behind the `agent` feature (never a `dispatch`
+    // command, so the shared core stays agent-agnostic). Without the feature this call is gone and the
+    // routes don't exist. `None` means "not an agent route" — fall through to the command dispatch.
+    #[cfg(feature = "agent")]
+    if let Some(done) = agent::route(&mut stream, &path, &body, state) {
+        return done;
     }
 
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
@@ -730,7 +584,7 @@ frame-ancestors 'none'; \
 base-uri 'self'; \
 form-action 'none'";
 
-fn write_response(
+pub(crate) fn write_response(
     stream: &mut TcpStream,
     status: &str,
     ctype: &str,
