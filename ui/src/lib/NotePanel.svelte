@@ -807,6 +807,11 @@
   // What the study agent is doing right now in this discussion — drives the live "working…" wheel.
   // `null` when idle, so the row shows only while a turn is in flight.
   let agentWorking = $state<{ stage: string; elapsed: number } | null>(null);
+  // We just posted a mention to an online agent: show the wheel *immediately* (optimistically) until
+  // the agent publishes a real stage, the reply lands, or we time out — so there's no dead pause
+  // between hitting send and the wheel appearing. `baseCount` is the thread size right after our
+  // message, so a reply (count grows) clears it.
+  let pending = $state<{ since: number; baseCount: number } | null>(null);
   // Which assistants are alive right now (by `@name`) — feeds the `@`-picker and the offline warning.
   let agentsOnline = $state<string[]>([]);
   // The `@`-mention picker: open while the caret sits on an `@token`, listing matching live agents.
@@ -836,11 +841,9 @@
     } catch {
       a = { active: false } as const;
     }
-    const wasWorking = agentWorking !== null;
-    agentWorking = a.active ? { stage: a.stage ?? 'working', elapsed: a.elapsed_secs ?? 0 } : null;
-    // Reload the thread while the agent works, and once right after it finishes (the reply just
-    // landed) — but only reassign if something actually changed, to avoid needless re-render.
-    if (a.active || wasWorking) {
+    // Reload the thread whenever anything might have changed (agent active, we were working, or we're
+    // waiting on a reply), so a landed reply both shows *and* clears the wheel.
+    if (a.active || agentWorking !== null || pending !== null) {
       try {
         const t = await ipcThread(note.id);
         if (t.count !== discCount || t.messages.at(-1)?.id !== discMessages.at(-1)?.id) {
@@ -851,6 +854,21 @@
         /* transient — the next poll retries */
       }
     }
+    if (a.active) {
+      // A real stage from the agent supersedes the optimistic wheel.
+      agentWorking = { stage: a.stage ?? 'working', elapsed: a.elapsed_secs ?? 0 };
+      pending = null;
+    } else if (pending) {
+      // Still waiting for the agent to pick up: a reply landed (count grew) or it's been too long → done.
+      if (discCount > pending.baseCount || Date.now() - pending.since > 180000) {
+        pending = null;
+        agentWorking = null;
+      } else {
+        agentWorking = { stage: 'thinking', elapsed: Math.floor((Date.now() - pending.since) / 1000) };
+      }
+    } else {
+      agentWorking = null;
+    }
   }
 
   $effect(() => {
@@ -859,6 +877,7 @@
     return () => {
       clearInterval(timer);
       agentWorking = null;
+      pending = null;
     };
   });
 
@@ -935,6 +954,12 @@
         ? `“@${offline[0]}” isn’t running, so it won’t answer. Turn the assistant on in Settings, then ask again.`
         : null;
       await loadThread();
+      // Addressed a running assistant → show the working wheel at once, no dead pause before the
+      // agent picks it up (poll takes over with the real stages, and the reply clears it).
+      if (mentioned.length && offline.length === 0) {
+        pending = { since: Date.now(), baseCount: discCount };
+        agentWorking = { stage: 'thinking', elapsed: 0 };
+      }
       // A message is a file write like any other, so it rides the same signal the editor
       // uses — which is what schedules the debounced commit. No second path.
       onsaved?.();
