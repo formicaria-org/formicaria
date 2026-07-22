@@ -194,9 +194,24 @@ enable. Built in verified increments (commits `0669b29`→`1fc85d9`):
   debug APK builds with all 14 runtime libs in `lib/arm64-v8a` (+25 MB; the 206 MB in the debug APK is
   the debug Rust cdylib, which release strips).**
 
-**Remains — needs the physical phone (owner's step; assistant's adb is `/data/local/tmp`-only, no
-installs):** install a release APK and confirm the exec-from-`nativeLibraryDir` path works from an
-installed APK (proven earlier only via adb-shell in `/data/local/tmp`); verify **16 KB page alignment**
-of the prebuilt libs (Android 15+ SIGSEGVs a 4 KB-aligned `.so`); a **foreground service** so the model
-isn't LMKD-reaped mid-generation; a real **`sha256`** per model in `models.toml`; and a notes-only APK
-**flavor** that skips staging.
+**PROVEN ON THE DEVICE (owner said "Install and let me use it"; assistant installed with the owner's
+explicit go-ahead, overriding the standing no-install order for the owner's own app).** The signed
+release APK (`pixi run android-release`, 25 MB, 16 KB-aligned) installs and runs end-to-end:
+- Bundled runtime **found via `/proc/self/maps`**, model **downloaded (153/153 MB)** by the pure-Rust
+  TLS fetcher, preflight passes, **`llama-server` launches and serves in-process** (`@lfm2.5-230m`
+  listening; `libllama-server.so` running as a child of the app).
+- **16 KB alignment** — the b10081 prebuilt libs are already `0x4000`-aligned (checked); the phone is
+  4 KB-page, so fine either way.
+- Four on-device bugs found + fixed live: mobile-network download drops (retry-with-resume, `f333217`);
+  `/proc/loadavg` denied to apps (tolerate it, memory governs, `3f93376`); the two above.
+- **Foreground service (`6ff53ee`)** — `ci/android-inject-service.sh` injects `AgentService` +
+  `MainActivity` start + manifest (a committed idempotent generator, like the runtime staging).
+  Verified: `isForeground=true` (DATA_SYNC) with its notification, and after **40 s fully backgrounded
+  with Doze at its normal setting, both the app and the model process stay alive** — removing the need
+  for the temporary adb Doze exemption that the first 153 MB download had required.
+
+**Still open (smaller):** the download only attempts **once per app process** (a hard give-up needs an
+app restart to resume — should retry across the watch loop); a real **`sha256`** per model in
+`models.toml` (fetch verifies when present); a notes-only APK **flavor** that skips the runtime
+staging; and `dataSync` FGS has an Android-15 daily time cap (fine for sessions; `specialUse` later for
+always-on). End-to-end **@-mention → reply** on the installed app is the owner's to exercise in the UI.
