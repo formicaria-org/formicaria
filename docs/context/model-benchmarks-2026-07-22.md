@@ -87,6 +87,31 @@ else is running (browser, etc.).
   runs during a turn. *(Observation to revisit: the phone's model process runs at `nice -10` — elevated
   priority; the 4-core cap protects the UI regardless, but a neutral/positive nice would be safer.)*
 
+## Laptop GPU (RTX 3050) — measured, and it is the decisive laptop win
+
+The laptop was running CPU-only. llama.cpp ships no CUDA binary, but its **Vulkan** build runs on the
+RTX 3050 through the proprietary driver's Vulkan ICD (driver 595, the GPU exposes `NV_coopmat2` matrix
+cores) — no CUDA toolkit needed, just the already-present `libvulkan.so.1`. Measured with all layers
+offloaded (`-ngl 99`, `GGML_VK_VISIBLE_DEVICES=1` to pin the NVIDIA GPU over the Intel iGPU):
+
+| Model | CPU t=8 (decode) | **RTX 3050 Vulkan (decode)** | speedup | GPU memory |
+|---|---|---|---|---|
+| Qwen3-4B-2507 | 14.0 tok/s | **51.9 tok/s** | **3.7×** | 2.53 GB VRAM (of 3.7 GB free), 97% util |
+| LFM2.5-1.2B | 48.1 tok/s | **171.5 tok/s** | 3.6× | fits easily |
+
+**Why this is the laptop's answer, not just "faster":**
+- The 4B goes from sluggish (14 t/s) to **comfortably interactive (52 t/s)**.
+- It moves the model **off system RAM onto VRAM** — the ~4.06 GB CPU-RSS pressure against ~5 GB free
+  (flagged above) is **replaced by ~2.5 GB VRAM + minimal system RAM**, so the laptop stops being
+  memory-tight *and* the CPU cores are freed (the GPU does the compute → the interface stays smooth).
+
+**To wire it in** (not yet done — a runtime change): the desktop agent runs `agents/runtime/llama-server`
+from the pinned **CPU** build (`runtime_url`). Point it at the **vulkan** asset
+(`llama-b10076-bin-ubuntu-vulkan-x64.tar.gz`) and pass `-ngl 99` (+ `GGML_VK_VISIBLE_DEVICES` to pick
+the discrete GPU). Caveat: the vulkan binary needs `libvulkan.so.1` present, and it still carries CPU
+backends so it falls back when no GPU is found — but a machine with no Vulkan loader at all would need
+the CPU build, so GPU should be an **opt-in runtime**, not the silent default.
+
 ## Mechanism note
 
 `models.toml` has a single `default`, and the mobile build embeds that same file (`include_str!`). To
