@@ -227,6 +227,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     let logs_dir = agents_dir.join("runtime");
     let _ = std::fs::create_dir_all(&logs_dir);
     let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.mobile_threads());
+    let max_reply_chars = manifest.max_reply_chars;
 
     // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
     // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
@@ -310,7 +311,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             model_port: port,
             model: model_name.clone(),
             searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
-            max_reply_chars: 600,
+            max_reply_chars,
             retrieve: 3,
             history_budget: 4000,
         };
