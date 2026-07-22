@@ -169,3 +169,34 @@ model call) — deferred until a real second runtime is actually on the table. M
 missing model as a **typed, non-fatal state** (`agent::start` returns `Err`, `lib.rs` logs "study agent
 not started" and the app runs on as a notebook) — the AppFlowy pattern, already satisfied. Step 3
 (on-device FFI de-risk) needs the physical phone and stays deferred behind the feature.
+
+## Phone last-mile — EXECUTED on-device (owner "Go", later 2026-07-22)
+
+Owner chose **on-device**: bundle the arm64 llama runtime in the APK, fetch the ~150 MB model on first
+enable. Built in verified increments (commits `0669b29`→`1fc85d9`):
+
+- **In-app model downloader** (`0669b29`) — `fm_agent_run::fetch` behind a `download` feature:
+  resumable (HTTP Range), SHA-256-verified, `<dest>.part`→rename. `ureq`+`rustls` (pure-Rust TLS,
+  cross-compiles to android; `webpki-roots`' CDLA-Permissive-2.0 added to deny). 3 hermetic localhost
+  tests, in `pixi run ci` via `test-agent-download`.
+- **Manifest → HF URL + provisioning** (`ca9ab1c`) — manifest parses `repo`/`sha256`, builds the
+  `resolve/main` URL; `fetch::ensure_model` fetches on first enable, idempotent/network-free when the
+  file is already present (sideload-friendly).
+- **Runner wired to the bundled runtime** (`3f47879`) — `fm_agent_run::nativelib` finds the native-lib
+  dir from `/proc/self/maps` (our own cdylib's dir) in **pure Rust, no JVM shim**; `agent::start` execs
+  `<nativeLibraryDir>/libllama-server.so`, downloads weights on a background thread, ships `models.toml`
+  embedded (`include_str!`). Every failure ⇒ a log line + "run on as a notebook".
+- **Runtime staged into the APK** (`1fc85d9`) — `ci/android-stage-runtime.sh` (a `pixi` task; a dep of
+  `android-apk`/`android-release`): fetches pinned llama.cpp **b10081** android-arm64, renames
+  `llama-server`→`libllama-server.so`, copies its **transitive NEEDED closure** (readelf BFS) + the
+  dlopen'd ggml-cpu backends, **llvm-strips 235 MB→25 MB**, arch-checks AArch64, and sets
+  `useLegacyPackaging=true` (extract-native-libs, so the binary is exec'able). **Verified: an arm64
+  debug APK builds with all 14 runtime libs in `lib/arm64-v8a` (+25 MB; the 206 MB in the debug APK is
+  the debug Rust cdylib, which release strips).**
+
+**Remains — needs the physical phone (owner's step; assistant's adb is `/data/local/tmp`-only, no
+installs):** install a release APK and confirm the exec-from-`nativeLibraryDir` path works from an
+installed APK (proven earlier only via adb-shell in `/data/local/tmp`); verify **16 KB page alignment**
+of the prebuilt libs (Android 15+ SIGSEGVs a 4 KB-aligned `.so`); a **foreground service** so the model
+isn't LMKD-reaped mid-generation; a real **`sha256`** per model in `models.toml`; and a notes-only APK
+**flavor** that skips staging.
