@@ -4,7 +4,22 @@ A compact, high-density snapshot of the repo, meant to bootstrap a working
 mental model **without** reading the whole codebase. When this disagrees with
 the code, the code wins — fix this file.
 
-_Last verified: 2026-07-20 (evening) — four defects found by reviewing this repo's own code
+_Last verified: 2026-07-22 — **the study assistant now runs ON-DEVICE on both platforms.** A local
+LLM answers `@name` mentions in a note's discussion, researches (opt-in web), and drafts note edits —
+opt-in, notes stay local. **Phone:** in-process, the arm64 `llama-server` bundled in the APK's
+`jniLibs` (run from `nativeLibraryDir` via `/proc/self/maps`, no JVM shim), the model fetched on first
+enable (`ureq`/`rustls`, resumable), kept alive by a foreground service; on/off toggle with clean
+shutdown (`RunEvent::Exit` + `PR_SET_PDEATHSIG`, no orphan); runs `lfm2.5-1.2b` (~16 tok/s, 4 of 8
+cores). **Laptop:** `agent-serve` subprocess on the **RTX 3050 via the Vulkan runtime** (no CUDA
+toolkit), `qwen3-4b-2507` (~52 tok/s, in VRAM). **One shared runner** (`fm-agent-run`); the only
+platform code is the launch/transport seam. Config-driven (`agents/models.toml`: per-device
+default/threads, `gpu=auto` with CPU fallback, `max_reply_chars`). Context is the host note + its
+**linked notes** (one hop, text only) + the discussion — no vault-wide RAG. The agent watches **note
+comment threads** too (`thread_roots`, not just first-class `discussions`). Model picks are
+evidence-based (`model-benchmarks-`/`model-selection-research-2026-07-22.md`). Reversed the earlier
+FFI-everywhere plan (`forward-plan-review-2026-07-22.md`). Full arc:
+`sessions/2026-07-22-agent-shipped-on-device-and-hardened.md`. Prior:
+2026-07-20 (evening) — four defects found by reviewing this repo's own code
 were fixed, then re-reviewed adversarially and four of the fixes found incomplete and repaired:
 `copy_note` was still leaking through `status`/`tags`, the `manifest.json` merge had a deletion
 rule the format cannot support, its driver could exit non-zero (which git reads as a conflict on

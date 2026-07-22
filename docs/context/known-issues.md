@@ -4,8 +4,29 @@ Honest status of rough edges, deferred work, and things that will bite you.
 Keep this current: when you fix something, delete its entry; when you hit a new
 trap, add one. Newest concerns first within each section.
 
-_Last verified: 2026-07-20 (evening) — **four defects found by an adversarial review of this
-repo's own code were fixed**, and a second adversarial pass over those fixes found four of them
+## Study assistant — current gaps (2026-07-22; agent shipped on-device, see overview.md)
+
+- **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
+  deferred; needs a cancel signal threaded to the in-flight model call.
+- **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
+  retrieval fed a tiny model unrelated fragments it parroted. Broader RAG is deferred pending its own
+  research (owner: bad RAG is worse than none).
+- **Deleting a first-class discussion root orphans its replies** (they keep a `thread_of` to a gone
+  note). Pre-existing; per-message Delete now exists but there's no "delete the whole thread".
+- **`pixi run build` does NOT rebuild `agent-serve`** (only fm-serve + UI). After changing the agent,
+  `cargo build --release -p fm-agent-run`, or the desktop keeps running the old agent binary.
+- **Math normalisation is a blunt delimiter replace** (`\[`→`$$` etc.) on the agent's reply — fine for
+  model output, but would mis-convert a literal escaped `\[` if a model ever emitted prose brackets.
+- **Mobile foreground-service / jniLibs / manifest edits live in generated `gen/android/`** (gitignored);
+  they are re-applied by committed scripts (`ci/android-{stage-runtime,inject-service}.sh`) on each
+  build, not stored in git — a fresh `tauri android init` needs those scripts re-run.
+- **The launcher's stale-check includes `ui/dist`**, but fm-serve serves the *embedded* UI, so a
+  `ui/dist`-only change (without rebuilding fm-serve) triggers a restart that changes nothing. Harmless;
+  the fm-serve binary mtime is the real UI signal.
+
+_Last verified: 2026-07-22 — the **study assistant shipped on-device on both platforms** (see the
+"Study assistant — current gaps" section above and `overview.md`). Prior: 2026-07-20 (evening) —
+**four defects found by an adversarial review of this repo's own code were fixed**, and a second adversarial pass over those fixes found four of them
 incomplete; see `sessions/2026-07-20-four-bugs-a-review-found.md`. The durable lessons are in
 `decisions.md`. Also fixed: **`verify` was checking a hardcoded `notes/`**, so a Track-V vault whose
 `vault.json` puts notes in `docs/` got "verified 0 note(s): 0 error(s)" and exit 0 — an

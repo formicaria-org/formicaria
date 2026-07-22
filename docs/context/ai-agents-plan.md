@@ -1,7 +1,15 @@
-# Remote & on-chip LLM-agent collaboration — research + plan (NOT built)
+# Remote & on-chip LLM-agent collaboration — research + plan (the plan; SINCE SHIPPED)
 
-_Compiled 2026-07-21 from a 2-agent web-research pass + grounding in this repo's rulings. **Plan
-only — no code, nothing implemented.** The owner asked to "rely on services provided remotely …
+> **STATUS (2026-07-22): SHIPPED and running on both devices.** This document is the original
+> research + plan; it is kept as the reasoning record. What actually shipped — an on-device local
+> LLM answering `@name` in discussions, one shared runner, out-of-process (the FFI-everywhere idea was
+> reversed), phone `lfm2.5-1.2b` / laptop `qwen3-4b-2507` on the GPU — is in
+> `sessions/2026-07-22-agent-shipped-on-device-and-hardened.md` and the `overview.md` head. Where this
+> plan and that reality differ (e.g. containment leans on **propose-only + minimal context**, not the
+> full research harness), the shipped version wins.
+
+_Compiled 2026-07-21 from a 2-agent web-research pass + grounding in this repo's rulings. **Was
+plan-only when written.** The owner asked to "rely on services provided remotely …
 specifically llm agents … one easy way is GitHub free plans … but also on-chip solutions … research
 the best models for my phone and laptop (plan only)."_
 
