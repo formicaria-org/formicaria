@@ -128,7 +128,8 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         std::fs::write(&manifest_path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
     }
     let manifest = Manifest::read(&manifest_path)?;
-    let model_name = manifest.default.clone();
+    // The phone's own pick (default_mobile) — a smaller model than the laptop default.
+    let model_name = manifest.mobile_default().to_string();
 
     // The runtime is exec'd from the native-library dir; refuse early (before spawning) if it isn't
     // bundled, so the reason is one clear log line rather than a launch failure deep in the thread.
@@ -143,7 +144,7 @@ pub fn start(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     // A writable place for the runner's timing log (the runtime dir is read-only extracted libs).
     let logs_dir = agents_dir.join("runtime");
     let _ = std::fs::create_dir_all(&logs_dir);
-    let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.threads);
+    let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.mobile_threads());
 
     std::thread::spawn(move || {
         // Fetch the weights if this is the first enable (resumable + checksum, retrying through the

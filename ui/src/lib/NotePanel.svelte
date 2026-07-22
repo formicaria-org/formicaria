@@ -879,7 +879,11 @@
   }
 
   $effect(() => {
-    if (!(discOpen && isDiscussion && note?.id)) return;
+    // Runs for **any** open discussion — a first-class discussion note AND an ordinary note's comment
+    // thread (which is not `isDiscussion` but still has a reply box + @-picker). Gating on
+    // `isDiscussion` was the bug: in a note's comment thread the poll never started, so the picker's
+    // agent/collaborator data was never fetched and `@` showed nothing.
+    if (!(discOpen && note?.id)) return;
     // Who can be @-mentioned here — the vault's collaborators (git authors of every discussion),
     // fetched once when it opens. Unioned with the live agents in `mentionCandidates`. Best-effort:
     // a git-less or empty vault just leaves the picker to the online agents.
