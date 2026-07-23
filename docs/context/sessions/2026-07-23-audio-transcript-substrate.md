@@ -91,6 +91,22 @@ only target a note → `create_proposal` 500'd. Fix: offer **Transcribe on a reg
 audio asset** (resolve each `asset:sha256` ref's MIME, take the first audio one), proposing into that
 note; removed it from the asset-note menu. This is the plan's real "note with a recorded sound" scenario.
 
+## In-app recording — the full loop, any device (`a6500c8`)
+
+The record→transcribe→proposal→(edit/reject/accept) loop is now doable **entirely from the UI**, and
+device-general by construction (not a laptop-only hack):
+- `ui/src/lib/record.ts`: getUserMedia + an `AudioContext` pinned to 16 kHz → raw PCM → a **16-bit mono
+  WAV `File`**. WAV, not `MediaRecorder`'s webm/opus, because that's what whisper.cpp reads directly
+  (no server-side ffmpeg). Pure `encodeWav` unit-tested (`record.test.ts`).
+- `NotePanel`: a "Record audio" item + a live indicator (Stop & add / Cancel). The clip flows through
+  `ingestAll` — the **same embed path as attach/drop** — so a recorded and an attached clip are
+  identical downstream; Transcribe turns either into a proposal `ProposalReview` can edit/reject/accept.
+- **Phone**: `ci/android-inject-service.sh` now injects `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS`; wry's
+  `RustWebChromeClient.onPermissionRequest` already requests them at runtime and grants the WebView's
+  `AUDIO_CAPTURE`. Verified: rebuilt APK requests `RECORD_AUDIO`, installed + running on the phone. So
+  the *same web code* records on browser and phone; only whisper transcription stays laptop-staged
+  (phone whisper = the acknowledged later spike). getUserMedia failure degrades to a plain message.
+
 ## Still open
 - **Standalone audio asset note** (opened directly, not embedded) has no host to propose into → no
   Transcribe there for now; a "companion transcript note" flow could cover it later.
