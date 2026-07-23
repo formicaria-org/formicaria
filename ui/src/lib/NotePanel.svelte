@@ -1061,7 +1061,17 @@
   async function transcribeAudio(ref: string) {
     if (!note) return;
     optionsOpen = false;
-    replyDraft = transcribeCommand(agentsOnline[0] ?? mentionCandidates[0], ref);
+    // Presence FRESH: the polled `agentsOnline` is empty for the first ~1.5s after opening a note, and
+    // a /transcribe with no `@name` reaches no agent — it posts silently and nothing answers (exactly
+    // the "nothing happened" failure). Address a running assistant, or say plainly that none is on.
+    const online = await ipcOnlineAgents().catch(() => [] as string[]);
+    const agent = online[0] ?? agentsOnline[0] ?? mentionCandidates[0];
+    if (!agent) {
+      agentNotice =
+        'No assistant is running, so nothing can transcribe — turn it on in Settings (with Audio transcription), then try again.';
+      return;
+    }
+    replyDraft = transcribeCommand(agent, ref);
     await sendReply();
   }
 
