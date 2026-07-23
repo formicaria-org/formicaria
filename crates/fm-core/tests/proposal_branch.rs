@@ -4,11 +4,36 @@
 //! argument for proposals, so it is verified against the tool, not asserted in prose.
 
 use fm_core::git;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+}
+
+/// A relative path from the process cwd to `target` (both absolute). Used to reproduce the relative
+/// vault-path case without ever mutating the process's own cwd (only the spawned git's).
+fn relative_to_cwd(target: &Path) -> PathBuf {
+    let cwd = std::env::current_dir().unwrap();
+    let mut base = cwd.as_path();
+    let mut up = 0;
+    loop {
+        if let Ok(rest) = target.strip_prefix(base) {
+            let mut rel = PathBuf::new();
+            for _ in 0..up {
+                rel.push("..");
+            }
+            rel.push(rest);
+            return rel;
+        }
+        match base.parent() {
+            Some(p) => {
+                base = p;
+                up += 1;
+            }
+            None => return target.to_path_buf(),
+        }
+    }
 }
 
 fn g(repo: &Path, args: &[&str]) -> std::process::Output {
@@ -93,6 +118,30 @@ fn it_refuses_to_clobber_an_existing_branch() {
     assert!(format!("{err}").contains("already exists"), "got: {err}");
     // The first proposal's content is intact — the refused second write changed nothing.
     assert_eq!(out(p, &["show", "proposal/01DUP:notes/x.md"]), "one");
+}
+
+#[test]
+fn it_works_when_the_vault_path_is_relative() {
+    // Regression: `FM_VAULT=vault` (and `pixi run serve`) give a RELATIVE vault path. `git()` runs with
+    // the vault as its working directory, so a relative `GIT_INDEX_FILE` used to re-resolve against the
+    // vault dir → `vault/vault/.git/fm-proposal-…` — a path that does not exist — and EVERY proposal
+    // (a `/research` note, a `/propose` edit, a human proposal) failed with a 500. The temp index is now
+    // absolute, so a relative vault path works.
+    if !have_git() {
+        return;
+    }
+    let dir = repo_with_a_note();
+    let abs = dir.path();
+    let rel = relative_to_cwd(abs);
+    assert!(rel.is_relative(), "the regression needs a relative path, got {rel:?}");
+
+    git::create_proposal_branch(&rel, "proposal/01REL", "notes/x.md", "PROPOSED via a relative path", "propose: rel", None)
+        .unwrap();
+
+    assert_eq!(out(abs, &["show", "proposal/01REL:notes/x.md"]), "PROPOSED via a relative path");
+    // The old bug created a doubled `<repo>/<basename>` dir from the mis-resolved index path.
+    let basename = abs.file_name().unwrap();
+    assert!(!abs.join(basename).exists(), "a doubled vault dir was created — the index path is not absolute");
 }
 
 #[test]

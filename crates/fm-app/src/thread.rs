@@ -28,6 +28,26 @@ use fm_query::{Filter, Predicate};
 /// never an error*, and never derives live proposal state from the note (that comes from git).
 pub const PROPOSES: &str = "proposes";
 
+/// The note a proposal targets: `targets: note:<ULID>` on the proposal note. It ties a PR back to the
+/// note whose discussion originated it, so a second `/research` or `/propose` on that note **refines
+/// the same proposal** (one living PR per note) instead of piling up a new one — and so the note's
+/// own discussion view can surface its current proposal. Descriptive only; the branch is the truth.
+pub const TARGETS: &str = "targets";
+
+/// A proposal that was **rejected**: `declined: true`. Reject deletes the branch (the change is
+/// dropped, `main` untouched) but KEEPS the proposal note — a proposal is immortal, so a declined PR
+/// stays as a record, exactly as a merged one does. It only disambiguates *declined* from *merged*
+/// (both have a gone branch, which git alone cannot tell apart); the live open/closed truth still comes
+/// from git (`branch_open`), never from this marker.
+///
+/// **A bare `true` bool is deliberate here** — unlike the note-visible `discussion:`/`thread_of:` keys
+/// above, which must be parse-guarded *references* because a `board` group-by could write a column name
+/// into them and hide a note. Proposal notes are excluded from **every** board ([`proposals_base`] /
+/// [`notes_base`]), so no board-drag can reach this key; a bool is the honest type, and it round-trips a
+/// hand-edited `declined: true` where a bool-shaped *string* would not. Do NOT copy this bool shape onto
+/// a board-visible note class.
+pub const DECLINED: &str = "declined";
+
 /// The discussion a message belongs to: `thread_of: note:<ULID>`, always pointing at the
 /// **root note**, never at another message.
 ///

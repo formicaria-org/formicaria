@@ -2,19 +2,75 @@
   // Show a proposal's change for review: the files it touches and its unified diff against `main`,
   // fetched via `proposalDiff`. A proposal whose branch is gone (merged or deleted) is reported
   // plainly — "nothing to show" — because the proposal note outlives its branch.
-  import { proposalDiff, acceptProposal } from './ipc';
-  import type { ProposalDiff } from './types';
+  import { proposalDiff, proposalContent, acceptProposal, rejectProposal, createProposal } from './ipc';
+  import type { ProposalDiff, ProposalContent } from './types';
 
-  // `onaccepted` lets the parent (the Collaboration list) refresh once a proposal is merged.
-  let { id, onaccepted }: { id: string; onaccepted?: () => void } = $props();
+  // `onaccepted`/`onrejected` let the parent (the Collaboration list) refresh once a proposal is
+  // merged or discarded.
+  let { id, onaccepted, onrejected }: { id: string; onaccepted?: () => void; onrejected?: () => void } =
+    $props();
 
   let diff = $state<ProposalDiff | null>(null);
   let error = $state<string | null>(null);
   let loading = $state(true);
 
+  // The PROPOSED note itself — shown and EDITABLE, so a reviewer can change it before accepting. Saving
+  // rebuilds the branch from the current `main` (through create_proposal), which also RESOLVES a stale
+  // conflict — the fix for "it doesn't merge cleanly and I have no way to change it".
+  //
+  // This is a DELIBERATELY MINIMAL quick-edit (a plain textarea over the proposed markdown), NOT the
+  // app's primary editor. The powerful in-app editor lives in NotePanel; for a heavier revision, refine
+  // the proposal by replying in the note's discussion (@name /research|/propose) or accept then edit the
+  // note. Kept here so a small tweak/conflict-resolve needs no round-trip. Raw textarea + text-node diff
+  // only (no raw-HTML sink), so an untrusted proposed body can never inject.
+  let proposed = $state<ProposalContent | null>(null);
+  let draft = $state('');
+  let saving = $state(false);
+  const dirty = $derived(proposed !== null && draft !== proposed.body);
+
+  async function save() {
+    if (!proposed || !dirty || saving) return;
+    saving = true;
+    acceptMsg = null;
+    try {
+      await createProposal(proposed.host, draft); // revises this PR's branch from the current note
+      acceptMsg = 'Saved — the proposal now holds your edits, rebased on the latest note.';
+      await refetch();
+    } catch (e) {
+      acceptMsg = `Couldn't save: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      saving = false;
+    }
+  }
+
   // The accept (merge) round-trip — the GUI's stand-in for `git merge`, since a UI-only user has none.
   let accepting = $state(false);
   let acceptMsg = $state<string | null>(null);
+
+  // Reject = the safe inverse of accept: discard the proposal's branch (main is never touched).
+  // Two-click so a stray tap can't throw away a proposal; the second click within confirms.
+  let rejecting = $state(false);
+  let confirmingReject = $state(false);
+
+  async function reject() {
+    if (!confirmingReject) {
+      confirmingReject = true;
+      return;
+    }
+    confirmingReject = false;
+    rejecting = true;
+    acceptMsg = null;
+    try {
+      await rejectProposal(id);
+      acceptMsg = 'Rejected — the change was dropped and kept as a declined record. main is untouched.';
+      await refetch();
+      onrejected?.();
+    } catch (e) {
+      acceptMsg = `Couldn't reject: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      rejecting = false;
+    }
+  }
 
   async function accept() {
     accepting = true;
@@ -40,6 +96,8 @@
   async function refetch() {
     try {
       diff = await proposalDiff(id);
+      proposed = diff.exists ? await proposalContent(id) : null;
+      if (proposed) draft = proposed.body;
     } catch (e) {
       error = String(e);
     }
@@ -52,19 +110,24 @@
     loading = true;
     error = null;
     diff = null;
-    proposalDiff(which)
-      .then((d) => {
-        if (!cancelled) {
-          diff = d;
-          loading = false;
-        }
-      })
-      .catch((e) => {
+    proposed = null;
+    (async () => {
+      try {
+        const d = await proposalDiff(which);
+        if (cancelled) return;
+        diff = d;
+        const c = d.exists ? await proposalContent(which) : null;
+        if (cancelled) return;
+        proposed = c;
+        if (c) draft = c.body;
+        loading = false;
+      } catch (e) {
         if (!cancelled) {
           error = String(e);
           loading = false;
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -87,20 +150,35 @@
     <p class="muted">Loading the proposed change…</p>
   {:else if error}
     <p class="error">Couldn't load the diff: {error}</p>
+  {:else if diff && diff.declined}
+    <p class="muted">This proposal was declined; the change was dropped, main untouched, and it is kept as a record.</p>
   {:else if diff && !diff.exists}
-    <p class="muted">
-      This proposal's branch is gone — merged or deleted. There's nothing to show; the discussion
-      lives on.
-    </p>
+    <p class="muted">This proposal was merged into the note; the discussion lives on.</p>
   {:else if diff}
-    {#if diff.files.length}
-      <p class="files">
-        {diff.files.length} file{diff.files.length === 1 ? '' : 's'}: {diff.files.join(', ')}
-      </p>
+    {#if proposed}
+      <p class="pr-edit-label">Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:</p>
+      <textarea class="pr-edit" bind:value={draft} rows="12" aria-label="proposed note body"></textarea>
+      <div class="pr-edit-actions">
+        <button class="pr-save" onclick={save} disabled={!dirty || saving}>
+          {saving ? 'Saving…' : 'Save changes'}
+        </button>
+        {#if dirty}<span class="pr-dirty">unsaved edits</span>{/if}
+      </div>
     {/if}
-    <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code>{/each}</pre>
+    <details class="pr-diff-details">
+      <summary>View the diff against the current note{#if diff.files.length} · {diff.files.join(', ')}{/if}</summary>
+      <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code>{/each}</pre>
+    </details>
     <div class="review-actions">
-      <button class="accept" onclick={accept} disabled={accepting}>
+      <button
+        class="reject"
+        class:confirming={confirmingReject}
+        onclick={reject}
+        disabled={rejecting || accepting}
+      >
+        {rejecting ? 'Rejecting…' : confirmingReject ? 'Confirm reject' : 'Reject'}
+      </button>
+      <button class="accept" onclick={accept} disabled={accepting || rejecting}>
         {accepting ? 'Merging…' : 'Accept & merge'}
       </button>
     </div>
@@ -117,10 +195,84 @@
   .review {
     padding: 0.25rem 0 0.5rem;
   }
+  .pr-edit-label {
+    margin: 0 0 0.3rem;
+    font-size: 0.85em;
+    color: var(--muted);
+  }
+  .pr-edit {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 0.88em;
+    line-height: 1.45;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    resize: vertical;
+  }
+  .pr-edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.35rem 0;
+  }
+  .pr-save {
+    min-height: 2rem;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-hover);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .pr-save:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .pr-dirty {
+    font-size: 0.8em;
+    color: var(--warning, #b7791f);
+  }
+  .pr-diff-details {
+    margin: 0.4rem 0;
+  }
+  .pr-diff-details summary {
+    font-size: 0.82em;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  @media (pointer: coarse) {
+    .pr-save {
+      min-height: 2.75rem;
+    }
+  }
   .review-actions {
     display: flex;
     justify-content: flex-end;
+    gap: 0.5rem;
     margin-top: 0.5rem;
+  }
+  button.reject {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 12px;
+    border-radius: var(--radius-2, 6px);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  button.reject.confirming {
+    border-color: var(--danger, #c0392b);
+    color: var(--danger, #c0392b);
+  }
+  button.reject:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
   button.accept {
     background: var(--accent, #6639ba);

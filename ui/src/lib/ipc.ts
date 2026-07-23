@@ -11,6 +11,7 @@ import type {
   ObjectMeta,
   PathCheck,
   ProposalDiff,
+  ProposalContent,
   PullResult,
   ThreadView,
   RemoteProbe,
@@ -209,6 +210,16 @@ export const createProposal = (id: string, body: string) =>
  *  or gone — the note outlives its branch, so this reports "nothing to show", never an error. */
 export const proposalDiff = (id: string) => invoke<ProposalDiff>('proposal_diff', { id });
 
+/** The id of a note's current OPEN proposal (its PR), or null. Lets a note's own view show its PR —
+ *  the diff + Accept/Reject — beside the discussion, since a proposal has no separate discussion. */
+export const proposalFor = (noteId: string) => invoke<string | null>('proposal_for', { id: noteId });
+
+/** The proposed note behind a proposal — host id, title, and the proposed body on the branch — so the
+ *  review can SHOW and EDIT it. Saving an edit goes back through `create_proposal` (rebasing the branch
+ *  on the current note), which also resolves a stale conflict. Null when the branch is gone. */
+export const proposalContent = (id: string) =>
+  invoke<ProposalContent | null>('proposal_content', { id });
+
 /** The write half of review — accept a proposal by merging its branch into `main`. The GUI's merge
  *  button, since a UI-only user has no `git merge`. `'merged'` = landed on main (branch deleted);
  *  `'conflicted'` = could not merge cleanly, so it was aborted and main left untouched; `'already_gone'`
@@ -216,6 +227,11 @@ export const proposalDiff = (id: string) => invoke<ProposalDiff>('proposal_diff'
  *  half-merged tree. */
 export const acceptProposal = (id: string) =>
   invoke<{ outcome: 'merged' | 'conflicted' | 'already_gone' }>('accept_proposal', { id });
+
+/** Reject a proposal — the GUI's "Reject" button. Deletes the proposal's branch (local + remote) and
+ *  the proposal note; **main is never touched**, so the worst case of a mistaken reject is a proposal
+ *  you re-run. The safe inverse of Accept. */
+export const rejectProposal = (id: string) => invoke<void>('reject_proposal', { id });
 
 /** Notes nothing has touched since `since` (a git `--since` value), oldest first.
  *

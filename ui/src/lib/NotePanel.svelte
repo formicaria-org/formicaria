@@ -20,6 +20,7 @@
     thread as ipcThread,
     agentActivity as ipcAgentActivity,
     onlineAgents as ipcOnlineAgents,
+    proposalFor as ipcProposalFor,
     discussions as ipcDiscussions,
     backlinks as ipcBacklinks,
   } from './ipc';
@@ -35,10 +36,12 @@
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
+  import { AGENT_COMMANDS, withCommand } from './agentCommands';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
   import Whiteboard from './Whiteboard.svelte';
+  import ProposalReview from './ProposalReview.svelte';
   import type { NoteDetail, ObjectMeta, ThreadMessage } from './types';
 
   let {
@@ -815,6 +818,23 @@
   let pending = $state<{ since: number; baseCount: number } | null>(null);
   // Which assistants are alive right now (by `@name`) — feeds the offline warning, and the `@`-picker.
   let agentsOnline = $state<string[]>([]);
+
+  // The note's current OPEN proposal (its PR), surfaced inside the discussion so the conversation and
+  // the PR are one view — a proposal has no separate discussion of its own. Refreshed when the
+  // discussion opens, on each poll (the agent creates/refines it asynchronously), and after
+  // accept/reject clears it.
+  let noteProposal = $state<string | null>(null);
+  async function refreshProposal() {
+    if (!note?.id) {
+      noteProposal = null;
+      return;
+    }
+    try {
+      noteProposal = await ipcProposalFor(note.id);
+    } catch {
+      /* transient — keep whatever we had */
+    }
+  }
   // The vault's git collaborators — everyone (human or agent) who has posted in a discussion. Fetched
   // when the discussion opens, so `@` can suggest people and agents you can address here even when no
   // agent is running right now. (The owner: `@` should list the git users you can discuss with.)
@@ -833,6 +853,10 @@
   // A gentle notice under the composer — e.g. you addressed an assistant that isn't running.
   let agentNotice = $state<string | null>(null);
 
+  // The compose textarea, so a tapped command chip can return focus for typing the question.
+  let discInputEl = $state<HTMLTextAreaElement | null>(null);
+
+
   // While a discussion is open, poll the agent's live status *and* refresh the thread — the agent's
   // reply arrives asynchronously a few seconds after the user asks, and its stage updates in
   // between. One cheap poll does both: it shows the wheel with the current stage, and it picks up
@@ -842,6 +866,7 @@
     if (!note) return;
     // Refresh who's online (for the picker + offline warning) alongside the activity poll.
     ipcOnlineAgents().then((names) => (agentsOnline = names));
+    void refreshProposal(); // the agent may have created/refined this note's PR since the last tick
     let a;
     try {
       a = await ipcAgentActivity(note.id);
@@ -910,6 +935,7 @@
     if (discOpen) {
       replyTo = note?.id ?? '';
       await loadThread();
+      void refreshProposal(); // show this note's PR straight away, not only on the next poll tick
     }
   }
 
@@ -919,10 +945,12 @@
   // it reads `note?.id`/`isDiscussion`, so a manual toggle below does not re-trigger it.
   $effect(() => {
     const id = note?.id;
+    noteProposal = null; // never carry another note's PR across a pane switch
     if (isDiscussion && id) {
       discOpen = true;
       replyTo = id;
       void loadThread();
+      void refreshProposal();
     } else if (!isDiscussion) {
       discOpen = false;
     }
@@ -1015,6 +1043,15 @@
     const after = replyDraft.slice(atMenu.at + 1 + atMenu.query.length);
     replyDraft = `${before}@${name} ${after}`;
     atMenu = { ...atMenu, open: false };
+  }
+
+  // Tapping a command chip inserts the slash-command, ensuring the message addresses an assistant
+  // (a live agent if any, else the most recent collaborator) so it reaches one, then keeps focus so
+  // the user types the question next. The string transform is the tested `withCommand` helper; typing
+  // the command still works too.
+  function insertCommand(cmd: string) {
+    replyDraft = withCommand(replyDraft, cmd, agentsOnline[0] ?? mentionCandidates[0]);
+    discInputEl?.focus();
   }
 
   function onReplyKeydown(e: KeyboardEvent) {
@@ -2028,6 +2065,15 @@
                 <p class="disc-body">{m.body}</p>
               </div>
             {/each}
+            {#if noteProposal}
+              <!-- The note's current PR, in the same view as its discussion: the proposed change, and
+                   Accept/Reject. Refine it by continuing the conversation above (@name /research or
+                   /propose again revises this same proposal). Not a separate discussion. -->
+              <div class="disc-pr">
+                <p class="disc-pr-head">Proposed change · reply above to refine, then:</p>
+                <ProposalReview id={noteProposal} onaccepted={refreshProposal} onrejected={refreshProposal} />
+              </div>
+            {/if}
             {#if agentWorking}
               <!-- The turning wheel: shows the whole pipeline is at work (not only the LLM), names
                    the current stage, and shows elapsed seconds so "slow" reads differently from
@@ -2050,6 +2096,7 @@
               <div class="disc-compose-box">
                 <textarea
                   class="disc-input"
+                  bind:this={discInputEl}
                   bind:value={replyDraft}
                   onkeydown={onReplyKeydown}
                   oninput={onReplyInput}
@@ -2081,6 +2128,13 @@
                     {/each}
                   </ul>
                 {/if}
+              </div>
+              <div class="disc-commands" role="group" aria-label="assistant commands">
+                {#each AGENT_COMMANDS as c (c.cmd)}
+                  <button type="button" class="disc-cmd" title={c.hint} onclick={() => insertCommand(c.cmd)}>
+                    {c.cmd}
+                  </button>
+                {/each}
               </div>
               {#if agentNotice}<p class="disc-agent-notice">{agentNotice}</p>{/if}
               <div class="disc-actions">
@@ -3114,6 +3168,53 @@
     margin: var(--space-1) 0 0;
     font-size: 0.9em;
     color: var(--text-muted, #777);
+  }
+  /* The note's PR, shown inside its own discussion (conversation + proposal, one view). */
+  .disc-pr {
+    margin: var(--space-2) 0;
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--surface-2, rgba(127, 127, 127, 0.06));
+  }
+  .disc-pr-head {
+    margin: 0 0 0.25rem;
+    font-size: var(--text-xs);
+    color: var(--text-muted, #777);
+  }
+  /* Tappable command chips — one-tap on a phone, still typeable on a laptop. Wrap so they never
+     overflow a narrow pane; a coarse pointer gets the app's larger touch target. */
+  .disc-commands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+  }
+  .disc-cmd {
+    min-height: 1.9rem;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface-hover);
+    color: var(--text-muted, #777);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .disc-cmd:hover {
+    color: var(--text);
+  }
+  /* `/research` leads — the primary grounded-research profile. */
+  .disc-cmd:first-child {
+    color: var(--text);
+    border-color: var(--accent, var(--border));
+  }
+  @media (pointer: coarse) {
+    .disc-cmd {
+      min-height: 2.4rem;
+      padding: 0 var(--space-3);
+    }
   }
   .disc-actions {
     display: flex;

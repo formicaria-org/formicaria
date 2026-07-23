@@ -657,9 +657,36 @@ pub fn create_proposal(
         .to_string_lossy()
         .replace('\\', "/");
 
+    // Commit the target note first (before any branch), so the proposal branch shares a base with
+    // `main`. Without this an *uncommitted* note (a freshly captured one whose debounced auto-commit
+    // hasn't fired) makes the branch ADD the file; accepting it then conflicts with main's untracked
+    // copy — `main` stays safe, but the proposal can never merge. Idempotent + best-effort. `commit_all`
+    // takes vault-rooted paths, so join `rel` onto the vault.
+    let note_path = vault_path.join(&rel);
+    let _ = fm_core::git::commit_all(
+        vault_path,
+        "auto: snapshot the note before a proposal",
+        std::slice::from_ref(&note_path),
+    );
+
+    let title = obj.title.clone().unwrap_or_else(|| "note".into());
+
+    // **One living proposal per note.** Find this note's existing OPEN proposal up front, so a REVISE is
+    // guardrailed as a *replacement* (it does not add a proposal) rather than double-counting itself.
+    let existing = open_proposal_for(store, vault_path, id)?;
+    let existing_branch = existing.as_ref().and_then(proposal_branch_of);
+
     // Guardrails: one file of `content.len()` bytes, against the vault's ceilings and current load.
-    // Refused **before** any write.
-    let (open, open_bytes) = fm_core::git::proposal_load(vault_path)?;
+    // Refused **before** any write, fail-closed, never truncated. On a revise, subtract the proposal
+    // being replaced from the load — it is rewritten, not added, so it must not count against its own
+    // ceiling (otherwise a busy vault could never refine its one proposal).
+    let (mut open, mut open_bytes) = fm_core::git::proposal_load(vault_path)?;
+    if let Some(branch) = &existing_branch {
+        open = open.saturating_sub(1);
+        if let Some(cur) = fm_core::git::file_on_branch(vault_path, branch, &rel) {
+            open_bytes = open_bytes.saturating_sub(cur.len() as u64);
+        }
+    }
     limits
         .check(
             fm_core::proposal::ProposalSize { files: 1, bytes: content.len() as u64 },
@@ -667,16 +694,34 @@ pub fn create_proposal(
         )
         .map_err(|b| StoreError::Io(b.to_string()))?;
 
-    // The proposal note — its own id names the branch, tying the two together.
-    let title = obj.title.clone().unwrap_or_else(|| "note".into());
+    // REVISE the note's existing proposal in place — an ATOMIC ref move (never delete first, so a failed
+    // or interrupted build leaves the prior revision exactly as it was) — or open a new one. The
+    // proposal note is unchanged; the discussion stays on the *original* note.
+    if let (Some(existing), Some(branch)) = (existing, existing_branch) {
+        fm_core::git::revise_proposal_branch(
+            vault_path,
+            &branch,
+            &rel,
+            &content,
+            &format!("revise: change to {title}"),
+            author,
+        )?;
+        if fm_core::git::remote(vault_path)?.is_some() {
+            let _ = fm_core::git::push_branch(vault_path, &branch, true); // the ref moved → force-push
+        }
+        return Ok(ObjectMeta::from(&existing));
+    }
+
+    // No open proposal yet — open a new one. Its own id names the branch; `targets: note:<id>` (a
+    // reference value, like `thread_of`) ties it back to the note so the next proposal finds and
+    // refines it.
     let mut note = Object::new(Kind::Note, format!("Proposed change to **{title}**."));
     note.vault = obj.vault.clone();
     note.title = Some(format!("Proposal: {title}"));
     let branch = format!("proposal/{}", note.id);
-    note.extra.insert(
-        crate::thread::PROPOSES.into(),
-        PropertyValue::Text(fm_model::branch_ref(&branch)),
-    );
+    note.extra
+        .insert(crate::thread::PROPOSES.into(), PropertyValue::Text(fm_model::branch_ref(&branch)));
+    note.extra.insert(crate::thread::TARGETS.into(), PropertyValue::Text(fm_model::note_ref(id)));
 
     // Build the branch first (additive, no `main` write); record the note only on success.
     fm_core::git::create_proposal_branch(
@@ -691,10 +736,71 @@ pub fn create_proposal(
     // `proposal/*`. Best-effort: a vault with no remote (or an offline push) still has a valid local
     // proposal; it just stays single-user until the branch reaches the remote.
     if fm_core::git::remote(vault_path)?.is_some() {
-        let _ = fm_core::git::push_branch(vault_path, &branch);
+        let _ = fm_core::git::push_branch(vault_path, &branch, false);
     }
     store.put(&note)?;
     Ok(ObjectMeta::from(&note))
+}
+
+/// The note's current OPEN proposal, if any: a proposal note that `targets` `host` and whose branch
+/// still resolves. This is what makes a note's PR a single living thing — the next `/research` or
+/// `/propose` refines it rather than stacking a new one, and a merged/rejected proposal (branch gone)
+/// is skipped so a fresh proposal opens cleanly.
+fn open_proposal_for(
+    store: &dyn Store,
+    vault_path: &Path,
+    host: Id,
+) -> Result<Option<Object>, StoreError> {
+    for meta in proposals(store)? {
+        let Ok(pid) = meta.id.parse::<Id>() else { continue };
+        let Some(p) = store.get(pid)? else { continue };
+        // Cheap in-memory filters BEFORE the git spawn: only THIS note's proposal, and never a declined
+        // (closed) record — so `branch_open` runs at most for this note's live candidate.
+        let targets = match p.get(crate::thread::TARGETS) {
+            PropertyValue::Text(s) => fm_model::parse_note_ref(&s),
+            _ => None,
+        };
+        if targets != Some(host) || is_declined(&p) {
+            continue;
+        }
+        if let Some(branch) = proposal_branch_of(&p) {
+            if fm_core::git::branch_open(vault_path, &branch) {
+                return Ok(Some(p));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// The branch a proposal note names via `proposes: branch:<name>`, if well-formed.
+fn proposal_branch_of(obj: &Object) -> Option<String> {
+    match obj.get(crate::thread::PROPOSES) {
+        PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+        _ => None,
+    }
+}
+
+/// Whether a proposal note is a rejected (declined) record. Stored as a bool so a hand-edited
+/// `declined: true` in the note's frontmatter reads correctly (a bool-shaped *string* would not); the
+/// string form is still tolerated for any older marker.
+fn is_declined(obj: &Object) -> bool {
+    match obj.get(crate::thread::DECLINED) {
+        PropertyValue::Bool(b) => b,
+        PropertyValue::Text(s) => s == "true",
+        _ => false,
+    }
+}
+
+/// The id of the note's current OPEN proposal, or `None`. Lets the note's *own* view surface its PR —
+/// the diff and Accept/Reject — beside the discussion, since a proposal has no separate discussion of
+/// its own: the conversation and the PR live together on the originating note.
+pub fn proposal_for(
+    store: &dyn Store,
+    vault_path: &Path,
+    host: &str,
+) -> Result<Option<String>, StoreError> {
+    let Ok(hid) = host.parse::<Id>() else { return Ok(None) };
+    Ok(open_proposal_for(store, vault_path, hid)?.map(|p| p.id.to_string()))
 }
 
 /// A proposal's change, for review: whether its branch still resolves, the files it touches, and the
@@ -703,6 +809,9 @@ pub fn create_proposal(
 #[derive(Serialize)]
 pub struct ProposalDiff {
     pub exists: bool,
+    /// This proposal was **rejected** (branch gone, note kept as a record). Distinguishes a declined PR
+    /// from a merged one — both have `exists: false` — so the review UI can label it correctly.
+    pub declined: bool,
     pub files: Vec<String>,
     pub patch: String,
 }
@@ -716,7 +825,13 @@ pub fn proposal_diff(
     id: &str,
 ) -> Result<ProposalDiff, StoreError> {
     let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
-    let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    // A gone proposal *note* (just rejected, or a stale Collaboration list) is "nothing to show", not
+    // an error — the same tolerance a gone *branch* already gets below (the note outlives the branch;
+    // here the note itself is gone). This is what a client sees after Reject before its list refreshes.
+    let Some(obj) = store.get(pid)? else {
+        return Ok(ProposalDiff { exists: false, declined: false, files: Vec::new(), patch: String::new() });
+    };
+    let declined = is_declined(&obj);
     let branch = match obj.get(crate::thread::PROPOSES) {
         PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
         _ => None,
@@ -724,7 +839,53 @@ pub fn proposal_diff(
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
     let (exists, files, patch) = fm_core::git::branch_diff(vault_path, &branch)?;
-    Ok(ProposalDiff { exists, files, patch })
+    Ok(ProposalDiff { exists, declined, files, patch })
+}
+
+/// The PROPOSED note behind a proposal, for review: the host note it edits, its title, and the
+/// proposed **body** as it stands on the branch.
+#[derive(Serialize)]
+pub struct ProposalContent {
+    /// The note this proposal edits — so the review can save an edit back through `create_proposal`.
+    pub host: String,
+    pub title: String,
+    /// The proposed note body (from the branch) — the review VISUALIZES this and lets the user EDIT it.
+    pub body: String,
+}
+
+/// Read a proposal's proposed note — host id, title, and the proposed body on the branch. Lets the
+/// review UI show the proposed note and **edit it before accepting**: saving an edit goes back through
+/// [`create_proposal`], which rebuilds the branch from the current `main`, so editing also **resolves a
+/// stale conflict**. `None` when the branch is gone (merged/declined) — nothing to edit.
+pub fn proposal_content(
+    store: &dyn Store,
+    vault_path: &Path,
+    id: &str,
+) -> Result<Option<ProposalContent>, StoreError> {
+    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let Some(obj) = store.get(pid)? else { return Ok(None) };
+    let branch = match obj.get(crate::thread::PROPOSES) {
+        PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+        _ => None,
+    };
+    let Some(branch) = branch else { return Ok(None) };
+    let (exists, files, _) = fm_core::git::branch_diff(vault_path, &branch)?;
+    if !exists {
+        return Ok(None);
+    }
+    let Some(rel) = files.first() else { return Ok(None) };
+    let Some(file) = fm_core::git::file_on_branch(vault_path, &branch, rel) else { return Ok(None) };
+    let proposed = fm_core::frontmatter::from_file(&file).map_err(|e| StoreError::Parse(e.to_string()))?;
+    // The host note id is the proposed file's stem (works whatever the vault's notes dir), and the
+    // title comes from the proposed note, falling back to the live host note's.
+    let host =
+        std::path::Path::new(rel).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let title = proposed
+        .title
+        .clone()
+        .or_else(|| host.parse::<Id>().ok().and_then(|h| store.get(h).ok().flatten()).and_then(|o| o.title))
+        .unwrap_or_else(|| "note".into());
+    Ok(Some(ProposalContent { host, title, body: proposed.body }))
 }
 
 /// Accept the proposal note `id`: resolve its `proposes: branch:<name>` (exactly as [`proposal_diff`]
@@ -745,6 +906,30 @@ pub fn accept_proposal(
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
     fm_core::git::merge_proposal_branch(vault_path, &branch)
+}
+
+/// Reject the proposal note `id`: delete its branch (local + remote if it was pushed) and the proposal
+/// note itself, so it leaves the Collaboration view. The GUI's "Reject" button — the safe inverse of
+/// accept. **`main` is never touched**: a proposal is only ever an off-`main` branch, so declining it
+/// is just deleting that branch, and the worst case of a mistaken reject is a proposal you re-run.
+/// Refuses a note that is not a proposal.
+pub fn reject_proposal(store: &mut dyn Store, vault_path: &Path, id: &str) -> Result<(), StoreError> {
+    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let mut obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    let branch = match obj.get(crate::thread::PROPOSES) {
+        PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
+        _ => None,
+    }
+    .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
+
+    // Delete the branch (the change is dropped; `main` is never touched), but KEEP the proposal note as
+    // a record of a declined PR — a proposal note is immortal, exactly as a merged one's is. Mark it
+    // `declined` so it reads as rejected (not merged), and so a fresh `/research` on the note opens a new
+    // PR rather than mistaking this closed one for the live proposal (its branch is gone anyway).
+    fm_core::git::delete_branch(vault_path, &branch)?;
+    obj.extra.insert(crate::thread::DECLINED.into(), PropertyValue::Bool(true));
+    store.put(&obj)?;
+    Ok(())
 }
 
 /// Notes that link **to** `id` — the reverse of the `note:` references a body makes. "What points

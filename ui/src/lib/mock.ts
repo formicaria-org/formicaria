@@ -421,14 +421,22 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'proposal_diff': {
       const prop = notes.find((n) => n.id === String(args.id));
-      if (!prop || !isProposal(prop)) throw new Error('not a proposal');
-      // Once accepted, the branch is gone — the proposal *note* outlives it, so the diff reports
-      // "nothing to show", exactly as the real backend does after a merge.
-      if (acceptedProposals.has(prop.id)) return { exists: false, files: [], patch: '' } as T;
+      // A GONE proposal note (rejected elsewhere, or a stale list) → nothing to show, not an error —
+      // the same tolerance the real backend now has (what a client sees before its list refreshes). A
+      // note that exists but is not a proposal is still an error, exactly as on the backend.
+      if (!prop) return { exists: false, declined: false, files: [], patch: '' } as T;
+      if (!isProposal(prop)) throw new Error('not a proposal');
+      const declined = prop.props?.declined === 'true';
+      // Declined (branch dropped, note kept) or accepted (merged) → the branch is gone; the note
+      // outlives it, so the diff reports "nothing to show", distinguishing declined from merged.
+      if (declined || acceptedProposals.has(prop.id)) {
+        return { exists: false, declined, files: [], patch: '' } as T;
+      }
       // The mock has no git, so it returns a stand-in patch (there is no real branch to diff). The
       // real backend diffs `proposal/<id>` against `main`. Shape matches the server's `ProposalDiff`.
       return {
         exists: true,
+        declined: false,
         files: ['notes/(preview).md'],
         patch: '@@ preview @@\n+ (the real diff appears against a live backend)\n',
       } as T;
@@ -442,16 +450,59 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       acceptedProposals.add(prop.id);
       return { outcome: 'merged' } as T;
     }
+    case 'reject_proposal': {
+      // Reject drops the branch but KEEPS the proposal note as a declined record (a proposal is
+      // immortal, like a merged one). The mock marks it `declined`; the real backend also deletes the
+      // `proposal/<id>` branch. main is untouched either way.
+      const p = notes.find((n) => n.id === String(args.id) && isProposal(n));
+      if (!p) throw new Error('not a currently-open proposal');
+      p.props = { ...p.props, declined: 'true' };
+      return undefined as T;
+    }
     case 'create_proposal': {
       const target = notes.find((n) => n.id === String(args.id));
       if (!target) throw new Error('no such note');
-      // The mock has no git, so it records the proposal *note* the Collaboration feed lists; the
-      // real backend also builds the `proposal/<id>` branch and enforces the vault's size guardrails.
+      // Living-PR (mirrors the real upsert): refine the note's existing OPEN proposal instead of
+      // stacking a new one. The mock has no git, so it records the proposal *note*; the real backend
+      // also builds/revises the `proposal/<id>` branch and enforces the vault's size guardrails.
+      const existing = notes.find(
+        (n) =>
+          isProposal(n) &&
+          n.props?.targets === target.id &&
+          !acceptedProposals.has(n.id) &&
+          n.props?.declined !== 'true',
+      );
+      if (existing) {
+        // Refine: update the stored proposed body (the real backend revises the branch).
+        existing.props = { ...existing.props, proposedBody: String(args.body ?? '') };
+        return existing as T;
+      }
       const title = target.title ?? 'note';
       const p = makeNote({ preview: `Proposed change to ${title}`, title: `Proposal: ${title}`, vault: target.vault });
-      p.props = { proposes: `branch:proposal/${p.id}` };
+      p.props = { proposes: `branch:proposal/${p.id}`, targets: target.id, proposedBody: String(args.body ?? '') };
       notes.unshift(p);
       return p as T;
+    }
+    case 'proposal_content': {
+      // The proposed note (host + title + body) — the mock stores the proposed body on the note; the
+      // real backend reads it off the `proposal/<id>` branch.
+      const prop = notes.find((n) => n.id === String(args.id) && isProposal(n));
+      if (!prop || acceptedProposals.has(prop.id) || prop.props?.declined === 'true') return null as T;
+      const host = prop.props?.targets ?? '';
+      const target = notes.find((n) => n.id === host);
+      return { host, title: target?.title ?? 'note', body: prop.props?.proposedBody ?? '' } as T;
+    }
+    case 'proposal_for': {
+      // The note's current open proposal (its PR), or null.
+      const host = String(args.id);
+      const p = notes.find(
+        (n) =>
+          isProposal(n) &&
+          n.props?.targets === host &&
+          !acceptedProposals.has(n.id) &&
+          n.props?.declined !== 'true',
+      );
+      return (p ? p.id : null) as T;
     }
     case 'thread': {
       const rootId = String(args.id);

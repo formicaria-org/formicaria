@@ -927,6 +927,37 @@ pub fn create_proposal_branch(
     message: &str,
     author: Option<(&str, &str)>,
 ) -> Result<(), StoreError> {
+    write_proposal_branch(vault, branch, rel_path, content, message, author, false)
+}
+
+/// **Revise** a proposal branch in place — move its ref to a new commit carrying `content`, ATOMICALLY.
+/// Unlike delete-then-recreate, the new commit is only named by the final single `update-ref` (which
+/// overwrites), so a failed or interrupted build leaves the old branch **exactly as it was** and the
+/// prior revision is never lost. This keeps refining a proposal within the "only ever adds/moves a
+/// branch, fail-closed" guarantee.
+pub fn revise_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+    author: Option<(&str, &str)>,
+) -> Result<(), StoreError> {
+    write_proposal_branch(vault, branch, rel_path, content, message, author, true)
+}
+
+/// Shared build for [`create_proposal_branch`] / [`revise_proposal_branch`]. `force` skips ONLY the
+/// "branch already exists" refusal (a revise moves the ref); everything else — a pure object-DB build
+/// that never touches the working tree, real index, or `HEAD` — is identical, so a failure is inert.
+fn write_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+    author: Option<(&str, &str)>,
+    force: bool,
+) -> Result<(), StoreError> {
     // No `ensure_repo` here on purpose: proposing a change must never rewrite the vault's own setup
     // (`.gitignore`/`.gitattributes`) — the repo is already configured when it was opened. We only
     // read `HEAD` and add a branch. `ensure_identity` is safe (it writes `.git/config`, never the
@@ -942,13 +973,15 @@ pub fn create_proposal_branch(
     }
     let parent = String::from_utf8_lossy(&parent.stdout).trim().to_string();
 
-    // Never clobber an existing branch.
-    let exists = git(vault)
-        .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
-        .output()
-        .map_err(spawn)?;
-    if exists.status.success() {
-        return Err(StoreError::Io(format!("proposal branch {branch:?} already exists")));
+    // Never clobber an existing branch — UNLESS this is a revise, which deliberately moves the ref.
+    if !force {
+        let exists = git(vault)
+            .args(["rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+            .output()
+            .map_err(spawn)?;
+        if exists.status.success() {
+            return Err(StoreError::Io(format!("proposal branch {branch:?} already exists")));
+        }
     }
 
     // 1. The proposed content as a blob. `-w` writes it to the object store and nothing else.
@@ -971,9 +1004,14 @@ pub fn create_proposal_branch(
     }
     let blob = String::from_utf8_lossy(&blob_out.stdout).trim().to_string();
 
-    // 2. Build the new tree in a TEMP index seeded from HEAD, so the real index is untouched. The
-    //    index path is absolute and unique; `GIT_INDEX_FILE` steers every plumbing call at it.
-    let temp_index = vault.join(".git").join(format!("fm-proposal-{}.index", branch.replace('/', "-")));
+    // 2. Build the new tree in a TEMP index seeded from HEAD, so the real index is untouched.
+    //    `GIT_INDEX_FILE` steers every plumbing call at it — and it MUST be absolute: `git()` runs with
+    //    the vault as its working directory, so a *relative* index path (when `vault` itself is
+    //    relative, e.g. `FM_VAULT=vault`) would be re-resolved against the vault dir → `vault/vault/.git`
+    //    and every proposal would fail. Canonicalize the `.git` dir (it exists — the caller checked) so
+    //    the path is absolute whatever the vault path's shape.
+    let git_dir = std::fs::canonicalize(vault.join(".git")).unwrap_or_else(|_| vault.join(".git"));
+    let temp_index = git_dir.join(format!("fm-proposal-{}.index", branch.replace('/', "-")));
     let with_index = |args: &[&str]| -> Result<Output, StoreError> {
         git(vault).env("GIT_INDEX_FILE", &temp_index).args(args).output().map_err(spawn)
     };
@@ -1082,12 +1120,37 @@ pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
 /// Push a single branch to the remote. Used to **share a proposal branch** so another user can review
 /// and accept it — a push of `main` alone never carries `proposal/*`. Caller decides how to treat
 /// failure (proposal creation treats it best-effort: the proposal still exists locally).
-pub fn push_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
-    let out = git(vault).args(["push", REMOTE, branch]).output().map_err(spawn)?;
+pub fn push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreError> {
+    // A revise moves the branch, so its push must overwrite the remote tip (`+<branch>`); a fresh
+    // proposal pushes normally. Callers treat a push failure as non-fatal (the local proposal stands).
+    let refspec = if force { format!("+{branch}") } else { branch.to_string() };
+    let out = git(vault).args(["push", REMOTE, &refspec]).output().map_err(spawn)?;
     if !out.status.success() {
         return Err(failed("git push (branch)", &out));
     }
     Ok(())
+}
+
+/// Delete a proposal branch — local, and best-effort on the remote if the vault has one. **Never
+/// touches `main`.** This is how a proposal is REJECTED: a proposal is only ever an off-`main` branch,
+/// so declining it is just deleting that branch. Best-effort throughout: a branch that is already gone
+/// (rejected twice, or only ever existed on another clone) is success, not an error.
+pub fn delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(());
+    }
+    let _ = git(vault).args(["branch", "-D", branch]).output(); // local
+    if remote(vault)?.is_some() {
+        let _ = git(vault).args(["push", REMOTE, "--delete", branch]).output(); // remote
+    }
+    Ok(())
+}
+
+/// Does a proposal branch still resolve (a local head or `origin/<branch>`)? Distinguishes an OPEN
+/// proposal from one whose branch was merged or deleted — so a note's "current proposal" is the live
+/// one, and a second `/research` refines it rather than a stale, already-closed PR.
+pub fn branch_open(vault: &Path, branch: &str) -> bool {
+    resolve_proposal_ref(vault, branch).is_some()
 }
 
 /// Resolve a proposal branch name to a committish that exists **here** — the local `proposal/<id>` if
@@ -1106,6 +1169,15 @@ fn resolve_proposal_ref(vault: &Path, branch: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// The bytes of file `rel` **as they stand on a proposal branch** (local head or `origin/`), or `None`
+/// if the branch or file is gone. Lets the review UI show — and let the user edit — the *proposed*
+/// note itself, not only a diff against `main`.
+pub fn file_on_branch(vault: &Path, branch: &str, rel: &str) -> Option<String> {
+    let refname = resolve_proposal_ref(vault, branch)?;
+    let out = git(vault).args(["show", &format!("{refname}:{rel}")]).output().ok()?;
+    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError> {

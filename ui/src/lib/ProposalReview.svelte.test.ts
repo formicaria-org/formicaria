@@ -41,6 +41,41 @@ describe('ProposalReview', () => {
     // Merged: the confirmation shows, the parent is notified, and the diff re-fetches to "gone".
     expect(await screen.findByText(/Merged into main/)).toBeTruthy();
     expect(onaccepted).toHaveBeenCalled();
-    expect(await screen.findByText(/branch is gone — merged or deleted/)).toBeTruthy();
+    expect(await screen.findByText(/merged into the note/)).toBeTruthy();
+  });
+
+  it('shows the proposed note and lets the reviewer edit and save it', async () => {
+    const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'the proposed body' });
+
+    render(ProposalReview, { id: prop.id });
+    const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
+    expect(box.value).toContain('the proposed body');
+
+    // Editing enables Save; saving round-trips and reflects the edit (the real backend revises the branch).
+    await fireEvent.input(box, { target: { value: 'my edited body' } });
+    await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
+    expect(await screen.findByText(/Saved/)).toBeTruthy();
+    const box2 = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
+    expect(box2.value).toContain('my edited body');
+  });
+
+  it('rejects a proposal (two-click) and shows it kept as a declined record', async () => {
+    const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'better' });
+    const onrejected = vi.fn();
+
+    render(ProposalReview, { id: prop.id, onrejected });
+    await screen.findByText(/the real diff appears against a live backend/);
+
+    // Two-click: first click arms, second confirms.
+    const reject = () => screen.getByRole('button', { name: /reject/i });
+    await fireEvent.click(reject());
+    await fireEvent.click(reject());
+
+    expect(await screen.findByText(/kept as a declined record/)).toBeTruthy();
+    expect(onrejected).toHaveBeenCalled();
+    // The proposal is not deleted — it re-fetches to a declined state, not an error.
+    expect(await screen.findByText(/This proposal was declined/)).toBeTruthy();
   });
 });

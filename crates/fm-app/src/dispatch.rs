@@ -370,6 +370,18 @@ pub fn dispatch(
             let cfg = g.config(&vault_name)?;
             json(commands::proposal_diff(&g.store, &cfg.path, &id).map_err(err)?)
         }
+        "proposal_content" => {
+            // The proposed note (host + title + body on the branch) — for the review to show and edit.
+            let id = s("id");
+            let g = lock()?;
+            match id.parse().ok().and_then(|pid| g.store.get(pid).ok().flatten()) {
+                Some(obj) => {
+                    let path = g.config(&obj.vault)?.path.clone();
+                    json(commands::proposal_content(&g.store, &path, &id).map_err(err)?)
+                }
+                None => json(serde_json::Value::Null),
+            }
+        }
         // Accept a proposal from the review surface — the GUI's merge button, since a UI-only user has
         // no `git merge`. Resolve the vault as `proposal_diff` does, merge the branch into main, then
         // re-read (the merge wrote the accepted note behind the index's back, like a pull). Fail-closed:
@@ -394,6 +406,33 @@ pub fn dispatch(
                     fm_core::git::Accepted::AlreadyGone => "already_gone",
                 }
             }))
+        }
+        "proposal_for" => {
+            // The note's current open proposal (its PR), or null — so the note's own view can show it.
+            let id = s("id");
+            let g = lock()?;
+            match id.parse().ok().and_then(|nid| g.store.get(nid).ok().flatten()) {
+                Some(obj) => {
+                    let path = g.config(&obj.vault)?.path.clone();
+                    json(commands::proposal_for(&g.store, &path, &id).map_err(err)?)
+                }
+                None => json(serde_json::Value::Null),
+            }
+        }
+        "reject_proposal" => {
+            let id = s("id");
+            let mut g = lock()?;
+            let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
+            let vault_name = g
+                .store
+                .get(pid)
+                .map_err(err)?
+                .ok_or_else(|| format!("no such proposal: {id}"))?
+                .vault;
+            let path = g.config(&vault_name)?.path.clone();
+            commands::reject_proposal(&mut g.store, &path, &id).map_err(err)?;
+            g.store.reindex(Reindex::Incremental).map_err(err)?;
+            nothing()
         }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
         // Roots + counts come from the store (so they list even with no git); participants are

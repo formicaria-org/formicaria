@@ -82,8 +82,19 @@ export interface ThreadView {
  *  proposal note outlives its branch. */
 export interface ProposalDiff {
   exists: boolean;
+  /** Rejected: branch gone, note kept as a record — distinguishes a declined PR from a merged one. */
+  declined: boolean;
   files: string[];
   patch: string;
+}
+
+/** The proposed note behind a proposal — for the review to show and edit before accepting. */
+export interface ProposalContent {
+  /** The note this proposal edits (an edit is saved back through `create_proposal` on this note). */
+  host: string;
+  title: string;
+  /** The proposed note body as it stands on the branch. */
+  body: string;
 }
 
 /** One first-class discussion, as the Discussions view shows it at a glance. The `ObjectMeta`
