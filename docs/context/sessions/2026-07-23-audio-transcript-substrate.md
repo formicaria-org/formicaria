@@ -76,9 +76,25 @@ end-state** (only option with no native blob on *both* devices and no Python). T
 (sherpa-onnx, useful-moonshine-onnx) are **rejected** — Moonshine is the nicer model but its only clean
 runtime needs pip+onnxruntime, which the stdlib/simplicity principles disfavor for too small a size win.
 
+## Real end-to-end run — DONE, and it caught a bug
+
+Drove the whole flow with **real components**: an isolated fm-serve (scratch vault via `FM_VAULTS=`,
+so the real config was untouched — note: `FM_CONFIG_DIR` is Android-only on Linux, the list lives at
+`~/.config/formicaria/vaults.json`) + the real prebuilt `whisper-server`, through the shipped `FmServe`
+client (harness `crates/fm-agent-run/tests/live_transcribe.rs`). Proven: `FmServe::blob_bytes` over the
+real `/api/blob` route, real whisper, and a provenance-marked **insertion-only proposal** whose branch
+holds the original note + the adjunct with the correct transcript (verified via `git show` on the
+`proposal/…` branch; `master` untouched).
+
+**Bug it caught (fixed, `90f7506`):** the Transcribe action was on the *asset note*, but a proposal can
+only target a note → `create_proposal` 500'd. Fix: offer **Transcribe on a regular note that embeds an
+audio asset** (resolve each `asset:sha256` ref's MIME, take the first audio one), proposing into that
+note; removed it from the asset-note menu. This is the plan's real "note with a recorded sound" scenario.
+
 ## Still open
-- **UI e2e not exercised on a real note** (attach audio → Transcribe chip → proposal) — only the
-  runner→server→proposal path is unit-proven; a real in-app click-through is worth doing.
+- **Standalone audio asset note** (opened directly, not embedded) has no host to propose into → no
+  Transcribe there for now; a "companion transcript note" flow could cover it later.
+- **A live browser click-through** (vs. the API-level harness) not done; the backend path is fully real.
 - **Phone audio** stays a later spike (arm64 `whisper-server` cross-compile + admission gate +
   mid-run-kill consistency); mobile has only the `blob_bytes` accessor, `whisper_port: None`.
 - On-demand spawn / kill-to-unload (currently eager when `--whisper-port` is set).
