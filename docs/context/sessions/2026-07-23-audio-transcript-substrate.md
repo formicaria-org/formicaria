@@ -107,6 +107,32 @@ device-general by construction (not a laptop-only hack):
   the *same web code* records on browser and phone; only whisper transcription stays laptop-staged
   (phone whisper = the acknowledged later spike). getUserMedia failure degrades to a plain message.
 
+## Shipped + proven live (record → transcribe → proposal), and the lean redesign
+
+The whole loop was exercised on the real desktop stack and iterated to the owner's taste:
+- **In-app recording** (`ui/src/lib/record.ts`) → 16 kHz mono WAV; hardened (native-rate + `resume()` +
+  JS resample, insecure-origin guard). Works browser + phone WebView (RECORD_AUDIO via the manifest
+  inject; wry grants AUDIO_CAPTURE).
+- **`/transcribe` is a command chip, not a per-note button** (owner: keep it lean). A bare
+  `@name /transcribe` transcribes **every** un-transcribed audio clip the note embeds, each its own
+  provenance block, and **skips clips whose accepted transcript is already in the note**
+  (`already_transcribed` keys off the block marker) — so multiple recordings need one command and an
+  accepted transcript is never re-done. `AudioWork::{Clips,AllDone,None}` drives the reply.
+- **"Audio transcription" is a Settings toggle** beside the assistant on/off. It persists to
+  `agent.json` (`{enabled, transcribe}`); fm-serve exports `FM_TRANSCRIBE=1` when spawning the agent;
+  `agent-serve.sh` adds `--whisper-port 8082` when that env is set **and** the runtime is staged. Takes
+  effect at the next assistant start (whisper is a launch flag on the separate agent process — the
+  "close the tab, reopen" restart, matching the "agent dies with formicaria" lifecycle).
+
+### Traps hit + fixed (worth remembering)
+- `cargo` is **not on PATH outside pixi** — a raw `cargo build` silently no-ops (masked by a pipe).
+  Rebuild release binaries with `pixi run -e default cargo build --release …`, or the desktop keeps
+  running stale `fm-serve`/`agent-serve` (this cost hours: whisper "on" but no `--whisper-port`).
+- The desktop agent is launched **by fm-serve** (`agents/start-agent.sh`) from the Settings toggle, not
+  a manual terminal — so a code change needs the *release* binaries rebuilt AND a relaunch.
+- The Transcribe UI must address a **running** assistant (fresh `onlineAgents()`); an unaddressed
+  `/transcribe` posts silently and nothing answers.
+
 ## Still open
 - **Standalone audio asset note** (opened directly, not embedded) has no host to propose into → no
   Transcribe there for now; a "companion transcript note" flow could cover it later.
