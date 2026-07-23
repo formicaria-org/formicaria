@@ -133,6 +133,29 @@ The whole loop was exercised on the real desktop stack and iterated to the owner
 - The Transcribe UI must address a **running** assistant (fresh `onlineAgents()`); an unaddressed
   `/transcribe` posts silently and nothing answers.
 
+## Phone-transcription SPIKE — feasibility PROVEN on-device
+
+whisper.cpp ships no prebuilt Android binary, so `whisper-server` must be **cross-compiled**. Done and
+verified end-to-end on the real phone (Dimensity 7300):
+- **Build (arm64):** `pixi exec --spec cmake --spec ninja` (the env has no cmake; `pixi exec` is
+  ephemeral, no permanent toolchain bloat) + the NDK r27d toolchain file:
+  `cmake -S whisper.cpp -B build-android -G Ninja
+   -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
+   -DANDROID_PLATFORM=android-24 -DWHISPER_BUILD_TESTS=OFF -DGGML_OPENMP=OFF` then
+  `--target whisper-server`. Outputs `whisper-server` + `libwhisper.so`/`libggml{,-base,-cpu}.so`
+  (AArch64; only libc/libm/libdl external). `llvm-strip` → whisper-server ~800 KB.
+- **On device (via `/data/local/tmp`, per the phone standing order):** it executes, loads
+  `ggml-base.en.bin` on-device, listens on :8082, and **transcribed jfk.wav correctly in ~5 s** for an
+  11 s clip (~2× real-time). Cleaned up after.
+
+**So phone whisper is real, not hypothetical.** What full integration still needs (the actual spike
+deliverables, not yet done): a `ci/` build+stage script (build → strip → `jniLibs/arm64-v8a/lib*.so`,
+mirroring `android-stage-runtime.sh` but *building*); model provisioning on the phone (base.en ~142 MB
+— download like the llama gguf, or a tiny model); the mobile `agent.rs` launching whisper-server +
+setting `whisper_port`; and **the admission gate** — running whisper *alongside* the 1.4 GB llama model
+on limited RAM needs a static budget + serialized load + a "mid-run kill leaves the vault consistent"
+test (the plan's "measure before safe").
+
 ## Still open
 - **Standalone audio asset note** (opened directly, not embedded) has no host to propose into → no
   Transcribe there for now; a "companion transcript note" flow could cover it later.
