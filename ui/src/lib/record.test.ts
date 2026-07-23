@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { encodeWav } from './record';
+import { encodeWav, resampleTo } from './record';
 
 // `encodeWav` is the pure core of in-app recording (the getUserMedia/AudioContext side needs a real
 // mic, so it isn't unit-tested). A wrong header is the classic bug — it makes whisper hear the wrong
@@ -44,5 +44,29 @@ describe('encodeWav', () => {
     expect(v.getUint32(40, true)).toBe(4); // 2 samples
     expect(v.getInt16(44, true)).toBe(32767);
     expect(v.getInt16(46, true)).toBe(-32768);
+  });
+});
+
+describe('resampleTo', () => {
+  it('is a no-op when the rates match', () => {
+    const input = new Float32Array([0.1, 0.2, 0.3]);
+    expect(resampleTo(input, 16000, 16000)).toBe(input);
+  });
+
+  it('halves the sample count downsampling 32k → 16k', () => {
+    const input = new Float32Array([0, 1, 0, 1, 0, 1, 0, 1]); // 8 samples at 32k
+    const out = resampleTo(input, 32000, 16000);
+    expect(out.length).toBe(4); // → 4 samples at 16k
+  });
+
+  it('doubles the sample count upsampling 8k → 16k and interpolates', () => {
+    const out = resampleTo(new Float32Array([0, 1]), 8000, 16000);
+    expect(out.length).toBe(4);
+    expect(out[0]).toBeCloseTo(0);
+    expect(out[2]).toBeCloseTo(1); // the original second sample lands mid-way
+  });
+
+  it('handles an empty buffer', () => {
+    expect(resampleTo(new Float32Array([]), 48000, 16000).length).toBe(0);
   });
 });

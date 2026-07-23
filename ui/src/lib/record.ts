@@ -1,14 +1,20 @@
-// In-app microphone recording → a **16 kHz mono 16-bit PCM WAV** `File` — the exact format
-// whisper.cpp's `whisper-server` accepts directly, so the transcribe path needs no server-side ffmpeg
-// conversion. Browser `MediaRecorder` would give webm/opus instead, which whisper can't read without
-// `--convert`; so we capture raw PCM via an `AudioContext` pinned to 16 kHz (the browser resamples the
-// mic into it) and encode the WAV ourselves. The resulting `File` goes through the *same* ingest→embed
-// path as a dropped or attached file, so a recorded clip and an attached one behave identically —
-// including that `/transcribe` then turns either into a proposal.
+// In-app microphone recording → a **16 kHz mono 16-bit PCM WAV** `File` — the format whisper.cpp reads
+// directly (no server-side ffmpeg). Browser `MediaRecorder` would give webm/opus instead. We capture
+// raw PCM via an `AudioContext` and encode the WAV ourselves.
 //
-// getUserMedia needs a secure context; `127.0.0.1`/`localhost` qualify, so this works in the browser
-// build. (The phone/wry build additionally needs the RECORD_AUDIO permission + wry permission plumbing;
-// transcription is off on the phone for now anyway.)
+// Device-general and defensive, because this runs in the browser build AND the phone's WebView:
+//   - the AudioContext uses the engine's NATIVE rate (forcing 16 kHz throws in some engines); we
+//     resample to 16 kHz in JS on stop, so the output is always what whisper wants regardless of device;
+//   - the context is `resume()`d — created after the getUserMedia await it can start *suspended* under
+//     autoplay policy, and a suspended context never fires `onaudioprocess` (a silent recording);
+//   - a missing `navigator.mediaDevices` (an insecure context — e.g. the UI opened over a LAN IP rather
+//     than localhost, where getUserMedia is disabled) fails with a plain, actionable message.
+//
+// getUserMedia needs a secure context: `localhost`/`127.0.0.1` and the phone's app scheme qualify; a
+// `http://<lan-ip>` URL does not. The phone also needs RECORD_AUDIO (declared via the manifest inject);
+// wry's onPermissionRequest then prompts and grants the WebView's AUDIO_CAPTURE.
+
+const TARGET_RATE = 16000;
 
 /** A live recording. `stop()` finalizes it into a WAV `File`; `cancel()` throws it away. */
 export interface Recording {
@@ -18,20 +24,33 @@ export interface Recording {
 
 type AudioCtor = typeof AudioContext;
 
-/** Begin recording from the default microphone. Rejects if permission is denied or there is no mic. */
+/** Begin recording from the default microphone. Rejects with an actionable message if the mic is
+ *  unavailable, permission is denied, or the context is an insecure origin. */
 export async function startRecording(): Promise<Recording> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const md = navigator.mediaDevices;
+  if (!md?.getUserMedia) {
+    throw new Error(
+      'microphone unavailable — recording needs a secure context; open the app on localhost (not a LAN address)',
+    );
+  }
+  const stream = await md.getUserMedia({ audio: true });
   const Ctor: AudioCtor =
     window.AudioContext ?? (window as unknown as { webkitAudioContext: AudioCtor }).webkitAudioContext;
-  // Ask for 16 kHz so the mic is resampled into it; some browsers ignore the hint, so we read back the
-  // rate actually used and write that into the WAV header (a wrong header = wrong pitch/speed).
-  const ctx = new Ctor({ sampleRate: 16000 });
+  // Native rate — forcing 16 kHz throws in some engines. We resample on stop instead.
+  const ctx = new Ctor();
+  // A context created after an await can be suspended; without resuming, no audio is ever processed.
+  try {
+    await ctx.resume();
+  } catch {
+    /* best effort — most engines are already running */
+  }
   const rate = ctx.sampleRate;
   const source = ctx.createMediaStreamSource(stream);
   const node = ctx.createScriptProcessor(4096, 1, 1);
   const chunks: Float32Array[] = [];
   node.onaudioprocess = (e) => {
-    // Copy — the event's buffer is reused after the callback returns.
+    // Copy — the event buffer is reused after the callback returns. (The node writes no output, so
+    // connecting it to `destination` below plays silence, not a mic-to-speaker feedback loop.)
     chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
   };
   source.connect(node);
@@ -48,13 +67,42 @@ export async function startRecording(): Promise<Recording> {
   return {
     async stop() {
       teardown();
-      const wav = encodeWav(chunks, rate);
+      const pcm = resampleTo(concat(chunks), rate, TARGET_RATE);
+      const wav = encodeWav([pcm], TARGET_RATE);
       return new File([wav], `recording-${Date.now()}.wav`, { type: 'audio/wav' });
     },
     cancel() {
       teardown();
     },
   };
+}
+
+/** Flatten recorded chunks into one buffer. */
+function concat(chunks: Float32Array[]): Float32Array {
+  const length = chunks.reduce((n, c) => n + c.length, 0);
+  const out = new Float32Array(length);
+  let off = 0;
+  for (const c of chunks) {
+    out.set(c, off);
+    off += c.length;
+  }
+  return out;
+}
+
+/** Linear-resample mono Float32 PCM from `srcRate` to `dstRate`. Pure, so it is unit-tested. Enough
+ *  for speech → whisper; no anti-alias filter, which for downsampling a voice mic is inaudible. */
+export function resampleTo(input: Float32Array, srcRate: number, dstRate: number): Float32Array {
+  if (srcRate === dstRate || input.length === 0) return input;
+  const ratio = srcRate / dstRate;
+  const outLen = Math.max(1, Math.round(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0 + 1, input.length - 1);
+    out[i] = input[i0] + (input[i1] - input[i0]) * (pos - i0);
+  }
+  return out;
 }
 
 /**
