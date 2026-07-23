@@ -1057,16 +1057,43 @@
   // Transcribe this audio artifact: compose `@agent /transcribe <ref>` and send it to the note's
   // discussion. The assistant reads the blob's bytes, runs whisper, and proposes the transcript as an
   // addition to this note (the same PR cycle as /research). Insertion-only — the audio is untouched.
-  async function transcribeAudio() {
-    if (!note || !note.assets.length) return;
+  async function transcribeAudio(ref: string) {
+    if (!note) return;
     optionsOpen = false;
-    replyDraft = transcribeCommand(agentsOnline[0] ?? mentionCandidates[0], note.assets[0]);
+    replyDraft = transcribeCommand(agentsOnline[0] ?? mentionCandidates[0], ref);
     await sendReply();
   }
 
-  // The current note's asset MIME (stored on the asset note as `props.mime`), or '' — so the
-  // Transcribe action shows only on audio artifacts. Bare-string props (see mock.ts) → a plain read.
-  const assetMime = $derived(typeof note?.props?.mime === 'string' ? (note.props.mime as string) : '');
+  // The first AUDIO asset a **regular** note embeds, as its reference — or null. Transcribe proposes
+  // the transcript *into the host note*, and a proposal can only target a note (not a standalone asset
+  // note), so the action lives here, on the note that embeds the clip. We resolve each `asset:` ref's
+  // MIME (the same status the inline player uses) and take the first audio one.
+  let audioRef = $state<string | null>(null);
+  $effect(() => {
+    audioRef = null;
+    const n = note;
+    if (!n || n.type === 'asset') return; // an asset note can't be a proposal target
+    const refs = [...(n.body ?? '').matchAll(/asset:sha256-([0-9a-fA-F]+)/g)].map((m) => `sha256:${m[1]}`);
+    if (!refs.length) return;
+    let cancelled = false;
+    (async () => {
+      for (const ref of refs) {
+        try {
+          const st = await assetStatus(ref);
+          if (cancelled) return;
+          if (st.has_blob && (st.mime ?? '').startsWith('audio/')) {
+            audioRef = ref;
+            return;
+          }
+        } catch {
+          /* a missing/unreadable asset just isn't the audio one */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  });
 
   function onReplyKeydown(e: KeyboardEvent) {
     if (atMenu.open && atMenu.results.length) {
@@ -1671,9 +1698,9 @@
               {/if}
               {#if note.type === 'asset' && note.assets.length}
                 <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
-                {#if assetMime.startsWith('audio/')}
-                  <button class="opt" onclick={() => transcribeAudio().catch((e) => (error = String(e)))}>Transcribe</button>
-                {/if}
+              {/if}
+              {#if audioRef}
+                <button class="opt" onclick={() => transcribeAudio(audioRef!).catch((e) => (error = String(e)))}>Transcribe audio</button>
               {/if}
               {#if canCopy}
                 <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
