@@ -37,6 +37,7 @@
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
   import { AGENT_COMMANDS, withCommand, transcribeCommand } from './agentCommands';
+  import { startRecording, type Recording } from './record';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -1494,6 +1495,57 @@
     if (files.length) await ingestAll(files);
   }
 
+  // In-app microphone recording. Device-general by construction: it uses only the standard web-audio
+  // APIs (`record.ts`), so it runs in the browser build and the phone's WebView alike — wherever the
+  // mic permission is granted. The finished clip is a WAV `File` that flows through `ingestAll`, the
+  // SAME embed path as attach/drop, so a recorded clip and an attached one are indistinguishable
+  // downstream — including that /transcribe turns either into a proposal. getUserMedia failing (denied,
+  // no mic, or a WebView that blocks it) degrades to a plain message, never a broken editor.
+  let recording = $state<Recording | null>(null);
+  let recordSecs = $state(0);
+  let recordTimer: ReturnType<typeof setInterval> | undefined;
+
+  async function startRecordingFlow() {
+    captureOpen = false;
+    error = null;
+    try {
+      recording = await startRecording();
+      recordSecs = 0;
+      recordTimer = setInterval(() => (recordSecs += 1), 1000);
+    } catch (e) {
+      recording = null;
+      error = `Couldn't start recording — allow microphone access? (${e instanceof Error ? e.message : String(e)})`;
+    }
+  }
+
+  function stopRecordTimer() {
+    if (recordTimer) {
+      clearInterval(recordTimer);
+      recordTimer = undefined;
+    }
+  }
+
+  async function finishRecording() {
+    const rec = recording;
+    if (!rec) return;
+    recording = null;
+    stopRecordTimer();
+    try {
+      const file = await rec.stop();
+      await ingestAll([file]); // ingest + embed at the caret, exactly like a dropped/attached file
+    } catch (e) {
+      error = `Couldn't save the recording: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
+  function cancelRecording() {
+    recording?.cancel();
+    recording = null;
+    stopRecordTimer();
+  }
+
+  onDestroy(cancelRecording); // never leave the mic hot if the panel closes mid-record
+
   async function onDrop(e: DragEvent) {
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (!files.length) return;
@@ -1721,6 +1773,10 @@
             aria-label="add media">＋ Media</button>
           {#if captureOpen}
             <ul class="capture-menu">
+              <li>
+                <!-- In-app recorder: same web-audio path on every device (browser + phone WebView). -->
+                <button onclick={startRecordingFlow}>Record audio</button>
+              </li>
               {#each CAPTURE as kind (kind.label)}
                 <li>
                   <button onclick={() => capture(kind)}>{kind.label}</button>
@@ -1729,6 +1785,14 @@
             </ul>
           {/if}
         </div>
+        {#if recording}
+          <div class="recording" role="status" aria-live="polite">
+            <span class="rec-dot" aria-hidden="true"></span>
+            <span class="rec-time">Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, '0')}</span>
+            <button class="rec-stop" onclick={finishRecording}>Stop &amp; add</button>
+            <button class="rec-cancel" onclick={cancelRecording}>Cancel</button>
+          </div>
+        {/if}
         <!-- One hidden input, reconfigured per source. `multiple` because the library picker is
              the natural place to add several at once, and `ingestAll` already loops. -->
         <input
@@ -2591,6 +2655,52 @@
     height: 1px;
     opacity: 0;
     pointer-events: none;
+  }
+  .recording {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--danger, #c0392b);
+    border-radius: var(--radius-2, 6px);
+    font-size: 0.85rem;
+  }
+  .rec-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background: var(--danger, #c0392b);
+    animation: rec-pulse 1s ease-in-out infinite;
+  }
+  @keyframes rec-pulse {
+    50% {
+      opacity: 0.25;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rec-dot {
+      animation: none;
+    }
+  }
+  .rec-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--danger, #c0392b);
+  }
+  .recording button {
+    min-height: 1.9rem;
+    padding: 0 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+  }
+  @media (pointer: coarse) {
+    .recording button {
+      min-height: 2.75rem;
+    }
   }
   .icon-toggle {
     display: grid;

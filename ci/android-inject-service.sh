@@ -101,6 +101,23 @@ if ! grep -q 'FOREGROUND_SERVICE"' "$manifest"; then
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
+# Microphone: in-app audio recording is a plain getUserMedia in the WebView, and wry's
+# onPermissionRequest already asks for RECORD_AUDIO + MODIFY_AUDIO_SETTINGS at runtime and grants the
+# WebView's AUDIO_CAPTURE on approval — but Android only lets it *request* a permission that is
+# declared here. Declaring these makes in-app recording work on the phone with the same web code the
+# browser build uses (any-device by construction). Idempotent.
+if ! grep -q 'RECORD_AUDIO' "$manifest"; then
+    tmpf=$(mktemp)
+    awk '
+        /android.permission.INTERNET/ && !a {
+            print
+            print "    <uses-permission android:name=\"android.permission.RECORD_AUDIO\" />"
+            print "    <uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\" />"
+            a=1; next
+        }
+        { print }
+    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
+fi
 if ! grep -q 'AgentService' "$manifest"; then
     tmpf=$(mktemp)
     awk '
