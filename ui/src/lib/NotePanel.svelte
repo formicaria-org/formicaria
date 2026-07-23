@@ -36,7 +36,7 @@
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
-  import { AGENT_COMMANDS, withCommand, transcribeCommand } from './agentCommands';
+  import { AGENT_COMMANDS, withCommand } from './agentCommands';
   import { startRecording, type Recording } from './record';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
@@ -1058,53 +1058,10 @@
   // Transcribe this audio artifact: compose `@agent /transcribe <ref>` and send it to the note's
   // discussion. The assistant reads the blob's bytes, runs whisper, and proposes the transcript as an
   // addition to this note (the same PR cycle as /research). Insertion-only — the audio is untouched.
-  async function transcribeAudio(ref: string) {
-    if (!note) return;
-    optionsOpen = false;
-    // Presence FRESH: the polled `agentsOnline` is empty for the first ~1.5s after opening a note, and
-    // a /transcribe with no `@name` reaches no agent — it posts silently and nothing answers (exactly
-    // the "nothing happened" failure). Address a running assistant, or say plainly that none is on.
-    const online = await ipcOnlineAgents().catch(() => [] as string[]);
-    const agent = online[0] ?? agentsOnline[0] ?? mentionCandidates[0];
-    if (!agent) {
-      agentNotice =
-        'No assistant is running, so nothing can transcribe — turn it on in Settings (with Audio transcription), then try again.';
-      return;
-    }
-    replyDraft = transcribeCommand(agent, ref);
-    await sendReply();
-  }
-
-  // The first AUDIO asset a **regular** note embeds, as its reference — or null. Transcribe proposes
-  // the transcript *into the host note*, and a proposal can only target a note (not a standalone asset
-  // note), so the action lives here, on the note that embeds the clip. We resolve each `asset:` ref's
-  // MIME (the same status the inline player uses) and take the first audio one.
-  let audioRef = $state<string | null>(null);
-  $effect(() => {
-    audioRef = null;
-    const n = note;
-    if (!n || n.type === 'asset') return; // an asset note can't be a proposal target
-    const refs = [...(n.body ?? '').matchAll(/asset:sha256-([0-9a-fA-F]+)/g)].map((m) => `sha256:${m[1]}`);
-    if (!refs.length) return;
-    let cancelled = false;
-    (async () => {
-      for (const ref of refs) {
-        try {
-          const st = await assetStatus(ref);
-          if (cancelled) return;
-          if (st.has_blob && (st.mime ?? '').startsWith('audio/')) {
-            audioRef = ref;
-            return;
-          }
-        } catch {
-          /* a missing/unreadable asset just isn't the audio one */
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  });
+  // Audio→transcript is not a per-note button (kept lean): it is the `/transcribe` command chip, typed
+  // or tapped in the discussion like `/research`. A bare `@name /transcribe` transcribes every audio
+  // clip the note embeds that isn't already transcribed — the runner finds them, so the user never
+  // touches a content hash.
 
   function onReplyKeydown(e: KeyboardEvent) {
     if (atMenu.open && atMenu.results.length) {
@@ -1760,9 +1717,6 @@
               {/if}
               {#if note.type === 'asset' && note.assets.length}
                 <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
-              {/if}
-              {#if audioRef}
-                <button class="opt" onclick={() => transcribeAudio(audioRef!).catch((e) => (error = String(e)))}>Transcribe audio</button>
               {/if}
               {#if canCopy}
                 <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
