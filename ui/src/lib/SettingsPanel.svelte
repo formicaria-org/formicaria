@@ -15,7 +15,7 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import { onMount } from 'svelte';
-  import { config as fetchConfig, setGitAssetsMax, agentStatus, setAgent } from './ipc';
+  import { config as fetchConfig, setGitAssetsMax, agentStatus, setAgent, setTranscribe } from './ipc';
   import type { Config } from './types';
   import * as keys from './keys';
 
@@ -132,7 +132,9 @@
     // The study-assistant toggle. `null` = unavailable here (e.g. a build without the agent), which
     // hides the row rather than showing a control that does nothing.
     try {
-      agentOn = (await agentStatus()).enabled;
+      const st = await agentStatus();
+      agentOn = st.enabled;
+      transcribeOn = st.transcribe;
     } catch {
       agentOn = null;
     }
@@ -141,6 +143,17 @@
   // The local study assistant: whether it auto-starts with formicaria. Off by default; a change
   // takes effect at the next launch. `null` while unknown/unavailable.
   let agentOn = $state<boolean | null>(null);
+  // Audio transcription (whisper) — a sub-setting of the assistant. Persisted like the on/off above;
+  // it loads a local speech-to-text runtime the assistant uses for `/transcribe`.
+  let transcribeOn = $state(false);
+  async function toggleTranscribe(next: boolean) {
+    try {
+      await setTranscribe(next);
+      transcribeOn = next;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
   async function toggleAgent(next: boolean) {
     try {
       await setAgent(next);
@@ -275,6 +288,22 @@
                 </span>
               </label>
             </li>
+            {#if agentOn}
+              <li>
+                <label class="choice">
+                  <input
+                    type="checkbox"
+                    checked={transcribeOn}
+                    onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
+                  <span class="k">Audio transcription {transcribeOn ? 'on' : 'off'}</span>
+                  <span class="muted">
+                    {transcribeOn
+                      ? 'The assistant transcribes audio clips you record or attach (record → /transcribe → a proposal). Applies at the next assistant start; needs the runtime installed.'
+                      : 'Turn on to let the assistant transcribe audio into notes.'}
+                  </span>
+                </label>
+              </li>
+            {/if}
           </ul>
         </section>
       {/if}

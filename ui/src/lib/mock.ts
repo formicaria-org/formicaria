@@ -300,13 +300,17 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
 // The study-assistant on/off setting, mocked (the real one is a per-device launcher setting served
 // by fm-serve, not a vault command).
 let mockAgentEnabled = false;
+let mockTranscribeEnabled = false;
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   switch (cmd) {
     case 'agent_status':
-      return { enabled: mockAgentEnabled } as T;
+      return { enabled: mockAgentEnabled, transcribe: mockTranscribeEnabled } as T;
     case 'set_agent':
       mockAgentEnabled = Boolean(args.enabled);
+      return { ok: true } as T;
+    case 'set_transcribe':
+      mockTranscribeEnabled = Boolean(args.transcribe);
       return { ok: true } as T;
     case 'agent_activity_poll':
       return { active: false } as T;

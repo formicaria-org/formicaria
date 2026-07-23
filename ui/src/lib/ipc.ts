@@ -170,8 +170,12 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
  *  not a vault command). When on, the agent (a small local model that reads your notes and answers
  *  in discussions) auto-starts with formicaria and stops when you close it; off is pure, super-light
  *  formicaria. Takes effect at the next launch. */
-export const agentStatus = () => invoke<{ enabled: boolean }>('agent_status');
+export const agentStatus = () => invoke<{ enabled: boolean; transcribe: boolean }>('agent_status');
 export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
+/** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
+ *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the
+ *  next assistant start, and needs the runtime staged (`pixi run fetch-whisper`). */
+export const setTranscribe = (transcribe: boolean) => invoke<{ ok: boolean }>('set_transcribe', { transcribe });
 
 /** What the study agent is doing *right now* in a discussion — a transient, in-memory status served
  *  by fm-serve (not a vault command), so the discussion view can show a live "working…" wheel with

@@ -59,6 +59,12 @@ struct EnabledReq {
     enabled: bool,
 }
 
+#[derive(serde::Deserialize, Default)]
+struct TranscribeReq {
+    #[serde(default)]
+    transcribe: bool,
+}
+
 /// Whether the local study agent should auto-start with formicaria. On when `FM_AGENT` is set (a
 /// dev/override), otherwise from the per-device setting `<config>/agent.json` (`{"enabled": true}`)
 /// that the settings screen writes. **Default off** — opt-in, so a user who never turns it on runs
@@ -74,6 +80,17 @@ pub fn enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// Whether audio→transcript is on — the "Audio transcription" toggle, stored beside `enabled` in
+/// `agent.json` (`{"transcribe": true}`). Read when the agent starts; exported to the agent stack as
+/// `FM_TRANSCRIBE=1` so it launches whisper. Default off — no whisper runtime loads unless asked.
+pub fn transcribe_enabled() -> bool {
+    config_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .map(|v| v["transcribe"].as_bool().unwrap_or(false))
+        .unwrap_or(false)
+}
+
 /// Spawn the local study agent — the opt-in script in `agents/`, told which fm-serve port to watch.
 /// Returns whether it started. The agent (a separate process) then follows this server's liveness and
 /// stops itself when we stop answering, so it needs no supervision from here.
@@ -83,7 +100,13 @@ pub fn spawn(port: u16) -> bool {
         eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
         return false;
     }
-    match std::process::Command::new("bash").arg(script).arg(port.to_string()).spawn() {
+    let mut cmd = std::process::Command::new("bash");
+    cmd.arg(script).arg(port.to_string());
+    // The agent stack inherits this; agent-serve.sh turns on whisper only when it is set.
+    if transcribe_enabled() {
+        cmd.env("FM_TRANSCRIBE", "1");
+    }
+    match cmd.spawn() {
         Ok(_) => {
             println!("study agent: starting — it comes up in a few seconds");
             true
@@ -100,13 +123,24 @@ fn config_path() -> Option<PathBuf> {
     fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("agent.json"))
 }
 
-/// Persist the on/off setting (written by the settings screen via `/api/set_agent`).
-fn set_enabled(enabled: bool) -> Result<(), String> {
+/// Persist both settings together, so writing one never clobbers the other. `agent.json` holds
+/// `{"enabled": .., "transcribe": ..}`; the settings screen writes it via `/api/set_agent` and
+/// `/api/set_transcribe`.
+fn write_settings(enabled: bool, transcribe: bool) -> Result<(), String> {
     let path = config_path().ok_or("no config directory on this OS")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    std::fs::write(&path, format!("{{\"enabled\": {enabled}}}\n")).map_err(|e| e.to_string())
+    std::fs::write(&path, format!("{{\"enabled\": {enabled}, \"transcribe\": {transcribe}}}\n"))
+        .map_err(|e| e.to_string())
+}
+
+fn set_enabled(enabled: bool) -> Result<(), String> {
+    write_settings(enabled, transcribe_enabled())
+}
+
+fn set_transcribe(transcribe: bool) -> Result<(), String> {
+    write_settings(enabled(), transcribe)
 }
 
 /// At launch: start the agent if the setting is on and the script is present. Returns whether it was
@@ -125,7 +159,11 @@ pub fn route(stream: &mut TcpStream, path: &str, body: &[u8], state: &AppState) 
     let resp: (&str, &str, Vec<u8>) = match path {
         // The on/off setting the settings screen reads/writes. A *launcher* concern, deliberately not
         // a dispatch command, so the shared core never learns the agent exists.
-        "/api/agent_status" => ("200 OK", "application/json", format!("{{\"enabled\": {}}}", enabled()).into_bytes()),
+        "/api/agent_status" => (
+            "200 OK",
+            "application/json",
+            format!("{{\"enabled\": {}, \"transcribe\": {}}}", enabled(), transcribe_enabled()).into_bytes(),
+        ),
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;
             match set_enabled(want) {
@@ -137,6 +175,16 @@ pub fn route(stream: &mut TcpStream, path: &str, body: &[u8], state: &AppState) 
                     }
                     ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
                 }
+                Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
+            }
+        }
+        // The "Audio transcription" toggle. Persist only — whisper is chosen when the agent *starts*
+        // (it is a launch flag on a separate process), so a change applies the next time the assistant
+        // starts, exactly like turning the assistant off applies on the next app close. The UI says so.
+        "/api/set_transcribe" => {
+            let want = serde_json::from_slice::<TranscribeReq>(body).unwrap_or_default().transcribe;
+            match set_transcribe(want) {
+                Ok(()) => ("200 OK", "application/json", b"{\"ok\":true}".to_vec()),
                 Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
             }
         }
