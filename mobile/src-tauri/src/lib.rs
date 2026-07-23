@@ -234,7 +234,7 @@ fn fm(
         return Ok("{\"agents\":[]}".to_string());
     }
     #[cfg(feature = "agent")]
-    if cmd == "agent_status" || cmd == "set_agent" {
+    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
         use tauri::Manager;
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
         if cmd == "set_agent" {
@@ -242,11 +242,21 @@ fn fm(
             agent::set_running(app.inner().clone(), dir, on)?;
             return Ok("{\"ok\":true}".to_string());
         }
-        return Ok(serde_json::json!({ "enabled": agent::is_enabled(&dir) }).to_string());
+        if cmd == "set_transcribe" {
+            // Persist only — whisper is chosen at the next agent start (a launch flag on a separate
+            // process), so it applies when the assistant next starts, exactly like the desktop.
+            let on = args.get("transcribe").and_then(|v| v.as_bool()).unwrap_or(false);
+            agent::set_transcribe(&dir, on);
+            return Ok("{\"ok\":true}".to_string());
+        }
+        return Ok(serde_json::json!({
+            "enabled": agent::is_enabled(&dir), "transcribe": agent::is_transcribe_enabled(&dir),
+        })
+        .to_string());
     }
     #[cfg(not(feature = "agent"))]
-    if cmd == "agent_status" || cmd == "set_agent" {
-        return Ok("{\"enabled\":false,\"ok\":true}".to_string());
+    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
+        return Ok("{\"enabled\":false,\"transcribe\":false,\"ok\":true}".to_string());
     }
     let _ = &app_handle;
     // **Logged before it is returned.** The UI shows the message, but a phone screen is not

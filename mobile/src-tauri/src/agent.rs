@@ -36,6 +36,11 @@ const EMBEDDED_MANIFEST: &str = include_str!("../../../agents/models.toml");
 /// packages it and lets us `exec` it from `nativeLibraryDir` (see [`native_lib_dir`]).
 const SERVER_LIB: &str = "libllama-server.so";
 
+/// The bundled audio→transcript runtime — whisper.cpp's `whisper-server`, cross-compiled to arm64 and
+/// staged (STATIC, single self-contained binary) by `ci/android-stage-whisper.sh`. Renamed `lib*.so`
+/// for the same exec-from-jniLibs reason as [`SERVER_LIB`]. Absent ⇒ transcription simply stays off.
+const WHISPER_SERVER_LIB: &str = "libwhisper-server.so";
+
 /// The in-process presence board — the mobile mirror of fm-serve's `AgentRegistry`. A phone has no
 /// server to hold "who is online", so the shell holds it here: the runner marks its model present once
 /// it is serving and absent when it stops, and the `agents` transport call ([`crate::fm`]) reads it to
@@ -67,10 +72,13 @@ fn set_present(name: &str, present: bool) {
 struct Control {
     running: bool,
     stopper: Option<fm_agent::watchdog::StopFlag>,
+    /// The whisper-server off-switch, when audio transcription is on. Tripped alongside `stopper` so
+    /// "off" (and app exit) frees the whisper model's memory too.
+    whisper_stopper: Option<fm_agent::watchdog::StopFlag>,
 }
 fn control() -> &'static std::sync::Mutex<Control> {
     static C: std::sync::OnceLock<std::sync::Mutex<Control>> = std::sync::OnceLock::new();
-    C.get_or_init(|| std::sync::Mutex::new(Control { running: false, stopper: None }))
+    C.get_or_init(|| std::sync::Mutex::new(Control { running: false, stopper: None, whisper_stopper: None }))
 }
 
 /// Is a model running right now? (What Settings shows, and the guard against a double launch.)
@@ -84,6 +92,7 @@ fn clear_running() {
     if let Ok(mut c) = control().lock() {
         c.running = false;
         c.stopper = None;
+        c.whisper_stopper = None;
     }
 }
 
@@ -98,9 +107,34 @@ pub fn is_enabled(agents_dir: &std::path::Path) -> bool {
         .unwrap_or(true)
 }
 
-fn write_enabled(agents_dir: &std::path::Path, on: bool) {
+/// Whether audio transcription is on (`<agents_dir>/agent.json`, `{"transcribe": bool}`). **Default
+/// off** — the phone's whisper runtime + model load only when the user turns it on, so a phone that
+/// never wants it pays nothing (no ~75 MB download, no second model in RAM). Read at agent start.
+pub fn is_transcribe_enabled(agents_dir: &std::path::Path) -> bool {
+    std::fs::read_to_string(agents_dir.join("agent.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .and_then(|v| v["transcribe"].as_bool())
+        .unwrap_or(false)
+}
+
+/// Persist both settings together so writing one never clobbers the other.
+fn write_settings(agents_dir: &std::path::Path, enabled: bool, transcribe: bool) {
     let _ = std::fs::create_dir_all(agents_dir);
-    let _ = std::fs::write(agents_dir.join("agent.json"), format!("{{ \"enabled\": {on} }}\n"));
+    let _ = std::fs::write(
+        agents_dir.join("agent.json"),
+        format!("{{ \"enabled\": {enabled}, \"transcribe\": {transcribe} }}\n"),
+    );
+}
+
+fn write_enabled(agents_dir: &std::path::Path, on: bool) {
+    write_settings(agents_dir, on, is_transcribe_enabled(agents_dir));
+}
+
+/// Persist the "Audio transcription" toggle (from Settings). Whisper is chosen when the agent *starts*
+/// (a launch flag on a separate process), so like the desktop this applies at the next assistant start.
+pub fn set_transcribe(agents_dir: &std::path::Path, on: bool) {
+    write_settings(agents_dir, is_enabled(agents_dir), on);
 }
 
 /// Stop the running model now (trip its off-switch → the watchdog kills the `llama-server` child →
@@ -108,6 +142,9 @@ fn write_enabled(agents_dir: &std::path::Path, on: bool) {
 /// and by app exit.
 pub fn stop() {
     if let Ok(mut c) = control().lock() {
+        if let Some(s) = c.whisper_stopper.take() {
+            s.stop();
+        }
         if let Some(s) = c.stopper.take() {
             s.stop();
         }
@@ -237,6 +274,9 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     let _ = std::fs::create_dir_all(&logs_dir);
     let (port, ctx, threads) = (manifest.port, manifest.ctx, manifest.mobile_threads());
     let max_reply_chars = manifest.max_reply_chars;
+    // Audio transcription is opt-in (Settings). Read it here (agents_dir isn't moved into the thread).
+    let transcribe_on = is_transcribe_enabled(&agents_dir);
+    let whisper_name = manifest.mobile_whisper().unwrap_or("ggml-tiny.en").to_string();
 
     // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
     // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
@@ -308,13 +348,61 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             c.stopper = Some(model.stopper());
         }
 
+        // Audio→transcript: when enabled and the runtime is bundled, fetch the small whisper model and
+        // launch whisper-server BESIDE the text model. Its SupervisedModel preflight is the admission
+        // gate — on a phone too tight to hold both, it fails and transcription stays off (chat + the
+        // notebook keep working). whisper-server is a static, self-contained binary (no shared libs to
+        // collide with llama's). The handle is bound for the thread's life so it isn't dropped (killed)
+        // early; its off-switch is registered for Settings-off / app exit.
+        let mut whisper_port_val: Option<u16> = None;
+        let _whisper = if transcribe_on {
+            let whisper_bin = runtime_dir.join(WHISPER_SERVER_LIB);
+            if !whisper_bin.exists() {
+                log::info!("study agent: transcription runtime not bundled — skipping");
+                None
+            } else {
+                match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &whisper_name, &|_, _| {}) {
+                    Ok(wmodel) => {
+                        let wport = port + 1;
+                        let mut wcmd = std::process::Command::new(&whisper_bin);
+                        wcmd.arg("-m").arg(&wmodel).args([
+                            "--host", "127.0.0.1",
+                            "--port", &wport.to_string(),
+                            "-t", &threads.to_string(),
+                        ]);
+                        let wbytes = std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
+                        match SupervisedModel::launch(wcmd, SystemMonitor, &Need::new(wbytes, 300_000_000), Limits::resident()) {
+                            Ok(wm) => {
+                                if let Ok(mut c) = control().lock() {
+                                    c.whisper_stopper = Some(wm.stopper());
+                                }
+                                whisper_port_val = Some(wport);
+                                log::info!("study agent: audio transcription on (whisper :{wport}, {whisper_name})");
+                                Some(wm)
+                            }
+                            Err(e) => {
+                                log::info!("study agent: transcription off — {e}");
+                                None
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::info!("study agent: transcription off — no whisper model yet ({e})");
+                        None
+                    }
+                }
+            }
+        } else {
+            None
+        };
+
         let agent = Agent {
             fm: DispatchVault { app },
             model_port: port,
             model: model_name.clone(),
             searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
-            whisper_port: None, // phone audio→transcript is a later spike (admission gate + kill-consistency)
-            whisper_model: "ggml-base.en".into(),
+            whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
+            whisper_model: whisper_name.clone(),
             max_reply_chars,
             retrieve: 3,
             history_budget: 4000,
