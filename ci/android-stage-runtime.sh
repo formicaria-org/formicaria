@@ -44,8 +44,9 @@ tar xzf "$tmp/rt.tgz" -C "$tmp"
 src="$tmp/llama-$VER"
 [ -f "$src/llama-server" ] || { echo "android-stage-runtime: no llama-server in the tarball" >&2; exit 1; }
 
-# Clear any prior staging (keep the tauri-generated app lib, which lives here too).
-find "$dest" -maxdepth 1 -name 'lib*.so' ! -name 'libformicaria_mobile_lib.so' -delete
+# Clear any prior staging (keep the tauri-generated app lib, and the whisper runtime staged by
+# android-stage-whisper.sh — a separate, self-contained binary that must survive a llama re-stage).
+find "$dest" -maxdepth 1 -name 'lib*.so' ! -name 'libformicaria_mobile_lib.so' ! -name 'libwhisper-server.so' -delete
 
 # Copy the server (renamed so Android exec-extracts it) then the **transitive closure** of its NEEDED
 # libs that ship in the tarball — resolving deps rather than guessing which to include (a guess just
