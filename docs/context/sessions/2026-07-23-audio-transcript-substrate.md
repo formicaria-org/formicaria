@@ -54,13 +54,34 @@ provenance+source-reference present · insertion-only preserves host content · 
 - **Tests**: fm-agent transcribe (9), convo (+3), fm-agent-run runner→fake-whisper-socket→proposal (2),
   UI agentCommands (+2). Full `pixi run ci` green.
 
-## Honest gaps (manual-only, not run here)
+## Real run — DONE (gap closed)
 
-- **The real `whisper-server` binary is not auto-staged** — whisper.cpp ships no portable Linux server
-  tarball like llama.cpp's, so `whisper_runtime_url` in `models.toml` is empty and `fetch-whisper`
-  fetches only the weights + prints how to place the binary (build from whisper.cpp). `agent-serve`
-  errors clearly if it's missing. **A real audio→transcript run has NOT been executed** (needs the
-  binary + network; real model leaves are manual-only by house rule) — only the hermetic path is proven.
+The audio→transcript path is proven with the **real** whisper.cpp binary, not just the fake:
+- `models.toml` `whisper_runtime_url` now points at whisper.cpp **v1.9.1 `whisper-bin-ubuntu-x64.tar.gz`**
+  — a prebuilt, CPU-only, portable `whisper-server` (~24 MB, no CUDA, links only stock system libs;
+  it also bundles a `parakeet-cli`). `pixi run fetch-whisper` stages it + the `ggml-base.en.bin`
+  weights, exactly like the llama.cpp runtime — **no build-from-source** (my earlier "no portable
+  Linux server tarball" claim was wrong; see [audio-asr-research-2026-07-23.md](../audio-asr-research-2026-07-23.md)).
+- Verified end-to-end: the **shipped `WhisperServer` Rust client** drove a live `whisper-server` on
+  `jfk.wav` and returned the correct transcript ("And so my fellow Americans, ask not what your
+  country can do for you…"). Harness: `crates/fm-agent/tests/live_whisper.rs` (`#[ignore]`d manual
+  test, `WHISPER_PORT` + `WHISPER_WAV`), the model-leaf equivalent of `live_research.rs`.
+
+## Direction (principled audit, 2026-07-23)
+
+Scored the ASR options against the owner's principles (stdlib-over-pip, no native blob in the app,
+simplicity/least-machinery, tiny edge, unified devices): **whisper.cpp sidecar now** (reuses the
+llama-server pattern + shipped client, zero Python, zero build), **pure-Rust candle as the eventual
+end-state** (only option with no native blob on *both* devices and no Python). The Python-ONNX routes
+(sherpa-onnx, useful-moonshine-onnx) are **rejected** — Moonshine is the nicer model but its only clean
+runtime needs pip+onnxruntime, which the stdlib/simplicity principles disfavor for too small a size win.
+
+## Still open
+- **UI e2e not exercised on a real note** (attach audio → Transcribe chip → proposal) — only the
+  runner→server→proposal path is unit-proven; a real in-app click-through is worth doing.
+- **Phone audio** stays a later spike (arm64 `whisper-server` cross-compile + admission gate +
+  mid-run-kill consistency); mobile has only the `blob_bytes` accessor, `whisper_port: None`.
+- On-demand spawn / kill-to-unload (currently eager when `--whisper-port` is set).
 - **Phone audio** stays a later spike (Android admission gate + mid-run-kill consistency). Mobile got
   only the uniform `blob_bytes` accessor; `whisper_port` is `None` there.
 - **Whisper is eager-loaded** when `--whisper-port` is set (RAM for the session). On-demand spawn /
