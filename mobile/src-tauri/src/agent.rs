@@ -172,6 +172,15 @@ impl VaultAccess for DispatchVault {
     fn create_proposal(&self, note: &str, body: &str, name: &str, email: &str) -> Result<Value, String> {
         self.call("create_proposal", json!({ "id": note, "body": body, "authorName": name, "authorEmail": email }))
     }
+    fn blob_bytes(&self, reference: &str) -> Result<(Vec<u8>, String), String> {
+        // In-process there is no HTTP blob route: resolve the path through the same `blob_path` fm-serve
+        // uses, then read the bytes read-only. (Transcription itself is a later phone spike — the model
+        // runtime isn't wired here yet — but the accessor exists so the seam is uniform.)
+        let path = fm_app::dispatch::blob_path(&self.app, reference)?;
+        let bytes = std::fs::read(&path).map_err(|e| format!("read blob {reference}: {e}"))?;
+        let mime = fm_core::ingest::sniff_mime(&path).unwrap_or_else(|| "application/octet-stream".into());
+        Ok((bytes, mime))
+    }
     // Presence/activity drive the desktop's "working…" wheel via fm-serve's side channel. On mobile
     // that channel is the app itself; wiring it to an in-process registry the webview can poll is a
     // follow-up — the agent answers without it (the reply lands and the thread refreshes).
@@ -304,6 +313,8 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             model_port: port,
             model: model_name.clone(),
             searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
+            whisper_port: None, // phone audio→transcript is a later spike (admission gate + kill-consistency)
+            whisper_model: "ggml-base.en".into(),
             max_reply_chars,
             retrieve: 3,
             history_budget: 4000,

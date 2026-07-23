@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withCommand, AGENT_COMMANDS } from './agentCommands';
+import { withCommand, AGENT_COMMANDS, transcribeCommand } from './agentCommands';
 
 describe('withCommand — tapping a command chip', () => {
   it('addresses an online assistant when the draft mentions none', () => {
@@ -32,5 +32,15 @@ describe('withCommand — tapping a command chip', () => {
   it('offers /research first — it is the primary grounded-research profile', () => {
     expect(AGENT_COMMANDS[0].cmd).toBe('/research');
     expect(AGENT_COMMANDS.map((c) => c.cmd)).toEqual(['/research', '/search', '/propose']);
+  });
+});
+
+describe('transcribeCommand — the audio artifact action', () => {
+  it('addresses the assistant and carries the asset reference', () => {
+    expect(transcribeCommand('qwen3-4b-2507', 'sha256:abc123')).toBe('@qwen3-4b-2507 /transcribe sha256:abc123');
+  });
+
+  it('sends unaddressed when no assistant is known (the send path warns)', () => {
+    expect(transcribeCommand(undefined, 'asset:sha256-abc')).toBe('/transcribe asset:sha256-abc');
   });
 });

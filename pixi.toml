@@ -141,6 +141,9 @@ test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
 # Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
 # `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
 fetch-model = "bash agents/fetch.sh"
+# Stage the audio→transcript runtime (whisper.cpp weights + binary) into agents/{runtime,models}. Then
+# enable it: `pixi run agent-serve -- --whisper-port 8082`. Manual-only, laptop v1.
+fetch-whisper = "bash agents/fetch-whisper.sh"
 # Serve the fetched model as a warm, localhost-only llama-server the agent talks to (Ctrl-C stops it).
 serve-model = "bash agents/serve.sh"
 # Serve the model TIED to formicaria's life: it stops when fm-serve stops answering (model on with

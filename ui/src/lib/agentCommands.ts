@@ -27,3 +27,15 @@ export function withCommand(draft: string, cmd: string, agent?: string): string 
   if (!new RegExp(`(^|\\s)${esc}(\\s|$)`).test(d)) d = `${d} ${cmd}`.trim();
   return `${d} `;
 }
+
+/**
+ * Build a ready-to-send `/transcribe` message for one audio artifact. Unlike the palette chips this
+ * carries an argument — the asset reference — so it is composed on the artifact (not typed), addresses
+ * the assistant when one is known, and is sent as-is. `ref` is the note's asset reference
+ * (`sha256:<hash>` or `asset:sha256-<hash>`); the runner reads that blob's bytes and proposes the
+ * transcript into this note.
+ */
+export function transcribeCommand(agent: string | undefined, ref: string): string {
+  const mention = agent ? `@${agent} ` : '';
+  return `${mention}/transcribe ${ref}`;
+}

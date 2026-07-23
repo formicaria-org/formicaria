@@ -36,7 +36,7 @@
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf } from './locate';
-  import { AGENT_COMMANDS, withCommand } from './agentCommands';
+  import { AGENT_COMMANDS, withCommand, transcribeCommand } from './agentCommands';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -1054,6 +1054,20 @@
     discInputEl?.focus();
   }
 
+  // Transcribe this audio artifact: compose `@agent /transcribe <ref>` and send it to the note's
+  // discussion. The assistant reads the blob's bytes, runs whisper, and proposes the transcript as an
+  // addition to this note (the same PR cycle as /research). Insertion-only — the audio is untouched.
+  async function transcribeAudio() {
+    if (!note || !note.assets.length) return;
+    optionsOpen = false;
+    replyDraft = transcribeCommand(agentsOnline[0] ?? mentionCandidates[0], note.assets[0]);
+    await sendReply();
+  }
+
+  // The current note's asset MIME (stored on the asset note as `props.mime`), or '' — so the
+  // Transcribe action shows only on audio artifacts. Bare-string props (see mock.ts) → a plain read.
+  const assetMime = $derived(typeof note?.props?.mime === 'string' ? (note.props.mime as string) : '');
+
   function onReplyKeydown(e: KeyboardEvent) {
     if (atMenu.open && atMenu.results.length) {
       if (e.key === 'ArrowDown') {
@@ -1657,6 +1671,9 @@
               {/if}
               {#if note.type === 'asset' && note.assets.length}
                 <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
+                {#if assetMime.startsWith('audio/')}
+                  <button class="opt" onclick={() => transcribeAudio().catch((e) => (error = String(e)))}>Transcribe</button>
+                {/if}
               {/if}
               {#if canCopy}
                 <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
