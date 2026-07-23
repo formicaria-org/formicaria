@@ -148,13 +148,26 @@ verified end-to-end on the real phone (Dimensity 7300):
   `ggml-base.en.bin` on-device, listens on :8082, and **transcribed jfk.wav correctly in ~5 s** for an
   11 s clip (~2× real-time). Cleaned up after.
 
-**So phone whisper is real, not hypothetical.** What full integration still needs (the actual spike
-deliverables, not yet done): a `ci/` build+stage script (build → strip → `jniLibs/arm64-v8a/lib*.so`,
-mirroring `android-stage-runtime.sh` but *building*); model provisioning on the phone (base.en ~142 MB
-— download like the llama gguf, or a tiny model); the mobile `agent.rs` launching whisper-server +
-setting `whisper_port`; and **the admission gate** — running whisper *alongside* the 1.4 GB llama model
-on limited RAM needs a static budget + serialized load + a "mid-run kill leaves the vault consistent"
-test (the plan's "measure before safe").
+### Full integration — BUILT + on the phone
+- **`ci/android-stage-whisper.sh`** (a depends-of `android-release`): cross-compiles whisper-server
+  **static** (single self-contained binary, no ggml `.so` to collide with llama's) → strips → stages
+  `jniLibs/arm64-v8a/libwhisper-server.so`. Idempotent (version-stamped). `android-stage-runtime` now
+  preserves it. Verified in the APK (2.3 MB, beside the intact llama libs — note `libllama-server.so`
+  is a 4.6 KB *thin launcher*; `libllama-server-impl.so` is the 8 MB real code).
+- **`mobile/.../agent.rs`**: when Audio transcription is on (`agent.json {transcribe}`, default off) it
+  fetches `ggml-tiny.en` (~75 MB, the phone whisper pick — `whisper_mobile` in models.toml) and launches
+  whisper-server beside llama, setting `whisper_port`. **The admission gate is the `SupervisedModel`
+  memory preflight** (`Need`): on a phone too tight for both, it fails → transcription stays off, chat +
+  notebook unaffected. Its off-switch joins the control state (Settings-off / app-exit frees it). Mid-run
+  kill is safe by the substrate: the proposal is only created *after* transcription completes, so a kill
+  leaves no partial state.
+- **`lib.rs`**: the phone answers `set_transcribe` / `agent_status.transcribe` (transport, like `set_agent`).
+- Opt-in by setting (no download/RAM unless enabled); applies at the next assistant start.
+
+**Not yet exercised in-app:** flipping the phone's "Audio transcription" toggle can't be automated from
+adb (release APK is non-debuggable), so the final in-app click-through (enable → restart assistant →
+first-run downloads tiny.en → record → /transcribe) is a manual step. The binary itself is proven
+on-device and the launch path mirrors the proven llama one.
 
 ## Still open
 - **Standalone audio asset note** (opened directly, not embedded) has no host to propose into → no
