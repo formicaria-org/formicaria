@@ -11,8 +11,12 @@
 # byte-for-byte round-trip is a lie, so we don't let it happen here in the first place.
 * text=auto eol=lf
 
-# Never touch these, whatever git guesses.
+# Never touch these, whatever git guesses. A binary left off this list falls under `* text=auto
+# eol=lf` above, which line-ending-normalizes its bytes on every checkout — so it can never
+# byte-match its stored blob and shows as perpetually "modified" (this bit `icon.icns` until it was
+# added here). Any new tracked binary asset must be listed.
 *.png binary
 *.webp binary
 *.pdf binary
 *.ico binary
+*.icns binary
