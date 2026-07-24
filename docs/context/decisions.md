@@ -5,10 +5,63 @@ why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
 quick-recall version. Newest first.
 
+**This is an append-only log — a decision is superseded, never edited away.** A reversal is added
+as a new dated entry and the old one gets a `> SUPERSEDED …` banner pointing to it, so the *chain*
+survives (the value of "we tried X, then Y" is the whole chain). Prune only exact duplication.
+
+## Subject index — grep a subject, jump to the decision(s)
+
+The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
+heading. Retrieval is per-decision, never "load the whole 1,300-line log."
+
+- **`#seams`** (the compile-time invariants): *`fm-query` may never touch fs/db* · *Generic,
+  literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
+  library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
+- **`#git` / `#sync`** (git, merge, collaboration): *The in-process sync path: the app merges* ·
+  *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
+  (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
+  *Collaboration is git, exposed* · *Squash-on-push — a deliberate reversal* · *A commit that
+  committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
+  tiers*. **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
+- **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
+  *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
+  *`fm-serve` sends a CSP*.
+- **`#ui`** (workspace/views/render): *One shell, two arrangements* · *`.view` files parsed
+  server-side* · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
+  product* · *Whiteboard = embedded Excalidraw* · *Board images strip to the blob store* · *Assets
+  query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
+  *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
+  editor = textarea + read view* · *Markdown→HTML is `marked`*.
+- **`#vault`** (audience/cross-vault): *Vaults are audiences* · *Every entity shows its vault badge* ·
+  *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
+  when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
+  attachments travel: per-vault size limit* · *Content-addressed blobs*.
+- **`#data`**: *The auto-commit stages what we wrote* · *The lost-update token is a content hash*.
+- **`#toolchain`**: *The core ships as one file; pixi is the only package manager* · *Every external
+  tool is an optional feature* · *No plugin API*.
+- **`#agent`**: *Inline meeting actions become their own note*. (Model/agent decisions that are not
+  yet folded up live in `ai-agents-plan.md`.)
+
 ## The in-process sync path: the app merges, because libgit2 cannot (2026-07-19)
 
 **Decision.** `git_native` now covers the whole collaboration loop — `clone`, `commit_all`,
 `pull`, `push`, `unpushed`, `conflicts` — so a phone can share a vault with a desktop.
+
+**Extended 2026-07-24 to the whole proposal lifecycle** (create / review / revise / accept /
+reject), which had been left calling `crate::git` directly and therefore did not work on a phone
+at all. The same ruling applies for the same reason — `merged_text()` is now the shared decision
+both `pull` and `merge_proposal_branch` route through, so one vault cannot hold two merge
+semantics. Two accept-path specifics are recorded because they are counter-intuitive and both
+cost notes if reversed:
+
+- **Move `HEAD` last.** Decide in memory → write working tree and index → commit. Committing
+  first and checking out second leaves an *undetectable* half-state on a kill, which the next
+  auto-commit silently converts into a revert of the accepted proposal. A detectable half-state
+  (git's own `MERGE_HEAD`) is strictly better than a silent one.
+- **Never `checkout_head(force)`; scope the checkout to the merged paths.** Unscoped, it reverts
+  every uncommitted edit in the vault — including notes the proposal never mentions.
+
+See `sessions/2026-07-24-proposals-on-the-phone.md`.
 
 **The load-bearing part is the merge.** libgit2 contains no process spawn, so it can never
 invoke the `.md` driver that makes two people editing one note a non-event rather than a
@@ -104,6 +157,11 @@ the moment to check whether this has become the customisation system it refuses 
 add a fourth.
 
 ## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19)
+
+> **Reversal chain (`#git`):** narrows *"`git2` is rejected"* (2026-07-18, below) — which still
+> holds **for the desktop**. This is the mobile-only exception. Later realized in code: the
+> `native-git` backend + the `vcs` router now carry the full history *and* proposal lifecycle on the
+> phone (`sessions/2026-07-24-proposals-on-the-phone.md`). **This entry is current.**
 
 **Decision — one named exception, vendored, mobile only.** `fm-core` gains an optional
 `native-git` feature (**off by default**) pulling `git2` with `vendored-libgit2`. The desktop
@@ -402,6 +460,12 @@ an upload — that difference is real and kept; the note is not.
 for everything.
 
 ## `git2` is rejected; git stays a subprocess capability (2026-07-18)
+
+> **PARTIALLY SUPERSEDED (`#git`)** by *The libgit2 exception* (2026-07-19, above): the rejection
+> **stands for the desktop** (still shells out to `git`), but the phone — which has no `git` binary —
+> now links vendored libgit2 behind the off-by-default `native-git` feature. Read this entry for
+> *why linking was rejected as the default*; read the exception for *why the phone is the one place
+> it is allowed*. The reversal is deliberate and the chain is the point — do not delete either.
 
 **Decision made under the project's own principles**, after the audit found `mobile-design.md`'s
 rulings 2/3/6 rest on wrong premises. The earlier "reversal, owned in writing" is itself
@@ -1141,6 +1205,9 @@ a local path is a legitimate destination but must never be reported as "off this
 machine".
 
 ## Squash-on-push — a deliberate reversal of "don't build commit management"
+> **Reversal (`#git`), current.** Reverses `MASTERPLAN.md`'s *don't build commit management* — for
+> the **remote** only; the local repo still keeps every `auto:` commit for undo.
+
 **Why:** `MASTERPLAN.md:411,447` accept thousands of `auto:` commits as the price
 of undo and say *don't build commit management*. That holds for the **local**
 repo, but the remote is a different audience: auto-commit fires every few seconds

@@ -8,38 +8,12 @@ trap, add one. Newest concerns first within each section.
 
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
-- **~~No in-app "accept proposal"~~ — FIXED 2026-07-22.** The whole propose→review→**accept** cycle is
-  now in the GUI: `accept_proposal` (`commands`/`dispatch`) merges the `proposal/<id>` branch into main
-  (`fm_core::git::merge_proposal_branch`, no-ff, deletes the branch), fail-closed — an unclean merge is
-  aborted and main left untouched (`Accepted::Conflicted`), never a half-merged tree. `ProposalReview.svelte`
-  gained an **Accept & merge** button. Covered by `accept_proposal_the_gui_button_merges_the_branch_into_main`
-  (fm-app) and a `ProposalReview.svelte.test.ts` case. (A conflict-on-accept still can't be resolved from
-  the GUI beyond "ask the author to redo against latest" — rare, since main rarely moves the same note.)
-- **~~Cross-*user* proposal review/accept doesn't sync~~ — FIXED 2026-07-22.** `create_proposal` now
-  **pushes the `proposal/<id>` branch** to the remote (best-effort, only when a remote is set — a
-  solo/offline vault stays single-user), and `branch_diff`/`merge_proposal_branch` resolve the branch as
-  the local head **or** `origin/proposal/<id>` (which any `pull`'s fetch brings down), so a second user
-  reviews and accepts it in the GUI; accept deletes the shared branch. Covered on both backends by
-  `a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other` in the two-user harness.
-- **~~A conflicted / unparseable note could not be resolved in the GUI~~ — FIXED 2026-07-22.** A note whose
-  frontmatter won't parse is still "loud-and-absent" (decisions.md #4 — the parser stays strict, no
-  side-picking by fiat), but the `SkippedPanel` now has an **in-app raw editor** (`read_skipped` /
-  `resolve_skipped`, same allowlist as `open_skipped`) so a conflict can be fixed on **any device**,
-  including the phone (which has no OS editor). `open_skipped`→external editor is now a desktop-only
-  convenience. Covered in `fm-app/tests/skipped.rs` + `SkippedPanel.svelte.test.ts`.
 - **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
   retrieval fed a tiny model unrelated fragments it parroted. Broader RAG is deferred pending its own
   research (owner: bad RAG is worse than none).
 - **Multi-round proposal refinement — context notes** (surfaced 2026-07-22 while testing the
   propose→refine→accept cycle; mechanics proven in `fm-app/tests/proposal_cycle.rs`):
-  1. **~~Oldest constraints drop out first~~ — FIXED 2026-07-22.** `Agent::history` used to keep only
-     the recent tail and drop the oldest turns past `history_budget`, so a long back-and-forth silently
-     lost the earliest requirement ("keep the action items") and the model re-broke it (oscillation).
-     Now it **pins both ends** — the first turn (the original ask + standing constraints) and the latest
-     — and trims from the *middle*, marking the gap. Simple, deterministic, no model call. Pinned by
-     `history_pins_the_original_ask_and_the_latest_turn_when_it_overflows` (+ fits / two-turn / lone-turn
-     edge tests) in `fm-agent-run`.
-  2. **The agent can't see its own previous draft** (still open, deliberately — kept out for
+  1. **The agent can't see its own previous draft** (still open, deliberately — kept out for
      simplicity). Context is the *current* host note (still the pre-proposal text until accept) + linked
      notes + discussion; the previous proposal's body lives on a branch, not in any of those. So each
      round **re-generates from prose feedback** rather than *editing* the last draft — a weak model can
@@ -175,19 +149,6 @@ edit-gesture)._
   visible on the emulator and silent on the owner's phone. Anything that must be diagnosable on a
   real device has to surface in the app's own UI (which is why `config` reports `ca_bundle`).
 
-- **~~A stale `merge.fm.driver` silently discarded a collaborator's edit~~ — FIXED 2026-07-19.**
-  `install_merge_driver` registered an **absolute** path to `fm` and its guard was
-  one-directional: no `fm` found meant `return Ok(())`, leaving whatever was already in
-  `.git/config`. Every way that path goes stale is real — reinstall to a different prefix, a dev
-  build where a release one ran, a package shipping `fm-serve` without `fm`, mobile (no `fm`
-  beside it at all), or a vault directory *copied* between machines, since `.git/config` travels
-  with a copy though not with a clone. Git then read the driver's non-zero exit as "conflict"
-  and handed back `%A` untouched: a conflict reported, a file that looks completely normal, and
-  the collaborator's edit gone on "resolve". Now `clear_merge_driver` unsets it, degrading to
-  git's built-in text merge — uglier and *visible*. Pinned by
-  `a_stale_merge_driver_is_removed_rather_than_left_pointing_at_nothing`, which asserts the real
-  invariant (never names a binary that isn't there) rather than a build-dependent literal.
-
 - **Two transport tiers, one warning, two meanings — decide before the next bulk transport.**
   `notes/` travels by git and `blobs/` out-of-band, so `verify` grades a referenced-but-missing
   blob a *Warning* because it is expected to be transient. A transport that moves the directory
@@ -203,26 +164,12 @@ edit-gesture)._
   helper, no `rclone config`), so the phone forces a real Keystore decision the moment a second
   transport needs a secret.
 
-- **~~Unsanitized `innerHTML` in `render.ts`~~ — FIXED 2026-07-17.** `render.ts` now runs
-  DOMPurify on `marked`'s output before the DOM sees it (`sanitize()`), so a collaborator's
-  `<img onerror>` / `<script>` is stripped. The config widens DOMPurify's URI allow-list by
-  **exactly** `note:`/`asset:`/`sha256:` — our own pipeline speaks those three, and stripping
-  them would silently kill every asset image and note chip (the trap this fix had to avoid).
-  Math (`span[data-math]`) and Mermaid (`code.language-mermaid`) placeholders survive because
-  the resolve passes run *after* sanitize; tests pin both the stripping and the survival.
-  Mermaid's own SVG sink still relies on its `securityLevel: 'strict'`, documented in place.
-  `fm-serve`'s header was corrected from "single user".
-- **~~You are only told someone pushed if you open the backup panel~~ — FIXED.** A visibility-
-  gated 45 s `remote_moved` poll feeds a top-bar chip with one-click pull, and that pull now
-  goes through `sync.svelte.ts`'s `pullVault` (commit first — git will not merge over a dirty
-  tree — then name any conflicted notes rather than throwing a string). Still true: a
-  conflicted note is surfaced only by name, and the `.md` driver puts the markers in the note
-  *body*, so it opens and resolves in the ordinary editor. **Also fixed 2026-07-20:** a
-  conflicted note used to stop *every* commit in that vault silently — `commit_all` says
-  "clean tree" and "I refuse, mid-merge" with the same `Ok(false)` — so writes kept landing on
-  disk and never being committed while the UI said nothing. `commit` now answers
-  `CommitResult { committed, conflicts }` and all three callers (the 5 s auto-commit in
-  `App.svelte`, `sync.svelte.ts`, `BackupPanel.svelte`) stop and name the notes.
+- **A conflicted note is surfaced only by name** (current behaviour, not a bug): the `.md` driver
+  puts the markers in the note *body*, so it opens and resolves in the ordinary editor. `commit`
+  answers `CommitResult { committed, conflicts }` and all three callers (the 5 s auto-commit in
+  `App.svelte`, `sync.svelte.ts`, `BackupPanel.svelte`) **stop and name the notes** rather than
+  silently freezing every commit in a mid-merge vault — the trap being that `commit_all` once
+  reported "clean tree" and "I refuse, mid-merge" with the same `Ok(false)`.
 - **Reindex still stats every file, on every beat.** `Reindex::Incremental` re-*reads* only
   what moved (Phase 1), but the scan itself is still O(n) `stat`s, and the `ping` heartbeat
   runs it on every beat (15 s, and only while the tab is visible). Now gated by a perf-budget test at 10k notes
@@ -258,27 +205,8 @@ edit-gesture)._
   reproduce Android's `dragstart` suppression, so emulation can hide the very bug the menu
   exists to work around. One real device is needed once, to confirm card drag is genuinely dead
   there, the menu is reachable, and the targets are hittable.
-- **~~A surfaced error is not durable~~ — FIXED 2026-07-18.** `refresh()` now clears only the
-  errors *it* raised (a feed that failed to load, which the next successful refresh genuinely
-  resolves). Anything about the user's data — a failed sync, a refused save — is reported
-  through `report()`, survives background activity, and has a dismiss button like `notice`.
-- **~~Two files carrying the same `id:` make the poll flap forever~~ — FIXED 2026-07-18.**
-  `objects.id` is the primary key and `index_object` is `INSERT OR REPLACE`, so a duplicated
-  note used to collapse to one row whose `path` alternated: each beat re-indexed whichever
-  path was currently missing, reported `updated: 1`, and the UI refreshed forever on a vault
-  nobody was touching. Now the **first path wins and the other is named** in `skipped` —
-  serving one file's content under another's id is worse than serving neither, and the
-  unreadable-note skip already sets that discipline. Pinned by a test that asserts three
-  consecutive quiet polls report nothing.
 - **No per-view object cache.** Board/Agenda/Timeline each YAML-parse the whole
   corpus via `load_all` per request. Same scale caveat as above.
-- **~~`fm-serve` never validates the `Host` header~~ — FIXED 2026-07-18.** Binding to
-  127.0.0.1 keeps other *machines* out but does not decide which *name* a browser used, so a
-  hostname an attacker controls, resolved to 127.0.0.1, arrived same-origin with itself and
-  sailed past the CSRF guard. Requests now must carry a Host we actually serve
-  (`127.0.0.1`/`localhost`/`::1`) or get a 403. **A missing Host still passes** — that is
-  HTTP/1.0 or a hand-rolled client, not a browser, so not this vector, and refusing it would
-  break curl for no gain.
 - **Missing media is a warning, never a crash** — by design. A missing blob
   renders the `.asset-missing-inline` placeholder; don't "fix" it into an error.
 - **The mock now mirrors one guard deliberately.** `mock.ts`'s `update_body` throws the same
@@ -323,14 +251,11 @@ edit-gesture)._
   placement. Only a real browser proves it; re-check by eye after touching the
   editor's font/padding, since the mirror clones exactly those properties.
 
-- **Whiteboard (Excalidraw) caveats.** (1) ~~Fonts come from a CDN~~ **fixed
-  2026-07-17**: `ui/scripts/copy-excalidraw-fonts.mjs` self-hosts them at build time and
-  `index.html` sets `window.EXCALIDRAW_ASSET_PATH`. The old note deferred this as "~14 MB,
-  mostly CJK" — that number was doing all the work and was misleading: **13 of the 14 MB is
-  one font** (Xiaolai, CJK). Everything else, Excalifont included, is ~390 KB, so the real
-  cost was 362 KB on a 12 MB binary — for making "nothing phones home" true. Xiaolai is
-  skipped, so CJK text in a whiteboard uses a system font. **Lesson: a deferral justified by
-  a single number deserves the number re-measured.** (2) The canvas renders only in a real
+- **Whiteboard (Excalidraw) caveats.** (1) Fonts are self-hosted (`copy-excalidraw-fonts.mjs`,
+  build-time; `index.html` sets `window.EXCALIDRAW_ASSET_PATH`) so nothing phones home; Xiaolai
+  (13 of 14 MB, CJK) is skipped, so CJK whiteboard text falls back to a system font. **Durable
+  lesson: a deferral justified by a single number deserves the number re-measured** — the "~14 MB"
+  that deferred this was one font; everything else was 362 KB. (2) The canvas renders only in a real
   browser, so
   it's **unverified in headless CI** (build, code-split, and the board round-trip
   are tested; the visual editor is not). (3) Whole-note **embeds** shipped
@@ -506,6 +431,14 @@ edit-gesture)._
   `curl --path-as-is` (plain curl normalizes `../` client-side and hides it).
 - **Renderers:** no `todo/doing/done`, no scheduling literals — CI grep
   (`ci/checks.sh`) will fail the build.
+- **`fm_core::git::<fn>` outside `fm-core` fails the build** (`ci/checks.sh`) — call
+  `fm_core::vcs::` instead. `git.rs` shells out and there is no `git` binary on Android, so
+  naming a backend at a call site is how the phone ends up reporting "git not installed" while
+  carrying a working libgit2. It happened **twice** (history, then the whole proposal
+  lifecycle), because a unit test cannot catch a caller that never calls. Shared *types*
+  (`Accepted`, `Identity`, `Pulled`, `Probe`, `HelperAdvice`) are UpperCamel and pass; the
+  genuine "is there a git **binary**" questions (`available`, the credential helpers) are
+  allowlisted by name.
 - **Every NotePanel pane mounts its own `<svelte:window onkeydown>`**, so a key
   press is heard by *all* panes in the trail. Pane-scoped shortcuts must go
   through `ownsKeys()` (focus inside some pane → only that pane acts), or you get
@@ -522,12 +455,6 @@ edit-gesture)._
   board grouped by `type` has only a `note` column *by design* — don't "fix" it.
   Keep `search`/`gallery` seeing assets: search is the only way to find a PDF by
   its extracted text, and the `/` menu's asset insertion rides on it.
-- **~~`pixi run ci` does NOT typecheck Svelte~~ — FIXED 2026-07-18** (`check-ui` runs
-  svelte-check, and `vite build` still does not typecheck, which is why the task exists).
-  The original entry: it was `test, test-ui, deny,
-  checks, docs` — no `svelte-check`, and no `vite build` either. A `.svelte` file
-  can be type-broken with CI green. After component work run
-  `pixi run pnpm -C ui check` (and `pixi run pnpm -C ui build`) by hand.
 - **`mock.ts` state leaks across tests in a file.** `bodyOverrides` and the `seq`
   counter are module-scope, and vitest isolates per *file*, not per test — so
   `App.flow.test.ts`'s edit walk rewrites the GAE note's body for every test

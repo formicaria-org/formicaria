@@ -1,13 +1,15 @@
 # CLAUDE.md — read before working in this repo
 
-**First action in any session: read [`docs/context/README.md`](./docs/context/README.md)
-and then [`docs/context/overview.md`](./docs/context/overview.md).**
+**First action in any session: read the always-read layer —
+[`docs/context/overview.md`](./docs/context/overview.md) and
+[`docs/context/features.md`](./docs/context/features.md).** `overview.md` ends with a **router**:
+before you touch a hot area (a seam, git/sync, the phone, the agent), open the on-demand file it
+names first. [`docs/context/README.md`](./docs/context/README.md) explains the two-layer design.
 
-`docs/context/` is this project's working memory — a compact synthesis of what
-formicaria is, what we built and *why*, and what is *not* working. It exists so
-you can reconstruct the repo's context **without a large context window**. Skim
-the file there that matches your task (`decisions.md` before you change a design,
-`known-issues.md` for gaps + toolchain traps) before you start.
+`docs/context/` is this project's working memory. The two files above are read every session; the
+rest — `decisions.md` (grep its `#subject` index for the *why*), `known-issues.md` (gaps + traps),
+`outstanding.md` (the queue), and the topic docs — are pulled **on demand via the router**, so the
+always-read layer stays small.
 
 The canonical design spec is [`formicaria/MASTERPLAN.md`](./formicaria/MASTERPLAN.md);
 `docs/src/` is the mdBook **user** manual. `docs/context/` is the fast-recall
@@ -15,10 +17,16 @@ maintainer layer over both.
 
 ## Keep the context current
 
-When you finish substantive work, **update `docs/context/`** before ending: add a
-`sessions/YYYY-MM-DD-<slug>.md` entry and reconcile `overview.md` /
-`decisions.md` / `known-issues.md` with reality (delete fixed items, add new
-gaps, bump the "Last verified" line). A stale synthesis is worse than none.
+When you finish substantive work, **before ending** (full protocol in `docs/context/README.md`):
+- **`features.md`** — bump the feature's status/line if it changed.
+- **The on-demand doc** — delete a fixed `known-issues.md` entry / add a new gap; and if you made or
+  reversed a design decision, **append** a dated entry to `decisions.md` (with a `#subject`) — a
+  decision is superseded, never edited away.
+- **`overview.md`** — only if the model or a seam changed; add a router row for any new on-demand
+  doc. Do **not** grow a "what shipped when" narrative here — that is what `sessions/` is for.
+
+Prune the always-read layer (a stale synthesis is worse than none); append the decision record.
+Keep the two layers together under ~400 lines — `ci/checks.sh` fails on a dead router pointer.
 
 ## Non-negotiable house rules (full detail in docs/context/)
 

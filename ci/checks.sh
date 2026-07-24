@@ -44,6 +44,24 @@ if grep -REn 'Predicate::Kind\(vec!\[Kind::Note\]\)' crates/fm-app/src \
     fail=1
 fi
 
+echo "[check] the app reaches git only through fm_core::vcs..."
+# vcs.rs picks the backend; git.rs shells out and there is no `git` binary on Android. Naming a
+# backend at a call site is what left the phone reporting "git not installed" while carrying a
+# working libgit2 — twice: once for history, and again for the whole proposal lifecycle, which a
+# unit test could never catch because the callers simply never called.
+#
+# Shared TYPES (Accepted/Identity/Pulled/Touch/Probe/HelperAdvice) are UpperCamel, so the [a-z_]
+# match excludes them — casing does the allowlisting. The named exceptions genuinely ask "is there
+# a git BINARY": credential helpers are a CLI concept libgit2 has no equivalent for. Tests are out
+# of the search path by design — the differential harness *must* name both backends.
+if grep -REn 'fm_core::git::[a-z_]+|use fm_core::git;' crates/*/src mobile/src-tauri/src \
+    | grep -v '^crates/fm-core/src/' \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' \
+    | grep -vE 'fm_core::git::(available|credential_approve|credential_exists|credential_helper|helper_advice)\b'; then
+    echo "  FAIL: call fm_core::vcs::… — fm_core::git shells out, and a phone has no git binary."
+    fail=1
+fi
+
 echo "[check] renderers must not hardcode status values..."
 if [ -d ui/src/renderers ]; then
     if grep -REniw 'todo|doing|done' ui/src/renderers; then
@@ -136,6 +154,56 @@ fi
 if grep -Eq '^[[:space:]]*mod agent;' "$mobile_lib" 2>/dev/null \
     && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(feature = "agent")'; then
     echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(feature = \"agent\")]."
+    fail=1
+fi
+
+echo "[check] docs/context always-read layer: every doc pointer resolves..."
+# The always-loaded layer (overview.md + features.md) is a router: it names on-demand files to
+# pre-read per hot area. That forcing function is only real if the targets exist — an on-demand doc
+# no one is pointed to is invisible, and a pointer to a moved/renamed file is worse than none. So
+# every *.md reference in the always-read layer must resolve (relative to docs/context), and every
+# `decisions.md#<subject>` the router cites must be a real subject in the decisions index.
+missing=""
+for ref in $(grep -hoE '[A-Za-z0-9._/-]+\.md' docs/context/overview.md docs/context/features.md | sort -u); do
+    case "$ref" in
+        ../*|*/MASTERPLAN.md) continue ;;   # outside the context tree; checked elsewhere
+    esac
+    [ -f "docs/context/$ref" ] || missing="$missing $ref"
+done
+if [ -n "$missing" ]; then
+    echo "  FAIL: the always-read layer points at file(s) that do not exist:$missing"
+    echo "        fix the link, or the router sends the next agent to a dead end."
+    fail=1
+fi
+for subj in $(grep -hoE 'decisions\.md#[a-z-]+' docs/context/overview.md docs/context/features.md | sed -E 's/.*#//' | sort -u); do
+    if ! grep -q "#${subj}\`" docs/context/decisions.md; then
+        echo "  FAIL: the router cites decisions.md#${subj}, but decisions.md has no #${subj} subject."
+        fail=1
+    fi
+done
+
+echo "[check] the always-read context layer stays under its size budget..."
+# The always-read layer (overview.md + features.md) is loaded every session, and the whole reason
+# this structure exists is that an ever-growing always-loaded file is what makes an agent skim and
+# ignore it. Enforce the ceiling rather than hope for it — re-bloat cannot ship green. If this
+# trips, the fix is to MOVE detail into an on-demand file and add a router row, never to raise the
+# cap. (~400 lines is the researched budget; the seam mechanics stay in, everything else earns it.)
+always_read_budget=420
+always_read_lines=$(cat docs/context/overview.md docs/context/features.md | wc -l)
+if [ "$always_read_lines" -gt "$always_read_budget" ]; then
+    echo "  FAIL: overview.md + features.md = ${always_read_lines} lines, over the ${always_read_budget} budget."
+    echo "        Move detail to an on-demand doc + add a router row; do not raise the cap."
+    fail=1
+fi
+
+echo "[check] known-issues.md has no zombie 'FIXED' entries (delete when fixed)..."
+# The file's own rule is "when you fix something, delete its entry." A struck-through '~~…~~ — FIXED'
+# bullet is a fix that never got deleted — pure bloat, and the single biggest source of it here. The
+# story of a fix lives in git + sessions/; a durable lesson belongs in known-issues' traps or in
+# decisions.md, not in a strikethrough. Enforce the delete.
+if grep -nE '~~.*~~[^*]*FIXED' docs/context/known-issues.md; then
+    echo "  FAIL: delete the struck-through FIXED entr(y/ies) above — keep only the durable lesson,"
+    echo "        in the traps section or decisions.md. The fix's story is in git + sessions/."
     fail=1
 fi
 

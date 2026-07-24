@@ -1,100 +1,79 @@
 # Repo context — start here
 
-This folder is the **project's working memory**: a compact synthesis of what
-formicaria is, what we implemented and *why*, and what is *not* working — enough
-to reconstruct the context of the repo **without loading a large context
-window**. It is written for a future Claude (or human) picking the project up
-cold.
+This folder is the project's **working memory**: enough to reconstruct what formicaria is, what we
+built and *why*, and what is *not* working — **without loading a large context window.** It is
+written for a future Claude (or human) picking the project up cold. It is separate from the mdBook
+user manual (`docs/src/`, how to *use* the app) and from the canonical spec
+(`formicaria/MASTERPLAN.md`, the authoritative design); these files are the fast-recall layer over
+both.
 
-> **If you are an assistant working in this repo: read [overview.md](./overview.md)
-> first, then skim the file below that matches your task, before you start.**
-> When you finish substantive work, update these files (see "Update discipline").
+## Two layers — read this, it is the whole design
 
-This is separate from the mdBook user manual (`docs/src/`) — that explains how to
-*use* the app; this explains how to *understand and maintain* it. It is also
-distinct from the canonical spec, `formicaria/MASTERPLAN.md`, which stays the
-authoritative design document; these files are the fast-recall layer over it.
+The failure this folder kept hitting is **bloat**: a running narrative and never-deleted "fixed"
+entries grew it past the point where anyone could read it. The fix (grounded in how Claude Code /
+Codex / Cline actually manage agent memory) is **two layers**:
 
-## The files
+- **Always-read** — [`overview.md`](./overview.md) + [`features.md`](./features.md). Small, current,
+  read at the start of any session. `overview.md` carries the philosophy, the architecture, and a
+  **router** that names the exact on-demand file to open before you touch a hot area. `features.md`
+  is the one-line-per-feature index. Keep the two **together under ~400 lines** — the seam mechanics
+  stay in `overview.md` (they are what the bugs came from), but nothing else earns always-loaded
+  space unless *removing it would cause a mistake*.
+- **On-demand** — everything else, pulled **only when the router or the feature index points you
+  there**. Retrieval must be precise: grep a subject, land on one entry, don't load the whole file.
 
-| File | Read it when you need… |
-|------|------------------------|
-| [overview.md](./overview.md) | the 5-minute mental model: what it is, how it runs, architecture, seams, status. **Always read first.** |
-| [decisions.md](./decisions.md) | *why* something is the way it is before you change it (pivots, reversals, load-bearing constraints). |
-| [known-issues.md](./known-issues.md) | what's broken/rough/deferred, and the traps (toolchain, sandbox, CI greps) that will bite you. |
-| [outstanding.md](./outstanding.md) | **the work queue** — what is known to be wrong or missing, ranked, each entry naming the file and what "done" looks like. Start here when picking up work. |
-| [plan.md](./plan.md) | **the forward program** — the sequenced plan (knowledge + scheduling + collaboration) and *why not the obvious alternative*. The file here describing things that do **not** exist yet. |
-| [collaboration-design.md](./collaboration-design.md) | the line-by-line **code audit** behind `plan.md`'s Track C — the receipts (the `candidates` seam, the `reconcileElements` autopsy, the `push_squashed` trap). Read it when `plan.md` sends you for detail. |
-| [mobile-design.md](./mobile-design.md) | the design + code audit behind `plan.md`'s **Track M** (formicaria on the phone) — the receipts. Read it knowing two of its rulings were **refuted and are marked so in place**: the `git2` port (libgit2 cannot run external merge drivers, and linking GPL fails `deny.toml`) and `git2::merge_file` (no such function). What stands: the `fm_app::dispatch` extraction (shipped), PAT-first auth, and the transport ruling. **The M0–M8 sequence was re-derived 2026-07-19** — steps 0–5 need no git backend and no NDK; the old spike list is kept struck-through. |
-| [sessions/](./sessions/) | the narrative history — one append-only entry per working session, newest kept. |
+| File | Layer | Read it when… |
+|---|---|---|
+| [overview.md](./overview.md) | always | the 5-minute model: what it is, how it runs, the 3 seams, the router. **First.** |
+| [features.md](./features.md) | always | you need the status of a feature or a pointer to its detail. |
+| [decisions.md](./decisions.md) | on-demand | you are about to change something — grep its **subject index** for the `#tag` the router gave you. Append-only, dated; reversals are chains, never edits. |
+| [known-issues.md](./known-issues.md) | on-demand | before assuming something works — durable traps + open gaps. |
+| [outstanding.md](./outstanding.md) | on-demand | picking up work — the ranked queue, each naming the file and what "done" means. |
+| topic docs (`mobile-design.md`, `ai-agents-plan.md`, `*-research-*.md`) | on-demand | the router sends you there for a specific area's receipts. |
+| [sessions/](./sessions/) | log | the dated narrative — how we got here. Not always-read; distil durable facts up. |
+| [archive/](./archive/) | cold | retired docs kept one `ls` away rather than only in `git log`. |
+
+**Two rules keep it from re-exploding, and `ci/checks.sh` enforces the first:**
+1. **Every router pointer resolves.** The always-read layer may only point at files that exist and
+   subjects that exist — an on-demand doc nobody is pointed to is invisible. CI fails on a dead
+   pointer.
+2. **Prune the always-read layer; append the record.** `overview.md`/`features.md` are current-state
+   and get *trimmed* (a fixed bug's entry is deleted). `decisions.md` is a record and gets
+   *appended* (a decision is superseded, never edited away). Never mix the two contracts in one file.
 
 ## Update discipline
 
-Keep this folder **true and small** — a stale synthesis is worse than none.
+When you finish substantive work, **before ending**:
+1. **`features.md`** — bump the feature's status/line if it changed.
+2. **The relevant on-demand doc** — `known-issues.md` (delete a fixed entry, add a new gap),
+   `outstanding.md`, or a topic doc. If you made a design *decision* or reversed one, **append** a
+   dated entry to `decisions.md` (with a `#subject` from the index) — do not edit an old one away.
+3. **`overview.md`** — only if the model or a seam changed. Add a router row for any new on-demand
+   doc. Do **not** grow a "what shipped when" narrative here — that is what `sessions/` is for.
+4. **A `sessions/YYYY-MM-DD-<slug>.md`** entry is optional and for the log; the durable facts belong
+   up in the layers above, not only in the session file.
 
-1. **After substantive work**, before ending: add a `sessions/YYYY-MM-DD-<slug>.md`
-   entry (what you did, decisions, what you left not-working), and reconcile
-   `overview.md` / `decisions.md` / `known-issues.md` with reality — delete fixed
-   entries, add new gaps, bump the "Last verified" line + commit hash.
-2. **Prune, don't append forever.** overview/decisions/known-issues are
-   *current-state* documents, not logs — the log is `sessions/`. Fold durable
-   outcomes up into the three top-level files and keep session entries lean.
-3. **The code wins.** When a file here disagrees with the code, fix the file.
-   If a note names a file/function/flag, verify it still exists before relying
-   on it.
-4. **No secrets, no vault content** — this ships in the repo.
+**The code wins.** When a file here disagrees with the code, fix the file. If a note names a
+file/function/flag, verify it still exists before relying on it. No secrets, no vault content.
 
-### Worked example
+## The cold-read test — run it after any ruling, and quarterly
 
-Say you added a streaming `GET /api/blob/<hash>` route and deleted the
-whole-blob-in-memory workaround. Before ending the session:
+`docs/book.toml` renders `docs/src`, not `docs/context`, so **these files have zero CI coverage**
+beyond the router-pointer check. This is the substitute: open a **fresh session**, read only the
+always-read layer + whatever the router points you to, and answer from the corpus alone — then check
+each against the tree. **On 2026-07-19, six of seven answered wrong.** Record the count each time;
+treat any non-zero as work.
 
-1. **Add a session entry** — `sessions/2026-08-02-blob-streaming.md`:
-   ```markdown
-   # 2026-08-02 — Blob streaming
-
-   **Outcome:** `GET /api/blob/<hash>` in fm-serve (Content-Type via sniff_mime,
-   Accept-Ranges, honors Range). `<video>`/`<iframe>` now range-request instead
-   of buffering the whole file. Commit `abc1234`; `pixi run ci` green.
-
-   ## Why
-   Large PDFs/video buffered the entire blob into a Blob object URL (see the old
-   known-issues entry). Range requests fix seeking + memory.
-
-   ## Left not-working
-   Thumbnails still eager. `render.ts` resolver unchanged for images (fine).
-   ```
-2. **Reconcile the top-level files** — in `known-issues.md`, *delete* the
-   "Inline media buffers whole blobs" bullet; in `overview.md`, add `blob` to the
-   command/route list and bump `_Last verified: 2026-08-02 (commit abc1234)_`. If
-   it changed a design rule, add/adjust a `decisions.md` entry.
-
-That's the whole loop: **append to `sessions/`, prune the three current-state
-files, bump the verified line.**
-
-## The cold-read test — run it quarterly, and after any ruling
-
-`docs/book.toml` renders `docs/src`, not `docs/context`, so **these files have zero CI coverage**.
-Nothing mechanical will tell you the synthesis has gone stale. This checklist is the substitute:
-open a **fresh session**, follow this README's protocol, and answer from the corpus alone — then
-check each answer against the tree. It is written down so it gets *re-run*, not re-derived.
-
-1. Was the mobile **transport** ruling reversed? → *No. Untouched.*
-2. Is the `.md` **merge in-process**? → *No — `merge.rs` shells `git merge-file`.*
+1. Was the mobile **transport** ruling reversed? → *No.*
+2. Is the `.md` **merge in-process**? → *On the phone yes (`git_native`); the desktop shells out.*
 3. Does **`fm-cli` owe a migration** onto `dispatch`? → *No — ruled the other way.*
-4. Does **M1 port an existing primitive**? → *No — `git.rs` has no `clone`.*
-5. What is **executable today** with no phone and no NDK? → *Steps 0–5 of the corrected sequence.*
+4. Can a **phone create/accept a proposal**? → *Yes, since 2026-07-24 (`git_native` + `vcs`).*
+5. What is **executable today** with no phone and no NDK?
 6. What does the corpus say about **viewing a PDF on Android**, and about foreground services?
 7. Is **`fm-serve` safe to run on a phone**? → *No. Loopback is not sandboxed on Android.*
 
-**On 2026-07-19, six of these seven answered wrong.** That number is the measurement: record it
-each time you run this, and treat any non-zero count as work, not trivia.
-
 Three standing rules, because these are what actually failed:
-
-- **Cite rulings by subject, never by number** across document boundaries — the numbering schemes
-  in `plan.md` and `mobile-design.md` are incompatible and always were.
-- **Any external claim gets a date and a re-verify command**, or it does not go in
-  (`known-issues.md` → "External facts").
-- **A mitigation that names a mechanism must name an executor that exists.** "Pin it in CI" is not
-  a mitigation while every workflow is `workflow_dispatch`-only.
+- **Cite rulings by subject (`decisions.md#tag`), never by number** across document boundaries.
+- **Any external claim gets a date and a re-verify command** (`known-issues.md` → "External facts").
+- **A mitigation that names a mechanism must name an executor that exists.** "Pin it in CI" is not a
+  mitigation while every workflow is `workflow_dispatch`-only.
