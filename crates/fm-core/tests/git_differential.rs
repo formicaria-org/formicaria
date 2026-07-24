@@ -488,3 +488,399 @@ fn clone_offers_credentials_rather_than_failing_for_want_of_a_callback() {
         "expected the honest 'no token configured' message, got: {msg}"
     );
 }
+
+// ===========================================================================
+// The proposal lifecycle.
+//
+// Ported to libgit2 on 2026-07-24 because it was reachable only through `crate::git`, so on a
+// phone — no `git` binary — creating, reviewing, accepting or rejecting a proposal all failed.
+// A proposal is the only way a UI-only user merges anything, so the device that needed it most
+// had none of it.
+// ===========================================================================
+
+/// A realistic note: frontmatter the merge engine treats structurally, and a body it merges by
+/// line. The `updated:` field is the one that collides on *every* concurrent edit, which is the
+/// entire reason the `merge=fm` driver exists.
+/// It has to be a *parseable* note: the engine resolves `updated` structurally only when all
+/// three sides parse, and falls back to a line-based 3-way when they do not — which is exactly
+/// how a fixture that is merely note-shaped hides the behaviour under test.
+const NOTE: &str = "---\nid: 01JQ0000000000000000000000\ntype: note\ntitle: t\n\
+                    created: 2026-07-17T10:00:00Z\nupdated: 2026-07-24T10:00:00Z\n---\n\n\
+                    alpha\nbravo\ncharlie\ndelta\necho\n";
+
+/// A vault with one committed note, on the placeholder identity.
+fn seed(vault: &Path, rel: &str, body: &str) {
+    if !vault.join(".git").exists() {
+        git::ensure_repo(vault).unwrap();
+        no_identity(vault);
+    }
+    let path = vault.join(rel);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, body).unwrap();
+    git::commit_all(vault, "seed", &[path]).unwrap();
+}
+
+/// Create → open? → read → diff → load → revise → accept, run through both backends over the
+/// same starting vault, with **real git** as the oracle for the resulting trees.
+#[test]
+fn the_proposal_lifecycle_agrees_across_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+
+    let br = "proposal/p1";
+    let proposed = NOTE.replace("bravo", "bravo revised");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &proposed, "propose", None).unwrap();
+    git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &proposed, "propose", None)
+        .unwrap();
+
+    // The tree is the guarantee — not the patch text, which each backend renders its own way.
+    assert_eq!(
+        g(a.path(), &["rev-parse", "proposal/p1^{tree}"]),
+        g(b.path(), &["rev-parse", "proposal/p1^{tree}"]),
+        "the proposed tree must be identical"
+    );
+    // And the working tree is untouched by a proposal, on both.
+    assert_eq!(fs::read_to_string(a.path().join("notes/n1.md")).unwrap(), NOTE);
+    assert_eq!(fs::read_to_string(b.path().join("notes/n1.md")).unwrap(), NOTE);
+
+    assert!(git::branch_open(a.path(), br) && git_native::branch_open(b.path(), br));
+    assert_eq!(
+        git::file_on_branch(a.path(), br, "notes/n1.md"),
+        git_native::file_on_branch(b.path(), br, "notes/n1.md"),
+    );
+    assert_eq!(git_native::file_on_branch(b.path(), br, "notes/n1.md").as_deref(), Some(&*proposed));
+
+    let (ea, fa, pa) = git::branch_diff(a.path(), br).unwrap();
+    let (eb, fb, pb) = git_native::branch_diff(b.path(), br).unwrap();
+    assert_eq!((ea, &fa), (eb, &fb), "existence and file list are exact");
+    assert_eq!(fa, vec!["notes/n1.md".to_string()]);
+    // The patch text is *declared* asymmetric (libgit2 renders its own). Assert it says the
+    // right thing, not that it says it in the same bytes.
+    for p in [&pa, &pb] {
+        assert!(p.contains("notes/n1.md") && p.contains("+bravo revised"), "patch: {p}");
+    }
+    assert_eq!(
+        git::proposal_load(a.path()).unwrap(),
+        git_native::proposal_load(b.path()).unwrap(),
+        "open count and byte weight feed the vault guardrails"
+    );
+
+    // Revise moves the ref atomically; the branch must still be the one branch.
+    let revised = NOTE.replace("bravo", "bravo twice");
+    git::revise_proposal_branch(a.path(), br, "notes/n1.md", &revised, "revise", None).unwrap();
+    git_native::revise_proposal_branch(b.path(), br, "notes/n1.md", &revised, "revise", None)
+        .unwrap();
+    assert_eq!(
+        g(a.path(), &["rev-parse", "proposal/p1^{tree}"]),
+        g(b.path(), &["rev-parse", "proposal/p1^{tree}"]),
+    );
+
+    assert_eq!(
+        git::merge_proposal_branch(a.path(), br).unwrap(),
+        git_native::merge_proposal_branch(b.path(), br).unwrap(),
+    );
+    assert_eq!(
+        g(a.path(), &["rev-parse", "HEAD^{tree}"]),
+        g(b.path(), &["rev-parse", "HEAD^{tree}"]),
+        "accepting must land the same tree"
+    );
+    assert_eq!(fs::read_to_string(b.path().join("notes/n1.md")).unwrap(), revised);
+    assert!(!git::branch_open(a.path(), br) && !git_native::branch_open(b.path(), br));
+}
+
+/// Creating a proposal must refuse a name that already exists, and refuse a vault with no
+/// commits — identically.
+#[test]
+fn creating_a_proposal_agrees_on_its_refusals() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    // No commits yet: nothing to propose a change against.
+    git::ensure_repo(a.path()).unwrap();
+    git_native::ensure_repo(b.path()).unwrap();
+    no_identity(a.path());
+    no_identity(b.path());
+    assert!(git::create_proposal_branch(a.path(), "proposal/p", "n.md", "x", "m", None).is_err());
+    assert!(
+        git_native::create_proposal_branch(b.path(), "proposal/p", "n.md", "x", "m", None).is_err()
+    );
+
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+    for _ in 0..1 {
+        git::create_proposal_branch(a.path(), "proposal/p", "notes/n1.md", "x", "m", None).unwrap();
+        git_native::create_proposal_branch(b.path(), "proposal/p", "notes/n1.md", "x", "m", None)
+            .unwrap();
+    }
+    // A proposal owns a fresh-ULID branch, so a collision is a bug, not a race.
+    assert!(git::create_proposal_branch(a.path(), "proposal/p", "notes/n1.md", "y", "m", None)
+        .is_err());
+    assert!(git_native::create_proposal_branch(
+        b.path(),
+        "proposal/p",
+        "notes/n1.md",
+        "y",
+        "m",
+        None
+    )
+    .is_err());
+}
+
+/// Rejecting is deleting the branch, and it must be idempotent on both.
+#[test]
+fn rejecting_a_proposal_agrees_and_is_idempotent() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    let proposed = NOTE.replace("bravo", "nope");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &proposed, "m", None).unwrap();
+    git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &proposed, "m", None).unwrap();
+
+    git::delete_branch(a.path(), br).unwrap();
+    git_native::delete_branch(b.path(), br).unwrap();
+    assert!(!git::branch_open(a.path(), br) && !git_native::branch_open(b.path(), br));
+    // Rejected twice, or only ever existing on another clone: success, not an error.
+    git::delete_branch(a.path(), br).unwrap();
+    git_native::delete_branch(b.path(), br).unwrap();
+    // `main` is untouched — a proposal is only ever an off-main branch.
+    assert_eq!(fs::read_to_string(b.path().join("notes/n1.md")).unwrap(), NOTE);
+}
+
+// ---------------------------------------------------------------------------
+// Native-only: the accept path's safety properties.
+//
+// These are not differential — the subprocess backend needs the `fm` binary installed as a merge
+// driver to behave this way, and a test vault has none. They pin the properties that the *first*
+// draft of this port got wrong, every one of which costs the user a note.
+// ---------------------------------------------------------------------------
+
+/// **libgit2 never runs the `merge=fm` driver** — it resolves no named drivers and silently falls
+/// back to a line-based text merge. So the manufactured `updated:` collision, which happens on
+/// *every* concurrent edit, would make essentially every accept report a conflict. The resolution
+/// through `merged_text` is what prevents that, and this is the assertion a naive port fails.
+#[test]
+fn accepting_resolves_the_updated_collision_that_libgit2_alone_would_conflict_on() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+
+    let proposed = NOTE.replace("echo", "echo revised").replace("updated: 2026-07-24T10", "updated: 2026-07-24T11");
+    git_native::create_proposal_branch(v.path(), br, "notes/n1.md", &proposed, "m", None).unwrap();
+
+    // Meanwhile main moves on, touching a different line *and* the same `updated:` field.
+    let moved = NOTE.replace("alpha", "alpha edited").replace("updated: 2026-07-24T10", "updated: 2026-07-24T12");
+    fs::write(v.path().join("notes/n1.md"), &moved).unwrap();
+    git_native::commit_all(v.path(), "edit", &[v.path().join("notes/n1.md")]).unwrap();
+
+    assert_eq!(
+        git_native::merge_proposal_branch(v.path(), br).unwrap(),
+        git::Accepted::Merged,
+        "the frontmatter collision must not surface as a conflict"
+    );
+    let after = fs::read_to_string(v.path().join("notes/n1.md")).unwrap();
+    assert!(!after.contains("<<<<<<<"), "no markers: {after}");
+    assert!(after.contains("alpha edited") && after.contains("echo revised"), "{after}");
+}
+
+/// A genuine disagreement fails **closed**: nothing on disk moves, `HEAD` does not move, and the
+/// repository is not left mid-merge. The user's escape hatch is to edit the proposed body and
+/// save, which revises the proposal onto current `main` — and that only works if accepting a
+/// conflicted proposal changed nothing.
+#[test]
+fn a_real_conflict_leaves_the_vault_exactly_as_it_was() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(
+        v.path(),
+        br,
+        "notes/n1.md",
+        &NOTE.replace("bravo", "their side"),
+        "m",
+        None,
+    )
+    .unwrap();
+
+    let mine = NOTE.replace("bravo", "my side");
+    fs::write(v.path().join("notes/n1.md"), &mine).unwrap();
+    git_native::commit_all(v.path(), "edit", &[v.path().join("notes/n1.md")]).unwrap();
+    let head_before = g(v.path(), &["rev-parse", "HEAD"]);
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Conflicted);
+    assert_eq!(g(v.path(), &["rev-parse", "HEAD"]), head_before, "HEAD must not move");
+    assert_eq!(fs::read_to_string(v.path().join("notes/n1.md")).unwrap(), mine);
+    assert_eq!(g(v.path(), &["status", "--porcelain"]), "", "and no half-merge is left behind");
+    assert!(git_native::conflicts(v.path()).unwrap().is_empty());
+    assert!(git_native::branch_open(v.path(), br), "the proposal is still there to revise");
+}
+
+/// **The one that fires on an unrelated proposal.** A whole-tree `checkout_head(force)` — the
+/// obvious way to write this — reverts every tracked file in the vault that differs from `HEAD`,
+/// so a user mid-edit in a note they are not proposing anything about would silently lose it by
+/// tapping Accept. The checkout is scoped to the merged paths precisely so this cannot happen.
+#[test]
+fn accepting_does_not_touch_a_dirty_file_the_proposal_never_mentions() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    seed(v.path(), "notes/n2.md", NOTE.replace("01JQ0000", "01JQ1111").as_str());
+
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(
+        v.path(),
+        br,
+        "notes/n1.md",
+        &NOTE.replace("bravo", "bravo revised"),
+        "m",
+        None,
+    )
+    .unwrap();
+
+    // The user is mid-edit in n2; the debounced auto-commit has not fired yet.
+    let in_progress = NOTE.replace("01JQ0000", "01JQ1111").replace("bravo", "half a thought");
+    fs::write(v.path().join("notes/n2.md"), &in_progress).unwrap();
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Merged);
+    assert_eq!(
+        fs::read_to_string(v.path().join("notes/n2.md")).unwrap(),
+        in_progress,
+        "the unrelated in-progress note must survive being accepted around"
+    );
+}
+
+/// Uncommitted work **in a path the merge writes** is refused rather than overwritten — what
+/// `git merge` does with "local changes would be overwritten by merge".
+#[test]
+fn accepting_refuses_rather_than_overwrite_uncommitted_work_in_a_merged_path() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(
+        v.path(),
+        br,
+        "notes/n1.md",
+        &NOTE.replace("bravo", "bravo revised"),
+        "m",
+        None,
+    )
+    .unwrap();
+
+    let unsaved = NOTE.replace("bravo", "still typing");
+    fs::write(v.path().join("notes/n1.md"), &unsaved).unwrap();
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Conflicted);
+    assert_eq!(fs::read_to_string(v.path().join("notes/n1.md")).unwrap(), unsaved);
+}
+
+/// An **untracked** file where the proposal adds one is refused too — git's "untracked working
+/// tree files would be overwritten". This is the case the pre-proposal snapshot at
+/// `commands.rs:666` normally prevents, and that call was itself failing on the phone.
+#[test]
+fn accepting_refuses_to_clobber_an_untracked_file_the_proposal_adds() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(v.path(), br, "notes/n2.md", "proposed n2\n", "m", None)
+        .unwrap();
+
+    let theirs = "a captured note nobody committed yet\n";
+    fs::write(v.path().join("notes/n2.md"), theirs).unwrap();
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Conflicted);
+    assert_eq!(fs::read_to_string(v.path().join("notes/n2.md")).unwrap(), theirs);
+}
+
+/// Accepting **on top of an unfinished pull** must refuse. A native pull deliberately leaves
+/// `MERGE_HEAD` and a conflicted index for a human; merging over it would drop the remote's
+/// commits from the graph, erase the markers being resolved, and leave a conflicted index that
+/// blocks every later `commit_all` in the vault.
+#[test]
+fn accepting_refuses_while_a_merge_is_still_unfinished() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(
+        v.path(),
+        br,
+        "notes/n1.md",
+        &NOTE.replace("bravo", "bravo revised"),
+        "m",
+        None,
+    )
+    .unwrap();
+
+    let head_before = g(v.path(), &["rev-parse", "HEAD"]);
+    fs::write(v.path().join(".git/MERGE_HEAD"), format!("{head_before}\n")).unwrap();
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Conflicted);
+    assert_eq!(g(v.path(), &["rev-parse", "HEAD"]), head_before);
+    assert!(git_native::branch_open(v.path(), br));
+}
+
+/// Accepting something already in `main` creates **no** commit — exec prints "Already up to
+/// date." A retried accept (the branch delete never reached the remote, say) must not accrete an
+/// empty merge commit each time, and must not re-run the checkout.
+#[test]
+fn accepting_an_already_merged_proposal_adds_no_commit() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let v = tempdir().unwrap();
+    seed(v.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    git_native::create_proposal_branch(
+        v.path(),
+        br,
+        "notes/n1.md",
+        &NOTE.replace("bravo", "bravo revised"),
+        "m",
+        None,
+    )
+    .unwrap();
+    let tip = g(v.path(), &["rev-parse", br]);
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Merged);
+
+    // The branch survives (an offline delete, or another clone still holding it).
+    Command::new("git").arg("-C").arg(v.path()).args(["branch", br, &tip]).output().unwrap();
+    let count = g(v.path(), &["rev-list", "--count", "HEAD"]);
+
+    assert_eq!(git_native::merge_proposal_branch(v.path(), br).unwrap(), git::Accepted::Merged);
+    assert_eq!(g(v.path(), &["rev-list", "--count", "HEAD"]), count, "no empty merge commit");
+    assert!(!git_native::branch_open(v.path(), br), "and it is closed out");
+}

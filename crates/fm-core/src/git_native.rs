@@ -513,6 +513,42 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
     Ok(Some(ahead as u32))
 }
 
+/// **What a merged file is, for one conflicted path — the decision, and nothing else.**
+///
+/// This is the piece [`pull`] and [`merge_proposal_branch`] must never disagree about, so it is
+/// shared. Everything *around* it deliberately is not: `pull` resolves into the repo-backed index
+/// (write the file, then `add_path`), while an accept resolves into the standalone index that
+/// `merge_trees` hands back — which rejects `add_path` outright ("Index is not backed up by an
+/// existing repository") and, more importantly, **must not touch the filesystem at all**, because
+/// a conflicted accept promises to leave the vault untouched. Sharing the staging as well as the
+/// decision would mean an accept that writes resolved notes to disk *before* deciding it is
+/// conflicted. So the seam is here, at the text.
+///
+/// Same engine as `fm merge-md`, so a phone and a desktop cannot disagree about what a merged note
+/// is — **except for `manifest.json`, which is not a note.** The desktop routes it by
+/// `.gitattributes` to a second driver (`merge=fm-manifest`); there is no attribute machinery
+/// here, so the path *is* the routing. Without this the manifest went through the note merger:
+/// frontmatter parse fails, so it fell to a line-based 3-way over a pretty-printed JSON file where
+/// every blob is its own line — and two people each attaching a file conflict on adjacent lines,
+/// or on the comma of the last one. That is the *entire* bug the desktop driver exists to fix,
+/// with the full consequence chain: the UI tells the user to resolve markers in a "note" that is
+/// not one, and `commit_all` then refuses to commit anything in the vault until they do.
+fn merged_text(
+    path: &str,
+    base: &str,
+    ours: &str,
+    theirs: &str,
+) -> Result<(String, crate::merge::Merged), StoreError> {
+    if path == "manifest.json" {
+        let m = |t: &str| serde_json::from_str::<crate::Manifest>(t).ok().unwrap_or_default();
+        let union = crate::Manifest::merge(Some(&m(base)), &m(ours), &m(theirs));
+        let text =
+            serde_json::to_string_pretty(&union).map_err(|e| StoreError::Io(e.to_string()))?;
+        return Ok((text + "\n", crate::merge::Merged::Clean));
+    }
+    crate::merge::merge_texts(base, ours, theirs, 7)
+}
+
 /// Mirrors [`crate::git::pull`]: fetch, then merge their work into ours.
 ///
 /// The merge is where this backend earns its keep. Every conflicted path is handed to
@@ -609,33 +645,8 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
             };
             let (base_txt, our_txt, their_txt) = (blob(&c.ancestor), blob(&c.our), blob(&c.their));
 
-            // THE call. Same engine as `fm merge-md`, so a phone and a desktop cannot disagree
-            // about what a merged note is — **except for `manifest.json`, which is not a note.**
-            //
-            // The desktop routes it by `.gitattributes` to a second driver (`merge=fm-manifest`);
-            // there is no attribute machinery here, so the path is the routing. Without this the
-            // manifest went through the note merger: frontmatter parse fails, so it fell to a
-            // line-based 3-way over a pretty-printed JSON file where every blob is its own line —
-            // and two people each attaching a file conflict on adjacent lines, or on the comma of
-            // the last one. That is the *entire* bug the desktop driver exists to fix, still live
-            // on the phone, with the full consequence chain: the UI tells the user to resolve
-            // markers in a "note" that is not one, and `commit_all` then refuses to commit
-            // anything in the vault until they do.
-            let (merged, outcome) = if path == "manifest.json" {
-                let m = |t: &str| {
-                    serde_json::from_str::<crate::Manifest>(t).ok().unwrap_or_default()
-                };
-                let union = crate::Manifest::merge(
-                    Some(&m(&base_txt)),
-                    &m(&our_txt),
-                    &m(&their_txt),
-                );
-                let text = serde_json::to_string_pretty(&union)
-                    .map_err(|e| StoreError::Io(e.to_string()))?;
-                (text + "\n", crate::merge::Merged::Clean)
-            } else {
-                crate::merge::merge_texts(&base_txt, &our_txt, &their_txt, 7)?
-            };
+            // THE call — see [`merged_text`], which is this decision and nothing else.
+            let (merged, outcome) = merged_text(&path, &base_txt, &our_txt, &their_txt)?;
 
             let full = vault.join(&path);
             if let Some(parent) = full.parent() {
@@ -1013,4 +1024,449 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 
 fn io(e: std::io::Error) -> StoreError {
     StoreError::Io(e.to_string())
+}
+
+// ===========================================================================
+// The proposal lifecycle.
+//
+// Why it is here at all: **the whole of it was reachable only through `crate::git`**, called
+// directly from `fm-app` rather than through [`crate::vcs`], so on a phone — which has no `git`
+// binary — every proposal failed with "could not run git (is it installed?)". Creating,
+// reviewing, accepting and rejecting a proposal is the only way a UI-only user merges anything,
+// so the device that most needs it had none of it. That is the exact trap `vcs.rs` warns about,
+// a second wave of call sites the first pass missed; a grep in `ci/checks.sh` now closes it.
+// ===========================================================================
+
+/// The committer/author for a proposal commit: the agent's *model* identity when one is given
+/// (so a proposal is legibly "who proposed this"), else the vault's own.
+fn signature<'a>(
+    repo: &'a Repository,
+    author: Option<(&str, &str)>,
+) -> Result<git2::Signature<'a>, StoreError> {
+    match author {
+        Some((name, email)) => git2::Signature::now(name, email).map_err(map),
+        None => repo.signature().map_err(map),
+    }
+}
+
+/// Mirrors [`crate::git::create_proposal_branch`].
+pub fn create_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+    author: Option<(&str, &str)>,
+) -> Result<(), StoreError> {
+    write_proposal_branch(vault, branch, rel_path, content, message, author, false)
+}
+
+/// Mirrors [`crate::git::revise_proposal_branch`].
+pub fn revise_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+    author: Option<(&str, &str)>,
+) -> Result<(), StoreError> {
+    write_proposal_branch(vault, branch, rel_path, content, message, author, true)
+}
+
+/// Mirrors [`crate::git::write_proposal_branch`] — and keeps its defining property: **a pure
+/// object-database build that never touches the working tree, the index, or `HEAD`.** libgit2
+/// makes that easier than the subprocess does rather than harder: there is no `GIT_INDEX_FILE`
+/// to steer at a temp index and therefore no temp index to leak. A total failure leaves the
+/// vault exactly as it was.
+///
+/// **`commit(None)` then `reference(force)`, not `commit(Some("refs/heads/…"))`.** The latter
+/// reads as the natural `update-ref` equivalent and is wrong for a revise: libgit2 requires the
+/// first parent to be the named ref's current tip, but a revise re-parents on `HEAD` while the
+/// branch still points at the previous revision, so it would be refused outright. The two-step
+/// is still a single atomic ref move, which is what the guarantee actually rests on — an
+/// interrupted revise leaves the prior revision exactly as it was.
+fn write_proposal_branch(
+    vault: &Path,
+    branch: &str,
+    rel_path: &str,
+    content: &str,
+    message: &str,
+    author: Option<(&str, &str)>,
+    force: bool,
+) -> Result<(), StoreError> {
+    // No `ensure_repo`: proposing must never rewrite the vault's own setup. `ensure_identity`
+    // touches only `.git/config`, and without it a fresh phone vault — which has no global git
+    // config to fall back on — has no signature to commit with.
+    ensure_identity(vault);
+    let repo = Repository::open(vault).map_err(map)?;
+
+    let parent = repo
+        .head()
+        .ok()
+        .and_then(|h| h.peel_to_commit().ok())
+        .ok_or_else(|| {
+            StoreError::Io("this vault has no commits yet — nothing to propose a change to".into())
+        })?;
+
+    let refname = format!("refs/heads/{branch}");
+    if !force && repo.find_reference(&refname).is_ok() {
+        return Err(StoreError::Io(format!("proposal branch {branch:?} already exists")));
+    }
+
+    let blob = repo.blob(content.as_bytes()).map_err(map)?;
+    // `upsert` creates any missing intermediate trees, so a first note under `notes/` works.
+    let tree_oid = git2::build::TreeUpdateBuilder::new()
+        .upsert(rel_path, blob, git2::FileMode::Blob)
+        .create_updated(&repo, &parent.tree().map_err(map)?)
+        .map_err(map)?;
+    let tree = repo.find_tree(tree_oid).map_err(map)?;
+
+    let sig = signature(&repo, author)?;
+    let commit = repo.commit(None, &sig, &sig, message, &tree, &[&parent]).map_err(map)?;
+    repo.reference(&refname, commit, force, "proposal").map_err(map)?;
+    Ok(())
+}
+
+/// Mirrors `crate::git::resolve_proposal_ref`: the local `proposal/<id>` if we have it, else the
+/// remote-tracking `origin/proposal/<id>` that any pull's fetch brings down. The second arm is
+/// what lets a *reviewer* accept a proposal whose branch was created on someone else's clone.
+fn resolve_proposal_ref(repo: &Repository, branch: &str) -> Option<git2::Oid> {
+    for cand in [
+        format!("refs/heads/{branch}"),
+        format!("refs/remotes/{}/{branch}", crate::git::REMOTE),
+    ] {
+        if let Some(oid) = repo.find_reference(&cand).ok().and_then(|r| r.target()) {
+            return Some(oid);
+        }
+    }
+    None
+}
+
+/// Mirrors [`crate::git::branch_open`].
+pub fn branch_open(vault: &Path, branch: &str) -> bool {
+    let Ok(repo) = Repository::open(vault) else { return false };
+    resolve_proposal_ref(&repo, branch).is_some()
+}
+
+/// Mirrors [`crate::git::file_on_branch`].
+pub fn file_on_branch(vault: &Path, branch: &str, rel: &str) -> Option<String> {
+    let repo = Repository::open(vault).ok()?;
+    let oid = resolve_proposal_ref(&repo, branch)?;
+    let tree = repo.find_commit(oid).ok()?.tree().ok()?;
+    let entry = tree.get_path(Path::new(rel)).ok()?;
+    let blob = repo.find_blob(entry.id()).ok()?;
+    Some(String::from_utf8_lossy(blob.content()).into_owned())
+}
+
+/// The merge-base of `HEAD` and a proposal, as a tree — the "what did this fork from" side of
+/// every diff below, so commits that landed on `main` since are not counted as part of it.
+fn proposal_base_tree<'a>(
+    repo: &'a Repository,
+    head: git2::Oid,
+    theirs: git2::Oid,
+) -> Result<git2::Tree<'a>, StoreError> {
+    let base = repo.merge_base(head, theirs).unwrap_or(head);
+    repo.find_commit(base).map_err(map)?.tree().map_err(map)
+}
+
+/// Mirrors [`crate::git::branch_diff`].
+///
+/// **Not byte-identical to the subprocess backend, by declaration** — libgit2 renders its own
+/// patch text (`index` line shape, rename-detection defaults). The file list is exact; the patch
+/// is the same change described in the same format, not the same bytes. See the "what is NOT
+/// symmetric" section of [`crate::vcs`].
+pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let Some(theirs) = resolve_proposal_ref(&repo, branch) else {
+        return Ok((false, Vec::new(), String::new()));
+    };
+    let head = repo.head().map_err(map)?.target().unwrap_or(theirs);
+    let base_tree = proposal_base_tree(&repo, head, theirs)?;
+    let their_tree = repo.find_commit(theirs).map_err(map)?.tree().map_err(map)?;
+
+    let diff = repo
+        .diff_tree_to_tree(Some(&base_tree), Some(&their_tree), None)
+        .map_err(map)?;
+
+    let mut files: Vec<String> = Vec::new();
+    for d in diff.deltas() {
+        if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
+            files.push(p.to_string_lossy().into_owned());
+        }
+    }
+    files.sort();
+    files.dedup();
+
+    let mut patch = String::new();
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        // `+`/`-`/` ` are content lines whose origin character is not part of `content()`;
+        // headers and hunk markers already carry their own text.
+        if matches!(line.origin(), '+' | '-' | ' ') {
+            patch.push(line.origin());
+        }
+        patch.push_str(&String::from_utf8_lossy(line.content()));
+        true
+    })
+    .map_err(map)?;
+
+    Ok((true, files, patch))
+}
+
+/// Mirrors [`crate::git::proposal_load`]: how many `proposal/*` branches are open, and the total
+/// bytes of the files they change. A branch that cannot be read is skipped, never fatal — a load
+/// probe must not become the thing that blocks every new proposal.
+///
+/// Counts **local** branches only, exactly as the subprocess backend's `for-each-ref
+/// refs/heads/proposal/` does: a proposal held only as `origin/proposal/<id>` is somebody else's
+/// open slot, not this vault's. Consistent, not an oversight.
+pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let head = repo.head().ok().and_then(|h| h.target());
+
+    let mut count = 0usize;
+    let mut bytes = 0u64;
+    for b in repo.branches(Some(git2::BranchType::Local)).map_err(map)? {
+        let Ok((br, _)) = b else { continue };
+        let Ok(Some(name)) = br.name() else { continue };
+        if !name.starts_with("proposal/") {
+            continue;
+        }
+        count += 1;
+
+        let (Some(head), Some(theirs)) = (head, br.get().target()) else { continue };
+        let (Ok(base_tree), Ok(their_tree)) = (
+            proposal_base_tree(&repo, head, theirs),
+            repo.find_commit(theirs).and_then(|c| c.tree()),
+        ) else {
+            continue;
+        };
+        let Ok(diff) = repo.diff_tree_to_tree(Some(&base_tree), Some(&their_tree), None) else {
+            continue;
+        };
+        for d in diff.deltas() {
+            // A path *deleted* on the branch has no new blob. The subprocess backend's
+            // `cat-file -s` silently contributes 0 there, so this skips rather than erroring.
+            let id = d.new_file().id();
+            if id.is_zero() {
+                continue;
+            }
+            if let Ok(blob) = repo.find_blob(id) {
+                bytes = bytes.saturating_add(blob.size() as u64);
+            }
+        }
+    }
+    Ok((count, bytes))
+}
+
+/// Mirrors [`crate::git::push_branch`]. Through the shared [`credentials`] callbacks, so auth
+/// cannot drift from `push`/`pull`.
+pub fn push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreError> {
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
+    let mut opts = git2::PushOptions::new();
+    opts.remote_callbacks(credentials());
+    // A revise moves the branch, so its push must overwrite the remote tip.
+    let plus = if force { "+" } else { "" };
+    rem.push(&[format!("{plus}refs/heads/{branch}:refs/heads/{branch}")], Some(&mut opts))
+        .map_err(map)?;
+    Ok(())
+}
+
+/// Mirrors [`crate::git::delete_branch`] — how a proposal is REJECTED. Best-effort throughout: a
+/// branch that is already gone is success, not an error. **Never touches `main`.**
+pub fn delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    if let Ok(mut b) = repo.find_branch(branch, git2::BranchType::Local) {
+        let _ = b.delete();
+    }
+    if remote(vault)?.is_some() {
+        if let Ok(mut rem) = repo.find_remote(crate::git::REMOTE) {
+            let mut opts = git2::PushOptions::new();
+            opts.remote_callbacks(credentials());
+            // An empty push-side of the refspec is a delete. libgit2 also drops the matching
+            // `refs/remotes/origin/<branch>`, so `branch_open` correctly goes false afterwards.
+            let _ = rem.push(&[format!(":refs/heads/{branch}")], Some(&mut opts));
+        }
+    }
+    Ok(())
+}
+
+/// Would accepting have to overwrite work the user has not committed? Asked **only of the paths
+/// the merge actually writes**, which is what the subprocess backend effectively does: `git
+/// merge` refuses when a *merged* or untracked path would be clobbered, and happily merges
+/// around an unrelated dirty file. Checking the whole vault instead would make accept refuse
+/// forever in any vault that always carries an uncommitted file.
+fn accept_would_clobber(repo: &Repository, paths: &[String]) -> bool {
+    paths.iter().any(|p| {
+        // `Err` = the path matches nothing git knows or watches: nothing to clobber.
+        repo.status_file(Path::new(p))
+            .map(|s| !s.is_empty() && s != git2::Status::CURRENT)
+            .unwrap_or(false)
+    })
+}
+
+/// Mirrors [`crate::git::merge_proposal_branch`]: accept a proposal by merging it into the
+/// current branch, then dropping the branch so it stops showing as open.
+///
+/// # Why this is shaped differently from the subprocess backend
+///
+/// Exec runs `git merge --no-ff` and, on failure, `git merge --abort`. Two things make a direct
+/// transliteration wrong here, and **both of them cost notes**:
+///
+/// 1. **libgit2 never runs the `merge=fm` driver.** It resolves no named merge drivers — it
+///    contains no process spawn at all — and silently falls back to the built-in text driver.
+///    So the conflicted paths are resolved here, by [`merged_text`], the same engine `pull` uses
+///    and the same one the desktop driver calls. Without it essentially every accept of a note
+///    that also moved on `main` would report a conflict on the manufactured `updated:` collision.
+/// 2. **`checkout_head(force)` is not scoped to the merge.** Its baseline and target are both the
+///    `HEAD` tree, so every delta is unmodified and only the *working tree* comparison drives
+///    action: every tracked file in the vault that differs from `HEAD` gets overwritten and every
+///    user-deleted file resurrected, merged or not. A user mid-edit in an unrelated note, with
+///    the debounce not yet fired, would silently lose it by tapping Accept. The checkout below is
+///    therefore restricted to exactly the paths the merge changes.
+///
+/// # The ordering, which is the crash-safety argument
+///
+/// Decide in memory → **write the working tree and index** → move `HEAD` last. There is no
+/// crash-free ordering; this is the one whose failure mode is recoverable. Killed between the
+/// checkout and the commit (the Android low-memory killer needs no reason), the vault holds the
+/// merged content with `HEAD` unmoved: the next debounced `commit_all` records it as an ordinary
+/// commit — losing the merge *parent*, losing no bytes — and re-accepting is idempotent.
+///
+/// Committing first and checking out second, which reads as the more natural order, is the one
+/// shape that must not be used: it leaves `HEAD` moved over a stale index and working tree with
+/// **no marker of any kind**, after which the next auto-commit writes a tree from that stale
+/// index and silently commits a *revert of the whole accepted proposal*, indistinguishable from
+/// a user edit. An undetectable half-state is worse than a detectable one.
+pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::Accepted, StoreError> {
+    use crate::git::Accepted;
+
+    ensure_identity(vault);
+    let repo = Repository::open(vault).map_err(map)?;
+    let Some(their_oid) = resolve_proposal_ref(&repo, branch) else {
+        return Ok(Accepted::AlreadyGone);
+    };
+
+    // (i) Refuse over an unfinished merge. `pull` deliberately leaves `MERGE_HEAD` and a
+    //     conflicted index when a note needs a human; merging on top of that would drop the
+    //     remote's commits from the graph, erase the markers the user is resolving, and leave a
+    //     conflicted index that blocks *every* later `commit_all` in the vault.
+    if repo.state() != git2::RepositoryState::Clean || !conflicts(vault)?.is_empty() {
+        return Ok(Accepted::Conflicted);
+    }
+
+    let our_oid = repo
+        .head()
+        .map_err(map)?
+        .target()
+        .ok_or_else(|| StoreError::Io("HEAD has no target".into()))?;
+    let our_commit = repo.find_commit(our_oid).map_err(map)?;
+    let their_commit = repo.find_commit(their_oid).map_err(map)?;
+    let our_tree = our_commit.tree().map_err(map)?;
+    let their_tree = their_commit.tree().map_err(map)?;
+
+    // (ii) Already in. Exec prints "Already up to date." and creates no commit; without this a
+    //      retried accept (offline, so the branch delete never reached the remote) would add an
+    //      empty merge commit every time.
+    if our_oid == their_oid || repo.graph_descendant_of(our_oid, their_oid).map_err(map)? {
+        let _ = delete_branch(vault, branch);
+        return Ok(Accepted::Merged);
+    }
+
+    let Ok(base_oid) = repo.merge_base(our_oid, their_oid) else {
+        // Unrelated histories — `git merge` refuses these too.
+        return Ok(Accepted::Conflicted);
+    };
+    let base_tree = repo.find_commit(base_oid).map_err(map)?.tree().map_err(map)?;
+
+    // (iii) Decide, entirely in memory. Nothing on disk has changed when this block returns
+    //       `Conflicted`, which is the promise the review UI's "resolve it by editing the
+    //       proposed body" escape hatch depends on.
+    let mut index = repo.merge_trees(&base_tree, &our_tree, &their_tree, None).map_err(map)?;
+    if index.has_conflicts() {
+        let items: Vec<_> = index.conflicts().map_err(map)?.flatten().collect();
+        for c in items {
+            let Some(path) = c
+                .our
+                .as_ref()
+                .or(c.their.as_ref())
+                .or(c.ancestor.as_ref())
+                .map(|e| String::from_utf8_lossy(&e.path).into_owned())
+            else {
+                continue;
+            };
+            let text = |e: &Option<git2::IndexEntry>| -> String {
+                e.as_ref()
+                    .and_then(|e| repo.find_blob(e.id).ok())
+                    .map(|b| String::from_utf8_lossy(b.content()).into_owned())
+                    .unwrap_or_default()
+            };
+            let (merged, outcome) =
+                merged_text(&path, &text(&c.ancestor), &text(&c.our), &text(&c.their))?;
+            if outcome != crate::merge::Merged::Clean {
+                return Ok(Accepted::Conflicted);
+            }
+            let oid = repo.blob(merged.as_bytes()).map_err(map)?;
+            index.conflict_remove(Path::new(&path)).map_err(map)?;
+            // Built fresh rather than by editing the conflict entry: `Index::add` masks only the
+            // name length out of `flags`, so reusing a stage-2/3 entry would re-insert a
+            // *conflict* and `write_tree_to` would then fail with "not fully merged".
+            index
+                .add(&git2::IndexEntry {
+                    ctime: git2::IndexTime::new(0, 0),
+                    mtime: git2::IndexTime::new(0, 0),
+                    dev: 0,
+                    ino: 0,
+                    mode: 0o100644,
+                    uid: 0,
+                    gid: 0,
+                    file_size: merged.len() as u32,
+                    id: oid,
+                    flags: 0,
+                    flags_extended: 0,
+                    path: path.into_bytes(),
+                })
+                .map_err(map)?;
+        }
+    }
+    let merged_tree = repo.find_tree(index.write_tree_to(&repo).map_err(map)?).map_err(map)?;
+
+    // (iv) The paths this merge actually writes — the checkout's scope, and the only paths whose
+    //      uncommitted state can block it.
+    let changed = repo
+        .diff_tree_to_tree(Some(&our_tree), Some(&merged_tree), None)
+        .map_err(map)?;
+    let paths: Vec<String> = changed
+        .deltas()
+        .filter_map(|d| d.new_file().path().or_else(|| d.old_file().path()))
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    if accept_would_clobber(&repo, &paths) {
+        return Ok(Accepted::Conflicted);
+    }
+
+    // (v) Apply: working tree and index first, `HEAD` last. See the ordering note above.
+    let mut co = git2::build::CheckoutBuilder::new();
+    co.force();
+    for p in &paths {
+        co.path(p);
+    }
+    repo.checkout_tree(merged_tree.as_object(), Some(&mut co)).map_err(map)?;
+
+    let sig = repo.signature().map_err(map)?;
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        &format!("accept: merge {branch}"),
+        &merged_tree,
+        &[&our_commit, &their_commit],
+    )
+    .map_err(map)?;
+
+    let _ = delete_branch(vault, branch);
+    Ok(Accepted::Merged)
 }

@@ -8,10 +8,15 @@
 //! `native-git` feature, the in-process native merge (phone) — so "works the same on both devices" is
 //! proven rather than assumed.
 //!
-//! Proposals are deliberately not exercised across users here: a `proposal/<id>` branch lives only on
-//! the proposer's clone (a push sends `main`, not `proposal/*`), so cross-user proposal review is its
-//! own separate concern. The single-user propose→review→accept cycle is covered in
-//! `fm-app/tests/proposal_cycle.rs`.
+//! **What the `native` pass here does NOT cover — read this before trusting the label.** The loop
+//! swaps only the `pull` function. Every other call in these scenarios goes through `fm_core::vcs`,
+//! which prefers a `git` binary whenever one exists — so on any developer machine (and in CI) the
+//! committing and the whole proposal lifecycle run on the **subprocess** backend in both passes.
+//! That is exactly how a phone-only breakage survived a green `[native]` cross-user proposal test
+//! until 2026-07-24. Device-pinned coverage lives in `mixed_device_collaboration.rs`, which uses
+//! `vcs::force_native` to stand in for a device that has no git binary at all.
+//!
+//! The single-user propose→review→accept cycle is covered in `fm-app/tests/proposal_cycle.rs`.
 
 use fm_app::commands;
 use fm_core::proposal::ProposalLimits;

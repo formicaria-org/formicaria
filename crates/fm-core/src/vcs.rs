@@ -35,6 +35,15 @@
 //! `--since` takes a human string only git's approxidate parser understands. Since each note
 //! keeps only its newest touch, walking further back can only fill in notes the desktop would
 //! have left blank. Documented at [`crate::git_native::activity`].
+//!
+//! `branch_diff`'s **patch text** is not byte-identical across backends: libgit2 renders its own
+//! (`index` line shape, rename-detection defaults). The *file list* is exact and the change
+//! described is the same; only the rendering differs, and nothing reads the patch except a human.
+//!
+//! `merge_proposal_branch` uses a **single merge base** where git's `ort` strategy recurses over
+//! all of them. In a criss-cross history the native accept can therefore refuse where the desktop
+//! would merge — fail-closed, never corrupting, and the user's escape hatch (edit the proposed
+//! body, save, which revises the proposal onto current `main`) still works.
 
 use crate::StoreError;
 use std::path::Path;
@@ -50,10 +59,36 @@ pub fn available() -> bool {
     crate::git::available() || cfg!(feature = "native-git")
 }
 
-/// True when this call should go to libgit2: only when there is no `git` binary to prefer.
+/// Force every routed call to libgit2 even where a `git` binary exists — a **testing and
+/// diagnostic seam**, not a product switch.
+///
+/// **Why it has to exist.** [`native`] answers *"is there no git binary"*, so on any developer
+/// machine, and in CI, every `vcs::` call resolves to the subprocess backend. That makes the
+/// phone's real code path unreachable from any test that drives the **app commands** — and it is
+/// precisely the blind spot that let the whole proposal lifecycle ship desktop-only while a
+/// two-user test claiming to cover "native" passed, because that test swapped only `pull` and
+/// every other call quietly went back to the subprocess. A backend you cannot select is a
+/// backend you cannot test end to end.
+///
+/// **Inert in production.** It exists only when `native-git` is compiled in — off for the desktop
+/// — and on Android [`native`] is already true, so nothing there consults it.
+///
+/// Process-global on purpose: it stands in for "this device has no git", which is a property of a
+/// device and not of a call. A test that flips it must serialise, since it is not per-thread.
+#[cfg(feature = "native-git")]
+static FORCE_NATIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Set the [`FORCE_NATIVE`] override. See its docs before reaching for this.
+#[cfg(feature = "native-git")]
+pub fn force_native(on: bool) {
+    FORCE_NATIVE.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// True when this call should go to libgit2: when there is no `git` binary to prefer, or when a
+/// test has asked to stand in for a device that has none.
 #[cfg(feature = "native-git")]
 fn native() -> bool {
-    !crate::git::available()
+    FORCE_NATIVE.load(std::sync::atomic::Ordering::SeqCst) || !crate::git::available()
 }
 
 /// One arm per operation. The `#[cfg]` is inside each function rather than around a `pub use`
@@ -84,6 +119,19 @@ route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
 route!(probe(url: &str) -> crate::git::Probe);
+
+// The proposal lifecycle — create, review, accept, reject. Routed late (2026-07-24): it was the
+// *second* wave of call sites naming `git::` directly, and the one that mattered most, since a
+// proposal is the only way a UI-only user merges anything and the phone could not make one.
+route!(create_proposal_branch(vault: &Path, branch: &str, rel_path: &str, content: &str, message: &str, author: Option<(&str, &str)>) -> Result<(), StoreError>);
+route!(revise_proposal_branch(vault: &Path, branch: &str, rel_path: &str, content: &str, message: &str, author: Option<(&str, &str)>) -> Result<(), StoreError>);
+route!(proposal_load(vault: &Path) -> Result<(usize, u64), StoreError>);
+route!(push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreError>);
+route!(delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError>);
+route!(branch_open(vault: &Path, branch: &str) -> bool);
+route!(file_on_branch(vault: &Path, branch: &str, rel: &str) -> Option<String>);
+route!(branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError>);
+route!(merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::Accepted, StoreError>);
 
 /// Load CA certificates into the in-process TLS store, from memory.
 ///

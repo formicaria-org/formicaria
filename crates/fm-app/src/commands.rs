@@ -663,7 +663,7 @@ pub fn create_proposal(
     // copy — `main` stays safe, but the proposal can never merge. Idempotent + best-effort. `commit_all`
     // takes vault-rooted paths, so join `rel` onto the vault.
     let note_path = vault_path.join(&rel);
-    let _ = fm_core::git::commit_all(
+    let _ = fm_core::vcs::commit_all(
         vault_path,
         "auto: snapshot the note before a proposal",
         std::slice::from_ref(&note_path),
@@ -680,10 +680,10 @@ pub fn create_proposal(
     // Refused **before** any write, fail-closed, never truncated. On a revise, subtract the proposal
     // being replaced from the load — it is rewritten, not added, so it must not count against its own
     // ceiling (otherwise a busy vault could never refine its one proposal).
-    let (mut open, mut open_bytes) = fm_core::git::proposal_load(vault_path)?;
+    let (mut open, mut open_bytes) = fm_core::vcs::proposal_load(vault_path)?;
     if let Some(branch) = &existing_branch {
         open = open.saturating_sub(1);
-        if let Some(cur) = fm_core::git::file_on_branch(vault_path, branch, &rel) {
+        if let Some(cur) = fm_core::vcs::file_on_branch(vault_path, branch, &rel) {
             open_bytes = open_bytes.saturating_sub(cur.len() as u64);
         }
     }
@@ -698,7 +698,7 @@ pub fn create_proposal(
     // or interrupted build leaves the prior revision exactly as it was) — or open a new one. The
     // proposal note is unchanged; the discussion stays on the *original* note.
     if let (Some(existing), Some(branch)) = (existing, existing_branch) {
-        fm_core::git::revise_proposal_branch(
+        fm_core::vcs::revise_proposal_branch(
             vault_path,
             &branch,
             &rel,
@@ -706,8 +706,8 @@ pub fn create_proposal(
             &format!("revise: change to {title}"),
             author,
         )?;
-        if fm_core::git::remote(vault_path)?.is_some() {
-            let _ = fm_core::git::push_branch(vault_path, &branch, true); // the ref moved → force-push
+        if fm_core::vcs::remote(vault_path)?.is_some() {
+            let _ = fm_core::vcs::push_branch(vault_path, &branch, true); // the ref moved → force-push
         }
         return Ok(ObjectMeta::from(&existing));
     }
@@ -724,7 +724,7 @@ pub fn create_proposal(
     note.extra.insert(crate::thread::TARGETS.into(), PropertyValue::Text(fm_model::note_ref(id)));
 
     // Build the branch first (additive, no `main` write); record the note only on success.
-    fm_core::git::create_proposal_branch(
+    fm_core::vcs::create_proposal_branch(
         vault_path,
         &branch,
         &rel,
@@ -735,8 +735,8 @@ pub fn create_proposal(
     // Share the branch so *another user* can review and accept it — a push of `main` never carries
     // `proposal/*`. Best-effort: a vault with no remote (or an offline push) still has a valid local
     // proposal; it just stays single-user until the branch reaches the remote.
-    if fm_core::git::remote(vault_path)?.is_some() {
-        let _ = fm_core::git::push_branch(vault_path, &branch, false);
+    if fm_core::vcs::remote(vault_path)?.is_some() {
+        let _ = fm_core::vcs::push_branch(vault_path, &branch, false);
     }
     store.put(&note)?;
     Ok(ObjectMeta::from(&note))
@@ -764,7 +764,7 @@ fn open_proposal_for(
             continue;
         }
         if let Some(branch) = proposal_branch_of(&p) {
-            if fm_core::git::branch_open(vault_path, &branch) {
+            if fm_core::vcs::branch_open(vault_path, &branch) {
                 return Ok(Some(p));
             }
         }
@@ -838,7 +838,7 @@ pub fn proposal_diff(
     }
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
-    let (exists, files, patch) = fm_core::git::branch_diff(vault_path, &branch)?;
+    let (exists, files, patch) = fm_core::vcs::branch_diff(vault_path, &branch)?;
     Ok(ProposalDiff { exists, declined, files, patch })
 }
 
@@ -869,12 +869,12 @@ pub fn proposal_content(
         _ => None,
     };
     let Some(branch) = branch else { return Ok(None) };
-    let (exists, files, _) = fm_core::git::branch_diff(vault_path, &branch)?;
+    let (exists, files, _) = fm_core::vcs::branch_diff(vault_path, &branch)?;
     if !exists {
         return Ok(None);
     }
     let Some(rel) = files.first() else { return Ok(None) };
-    let Some(file) = fm_core::git::file_on_branch(vault_path, &branch, rel) else { return Ok(None) };
+    let Some(file) = fm_core::vcs::file_on_branch(vault_path, &branch, rel) else { return Ok(None) };
     let proposed = fm_core::frontmatter::from_file(&file).map_err(|e| StoreError::Parse(e.to_string()))?;
     // The host note id is the proposed file's stem (works whatever the vault's notes dir), and the
     // title comes from the proposed note, falling back to the live host note's.
@@ -905,7 +905,7 @@ pub fn accept_proposal(
     }
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
-    fm_core::git::merge_proposal_branch(vault_path, &branch)
+    fm_core::vcs::merge_proposal_branch(vault_path, &branch)
 }
 
 /// Reject the proposal note `id`: delete its branch (local + remote if it was pushed) and the proposal
@@ -926,7 +926,7 @@ pub fn reject_proposal(store: &mut dyn Store, vault_path: &Path, id: &str) -> Re
     // a record of a declined PR — a proposal note is immortal, exactly as a merged one's is. Mark it
     // `declined` so it reads as rejected (not merged), and so a fresh `/research` on the note opens a new
     // PR rather than mistaking this closed one for the live proposal (its branch is gone anyway).
-    fm_core::git::delete_branch(vault_path, &branch)?;
+    fm_core::vcs::delete_branch(vault_path, &branch)?;
     obj.extra.insert(crate::thread::DECLINED.into(), PropertyValue::Bool(true));
     store.put(&obj)?;
     Ok(())
