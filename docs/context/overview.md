@@ -20,8 +20,9 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | A **compile-time seam** (`fm-query` purity, `Store`/`candidates`, `dispatch`) | the "Architecture" section below + `decisions.md#seams` |
 | **git / sync / merge / proposals** (`vcs`, `git`, `git_native`, `merge.rs`) | `decisions.md#git`, `decisions.md#sync`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | The **phone / Android** build (mobile shell, jniLibs, foreground service) | `mobile-design.md`; `decisions.md#track-m` |
-| The **study assistant / agent** (`fm-agent*`, models, RAG) | `ai-agents-plan.md`; `model-selection-research-2026-07-22.md` |
+| The **study assistant / agent** (`fm-agent*`, models, RAG) | `ai-agents-plan.md`; **`model-selection-research-2026-07-24-grounded.md`** (grounding-first, current) |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
+| **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 
 ## What formicaria is

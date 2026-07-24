@@ -57,3 +57,7 @@ mobile/*.apk
 # Same reasoning as the APK: an artifact reconstructible from the source plus the keystore, and
 # one that would otherwise show up as a meaningless diff after every Android build.
 mobile/*.apk.idsig
+
+# Python bytecode (agents/bench harness)
+__pycache__/
+*.pyc

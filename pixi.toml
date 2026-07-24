@@ -155,6 +155,10 @@ agent-serve = "bash agents/agent-serve.sh"
 # The local web-search proxy (Python stdlib, no key): gives the agent web search on 127.0.0.1:8888.
 #   pixi run search-proxy   then   pixi run agent-serve -- --searxng-port 8888
 search-proxy = "python3 agents/search-proxy.py 8888"
+# The model benchmark on OUR case (not synthetic llama-bench): drive a running llama-server through
+# the study-agent workload and append measured numbers to agents/bench/results.md. See agents/bench/README.md.
+#   pixi run model-bench -- --url http://127.0.0.1:8081 --model qwen3-4b-2507 --device laptop --pid $(pgrep -x llama-server) --gpu
+model-bench = "python3 agents/bench/run.py"
 # Invoke the study assistant: propose an edit to one note (never main). Needs a served model.
 #   pixi run agent-propose -- --vault . --note <ULID> --ask "..." [--search "..."] [--input <ULID>]
 agent-propose = "cargo run -q -p fm-agent-run --bin fm-agent-run --"
