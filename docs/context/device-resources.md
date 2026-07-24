@@ -45,10 +45,12 @@ resident 142 MB; llama resident 35 MB + **747 MB in swap** (peak was 1.41 GB whe
 model); `MemAvailable` steady at ~2.6 GB. So the phone runs audio+text together by paging whichever
 model is idle — no admission-gate refusal, no stall observed.
 
-**Shipped defaults:** phone = `lfm2.5-1.2b` (quality worth the 15.9 t/s; 350M is the lighter sweet
-spot at 42 t/s if ever needed); laptop = `qwen3-4b-2507` on the **GPU** (51.9 t/s, weights in VRAM so
-system RAM stays free). The GPU is the decisive laptop win — 3.6–3.7× over CPU. Non-default rows are
-kept because the measurement is the asset.
+**Shipped defaults (laptop updated 2026-07-24):** phone = `lfm2.5-1.2b` (unchanged — the sweep found no
+≤2B model beats it); laptop = **`qwen3-vl-4b`** on the **GPU** (40.1 t/s our-case, weights in VRAM so
+system RAM stays free — RSS 791 MB), which grounds better than the prior `qwen3-4b-2507` (kept as the
+fallback) at the same speed. See the full matrix above + `model-selection-research-2026-07-24-grounded.md`.
+The GPU is the decisive laptop win — 3.2–3.7× over CPU. Non-default rows are kept because the measurement
+is the asset.
 
 **Can we push the phone bigger? Measured 2026-07-24 — a real speed↔quality tradeoff, not a free win.**
 The `agents/bench/` harness (our real StudyAssistant workload, not synthetic) run on-device:
@@ -60,8 +62,47 @@ slower*, and the pick is a speed-vs-quality call. **Caveat that cost a wrong fir
 thinking model — every model has its own special tokens + chat template, and a thinking model needs
 `enable_thinking:false` (or the app reads back an empty answer). To *ship* a thinking model the app's
 OpenAiStep needs that too. Full numbers + the reusable harness: `agents/bench/results.md` +
-`agents/bench/README.md` (`pixi run model-bench`). *(Laptop-GPU ladder — its 4 GB VRAM caps it near the
-current 4B — is the remaining measurement.)*
+`agents/bench/README.md` (`pixi run model-bench`).
+
+## Full resource-cost matrix — our-case sweep, measured 2026-07-24
+
+Every model we ran through the hardened `agents/bench` harness (real StudyAssistant workload, temp 0,
+thinking-off, `-c 2048`, `n_predict` ≤256), one at a time, with live `/proc` + `nvidia-smi` sampling.
+**This is the "what will it cost me" reference** — pick a row, read across. `decode t/s` = generation
+speed (reading pace ≈5–10, so all are usable); `prompt t/s` = context-ingest speed (range across the 6
+cases — noisy, depends on prompt length); `peak RSS`/`VmHWM` = the model process's own resident/peak
+RAM; `VRAM` = GPU memory held; `MemAvail min (before)` = system free RAM at the tightest point (the
+headroom that proves it fit). Raw per-case blocks: `agents/bench/results.md`.
+
+### 💻 Laptop — i7-11800H, RTX 3050 4 GB (Vulkan), 14.9 GB RAM
+
+| Model | GGUF (Q4_K_M) | backend | decode t/s | prompt t/s | peak RSS | VmHWM | VRAM | MemAvail min (before) |
+|---|---|---|---|---|---|---|---|---|
+| **Qwen3-VL-4B** *(NEW default)* | 2.4 GB | GPU `-ngl 99` | **40.1** | ~510–700 | **791 MB** | 2594 MB | **2782 MB** | 4505 MB (4770) |
+| Qwen3-4B-2507 *(fallback)* | 2.4 GB | GPU `-ngl 99` | 39.8 | ~260–675 | 511 MB | 2578 MB | 2769 MB | 9757 MB (9930) |
+| Qwen3-4B-2507 | 2.4 GB | CPU `-t 8` | 12.6 | ~70–222 | 3029 MB | 3029 MB | — | 5766 MB |
+| Nemotron-3-Nano-4B | 2.7 GB | GPU `-ngl 99` | 35.4 | ~19–362 | 1773 MB | 2933 MB | 2986 MB | 5645 MB (6532) |
+| Gemma-4-E4B | 4.7 GB | **CPU only** ¹ | 10.9 | ~21–54 | 5363 MB | 5363 MB | — | 9953 MB (10110) |
+
+¹ Gemma-4-E4B's 4.7 GB Q4 exceeds the 4 GB VRAM, so it cannot GPU-offload on this card — CPU-bound at ~11 t/s.
+The GPU rows hold weights in VRAM, so the model's **system-RAM RSS stays under 800 MB** — the decisive laptop win.
+
+### 📱 Phone — Dimensity 7300 (8-core), 7.4 GB RAM, CPU `-t 4 -ngl 0`
+
+| Model | GGUF (Q4_K_M) | decode t/s | prompt t/s | peak RSS | VmHWM | MemAvail min (before) |
+|---|---|---|---|---|---|---|
+| **LFM2.5-1.2B** *(default — stands)* | 695 MB | **12.4** | ~100–106 | 1503 MB | 1503 MB | 2950 MB (3018) |
+| MiniCPM5-1B | 657 MB | **13.5** | ~94–99 | 1213 MB | 1266 MB | 3242 MB (3475) |
+| LFM2.5-VL-1.6B | 698 MB | 11.8 | ~70–72 | 1518 MB | 1520 MB | 3188 MB (3274) |
+| Qwen3-VL-2B | 1.1 GB | 7.8 | ~48–49 | 2611 MB | 2611 MB | 2474 MB (2786) |
+| Qwen3.5-2B | 1.2 GB | 7.5 | ~30–63 | 2861 MB | 2861 MB | 2367 MB (2475) |
+| Qwen3-1.7B *(earlier)* | 1.1 GB | 8.9 | — | 2432 MB | 2432 MB | ~2500 MB |
+
+**Reading the phone rows:** every candidate **fit** (MemAvailable never dropped below ~2.3 GB — the
+admission gate never refused). The wall is **CPU throughput, not RAM**: the 1–1.2B models run 12–13.5 t/s,
+the 2B models drop to ~7.5–8 (bigger = slower). Peak RSS runs ~1.7–2.4× the GGUF file (KV-cache + compute
+buffers). Quality did **not** improve with size — no ≤2B model grounded a verbatim quote — so the phone
+default stays at the fast, well-behaved 1.2B. (Grounding/behaviour per model: `agents/bench/results.md`.)
 
 ## Whisper (audio → transcript)
 
