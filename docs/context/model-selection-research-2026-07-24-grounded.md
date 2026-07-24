@@ -124,14 +124,38 @@ alongside the running agent (the crash rule, [[benchmarking-safety-one-model-at-
 | Phone *(stretch)* | Llama-3.2-3B | `unsloth/Llama-3.2-3B-Instruct-GGUF` → `Llama-3.2-3B-Instruct-Q4_K_M.gguf` | slow-edge quality |
 | Baselines (already local) | Qwen3-4B-Instruct-2507 · lfm2.5-1.2b · Granite-3.3-2B (`ibm-granite/granite-3.3-2b-instruct-GGUF`) · Gemma-3-4B (`unsloth/gemma-3-4b-it-GGUF`) · Lucy (`Menlo/Lucy-gguf`) | — | anchors for the head-to-head |
 
+## Part 5 — MEASURED (2026-07-24): the shortlist run through the hardened harness
+
+Ran 3 laptop + 4 phone alternatives on the **real devices**, one at a time, arch-verified on load (all
+loaded: `nemotron_h`, `qwen3vl`, `gemma4`, `minicpm5`, `lfm2-vl` in b10076/b10081). Full blocks +
+per-device summary in [`agents/bench/results.md`](../../agents/bench/results.md) (§ "alternatives sweep").
+
+**💻 Laptop — Qwen3-VL-4B is a real upgrade candidate.** At the baseline's exact speed (40.1 vs 39.8 t/s
+GPU) it posted the **best-measured grounding (3/3 verbatim)** and was the only fast model that **abstains**
+on junk sources (baseline + Nemotron both fabricate). The 2-for-1 preserved text, as predicted. Its one
+weakness — it **missed the "should-search" case** — barely matters while `/research` is deterministically
+routed; it would matter for a future auto-router. Nemotron-3-Nano-4B was slower + weaker (0/2). Gemma-4-E4B
+is **GPU-excluded** (4.7 GB > 4 GB VRAM) → 10.9 t/s CPU, not competitive. *To adopt Qwen3-VL-4B: ship the
+LLM GGUF (mmproj only if we later want image-notes), and weigh the missed-search against the faithfulness
+win.*
+
+**📱 Phone — no alternative beats the LFM2.5-1.2B incumbent.** The decisive result: **no ≤2B model produced
+a single verbatim quote** — grounding is the sub-4B wall, exactly as this doc warned. Qwen3.5-2B (the
+swap-in) has the cleanest *behaviour* (correct routing both ways + abstains) but runs ~40% slower (7.5 t/s).
+MiniCPM5-1B is fastest (13.5) but **over-searches** and skipped the research task (0 claims) — the vendor
+"tool-use SOTA" claim fails our relevance axis. Qwen3-VL-2B hallucinates all 3 quotes (the 4B's grounding
+does *not* survive the shrink to 2B). **LFM2.5-VL-1.6B fabricates on junk sources** — the bolt-on VL
+regression, now *measured* on our case, not just its −14 IFEval reputation. Verdict: keep LFM2.5-1.2B;
+Qwen3.5-2B is the only challenger worth a second look, and only if cleaner tool-routing is worth −40% speed.
+
 ## Bottom line
-Our current picks (Qwen3-4B-Instruct-2507 laptop, LFM2.5-1.2B phone) remain **well-chosen and the only
-ones we've *validated***. The field now offers real challengers — **Nemotron-3-Nano-4B** (measured, on
-our axes), **Qwen3-VL** (the multimodal 2-for-1 that preserves text), and the successor/agentic-tuned
-lines — but the honest position is: **published data below 4B can't decide, the popular index (AA) no
-longer measures our axes, and multimodal quality is recipe-dependent.** So the deliverable is a
-*measurement plan*: harden the harness (Part 1), then run this shortlist through it (Part 4). Leaderboards
-narrow; our hardened, quote-verifying, tool-call-checking harness decides.
+**Measured:** the phone default (**LFM2.5-1.2B**) stands — nothing ≤2B grounds, and the alternatives trade
+speed for no gain. The laptop default (**Qwen3-4B-2507**) has a genuine challenger in **Qwen3-VL-4B**:
+same speed, better grounding, abstains — an owner's call between its faithfulness win and its softer
+active-search. The field's other "successors" underdelivered on *our* axes: Nemotron weaker-grounded,
+Gemma-4 GPU-excluded, MiniCPM5 over-eager, the bolt-on LFM-VL fabricates. **The harness earned its keep** —
+every one of these looked plausible on published scores; only the on-device verbatim/abstain/relevance
+checks separated them.
 
 ### Sources
 Methodology: [BFCL](https://sky.cs.berkeley.edu/project/berkeley-function-calling-leaderboard/) · [BFCL v4 web-search](https://gorilla.cs.berkeley.edu/blogs/15_bfcl_v4_web_search.html) · [τ-bench 2406.12045](https://arxiv.org/abs/2406.12045) · [FACTS Grounding](https://deepmind.google/blog/facts-grounding-a-new-benchmark-for-evaluating-the-factuality-of-large-language-models/) · [RAGAS](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) · [ARES 2311.09476](https://arxiv.org/abs/2311.09476) · [RAGTruth 2401.00396](https://arxiv.org/pdf/2401.00396) · [LLM-judge bias](https://llm-judge-bias.github.io/) · [AgentRewardBench 2504.08942](https://arxiv.org/pdf/2504.08942) · [contamination 2406.04244](https://arxiv.org/abs/2406.04244) · [AA Index v4.1](https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v4-1) · [GAIA](https://ar5iv.labs.arxiv.org/html/2311.12983)
