@@ -836,6 +836,38 @@
       /* transient — keep whatever we had */
     }
   }
+
+  // Accepting a proposal MERGES it into this note, so the note's body on disk just changed — but the
+  // open panel is still showing the pre-accept text. Without this the user has to close and reopen the
+  // note to see the accepted change (reported on the phone). `refreshProposal` alone only clears the PR
+  // chip; here we also reload the body so the read view repaints (the render `$effect` keys on
+  // `note.body`), refresh the discussion (the merge is new activity and the proposal note is now
+  // merged/declined), and signal the parent like a save does so cards/feeds update too.
+  async function onProposalAccepted() {
+    await refreshProposal();
+    const cur = note?.id;
+    if (cur) {
+      const fresh = await getNote(cur).catch(() => null);
+      if (fresh) {
+        note = fresh; // reactive → the read-view effect re-renders the merged body
+        if (!editing) {
+          // Don't clobber an in-progress edit; a reviewer usually accepts from the discussion, not
+          // mid-edit, but guard anyway.
+          draft = fresh.body;
+          base = fresh.version;
+        }
+      }
+    }
+    void loadThread();
+    onsaved?.();
+  }
+
+  // Rejecting never touches the note body (main is untouched), so no reload — just clear the chip and
+  // refresh the discussion so the now-declined proposal record shows.
+  async function onProposalRejected() {
+    await refreshProposal();
+    void loadThread();
+  }
   // The vault's git collaborators — everyone (human or agent) who has posted in a discussion. Fetched
   // when the discussion opens, so `@` can suggest people and agents you can address here even when no
   // agent is running right now. (The owner: `@` should list the git users you can discuss with.)
@@ -2143,7 +2175,7 @@
                    /propose again revises this same proposal). Not a separate discussion. -->
               <div class="disc-pr">
                 <p class="disc-pr-head">Proposed change · reply above to refine, then:</p>
-                <ProposalReview id={noteProposal} onaccepted={refreshProposal} onrejected={refreshProposal} />
+                <ProposalReview id={noteProposal} onaccepted={onProposalAccepted} onrejected={onProposalRejected} />
               </div>
             {/if}
             {#if agentWorking}
