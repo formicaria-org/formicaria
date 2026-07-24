@@ -400,7 +400,8 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             fm: DispatchVault { app },
             model_port: port,
             model: model_name.clone(),
-            searxng_port: None, // mobile web search: through the shell's HTTPS, a later step
+            searxng_port: None, // no local proxy on a phone…
+            web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
             whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
             whisper_model: whisper_name.clone(),
             max_reply_chars,

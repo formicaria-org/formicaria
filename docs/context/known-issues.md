@@ -6,6 +6,13 @@ trap, add one. Newest concerns first within each section.
 
 ## Study assistant — current gaps (2026-07-22; agent shipped on-device, see overview.md)
 
+- **`/research` on the phone covers 3 sources, not the general web (yet).** Mobile web search was
+  wired 2026-07-24 (`crates/fm-agent-run/src/websearch.rs`, `DirectSearch`): the phone can't run the
+  desktop's `search-proxy.py`, so it does the HTTPS in-process (`ureq`/rustls) over three stable
+  keyless APIs — **Wikipedia · arXiv · GitHub** — text-only, fail-soft per source. `agent.rs` sets
+  `web_direct: true`. **Deliberately omitted: DuckDuckGo (general web)** — it needs brittle HTML
+  scraping and blocks scrapers; adding it is the remaining step. (Desktop still uses the local proxy:
+  `pixi run search-proxy` + `agent-serve --searxng-port 8888`, which does include DDG.)
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
 - **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
