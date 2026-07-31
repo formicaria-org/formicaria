@@ -46,6 +46,7 @@
   import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
+  import { labelFor, setVaultLabels } from './lib/vaultLabels.svelte';
   import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, Unrecorded } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
   import Pairing from './lib/Pairing.svelte';
@@ -817,6 +818,9 @@
     void listVaults()
       .then((v) => {
         vaults = v;
+        // What each vault is *called*, for display only. Fed here because this is where the answer
+        // lands; the rest of the app keeps passing names.
+        setVaultLabels(v);
         bootError = null;
         // Nothing left to watch: a boot that succeeded must not keep polling `list_vaults`
         // behind a working app for the rest of the session.
@@ -1362,15 +1366,17 @@
 
     {#if allVaults.length > 1}
       <div class="vaults" aria-label="vault filter">
+        <!-- Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults` persists),
+             labelled with what the repository is called — see `vaultLabels.svelte.ts`. -->
         {#each allVaults as v (v)}
           <button
             class="vault-chip"
             class:off={hiddenVaults.includes(v)}
             aria-pressed={!hiddenVaults.includes(v)}
             onclick={() => toggleVault(v)}
-            title={hiddenVaults.includes(v) ? `Show ${v}` : `Hide ${v}`}
+            title={hiddenVaults.includes(v) ? `Show ${labelFor(v)}` : `Hide ${labelFor(v)}`}
           >
-            {v}
+            {labelFor(v)}
           </button>
         {/each}
       </div>

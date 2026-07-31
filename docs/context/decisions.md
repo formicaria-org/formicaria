@@ -37,7 +37,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): *A vault can be forgotten, and forgetting never deletes* ·
+- **`#vault`** (audience/cross-vault): *A vault is labelled by its remote, identified by its local
+  name* · *A vault can be forgotten, and forgetting never deletes* ·
   *A caller is a member of some audiences, not all* (`Scope`
   — read before adding a read path or touching `find_blob`/`Vaults::config`) · *Vaults are audiences* · *Every entity shows its vault badge* ·
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
@@ -97,6 +98,32 @@ reasoning as *"auto-push is explicit, never silent"*: it stages files the app do
 writing, which is a judgement a person should make. And the count is a **persistent chip**, not a
 banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
 entire failure mode was silence.
+
+## A vault is labelled by its remote, and identified by its local name (2026-07-31, `#vault` `#ui`)
+
+**Decision.** `list_vaults` carries a `label`: the repository behind the vault's remote
+(`…/formicarium-vault.git` → `formicarium-vault`), `null` when there is no remote. The UI shows the
+label — badge, vault filter, tooltips, and the colour hue — while **every key stays the local `name`**.
+`ui/src/lib/vaultLabels.svelte.ts` resolves one from the other, so the twenty-odd components that
+already pass a vault name did not each have to learn about labels.
+
+**Why.** The same repository cloned on two devices can carry two different local names — the owner's
+laptop said `vault` where the phone said `notes` — so one *audience* looked like two different vaults
+depending on which screen you were on. The remote is the thing both devices agree about.
+
+**Why not simply rename the vault.** A vault's name is not a label: it is the write routing key
+(`MultiStore::route`), the argument seventeen dispatch arms take, and the key behind the persisted view
+preferences (`hiddenVaults`, `fm-board-order`, `fm-card-order`, keyed per vault *and* per group-by).
+Renaming to match the remote would silently reset all of those and break any command in flight. So the
+split is identity versus display — the same shape as `authorKey`/label for contributors, decided the
+same day, for the same reason.
+
+**Consequence.** The hue follows the *label*, so one repository is one colour on every device; keying
+it on the folder name gave one audience two colours. **Two vaults cloned from the same remote fall
+back to their local names — both of them**, not just the second: two identical labels make the vault
+filter ambiguous, and hiding notes from the wrong audience is worse than showing a folder name.
+`remote_label` reads local `git config` only — no `ls-remote`, no network — so the vault list does not
+inherit the slowness that keeps `backup_status` off the heartbeat.
 
 ## A vault can be forgotten, and forgetting never deletes (2026-07-31, `#vault`)
 

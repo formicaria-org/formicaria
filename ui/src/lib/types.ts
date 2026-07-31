@@ -227,6 +227,11 @@ export interface VaultInfo {
    *  Lives in the vault's own `vault.json`, not in this browser, because it decides what enters
    *  shared permanent history. */
   git_assets_max: number | null;
+  /** **What to show instead of `name`**: the repository behind this vault's remote
+   *  (`…/formicarium-vault.git` → `formicarium-vault`), or `null` for a vault with no remote — or
+   *  when two vaults would derive the same label. Display only; `name` stays the identity. See
+   *  `vaultLabels.svelte.ts`. */
+  label: string | null;
 }
 
 /** What would happen if we created a vault at a path. The server owns `ok`: duplicating

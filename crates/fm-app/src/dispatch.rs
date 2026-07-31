@@ -238,6 +238,18 @@ pub fn dispatch_as(
     out
 }
 
+/// The repository name behind a vault's remote, if it has one: `…/formicarium-vault.git` →
+/// `formicarium-vault`. `None` when there is no remote, or nothing usable in the URL.
+///
+/// A local `git config` read — no network — so the vault list can carry it without touching the
+/// `git ls-remote` path that makes `backup_status` the slow call.
+fn remote_label(path: &std::path::Path) -> Option<String> {
+    let url = vcs::remote(path).ok().flatten()?;
+    let last = url.trim_end_matches('/').rsplit(['/', ':']).next()?;
+    let name = last.strip_suffix(".git").unwrap_or(last).trim();
+    (!name.is_empty()).then(|| name.to_string())
+}
+
 /// One plain sentence per conflict kind — what the two sides actually did.
 ///
 /// Product wording, so it lives here at the command surface rather than in `fm-core`: the core knows
@@ -1526,6 +1538,21 @@ struct VaultInfo {
     /// what enters **shared, permanent history**: a per-device value would let the loosest
     /// machine choose for every collaborator, and a pushed commit cannot be un-pushed.
     git_assets_max: Option<u64>,
+    /// **What to show instead of `name`** — the repository this vault is a clone of, when it has a
+    /// remote: `…/formicarium-vault.git` → `formicarium-vault`. `None` for a vault with no remote,
+    /// which keeps its local name.
+    ///
+    /// **Display only; `name` remains the identity.** A vault's name is not a label — it is the write
+    /// routing key (`MultiStore::route`), the argument seventeen dispatch arms take, and the key
+    /// behind the UI's persisted view preferences (`hiddenVaults`, `fm-board-order`,
+    /// `fm-card-order`). Renaming a vault to match its remote would silently reset every one of those
+    /// and break any command already in flight. So identity stays local and stable; only the label
+    /// follows the remote. Same split as `authorKey`/label for contributors (`decisions.md#ui`).
+    ///
+    /// Why bother: the same repo cloned on two devices can carry two different local names — the
+    /// owner's laptop and phone did — so one *audience* looked like two different vaults depending on
+    /// which screen you were on. The remote is the thing both devices agree about.
+    label: Option<String>,
 }
 
 /// What the create-vault form needs: the filesystem facts, plus the ones only the vault
@@ -2210,9 +2237,23 @@ fn refusal(c: &PathCheck, name: &str) -> String {
 /// one *this* user chose, and a repo must not rename their audience out from under them —
 /// so this only fills a blank. Without it, adopting a repo shows a vault called "".
 fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
+    // Derived first for the whole list, because the collision rule needs to see all of them: two
+    // vaults cloned from one repo would otherwise show the same label, and an ambiguous vault filter
+    // hides notes from the wrong vault. When a label is not unique, **both** fall back to their local
+    // names — a duplicate label is worse than a local one.
+    let derived: Vec<Option<String>> = v.iter().map(|e| remote_label(&e.path)).collect();
+    let labels: Vec<Option<String>> = derived
+        .iter()
+        .map(|d| {
+            let l = d.as_ref()?;
+            (derived.iter().filter(|o| o.as_deref() == Some(l.as_str())).count() == 1)
+                .then(|| l.clone())
+        })
+        .collect();
     v.iter()
         .enumerate()
         .map(|(i, e)| VaultInfo {
+            label: labels.get(i).cloned().flatten(),
             name: if e.name.is_empty() {
                 store_names.get(i).map(|n| n.to_string()).unwrap_or_default()
             } else {

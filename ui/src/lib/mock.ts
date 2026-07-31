@@ -262,9 +262,17 @@ const gitVaults: Array<{
 // `git_assets_max` is mutable here because `set_git_assets_max` writes it — the mock models the
 // setting round-tripping, which is the only way the Settings field can be developed against it.
 // `personal` starts off (the real default) and `lab` starts on, so both states are on screen.
-let mockVaults: Array<{ name: string; path: string; git_assets_max: number | null }> = [
-  { name: 'personal', path: '/home/you/notes', git_assets_max: null },
-  { name: 'lab', path: '/home/you/lab-notes', git_assets_max: 2_000_000 },
+// `label` is what a vault is *called* when it has a remote (the repository name); `name` stays the
+// identity. `lab` carries one and `personal` does not, so both paths are on screen under `pnpm dev` —
+// the same reason `personal` starts with assets off and `lab` starts on.
+let mockVaults: Array<{
+  name: string;
+  path: string;
+  git_assets_max: number | null;
+  label: string | null;
+}> = [
+  { name: 'personal', path: '/home/you/notes', git_assets_max: null, label: null },
+  { name: 'lab', path: '/home/you/lab-notes', git_assets_max: 2_000_000, label: 'lab-notes' },
 ];
 
 /** The size grammar the Rust accepts, mirrored so the mock refuses what the backend refuses. */
@@ -868,6 +876,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // A freshly created vault has no remote, so nothing to label it with — it keeps its name.
+        label: null,
       });
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return created as T;
@@ -932,6 +942,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // A clone *does* have a remote, so it gets the repository's name as its label.
+        label: String(args.url ?? '')
+          .trim()
+          .replace(/\/$/, '')
+          .split(/[/:]/)
+          .pop()
+          ?.replace(/\.git$/, '') || null,
       });
       const cloned: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return cloned as T;
@@ -948,6 +965,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // A restored vault has no remote until one is set.
+        label: null,
       });
       const restored: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return restored as T;

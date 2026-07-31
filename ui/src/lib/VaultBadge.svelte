@@ -6,17 +6,25 @@
   // has no boundary to show). The colour tells the truth about who can see the note because the
   // vault is derived from where the file lives — never from anything the file says.
   import { hashHue } from './vaultColor';
+  import { labelFor } from './vaultLabels.svelte';
 
   let { vault, dot = false }: { vault?: string | null; dot?: boolean } = $props();
-  const hue = $derived(vault ? hashHue(vault) : 0);
+  /// **Callers keep passing the vault *name*** — the identity — and the label is resolved here, so the
+  /// twenty-odd usages of this component did not each have to learn about labels. See
+  /// `vaultLabels.svelte.ts` for why the two differ.
+  const shown = $derived(labelFor(vault));
+  /// Keyed on what is *displayed*, deliberately: the same repository then gets the same colour on the
+  /// laptop and on the phone, which is the whole point — a local folder name would give one audience
+  /// two colours.
+  const hue = $derived(shown ? hashHue(shown) : 0);
 </script>
 
 {#if vault}
   {#if dot}
-    <span class="vault-dot" style="--vh:{hue}" title={`Vault: ${vault}`} aria-label={`Vault: ${vault}`}
+    <span class="vault-dot" style="--vh:{hue}" title={`Vault: ${shown}`} aria-label={`Vault: ${shown}`}
     ></span>
   {:else}
-    <span class="vault-badge" style="--vh:{hue}" title={`Vault: ${vault}`}>{vault}</span>
+    <span class="vault-badge" style="--vh:{hue}" title={`Vault: ${shown}`}>{shown}</span>
   {/if}
 {/if}
 
