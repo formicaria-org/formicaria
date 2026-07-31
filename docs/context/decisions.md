@@ -37,7 +37,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): *A caller is a member of some audiences, not all* (`Scope`
+- **`#vault`** (audience/cross-vault): *A vault can be forgotten, and forgetting never deletes* ·
+  *A caller is a member of some audiences, not all* (`Scope`
   — read before adding a read path or touching `find_blob`/`Vaults::config`) · *Vaults are audiences* · *Every entity shows its vault badge* ·
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
@@ -96,6 +97,28 @@ reasoning as *"auto-push is explicit, never silent"*: it stages files the app do
 writing, which is a judgement a person should make. And the count is a **persistent chip**, not a
 banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
 entire failure mode was silence.
+
+## A vault can be forgotten, and forgetting never deletes (2026-07-31, `#vault`)
+
+**Decision.** `forget_vault` unregisters a vault: dropped from the live `MultiStore` and from
+`vaults.json`. **It never touches a file.** The answer reports how many notes were left behind and
+where, and the UI (Backup panel, two-step) repeats it — *"Removed 'x'. Its 209 notes are still on disk
+at …"* / *"it was empty. Nothing was deleted."* Removing the last vault is allowed and lands on the
+first-run screen, which is already a state the UI knows (`list_vaults` → `[]`).
+
+**Why.** Three commands brought a vault into being — `create_vault`, `clone_vault`, `restore_vault` —
+and **none took one away.** On a desktop that is a papercut you can fix by editing `vaults.json`; for
+this owner it is permanent, because the product is the only way in. And the phone *manufactures* the
+problem: `configure_paths` auto-creates an empty default vault on first launch, so the owner had one
+they never asked for, could not use, and could not remove (2026-07-31: *"creates only confusion"*).
+
+**Consequence.** "Forget" and "destroy" stay different verbs, and only the reversible one is built: a
+vault dropped from the list is re-added by pointing at the same directory, so the worst case of a
+mistaken click is retyping a path. That is what makes it safe behind one button — and why the message
+must state the count, since "removed from the list" would otherwise read as "erased". The list is
+saved to disk **before** the vault leaves memory: if the save fails nothing has changed, which is the
+recoverable order. There is deliberately no "and delete the files" option; when someone wants that,
+it is a separate decision with a separate confirmation, not a checkbox next to this one.
 
 ## A contributor is an email, everywhere — the name is only a label (2026-07-31, `#git` `#ui`)
 

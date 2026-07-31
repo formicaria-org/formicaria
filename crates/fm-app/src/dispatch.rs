@@ -1009,6 +1009,13 @@ fn dispatch_inner(
             json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &path))
         }
         "create_vault" => json(create_vault(app, &s("name"), &resolve_path(&s("name"), &s("path"))?)?),
+        // **Stop showing me this vault.** The fourth verb the vault list needed: three commands
+        // brought a vault into being (`create_vault`, `clone_vault`, `restore_vault`) and none took
+        // one away, so a vault the app had auto-created — the phone makes an empty default one on
+        // first launch — could never be got rid of from inside the product. For a user who only ever
+        // sees the UI that is not a papercut, it is permanent (owner, 2026-07-31: "creates only
+        // confusion").
+        "forget_vault" => json(forget_vault(app, &s("name"))?),
         // What this installation is actually configured as — the answer to "what am I
         // operating with?". Read-only by construction and by necessity: `vaults::save` is
         // append-only and never rewrites an existing entry, so a settings screen that offered
@@ -1288,6 +1295,14 @@ impl Vaults {
     fn add(&mut self, cfg: VaultConfig, store: fm_core::FileStore) {
         self.all.add(store);
         self.list.push(cfg);
+    }
+
+    /// Drop a vault from the live set. Both halves again, for the same reason.
+    fn remove(&mut self, name: &str) -> bool {
+        let had = self.all.remove(name);
+        let before = self.list.len();
+        self.list.retain(|c| c.name != name);
+        had || self.list.len() != before
     }
 
     /// Where a blob really is. **Every vault is searched**, because a `sha256:`
@@ -1752,6 +1767,63 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     g.add(cfg, store);
     let names = g.all.names();
     Ok(infos(&g.configs(), &names))
+}
+
+/// Unregister a vault: drop it from the live set and from `vaults.json`.
+///
+/// **It never deletes a file, and that is the whole safety argument.** "Forget" and "destroy" are
+/// different verbs, and only one of them is reversible: a vault removed from the list can be added
+/// back by pointing at the same directory, so the worst case of a mistaken click is retyping a path.
+/// Deleting notes would make the worst case unbounded — and this codebase does not delete user data
+/// on any path, including the ones the user asked for. The answer therefore *says* where the files
+/// still are, so nobody is left wondering whether they went.
+///
+/// Removing the last vault is allowed. It lands on the first-run screen, which is the honest state
+/// for a machine with no vaults, and `list_vaults` returning `[]` is exactly how the UI already
+/// detects it.
+fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
+    if name.is_empty() {
+        return Err("which vault? forget_vault needs a name".into());
+    }
+    let mut g = app.lock()?;
+    let cfg = g
+        .configs()
+        .into_iter()
+        .find(|c| c.name == name)
+        .ok_or_else(|| format!("no vault named '{name}'"))?;
+    let config = app.config.clone().ok_or(
+        "there is nowhere to save the vault list on this machine, so it cannot be changed"
+            .to_string(),
+    )?;
+    // What is being left behind, counted *before* the vault leaves the live set — afterwards there
+    // is nothing to ask. This is the number the UI shows so "removed" is never mistaken for "erased".
+    let notes = std::fs::read_dir(fm_core::descriptor::Descriptor::read(&cfg.path)
+        .map(|d| d.notes_dir(&cfg.path))
+        .unwrap_or_else(|_| cfg.path.join("notes")))
+        .map(|rd| {
+            rd.flatten()
+                .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
+                .count()
+        })
+        .unwrap_or(0);
+    let remote = vcs::remote(&cfg.path).ok().flatten();
+
+    // The list is saved **first**: if that fails, nothing has changed and the vault is still there,
+    // which is the recoverable order. Dropping it from memory first would leave a running app whose
+    // vault list disagrees with the file it will reload from.
+    let remaining: Vec<VaultConfig> =
+        g.configs().into_iter().filter(|c| c.name != name).collect();
+    vaults::save(&remaining, &config)
+        .map_err(|e| format!("the vault list could not be saved: {e} — nothing was changed"))?;
+    g.remove(name);
+    let names = g.all.names();
+    Ok(serde_json::json!({
+        "forgotten": name,
+        "path": cfg.path.to_string_lossy(),
+        "notes": notes,
+        "remote": remote,
+        "vaults": infos(&g.configs(), &names),
+    }))
 }
 
 /// Clone a collaborator's vault and register it — the other way a vault comes into being.

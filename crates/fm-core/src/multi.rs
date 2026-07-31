@@ -83,6 +83,19 @@ impl MultiStore {
         self.vaults.push(store);
     }
 
+    /// Drop a vault from the live set — the counterpart of [`Self::add`], for a vault the user has
+    /// asked to stop seeing. Returns whether it was there.
+    ///
+    /// **Removes the store, never the files.** Notes are the user's; forgetting a vault is a change
+    /// to *this machine's* configuration and must be reversible by re-adding it. Deleting the folder
+    /// would not be.
+    pub fn remove(&mut self, name: &str) -> bool {
+        let before = self.vaults.len();
+        self.vaults.retain(|v| v.name() != name);
+        self.unopened.retain(|(n, _)| n != name);
+        self.vaults.len() != before
+    }
+
     /// No vaults at all — the first-run state, not an error. See [`Self::open`].
     pub fn is_empty(&self) -> bool {
         self.vaults.is_empty()

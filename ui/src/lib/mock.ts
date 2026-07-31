@@ -262,7 +262,7 @@ const gitVaults: Array<{
 // `git_assets_max` is mutable here because `set_git_assets_max` writes it — the mock models the
 // setting round-tripping, which is the only way the Settings field can be developed against it.
 // `personal` starts off (the real default) and `lab` starts on, so both states are on screen.
-const mockVaults: Array<{ name: string; path: string; git_assets_max: number | null }> = [
+let mockVaults: Array<{ name: string; path: string; git_assets_max: number | null }> = [
   { name: 'personal', path: '/home/you/notes', git_assets_max: null },
   { name: 'lab', path: '/home/you/lab-notes', git_assets_max: 2_000_000 },
 ];
@@ -490,6 +490,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // unmerged), so a test can assert the surface empties rather than only that a call happened.
       mockConflicts = mockConflicts.filter((c) => c.path !== String(args.path));
       return { resolved: String(args.path) } as T;
+    }
+    case 'forget_vault': {
+      // Mirrors the server: unregister, never delete. `notes` is what is being left behind.
+      const name = String(args.name);
+      if (!name) throw new Error('which vault? forget_vault needs a name');
+      const before = mockVaults.length;
+      const left = notes.filter((n) => n.vault === name).length;
+      mockVaults = mockVaults.filter((v) => v.name !== name);
+      if (mockVaults.length === before) throw new Error(`no vault named '${name}'`);
+      return { forgotten: name, path: `/vaults/${name}`, notes: left, remote: null, vaults: mockVaults } as T;
     }
     case 'unrecorded':
       return mockUnrecorded as T;

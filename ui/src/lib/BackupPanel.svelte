@@ -20,7 +20,7 @@
   // overstatement this panel exists to prevent — hence a vault with no restic repo is
   // named, not skipped in silence.
   import { onMount } from 'svelte';
-  import { backup, backupStatus, commit, pull, setGitRemote } from './ipc';
+  import { backup, backupStatus, commit, forgetVault, pull, setGitRemote } from './ipc';
   import { syncVault, syncFor } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
@@ -76,6 +76,33 @@
   // A single vault has no boundary to talk about, so don't name it at every turn.
   const plural = $derived(vaults.length > 1);
   const of = (v: VaultStatus) => (plural ? ` (${v.name})` : '');
+
+  /// Which vault has been clicked once. A two-step, because it changes what the app shows you and a
+  /// single misclick in a list of vaults should not.
+  let confirmForget = $state<string | null>(null);
+  /// The result of a removal, shown **beside the control that did it** rather than in the panel's
+  /// `verdict` line — that one only renders inside a backup run's step list, so a message put there
+  /// is a message nobody sees.
+  let forgetNote = $state<string | null>(null);
+  async function doForget(name: string) {
+    busy = true;
+    try {
+      const r = await forgetVault(name);
+      confirmForget = null;
+      // Says what stayed. The count is the whole point: nobody should have to wonder whether
+      // removing a vault from a list deleted their notes.
+      forgetNote =
+        r.notes > 0
+          ? `Removed “${r.forgotten}”. Its ${r.notes} note${r.notes === 1 ? '' : 's'} are still on disk at ${r.path}.`
+          : `Removed “${r.forgotten}” — it was empty. Nothing was deleted.`;
+      error = null;
+      await load();
+    } catch (e) {
+      forgetNote = String(e);
+    } finally {
+      busy = false;
+    }
+  }
 
   onMount(load);
 
@@ -361,6 +388,32 @@
           </ul>
         {/if}
 
+        <!-- **Stop showing me this vault.** Deliberately last, small, and worded as what it is:
+             unregistering, not deleting. The notes stay on disk and the message says how many and
+             where — "forget" and "destroy" are different verbs and only one is reversible. This
+             exists because three commands could create a vault and none could remove one, so the
+             empty default the phone auto-creates was unremovable from inside the app. -->
+        <div class="forget">
+          {#if forgetNote && confirmForget !== v.name}
+            <p class="forget-note">{forgetNote}</p>
+          {/if}
+          {#if confirmForget === v.name}
+            <span class="muted">
+              Remove “{v.name}” from this device's list? Its files stay where they are.
+            </span>
+            <button type="button" onclick={() => doForget(v.name)} disabled={busy}>
+              Yes, remove it
+            </button>
+            <button type="button" onclick={() => (confirmForget = null)} disabled={busy}>
+              Cancel
+            </button>
+          {:else}
+            <button type="button" class="quiet" onclick={() => (confirmForget = v.name)} disabled={busy}>
+              Remove this vault from the list…
+            </button>
+          {/if}
+        </div>
+
         {#if v.conflicts.length}
           <!-- The one state a user must be told about by name: these notes have both
                versions in them and are waiting for a person. The merge driver keeps the
@@ -455,6 +508,43 @@
 </div>
 
 <style>
+  /* The remove control: quiet by default, because it is the one action here that changes what the
+     app shows you. Its own sizing rather than `.icon-btn` — every `.icon-btn` is hidden in the narrow
+     layouts, which is how a control that must stay reachable on a phone silently vanishes. */
+  .forget {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .forget button {
+    min-height: 2.5rem;
+    padding: 0 0.8rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .forget-note {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .forget button.quiet {
+    border-color: transparent;
+    background: none;
+    color: var(--text-muted);
+    text-decoration: underline;
+  }
+  .forget button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   .panel-head {
     display: flex;
     align-items: baseline;

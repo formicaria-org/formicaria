@@ -127,7 +127,8 @@ versioning of the notes + restic backup provide durability.
 `list_vaults` (the audiences; **`[]` is the
 first-run signal** — deliberately not `backup_status`, which shells out per vault) ·
 `check_path` (what creating a vault here would do; the surface owns the verdict) ·
-`create_vault` / `clone_vault` / `restore_vault` (**three ways a vault comes into being**:
+`forget_vault` (unregister one — the fourth verb, and the only one that removes; it never deletes a
+file) · `create_vault` / `clone_vault` / `restore_vault` (**three ways a vault comes into being**:
 start empty, git-clone a shared one, restic-restore a backup — identical registration, differing
 only in what fills the folder first; all three route through `acquire::naturalise`) ·
 `list_views` / `run_view` (**saved `.view`

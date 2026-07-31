@@ -185,6 +185,19 @@ export const backlinks = (id: string) => invoke<ObjectMeta[]>('backlinks', { id 
  *  template is just a tagged note; tag one to make it a starting point, untag to unmake it. */
 export const templates = () => invoke<ObjectMeta[]>('templates');
 
+/** **Stop showing me this vault.** Unregisters it: dropped from the live set and from the vault
+ *  list on disk. **It never deletes a file** — "forget" and "destroy" are different verbs and only
+ *  one is reversible, so the worst case of a mistaken click is retyping a path. The answer says how
+ *  many notes were left behind and where, so "removed" cannot be read as "erased".
+ *
+ *  The fourth verb the vault list needed: three commands created a vault and none removed one, which
+ *  on the phone left an auto-created empty vault nobody could get rid of from inside the app. */
+export const forgetVault = (name: string) =>
+  invoke<{ forgotten: string; path: string; notes: number; remote: string | null; vaults: VaultInfo[] }>(
+    'forget_vault',
+    { name },
+  );
+
 /** Notes that came back from a merge in conflict, **each with its kind**.
  *
  *  Git is asked first (it is what actually blocks every commit in the vault, and the only thing that
