@@ -24,6 +24,7 @@
   import { syncVault, syncFor } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
+  import { labelFor } from './vaultLabels.svelte';
   import type { BackupStatus, VaultStatus } from './types';
 
   // `onnewvault` because this panel is already "a list, not a form" — the one surface in
@@ -323,7 +324,9 @@
          A single-vault install is a list of one and reads exactly as it always did. -->
     {#each vaults as v (v.name)}
       <div class="vault">
-        {#if plural}<h3>{v.name}</h3>{/if}
+        <!-- The repository name, matching the badge and the filter chips. `v.name` remains the
+             identity every command here takes. -->
+        {#if plural}<h3>{labelFor(v.name)}</h3>{/if}
 
         <label class="remote">
           <span>{plural ? `The ${v.name} vault's` : "Your notes'"} git remote</span>
@@ -399,7 +402,7 @@
           {/if}
           {#if confirmForget === v.name}
             <span class="muted">
-              Remove “{v.name}” from this device's list? Its files stay where they are.
+              Remove “{labelFor(v.name)}” from this device's list? Its files stay where they are.
             </span>
             <button type="button" onclick={() => doForget(v.name)} disabled={busy}>
               Yes, remove it

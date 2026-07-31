@@ -61,3 +61,25 @@ describe('labelFor', () => {
     expect(labelFor('gone')).toBe('gone');
   });
 });
+
+// ── One vault, one name, on every surface ──
+//
+// Caught on the phone 2026-07-31: the vault filter chips showed `formicarium-vault` (the repository)
+// while the create-destination selector beside them still showed the raw local name `notes`, so one
+// vault appeared under two different names on a single screen — the exact confusion labels exist to
+// remove. The fix is that every place a vault name is *displayed* goes through `labelFor`, while every
+// place it is *used* keeps the name. A test cannot enumerate future call sites, so what is pinned here
+// is the contract they must follow.
+describe('the label contract', () => {
+  it('maps a name to its label, and leaves the name usable as the key', () => {
+    setVaultLabels([v('notes', 'formicarium-vault'), v('vault', null)]);
+    // What a surface shows.
+    expect(labelFor('notes')).toBe('formicarium-vault');
+    expect(labelFor('vault')).toBe('vault');
+    // What a surface sends. The identity is unchanged by labelling — `hiddenVaults`,
+    // `fm-board-order` and every vault-taking command still key on these.
+    const names = ['notes', 'vault'];
+    expect(names.map(labelFor)).toEqual(['formicarium-vault', 'vault']);
+    expect(names).toEqual(['notes', 'vault']);
+  });
+});

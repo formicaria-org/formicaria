@@ -1391,7 +1391,11 @@
           onchange={(e) => setCreateVault((e.currentTarget as HTMLSelectElement).value)}
           aria-label="create in vault"
         >
-          {#each allVaults as v (v)}<option value={v}>{v}</option>{/each}
+          <!-- Value is the vault **name** (the identity every command takes); text is its label.
+               This selector still showed the raw name while the filter chips beside it showed the
+               repository name, so one vault appeared under two names on one screen — which is exactly
+               the confusion the labels exist to remove. Caught on the phone, 2026-07-31. -->
+          {#each allVaults as v (v)}<option value={v}>{labelFor(v)}</option>{/each}
         </select>
       </label>
     {/if}
