@@ -99,8 +99,18 @@
         {/each}
       </ul>
 
-      <!-- The evidence, bounded. Enough rows to see a pattern; the counts above are the whole truth. -->
+      <!-- **Actions first, evidence behind a disclosure.** With fifty rows at three lines each, the
+           Record button sat a long scroll below the fold on a phone — the thing you act on should not
+           be the hardest thing to reach. The rows are what identified this incident, so they stay one
+           tap away rather than being cut. -->
+      <button type="button" disabled={busy === u.vault} onclick={() => record(u.vault)}>
+        {busy === u.vault ? 'Recording…' : `Record all ${u.count} in history`}
+      </button>
+      <p class="after">Then back up, to send them to a remote.</p>
+
       {#if u.notes.length}
+        <details>
+          <summary>Show {u.notes.length} of {u.count}</summary>
         <ul class="notes">
           {#each u.notes as n (n.path)}
             <li>
@@ -114,17 +124,8 @@
             </li>
           {/each}
         </ul>
-        {#if u.notes.length < u.count}
-          <p class="more">Showing {u.notes.length} of {u.count}.</p>
-        {/if}
+        </details>
       {/if}
-
-      <button type="button" disabled={busy === u.vault} onclick={() => record(u.vault)}>
-        {busy === u.vault ? 'Recording…' : `Record all ${u.count} in history`}
-      </button>
-      <!-- Said here because a commit is not a backup, and on a phone the vault may be the only copy
-           until it is pushed. -->
-      <p class="after">Then back up, to send them to a remote.</p>
     </article>
   {/each}
 
@@ -236,14 +237,15 @@
     margin: 0.2rem 0;
     font-size: 0.9rem;
   }
+  /* **One scroll surface, not two.** This list used to be `max-height: 40vh; overflow: auto`, so a
+     finger landing anywhere on it scrolled the *list* and the panel never moved — which made
+     everything below (the duplicates section, the action buttons) unreachable on a phone. Observed
+     2026-07-31: the owner scrolled twice and saw the same header both times. The panel scrolls; the
+     list is just content. */
   .notes {
     margin: 0 0 0.75rem;
     padding: 0;
     list-style: none;
-    max-height: 40vh;
-    overflow: auto;
-    /* Wide rows scroll inside their own container rather than pushing the panel sideways. */
-    overflow-x: auto;
   }
   /* **The title gets its own line.** With the `kind`, `role` and size/date columns all competing on
      one flex row, a narrow screen squeezed the title to about one character per line — "Me / eti / ng"
@@ -291,6 +293,15 @@
     flex: 0 0 auto;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  summary {
+    /* A comfortable touch target, not a 12px triangle. */
+    min-height: 2.5rem;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.85rem;
   }
   .more,
   .after {

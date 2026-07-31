@@ -174,6 +174,8 @@ describe('notes that are not in history', () => {
     // or notes something is rewriting, and those want opposite responses.
     expect(await screen.findByText(/95 new/i)).toBeTruthy();
     expect(screen.getByText(/exist in one place only/i)).toBeTruthy();
+    // The evidence sits behind a disclosure so the action stays reachable on a phone; one tap opens it.
+    await fireEvent.click(screen.getByText(/Show 1 of 95/i));
     expect(screen.getByText('A note nobody committed')).toBeTruthy();
 
     await fireEvent.click(screen.getByRole('button', { name: /Record all 95 in history/i }));
@@ -247,6 +249,7 @@ describe('the duplicate count', () => {
     ]);
     render(App);
     await fireEvent.click(await screen.findByRole('button', { name: /147 not in history/i }));
+    await fireEvent.click(await screen.findByText(/Show 1 of 147/i));
     // The three things that turn a count into a cause: how many copies, which code path, and when.
     expect(await screen.findByText('×138')).toBeTruthy();
     expect(screen.getByText('message')).toBeTruthy();
