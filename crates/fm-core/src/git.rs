@@ -1970,7 +1970,39 @@ fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
 /// *permanently skipped*, and nothing said so. This is the reconciliation list: what the app would
 /// have committed if it had remembered. Scoped to `notes_rel` (the vault's own notes directory), so
 /// it can never name a file the app does not own.
-pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError> {
+/// **Which way a note is out of history.** The count alone cannot tell the two apart, and they call
+/// for opposite responses: a hundred `New` notes are a hundred notes that exist in one place only,
+/// while a hundred `Modified` ones mean something is rewriting notes it did not need to. On the
+/// owner's phone that ambiguity was the whole problem — the device knew and could not say (2026-07-31).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnrecordedKind {
+    /// Git has never seen this path: untracked, or staged but never committed.
+    New,
+    /// Tracked, and the file differs from what was committed.
+    Modified,
+    /// Tracked, and the file is gone. Also "not in history" — the *deletion* is the change git has
+    /// not recorded — which the count silently lumped in with the rest.
+    Deleted,
+}
+
+/// One note git does not have, and how.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnrecordedNote {
+    /// Vault-relative path, e.g. `notes/<ulid>.md`.
+    pub path: String,
+    pub kind: UnrecordedKind,
+}
+
+/// Notes that exist on disk but are **not in history** — untracked, tracked-and-modified, or deleted.
+///
+/// `commit_all` deliberately stages only the paths `FileStore::put`/`delete` recorded, so that a
+/// vault which is also a project repo never has its owner's staged work swept into an `auto:`
+/// commit. The cost, unnoticed until it bit: that record is **per-process memory**, so every note
+/// written before the last restart is forgotten and can never be staged by it — not lagging,
+/// *permanently skipped*, and nothing said so. This is the reconciliation list: what the app would
+/// have committed if it had remembered. Scoped to `notes_rel` (the vault's own notes directory), so
+/// it can never name a file the app does not own.
+pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<UnrecordedNote>, StoreError> {
     if !vault.join(".git").exists() {
         return Ok(Vec::new());
     }
@@ -1987,8 +2019,23 @@ pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreErr
         .lines()
         .filter(|l| l.len() > 3)
         .filter(|l| !unmerged(l)) // a conflict is not an unrecorded note; it has its own surface
-        .map(|l| l[3..].trim().trim_matches('"').to_string())
-        .filter(|p| p.starts_with(&prefix) && p.ends_with(".md"))
+        .filter_map(|l| {
+            let (code, rest) = (&l[..2], l[3..].trim());
+            // A rename reports `old -> new`; the note that exists is the new one. Without this the
+            // path would carry the arrow and match nothing, so a renamed note would silently drop
+            // out of the list — the failure mode this whole surface exists to end.
+            let path = rest.rsplit(" -> ").next().unwrap_or(rest).trim_matches('"').to_string();
+            let kind = match code.as_bytes() {
+                b"??" => UnrecordedKind::New,
+                // Staged-but-never-committed is `A`; git has no record of it yet either way.
+                [b'A', _] => UnrecordedKind::New,
+                // Deleted on either side of the index.
+                [b'D', _] | [_, b'D'] => UnrecordedKind::Deleted,
+                _ => UnrecordedKind::Modified,
+            };
+            (path.starts_with(&prefix) && path.ends_with(".md"))
+                .then_some(UnrecordedNote { path, kind })
+        })
         .collect())
 }
 

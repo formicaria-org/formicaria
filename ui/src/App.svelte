@@ -334,6 +334,7 @@
   // the beat that follows opening it — and because a note staying broken must not make
   // the list flicker.
   let skippedOpen = $state(false);
+  let unrecordedOpen = $state(false);
   /// The last-reported set of unopenable vaults, so the notice fires on change and not per beat.
   let lastUnopened = '';
   let skippedNotes = $state<import('./lib/ipc').SkippedNote[]>([]);
@@ -1102,27 +1103,20 @@
   /// announced "Nothing left to record in 'notes'" — telling the user their click did nothing while it
   /// had just committed 146 notes. A per-item message inside a loop over items is a report of the last
   /// item, not of the work.
-  async function recordAllUnrecorded() {
-    const done: { vault: string; notes: number }[] = [];
+  /// Record one vault's forgotten notes — the panel's per-vault button.
+  ///
+  /// Reports over the whole action rather than per item: the first version set `notice` inside a loop
+  /// over vaults, so recording 146 in one and finding none in the next announced the *nothing*.
+  async function onRecordUnrecorded(vault: string) {
     try {
-      for (const u of [...unrecordedList]) {
-        const r = await recordUnrecorded(u.vault);
-        if (r.committed && r.notes > 0) done.push({ vault: u.vault, notes: r.notes });
-      }
+      const r = await recordUnrecorded(vault);
+      notice = r.committed
+        ? `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${labelFor(vault)}”. ` +
+          `They are in this device's history now — back up to send them to a remote.`
+        : `Nothing left to record in “${labelFor(vault)}”.`;
+      await loadUnrecorded();
     } catch (e) {
       error = String(e);
-    }
-    await loadUnrecorded();
-    const total = done.reduce((n, d) => n + d.notes, 0);
-    if (total === 0) {
-      notice = 'Nothing left to record — git already has every note.';
-    } else {
-      const where = done.map((d) => `${d.notes} in “${d.vault}”`).join(', ');
-      // Says the next step too: a commit is not a backup, and on a phone the vault may be the only
-      // copy until it is pushed.
-      notice =
-        `Recorded ${total} note${total === 1 ? '' : 's'} that had never been committed (${where}). ` +
-        `They are in this device's history now — back up to send them to a remote.`;
     }
   }
 
@@ -1429,10 +1423,14 @@
            stages only the paths the app remembers writing, and that memory dies with the process —
            so a note written before the last restart could never be staged by it, and nothing said
            so. Ninety-five had accumulated over a week before anyone noticed (2026-07-31). -->
+      <!-- **Opens the panel rather than committing blind.** It used to record on one click, which is
+           the right *action* and the wrong *first* step: the count alone cannot say whether these are
+           notes that exist nowhere else or notes something is rewriting, and those want opposite
+           responses. The panel says which, then offers the button. -->
       <button
         class="tb-chip moved"
-        onclick={() => recordAllUnrecorded()}
-        title="Notes on disk that git does not have yet — click to record them">
+        onclick={() => (unrecordedOpen = true)}
+        title="Notes on disk that git does not have yet — click to see which, and why">
         {unrecordedTotal} not in history
       </button>
     {/if}
@@ -1567,6 +1565,16 @@
           settingsOpen = false;
           backupOpen = true;
         }} />
+    {/await}
+  {/if}
+
+  {#if unrecordedOpen}
+    {#await import('./lib/UnrecordedPanel.svelte') then { default: UnrecordedPanel }}
+      <UnrecordedPanel
+        unrecorded={unrecordedList}
+        onrecord={onRecordUnrecorded}
+        onclose={() => (unrecordedOpen = false)}
+      />
     {/await}
   {/if}
 

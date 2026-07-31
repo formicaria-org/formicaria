@@ -682,7 +682,11 @@ fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
 /// Same purpose and the same scoping to the vault's own notes directory. `STATUS_OPT` asks for
 /// untracked files individually (not collapsed to their directory), which is the difference between
 /// naming 95 notes and naming `notes/`.
-pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError> {
+pub fn unrecorded(
+    vault: &Path,
+    notes_rel: &str,
+) -> Result<Vec<crate::git::UnrecordedNote>, StoreError> {
+    use crate::git::{UnrecordedKind, UnrecordedNote};
     if !vault.join(".git").exists() {
         return Ok(Vec::new());
     }
@@ -692,18 +696,31 @@ pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreErr
     opts.pathspec(notes_rel);
     let statuses = repo.statuses(Some(&mut opts)).map_err(map)?;
     let prefix = format!("{}/", notes_rel.trim_end_matches('/'));
-    let mut out = Vec::new();
+    let mut out: Vec<UnrecordedNote> = Vec::new();
     for s in statuses.iter() {
-        if s.status().is_conflicted() {
+        let st = s.status();
+        if st.is_conflicted() {
             continue; // a conflict is not an unrecorded note; it has its own surface
         }
         let p = s.path().unwrap_or("");
-        if p.starts_with(&prefix) && p.ends_with(".md") {
-            out.push(p.to_string());
+        if !(p.starts_with(&prefix) && p.ends_with(".md")) {
+            continue;
         }
+        // The same three answers the porcelain codes give, from the flags they are derived from — and
+        // in the same order of precedence, so the two backends cannot disagree about a file that is
+        // both (a staged add later deleted on disk reads as `New` on both). A one-sided mislabel here
+        // is what `fm-cli/tests/conflict_resolution_both_devices.rs` catches.
+        let kind = if st.is_wt_new() || st.is_index_new() {
+            UnrecordedKind::New
+        } else if st.is_wt_deleted() || st.is_index_deleted() {
+            UnrecordedKind::Deleted
+        } else {
+            UnrecordedKind::Modified
+        };
+        out.push(UnrecordedNote { path: p.to_string(), kind });
     }
-    out.sort();
-    out.dedup();
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out.dedup_by(|a, b| a.path == b.path);
     Ok(out)
 }
 

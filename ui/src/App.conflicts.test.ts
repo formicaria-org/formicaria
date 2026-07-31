@@ -142,7 +142,25 @@ describe('a conflict with no markers', () => {
 
 describe('notes that are not in history', () => {
   it('are counted where you cannot miss them, and recorded in one click', async () => {
-    setUnrecorded([{ vault: 'personal', count: 95, sample: ['M0CK000000000000000000AAAA'] }]);
+    setUnrecorded([
+      {
+        vault: 'personal',
+        count: 95,
+        new: 95,
+        modified: 0,
+        deleted: 0,
+        notes: [
+          {
+            id: 'M0CK000000000000000000AAAA',
+            path: 'notes/M0CK000000000000000000AAAA.md',
+            kind: 'new',
+            title: 'A note nobody committed',
+            bytes: 412,
+            modified: '2026-07-31T09:57',
+          },
+        ],
+      },
+    ]);
     render(App);
 
     // A chip in the toolbar, not a dismissible banner: the condition persists until someone acts,
@@ -150,8 +168,14 @@ describe('notes that are not in history', () => {
     const chip = await screen.findByRole('button', { name: /95 not in history/i });
     await fireEvent.click(chip);
 
-    await vi.waitFor(() => expect(screen.queryByRole('button', { name: /not in history/i })).toBeNull());
-    expect(document.body.textContent).toMatch(/Recorded 95 notes/i);
+    // It opens the panel — the count alone cannot say whether these are notes that exist nowhere else
+    // or notes something is rewriting, and those want opposite responses.
+    expect(await screen.findByText(/95 new/i)).toBeTruthy();
+    expect(screen.getByText(/exist in one place only/i)).toBeTruthy();
+    expect(screen.getByText('A note nobody committed')).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: /Record all 95 in history/i }));
+    await vi.waitFor(() => expect(document.body.textContent).toMatch(/Recorded 95 notes/i));
   });
 
   it('reports the total across vaults, not whichever vault came last', async () => {
@@ -160,13 +184,16 @@ describe('notes that are not in history', () => {
     // vault (which had nothing) overwrote the first vault's result. The user was told their click did
     // nothing while 146 notes had just been committed.
     setUnrecorded([
-      { vault: 'personal', count: 146, sample: [] },
-      { vault: 'notes', count: 0, sample: [] },
+      { vault: 'personal', count: 146, new: 20, modified: 126, deleted: 0, notes: [] },
     ]);
     render(App);
     await fireEvent.click(await screen.findByRole('button', { name: /146 not in history/i }));
+    // **The split is the diagnosis.** 126 modified against 20 new says something is rewriting notes —
+    // the reading a bare count could never support.
+    expect(await screen.findByText(/126 modified/i)).toBeTruthy();
+    expect(screen.getByText(/rewriting notes/i)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: /Record all 146 in history/i }));
     await vi.waitFor(() => expect(document.body.textContent).toMatch(/Recorded 146 notes/i));
-    expect(document.body.textContent).not.toMatch(/Nothing left to record/i);
     // And it says what to do next: a commit is not a backup.
     expect(document.body.textContent).toMatch(/back up to send them to a remote/i);
   });

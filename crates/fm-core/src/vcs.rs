@@ -119,7 +119,7 @@ route!(conflicts(vault: &Path) -> Result<Vec<String>, StoreError>);
 // owner's laptop, with 95 notes unrecorded. `unrecorded` is the other half of that failure.
 route!(conflicted(vault: &Path) -> Result<Vec<crate::git::Conflict>, StoreError>);
 route!(resolve_conflict(vault: &Path, rel: &str, keep: crate::git::Keep) -> Result<(), StoreError>);
-route!(unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError>);
+route!(unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<crate::git::UnrecordedNote>, StoreError>);
 route!(unpushed(vault: &Path) -> Result<Option<u32>, StoreError>);
 route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);

@@ -148,8 +148,45 @@ pub struct ConflictInfo {
 pub struct Unrecorded {
     pub vault: String,
     pub count: usize,
-    /// Up to a handful of note ids, to name in the UI without pasting ninety-five of them.
-    pub sample: Vec<String>,
+    /// **Split by kind, because the kinds mean opposite things.** `new` notes exist nowhere else if
+    /// this vault has no remote; a pile of `modified` ones means something is rewriting notes it did
+    /// not need to; `deleted` means the *deletion* is what git has not recorded. The count alone
+    /// could not distinguish these, which is exactly why "146 not in history" on the owner's phone
+    /// was a number nobody could act on (2026-07-31).
+    pub new: usize,
+    pub modified: usize,
+    pub deleted: usize,
+    /// A bounded sample with enough detail to recognise what happened — see [`UNRECORDED_DETAIL`].
+    /// The counts above are the complete picture; this is the evidence.
+    pub notes: Vec<UnrecordedNote>,
+}
+
+/// How many detail rows `unrecorded` carries. Enough to see a pattern (all created in one minute?
+/// all modified with the same size?), few enough that a vault with thousands does not build a
+/// payload nobody reads — the counts are what answer "how bad".
+pub const UNRECORDED_DETAIL: usize = 50;
+
+/// One note git does not have, in enough detail to recognise it without a shell.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UnrecordedNote {
+    pub id: String,
+    pub path: String,
+    /// `new` | `modified` | `deleted` — a string on the wire so the UI can group without importing
+    /// a Rust enum's numbering, the same way `conflicts` carries its two-letter code.
+    pub kind: String,
+    /// The note's title, or its first body line. `None` for a deleted note: there is no file to read,
+    /// and inventing a name for it would be worse than admitting that.
+    pub title: Option<String>,
+    /// Size on disk, and when it last changed — the two facts that make a pattern visible. Both
+    /// `None` for a deleted note.
+    pub bytes: Option<u64>,
+    pub modified: Option<String>,
+}
+
+/// A filesystem timestamp as RFC-3339, for display beside a note. Best-effort: a clock the OS cannot
+/// answer for yields an empty string rather than failing the whole report.
+pub fn stamp_of(t: std::time::SystemTime) -> String {
+    time::OffsetDateTime::from(t).format(&Rfc3339).unwrap_or_default()
 }
 
 /// A board: the property it groups by (opaque — the renderer never learns the

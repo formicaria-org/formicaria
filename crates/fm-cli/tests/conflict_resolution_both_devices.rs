@@ -176,11 +176,63 @@ fn both_devices_list_unrecorded_notes_identically() {
     vcs::force_native(true);
     let mut phone = vcs::unrecorded(&vault, "notes").unwrap();
     vcs::force_native(false);
-    laptop.sort();
-    phone.sort();
+    laptop.sort_by(|a, b| a.path.cmp(&b.path));
+    phone.sort_by(|a, b| a.path.cmp(&b.path));
 
     assert_eq!(laptop, phone, "an untracked note and a modified one, seen the same way by both");
     assert_eq!(phone.len(), 2, "{phone:?}");
+}
+
+/// **The two backends must agree on *how* a note is out of history, not just that it is.**
+///
+/// The count alone was the whole problem: 146 unrecorded notes on the owner's phone could have been
+/// 146 notes that exist nowhere else (urgent) or 146 notes something was needlessly rewriting (a
+/// different bug), and the device knew but could not say. Now it says — so the two devices have to say
+/// the same thing, or the phone's report means something different from the laptop's.
+#[test]
+fn both_devices_agree_on_how_a_note_is_out_of_history() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("vault");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    g(&vault, &["init", "-q", "-b", "main"]);
+    g(&vault, &["config", "user.name", "T"]);
+    g(&vault, &["config", "user.email", "t@e.com"]);
+    let tracked = "notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md";
+    let doomed = "notes/01DDDDDDDDDDDDDDDDDDDDDDDD.md";
+    std::fs::write(vault.join(tracked), note("committed")).unwrap();
+    std::fs::write(vault.join(doomed), note("about to go")).unwrap();
+    g(&vault, &["add", "-A"]);
+    g(&vault, &["commit", "-qm", "two notes"]);
+
+    // One of each kind, which is what a real vault looks like after a while.
+    std::fs::write(vault.join(tracked), note("committed, then edited")).unwrap(); // Modified
+    std::fs::remove_file(vault.join(doomed)).unwrap(); // Deleted
+    std::fs::write(vault.join("notes/01NNNNNNNNNNNNNNNNNNNNNNNN.md"), note("brand new")).unwrap(); // New
+
+    let read = |native: bool| {
+        vcs::force_native(native);
+        let mut v = vcs::unrecorded(&vault, "notes").unwrap();
+        vcs::force_native(false);
+        v.sort_by(|a, b| a.path.cmp(&b.path));
+        v
+    };
+    let laptop = read(false);
+    let phone = read(true);
+
+    assert_eq!(laptop, phone, "the kinds must match, not only the paths");
+    let kind_of = |p: &str| laptop.iter().find(|u| u.path == p).map(|u| u.kind);
+    assert_eq!(kind_of(tracked), Some(git::UnrecordedKind::Modified), "{laptop:?}");
+    assert_eq!(kind_of(doomed), Some(git::UnrecordedKind::Deleted), "{laptop:?}");
+    assert_eq!(
+        kind_of("notes/01NNNNNNNNNNNNNNNNNNNNNNNN.md"),
+        Some(git::UnrecordedKind::New),
+        "{laptop:?}"
+    );
 }
 
 /// A vault mid-merge with a **marker** conflict (`UU`): both sides edited the same note.

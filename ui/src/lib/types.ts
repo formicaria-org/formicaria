@@ -196,7 +196,30 @@ export interface ConflictInfo {
 export interface Unrecorded {
   vault: string;
   count: number;
-  sample: string[];
+  /** **Split by kind, because the kinds mean opposite things.** `new` notes exist nowhere else if the
+   *  vault has no remote; a pile of `modified` means something is rewriting notes it did not need to;
+   *  `deleted` means the *deletion* is what git has not recorded. A bare count could not tell these
+   *  apart, which is why "146 not in history" on the phone was a number nobody could act on. */
+  new: number;
+  modified: number;
+  deleted: number;
+  /** A bounded sample (50) with enough detail to recognise what happened. The counts are the
+   *  complete picture; this is the evidence. */
+  notes: UnrecordedNote[];
+}
+
+/** One note git does not have, in enough detail to recognise it without a shell — which on a phone is
+ *  the only option: no readable logcat, no console, no terminal. */
+export interface UnrecordedNote {
+  id: string;
+  path: string;
+  /** `new` | `modified` | `deleted`. */
+  kind: string;
+  /** Title, or first body line. `null` for a deleted note — there is no file left to read, and
+   *  inventing a name would be worse than admitting that. */
+  title: string | null;
+  bytes: number | null;
+  modified: string | null;
 }
 
 /** What a commit did. `committed: false` with conflicts listed is not "nothing to do" —

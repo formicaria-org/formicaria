@@ -44,7 +44,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: *The auto-commit stages what we wrote* (**+ the explicit catch-up**: it could
+- **`#data`**: *A count is a symptom; the kind is the diagnosis* · *The auto-commit stages what we
+  wrote* (**+ the explicit catch-up**: it could
   *permanently skip* a note, not merely lag) · *A conflict surface is derived from git, not from
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
@@ -98,6 +99,39 @@ reasoning as *"auto-push is explicit, never silent"*: it stages files the app do
 writing, which is a judgement a person should make. And the count is a **persistent chip**, not a
 banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
 entire failure mode was silence.
+
+## A count is a symptom; the kind is the diagnosis — and the device must be able to state it (2026-07-31, `#data`)
+
+**Decision.** `vcs::unrecorded` returns `UnrecordedNote { path, kind }` with
+`kind ∈ {New, Modified, Deleted}`, both backends, held byte-identical by
+`fm-cli/tests/conflict_resolution_both_devices.rs`. `dto::Unrecorded` carries per-kind counts plus a
+**bounded** 50-row sample (id, title-or-first-line, bytes, mtime), and the toolbar chip opens a panel
+that leads with the split instead of committing on one click.
+
+**Why.** The chip said *"146 not in history"* on the owner's phone and **no one could act on it**. That
+number could mean 146 notes existing nowhere else — app-private storage is erased by an uninstall and
+`blobs/` never travels with a push — or 146 notes something was needlessly rewriting. Opposite
+urgencies; opposite responses. The device knew which (it had just run `git status`) and the surface
+threw the status code away, mapping porcelain lines to bare paths.
+
+**And it must be the device that says it**, because there is no other channel: on that phone Rust's
+stdout is not routed to logcat, the WebView forwards no `console.*`, and MIUI suppresses our own tag.
+`run-as` cannot read a release build's private storage. Anything a user must be able to report has to be
+rendered on screen — the same rule that put `ca_bundle` in Settings and the skipped notes in a panel.
+
+**Consequence.** The one-click "record everything" became a *second* step behind the panel: recording is
+still right, but doing it before knowing which story you are in destroys the evidence for the other one
+(a `modified` pile committed is a rewriting bug you can no longer see). Per-kind counts are exact; the
+detail list is capped at `dto::UNRECORDED_DETAIL` because a vault can hold thousands and the counts
+already answer "how bad" — the sample answers "what happened". A **deleted** note is now labelled as
+such rather than silently counted as "not in history", which the old wording quietly mis-stated.
+
+**Reproducible without the device.** `fm-app/tests/unrecorded_after_restart.rs` recreates the whole
+failure by dropping and re-opening the `App` — which is exactly what a process kill does to
+`commit_all`'s in-memory write-record — and asserts that `commit` alone still records nothing (that
+precision protects a project vault and is *not* the bug), while `unrecorded` finds them with the right
+kinds and `record_unrecorded` commits them. A class of bug that needed a phone to observe now needs
+70 ms of `cargo test`.
 
 ## A vault is labelled by its remote, and identified by its local name (2026-07-31, `#vault` `#ui`)
 

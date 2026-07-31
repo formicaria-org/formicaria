@@ -268,6 +268,25 @@ fn describe_conflict(kind: git::ConflictKind) -> String {
     .to_string()
 }
 
+/// A note's title, or its first non-empty body line — something a human recognises, for a list that
+/// would otherwise be ULIDs. `None` when the file is not there (a deleted note) or will not parse.
+///
+/// Reads one small file per row, and only for the bounded detail list — never for the counts.
+fn title_of(full: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(full).ok()?;
+    // The vault's own parser, not a second one — `frontmatter::from_file` is what `FileStore` reads
+    // notes with, so a title shown here is the title the app would show anywhere else.
+    if let Ok(obj) = fm_core::frontmatter::from_file(&text) {
+        if let Some(t) = obj.title.as_ref().filter(|t| !t.trim().is_empty()) {
+            return Some(t.trim().to_string());
+        }
+    }
+    text.lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with("---") && !l.starts_with('#'))
+        .map(|l| l.chars().take(72).collect())
+}
+
 /// The vault-relative notes directory (`notes` unless `vault.json` says otherwise).
 ///
 /// Asked of the descriptor rather than hardcoded: a vault may keep its notes in `docs/`, and
@@ -468,30 +487,66 @@ fn dispatch_inner(
             // wrapper bumps for us once this returns Ok — and only then.
             json(serde_json::json!({ "resolved": path }))
         }
-        // **What the app forgot it wrote.** Per vault: notes on disk that git does not have. The
-        // count is the number that matters — a vault quietly not recording history is the failure
-        // this exists to make visible.
+        // **What the app forgot it wrote, and in which way.** Per vault: notes on disk that git does
+        // not have, split by kind, with a bounded sample of detail.
+        //
+        // The count alone was not a diagnosis. On the owner's phone it said 146, and that could have
+        // meant 146 notes existing nowhere else (urgent — app-private storage is erased by an
+        // uninstall) or 146 notes something was needlessly rewriting (a different bug entirely). The
+        // device knew which and had no way to say it, and the phone has no other channel: no readable
+        // logcat, no console, no shell. So the answer carries the kinds.
         "unrecorded" => {
             let g = lock()?;
             let configs = g.configs();
             let mut out: Vec<crate::dto::Unrecorded> = Vec::new();
             for cfg in &configs {
                 let notes_rel = notes_rel_of(&cfg.path);
-                let paths = vcs::unrecorded(&cfg.path, &notes_rel).unwrap_or_default();
-                if paths.is_empty() {
+                let found = vcs::unrecorded(&cfg.path, &notes_rel).unwrap_or_default();
+                if found.is_empty() {
                     continue;
                 }
-                let sample = paths
+                let count_of = |k: git::UnrecordedKind| {
+                    found.iter().filter(|u| u.kind == k).count()
+                };
+                // **Bounded.** A vault can hold thousands; the panel needs enough rows to recognise
+                // what happened, not every filename. The counts above are the complete picture.
+                let notes = found
                     .iter()
-                    .take(5)
-                    .filter_map(|p| {
-                        std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned())
+                    .take(crate::dto::UNRECORDED_DETAIL)
+                    .map(|u| {
+                        let full = cfg.path.join(&u.path);
+                        let meta = std::fs::metadata(&full).ok();
+                        crate::dto::UnrecordedNote {
+                            id: std::path::Path::new(&u.path)
+                                .file_stem()
+                                .map(|s| s.to_string_lossy().into_owned())
+                                .unwrap_or_default(),
+                            path: u.path.clone(),
+                            kind: match u.kind {
+                                git::UnrecordedKind::New => "new",
+                                git::UnrecordedKind::Modified => "modified",
+                                git::UnrecordedKind::Deleted => "deleted",
+                            }
+                            .to_string(),
+                            // The note's own title if it parses, else its first non-empty body line —
+                            // the same "name it by something a human recognises" rule the conflict
+                            // labels use. A deleted note has no file to read, and says so by `None`.
+                            title: title_of(&full),
+                            bytes: meta.as_ref().map(|m| m.len()),
+                            modified: meta
+                                .as_ref()
+                                .and_then(|m| m.modified().ok())
+                                .map(crate::dto::stamp_of),
+                        }
                     })
                     .collect();
                 out.push(crate::dto::Unrecorded {
                     vault: cfg.name.clone(),
-                    count: paths.len(),
-                    sample,
+                    count: found.len(),
+                    new: count_of(git::UnrecordedKind::New),
+                    modified: count_of(git::UnrecordedKind::Modified),
+                    deleted: count_of(git::UnrecordedKind::Deleted),
+                    notes,
                 });
             }
             json(out)
@@ -502,15 +557,16 @@ fn dispatch_inner(
             let g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             let notes_rel = notes_rel_of(&cfg.path);
-            let rel = vcs::unrecorded(&cfg.path, &notes_rel).map_err(err)?;
-            if rel.is_empty() {
+            let found = vcs::unrecorded(&cfg.path, &notes_rel).map_err(err)?;
+            if found.is_empty() {
                 return json(serde_json::json!({ "committed": false, "notes": 0 }));
             }
             let paths: Vec<std::path::PathBuf> =
-                rel.iter().map(|r| cfg.path.join(r)).collect();
-            let message = format!("notes: recording {} note(s) the app had not staged", rel.len());
+                found.iter().map(|u| cfg.path.join(&u.path)).collect();
+            let message =
+                format!("notes: recording {} note(s) the app had not staged", found.len());
             let made = vcs::commit_all(&cfg.path, &message, &paths).map_err(err)?;
-            json(serde_json::json!({ "committed": made, "notes": rel.len() }))
+            json(serde_json::json!({ "committed": made, "notes": found.len() }))
         }
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and

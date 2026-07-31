@@ -187,10 +187,21 @@ fn notes_the_app_never_staged_are_listed_and_can_be_recorded() {
 
     let missing = vcs::unrecorded(&vault, "notes").unwrap();
     assert_eq!(missing.len(), 3, "two new notes and one modified one: {missing:?}");
+    // And it says *which* is which — the distinction a bare count could not carry.
+    assert_eq!(
+        missing.iter().filter(|u| u.kind == fm_core::git::UnrecordedKind::New).count(),
+        2,
+        "{missing:?}"
+    );
+    assert_eq!(
+        missing.iter().filter(|u| u.kind == fm_core::git::UnrecordedKind::Modified).count(),
+        1,
+        "{missing:?}"
+    );
 
     // Recording them is exactly what `commit_all` does when it is *told* the paths — the point is
     // that nothing was telling it.
-    let abs: Vec<std::path::PathBuf> = missing.iter().map(|r| vault.join(r)).collect();
+    let abs: Vec<std::path::PathBuf> = missing.iter().map(|u| vault.join(&u.path)).collect();
     assert!(vcs::commit_all(&vault, "record them", &abs).unwrap(), "committed");
     assert!(vcs::unrecorded(&vault, "notes").unwrap().is_empty(), "nothing left unrecorded");
 }
