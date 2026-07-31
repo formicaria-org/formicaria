@@ -289,6 +289,32 @@ fn describe_conflict(kind: git::ConflictKind) -> String {
     .to_string()
 }
 
+/// Which code path wrote this note, from the markers the note itself carries.
+///
+/// Reuses `thread::is_message`/`is_proposal` — the same predicates the query layer filters the planning
+/// views with — so this cannot drift from what the rest of the app means by "a message". A title says
+/// what a note *is about*; this says **who made it**, which is the question when 142 of them appear in
+/// one minute.
+fn role_of(full: &std::path::Path) -> String {
+    let Ok(text) = std::fs::read_to_string(full) else { return "deleted".into() };
+    match fm_core::frontmatter::from_file(&text) {
+        Ok(o) if crate::thread::is_proposal(&o) => "proposal".into(),
+        Ok(o) if crate::thread::is_message(&o) => "message".into(),
+        Ok(_) => "note".into(),
+        Err(_) => "unreadable".into(),
+    }
+}
+
+/// A note's body, normalised, as the key for counting duplicates. The *body* and not the whole file:
+/// two copies of one message differ in `id` and `created`, so hashing the file would report every
+/// duplicate as unique — which is exactly the mistake that would hide the finding.
+fn body_key(full: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(full).ok()?;
+    let obj = fm_core::frontmatter::from_file(&text).ok()?;
+    let body = obj.body.trim();
+    (!body.is_empty()).then(|| fm_core::blob::sha256_hex(body.as_bytes()))
+}
+
 /// Notes git does not have that this app may safely claim as its own writes.
 ///
 /// **The whole safety argument is the naming scheme.** `add -A` was rejected because a vault may also
@@ -569,6 +595,17 @@ fn dispatch_inner(
                 };
                 // **Bounded.** A vault can hold thousands; the panel needs enough rows to recognise
                 // what happened, not every filename. The counts above are the complete picture.
+                // **Body counts first, over the whole set.** A duplicate count is only meaningful if
+                // it counted everything, so this reads every outstanding note — small files, and the
+                // alternative is a number that lies by omission. Capped so a pathological vault cannot
+                // turn one command into ten thousand reads.
+                let mut bodies: std::collections::HashMap<String, usize> =
+                    std::collections::HashMap::new();
+                for u in found.iter().take(crate::dto::UNRECORDED_SCAN) {
+                    if let Some(b) = body_key(&cfg.path.join(&u.path)) {
+                        *bodies.entry(b).or_insert(0) += 1;
+                    }
+                }
                 let notes = found
                     .iter()
                     .take(crate::dto::UNRECORDED_DETAIL)
@@ -596,6 +633,10 @@ fn dispatch_inner(
                                 .as_ref()
                                 .and_then(|m| m.modified().ok())
                                 .map(crate::dto::stamp_of),
+                            role: role_of(&full),
+                            copies: body_key(&full)
+                                .and_then(|b| bodies.get(&b).copied())
+                                .unwrap_or(1),
                         }
                     })
                     .collect();

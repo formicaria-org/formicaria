@@ -80,7 +80,11 @@
           {#each u.notes as n (n.path)}
             <li>
               <span class="kind" data-kind={n.kind}>{n.kind}</span>
+              <span class="role">{n.role}</span>
               <span class="title">{n.title ?? n.id}</span>
+              <!-- **The duplicate count is the diagnosis.** "147 notes" says nothing; "one note
+                   written 138 times" names a loop. -->
+              {#if n.copies > 1}<span class="copies">×{n.copies}</span>{/if}
               <span class="meta">{size(n.bytes)}{n.bytes != null && n.modified ? ' · ' : ''}{when(n.modified)}</span>
             </li>
           {/each}
@@ -190,6 +194,17 @@
     padding: 0.2rem 0;
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
+  }
+  .role,
+  .copies {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .copies {
+    /* Loud, because a repeated body is the thing worth noticing in a long list. */
+    color: var(--text);
+    font-weight: 600;
   }
   .kind {
     flex: 0 0 auto;

@@ -166,6 +166,11 @@ pub struct Unrecorded {
 /// payload nobody reads — the counts are what answer "how bad".
 pub const UNRECORDED_DETAIL: usize = 50;
 
+/// How many outstanding notes are read to count duplicates. Higher than the detail cap because the
+/// *count* must cover everything to mean anything; capped so a pathological vault cannot turn one
+/// command into ten thousand file reads.
+pub const UNRECORDED_SCAN: usize = 2_000;
+
 /// One note git does not have, in enough detail to recognise it without a shell.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UnrecordedNote {
@@ -181,6 +186,14 @@ pub struct UnrecordedNote {
     /// `None` for a deleted note.
     pub bytes: Option<u64>,
     pub modified: Option<String>,
+    /// **What kind of note this is**: `note`, `message` (a discussion reply), `proposal`, or
+    /// `unreadable`. It names the *code path* that wrote it, which a title cannot — and that is the
+    /// difference between "the capture path duplicated something" and "the reply path did".
+    pub role: String,
+    /// **How many of this vault's unrecorded notes share this exact body**, this one included. `1` is
+    /// the normal case. Anything higher is the finding: it turns "147 notes not in history" into "9
+    /// distinct notes, one of them written 138 times", which is a diagnosis rather than a count.
+    pub copies: usize,
 }
 
 /// A filesystem timestamp as RFC-3339, for display beside a note. Best-effort: a clock the OS cannot

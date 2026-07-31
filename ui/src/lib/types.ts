@@ -220,6 +220,13 @@ export interface UnrecordedNote {
   title: string | null;
   bytes: number | null;
   modified: string | null;
+  /** `note` | `message` | `proposal` | `unreadable` | `deleted` — which code path wrote it. A title
+   *  says what a note is about; this says who made it, which is the question when 142 appear in one
+   *  minute. */
+  role: string;
+  /** How many outstanding notes in this vault share this exact body, this one included. `1` is
+   *  normal; higher is the finding. */
+  copies: number;
 }
 
 /** What a commit did. `committed: false` with conflicts listed is not "nothing to do" —

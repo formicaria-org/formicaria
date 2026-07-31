@@ -157,6 +157,8 @@ describe('notes that are not in history', () => {
             title: 'A note nobody committed',
             bytes: 412,
             modified: '2026-07-31T09:57',
+            role: 'note',
+            copies: 1,
           },
         ],
       },
@@ -215,5 +217,39 @@ describe('a vault that could not be opened', () => {
     await vi.waitFor(() => expect(document.body.textContent).toMatch(/could not be opened/i));
     expect(document.body.textContent).toMatch(/lab: io error: not a directory/);
     expect(document.body.textContent).toMatch(/Everything else is unaffected/i);
+  });
+});
+
+describe('the duplicate count', () => {
+  it('names a loop: one body written many times', async () => {
+    // The real case (2026-07-31): 147 notes outstanding, of which one prompt appeared ~138 times, all
+    // in the same minute. A bare count reads as "lots of unsaved work"; the ×N is what says "a loop".
+    setUnrecorded([
+      {
+        vault: 'personal',
+        count: 147,
+        new: 142,
+        modified: 4,
+        deleted: 1,
+        notes: [
+          {
+            id: 'M0CK0000000000000000000DUP',
+            path: 'notes/M0CK0000000000000000000DUP.md',
+            kind: 'new',
+            title: '@lfm2.5-230m does mRNA change DNA? /search',
+            bytes: 267,
+            modified: '2026-07-31T07:44',
+            role: 'message',
+            copies: 138,
+          },
+        ],
+      },
+    ]);
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: /147 not in history/i }));
+    // The three things that turn a count into a cause: how many copies, which code path, and when.
+    expect(await screen.findByText('×138')).toBeTruthy();
+    expect(screen.getByText('message')).toBeTruthy();
+    expect(screen.getByText(/2026-07-31 07:44/)).toBeTruthy();
   });
 });

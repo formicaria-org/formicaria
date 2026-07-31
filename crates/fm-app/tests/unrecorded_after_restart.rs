@@ -252,3 +252,68 @@ fn a_relaunch_adopts_the_previous_session_s_notes_and_the_next_commit_records_th
     let log = String::from_utf8_lossy(&git(&vault, &["log", "--stat", "-1"]).stdout).to_string();
     assert_eq!(log.matches(".md").count(), 2, "both orphans in the commit: {log}");
 }
+
+/// **A duplicate count is what turns a number into a cause.**
+///
+/// The real incident (2026-07-31): 147 notes outstanding on the phone, of which one prompt to the
+/// agent appeared ~138 times, every copy timestamped the same minute. "147 unrecorded" reads as a
+/// backlog; "one body written 138 times at machine pace" names a loop. The count must key on the
+/// **body**, because copies differ in `id` and `created` — hashing the file would report every
+/// duplicate as unique and hide the very thing worth seeing.
+#[test]
+fn duplicates_are_counted_by_body_and_the_role_names_the_code_path() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let home = tempdir().unwrap();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    git(&vault, &["init", "-q", "-b", "main"]);
+    git(&vault, &["config", "user.name", "T"]);
+    git(&vault, &["config", "user.email", "t@e.com"]);
+
+    // Three copies of one message: same body, different ids and timestamps, exactly as a loop leaves
+    // them. Plus one ordinary note, so the counts stay honest.
+    // **Valid Crockford base32 — no I, L, O or U.** `01ROOT…` looks like a ULID and is not one, so
+    // `parse_note_ref` rejects it and `is_message` silently answers false; the first version of this
+    // test used it and blamed the code. `mock.ts` carries the same warning about `M0CK` vs `MOCK`.
+    let root = "01RTRTRTRTRTRTRTRTRTRTRTRT";
+    for (i, id) in ["01CCCCCCCCCCCCCCCCCCCCCC01", "01CCCCCCCCCCCCCCCCCCCCCC02", "01CCCCCCCCCCCCCCCCCCCCCC03"]
+        .iter()
+        .enumerate()
+    {
+        std::fs::write(
+            vault.join(format!("notes/{id}.md")),
+            format!(
+                "---\nschema: 1\nid: {id}\ntype: note\ncreated: 2026-07-31T07:44:0{i}Z\nupdated: 2026-07-31T07:44:0{i}Z\nthread_of: note:{root}\n---\n@lfm2.5-230m does mRNA change DNA? /search\n"
+            ),
+        )
+        .unwrap();
+    }
+    std::fs::write(
+        vault.join("notes/01PZPZPZPZPZPZPZPZPZPZPZPZ.md"),
+        "---\nschema: 1\nid: 01PZPZPZPZPZPZPZPZPZPZPZPZ\ntype: note\ntitle: An ordinary note\ncreated: 2026-07-31T09:00:00Z\nupdated: 2026-07-31T09:00:00Z\n---\nsomething else entirely\n",
+    )
+    .unwrap();
+
+    let app = open_app(&home, &vault);
+    let un = call(&app, "unrecorded", serde_json::json!({})).unwrap();
+    let rows = un[0]["notes"].as_array().unwrap();
+    assert_eq!(un[0]["count"], 4, "{un}");
+
+    // The three copies each report the whole family, so any one row tells the story.
+    let dupes: Vec<u64> = rows
+        .iter()
+        .filter(|n| n["role"] == "message")
+        .map(|n| n["copies"].as_u64().unwrap())
+        .collect();
+    assert_eq!(dupes, vec![3, 3, 3], "each copy names the size of its family: {rows:?}");
+    // **The role names the code path** — a message came from the reply path, not from capture. That
+    // distinction is what a title could never carry.
+    assert_eq!(rows.iter().filter(|n| n["role"] == "message").count(), 3);
+
+    let plain = rows.iter().find(|n| n["role"] == "note").expect("the ordinary note");
+    assert_eq!(plain["copies"], 1, "a unique note is not a duplicate: {plain}");
+    assert_eq!(plain["title"], "An ordinary note");
+}
