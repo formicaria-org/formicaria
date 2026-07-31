@@ -127,6 +127,24 @@ impl FileStore {
         self.written.clear();
     }
 
+    /// **Rebuild the write list from the filesystem** — for notes this app wrote in a *previous*
+    /// process and has no memory of.
+    ///
+    /// The write list is what `commit_all` stages, and it lives in memory. That precision is
+    /// deliberate (a vault may also be a project repo, and `add -A` every five seconds would make
+    /// this app a second author of someone's index) — but the memory dies with the process, and
+    /// Android kills backgrounded apps constantly. So on a phone almost every relaunch orphaned
+    /// whatever the previous run had written: not *lagging*, permanently unstageable, and silent
+    /// until the count was surfaced. 147 notes had accumulated on the owner's phone (2026-07-31).
+    ///
+    /// Seeding is safe where `add -A` is not, because the caller passes only paths that are ours **by
+    /// construction** — a `<ULID>.md` inside the vault's own notes directory is this app's naming
+    /// scheme and no hand-written file. Called once at open, never on a timer, so the property that a
+    /// note being edited by hand is not swept mid-sentence still holds for the whole session.
+    pub fn seed_written(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
+        self.written.extend(paths);
+    }
+
     /// What this vault is for, if it says. Never invented: a vault with no `vault.json` has
     /// no description, and "" would be a claim we cannot support.
     pub fn description(&self) -> Option<&str> {

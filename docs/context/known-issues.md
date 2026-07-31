@@ -193,6 +193,16 @@ The gray-screen fix and its tests are in
   binary Android does not have. Losing notes is bad; losing the only copy of a photo is worse, and
   capture makes that materially more likely. No answer yet.
 
+- **`env(safe-area-inset-*)` is 0 in the Android WebView, so every full-screen surface needs a floor.**
+  wry does not forward the window insets into the page, and Android 15 forces edge-to-edge — so a
+  full-screen panel paints *under* the status bar and the navigation bar. `app.css` floors the top inset
+  on coarse pointers; the bottom floor is 0.5rem, which clears a gesture pill but **not a 3-button
+  navigation bar**. Found on the owner's phone 2026-07-31: `UnrecordedPanel`'s primary button was half
+  under the system bar and the line below it invisible, which one screenshot showed and no test could.
+  Each full-screen surface therefore floors its own bottom padding (see that panel) rather than raising
+  the global and shifting every other surface sight-unseen. **The real fix is named and unbuilt**: the
+  shell should read `WindowInsetsCompat` and hand the values to the page, the way it hands over
+  `FM_CONFIG_DIR` — a platform fact only the platform has.
 - **Every narrow-layout CSS rule in `App.svelte` must be written twice.** Once for
   `[data-layout='single']` and once inside `@media (max-width: 60rem)` for `[data-layout='auto']`,
   because `auto` is the default and a phone therefore never matches a `single` rule. Writing only

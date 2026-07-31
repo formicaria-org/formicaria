@@ -100,6 +100,36 @@ writing, which is a judgement a person should make. And the count is a **persist
 banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
 entire failure mode was silence.
 
+## The write-record is rebuilt from the filesystem at open — a refinement of "the auto-commit stages what we wrote" (2026-07-31, `#data`)
+
+**Decision.** `App::load` seeds each vault's write-record from `vcs::unrecorded`, filtered to paths that
+are ours **by construction**: a `<ULID>.md` inside that vault's own notes directory. The next ordinary
+commit then records them. Once at open, never on a timer.
+
+**Why.** The owner reasonably expected that writing a note commits it — *"I thought new note creation
+and saving was committing"* — and the app agreed: eight call sites schedule the debounced commit and
+every write path reaches one. What failed is subtler. `commit_all` stages `MultiStore::written(vault)`,
+which is **per-process memory**, so a note written in a session Android later killed was not *lagging*,
+it was permanently unstageable. Nothing surfaced it until the chip shipped, and by then **147 notes**
+had accumulated on the phone, in a vault whose only copy of them was the device.
+
+**Why not `add -A`.** That was rejected for a good reason and the reason still holds: a vault may be a
+repo the user commits to themselves, and staging everything every five seconds would make this app a
+second author of their index. The naming scheme is what makes seeding safe where `add -A` is not —
+`FileStore` writes `<ULID>.md` and nothing hand-written looks like that, so adopting exactly those
+cannot touch someone's source file. Conflicted paths are already excluded by `unrecorded` itself.
+
+**Why only at open.** The other deliberate property — a note being hand-edited is not swept
+mid-sentence — is a *session* property. Open is precisely where the memory was lost, so rebuilding
+there restores completeness without touching what happens during the session. And it is announced
+(stderr, plus the count in the UI): a startup that quietly adopts files is one nobody can account for
+later.
+
+**Consequence.** "Files are never at risk; commits can lag" becomes true as stated — before this, they
+could be skipped forever. The chip and panel stay, because they cover what seeding cannot: a vault with
+no git, notes not in our naming scheme, and the *deletions* whose recording is also outstanding.
+Pinned by `fm-app/tests/unrecorded_after_restart.rs`, which drives the real `App::load`.
+
 ## A count is a symptom; the kind is the diagnosis — and the device must be able to state it (2026-07-31, `#data`)
 
 **Decision.** `vcs::unrecorded` returns `UnrecordedNote { path, kind }` with

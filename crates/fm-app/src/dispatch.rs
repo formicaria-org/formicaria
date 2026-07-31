@@ -143,10 +143,31 @@ impl App {
     pub fn load() -> Result<(Self, Vec<String>), String> {
         let vaults::VaultList { vaults, path: config, writable: config_writable } =
             vaults::load();
-        let store = MultiStore::open(
+        let mut store = MultiStore::open(
             &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
         )
         .map_err(|e| format!("open vaults: {e}"))?;
+        // **Rebuild the write-record from the filesystem, once, here.**
+        //
+        // `commit_all` stages what this app remembers writing, and that memory dies with the process.
+        // Android kills backgrounded apps constantly, so almost every relaunch orphaned the previous
+        // run's notes — permanently unstageable, and silent until the count was surfaced (147 of them
+        // on the owner's phone, 2026-07-31). Open is exactly where the memory was lost, so it is where
+        // it is rebuilt: the next ordinary commit then records them, with no user action and no new
+        // staging semantics.
+        //
+        // **Only at open, never on a timer**, so the deliberate property that a note being edited by
+        // hand is not swept mid-sentence still holds for the whole session. And only paths that are
+        // ours *by construction* — see `adoptable`.
+        for cfg in &vaults {
+            let adopted = adoptable(&cfg.path);
+            if !adopted.is_empty() {
+                let n = store.seed_written(&cfg.name, adopted);
+                // Said out loud: a startup that quietly adopts files is the kind of thing nobody can
+                // account for later. The UI states it too, from `unrecorded`.
+                eprintln!("note: adopting {n} unrecorded note(s) in '{}' for the next commit", cfg.name);
+            }
+        }
         // Flattened to strings here on purpose: this is the startup log line, which wants
         // one readable sentence per note. The structured form is what rides the heartbeat.
         let skipped = store
@@ -268,6 +289,34 @@ fn describe_conflict(kind: git::ConflictKind) -> String {
     .to_string()
 }
 
+/// Notes git does not have that this app may safely claim as its own writes.
+///
+/// **The whole safety argument is the naming scheme.** `add -A` was rejected because a vault may also
+/// be a project repo, and staging everything would make this app a second author of someone's index.
+/// A file at `<notes dir>/<ULID>.md` is not ambiguous: that name is what `FileStore` writes and
+/// nothing else produces it, so adopting exactly those cannot touch a hand-written file. A conflicted
+/// path is already excluded by `unrecorded` itself.
+///
+/// Empty when there is no git, no repo, or nothing outstanding — the common case, costing one
+/// `git status` per vault at open and nothing after.
+fn adoptable(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
+    if !vcs::available() {
+        return Vec::new();
+    }
+    let notes_rel = notes_rel_of(vault);
+    vcs::unrecorded(vault, &notes_rel)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|u| {
+            std::path::Path::new(&u.path)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .is_some_and(|stem| stem.parse::<fm_model::Id>().is_ok())
+        })
+        .map(|u| vault.join(u.path))
+        .collect()
+}
+
 /// A note's title, or its first non-empty body line — something a human recognises, for a list that
 /// would otherwise be ULIDs. `None` when the file is not there (a deleted note) or will not parse.
 ///
@@ -276,15 +325,25 @@ fn title_of(full: &std::path::Path) -> Option<String> {
     let text = std::fs::read_to_string(full).ok()?;
     // The vault's own parser, not a second one — `frontmatter::from_file` is what `FileStore` reads
     // notes with, so a title shown here is the title the app would show anywhere else.
+    //
+    // **Fall back to the parsed BODY, never to the raw file.** The first version scanned `text`, so an
+    // untitled note reported its first frontmatter key — every one of them came back titled
+    // `schema: 1`. Seen on the owner's phone within an hour of shipping it, where it read as "142
+    // malformed notes" and nearly sent the diagnosis down a wrong path. A diagnostic that lies is
+    // worse than no diagnostic, which is the whole argument for this panel existing.
     if let Ok(obj) = fm_core::frontmatter::from_file(&text) {
         if let Some(t) = obj.title.as_ref().filter(|t| !t.trim().is_empty()) {
             return Some(t.trim().to_string());
         }
+        return obj
+            .body
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(|l| l.chars().take(72).collect());
     }
-    text.lines()
-        .map(str::trim)
-        .find(|l| !l.is_empty() && !l.starts_with("---") && !l.starts_with('#'))
-        .map(|l| l.chars().take(72).collect())
+    // Unparseable: there is no body to speak of, so say nothing rather than quoting YAML at the user.
+    None
 }
 
 /// The vault-relative notes directory (`notes` unless `vault.json` says otherwise).

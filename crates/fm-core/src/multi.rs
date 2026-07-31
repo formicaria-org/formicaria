@@ -114,6 +114,19 @@ impl MultiStore {
         self.vaults.iter().find(|v| v.name() == vault).map(|v| v.written()).unwrap_or_default()
     }
 
+    /// Seed one vault's write list from the filesystem — see [`FileStore::seed_written`]. Returns how
+    /// many were adopted, so a caller can say so out loud rather than doing it invisibly.
+    pub fn seed_written(&mut self, vault: &str, paths: Vec<PathBuf>) -> usize {
+        match self.vaults.iter_mut().find(|v| v.name() == vault) {
+            Some(v) => {
+                let n = paths.len();
+                v.seed_written(paths);
+                n
+            }
+            None => 0,
+        }
+    }
+
     /// Forget one vault's write list — only after its commit actually landed.
     pub fn clear_written(&mut self, vault: &str) {
         if let Some(v) = self.vaults.iter_mut().find(|v| v.name() == vault) {

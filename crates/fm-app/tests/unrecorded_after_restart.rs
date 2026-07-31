@@ -176,8 +176,79 @@ fn the_kinds_tell_the_two_stories_apart() {
     // something is rewriting notes; a pile of `new` says notes exist in one place only.
     assert_eq!(un[0]["new"], 1, "{un}");
     assert_eq!(un[0]["modified"], 1, "{un}");
+    // **An untitled note must never be labelled with its frontmatter.** The first version of
+    // `title_of` scanned the raw file, so every untitled note came back titled `schema: 1` — seen on
+    // the owner's phone within the hour, where it read as "142 malformed notes" and nearly sent the
+    // diagnosis down a wrong path.
+    let all: Vec<String> = un[0]["notes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["title"].as_str().unwrap_or("").to_string())
+        .collect();
+    assert!(
+        !all.iter().any(|t| t.starts_with("schema:") || t.starts_with("id:")),
+        "a title must come from the body, never from the frontmatter: {all:?}"
+    );
+
     // The titled note is nameable in the list, not just a ULID.
     let titles: Vec<&str> =
         un[0]["notes"].as_array().unwrap().iter().filter_map(|n| n["title"].as_str()).collect();
     assert!(titles.contains(&"Fresh"), "a note is named by its title: {titles:?}");
+}
+
+/// **The root-cause fix: a relaunch adopts what the previous session wrote.**
+///
+/// The chip and the panel make the orphaned notes *visible*; they do not stop them happening. `App`
+/// now rebuilds the write-record from the filesystem at open, so the next ordinary commit records
+/// them — no click, and no new staging semantics. This drives `App::load`, which is the only path
+/// that reconciles, through `FM_VAULTS`/`FM_VAULT` (the same override `fm-serve` documents).
+#[test]
+fn a_relaunch_adopts_the_previous_session_s_notes_and_the_next_commit_records_them() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let home = tempdir().unwrap();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    git(&vault, &["init", "-q", "-b", "main"]);
+    git(&vault, &["config", "user.name", "T"]);
+    git(&vault, &["config", "user.email", "t@e.com"]);
+
+    // Session zero: one note, recorded, so `.gitattributes`/`.gitignore` are already in history.
+    {
+        let app = open_app(&home, &vault);
+        call(&app, "capture", serde_json::json!({ "body": "recorded", "vault": "v" })).unwrap();
+        call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
+    }
+    // Session one writes two notes and dies without committing.
+    {
+        let app = open_app(&home, &vault);
+        for body in ["orphan one", "orphan two"] {
+            call(&app, "capture", serde_json::json!({ "body": body, "vault": "v" })).unwrap();
+        }
+    }
+
+    // Session two comes up through `App::load`, which is what a relaunch really does.
+    let app = {
+        // Safety: single-threaded test setup, before the app reads either variable.
+        unsafe {
+            std::env::set_var("FM_VAULTS", home.path().join("vaults.json"));
+            std::env::set_var("FM_VAULT", &vault);
+        }
+        let (app, _skipped) = App::load().expect("load");
+        app
+    };
+
+    // **The ordinary commit records them.** Before this change it answered "nothing of mine changed"
+    // and those two notes were unstageable for the life of the vault.
+    let out = call(&app, "commit", serde_json::json!({ "message": "auto", "vault": "v" }))
+        .expect("commit");
+    assert_eq!(out["committed"], true, "the adopted notes were committed: {out}");
+    let after = call(&app, "unrecorded", serde_json::json!({})).unwrap();
+    assert_eq!(after, serde_json::json!([]), "nothing left outstanding: {after}");
+    // And they are really in history, by name.
+    let log = String::from_utf8_lossy(&git(&vault, &["log", "--stat", "-1"]).stdout).to_string();
+    assert_eq!(log.matches(".md").count(), 2, "both orphans in the commit: {log}");
 }

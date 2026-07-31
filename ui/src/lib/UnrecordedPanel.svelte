@@ -110,9 +110,26 @@
     inset: 0;
     z-index: 40;
     overflow: auto;
-    padding: 1.25rem;
+    /* Respect the window insets: this is a full-screen surface, and `index.html` asks for
+       `viewport-fit=cover`, so without these the content paints under the status bar and the
+       navigation bar. */
+    padding: calc(1.25rem + var(--safe-top)) calc(1.25rem + var(--safe-right))
+      calc(1.25rem + var(--safe-bottom)) calc(1.25rem + var(--safe-left));
     background: var(--bg);
     color: var(--text);
+  }
+  /* **The navigation bar ate the button.** `env(safe-area-inset-*)` resolves to 0 in the Android
+     WebView (wry does not forward the window insets — see `app.css`), and the global `--safe-bottom`
+     floor is 0.5rem, which clears a gesture pill but not a 3-button navigation bar. Observed on the
+     owner's phone: "Record all 147 in history" was half under the system bar, and the line below it
+     was invisible. Floored locally rather than by raising the global, which would shift every other
+     surface by 2.5rem sight-unseen.
+     The real fix stays the one `app.css` already names: the shell should read `WindowInsetsCompat`
+     and hand the values to the page, the way it hands over `FM_CONFIG_DIR`. Delete this when it does. */
+  @media (pointer: coarse) {
+    .panel {
+      padding-bottom: calc(1.25rem + max(var(--safe-bottom), 3.25rem));
+    }
   }
   header {
     display: flex;
