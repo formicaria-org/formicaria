@@ -993,6 +993,70 @@ pub fn conflicts(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
         .collect())
 }
 
+
+/// **Notes that are byte-for-byte the same note, written more than once.**
+///
+/// Grouped by the **body**, because copies differ in `id` and `created` — that is what makes them
+/// copies rather than one note. Keyed the same way `dto::UnrecordedNote::copies` counts them, so the
+/// two surfaces cannot disagree about what a duplicate is.
+///
+/// Found on the owner's phone 2026-07-31: one prompt to the study assistant written ~142 times inside
+/// one minute, at machine pace. A scan and not stored state (like `conflicts`/`recent`): a family that
+/// is pruned drops off by itself, and there is no bookkeeping to go stale.
+///
+/// **The oldest copy is the keeper**, by `created` then `id` — deterministic, and the one that is most
+/// likely to be the note the user actually made before whatever loop copied it.
+pub fn duplicates(store: &dyn Store) -> Result<Vec<DuplicateFamily>, StoreError> {
+    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    let mut by_body: std::collections::HashMap<String, Vec<Object>> =
+        std::collections::HashMap::new();
+    for o in store.query(&q)?.rows {
+        let body = o.body.trim();
+        if body.is_empty() {
+            continue; // an empty note is not a copy of another empty note in any useful sense
+        }
+        by_body.entry(fm_core::blob::sha256_hex(body.as_bytes())).or_default().push(o);
+    }
+    let mut out: Vec<DuplicateFamily> = by_body
+        .into_iter()
+        .filter(|(_, v)| v.len() > 1)
+        .map(|(hash, mut v)| {
+            v.sort_by(|a, b| a.created.cmp(&b.created).then_with(|| a.id.cmp(&b.id)));
+            let keep = v.remove(0);
+            DuplicateFamily {
+                body: hash,
+                vault: keep.vault.clone(),
+                preview: keep
+                    .body
+                    .lines()
+                    .map(str::trim)
+                    .find(|l| !l.is_empty())
+                    .map(|l| l.chars().take(72).collect())
+                    .unwrap_or_default(),
+                keep: keep.id.to_string(),
+                extras: v.iter().map(|o| o.id.to_string()).collect(),
+            }
+        })
+        .collect();
+    // Biggest family first: that is the one that names the loop.
+    out.sort_by(|a, b| b.extras.len().cmp(&a.extras.len()));
+    Ok(out)
+}
+
+/// One family of identical notes: which copy is kept, and which are extras.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DuplicateFamily {
+    /// sha256 of the shared body — the identity of the family, stable across pruning.
+    pub body: String,
+    pub vault: String,
+    /// The first line of the shared body, so a human can recognise what was duplicated.
+    pub preview: String,
+    /// The copy that stays: oldest by `created`, then by id. **Never offered for deletion.**
+    pub keep: String,
+    /// The copies that may be removed. Always at least one, or this is not a family.
+    pub extras: Vec<String>,
+}
+
 /// The tag that marks a note as a template — a starting point to spin new notes from.
 pub const TEMPLATE_TAG: &str = "template";
 

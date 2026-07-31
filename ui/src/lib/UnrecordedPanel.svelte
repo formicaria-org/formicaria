@@ -12,15 +12,40 @@
   /// anything the user must be able to report has to be on screen. Same reasoning, and same shape, as
   /// `SkippedPanel`.
 
-  import type { Unrecorded } from './types';
+  import type { DuplicateFamily, Unrecorded } from './types';
   import { labelFor } from './vaultLabels.svelte';
 
   interface Props {
     unrecorded: Unrecorded[];
+    /// Identical-note families. Shown here because this is where the user already is when a duplicate
+    /// count sends them looking, and because recording is the step that must come *first*.
+    duplicates?: DuplicateFamily[];
     onrecord: (vault: string) => Promise<void> | void;
+    onprune: (vault: string) => Promise<void> | void;
     onclose: () => void;
   }
-  let { unrecorded, onrecord, onclose }: Props = $props();
+  let { unrecorded, duplicates = [], onrecord, onprune, onclose }: Props = $props();
+
+  /// Which vaults still have notes outside git. Pruning those is refused by the backend — and the
+  /// button says so rather than offering an action that will fail.
+  const outstanding = $derived(new Set(unrecorded.filter((u) => u.count > 0).map((u) => u.vault)));
+  let pruning = $state<string | null>(null);
+  async function prune(vault: string) {
+    pruning = vault;
+    try {
+      await onprune(vault);
+    } finally {
+      pruning = null;
+    }
+  }
+  /// Families per vault, so each vault's extras are one button.
+  const byVault = $derived(
+    [...new Set(duplicates.map((f) => f.vault))].map((v) => ({
+      vault: v,
+      families: duplicates.filter((f) => f.vault === v),
+      extras: duplicates.filter((f) => f.vault === v).reduce((n, f) => n + f.extras.length, 0),
+    })),
+  );
 
   let busy = $state<string | null>(null);
   async function record(vault: string) {
@@ -106,6 +131,39 @@
   {#if !unrecorded.length}
     <p class="total">Nothing outstanding — git has every note.</p>
   {/if}
+
+  <!-- **Duplicates: the same note written more than once.** Separate from "not in history" because it
+       is a different problem with a different fix, and because the *order* between them is not
+       optional: removing a copy git does not have is unrecoverable. -->
+  {#each byVault as v (v.vault)}
+    <article>
+      <h3>Duplicate copies in {labelFor(v.vault)}</h3>
+      <p class="total">
+        {v.extras} extra cop{v.extras === 1 ? 'y' : 'ies'} across {v.families.length}
+        note{v.families.length === 1 ? '' : 's'}. The oldest of each is kept.
+      </p>
+      <ul class="notes">
+        {#each v.families as f (f.body)}
+          <li>
+            <span class="copies">×{f.extras.length + 1}</span>
+            <span class="title">{f.preview}</span>
+          </li>
+        {/each}
+      </ul>
+      {#if outstanding.has(v.vault)}
+        <!-- The refusal, said before it is hit: the backend will decline, and an action that cannot
+             work should not look available. -->
+        <p class="more">
+          Record the outstanding notes above first — until then, removing a copy could not be undone.
+        </p>
+      {:else}
+        <button type="button" disabled={pruning === v.vault} onclick={() => prune(v.vault)}>
+          {pruning === v.vault ? 'Removing…' : `Remove ${v.extras} extra cop${v.extras === 1 ? 'y' : 'ies'}`}
+        </button>
+        <p class="after">They stay in git history, so this can be undone.</p>
+      {/if}
+    </article>
+  {/each}
 </section>
 
 <style>

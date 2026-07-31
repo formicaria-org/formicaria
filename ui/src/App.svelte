@@ -38,6 +38,8 @@
     runView,
     activity as fetchActivity,
     backupStatus,
+    duplicates,
+    pruneDuplicates,
     resolveConflict,
     unrecorded,
     recordUnrecorded,
@@ -47,7 +49,7 @@
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
   import { labelFor, setVaultLabels } from './lib/vaultLabels.svelte';
-  import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, Unrecorded } from './lib/types';
+  import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, DuplicateFamily, Unrecorded } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
   import Pairing from './lib/Pairing.svelte';
   import Starting from './lib/Starting.svelte';
@@ -862,6 +864,7 @@
   $effect(() => {
     if (!vaults) return;
     void loadUnrecorded();
+    void loadDuplicates();
   });
 
   $effect(() => {
@@ -1010,11 +1013,29 @@
   // panel and pressed a button. A vault you write to daily and never back up by hand had
   // no history at all, which is the same failure as having no git, arrived at quietly.
   // A clean vault is a no-op, so committing all of them costs nothing.
+  /// How long after the last write to commit — and, second, the longest a commit may ever be deferred.
+  const COMMIT_QUIET_MS = 5000;
+  const COMMIT_MAX_WAIT_MS = 15000;
+  /// When the oldest pending write happened. `0` = nothing pending.
+  let commitSince = 0;
+
   function scheduleCommit() {
     if (gitAvailable === false) return;
     clearTimeout(commitTimer);
     commitPending = true;
-    commitTimer = setTimeout(commitNow, 5000);
+    // **A debounce with a ceiling.** Plain `clearTimeout` + 5 s means every write pushes the deadline
+    // out, so a *burst* of writes defers the commit indefinitely — it does not fire late, it does not
+    // fire at all. That is not hypothetical: 142 notes were written in one minute on the owner's phone
+    // (2026-07-31), each one resetting this timer, and when the process ended the pending commit died
+    // with the tab and the in-memory write-record died with the process. The notes were then
+    // unstageable for good.
+    //
+    // So the quiet period still applies, but never past `COMMIT_MAX_WAIT_MS` after the *first* pending
+    // write. Under a burst that turns "never" into "every 15 seconds", which is what makes a burst
+    // survivable at all.
+    if (commitSince === 0) commitSince = Date.now();
+    const remaining = Math.max(0, commitSince + COMMIT_MAX_WAIT_MS - Date.now());
+    commitTimer = setTimeout(commitNow, Math.min(COMMIT_QUIET_MS, remaining));
   }
 
   /// Whether a debounced commit is still owed. Tracked so leaving the app can settle it: the timer
@@ -1030,6 +1051,7 @@
 
   function commitNow() {
     commitPending = false;
+    commitSince = 0;
     {
       const stamp = new Date().toISOString();
       for (const v of vaults ?? []) {
@@ -1092,6 +1114,23 @@
   /// could change it. See `ipc.unrecorded`: the app could forget it wrote a note and then never
   /// stage it, silently, forever.
   let unrecordedList = $state<Unrecorded[]>([]);
+  /// Identical-note families, loaded beside the outstanding list because the panel shows both and the
+  /// order between them matters (record, then prune).
+  let duplicateList = $state<DuplicateFamily[]>([]);
+  async function loadDuplicates() {
+    duplicateList = await duplicates().catch(() => []);
+  }
+  async function onPruneDuplicates(vault: string) {
+    try {
+      const r = await pruneDuplicates(vault);
+      notice = `Removed ${r.removed} extra cop${r.removed === 1 ? 'y' : 'ies'} across ${r.kept} note${r.kept === 1 ? '' : 's'} in “${labelFor(vault)}”. They stay in git history, so this can be undone.`;
+      await Promise.all([loadDuplicates(), loadUnrecorded()]);
+      await refresh();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
   async function loadUnrecorded() {
     unrecordedList = await unrecorded().catch(() => []);
   }
@@ -1115,6 +1154,7 @@
           `They are in this device's history now — back up to send them to a remote.`
         : `Nothing left to record in “${labelFor(vault)}”.`;
       await loadUnrecorded();
+      await loadDuplicates();
     } catch (e) {
       error = String(e);
     }
@@ -1572,7 +1612,9 @@
     {#await import('./lib/UnrecordedPanel.svelte') then { default: UnrecordedPanel }}
       <UnrecordedPanel
         unrecorded={unrecordedList}
+        duplicates={duplicateList}
         onrecord={onRecordUnrecorded}
+        onprune={onPruneDuplicates}
         onclose={() => (unrecordedOpen = false)}
       />
     {/await}

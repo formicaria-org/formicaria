@@ -412,6 +412,8 @@ const READ_ONLY: &[&str] = &[
     "conflicts",
     // A read like `conflicts`: it asks git what is not recorded and changes nothing.
     "unrecorded",
+    // Also a read — it groups notes by body and names what pruning *would* remove.
+    "duplicates",
     "activity",
     "stale",
     "thread",
@@ -580,6 +582,70 @@ fn dispatch_inner(
         // uninstall) or 146 notes something was needlessly rewriting (a different bug entirely). The
         // device knew which and had no way to say it, and the phone has no other channel: no readable
         // logcat, no console, no shell. So the answer carries the kinds.
+        // Identical notes, grouped. A read: it changes nothing and names what pruning would remove.
+        "duplicates" => {
+            let mut g = lock()?;
+            json(commands::duplicates(&g.store(scope)).map_err(err)?)
+        }
+        // **Remove the extra copies — but only ones git already has.**
+        //
+        // Deleting an *untracked* note is unrecoverable: there is no commit to restore it from, and
+        // this codebase does not destroy user data on any path, including the ones the user asked for.
+        // A tracked note is one `git checkout` away. So the order is forced: record first, prune second,
+        // and this arm refuses rather than doing the dangerous half. That refusal is the safety
+        // property — not a warning in a doc comment.
+        //
+        // Keeps the oldest copy of every family, always. The most a mistake can cost is a commit that
+        // says which ids went, which is exactly what makes it undoable.
+        "prune_duplicates" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let notes_rel = notes_rel_of(&cfg.path);
+            // Everything in this vault that git does not have, by id.
+            let outstanding: std::collections::HashSet<String> =
+                vcs::unrecorded(&cfg.path, &notes_rel)
+                    .map_err(err)?
+                    .into_iter()
+                    .filter_map(|u| {
+                        std::path::Path::new(&u.path)
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().into_owned())
+                    })
+                    .collect();
+
+            let families: Vec<commands::DuplicateFamily> = commands::duplicates(&g.store(scope))
+                .map_err(err)?
+                .into_iter()
+                .filter(|f| f.vault == cfg.name)
+                .collect();
+            let at_risk: Vec<&String> = families
+                .iter()
+                .flat_map(|f| f.extras.iter())
+                .filter(|id| outstanding.contains(*id))
+                .collect();
+            if !at_risk.is_empty() {
+                return Err(format!(
+                    "{} of these copies are not in git history yet, and deleting one would be \
+                     unrecoverable. Record them first — then pruning is undoable.",
+                    at_risk.len()
+                ));
+            }
+
+            let mut removed = 0usize;
+            let mut kept = 0usize;
+            for f in &families {
+                kept += 1;
+                for id in &f.extras {
+                    let parsed: fm_model::Id = match id.parse() {
+                        Ok(i) => i,
+                        Err(_) => continue,
+                    };
+                    commands::delete(&mut g.store(scope), &parsed.to_string()).map_err(err)?;
+                    removed += 1;
+                }
+            }
+            json(serde_json::json!({ "removed": removed, "kept": kept }))
+        }
         "unrecorded" => {
             let g = lock()?;
             let configs = g.configs();

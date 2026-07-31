@@ -19,6 +19,7 @@ import type {
   ViewInfo,
   ViewResult,
   ConflictInfo,
+  DuplicateFamily,
   Unrecorded,
 } from './types';
 import * as mock from './mock';
@@ -212,6 +213,18 @@ export const conflicts = () => invoke<ConflictInfo[]>('conflicts');
  *  exactly what makes every commit in the vault refuse. */
 export const resolveConflict = (vault: string, path: string, keep: 'theirs' | 'mine' | 'edited') =>
   invoke<{ resolved: string }>('resolve_conflict', { vault, path, keep });
+
+/** Notes that are byte-for-byte the same note, grouped. A read: it names what pruning *would*
+ *  remove and changes nothing. Grouped by body, because copies differ in `id` and `created`. */
+export const duplicates = () => invoke<DuplicateFamily[]>('duplicates');
+
+/** Remove the extra copies in one vault, keeping the oldest of each family.
+ *
+ *  **Refused while any copy is still outside git history**, because deleting an untracked note is
+ *  unrecoverable while deleting a tracked one is a `git checkout` away. Record first, prune second —
+ *  the backend enforces that order rather than trusting a caller to remember it. */
+export const pruneDuplicates = (vault: string) =>
+  invoke<{ removed: number; kept: number }>('prune_duplicates', { vault });
 
 /** Notes on disk that git does not have, per vault — what the app forgot it wrote.
  *

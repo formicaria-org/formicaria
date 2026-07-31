@@ -18,6 +18,7 @@ import type {
   ViewInfo,
   ViewResult,
   ConflictInfo,
+  DuplicateFamily,
   Unrecorded,
 } from './types';
 
@@ -341,6 +342,11 @@ export function setConflicts(list: ConflictInfo[]): void {
   mockConflicts = list.map((c) => ({ ...c }));
 }
 /// Notes the app forgot it wrote, per vault. Test-only.
+/// Identical-note families. Test-only; the mock has no scan of its own.
+let mockDuplicates: DuplicateFamily[] = [];
+export function setDuplicates(list: DuplicateFamily[]): void {
+  mockDuplicates = list.map((f) => ({ ...f }));
+}
 let mockUnopenedVaults: string[] = [];
 /// Configured vaults that would not open, as `name: why`. Test-only.
 export function setUnopenedVaults(list: string[]): void {
@@ -362,6 +368,7 @@ export function clearFaults(): void {
   mockConflicts = [];
   mockUnrecorded = [];
   mockUnopenedVaults = [];
+  mockDuplicates = [];
 }
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
@@ -508,6 +515,20 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockVaults = mockVaults.filter((v) => v.name !== name);
       if (mockVaults.length === before) throw new Error(`no vault named '${name}'`);
       return { forgotten: name, path: `/vaults/${name}`, notes: left, remote: null, vaults: mockVaults } as T;
+    }
+    case 'duplicates':
+      return mockDuplicates as T;
+    case 'prune_duplicates': {
+      // Mirrors the server's refusal: never delete what git does not have.
+      if (mockUnrecorded.some((u) => u.vault === String(args.vault) && u.count > 0)) {
+        throw new Error(
+          'these copies are not in git history yet, and deleting one would be unrecoverable. Record them first',
+        );
+      }
+      const mine = mockDuplicates.filter((f) => f.vault === String(args.vault));
+      const removed = mine.reduce((n, f) => n + f.extras.length, 0);
+      mockDuplicates = mockDuplicates.filter((f) => f.vault !== String(args.vault));
+      return { removed, kept: mine.length } as T;
     }
     case 'unrecorded':
       return mockUnrecorded as T;

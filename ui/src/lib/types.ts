@@ -191,6 +191,19 @@ export interface ConflictInfo {
   has_markers: boolean;
 }
 
+/** One family of identical notes: which copy stays, and which are extras. Mirrors
+ *  `fm_app::commands::DuplicateFamily`. */
+export interface DuplicateFamily {
+  /** sha256 of the shared body — the family's identity, stable across pruning. */
+  body: string;
+  vault: string;
+  /** First line of the shared body, so a human can recognise what got duplicated. */
+  preview: string;
+  /** The copy that stays: oldest by `created`. Never offered for deletion. */
+  keep: string;
+  extras: string[];
+}
+
 /** Notes on disk that git does not have, per vault — what the app forgot it wrote.
  *  Mirrors `fm_app::dto::Unrecorded`. */
 export interface Unrecorded {

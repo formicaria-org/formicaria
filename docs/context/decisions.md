@@ -100,6 +100,34 @@ writing, which is a judgement a person should make. And the count is a **persist
 banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
 entire failure mode was silence.
 
+## A debounce needs a ceiling, and a duplicate is removed only after git has it (2026-07-31, `#data`)
+
+**Two decisions from one incident**, in which ~142 copies of one message to the study assistant were
+written on the phone inside a single minute and none of them reached git.
+
+**1. The auto-commit debounce is capped.** `scheduleCommit` did `clearTimeout` then `setTimeout(5s)`,
+so **every write pushed the deadline out**: under a burst it does not fire late, it never fires at all.
+Then the process ended, the pending `setTimeout` died with the tab, and the in-memory write-record died
+with the process — leaving those notes unstageable for good. The quiet period stays (a commit per
+keystroke is what it exists to prevent), but a commit is never deferred past `COMMIT_MAX_WAIT_MS` after
+the *first* pending write. Pinned by `ui/src/App.commitBurst.test.ts`, which against the uncapped
+version reports **zero** commits across a 40-second burst.
+
+Worth recording for the next reader: the agent's *own* replies were tracked throughout, because the
+`reply` arm commits immediately when an author identity is supplied (Ruling 14). That asymmetry is why
+every survivor was a user-side message — the diagnosis followed from noticing it.
+
+**2. Pruning duplicates is refused until they are in history.** `duplicates` groups notes by **body**
+(copies differ in `id` and `created`, so hashing the file would call every duplicate unique);
+`prune_duplicates` keeps the **oldest** of each family and removes the rest. It **refuses outright**
+while any copy is still outside git: deleting an untracked note is unrecoverable, while deleting a
+tracked one is one `git checkout` away. So the order — record, then prune — is enforced by the code
+rather than left to whoever presses the button, and the UI does not offer the action it would refuse.
+
+**Consequence.** The content of a duplicated note is never lost, only its repetition: one copy always
+stays, and the removals are themselves a commit. "Files-as-truth" survives a cleanup button, which is
+the only basis on which this app should ever have one.
+
 ## The write-record is rebuilt from the filesystem at open — a refinement of "the auto-commit stages what we wrote" (2026-07-31, `#data`)
 
 **Decision.** `App::load` seeds each vault's write-record from `vcs::unrecorded`, filtered to paths that
