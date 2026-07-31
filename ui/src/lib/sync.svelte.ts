@@ -23,7 +23,7 @@
 // conflicts must never be followed by a push — that would publish conflict markers as though
 // they were content.
 
-import { commit, push, pull } from './ipc';
+import { backupStatus, commit, push, pull } from './ipc';
 import type { CommitResult, PullResult } from './types';
 
 /**
@@ -36,9 +36,26 @@ export interface SyncOps {
   commit(message: string, vault: string): Promise<CommitResult>;
   push(message: string, vault: string): Promise<unknown>;
   pull(vault: string): Promise<PullResult>;
+  /// Does this vault have a remote at all? **Asked, never inferred from a push error** — the same
+  /// discipline the pull-after-push-rejection follows a few lines down ("we cannot tell them apart
+  /// from the message, so ask git"). Only called on the failure path, so the happy path pays nothing:
+  /// `backup_status` shells out `git ls-remote` per vault and is the one call in this file that is
+  /// genuinely slow.
+  hasRemote(vault: string): Promise<boolean>;
 }
 
-const realOps: SyncOps = { commit, push, pull };
+const realOps: SyncOps = {
+  commit,
+  push,
+  pull,
+  hasRemote: async (vault: string) => {
+    const status = await backupStatus().catch(() => null);
+    const v = status?.vaults.find((s) => s.name === vault);
+    // **Unknown counts as "has one".** A status call that failed must not turn a real push failure
+    // into a reassuring "no remote yet" — that would hide a broken backup behind a calm sentence.
+    return v ? v.remote !== null : true;
+  },
+};
 
 /** Where one vault stands. `idle` means nothing has been attempted since the last success. */
 export type SyncPhase =
@@ -48,6 +65,14 @@ export type SyncPhase =
   | 'pulling'
   | 'synced'
   | 'conflicts'
+  /// **Committed here, and there is nowhere to send it**: this vault has no git remote yet. Not a
+  /// failure — nothing is wrong and nothing the user can fix by retrying — but emphatically not
+  /// `synced` either, because the notes have not left the device. A vault with no remote used to
+  /// come back `failed` and be listed under "Backup needs you", which put a vault that is working
+  /// exactly as configured in the same sentence as a merge conflict, and (reported 2026-07-31) read
+  /// as though it were blocking the vaults that *do* have remotes. It never was — they are pushed
+  /// independently — but the message could not say so.
+  | 'local'
   | 'failed';
 
 export interface VaultSync {
@@ -156,8 +181,13 @@ export async function syncVault(
     try {
       pulled = await ops.pull(vault);
     } catch (pullErr) {
-      // Both directions failed. Report the *push* error: it is the thing the user asked
-      // for, and the pull was our idea.
+      // Both directions failed — which is exactly what a vault with no remote looks like, since
+      // there is nothing to push to and nothing to pull from. Ask before calling it a failure.
+      if (!(await ops.hasRemote(vault).catch(() => true))) {
+        set(vault, { phase: 'local' });
+        return 'local';
+      }
+      // Report the *push* error: it is the thing the user asked for, and the pull was our idea.
       set(vault, { phase: 'failed', error: String(pushErr) });
       return 'failed';
     }
@@ -175,6 +205,10 @@ export async function syncVault(
     if (pulled.merged === 0) {
       // Nothing came down, so the remote had not moved and the push failed for its own
       // reasons. Retrying would fail identically.
+      if (!(await ops.hasRemote(vault).catch(() => true))) {
+        set(vault, { phase: 'local' });
+        return 'local';
+      }
       set(vault, { phase: 'failed', error: String(pushErr) });
       return 'failed';
     }

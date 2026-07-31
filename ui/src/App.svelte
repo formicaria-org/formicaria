@@ -1092,18 +1092,33 @@
   }
   const unrecordedTotal = $derived(unrecordedList.reduce((n, u) => n + u.count, 0));
   /// Record every vault's forgotten notes. One click, because the answer is never "some of them".
+  ///
+  /// **Reports once, over all of them.** The first version set `notice` inside the loop, so with two
+  /// vaults the *last* one won: recording 146 notes in one vault and then finding nothing in the next
+  /// announced "Nothing left to record in 'notes'" — telling the user their click did nothing while it
+  /// had just committed 146 notes. A per-item message inside a loop over items is a report of the last
+  /// item, not of the work.
   async function recordAllUnrecorded() {
-    for (const u of unrecordedList) await onRecordUnrecorded(u.vault);
-  }
-  async function onRecordUnrecorded(vault: string) {
+    const done: { vault: string; notes: number }[] = [];
     try {
-      const r = await recordUnrecorded(vault);
-      notice = r.committed
-        ? `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${vault}” that had never been committed.`
-        : `Nothing left to record in “${vault}”.`;
-      await loadUnrecorded();
+      for (const u of [...unrecordedList]) {
+        const r = await recordUnrecorded(u.vault);
+        if (r.committed && r.notes > 0) done.push({ vault: u.vault, notes: r.notes });
+      }
     } catch (e) {
       error = String(e);
+    }
+    await loadUnrecorded();
+    const total = done.reduce((n, d) => n + d.notes, 0);
+    if (total === 0) {
+      notice = 'Nothing left to record — git already has every note.';
+    } else {
+      const where = done.map((d) => `${d.notes} in “${d.vault}”`).join(', ');
+      // Says the next step too: a commit is not a backup, and on a phone the vault may be the only
+      // copy until it is pushed.
+      notice =
+        `Recorded ${total} note${total === 1 ? '' : 's'} that had never been committed (${where}). ` +
+        `They are in this device's history now — back up to send them to a remote.`;
     }
   }
 
@@ -1135,17 +1150,39 @@
       );
       const failed = allVaults.filter((_, i) => results[i] === 'failed');
       const conflicted = allVaults.filter((_, i) => results[i] === 'conflicts');
+      // **A vault with no remote is not a failure**, and lumping it in with one made the whole
+      // action look blocked. Each vault is pushed independently, so the ones that *can* back up
+      // always do — but the old message could not say that, and reasonably read as "nothing went"
+      // (reported 2026-07-31). Now the sentence leads with what left the machine.
+      const local = allVaults.filter((_, i) => results[i] === 'local');
+      const sent = allVaults.filter((_, i) => results[i] === 'synced');
+      const parts: string[] = [];
+      if (sent.length) {
+        parts.push(
+          allVaults.length === 1
+            ? 'Notes backed up'
+            : `Notes backed up (${sent.length} of ${allVaults.length} vaults)`,
+        );
+      }
+      if (local.length) {
+        // Stated as the fact it is, with the fix: no remote yet. Never "failed".
+        parts.push(
+          `${local.map((v) => `“${v}”`).join(', ')} ${local.length === 1 ? 'has' : 'have'} no ` +
+            `remote yet — committed here, but nowhere to send. Add one in backup options.`,
+        );
+      }
       if (failed.length || conflicted.length) {
         // Named, and pointed at the panel that can actually resolve it — a toolbar button is the
         // wrong place to explain a merge conflict.
-        report(
-          `Backup needs you: ${[...failed, ...conflicted].join(', ')}. Open backup options for detail.`,
+        parts.push(
+          `${[...failed, ...conflicted].map((v) => `“${v}”`).join(', ')} need you: open backup ` +
+            `options for detail.`,
         );
+      }
+      if (failed.length || conflicted.length) {
+        report(parts.join(' '));
       } else {
-        notice =
-          allVaults.length === 1
-            ? 'Notes backed up'
-            : `Notes backed up (${allVaults.length} vaults)`;
+        notice = parts.join(' ') || 'Nothing to back up';
       }
     } catch (e) {
       report(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);

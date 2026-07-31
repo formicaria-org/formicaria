@@ -154,6 +154,23 @@ describe('notes that are not in history', () => {
     expect(document.body.textContent).toMatch(/Recorded 95 notes/i);
   });
 
+  it('reports the total across vaults, not whichever vault came last', async () => {
+    // Reported 2026-07-31: the chip said 146, the click committed them, and the message read
+    // "Nothing left to record in 'notes'" — because `notice` was set inside the loop, so the second
+    // vault (which had nothing) overwrote the first vault's result. The user was told their click did
+    // nothing while 146 notes had just been committed.
+    setUnrecorded([
+      { vault: 'personal', count: 146, sample: [] },
+      { vault: 'notes', count: 0, sample: [] },
+    ]);
+    render(App);
+    await fireEvent.click(await screen.findByRole('button', { name: /146 not in history/i }));
+    await vi.waitFor(() => expect(document.body.textContent).toMatch(/Recorded 146 notes/i));
+    expect(document.body.textContent).not.toMatch(/Nothing left to record/i);
+    // And it says what to do next: a commit is not a backup.
+    expect(document.body.textContent).toMatch(/back up to send them to a remote/i);
+  });
+
   it('shows no chip when git has everything', async () => {
     render(App);
     await vi.waitFor(() => expect(document.body.querySelector('header.topbar')).toBeTruthy());

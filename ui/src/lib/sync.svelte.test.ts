@@ -12,6 +12,9 @@ import { clearSync, pullVault, syncFor, syncVault, type SyncOps } from './sync.s
 function ops(over: Partial<SyncOps> = {}) {
   const calls = { commit: 0, push: 0, pull: 0 };
   const base: SyncOps = {
+    // Default: this vault has a remote, so a failure stays a failure. The no-remote case is its own
+    // test below.
+    hasRemote: async () => true,
     commit: async () => {
       calls.commit++;
       return { committed: true, conflicts: [] };
@@ -255,5 +258,62 @@ describe('pullVault', () => {
 
     expect(syncFor('a').phase).toBe('synced');
     expect(syncFor('b').phase).toBe('failed');
+  });
+});
+
+// ── A vault with no remote is not a failure ──
+//
+// Reported 2026-07-31: "Backup needs you: vault, notes" on a device whose vaults had no remote, and
+// the reasonable reading — "so nothing backed up" — is what the message invited. Each vault is
+// pushed independently, so the ones with remotes always did go; the summary just could not say so,
+// because a remoteless vault came back `failed` and shared a sentence with merge conflicts.
+describe('a vault with no remote', () => {
+  it('reports `local`, not `failed`, when there is nowhere to push', async () => {
+    const { ops: o } = ops({
+      // No remote means both directions fail: nothing to push to, nothing to pull from.
+      push: () => Promise.reject(new Error('no remote configured')),
+      pull: () => Promise.reject(new Error('no remote configured')),
+      hasRemote: async () => false,
+    });
+    const phase = await syncVault('personal', 'backup', undefined, o);
+    expect(phase).toBe('local');
+    expect(syncFor('personal').phase).toBe('local');
+    // No error text: nothing is wrong, so nothing to apologise for.
+    expect(syncFor('personal').error).toBeUndefined();
+  });
+
+  it('still reports `failed` when the vault does have a remote', async () => {
+    const { ops: o } = ops({
+      push: () => Promise.reject(new Error('403 forbidden')),
+      pull: () => Promise.reject(new Error('403 forbidden')),
+      hasRemote: async () => true,
+    });
+    expect(await syncVault('personal', 'backup', undefined, o)).toBe('failed');
+    // And it keeps the push error, which is the thing the user asked for.
+    expect(syncFor('personal').error).toContain('403');
+  });
+
+  it('treats an unanswerable status as "has a remote", so a real failure is never softened', async () => {
+    const { ops: o } = ops({
+      push: () => Promise.reject(new Error('boom')),
+      pull: () => Promise.reject(new Error('boom')),
+      hasRemote: () => Promise.reject(new Error('status unavailable')),
+    });
+    // Failing open in the *reassuring* direction would hide a broken backup behind a calm sentence.
+    expect(await syncVault('personal', 'backup', undefined, o)).toBe('failed');
+  });
+
+  it('does not call the slow status check on the happy path', async () => {
+    let asked = 0;
+    const { ops: o } = ops({
+      hasRemote: async () => {
+        asked += 1;
+        return true;
+      },
+    });
+    expect(await syncVault('personal', 'backup', undefined, o)).toBe('synced');
+    // `backup_status` shells out `git ls-remote` per vault; paying that on every successful backup
+    // would make the common case the slow one.
+    expect(asked).toBe(0);
   });
 });
