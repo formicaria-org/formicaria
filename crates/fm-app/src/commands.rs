@@ -1007,7 +1007,16 @@ pub fn conflicts(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// **The oldest copy is the keeper**, by `created` then `id` — deterministic, and the one that is most
 /// likely to be the note the user actually made before whatever loop copied it.
 pub fn duplicates(store: &dyn Store) -> Result<Vec<DuplicateFamily>, StoreError> {
-    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    // **Every note, not `notes_base()`.** That filter excludes discussion messages and proposals
+    // because they are not things you *plan* — right for a board, wrong here: the duplicates that
+    // prompted this were **messages**, so scanning with it found nothing at all and the surface stayed
+    // empty while 142 copies sat on disk. Assets are excluded because a duplicate blob is the blob
+    // store's business (content-addressing already dedupes bytes) and an asset note is a catalogue
+    // entry, not a copy of anything.
+    let q = Query {
+        filter: Filter::new().and(Predicate::Kind(vec![fm_model::Kind::Note])),
+        ..Default::default()
+    };
     let mut by_body: std::collections::HashMap<String, Vec<Object>> =
         std::collections::HashMap::new();
     for o in store.query(&q)?.rows {

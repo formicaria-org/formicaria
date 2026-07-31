@@ -65,7 +65,11 @@ fn vault_with_copies(home: &TempDir) -> PathBuf {
     {
         std::fs::write(
             vault.join(format!("notes/{id}.md")),
-            format!("---\nschema: 1\nid: {id}\ntype: note\ncreated: 2026-07-31T07:44:0{i}Z\nupdated: 2026-07-31T07:44:0{i}Z\n---\n@lfm2.5-230m does mRNA change DNA? /search\n"),
+            // **Discussion messages**, carrying `thread_of` — which is what the real copies were.
+            // The first version of this test used plain notes, so it passed while the command was
+            // filtering messages out with `notes_base()` and finding nothing on the actual device.
+            // A fixture that avoids the real shape is a test that certifies the wrong thing.
+            format!("---\nschema: 1\nid: {id}\ntype: note\ncreated: 2026-07-31T07:44:0{i}Z\nupdated: 2026-07-31T07:44:0{i}Z\nthread_of: note:01RTRTRTRTRTRTRTRTRTRTRTRT\n---\n@lfm2.5-230m does mRNA change DNA? /search\n"),
         )
         .unwrap();
     }
