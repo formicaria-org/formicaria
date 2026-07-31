@@ -14,10 +14,15 @@ use time::format_description::well_known::Rfc3339;
 
 /// How a timestamp crosses the wire: RFC 3339, one spelling, everywhere.
 ///
-/// A single function because `update_body` compares the caller's `updated` against the
-/// note's to catch a lost update, and a comparison is only sound if both sides were
-/// formatted identically — two call sites drifting is how that guard would silently stop
-/// guarding.
+/// A single function so that one spelling crosses the wire — a stamp formatted two ways is a
+/// stamp that compares unequal to itself.
+///
+/// **It is no longer what the lost-update guard compares.** That was this function's original
+/// reason to exist: `update_body` took the caller's `updated` and matched it against the note's.
+/// Since 2026-07-18 the token is [`version_of`], a hash of the body, because a stamp only moves
+/// when the *writer* bothers to move it and Vim does not. Nothing about the wire format changed,
+/// so this doc is all that was left pointing at the old design — and it pointed three other
+/// comments, and two UI call sites, at sending a stamp where a hash belongs.
 pub fn stamp(t: time::OffsetDateTime) -> String {
     t.format(&Rfc3339).unwrap_or_default()
 }
@@ -108,6 +113,43 @@ pub struct Column {
     pub value: String,
     pub label: String,
     pub cards: Vec<ObjectMeta>,
+}
+
+/// A conflicted note **and what kind of conflict it is**.
+///
+/// The kind is the whole point. The UI used to receive a bare `ObjectMeta` and tell the user, in
+/// every case, to *"open each one — both versions are marked in the text"*. That is true for exactly
+/// one kind of conflict. For a delete/modify there are no markers and never will be (one side has no
+/// file, so there is nothing to interleave and the `.md` driver is not even called), so the advice
+/// was impossible to follow and the note was a dead end — while its vault committed nothing at all.
+/// Found the hard way: a week frozen, 95 notes unrecorded (2026-07-31).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConflictInfo {
+    pub note: ObjectMeta,
+    /// The vault-relative path git is unmerged on. Empty when this came from the body-marker scan
+    /// rather than from git (markers left in the text after the index was settled).
+    pub path: String,
+    pub vault: String,
+    /// Git's two-letter code (`UU`, `DU`, `UD`, …), so a bug report can be precise.
+    pub code: String,
+    /// One plain sentence: what the two sides actually did.
+    pub what: String,
+    /// Are there `<<<<<<<` markers in the file to edit? When false, editing is **not** a resolution
+    /// and the only answers are keep-theirs or keep-mine.
+    pub has_markers: bool,
+}
+
+/// Notes that exist on disk but are **not in git history**, per vault.
+///
+/// `commit_all` stages only the paths the app remembers writing, and that memory is per-process — so
+/// every note written before the last restart was silently unstageable, permanently. This is what
+/// the app forgot, offered back as something the user can act on.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Unrecorded {
+    pub vault: String,
+    pub count: usize,
+    /// Up to a handful of note ids, to name in the UI without pasting ninety-five of them.
+    pub sample: Vec<String>,
 }
 
 /// A board: the property it groups by (opaque — the renderer never learns the

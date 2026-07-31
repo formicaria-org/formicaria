@@ -38,6 +38,7 @@
   import { countOf, nthIndexOf } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
   import { startRecording, type Recording } from './record';
+  import { isRemote } from './remote';
   import VaultBadge from './VaultBadge.svelte';
   import EditedBy from './EditedBy.svelte';
   import { lastEditFor } from './activity.svelte';
@@ -720,6 +721,27 @@
     onEditorSelect(); // typing replaces the selection → refresh/hide the float
   }
 
+  /// Write now, because we may not get another chance.
+  ///
+  /// The debounce is 500 ms of "still typing", which assumes the page will still be here in 500 ms.
+  /// On Android that assumption is wrong in the ordinary case, not the exotic one: tao's event loop
+  /// calls `process::exit` when the last window closes, so **Back is a kill** — no unwinding, no
+  /// destructors — and swipe-away and an LMKD reclaim are a `SIGKILL`. Whatever the platform does
+  /// give us notice of, we spend on the pending write.
+  ///
+  /// **Not a complete fix, and the gap is recorded** (`known-issues.md`): a WebView is not
+  /// guaranteed to deliver `visibilitychange` before the Activity is torn down, so on Android this
+  /// is a best-effort narrowing of the window rather than a guarantee. It is exact in a browser,
+  /// where these events are specified.
+  function flushPendingSave() {
+    if (saved || !note) return;
+    clearTimeout(saveTimer);
+    void save();
+  }
+  function onPageHidden() {
+    if (typeof document === 'undefined' || document.visibilityState === 'hidden') flushPendingSave();
+  }
+
   async function save() {
     if (!note) return;
     try {
@@ -753,7 +775,12 @@
       return;
     }
     note = fresh;
-    base = fresh.updated;
+    // **`version`, not `updated`.** The server compares `base` against `version_of(body)` — a
+    // content hash — so an RFC3339 stamp can never match. Assigning it here meant the *next*
+    // save conflicted too, and the one after that: each pass re-entered this function, wrapped
+    // the growing draft in another pair of markers, and never wrote a byte to disk. Closing the
+    // tab then lost everything typed since the first conflict. Silent, compounding data loss.
+    base = fresh.version;
     draft = `${fresh.body}\n\n<<<<<<< your unsaved edit\n${mine}\n>>>>>>>\n`;
     saved = false;
     error =
@@ -1142,7 +1169,10 @@
         const fresh = await getNote(note.id).catch(() => null);
         if (fresh) {
           note = fresh;
-          base = fresh.updated;
+          // `version` (the body hash), not `updated` — see `onSaveRejected`. A board has no
+          // markers to show the damage with, so getting this wrong just refused every later
+          // save forever.
+          base = fresh.version;
         }
         error =
           'This board changed while you had it open — the merged version has been ' +
@@ -1687,7 +1717,11 @@
   }
 </script>
 
-<svelte:window onkeydown={onPaneKey} onpopstate={onPopState} />
+<svelte:window onkeydown={onPaneKey} onpopstate={onPopState} onpagehide={flushPendingSave} />
+<!-- Per-pane on purpose. The `onkeydown` above is shared and therefore has to ask `ownsKeys()`
+     which pane should act; this is the opposite case — every open editor with unsaved text wants to
+     flush its own, and the one that does not have any returns immediately. -->
+<svelte:document onvisibilitychange={onPageHidden} />
 
 <article class="panel" class:wide class:solo class:board-full={boardFull} bind:this={paneEl}>
     {#if boardFull}
@@ -1747,7 +1781,11 @@
                   {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
                 </button>
               {/if}
-              {#if note.type === 'asset' && note.assets.length}
+              <!-- Hidden on a paired device: `open_external` hands the file to whatever the
+                   *computer* thinks owns it, so pressing it on a tablet launches something on a
+                   screen you are not looking at. The server refuses it too — this only spares
+                   the user a button that could not work. -->
+              {#if note.type === 'asset' && note.assets.length && !isRemote()}
                 <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
               {/if}
               {#if canCopy}

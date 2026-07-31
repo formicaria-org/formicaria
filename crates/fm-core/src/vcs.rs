@@ -113,6 +113,13 @@ route!(remote(vault: &Path) -> Result<Option<String>, StoreError>);
 route!(set_remote(vault: &Path, url: &str) -> Result<(), StoreError>);
 route!(clone(url: &str, dest: &Path) -> Result<(), StoreError>);
 route!(conflicts(vault: &Path) -> Result<Vec<String>, StoreError>);
+// The conflict *kinds*, and resolving one by keeping a side. Added 2026-07-31 because the marker
+// scan the UI listed conflicts from covers only `UU`/`AA`: a delete/modify conflict has no markers,
+// so it appeared in no surface while it froze every commit in its vault — for a week, on the
+// owner's laptop, with 95 notes unrecorded. `unrecorded` is the other half of that failure.
+route!(conflicted(vault: &Path) -> Result<Vec<crate::git::Conflict>, StoreError>);
+route!(resolve_conflict(vault: &Path, rel: &str, keep: crate::git::Keep) -> Result<(), StoreError>);
+route!(unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError>);
 route!(unpushed(vault: &Path) -> Result<Option<u32>, StoreError>);
 route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);

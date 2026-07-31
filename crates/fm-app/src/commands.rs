@@ -960,20 +960,14 @@ pub fn backlinks(store: &dyn Store, id: &str) -> Result<Vec<ObjectMeta>, StoreEr
         .collect())
 }
 
-/// True when a note body still carries git conflict markers — a merge left both versions in place
-/// and a human must reconcile them. Requires both an opening and a closing marker to avoid flagging
-/// a note that merely *mentions* one.
+/// True when a note body still carries git conflict markers.
+///
+/// **Delegates to `fm_core::merge`, deliberately.** The same predicate now also guards
+/// `vcs::resolve_conflict(_, _, Keep::Edited)` — "I reconciled this in the editor" — and the two must
+/// never disagree: a list that calls a note clean while the guard refuses it (or the reverse) is how
+/// `<<<<<<<` ends up committed as a note's content and pushed to a collaborator. One definition.
 fn has_conflict_markers(body: &str) -> bool {
-    let mut opened = false;
-    let mut closed = false;
-    for line in body.lines() {
-        if line.starts_with("<<<<<<<") {
-            opened = true;
-        } else if line.starts_with(">>>>>>>") {
-            closed = true;
-        }
-    }
-    opened && closed
+    fm_core::merge::has_conflict_markers(body)
 }
 
 /// Notes that came back from a merge **in conflict** — both versions are marked in the body and a

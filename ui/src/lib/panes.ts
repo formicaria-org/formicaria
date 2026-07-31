@@ -5,7 +5,7 @@
 //
 // Pure data + helpers here (unit-testable); the rendering lives in Pane.svelte and App.svelte.
 
-import type { ObjectMeta, Board, DiscussionSummary, Renderer } from './types';
+import type { ObjectMeta, Board, DiscussionSummary, Renderer, ConflictInfo } from './types';
 
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
@@ -142,8 +142,9 @@ export interface Feed {
   board?: Board;
   cards?: ObjectMeta[];
   discussions?: DiscussionSummary[];
-  /** Conflicted notes (Collaboration surface) — shown above proposals as "needs resolution". */
-  conflicts?: ObjectMeta[];
+  /** Conflicted notes (Collaboration surface) — shown above proposals as "needs resolution".
+   *  Carries the conflict *kind*, because only one kind can be resolved by editing the note. */
+  conflicts?: ConflictInfo[];
 }
 
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or

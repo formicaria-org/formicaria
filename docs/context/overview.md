@@ -23,6 +23,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | The **study assistant / agent** (`fm-agent*`, models, RAG) | `ai-agents-plan.md`; **`model-selection-research-2026-07-24-grounded.md`** (grounding-first, current) |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
+| **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 
 ## What formicaria is
@@ -45,6 +46,17 @@ thread-per-connection, `127.0.0.1:8765`) builds + serves `ui/dist` and fronts
 **`fm_app::dispatch`** — the single command surface — over `POST /api/<cmd>` (JSON, or raw
 bytes for `resolve_asset`/`ingest`), plus two routes that are deliberately *not* commands
 (`GET /api/blob/<reference>`, `POST /api/alive`), then opens the default browser.
+
+**`127.0.0.1`, plus a second listener if you share it.** Loopback stays plain HTTP and exactly as
+it was — the desktop's browser, `fm-cli`, curl and the study agent all arrive there. Turning on
+*Settings → Share with another device* adds a **separate** listener on the next port, over TLS
+(a self-signed leaf whose fingerprint the user compares by hand; `tls` feature, default on), so a
+tablet on the same network can open the real app (the UI is entirely origin-relative — nothing is
+streamed). A non-loopback caller is a different kind of
+caller: it must present a token from a pairing code, it reaches only the **vaults that token was
+paired for** (`fm_app::Scope` → `fm_core::Scoped`), and host-bound commands are refused outright.
+Loopback keeps exactly its old behaviour, which is why `fm-cli`, curl and the study agent needed
+no changes. See `decisions.md#vault`.
 
 There is **no native window** and no cloud/account. The browser is the product
 (see [decisions.md](./decisions.md) for why the Tauri window was removed).

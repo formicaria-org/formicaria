@@ -18,7 +18,7 @@
   import ProposalReview from './ProposalReview.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES } from './panes';
-  import type { ObjectMeta, ViewInfo, Board as BoardT } from './types';
+  import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
   import { orderColumns, moveValue } from './boardOrder';
 
   interface Props {
@@ -33,6 +33,8 @@
     startEditing: boolean; // a note pane opened via "New note" starts in the editor
     vaults: string[]; // all vault names — a note pane offers "Copy to" the others
     onopen: (id: string) => void;
+    /// Resolve a conflict by keeping a side — only reachable for the kinds with no markers to edit.
+    onresolve: (c: ConflictInfo, keep: 'theirs' | 'mine' | 'edited') => Promise<void>;
     onmove: (groupBy: string, id: string, value: string, beforeId: string | null) => void;
     onstatus: (id: string, value: string | null) => void;
     onnavigate: (id: string) => void; // a note pane's chip was followed → open that note
@@ -55,6 +57,7 @@
     startEditing,
     vaults,
     onopen,
+    onresolve,
     onmove,
     onstatus,
     onnavigate,
@@ -130,8 +133,21 @@
 
   // Cards this pane shows, after the global vault filter.
   const cards = $derived((feed?.cards ?? []).filter(shown));
-  // Conflicted notes for the Collaboration surface, vault-filtered like the cards.
-  const conflictNotes = $derived((feed?.conflicts ?? []).filter(shown));
+  // Conflicted notes for the Collaboration surface, vault-filtered like the cards (the filter reads
+  // the nested note, since a conflict now carries its kind alongside it).
+  const conflictNotes = $derived((feed?.conflicts ?? []).filter((c) => shown(c.note)));
+  /// Which conflict rows have a resolution in flight, so a double-tap cannot fire two resolutions at
+  /// the same path (the second would fail with "not in conflict" and read as a broken button).
+  let resolving = $state<Record<string, boolean>>({});
+  async function keep(c: ConflictInfo, side: 'theirs' | 'mine' | 'edited') {
+    if (resolving[c.path]) return;
+    resolving = { ...resolving, [c.path]: true };
+    try {
+      await onresolve(c, side);
+    } finally {
+      resolving = { ...resolving, [c.path]: false };
+    }
+  }
   // Which proposals have their diff expanded — so a proposal's diff is fetched only when opened,
   // not once per proposal on render.
   let openProposal = $state<Record<string, boolean>>({});
@@ -467,13 +483,53 @@
         <section class="conflicts-feed">
           <h3 class="conflicts-head">⚠ Needs resolution</h3>
           <ul>
-            {#each conflictNotes as c (c.id)}
+            {#each conflictNotes as c (c.path || c.note.id)}
               <li>
-                <button class="conflict-row" onclick={() => onopen(c.id)}>
+                <!-- Two shapes, because there are two kinds of conflict and only one of them can be
+                     resolved by editing the note. Telling a user to "open it and keep the text you
+                     want" when one side deleted the file is advice that cannot be followed — it is
+                     what left a vault frozen for a week with nothing to click. -->
+                <button class="conflict-row" onclick={() => onopen(c.note.id)}>
                   <VaultBadge vault={c.vault} />
-                  <span class="conflict-title">{c.title ?? c.preview}</span>
-                  <span class="conflict-tag">conflict</span>
+                  <span class="conflict-title">{c.note.title ?? c.note.preview}</span>
+                  <span class="conflict-tag">{c.has_markers ? 'in the text' : 'pick a side'}</span>
                 </button>
+                <p class="conflict-what">{c.what}</p>
+                {#if c.has_markers}
+                  <!-- **A marker conflict needs an explicit "I'm done".** Editing the note settles
+                       nothing as far as git is concerned — the index keeps all three stages, so the
+                       vault stays frozen while the note quietly stops looking conflicted. This is the
+                       button that stages the reconciliation; it refuses while markers remain, because
+                       staging a marked-up file is what git reads as "resolved" and would publish
+                       `<<<<<<<` as the note's content. -->
+                  <div class="conflict-actions">
+                    <button type="button" onclick={() => onopen(c.note.id)}>Open the note</button>
+                    <button
+                      type="button"
+                      disabled={resolving[c.path]}
+                      onclick={() => keep(c, 'edited')}
+                    >
+                      Mark resolved
+                    </button>
+                  </div>
+                {:else}
+                  <div class="conflict-actions">
+                    <button
+                      type="button"
+                      disabled={resolving[c.path]}
+                      onclick={() => keep(c, 'theirs')}
+                    >
+                      Keep the other device's version
+                    </button>
+                    <button
+                      type="button"
+                      disabled={resolving[c.path]}
+                      onclick={() => keep(c, 'mine')}
+                    >
+                      Keep this device's version
+                    </button>
+                  </div>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -718,6 +774,34 @@
   .pane-empty {
     padding: var(--space-4);
     color: var(--text-muted);
+  }
+  /* A conflict's own sentence: what the two sides did, in plain words, under the row it belongs to. */
+  .conflict-what {
+    margin: 0 0 0.4rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem 0.5rem;
+  }
+  .conflict-actions button {
+    /* Its own sizing, not `.icon-btn`: every `.icon-btn` in the top bar is hidden in the narrow
+       layouts, which is how a control that must stay reachable on a phone silently vanishes. */
+    min-height: 2.5rem;
+    padding: 0 0.85rem;
+    border-radius: 0.4rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .conflict-actions button:disabled {
+    opacity: 0.6;
+    cursor: default;
   }
   /* Conflicts sit above the proposals in the Collaboration surface — urgent, so accent-framed. */
   .conflicts-feed {

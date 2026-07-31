@@ -19,9 +19,11 @@
 
 use crate::commands;
 use crate::vaults::{self, VaultConfig};
-use fm_core::{backup, git, vcs, MultiStore, Reindex, Store};
+use crate::scope::Scope;
+use fm_core::{backup, git, vcs, MultiStore, Reindex, Scoped, Store};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 /// The open vaults and the list describing them, **behind one lock**.
@@ -32,7 +34,10 @@ use std::sync::{Mutex, MutexGuard};
 /// textbook AB/BA deadlock. One deletes the question, and closes the window where the list
 /// holds a vault the store doesn't.
 pub struct Vaults {
-    store: MultiStore,
+    /// **Every** vault, unconditionally. Reached through [`Vaults::store`], which narrows it to
+    /// what the caller is an audience for; the field is private and named `all` so that reaching
+    /// past that narrowing has to be deliberate and reads as such at the call site.
+    all: MultiStore,
     /// Every vault, in configured order. **The first is the default**: a note that names
     /// no vault (every fresh capture) lands there, so it should be the personal one. A
     /// single-vault install is just a list of one, which is why nothing below has a
@@ -67,6 +72,26 @@ pub struct App {
     /// overwriting a hand-edited file we could not parse is the loss `vaults::load`'s
     /// malformed-JSON warning exists to shout about.
     config_writable: bool,
+    /// **How many times the vaults have moved, ever.** Monotonic, per-process, and the thing
+    /// `ping` compares a client's `since` against.
+    ///
+    /// It exists because the old answer — "did this reindex find drift?" — is a fact that can
+    /// only be told **once**. A reindex writes the fresh mtimes back, so the first client to
+    /// ask consumes the news and every other client is told "nothing changed", forever. With
+    /// one browser tab that was invisible; with a tab and a tablet it is the common case.
+    ///
+    /// It also closes a hole the drift check never covered at all. `FileStore::put` indexes
+    /// the file it just wrote, mtime included (`file.rs::index_object`), so after a save
+    /// through `dispatch` the index and the disk **agree** — an incremental reindex finds
+    /// nothing, and a note written by one client was therefore invisible to every other
+    /// client rather than merely late. The poll only ever saw *out-of-band* edits (a `git
+    /// pull`, the merge driver, Vim), which was sufficient for exactly as long as there was
+    /// only ever one client.
+    ///
+    /// So it is bumped from both sides: by a reindex that found drift, and by any command
+    /// that is not on [`READ_ONLY`]. Not a lock, because it is only ever read and incremented
+    /// — a client that misses one increment sees the next.
+    generation: AtomicU64,
 }
 
 /// What a transport must supply that the command library cannot: the one operation whose
@@ -140,7 +165,17 @@ impl App {
         config: Option<PathBuf>,
         config_writable: bool,
     ) -> Self {
-        App { vaults: Mutex::new(Vaults { store, list }), config, config_writable }
+        App {
+            vaults: Mutex::new(Vaults { all: store, list }),
+            config,
+            config_writable,
+            generation: AtomicU64::new(0),
+        }
+    }
+
+    /// Record that the vaults moved, and return the new generation.
+    fn bump(&self) -> u64 {
+        self.generation.fetch_add(1, Ordering::Relaxed) + 1
     }
 
     /// An owned snapshot of the configured vaults — what a shell prints at startup.
@@ -162,6 +197,14 @@ impl App {
 ///
 /// An unknown command is an `Err`, not a panic — a transport must be able to answer a
 /// malformed request without taking the process down.
+///
+/// Every command that is not in [`READ_ONLY`] bumps [`App::generation`] when it succeeds, so
+/// that other clients learn the vaults moved. That is done here, once, rather than in each
+/// arm: fifty-odd arms each remembering to call a function is fifty-odd chances to forget, and
+/// the one that forgets fails *silently* — a note saved on the tablet that simply never appears
+/// on the desktop.
+/// The machine's own caller — every vault, as it has always been. `fm-cli`, the phone, the study
+/// agent and anything on loopback come through here and are unchanged by the existence of scopes.
 pub fn dispatch(
     cmd: &str,
     args: &Value,
@@ -169,57 +212,178 @@ pub fn dispatch(
     app: &App,
     host: &dyn Host,
 ) -> Result<Output, String> {
+    dispatch_as(cmd, args, body, app, host, &Scope::All)
+}
+
+/// The same, for a caller entitled to only some of the audiences — a paired device.
+///
+/// A separate entry point rather than an extra parameter on [`dispatch`], because the
+/// unrestricted case is the overwhelmingly common one and every existing shell already spells
+/// it: making them all pass `Scope::All` would be fifty edits that say nothing, and a default
+/// argument nobody reads is how the wrong one gets passed.
+pub fn dispatch_as(
+    cmd: &str,
+    args: &Value,
+    body: &[u8],
+    app: &App,
+    host: &dyn Host,
+    scope: &Scope,
+) -> Result<Output, String> {
+    let out = dispatch_inner(cmd, args, body, app, host, scope);
+    // **Only on success**, so a rejected write (a stale `base`, an unknown vault) does not
+    // send every other client off to re-query for a change that never landed.
+    if out.is_ok() && !READ_ONLY.contains(&cmd) {
+        app.bump();
+    }
+    out
+}
+
+/// One plain sentence per conflict kind — what the two sides actually did.
+///
+/// Product wording, so it lives here at the command surface rather than in `fm-core`: the core knows
+/// git's seven codes and nothing about explaining them to someone holding a phone.
+fn describe_conflict(kind: git::ConflictKind) -> String {
+    use git::ConflictKind::*;
+    match kind {
+        BothModified => "Both sides edited this note; both versions are marked in the text.",
+        BothAdded => "Both sides created a different note here; both versions are marked in the text.",
+        DeletedByUs => "Deleted here, edited on the other device. There is nothing to merge \u{2014} pick a side.",
+        DeletedByThem => "Edited here, deleted on the other device. There is nothing to merge \u{2014} pick a side.",
+        BothDeleted => "Deleted on both sides, differently. There is nothing to keep.",
+        AddedByUs => "Created here, and the other side does not have it.",
+        AddedByThem => "Created on the other device, and this side does not have it.",
+    }
+    .to_string()
+}
+
+/// The vault-relative notes directory (`notes` unless `vault.json` says otherwise).
+///
+/// Asked of the descriptor rather than hardcoded: a vault may keep its notes in `docs/`, and
+/// hardcoding `notes/` is precisely the bug that had `verify` pass a vault it never opened.
+fn notes_rel_of(root: &std::path::Path) -> String {
+    fm_core::descriptor::Descriptor::read(root)
+        .ok()
+        .and_then(|d| {
+            d.notes_dir(root).strip_prefix(root).ok().map(|p| p.to_string_lossy().into_owned())
+        })
+        .unwrap_or_else(|| "notes".to_string())
+}
+
+/// The commands that cannot move a vault, and so must **not** bump the generation.
+///
+/// **An allowlist, deliberately, and this direction is the safe one.** A new command left off
+/// this list bumps when it perhaps need not: every client re-runs its query once, which costs a
+/// SQLite read and is invisible. A new *writing* command left off a mutating list would instead
+/// be silently invisible to every other client — the exact bug this counter exists to fix. So
+/// the failure mode of forgetting is "slightly chatty", never "silently stale".
+///
+/// `ping` is here because it is the poll itself: bumping in the poll would make every client
+/// see a change on every beat, forever. It bumps from *inside* its arm instead, and only when
+/// the reindex actually found drift.
+///
+/// `open_external`/`open_skipped` hand a file to another program and change nothing here; if
+/// that program then edits the note, the drift check is what catches it.
+const READ_ONLY: &[&str] = &[
+    "board",
+    "gallery",
+    "agenda",
+    "get",
+    "search",
+    "recent",
+    "proposals",
+    "backlinks",
+    "templates",
+    "conflicts",
+    // A read like `conflicts`: it asks git what is not recorded and changes nothing.
+    "unrecorded",
+    "activity",
+    "stale",
+    "thread",
+    "thread_roots",
+    "discussions",
+    "proposal_diff",
+    "proposal_content",
+    "proposal_for",
+    "asset_status",
+    "resolve_asset",
+    "backup_status",
+    "ping",
+    "read_skipped",
+    "list_vaults",
+    "list_views",
+    "run_view",
+    "check_path",
+    "config",
+    "probe_remote",
+    "git_auth",
+    "copy_status",
+    "open_external",
+    "open_skipped",
+];
+
+fn dispatch_inner(
+    cmd: &str,
+    args: &Value,
+    body: &[u8],
+    app: &App,
+    host: &dyn Host,
+    scope: &Scope,
+) -> Result<Output, String> {
     let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or("").to_string();
     let lock = || app.lock();
 
     match cmd {
-        "board" => json(commands::board(&lock()?.store, &s("groupBy")).map_err(err)?),
-        "gallery" => json(commands::gallery(&lock()?.store).map_err(err)?),
-        "agenda" => json(commands::agenda(&lock()?.store).map_err(err)?),
-        "get" => json(commands::get(&lock()?.store, &s("id")).map_err(err)?),
-        "search" => json(commands::search(&lock()?.store, &s("query")).map_err(err)?),
-        "recent" => json(commands::recent(&lock()?.store).map_err(err)?),
+        "board" => json(commands::board(&lock()?.store(scope), &s("groupBy")).map_err(err)?),
+        "gallery" => json(commands::gallery(&lock()?.store(scope)).map_err(err)?),
+        "agenda" => json(commands::agenda(&lock()?.store(scope)).map_err(err)?),
+        "get" => json(commands::get(&lock()?.store(scope), &s("id")).map_err(err)?),
+        "search" => json(commands::search(&lock()?.store(scope), &s("query")).map_err(err)?),
+        "recent" => json(commands::recent(&lock()?.store(scope)).map_err(err)?),
         // The Collaboration surface's feed: every open proposal (a note carrying
         // `proposes: branch:<name>`), across vaults. A store query like `recent`, not a per-vault
         // git read — it lists proposal *notes*; whether each branch is still open is a git
         // question answered later, when the write half and the diff land.
-        "proposals" => json(commands::proposals(&lock()?.store).map_err(err)?),
+        "proposals" => json(commands::proposals(&lock()?.store(scope)).map_err(err)?),
         // "What links here" — notes whose body references this note (a `note:` mention or an embed).
         // A store scan like `recent`, not a git read; no reverse index.
-        "backlinks" => json(commands::backlinks(&lock()?.store, &s("id")).map_err(err)?),
-        "templates" => json(commands::templates(&lock()?.store).map_err(err)?),
+        "backlinks" => json(commands::backlinks(&lock()?.store(scope), &s("id")).map_err(err)?),
+        "templates" => json(commands::templates(&lock()?.store(scope)).map_err(err)?),
+        // **Conflicts, with their kind** — because "open it and keep the text you want" is true of
+        // exactly one kind. Git is asked first and is authoritative (it is what actually blocks every
+        // commit in the vault, and it is the only thing that knows *how* the two sides disagreed);
+        // the body-marker scan is then unioned in for notes whose index entry git has settled but
+        // whose text still carries markers. See `dto::ConflictInfo`.
         "conflicts" => {
-            let g = lock()?;
-            let mut list = commands::conflicts(&g.store).map_err(err)?;
-            // Union in git's unmerged paths — the authoritative "nothing is being committed" source
-            // that the warning reads — so a conflicted **discussion message or proposal** (which the
-            // body-marker scan skips via `notes_base`) still shows up here, exactly where the
-            // "waiting on you" warning tells the user to look. Map each unmerged `<dir>/<id>.md` back
-            // to its indexed note; a note whose markers corrupted its frontmatter won't be indexed and
-            // is the one case this can't recover (rare — markers usually land in the body).
+            let mut g = lock()?;
+            let scanned = commands::conflicts(&g.store(scope)).map_err(err)?;
             let configs = g.configs();
-            let mut seen: std::collections::HashSet<String> = list.iter().map(|m| m.id.clone()).collect();
+            let mut out: Vec<crate::dto::ConflictInfo> = Vec::new();
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
             for cfg in &configs {
-                for path in vcs::conflicts(&cfg.path).unwrap_or_default() {
-                    let Some(stem) = std::path::Path::new(&path).file_stem().and_then(|s| s.to_str())
+                for c in vcs::conflicted(&cfg.path).unwrap_or_default() {
+                    let Some(stem) =
+                        std::path::Path::new(&c.path).file_stem().and_then(|s| s.to_str())
                     else {
                         continue;
                     };
-                    if seen.contains(stem) {
+                    if !seen.insert(stem.to_string()) {
                         continue;
                     }
-                    seen.insert(stem.to_string());
-                    // Prefer the indexed note; but a delete/modify conflict leaves the file unindexed
-                    // (no both-markers text either), so fall back to a stub — the point is that every
-                    // note the "waiting on you" warning names is *findable* here, never a dangling
-                    // toast. Clicking through then shows it can't be opened, which is the truth.
-                    let meta = match stem.parse::<fm_model::Id>().ok().and_then(|id| g.store.get(id).ok().flatten()) {
+                    // Prefer the indexed note. A delete/modify conflict may have no indexed note at
+                    // all (this side deleted it), so fall back to a stub — the point is that every
+                    // note the "waiting on you" warning names is *findable and actionable* here,
+                    // never a dangling toast, and never advice the user cannot follow.
+                    let note = match stem
+                        .parse::<fm_model::Id>()
+                        .ok()
+                        .and_then(|id| g.store(scope).get(id).ok().flatten())
+                    {
                         Some(obj) => crate::dto::ObjectMeta::from(&obj),
                         None => crate::dto::ObjectMeta {
                             id: stem.to_string(),
                             kind: "note".into(),
-                            title: Some("conflict — resolve in git".into()),
-                            preview: format!("Unmerged in “{}” — settle it so commits can resume.", cfg.name),
+                            title: Some("a note deleted here and edited elsewhere".into()),
+                            preview: format!("Unmerged in \u{201c}{}\u{201d}.", cfg.name),
                             status: None,
                             due: None,
                             start: None,
@@ -232,10 +396,109 @@ pub fn dispatch(
                             vault: cfg.name.clone(),
                         },
                     };
-                    list.push(meta);
+                    out.push(crate::dto::ConflictInfo {
+                        note,
+                        path: c.path.clone(),
+                        vault: cfg.name.clone(),
+                        code: c.kind.code().to_string(),
+                        what: describe_conflict(c.kind),
+                        has_markers: c.kind.has_markers(),
+                    });
                 }
             }
-            json(list)
+            for m in scanned {
+                if seen.contains(&m.id) {
+                    continue;
+                }
+                let vault = m.vault.clone();
+                out.push(crate::dto::ConflictInfo {
+                    note: m,
+                    path: String::new(),
+                    vault,
+                    code: String::new(),
+                    what: "Both versions are marked in the text.".into(),
+                    has_markers: true,
+                });
+            }
+            json(out)
+        }
+        // **Resolve a conflict that cannot be resolved by editing.** For a delete/modify there is no
+        // text to fix: one side has no file, so the only answers are which side stands. Git's own
+        // verbs are `add` (keep the file) and `rm` (keep the deletion), and neither had a UI — which
+        // for a user who only ever sees the UI meant the conflict was unresolvable, and the vault
+        // stayed frozen. Finishing the merge when this was the last one is part of the operation:
+        // `commit_all` would otherwise leave MERGE_HEAD standing, and MERGE_HEAD is what makes it
+        // refuse.
+        "resolve_conflict" => {
+            let keep = match s("keep").as_str() {
+                "theirs" => git::Keep::Theirs,
+                "mine" => git::Keep::Mine,
+                // "I reconciled both versions in the editor" — the answer for a marker conflict,
+                // where neither side alone is right. Refused by the backend while markers remain.
+                "edited" => git::Keep::Edited,
+                other => {
+                    return Err(format!(
+                        "keep must be \"theirs\", \"mine\" or \"edited\", not \"{other}\""
+                    ))
+                }
+            };
+            let path = s("path");
+            if path.is_empty() {
+                return Err("resolve_conflict needs the conflicted path".into());
+            }
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            vcs::resolve_conflict(&cfg.path, &path, keep).map_err(err)?;
+            // The resolution wrote (or removed) a file behind the index's back, exactly as `pull`
+            // does — re-read now rather than leave the user looking at what was there before.
+            g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
+            // No explicit bump: `resolve_conflict` is deliberately absent from READ_ONLY, so the
+            // wrapper bumps for us once this returns Ok — and only then.
+            json(serde_json::json!({ "resolved": path }))
+        }
+        // **What the app forgot it wrote.** Per vault: notes on disk that git does not have. The
+        // count is the number that matters — a vault quietly not recording history is the failure
+        // this exists to make visible.
+        "unrecorded" => {
+            let g = lock()?;
+            let configs = g.configs();
+            let mut out: Vec<crate::dto::Unrecorded> = Vec::new();
+            for cfg in &configs {
+                let notes_rel = notes_rel_of(&cfg.path);
+                let paths = vcs::unrecorded(&cfg.path, &notes_rel).unwrap_or_default();
+                if paths.is_empty() {
+                    continue;
+                }
+                let sample = paths
+                    .iter()
+                    .take(5)
+                    .filter_map(|p| {
+                        std::path::Path::new(p).file_stem().map(|s| s.to_string_lossy().into_owned())
+                    })
+                    .collect();
+                out.push(crate::dto::Unrecorded {
+                    vault: cfg.name.clone(),
+                    count: paths.len(),
+                    sample,
+                });
+            }
+            json(out)
+        }
+        // Record them. Explicit, never on a timer: this stages files the app does not remember
+        // writing, and that is a decision a human should make rather than a debounce.
+        "record_unrecorded" => {
+            let g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let notes_rel = notes_rel_of(&cfg.path);
+            let rel = vcs::unrecorded(&cfg.path, &notes_rel).map_err(err)?;
+            if rel.is_empty() {
+                return json(serde_json::json!({ "committed": false, "notes": 0 }));
+            }
+            let paths: Vec<std::path::PathBuf> =
+                rel.iter().map(|r| cfg.path.join(r)).collect();
+            let message = format!("notes: recording {} note(s) the app had not staged", rel.len());
+            let made = vcs::commit_all(&cfg.path, &message, &paths).map_err(err)?;
+            json(serde_json::json!({ "committed": made, "notes": rel.len() }))
         }
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and
@@ -245,10 +508,10 @@ pub fn dispatch(
                 let s = s("since");
                 if s.is_empty() { "1 year ago".to_string() } else { s }
             };
-            let g = lock()?;
+            let mut g = lock()?;
             let mut all = Vec::new();
             for cfg in g.configs() {
-                all.extend(commands::activity(&g.store, &cfg.path, &since).map_err(err)?);
+                all.extend(commands::activity(&g.store(scope), &cfg.path, &since).map_err(err)?);
             }
             all.sort_by(|a, b| b.time.cmp(&a.time));
             json(all)
@@ -258,8 +521,8 @@ pub fn dispatch(
             // silent default), then route the note into it — the create-side twin of
             // `ingest`. Empty picks the default vault.
             let mut g = lock()?;
-            let into = g.config(&s("vault"))?;
-            json(commands::capture(&mut g.store, &s("body"), &into.name).map_err(err)?)
+            let into = g.config(scope, &s("vault"))?;
+            json(commands::capture(&mut g.store(scope), &s("body"), &into.name).map_err(err)?)
         }
         // Notes nothing has touched lately, read from git. Per vault, because history is per
         // repo — and a vault with no history is *skipped*, not reported as entirely stale:
@@ -269,10 +532,10 @@ pub fn dispatch(
                 let s = s("since");
                 if s.is_empty() { "90 days ago".to_string() } else { s }
             };
-            let g = lock()?;
+            let mut g = lock()?;
             let mut all = Vec::new();
             for cfg in g.configs() {
-                match commands::stale(&g.store, &cfg.path, &since) {
+                match commands::stale(&g.store(scope), &cfg.path, &since) {
                     Ok(rows) => all.extend(rows),
                     // A vault without git is not a failure of the whole query — the others
                     // still have an honest answer.
@@ -286,7 +549,7 @@ pub fn dispatch(
         // vault of the note it is about, because a vault is an audience.
         "reply" => {
             let mut g = lock()?;
-            let meta = commands::reply(&mut g.store, &s("id"), &s("body")).map_err(err)?;
+            let meta = commands::reply(&mut g.store(scope), &s("id"), &s("body")).map_err(err)?;
             // A collaborator identity (the agent passes its model's) commits *this one message* under
             // it right now, so its authorship is the agent, not the vault's default — the same
             // git-author provenance a human collaborator gets from their own clone (Ruling 14).
@@ -295,9 +558,9 @@ pub fn dispatch(
             // by the later batch is a no-op (nothing changed). Best-effort: never fails a reply.
             let (an, ae) = (s("authorName"), s("authorEmail"));
             if !an.is_empty() && !ae.is_empty() {
-                if let Ok(cfg) = g.config(&meta.vault) {
+                if let Ok(cfg) = g.config(scope, &meta.vault) {
                     let mine: Vec<std::path::PathBuf> = g
-                        .store
+                        .all
                         .written(&cfg.name)
                         .into_iter()
                         .filter(|p| p.to_string_lossy().contains(&meta.id))
@@ -309,30 +572,30 @@ pub fn dispatch(
             }
             json(meta)
         }
-        "thread" => json(commands::thread(&lock()?.store, &s("id")).map_err(err)?),
+        "thread" => json(commands::thread(&lock()?.store(scope), &s("id")).map_err(err)?),
         // A first-class discussion — a note that is the root of its own thread. `vault` is the
         // audience it joins (validated up front, unknown name refused), like `capture`.
         "create_discussion" => {
             let mut g = lock()?;
-            let into = g.config(&s("vault"))?;
-            json(commands::create_discussion(&mut g.store, &s("title"), &into.name).map_err(err)?)
+            let into = g.config(scope, &s("vault"))?;
+            json(commands::create_discussion(&mut g.store(scope), &s("title"), &into.name).map_err(err)?)
         }
         // Propose a change to an existing note: the change lands on a `proposal/<id>` branch (never
         // `main`) and a `proposes:` note records it for the Collaboration view. The target's *own*
         // vault decides the path and the size guardrails, so resolve it from the note first — and,
-        // like `ingest`/`copy_note`, resolve the config to an owned value so `&mut g.store` and the
+        // like `ingest`/`copy_note`, resolve the config to an owned value so `&mut g.store(scope)` and the
         // config can coexist. Refused (never truncated) when over a limit.
         "create_proposal" => {
             let id = s("id");
             let mut g = lock()?;
             let note_id = id.parse().map_err(|_| format!("invalid id: {id}"))?;
             let vault_name = g
-                .store
+                .store(scope)
                 .get(note_id)
                 .map_err(err)?
                 .ok_or_else(|| format!("no such note: {id}"))?
                 .vault;
-            let cfg = g.config(&vault_name)?;
+            let cfg = g.config(scope, &vault_name)?;
             let limits =
                 fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
             // An agent passes its model's identity (`authorName`/`authorEmail`) so the proposal is
@@ -343,14 +606,14 @@ pub fn dispatch(
             let author_email = args.get("authorEmail").and_then(Value::as_str);
             let author = author_name.zip(author_email);
             let made =
-                commands::create_proposal(&mut g.store, &cfg.path, &id, &s("body"), &limits, author)
+                commands::create_proposal(&mut g.store(scope), &cfg.path, &id, &s("body"), &limits, author)
                     .map_err(err)?;
             // Commit the proposal *note* (best-effort) so the Collaboration feed lists it after a
             // restart; the branch is already its own commit.
             if vcs::available() {
-                let paths = g.store.written(&vault_name);
+                let paths = g.all.written(&vault_name);
                 if vcs::commit_all(&cfg.path, "backup: proposal", &paths).unwrap_or(false) {
-                    g.store.clear_written(&vault_name);
+                    g.all.clear_written(&vault_name);
                 }
             }
             json(made)
@@ -359,25 +622,25 @@ pub fn dispatch(
         // note's own vault (immutable store read, so no `&mut` juggling), then diff.
         "proposal_diff" => {
             let id = s("id");
-            let g = lock()?;
+            let mut g = lock()?;
             let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
             let vault_name = g
-                .store
+                .store(scope)
                 .get(pid)
                 .map_err(err)?
                 .ok_or_else(|| format!("no such proposal: {id}"))?
                 .vault;
-            let cfg = g.config(&vault_name)?;
-            json(commands::proposal_diff(&g.store, &cfg.path, &id).map_err(err)?)
+            let cfg = g.config(scope, &vault_name)?;
+            json(commands::proposal_diff(&g.store(scope), &cfg.path, &id).map_err(err)?)
         }
         "proposal_content" => {
             // The proposed note (host + title + body on the branch) — for the review to show and edit.
             let id = s("id");
-            let g = lock()?;
-            match id.parse().ok().and_then(|pid| g.store.get(pid).ok().flatten()) {
+            let mut g = lock()?;
+            match id.parse().ok().and_then(|pid| g.store(scope).get(pid).ok().flatten()) {
                 Some(obj) => {
-                    let path = g.config(&obj.vault)?.path.clone();
-                    json(commands::proposal_content(&g.store, &path, &id).map_err(err)?)
+                    let path = g.config(scope, &obj.vault)?.path.clone();
+                    json(commands::proposal_content(&g.store(scope), &path, &id).map_err(err)?)
                 }
                 None => json(serde_json::Value::Null),
             }
@@ -391,14 +654,14 @@ pub fn dispatch(
             let mut g = lock()?;
             let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
             let vault_name = g
-                .store
+                .store(scope)
                 .get(pid)
                 .map_err(err)?
                 .ok_or_else(|| format!("no such proposal: {id}"))?
                 .vault;
-            let path = g.config(&vault_name)?.path.clone();
-            let outcome = commands::accept_proposal(&g.store, &path, &id).map_err(err)?;
-            g.store.reindex(Reindex::Incremental).map_err(err)?;
+            let path = g.config(scope, &vault_name)?.path.clone();
+            let outcome = commands::accept_proposal(&g.store(scope), &path, &id).map_err(err)?;
+            g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
             json(serde_json::json!({
                 "outcome": match outcome {
                     fm_core::git::Accepted::Merged => "merged",
@@ -410,11 +673,11 @@ pub fn dispatch(
         "proposal_for" => {
             // The note's current open proposal (its PR), or null — so the note's own view can show it.
             let id = s("id");
-            let g = lock()?;
-            match id.parse().ok().and_then(|nid| g.store.get(nid).ok().flatten()) {
+            let mut g = lock()?;
+            match id.parse().ok().and_then(|nid| g.store(scope).get(nid).ok().flatten()) {
                 Some(obj) => {
-                    let path = g.config(&obj.vault)?.path.clone();
-                    json(commands::proposal_for(&g.store, &path, &id).map_err(err)?)
+                    let path = g.config(scope, &obj.vault)?.path.clone();
+                    json(commands::proposal_for(&g.store(scope), &path, &id).map_err(err)?)
                 }
                 None => json(serde_json::Value::Null),
             }
@@ -424,14 +687,14 @@ pub fn dispatch(
             let mut g = lock()?;
             let pid = id.parse().map_err(|_| format!("invalid id: {id}"))?;
             let vault_name = g
-                .store
+                .store(scope)
                 .get(pid)
                 .map_err(err)?
                 .ok_or_else(|| format!("no such proposal: {id}"))?
                 .vault;
-            let path = g.config(&vault_name)?.path.clone();
-            commands::reject_proposal(&mut g.store, &path, &id).map_err(err)?;
-            g.store.reindex(Reindex::Incremental).map_err(err)?;
+            let path = g.config(scope, &vault_name)?.path.clone();
+            commands::reject_proposal(&mut g.store(scope), &path, &id).map_err(err)?;
+            g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
             nothing()
         }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
@@ -440,8 +703,8 @@ pub fn dispatch(
         // messages, and `activity` deliberately drops messages, so their authorship is gathered
         // here rather than reused.
         "discussions" => {
-            let g = lock()?;
-            let mut summaries = commands::discussions(&g.store).map_err(err)?;
+            let mut g = lock()?;
+            let mut summaries = commands::discussions(&g.store(scope)).map_err(err)?;
             // Fill participants from each vault's git log, merging across vaults. A wide `--since`
             // because the roots are already listed by the store — this only adds authorship, and
             // an old-but-still-open discussion deserves its participants. No git → no authors, the
@@ -450,7 +713,7 @@ pub fn dispatch(
             // git parses as local-midnight and underflows to 1969 UTC in positive-offset timezones,
             // where `git log --since` then wrongly returns *nothing* (git 2.53). `@0` is timezone-safe.
             for cfg in g.configs() {
-                let Ok(mut who) = commands::discussion_participants(&g.store, &cfg.path, "@0")
+                let Ok(mut who) = commands::discussion_participants(&g.store(scope), &cfg.path, "@0")
                 else {
                     continue;
                 };
@@ -464,23 +727,29 @@ pub fn dispatch(
         }
         // Every thread with messages — first-class discussions AND ordinary notes with comment
         // threads — for the study agent to watch. Not the Discussions view (that is `discussions`).
-        "thread_roots" => json(commands::thread_roots(&lock()?.store).map_err(err)?),
+        "thread_roots" => json(commands::thread_roots(&lock()?.store(scope)).map_err(err)?),
         "set_property" => {
-            commands::set_property(&mut lock()?.store, &s("id"), &s("key"), &s("value"))
+            commands::set_property(&mut lock()?.store(scope), &s("id"), &s("key"), &s("value"))
                 .map_err(err)?;
             nothing()
         }
-        // Answers with the new `updated` stamp, which the caller holds and sends back as
-        // `base` on its next write — that round trip is the lost-update guard for an editor
-        // that has been open across someone else's pull. See `commands::update_body`.
+        // Answers with the new **version** — the content hash of the body just written, which
+        // the caller holds and sends back as `base` on its next write. That round trip is the
+        // lost-update guard for an editor that has been open across someone else's pull. See
+        // `commands::update_body`, which compares `base` against `version_of(&obj.body)`.
+        //
+        // It is a hash, **not** the `updated` stamp this comment used to name. The stamp was the
+        // original design (changed 2026-07-18) and the stale wording here and in `ipc.ts` is what
+        // taught two UI conflict handlers to send one back — which no hash can ever equal, so
+        // those notes conflicted permanently and silently stopped being saved.
         "update_body" => {
             let stamp =
-                commands::update_body(&mut lock()?.store, &s("id"), &s("body"), &s("base"))
+                commands::update_body(&mut lock()?.store(scope), &s("id"), &s("body"), &s("base"))
                     .map_err(err)?;
             json(stamp)
         }
         "delete" => {
-            commands::delete(&mut lock()?.store, &s("id")).map_err(err)?;
+            commands::delete(&mut lock()?.store(scope), &s("id")).map_err(err)?;
             nothing()
         }
         // Searched across vaults: the reference names bytes, not a place. Configs are
@@ -489,7 +758,7 @@ pub fn dispatch(
             let r = s("reference");
             let (vaults, default) = {
                 let g = lock()?;
-                (g.configs(), g.config("").ok())
+                (g.configs(), g.config(scope, "").ok())
             };
             let found = vaults
                 .iter()
@@ -521,7 +790,7 @@ pub fn dispatch(
         }
         "open_external" => {
             // Resolve, then drop the guard: handing a path to the OS can block on anything.
-            let path = lock()?.find_blob(&s("reference"))?;
+            let path = lock()?.find_blob(scope, &s("reference"))?;
             host.open_external(&path)?;
             nothing()
         }
@@ -531,16 +800,16 @@ pub fn dispatch(
             // the vault through the same guard is what keeps that from being a
             // self-deadlock now that the store and the list share a lock.
             let mut g = lock()?;
-            let cfg = g.config(&s("vault"))?;
+            let cfg = g.config(scope, &s("vault"))?;
             // Exactly the files this app wrote or deleted — not a directory, and certainly
             // not `-A`. A vault may also be a repo you commit to yourself, and this fires
             // five seconds after every save.
-            let paths = g.store.written(&cfg.name);
+            let paths = g.all.written(&cfg.name);
             let made = vcs::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
             // Cleared only once the commit actually landed: a failed commit that forgot its
             // list would leave those notes unstaged forever.
             if made {
-                g.store.clear_written(&cfg.name);
+                g.all.clear_written(&cfg.name);
             }
             // **Why nothing was committed matters.** `commit_all` refuses outright during a
             // conflicted merge — correctly, since staging conflict markers would enshrine
@@ -563,7 +832,7 @@ pub fn dispatch(
             json(CommitResult { committed: made, conflicts })
         }
         "backup" => {
-            run_backup(app, &s("vault"))?;
+            run_backup(app, scope, &s("vault"))?;
             nothing()
         }
         // What the two backup tiers would actually do right now — the panel needs
@@ -577,7 +846,7 @@ pub fn dispatch(
         "set_git_remote" => {
             let (name, email) = (s("name"), s("email"));
             // Resolved once, where it used to be resolved twice.
-            let path = lock()?.config(&s("vault"))?.path;
+            let path = lock()?.config(scope, &s("vault"))?.path;
             if !name.is_empty() || !email.is_empty() {
                 vcs::set_identity(&path, &name, &email).map_err(err)?;
             }
@@ -587,7 +856,7 @@ pub fn dispatch(
         "push" => {
             // Same reason as `commit`: don't let a push snapshot the vault mid-write.
             let g = lock()?;
-            let path = g.config(&s("vault"))?.path;
+            let path = g.config(scope, &s("vault"))?.path;
             json(vcs::push_squashed(&path, &s("message")).map_err(err)?)
         }
         // Bring a collaborator's work home. Holds the lock for the same reason push does
@@ -595,11 +864,11 @@ pub fn dispatch(
         // reindex is what makes them visible.
         "pull" => {
             let mut g = lock()?;
-            let path = g.config(&s("vault"))?.path;
+            let path = g.config(scope, &s("vault"))?.path;
             let outcome = vcs::pull(&path).map_err(err)?;
             // The merge just wrote files behind the index's back. Re-read now rather
             // than leave the user staring at pre-pull content until the next heartbeat.
-            g.store.reindex(Reindex::Incremental).map_err(err)?;
+            g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
             json(match outcome {
                 git::Pulled::UpToDate => PullResult { merged: 0, conflicts: Vec::new() },
                 git::Pulled::Merged(n) => PullResult { merged: n, conflicts: Vec::new() },
@@ -616,17 +885,42 @@ pub fn dispatch(
         // this one is the poll, at 15 s and only while the tab is visible. They were split
         // precisely because riding one beat forced this to run every 3 s, taking the vault
         // lock each time. Quiet is the common case and quiet is a stat per file.
+        //
+        // **`since` is the client's last generation**, and the answer is a comparison rather
+        // than a report. The drift flag below is still read — it is what notices Vim and the
+        // merge driver — but it is *converted into* a generation bump, because a flag derived
+        // from mtimes can only be true once: this very reindex writes the fresh mtimes back,
+        // so a second client asking a moment later would be told nothing had happened. A
+        // counter can be read by any number of clients, each at its own pace.
+        //
+        // A client with no `since` (0, a fresh tab) is told `changed: false` — it has just
+        // loaded everything anyway — and takes the current generation to compare against next
+        // time.
         "ping" => {
+            let since = args.get("since").and_then(Value::as_u64).unwrap_or(0);
             let mut g = lock()?;
-            let changed = g.store.reindex(Reindex::Incremental).map_err(err)?;
+            let drift = g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
+            drop(g);
+            if drift.updated > 0 || drift.removed > 0 {
+                app.bump();
+            }
+            let generation = app.generation.load(Ordering::Relaxed);
+            let mut g = lock()?;
             json(Ping {
-                changed: changed.updated > 0 || changed.removed > 0,
+                changed: generation > since,
+                generation,
                 git: vcs::available(),
                 restic: backup::available(),
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
                 // this pass happened to re-read.
-                skipped: g.store.skipped().iter().map(SkippedOut::from).collect(),
+                skipped: g.store(scope).skipped().iter().map(SkippedOut::from).collect(),
+                unopened_vaults: g
+                    .all
+                    .unopened()
+                    .iter()
+                    .map(|(name, why)| format!("{name}: {why}"))
+                    .collect(),
             })
         }
         // Hand an unreadable note to whatever the platform thinks owns `.md`. This is the
@@ -641,7 +935,7 @@ pub fn dispatch(
             // Resolve, then drop the guard: handing a path to the OS can block on anything.
             let (vault, name) = (s("vault"), s("name"));
             // Resolve, then drop the guard: handing a path to the OS can block on anything.
-            let path = skipped_path(&lock()?, &vault, &name)?;
+            let path = skipped_path(&mut lock()?, scope, &vault, &name)?;
             host.open_external(&path)?;
             nothing()
         }
@@ -658,13 +952,13 @@ pub fn dispatch(
         // "resolved" from "still has conflict markers".
         "read_skipped" => {
             let (vault, name) = (s("vault"), s("name"));
-            let path = skipped_path(&lock()?, &vault, &name)?;
+            let path = skipped_path(&mut lock()?, scope, &vault, &name)?;
             let text = std::fs::read_to_string(&path).map_err(err)?;
             json(serde_json::json!({ "text": text }))
         }
         "resolve_skipped" => {
             let (vault, name) = (s("vault"), s("name"));
-            let path = skipped_path(&lock()?, &vault, &name)?;
+            let path = skipped_path(&mut lock()?, scope, &vault, &name)?;
             std::fs::write(&path, s("text")).map_err(err)?;
             let parses = fm_core::frontmatter::from_file(&s("text")).is_ok();
             json(serde_json::json!({ "parses": parses }))
@@ -672,9 +966,18 @@ pub fn dispatch(
         // The audiences that exist. `[]` is **the first-run signal** — the one command
         // that is meaningful with no vaults, and the reason it isn't folded into
         // `backup_status` (which shells out per vault, including a network `ls-remote`).
+        // **Scoped, and it is the one place the scope is visible to the user.** The vault
+        // switcher, the copy-to menu and the create-target picker are all built from this, so a
+        // list that included audiences the caller cannot read would offer destinations every
+        // write then refuses — and would leak the names themselves, which are not nothing: a
+        // vault called "acquisition-2027" discloses whether it holds anything or not.
         "list_vaults" => {
             let g = lock()?;
-            json(infos(&g.configs(), &g.store.names()))
+            let mine: Vec<VaultConfig> =
+                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+            let names: Vec<&str> =
+                g.all.names().into_iter().filter(|n| scope.allows(n)).collect();
+            json(infos(&mine, &names))
         }
         // **Which attachments travel with this vault's notes.** Written into the vault's own
         // `vault.json`, so the rule follows the vault to every device and every collaborator
@@ -693,11 +996,11 @@ pub fn dispatch(
             };
             // The guard is dropped before touching the disk, and retaken to report — the same
             // shape every other arm here uses, so a slow filesystem never blocks a `ping`.
-            let path = lock()?.config(&vault)?.path;
+            let path = lock()?.config(scope, &vault)?.path;
             fm_core::descriptor::Descriptor::set_git_assets_max(&path, max)
                 .map_err(|e| e.to_string())?;
             let g = lock()?;
-            json(infos(&g.configs(), &g.store.names()))
+            json(infos(&g.configs(), &g.all.names()))
         }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
@@ -720,7 +1023,7 @@ pub fn dispatch(
             json(Config {
                 vault_list: app.config.as_ref().map(|p| p.display().to_string()),
                 vault_list_writable: app.config_writable,
-                vaults: infos(&g.configs(), &g.store.names()),
+                vaults: infos(&g.configs(), &g.all.names()),
                 restic: g
                     .configs()
                     .iter()
@@ -815,14 +1118,14 @@ pub fn dispatch(
         // view says why rather than silently returning nothing.
         "run_view" => {
             let name = s("name");
-            let g = lock()?;
+            let mut g = lock()?;
             let vault_path = g
                 .configs()
                 .iter()
                 .find(|v| crate::views::list_views(&v.path).iter().any(|vi| vi.name == name))
                 .map(|v| v.path.clone())
                 .ok_or_else(|| format!("no view named '{name}'"))?;
-            json(crate::views::run_view(&g.store, &vault_path, &name).map_err(err)?)
+            json(crate::views::run_view(&g.store(scope), &vault_path, &name).map_err(err)?)
         }
         // Binary upload: the raw `body` IS the file, which is exactly why its name and
         // vault arrive as `args` rather than in it.
@@ -836,7 +1139,7 @@ pub fn dispatch(
             // the path and the name, so the bytes and the asset note land in the *same*
             // vault: splitting them puts the file in one audience and its note in another.
             //
-            // The owned `config` is what makes this borrow-check: `&mut g.store` and a
+            // The owned `config` is what makes this borrow-check: `&mut g.store(scope)` and a
             // `&VaultConfig` borrowed from the same guard cannot coexist.
             // **Zero bytes is a transport failure, not a file.** Storing it silently is what made
             // a phone photo unrenderable: the empty blob hashes to `e3b0c442…b855`, ingest
@@ -853,8 +1156,8 @@ pub fn dispatch(
                 ));
             }
             let mut g = lock()?;
-            let into = g.config(&s("vault"))?;
-            json(commands::ingest(&mut g.store, &into.path, &into.name, &name, body).map_err(err)?)
+            let into = g.config(scope, &s("vault"))?;
+            json(commands::ingest(&mut g.store(scope), &into.path, &into.name, &name, body).map_err(err)?)
         }
         // Copy a note into another vault. Restrictive by default (only the prose travels);
         // `with_assets` opts in to carrying the first-degree blobs. Validate the target up
@@ -863,16 +1166,16 @@ pub fn dispatch(
         "copy_note" => {
             let with_assets = args.get("with_assets").and_then(Value::as_bool).unwrap_or(false);
             let mut g = lock()?;
-            let into = g.config(&s("vault"))?;
+            let into = g.config(scope, &s("vault"))?;
             let vault_paths: Vec<(String, PathBuf)> =
                 g.configs().into_iter().map(|c| (c.name, c.path)).collect();
             let result =
-                commands::copy_note(&mut g.store, &s("id"), &into.name, &vault_paths, with_assets)
+                commands::copy_note(&mut g.store(scope), &s("id"), &into.name, &vault_paths, with_assets)
                     .map_err(err)?;
             if vcs::available() {
-                let paths = g.store.written(&into.name);
+                let paths = g.all.written(&into.name);
                 if vcs::commit_all(&into.path, "backup: copy note", &paths).unwrap_or(false) {
-                    g.store.clear_written(&into.name);
+                    g.all.clear_written(&into.name);
                 }
             }
             json(result)
@@ -880,9 +1183,9 @@ pub fn dispatch(
         // Pre-check for the copy popover: does the target vault already hold a copy of this
         // note? Drives the "this will replace the existing copy" warning.
         "copy_status" => {
-            let g = lock()?;
-            let into = g.config(&s("vault"))?;
-            json(commands::copy_status(&g.store, &s("id"), &into.name).map_err(err)?)
+            let mut g = lock()?;
+            let into = g.config(scope, &s("vault"))?;
+            json(commands::copy_status(&g.store(scope), &s("id"), &into.name).map_err(err)?)
         }
         // Recede a copy: delete the copied note from the target vault and take back the blobs
         // this copy newly wrote (only those nothing else there still references).
@@ -893,15 +1196,15 @@ pub fn dispatch(
                 .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                 .unwrap_or_default();
             let mut g = lock()?;
-            let into = g.config(&s("vault"))?;
+            let into = g.config(scope, &s("vault"))?;
             let vault_paths: Vec<(String, PathBuf)> =
                 g.configs().into_iter().map(|c| (c.name, c.path)).collect();
-            commands::uncopy_note(&mut g.store, &s("id"), &into.name, &blobs, &vault_paths)
+            commands::uncopy_note(&mut g.store(scope), &s("id"), &into.name, &blobs, &vault_paths)
                 .map_err(err)?;
             if vcs::available() {
-                let paths = g.store.written(&into.name);
+                let paths = g.all.written(&into.name);
                 if vcs::commit_all(&into.path, "backup: undo copy", &paths).unwrap_or(false) {
-                    g.store.clear_written(&into.name);
+                    g.all.clear_written(&into.name);
                 }
             }
             nothing()
@@ -916,15 +1219,29 @@ pub fn dispatch(
 /// This is the read path behind a streaming blob route: `resolve_asset` buffers the whole
 /// file to hand it back, which is the wrong shape for a 300 MB video. Handing back the
 /// *path* lets the shell open it and stream.
-pub fn blob_path(app: &App, reference: &str) -> Result<PathBuf, String> {
-    app.lock()?.find_blob(reference)
+pub fn blob_path(app: &App, scope: &Scope, reference: &str) -> Result<PathBuf, String> {
+    app.lock()?.find_blob(scope, reference)
 }
 
 impl Vaults {
+    /// **The vaults this caller is an audience for**, as a `Store`.
+    ///
+    /// Every read path in `dispatch` goes through here, which is the point: narrowing the set a
+    /// query *runs over* is the only version that cannot be forgotten. Filtering results after a
+    /// federated read would mean the other audience's notes had already been loaded to be
+    /// dropped again, and every future read path would have to remember to do it.
+    ///
+    /// [`Scope::All`] — every caller that existed before a tablet could pair, including
+    /// `fm-cli`, the phone and the study agent — costs nothing: `Scoped` with no list delegates
+    /// straight through.
+    fn store<'a>(&'a mut self, scope: &'a Scope) -> Scoped<'a> {
+        Scoped::new(&mut self.all, scope.names())
+    }
+
     /// A named vault; an empty name means the default (the first).
     ///
     /// Returns an **owned** config, not a reference: a `&VaultConfig` borrowed from the
-    /// guard would conflict with `&mut self.store` in the very arms that need both
+    /// guard would conflict with `&mut self.all` in the very arms that need both
     /// (`ingest`), and it is three allocations against a caller that is usually about to
     /// fork `git`.
     ///
@@ -932,16 +1249,27 @@ impl Vaults {
     /// for "lab" into "personal" is a disclosure that git history makes permanent, and
     /// the reverse silently loses the note — so a typo has to be loud. With **no** vaults
     /// there is no default to fall back to either, which is the first run and says so.
-    fn config(&self, name: &str) -> Result<VaultConfig, String> {
+    ///
+    /// **This is where "which vault" is decided, so it is where the scope has to bite.** The
+    /// arms resolve the target here and hand the *name* onward, which means a scoped caller
+    /// would never reach `Scoped`'s own routing check — `capture` with no vault would resolve
+    /// to `list[0]` and file a tablet's note into an audience it cannot read. A vault outside
+    /// the scope is reported exactly as one that does not exist: a caller must not be able to
+    /// probe for the names of audiences it was not given.
+    fn config(&self, scope: &Scope, name: &str) -> Result<VaultConfig, String> {
+        let mut mine = self.list.iter().filter(|v| scope.allows(&v.name));
         if self.list.is_empty() {
             return Err("no vaults configured — create one first".into());
         }
         if name.is_empty() {
-            return Ok(self.list[0].clone());
+            // The first vault **this caller can see**, which for `Scope::All` is `list[0]` and
+            // therefore unchanged.
+            return mine
+                .next()
+                .cloned()
+                .ok_or_else(|| "no vault is shared with this device".to_string());
         }
-        self.list
-            .iter()
-            .find(|v| v.name == name)
+        mine.find(|v| v.name == name)
             .cloned()
             .ok_or_else(|| format!("no vault named '{name}'"))
     }
@@ -958,7 +1286,7 @@ impl Vaults {
     /// **appends**: `list[0]` is the default that receives every fresh capture, so
     /// inserting would silently move where new notes land.
     fn add(&mut self, cfg: VaultConfig, store: fm_core::FileStore) {
-        self.store.add(store);
+        self.all.add(store);
         self.list.push(cfg);
     }
 
@@ -969,8 +1297,15 @@ impl Vaults {
     /// *correct* rather than merely convenient: whichever vault answers, the bytes hash
     /// to the reference, so they are the same bytes. Vault-scoping references would
     /// re-couple a note to a location and break the links.
-    fn find_blob(&self, reference: &str) -> Result<PathBuf, String> {
-        for v in &self.list {
+    ///
+    /// **That reasoning holds only for a caller entitled to every vault**, which was every
+    /// caller until a device could pair. Content-addressing cuts the other way here: blobs are
+    /// deduplicated by hash, so a reference a collaborator legitimately learns from the shared
+    /// vault resolves against the *private* vault's blob store too — the same bytes, and
+    /// therefore the same answer, from an audience they were never given. So the search is over
+    /// the vaults this caller can see. `Scope::All` restores the original behaviour exactly.
+    fn find_blob(&self, scope: &Scope, reference: &str) -> Result<PathBuf, String> {
+        for v in self.list.iter().filter(|v| scope.allows(&v.name)) {
             if let Ok(p) = commands::blob_path(&v.path, reference) {
                 return Ok(p);
             }
@@ -984,8 +1319,18 @@ impl Vaults {
 /// skipped set, never from the caller, so none of the three can be tricked into naming an arbitrary
 /// file (a traversal, `/etc/passwd`, a readable note in another vault). Takes the live lock guard so
 /// all three arms resolve against the same borrowed set.
-fn skipped_path(g: &MutexGuard<'_, Vaults>, vault: &str, name: &str) -> Result<PathBuf, String> {
-    g.store
+///
+/// **Scoped, and that is a fourth thing it gates.** The skipped set spans every vault, so without
+/// this a paired device could name an unreadable note in an audience it was never given and be
+/// handed its path — the same disclosure the traversal guard exists to prevent, arriving by the
+/// front door.
+fn skipped_path(
+    g: &mut MutexGuard<'_, Vaults>,
+    scope: &Scope,
+    vault: &str,
+    name: &str,
+) -> Result<PathBuf, String> {
+    g.store(scope)
         .skipped()
         .iter()
         .find(|sk| sk.vault == vault && sk.name == name)
@@ -1009,11 +1354,19 @@ fn nothing() -> Result<Output, String> {
     Ok(Output::Json(Vec::new()))
 }
 
-/// The heartbeat's answer: did anything change on disk that the tab is not showing?
+/// The heartbeat's answer: did anything change that the tab is not showing?
 /// A bool, not a count — the UI's only choice is whether to re-run its query.
 #[derive(serde::Serialize)]
 struct Ping {
     changed: bool,
+    /// The vaults' current generation — see [`App::generation`]. The client stores it and
+    /// sends it back as `since` on the next beat; `changed` above is just `generation > since`.
+    ///
+    /// It is returned rather than kept server-side because the server has no idea how many
+    /// clients there are, and must not start guessing: a per-client cursor would need identity,
+    /// eviction, and a definition of "gone". The client holding its own cursor makes N clients
+    /// cost exactly nothing, and a client that misses a beat catches up on the next one.
+    generation: u64,
     /// Whether this machine has git at all. **Not a dependency — a capability.** The tab
     /// uses it to stop firing an auto-commit every 5s at a binary that isn't there, and
     /// to say so once instead of failing silently forever. Rides the heartbeat because
@@ -1037,6 +1390,16 @@ struct Ping {
     /// a conflicted note appears mid-session, when a pull lands, not at startup. Almost
     /// always empty, so it costs a `[]` per beat.
     skipped: Vec<SkippedOut>,
+    /// **Vaults that are configured and could not be opened**, as `name: why`.
+    ///
+    /// Exactly the same argument as `skipped` one field up, one level out: `MultiStore::open` used to
+    /// refuse *every* vault when one would not open — the whole app, over one folder — and the escape
+    /// hatch it documents ("delete `index.sqlite` and reopen") needs a shell the phone does not have.
+    /// It now opens the rest, which is only an improvement if the missing one is *named*: a vault
+    /// that silently is not there is indistinguishable from data loss to the person who put notes in
+    /// it. Rides the heartbeat for the same reason — a vault can become unopenable mid-session (an
+    /// unplugged drive, a directory moved) — and is almost always empty.
+    unopened_vaults: Vec<String>,
 }
 
 /// One unreadable note, as the UI sees it.
@@ -1270,10 +1633,10 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
 /// silently folded into someone else's repo — the caller is told, by name, that this
 /// vault's media stayed put. Refusing to say so is the overstatement this whole panel
 /// exists to prevent.
-fn run_backup(app: &App, vault: &str) -> Result<(), String> {
+fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<(), String> {
     // Owned, and the guard dropped: restic can take minutes, and nothing else may write
     // notes meanwhile — but everything else may read them.
-    let v = app.lock()?.config(vault)?;
+    let v = app.lock()?.config(scope, vault)?;
     let repo = v.restic.as_ref().ok_or_else(|| {
         format!("no restic repo configured for '{}' — its media has nowhere to go", v.name)
     })?;
@@ -1387,7 +1750,7 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     })?;
 
     g.add(cfg, store);
-    let names = g.store.names();
+    let names = g.all.names();
     Ok(infos(&g.configs(), &names))
 }
 
@@ -1481,7 +1844,7 @@ fn clone_vault(
     })?;
 
     g.add(cfg, store);
-    let names = g.store.names();
+    let names = g.all.names();
     Ok(infos(&g.configs(), &names))
 }
 
@@ -1594,7 +1957,7 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     })?;
 
     g.add(cfg, store);
-    let names = g.store.names();
+    let names = g.all.names();
     Ok(infos(&g.configs(), &names))
 }
 

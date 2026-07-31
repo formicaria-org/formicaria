@@ -30,6 +30,25 @@ one copy, in app-private storage an uninstall erases. Prior: 2026-07-18, after t
 
 ## 1. The one that gates everything else being trustworthy
 
+### 1.0 One person, several name spellings, in existing history
+The **identity** half is done (2026-07-31, `decisions.md#ui` — "A contributor is an email,
+everywhere"): the chips and the filter now key on the email, so one human is one contributor
+whatever the commits are signed, and all three vaults sign `singhbal-baljinder` going forward.
+
+What remains is **display of the history already written**: the owner's vault holds 534 commits as
+`singhbal-baljinder` and 77 as `Baljinder`, one email, and the Activity pane shows each commit's raw
+`%an`. Deferred by the owner ("keep it in future features"), so it is a queue item and not a gap.
+
+**Done looks like:** a `.mailmap` at the vault root maps every spelling of one email to one name, and
+**both git backends honour it** — `git log --use-mailmap` on the subprocess side (`log.mailmap`
+defaults to true since git 2.26, but relying on a default is how the two backends drift), and
+`Repository::mailmap()` + `Commit::author_with_mailmap()` on the libgit2 side (both exist in git2
+0.21 — checked). Plus a parity test in `crates/fm-cli/tests/`, because this is exactly the shape that
+bit twice on 2026-07-31: **a behaviour present on the laptop and absent on the phone.** The file must
+also be committed to travel, which means adding `.mailmap` beside `.gitattributes`/`.gitignore` in
+both `commit_all`s. **No history rewrite** — `.mailmap` changes display only.
+
+
 ### 1.1 None of this has been seen in a browser
 The extension is not connected, so every UI change in the last stretch — the sync states, the
 skipped-notes banner, the tap-to-move menu, the phone reflow, the reconnected column drag, the

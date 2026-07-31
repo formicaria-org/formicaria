@@ -12,8 +12,11 @@
 //! collaborator's text. Noticing the change is what disarms the protection against it.
 //!
 //! mtime cannot see this, because the staleness is in the *client*, not on disk. So the
-//! client says what it edited: `update_body` takes the `updated` stamp the caller last saw,
-//! and refuses when the note has moved on since.
+//! client says what it edited: `update_body` takes the **version** the caller last saw — a hash
+//! of the body, `dto::version_of` — and refuses when the note has moved on since. It was the
+//! `updated` stamp until 2026-07-18; `an_edit_that_never_touches_updated_is_still_caught` below
+//! is why it is not anymore, and `recovering_from_a_conflict_needs_the_version_not_the_stamp` is
+//! what went wrong in the UI when this module's own comment still said "stamp".
 
 use fm_app::commands;
 use fm_core::{FileStore, Reindex, Store};
@@ -110,6 +113,54 @@ fn an_empty_base_skips_the_check() {
 
     assert!(commands::update_body(&mut store, &id, "forced\n", "").is_ok());
     assert_eq!(commands::get(&store, &id).unwrap().unwrap().body, "forced\n");
+}
+
+/// **Recovering from a conflict, which is the half nobody tested.**
+///
+/// Refusing a stale save is only half a guard: the client then has to get *back* in sync, and
+/// the only way it can is to re-read the note and take a fresh token from it. Which field it
+/// takes is the whole thing, and for a while the UI took the wrong one.
+///
+/// `NotePanel.svelte`'s two conflict handlers set `base = fresh.updated` — a stamp — where the
+/// server compares `version_of(body)`. A stamp never equals a hash, so the *next* save
+/// conflicted too, and the one after that. Each pass re-entered the same handler and wrapped the
+/// growing draft in another pair of `<<<<<<<` markers while **nothing reached disk**. Close the
+/// tab and everything typed since the first conflict was gone — the exact data loss this module
+/// exists to prevent, produced by the recovery path rather than the write path.
+///
+/// It is asserted from both ends deliberately: that the version works is the fix, and that the
+/// stamp *cannot* work is why the fix was needed. A test that only checked the happy field would
+/// pass just as well against the bug.
+#[test]
+fn recovering_from_a_conflict_needs_the_version_not_the_stamp() {
+    let (mut store, dir, id, base) = vault_with_a_note("my paragraph\n");
+    a_collaborators_merge_lands(&mut store, &dir, "my paragraph\n\ntheir paragraph\n");
+
+    // The save is refused, as the tests above establish.
+    assert!(commands::update_body(&mut store, &id, "my edit\n", &base).is_err());
+
+    // The client does what a client must: re-read, and take a token from what came back.
+    let fresh = commands::get(&store, &id).unwrap().unwrap();
+
+    // **The wrong field, which is what shipped.** `meta.updated` is exactly the string the UI
+    // held as `fresh.updated`; it is shaped like a timestamp and so can never equal a sha256.
+    assert_ne!(fresh.meta.updated, fresh.version, "a stamp is not a hash — that is the trap");
+    assert!(
+        commands::update_body(&mut store, &id, "my edit\n", &fresh.meta.updated).is_err(),
+        "the stamp must be refused — if this ever passes, the guard has stopped comparing content"
+    );
+
+    // **The right field.** One re-read is enough to be writable again, and the recovery is not
+    // one-shot: the token that comes back keeps working, so the editor is genuinely back in sync
+    // rather than limping to a single save.
+    let mut base = commands::update_body(&mut store, &id, "merged by hand\n", &fresh.version)
+        .expect("the version from the note we just re-read must be accepted");
+    for n in 1..=2 {
+        let body = format!("still going {n}\n");
+        base = commands::update_body(&mut store, &id, &body, &base)
+            .unwrap_or_else(|e| panic!("save {n} after recovery should succeed: {e}"));
+    }
+    assert_eq!(commands::get(&store, &id).unwrap().unwrap().body, "still going 2\n");
 }
 
 /// **The auto-commit must not catch you mid-sentence.**

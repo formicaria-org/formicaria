@@ -15,7 +15,18 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import { onMount } from 'svelte';
-  import { config as fetchConfig, setGitAssetsMax, agentStatus, setAgent, setTranscribe } from './ipc';
+  import {
+    config as fetchConfig,
+    setGitAssetsMax,
+    agentStatus,
+    setAgent,
+    setTranscribe,
+    alive,
+    setShare,
+    shareCode,
+    revokeDevices,
+  } from './ipc';
+  import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
   import * as keys from './keys';
 
@@ -138,6 +149,8 @@
     } catch {
       agentOn = null;
     }
+    // Sharing: the setting and the capability, read together at open.
+    await refreshShare();
   });
 
   // The local study assistant: whether it auto-starts with formicaria. Off by default; a change
@@ -160,6 +173,69 @@
       agentOn = next;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  // ---- Sharing with a nearby device ---------------------------------------------------------
+  //
+  // Two separate pieces of state on purpose, and conflating them is the mistake this feature was
+  // most at risk of: `shareOn` is **what the user asked for**, `share` is **what is actually
+  // happening**. `restic_ready` is the cautionary tale — it meant "repo set + password set", so
+  // on a machine with no restic the checkbox enabled, you ticked it, and the backup failed.
+  let shareOn = $state(false);
+  let share = $state<ShareStatus | null>(null);
+  let shareError = $state('');
+  let code = $state('');
+  /// Which vaults the *next* code will grant. Starts empty rather than "all", so sharing
+  /// everything is something you do on purpose and never by pressing the obvious button.
+  let chosen = $state<string[]>([]);
+  let codeTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function refreshShare() {
+    // The capability rides the liveness beat — it is the transport's own signal, and a listener
+    // can fail long after this panel was last opened.
+    share = await alive();
+    if (share) shareOn = share.state !== 'off';
+  }
+
+  async function toggleShare(next: boolean) {
+    shareError = '';
+    try {
+      await setShare(next);
+      shareOn = next;
+      // The listener only changes at the next launch, so say so rather than letting the status
+      // line below look like it is lagging.
+      shareError = next
+        ? 'Sharing starts at the next launch — quit and reopen formicaria.'
+        : 'Sharing stops at the next launch.';
+    } catch (e) {
+      shareError = e instanceof Error ? e.message : String(e);
+      shareOn = !next;
+    }
+  }
+
+  async function startCode() {
+    shareError = '';
+    try {
+      const r = await shareCode(chosen);
+      code = r.code;
+      // Clear it when it dies, so the screen never shows a code that no longer works — someone
+      // typing a stale code gets "that code is not right", which reads like their own mistake.
+      clearTimeout(codeTimer);
+      codeTimer = setTimeout(() => (code = ''), r.expires_in * 1000);
+    } catch (e) {
+      shareError = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async function revoke() {
+    shareError = '';
+    try {
+      await revokeDevices();
+      await refreshShare();
+      shareError = 'All devices disconnected.';
+    } catch (e) {
+      shareError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -303,6 +379,116 @@
                   </span>
                 </label>
               </li>
+            {/if}
+          </ul>
+        </section>
+      {/if}
+
+      <!-- Shown only on the computer doing the sharing. A paired tablet is refused every route
+           behind this panel anyway, so rendering it there would be a menu of failures. -->
+      {#if !isRemote()}
+        <section>
+          <h3>Share with another device</h3>
+          <p class="muted">
+            Open your notes on a tablet or phone on the same network — useful for touch and for
+            taking photos straight into a note. The notes stay <strong>on this computer</strong>;
+            the other device reads and writes them over your own network, and nothing is sent
+            anywhere else. <strong>Off by default</strong>, and a change takes effect at the next
+            launch.
+          </p>
+          <ul class="caps">
+            <li>
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  checked={shareOn}
+                  onchange={(e) => toggleShare(e.currentTarget.checked)} />
+                <span class="k">{shareOn ? 'On' : 'Off'}</span>
+                <!-- **The capability, not the setting.** "Listening" is not "working": a bound
+                     socket says nothing about whether the wifi carries device-to-device traffic
+                     or a firewall is dropping the port. `shareSummary` says which. -->
+                <span class="muted">{share ? shareSummary(share) : 'Checking…'}</span>
+              </label>
+            </li>
+
+            {#if shareOn}
+              <li>
+                <span class="k">Which vaults</span>
+                <span class="muted">
+                  A device is let into the vaults you choose here and <strong>no others</strong> —
+                  it cannot see, search or open anything in the rest.
+                </span>
+                <ul class="caps">
+                  {#each cfg?.vaults ?? [] as v (v.name)}
+                    <li>
+                      <label class="choice">
+                        <input
+                          type="checkbox"
+                          checked={chosen.includes(v.name)}
+                          onchange={(e) =>
+                            (chosen = e.currentTarget.checked
+                              ? [...chosen, v.name]
+                              : chosen.filter((n) => n !== v.name))} />
+                        <span class="k">{v.name}</span>
+                      </label>
+                    </li>
+                  {/each}
+                </ul>
+              </li>
+
+              <!-- The certificate step, and it comes *before* the code deliberately: on a TLS
+                   listener the device cannot load the page at all until it trusts the
+                   certificate, so offering a pairing code first would send someone to type a
+                   code into a browser error. -->
+              {#if share?.state === 'listening' && share.fingerprint}
+                <li>
+                  <span class="k">First, trust this computer</span>
+                  <span class="muted">
+                    Copy this file to the device and open it, then allow the certificate
+                    (on iPad also: <strong>Settings → General → About → Certificate Trust
+                    Settings</strong>). Encryption is what lets the device use its microphone.
+                  </span>
+                  <span class="muted"><code>{share.cert_path}</code></span>
+                  <span class="muted">
+                    Before you tap install, check the device shows this exact fingerprint. If it
+                    shows anything else, <strong>stop</strong> — you are not talking to this
+                    computer.
+                  </span>
+                  <code class="code fp">{share.fingerprint}</code>
+                </li>
+              {/if}
+
+              <li>
+                {#if code}
+                  <span class="k">Code: <code class="code">{code}</code></span>
+                  <span class="muted">
+                    Type this on the other device. It works once, and only for the next few
+                    minutes. {#if share?.state === 'listening'}Open <code>{share.url}</code> there
+                      first.{/if}
+                  </span>
+                {:else}
+                  <button onclick={startCode} disabled={chosen.length === 0}>
+                    Start a pairing code
+                  </button>
+                  <span class="muted">
+                    {chosen.length === 0
+                      ? 'Choose at least one vault first.'
+                      : 'Shows a short code to type on the other device.'}
+                  </span>
+                {/if}
+              </li>
+
+              {#if (share?.state === 'listening' ? share.devices : 0) > 0}
+                <li>
+                  <button onclick={revoke}>Disconnect all devices</button>
+                  <span class="muted">
+                    They will need a new code to connect again. Use this if a device is lost.
+                  </span>
+                </li>
+              {/if}
+            {/if}
+            {#if shareError}
+              <li><span class="muted err">{shareError}</span></li>
             {/if}
           </ul>
         </section>
@@ -766,5 +952,25 @@
   .assets-error {
     color: var(--danger, #b91c1c);
     font-size: var(--text-sm);
+  }
+  /* The pairing code and the certificate fingerprint are both read off this screen and compared
+     against another one, character by character. Monospace and generous tracking are not
+     decoration here — they are what makes `8`/`B` and `5`/`S` distinguishable at a glance. */
+  .code {
+    display: inline-block;
+    margin-top: var(--space-2);
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.12em;
+    font-size: 1rem;
+  }
+  .fp {
+    /* A fingerprint is 95 characters; it has to wrap somewhere, and mid-byte is unreadable. */
+    word-break: break-all;
+    letter-spacing: 0.02em;
+    font-size: 0.8rem;
+    line-height: 1.6;
+  }
+  .err {
+    color: var(--danger, #b91c1c);
   }
 </style>

@@ -17,6 +17,8 @@ import type {
   VaultInfo,
   ViewInfo,
   ViewResult,
+  ConflictInfo,
+  Unrecorded,
 } from './types';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
@@ -302,7 +304,69 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
 let mockAgentEnabled = false;
 let mockTranscribeEnabled = false;
 
+/// **A backend that can misbehave, because the real one does.**
+///
+/// The mock answered every command, always, immediately — so every rejection, slow-start and
+/// no-answer-at-all path in the UI was untested by construction, and the one that mattered shipped:
+/// a `list_vaults` that never answered rendered a blank screen on the owner's phone, and a
+/// `list_vaults` that *refused* rendered the first-run "create your first vault" form at someone
+/// with ten vaults. `known-issues.md` already argued the general case for one hand-written guard —
+/// *"a mock that quietly accepts a write the backend would refuse is how the UI's rejection path
+/// stays untested until a user finds it"* — this is that argument made into a mechanism.
+///
+/// Test-only: nothing in the app calls it, and with no faults registered `handle` behaves exactly
+/// as it always did.
+export type Fault = {
+  /// The dispatch command name to interfere with, e.g. `list_vaults`.
+  cmd: string;
+  /// `reject` fails it, `hang` never settles (the phone's actual symptom), `delay` answers late.
+  mode: 'reject' | 'hang' | 'delay';
+  message?: string;
+  ms?: number;
+  /// Apply to this many calls, then let the command succeed. Omitted = forever.
+  times?: number;
+};
+/// Conflicts the mock cannot invent for itself: the marker-less kinds (delete/modify), which are the
+/// ones the UI has to offer a *side* for rather than an editor. Test-only.
+let mockConflicts: ConflictInfo[] = [];
+export function setConflicts(list: ConflictInfo[]): void {
+  mockConflicts = list.map((c) => ({ ...c }));
+}
+/// Notes the app forgot it wrote, per vault. Test-only.
+let mockUnopenedVaults: string[] = [];
+/// Configured vaults that would not open, as `name: why`. Test-only.
+export function setUnopenedVaults(list: string[]): void {
+  mockUnopenedVaults = [...list];
+}
+let mockUnrecorded: Unrecorded[] = [];
+export function setUnrecorded(list: Unrecorded[]): void {
+  mockUnrecorded = list.map((u) => ({ ...u }));
+}
+
+let mockFaults: Fault[] = [];
+export function faults(list: Fault[]): void {
+  mockFaults = list.map((f) => ({ ...f }));
+}
+/// Call from `beforeEach`: module state outlives a test, because vitest isolates per *file*, not
+/// per test — the trap `known-issues.md` records for `bodyOverrides` and the `seq` counter.
+export function clearFaults(): void {
+  mockFaults = [];
+  mockConflicts = [];
+  mockUnrecorded = [];
+  mockUnopenedVaults = [];
+}
+
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
+  const fault = mockFaults.find((f) => f.cmd === cmd);
+  if (fault) {
+    if (fault.times !== undefined) {
+      if (fault.times <= 1) mockFaults = mockFaults.filter((f) => f !== fault);
+      else fault.times -= 1;
+    }
+    if (fault.mode === 'hang') return new Promise<T>(() => {});
+    if (fault.mode === 'reject') throw new Error(fault.message ?? `${cmd}: refused`);
+    await new Promise((r) => setTimeout(r, fault.ms ?? 5000));
+  }
   switch (cmd) {
     case 'agent_status':
       return { enabled: mockAgentEnabled, transcribe: mockTranscribeEnabled } as T;
@@ -393,12 +457,46 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return list as T;
     }
     case 'conflicts': {
-      // A note is in conflict iff its body carries both markers — same rule as the server.
+      // A note is in conflict iff its body carries both markers — same rule as the server. The mock
+      // has no git, so every conflict it can invent is a marker one; `mockConflicts` is how a test
+      // stands in for the kinds that have **no** markers (a delete/modify), which is the case the UI
+      // got wrong for a week and which no marker-based mock can ever produce.
       const marked = (s: string) => /^<{7}/m.test(s) && /^>{7}/m.test(s);
-      return notes
+      const scanned: ConflictInfo[] = notes
         .filter(isNote)
         .filter((n) => marked(bodyOverrides.get(n.id) ?? n.preview))
-        .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
+        .sort((a, b) => b.updated.localeCompare(a.updated))
+        .map((note) => ({
+          note,
+          path: `notes/${note.id}.md`,
+          vault: note.vault,
+          code: 'UU',
+          what: 'Both sides edited this note; both versions are marked in the text.',
+          has_markers: true,
+        }));
+      return [...mockConflicts, ...scanned] as T;
+    }
+    case 'resolve_conflict': {
+      // The server refuses "edited" while markers remain (`merge::has_conflict_markers`); the mock
+      // mirrors that refusal, because a mock that accepts what the backend rejects is how the UI's
+      // rejection path stays untested until a user finds it.
+      if (args.keep === 'edited') {
+        const body = String(bodyOverrides.get(String(args.id ?? '')) ?? '');
+        if (/^<{7}/m.test(body) && /^>{7}/m.test(body)) {
+          throw new Error(`${args.path}: still has conflict markers`);
+        }
+      }
+      // Resolving drops it off the list, exactly as the server's does (the path stops being
+      // unmerged), so a test can assert the surface empties rather than only that a call happened.
+      mockConflicts = mockConflicts.filter((c) => c.path !== String(args.path));
+      return { resolved: String(args.path) } as T;
+    }
+    case 'unrecorded':
+      return mockUnrecorded as T;
+    case 'record_unrecorded': {
+      const hit = mockUnrecorded.find((u) => u.vault === String(args.vault));
+      mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== String(args.vault));
+      return { committed: !!hit, notes: hit?.count ?? 0 } as T;
     }
     case 'templates': {
       // A template is just a note tagged `template`, exactly as the server sees it (a `TagsAll`
@@ -864,7 +962,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'ping':
       // Nothing writes this vault but us, so it never moves under the app. `git: true`
       // because the mock models a working machine; the no-git path is exercised for real.
-      return { changed: false, git: true, restic: true, skipped: [] } as T;
+      // `generation: 0` pairs with `changed: false`: the mock vault never moves, so a client
+      // beating against it keeps sending `since: 0` and keeps being told it is current.
+      return {
+        changed: false,
+        generation: 0,
+        git: true,
+        restic: true,
+        skipped: [],
+        // Every configured vault opens in the mock; `setUnopenedVaults` is how a test stands in for
+        // one that does not, the same way `setConflicts` stands in for a conflict git alone can make.
+        unopened_vaults: mockUnopenedVaults,
+      } as T;
     case 'open_skipped':
     case 'read_skipped':
     case 'resolve_skipped':

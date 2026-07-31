@@ -170,6 +170,24 @@ fn git_cmd() -> Command {
     // or credential helper already provides — this app holds no secret of its own.
     c.env("GIT_TERMINAL_PROMPT", "0");
     c.env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+    // **A remote URL is caller-supplied text, and `ext::` makes it a shell.**
+    // `git ls-remote 'ext::sh -c <command>'` runs `<command>`. `probe_remote` hands this function
+    // a URL straight from a form field on *every keystroke*, and `clone_vault` reaches the same
+    // transports.
+    //
+    // **Git already defaults `protocol.ext.allow` to `never`, so this is not fixing a live hole**
+    // — measured on git 2.53, a bare `ls-remote ext::...` is refused with "transport 'ext' not
+    // allowed". What it fixes is that the default is not ours to rely on: a user with
+    // `protocol.ext.allow=always` in their own `~/.gitconfig` (or `GIT_CONFIG_*` in the
+    // environment) hands that capability straight to a URL typed into a form. Verified both ways
+    // in `tests/git_transport.rs` — with that config the command *does* execute, and with this
+    // flag it still does not, because a command-line `-c` outranks every config file.
+    //
+    // Denied rather than filtered: a URL allowlist is a parser, and parsers are where this class
+    // of bug lives. Only `ext` is denied — it is the one transport whose whole purpose is to run
+    // a command. `file`/local paths stay, because cloning a vault from a USB stick or another
+    // directory is a supported way to acquire one and is what the `acquire` tests do.
+    c.args(["-c", "protocol.ext.allow=never"]);
     c
 }
 
@@ -888,8 +906,23 @@ fn commit_all_inner(
     // `--only` with explicit paths: commit the index we just built for these paths and
     // nothing else, so a file the user had staged elsewhere stays staged rather than being
     // swept into our commit.
+    //
+    // **Except while finishing a merge, where git refuses it outright** — *"fatal: cannot do a
+    // partial commit during a merge"*. And it is right to: a merge commit records the whole
+    // reconciliation of two histories, so "commit only these paths of it" is not a thing that
+    // exists. The index here is the merge's own (git staged the incoming changes when it merged),
+    // plus whatever the resolution added, which is exactly what should be committed.
+    //
+    // Without this branch, the *ordinary* way of resolving a conflict — edit the note, let the
+    // auto-commit run — failed on every attempt with that fatal error, so the vault stayed
+    // mid-merge and every later commit refused too. Found by the differential test against the
+    // libgit2 backend (2026-07-31), which had the opposite bug on the same path.
+    let finishing_merge = vault.join(".git/MERGE_HEAD").exists();
     let mut commit = git(vault);
-    commit.arg("commit").arg("--only").arg("-m").arg(message).arg("--").args(&ours);
+    commit.arg("commit").arg("-m").arg(message);
+    if !finishing_merge {
+        commit.arg("--only").arg("--").args(&ours);
+    }
     // Attribute to the given collaborator when asked (the agent's model identity), the same env the
     // proposal path uses; otherwise git falls back to the vault's configured `user.*`.
     if let Some((name, email)) = author {
@@ -1733,6 +1766,230 @@ pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
         return Ok(Vec::new());
     }
     Ok(unmerged_paths(vault)?.unwrap_or_default())
+}
+
+/// **What kind of conflict**, because only one kind has markers in it.
+///
+/// The product surfaced conflicts by scanning note bodies for `<<<<<<<`, which silently covers
+/// exactly [`ConflictKind::BothModified`] and misses every kind where one side has **no file** —
+/// there is nothing to interleave, so git writes no markers and the `.md` driver is never called.
+/// A delete/modify conflict is therefore invisible while `commit_all` refuses to commit anything in
+/// that vault: on the owner's laptop that combination froze a vault for 7 days with 95 notes
+/// unrecorded (2026-07-31). The kind is what lets a UI offer the only resolutions that exist for
+/// those — keep theirs, or keep mine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConflictKind {
+    /// `UU` — both sides edited. **The only kind with conflict markers in the file.**
+    BothModified,
+    /// `AA` — both sides added a different file at the same path. Markers too.
+    BothAdded,
+    /// `DU` — we deleted it, they edited it. No markers; the worktree holds *their* version.
+    DeletedByUs,
+    /// `UD` — we edited it, they deleted it. No markers; the worktree holds *our* version.
+    DeletedByThem,
+    /// `DD` — both deleted it (differently elsewhere). No markers, and nothing to keep.
+    BothDeleted,
+    /// `AU` — we added it, they did not have it, and the merge could not settle it. No markers.
+    AddedByUs,
+    /// `UA` — they added it, we did not have it. No markers.
+    AddedByThem,
+}
+
+impl ConflictKind {
+    fn from_code(code: &str) -> Option<Self> {
+        Some(match code {
+            "UU" => Self::BothModified,
+            "AA" => Self::BothAdded,
+            "DU" => Self::DeletedByUs,
+            "UD" => Self::DeletedByThem,
+            "DD" => Self::BothDeleted,
+            "AU" => Self::AddedByUs,
+            "UA" => Self::AddedByThem,
+            _ => return None,
+        })
+    }
+
+    /// Does the file itself carry `<<<<<<<` markers a human can edit? When false, editing the note
+    /// is *not* a resolution and the UI must offer a side to keep instead.
+    pub fn has_markers(self) -> bool {
+        matches!(self, Self::BothModified | Self::BothAdded)
+    }
+
+    /// The two-letter git status code, for a UI that wants to be precise about what it found.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::BothModified => "UU",
+            Self::BothAdded => "AA",
+            Self::DeletedByUs => "DU",
+            Self::DeletedByThem => "UD",
+            Self::BothDeleted => "DD",
+            Self::AddedByUs => "AU",
+            Self::AddedByThem => "UA",
+        }
+    }
+}
+
+/// One unmerged path, and what happened to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Conflict {
+    /// Vault-relative path, e.g. `notes/<ulid>.md`.
+    pub path: String,
+    pub kind: ConflictKind,
+}
+
+/// How to settle a conflict.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Keep {
+    /// The incoming version — what the other device did.
+    Theirs,
+    /// This machine's version.
+    Mine,
+    /// **What is in the file right now** — the answer for a *marker* conflict, where the user has
+    /// reconciled both versions in the editor and neither side alone is right.
+    ///
+    /// This is the resolution the product did not have, and its absence was invisible: **editing a
+    /// note does not resolve anything as far as git is concerned.** Verified against real git — clean
+    /// text over a `UU` path leaves all three index stages in place, so the path stays unmerged,
+    /// `commit_all` keeps refusing, and (because the conflict *list* used to be derived from markers
+    /// in the body) the note quietly vanished from the UI while its vault stopped recording history
+    /// entirely. Git's verb for "I have reconciled this" is `add`, and nothing called it.
+    ///
+    /// **Refused while markers remain** ([`crate::merge::has_conflict_markers`]): staging a marked-up
+    /// file is what git reads as "the human resolved it", and it would publish `<<<<<<<` as the
+    /// note's content to every collaborator.
+    Edited,
+}
+
+/// Every unmerged path with its kind. Empty when the vault is not mid-merge.
+pub fn conflicted(vault: &Path) -> Result<Vec<Conflict>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let status = git(vault).args(["status", "--porcelain"]).output().map_err(spawn)?;
+    if !status.status.success() {
+        return Err(failed("git status", &status));
+    }
+    Ok(String::from_utf8_lossy(&status.stdout)
+        .lines()
+        .filter(|l| l.len() > 3)
+        .filter_map(|l| {
+            ConflictKind::from_code(&l[..2])
+                .map(|kind| Conflict { path: l[3..].trim().trim_matches('"').to_string(), kind })
+        })
+        .collect())
+}
+
+/// Resolve one unmerged path by keeping a side — and **finish the merge when it was the last one**.
+///
+/// The completion is not a convenience. `commit_all` stages only the paths the app recorded writing,
+/// so after the last conflict is resolved it can answer "nothing of ours changed" and return without
+/// committing — leaving `MERGE_HEAD` in place, which is itself what makes `commit_all` refuse. The
+/// vault would stay frozen with nothing left to resolve, and no surface would say why.
+pub fn resolve_conflict(vault: &Path, rel: &str, keep: Keep) -> Result<(), StoreError> {
+    let found = conflicted(vault)?.into_iter().find(|c| c.path == rel);
+    let Some(conflict) = found else {
+        return Err(StoreError::Io(format!("{rel} is not in conflict")));
+    };
+    use ConflictKind::*;
+    use Keep::*;
+    // `Edited` is "the file as it stands is the answer" — the reconciliation the user just typed. It
+    // needs no checkout and applies to any kind, so it is handled before the side table below.
+    if keep == Edited {
+        let full = vault.join(rel);
+        let text = std::fs::read_to_string(&full)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", full.display())))?;
+        if crate::merge::has_conflict_markers(&text) {
+            return Err(StoreError::Io(format!(
+                "{rel} still has conflict markers — remove them and keep the text you want, or choose a side"
+            )));
+        }
+        let add = git(vault).args(["add", "--"]).arg(rel).output().map_err(spawn)?;
+        if !add.status.success() {
+            return Err(failed("git add", &add));
+        }
+        return finish_merge_if_resolved(vault);
+    }
+    // Which git verb settles it. `add` means "the file on disk is the answer"; `rm` means "there
+    // should be no file". For the two marker kinds the side has to be checked out first, because the
+    // file on disk is the *merged, marked-up* text and staging that would enshrine the markers.
+    let keep_file = match (keep, conflict.kind) {
+        (Theirs, DeletedByUs) | (Mine, DeletedByThem) | (Mine, AddedByUs) | (Theirs, AddedByThem) => true,
+        (Mine, DeletedByUs) | (Theirs, DeletedByThem) | (Theirs, AddedByUs) | (Mine, AddedByThem) => false,
+        (_, BothDeleted) => false,
+        // Unreachable: `Edited` returned above. An error rather than `unreachable!()` — this is the
+        // path that must never corrupt a note, and a panic here would take the whole shell down
+        // (on Android, silently: see the mobile shell's own no-panic rule).
+        (Edited, _) => return Err(StoreError::Io(format!("{rel}: 'edited' is handled before this"))),
+        (_, BothModified) | (_, BothAdded) => {
+            let side = if keep == Theirs { "--theirs" } else { "--ours" };
+            let co = git(vault).args(["checkout", side, "--", rel]).output().map_err(spawn)?;
+            if !co.status.success() {
+                return Err(failed("git checkout (side)", &co));
+            }
+            true
+        }
+    };
+    if keep_file {
+        let add = git(vault).args(["add", "--"]).arg(rel).output().map_err(spawn)?;
+        if !add.status.success() {
+            return Err(failed("git add", &add));
+        }
+    } else {
+        // `-f` because the file may differ from any staged version; `--ignore-unmatch` because for
+        // a both-deleted path there is nothing on disk to remove and that is not a failure.
+        let rm = git(vault)
+            .args(["rm", "-f", "--ignore-unmatch", "--"])
+            .arg(rel)
+            .output()
+            .map_err(spawn)?;
+        if !rm.status.success() {
+            return Err(failed("git rm", &rm));
+        }
+    }
+    finish_merge_if_resolved(vault)
+}
+
+/// Commit the merge once nothing is unmerged. No-op when conflicts remain or no merge is in flight.
+fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
+    if !conflicted(vault)?.is_empty() || !vault.join(".git/MERGE_HEAD").exists() {
+        return Ok(());
+    }
+    let out = git(vault).args(["commit", "--no-edit"]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git commit (finishing the merge)", &out));
+    }
+    Ok(())
+}
+
+/// Notes that exist on disk but are **not in history** — untracked, or tracked-and-modified.
+///
+/// `commit_all` deliberately stages only the paths `FileStore::put`/`delete` recorded, so that a
+/// vault which is also a project repo never has its owner's staged work swept into an `auto:`
+/// commit. The cost, unnoticed until it bit: that record is **per-process memory**, so every note
+/// written before the last restart is forgotten and can never be staged by it — not lagging,
+/// *permanently skipped*, and nothing said so. This is the reconciliation list: what the app would
+/// have committed if it had remembered. Scoped to `notes_rel` (the vault's own notes directory), so
+/// it can never name a file the app does not own.
+pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let status = git(vault)
+        .args(["status", "--porcelain", "--untracked-files=all", "--"])
+        .arg(notes_rel)
+        .output()
+        .map_err(spawn)?;
+    if !status.status.success() {
+        return Err(failed("git status", &status));
+    }
+    let prefix = format!("{}/", notes_rel.trim_end_matches('/'));
+    Ok(String::from_utf8_lossy(&status.stdout)
+        .lines()
+        .filter(|l| l.len() > 3)
+        .filter(|l| !unmerged(l)) // a conflict is not an unrecorded note; it has its own surface
+        .map(|l| l[3..].trim().trim_matches('"').to_string())
+        .filter(|p| p.starts_with(&prefix) && p.ends_with(".md"))
+        .collect())
 }
 
 fn unmerged_paths(vault: &Path) -> Result<Option<Vec<String>>, StoreError> {

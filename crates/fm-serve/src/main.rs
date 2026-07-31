@@ -25,11 +25,14 @@ mod agent;
 #[cfg(feature = "agent")]
 mod agent_registry;
 mod blob;
+mod share;
+#[cfg(feature = "tls")]
+mod tls;
 
-use fm_app::{dispatch, App, Host, Output};
+use fm_app::{dispatch_as, App, Host, Output, Scope};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -59,6 +62,9 @@ struct AppState {
     /// core is provably agent-free. Its own module keeps the command core agnostic even *with* it.
     #[cfg(feature = "agent")]
     agent: agent::AgentState,
+    /// Pairing codes, device tokens, and what the listener actually managed to do. See
+    /// [`share`] — in particular why the *setting* and the *capability* are separate fields.
+    share: share::ShareState,
 }
 
 impl AppState {
@@ -76,6 +82,7 @@ impl AppState {
             connected: AtomicBool::new(false),
             #[cfg(feature = "agent")]
             agent: agent::AgentState::new(port),
+            share: share::ShareState::load(),
         }
     }
 }
@@ -135,11 +142,20 @@ fn main() {
         _ => {}
     }
 
+    // **This machine's own listener, unchanged and unconditional.** Plain HTTP on loopback: the
+    // desktop's browser, `fm-cli`, curl and the study agent all arrive here, and none of them
+    // learns that sharing exists. Sharing gets its *own* socket below rather than widening this
+    // one, because TLS is a property of a socket and because a bug in the sharing path then
+    // cannot reach a listener that was never exposed.
     let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
     for v in &configs {
         println!("formicaria is serving {} at {}", v.name, v.path.display());
     }
     println!("open  http://{addr}  in your browser");
+
+    if state.share.enabled() {
+        spawn_shared_listener(Arc::clone(&state), &port);
+    }
 
     // The launcher sets FM_OPEN so a double-click opens the default browser.
     //
@@ -169,16 +185,287 @@ fn main() {
     // The agent dies with formicaria: it watches this very port and stops the model when we stop
     // answering, so a closed app leaves nothing running.
     #[cfg(feature = "agent")]
-    agent::spawn_at_launch(&state);
+    agent::spawn_at_launch(Arc::clone(&state));
 
-    for stream in listener.incoming().flatten() {
+    for mut stream in listener.incoming().flatten() {
         let state = Arc::clone(&state);
+        // **Who is on the other end is a property of the connection, not of the request.** Read
+        // it here, once, rather than letting `handle` ask: a peer address cannot be spoofed by a
+        // header, and taking it at accept time means there is exactly one place the answer comes
+        // from. A peer we cannot identify is treated as remote — the safe direction.
+        let peer = Peer { loopback: stream.peer_addr().is_ok_and(|a| a.ip().is_loopback()), tls: false };
+        // **A read deadline, which this server has never had.** It is thread-per-connection, so a
+        // peer that opens a socket and sends half a header line pins a thread forever; a few
+        // dozen of those and nothing else is served. That was survivable while only this machine
+        // could connect and is not once the port is on a network.
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(60)));
         std::thread::spawn(move || {
-            if let Err(e) = handle(stream, &state) {
+            if let Err(e) = handle(&mut stream, peer, &state) {
                 eprintln!("connection error: {e}");
             }
         });
     }
+}
+
+/// Commands a paired device may not run, whatever vaults it was given.
+///
+/// **This is not about audiences** — that is [`Scope`]'s job and it is enforced in
+/// `dispatch`. These are refused because the command acts on *the host*, so "which vault" is not
+/// the question it asks. A tablet pressing them would either do something invisible to the person
+/// holding it, or hand a remote caller a capability over the machine.
+///
+/// Matched on **path**, and checked in [`authorize`] above every route, because the agent routes
+/// are dispatched before `api()` ever sees a command name — `/api/set_agent` runs
+/// `Command::new("bash")` and starts a multi-GB model on the desktop's GPU, and it persists, so
+/// it would come back at every launch.
+const REMOTE_DENIED: &[&str] = &[
+    // Spawns a process, or writes host-level state.
+    "/api/set_agent",
+    "/api/set_transcribe",
+    "/api/agent_activity",
+    "/api/agent_present",
+    "/api/backup",
+    "/api/open_external",
+    "/api/open_skipped",
+    "/api/set_git_credential",
+    "/api/clear_git_credential",
+    // Hands caller-supplied text to `git`, or probes the host's filesystem. `check_path` reports
+    // existence and writability for an arbitrary path — a filesystem oracle over the whole
+    // machine, and its only legitimate caller (`create_vault`) is denied anyway.
+    "/api/probe_remote",
+    "/api/check_path",
+    "/api/git_auth",
+    // Vault lifecycle, and policy with off-machine effects. `set_git_assets_max` changes what
+    // every git collaborator receives, from a device that is a guest in one vault.
+    "/api/create_vault",
+    "/api/clone_vault",
+    "/api/restore_vault",
+    "/api/set_git_remote",
+    "/api/set_git_assets_max",
+    // Discloses the host: every vault's absolute path, the vault-list path, and the value of
+    // `FM_RESTIC_REPO`, which can be an `s3:`/`rest:` URL carrying an access key.
+    "/api/config",
+    // Irreversible, and unguarded by design — `delete` takes no `base` and does no version
+    // check. Its safety net is weaker than it looks, too: `commit_all` refuses during a
+    // conflicted merge and reports that with the same `false` it uses for "nothing to do", so in
+    // exactly the situation two live writers create, the auto-commit can be quietly frozen.
+    "/api/delete",
+];
+
+/// Why a request is being turned away, and what to say.
+struct Refused(&'static str, &'static [u8]);
+
+impl Refused {
+    fn write(self, conn: &mut dyn Conn) -> std::io::Result<()> {
+        write_response(conn, self.0, "text/plain", self.1)
+    }
+}
+
+/// Decide what this caller may reach, or refuse it.
+///
+/// Loopback is unchanged and unconditional: this machine's own browser, `fm-cli`, curl and the
+/// study agent all get [`Scope::All`], exactly as before sharing existed.
+fn authorize(
+    peer: Peer,
+    path: &str,
+    cookie: Option<&str>,
+    state: &AppState,
+) -> Result<Scope, Refused> {
+    if peer.loopback {
+        return Ok(Scope::All);
+    }
+    if !state.share.enabled() {
+        return Err(Refused("403 Forbidden", b"this vault is not shared"));
+    }
+    // The one unauthenticated API route — it is how a device gets a token in the first place.
+    // Rate-limited inside `share::pair` by cancelling the code after a few wrong guesses.
+    if path == "/api/pair" {
+        return Ok(Scope::Only(Vec::new()));
+    }
+    // Static assets are served unauthenticated, or the tablet could never load the very page
+    // that contains the pairing screen. What that discloses is the UI bundle, which is public
+    // source — no vault content is reachable without a token.
+    if !path.starts_with("/api/") {
+        return Ok(Scope::Only(Vec::new()));
+    }
+
+    let token = cookie.and_then(cookie_value);
+    let scope = token
+        .as_deref()
+        .and_then(|t| share::scope_for(state, t))
+        .ok_or(Refused("401 Unauthorized", b"pair this device first"))?;
+
+    // Authorization, at the same point as authentication and above every route.
+    if REMOTE_DENIED.contains(&path) {
+        return Err(Refused("403 Forbidden", b"that action can only be done on the computer"));
+    }
+    Ok(scope)
+}
+
+/// Pull our token out of a `Cookie:` header, which may carry other cookies too.
+fn cookie_value(header: &str) -> Option<String> {
+    header
+        .split(';')
+        .filter_map(|kv| kv.split_once('='))
+        .find(|(k, _)| k.trim() == SHARE_COOKIE)
+        .map(|(_, v)| v.trim().to_string())
+}
+
+/// The cookie a paired device carries.
+///
+/// **A cookie rather than a header, and this is forced rather than chosen.** Blob URLs are used
+/// as `<img src>`/`<video src>` (`ipc.ts`'s `assetUrl`), and a subresource load cannot carry a
+/// custom header — so the alternative is a `?token=` query parameter, which puts the credential
+/// in the DOM, in the referrer, and in any log. `HttpOnly` additionally means a bypass of the
+/// note sanitiser cannot read it, which matters because note bodies arrive from collaborators.
+const SHARE_COOKIE: &str = "fm_share";
+
+/// Is this `Origin` one of ours?
+///
+/// For loopback, the two spellings of localhost, as before. For a remote peer, any origin whose
+/// host is the IP literal or `.local` name the Host gate already accepted — the two checks have
+/// to agree or a browser that passed one would fail the other.
+fn allowed_origin(origin: &str, peer: Peer, state: &AppState) -> bool {
+    if peer.loopback {
+        return state.origins.iter().any(|a| a == origin);
+    }
+    let bare = origin.strip_prefix("http://").or_else(|| origin.strip_prefix("https://"));
+    let Some(rest) = bare else { return false };
+    let hostname = match rest.strip_prefix('[') {
+        Some(r) => r.split(']').next().unwrap_or(""),
+        None => rest.split(':').next().unwrap_or(""),
+    };
+    hostname.parse::<std::net::IpAddr>().is_ok() || hostname.ends_with(".local")
+}
+
+/// The listener paired devices reach, on its own port and its own thread.
+///
+/// **A failure here must not take the app down.** The notebook working on this computer matters
+/// more than the tablet doing so — but the failure has to be *stated*, or the tablet simply never
+/// connects and nothing ever says why. That is what the `Err` arm of `share.bound` carries, and
+/// it is what the Settings line reads.
+fn spawn_shared_listener(state: Arc<AppState>, port: &str) {
+    // Its own port because it must coexist with the loopback listener above, which already holds
+    // `port` on `127.0.0.1`.
+    let share_port: u16 = port.parse::<u16>().unwrap_or(8765).saturating_add(1);
+    let addr = format!("0.0.0.0:{share_port}");
+
+    let fail = |state: &AppState, why: String| {
+        eprintln!("share: {why}");
+        if let Ok(mut b) = state.share.bound.lock() {
+            *b = Err(why);
+        }
+    };
+
+    // TLS if it was compiled in, plain HTTP if not. **The plain path is a real, supported
+    // degradation, not a silent one**: everything about sharing works over it except an in-app
+    // microphone, which needs a secure context. `--no-default-features` is how you get here.
+    #[cfg(feature = "tls")]
+    let tls = match tls::load_or_mint() {
+        Ok(t) => Some(t),
+        Err(e) => {
+            fail(&state, format!("could not prepare a certificate ({e}) — not sharing"));
+            return;
+        }
+    };
+    #[cfg(not(feature = "tls"))]
+    let tls: Option<()> = None;
+
+    let listener = match TcpListener::bind(&addr) {
+        Ok(l) => l,
+        Err(e) => return fail(&state, format!("could not listen on {addr}: {e}")),
+    };
+
+    let scheme = if tls.is_some() { "https" } else { "http" };
+    let host = share::reachable_host();
+    let url = format!("{scheme}://{host}:{share_port}");
+    println!("share: listening for paired devices at {url}");
+
+    #[cfg(feature = "tls")]
+    if let Some(t) = &tls {
+        // Shown so it can be compared against what the device displays **before** installing.
+        // That comparison is the only verification available on a home network, and it is the
+        // reason no click-through path is offered.
+        println!("share: certificate fingerprint  {}", t.fingerprint);
+        println!("share: install this on the device: {}", t.cert_path.display());
+        if let Ok(mut f) = state.share.cert.lock() {
+            *f = Some((t.fingerprint.clone(), t.cert_path.display().to_string()));
+        }
+    }
+
+    if let Ok(mut b) = state.share.bound.lock() {
+        *b = Ok(Some(url));
+    }
+
+    #[cfg(feature = "tls")]
+    let tls_config = tls.map(|t| t.config);
+
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let state = Arc::clone(&state);
+            // Never loopback by construction — but read rather than assumed, because a machine
+            // *can* reach its own `0.0.0.0` socket over 127.0.0.1, and that connection is the
+            // desktop's own browser rather than a guest.
+            let loopback = stream.peer_addr().is_ok_and(|a| a.ip().is_loopback());
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+            let _ = stream.set_write_timeout(Some(Duration::from_secs(60)));
+            #[cfg(feature = "tls")]
+            let cfg = tls_config.clone();
+            std::thread::spawn(move || {
+                #[cfg(feature = "tls")]
+                if let Some(cfg) = cfg {
+                    let peer = Peer { loopback, tls: true };
+                    match rustls::ServerConnection::new(cfg) {
+                        Ok(conn) => {
+                            let mut s = rustls::StreamOwned::new(conn, stream);
+                            // A handshake failure is ordinary: it is what a device that has not
+                            // trusted the certificate produces, and it is not our error to report.
+                            if let Err(e) = handle(&mut s, peer, &state) {
+                                eprintln!("share: connection error: {e}");
+                            }
+                        }
+                        Err(e) => eprintln!("share: tls session: {e}"),
+                    }
+                    return;
+                }
+                let peer = Peer { loopback, tls: false };
+                if let Err(e) = handle(&mut stream, peer, &state) {
+                    eprintln!("share: connection error: {e}");
+                }
+            });
+        }
+    });
+}
+
+/// A connection, whatever it is made of.
+///
+/// Object-safe and taken as `&mut dyn Conn`, rather than making every function generic. Two
+/// reasons, and the second is the real one:
+///
+/// - `write_response` has a dozen call sites across four modules; generics would infect all of
+///   them and both test harnesses.
+/// - Monomorphising would produce **two copies of `handle`** — one per stream type — which is the
+///   "the plain path is the tested one and the TLS path is the one that matters" hazard, enforced
+///   by the compiler. One function, one policy, is the whole design here.
+///
+/// The cost is one vtable hop per `write_all`. `blob.rs` streams in 64 KiB chunks, so that is one
+/// dynamic call per chunk against a `read` and a `write` syscall — unmeasurable.
+pub(crate) trait Conn: Read + Write {}
+impl<T: Read + Write + ?Sized> Conn for T {}
+
+/// What we know about the other end of the socket before reading a byte of the request.
+#[derive(Clone, Copy, Debug)]
+struct Peer {
+    /// Whether this connection is encrypted — which decides whether the device's cookie may
+    /// carry `Secure`, and therefore whether it may be persistent at all. A bearer token sent in
+    /// clear over a network is the shape `decisions.md` (Android TLS) rejects outright.
+    tls: bool,
+    /// This machine talking to itself: the desktop's own browser, `fm-cli`, curl, and the study
+    /// agent (which connects to `127.0.0.1` and sends no `Origin` — see `fm-agent-run`'s
+    /// `fmserve.rs`). Everything that existed before sharing is loopback, which is why loopback
+    /// keeps exactly its old behaviour and nothing has to be re-tested against a new gate.
+    loopback: bool,
 }
 
 /// Auto-shutdown: exit the process when no browser tab is talking to us anymore.
@@ -209,8 +496,15 @@ fn spawn_watchdog(state: Arc<AppState>) {
     });
 }
 
-fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
-    let mut reader = BufReader::new(stream.try_clone()?);
+fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<()> {
+    // **One stream, read through a buffer, written through the same handle.**
+    //
+    // This used to `try_clone()` the socket so it could hold a `BufReader` and still write to the
+    // original. That is a `TcpStream`-only trick — a TLS session is a single stateful object and
+    // cannot be duplicated — and it was never needed: the body is fully read before anything is
+    // written (the ordering the 413 branch already relied on), so the reader can simply hand the
+    // stream back with `get_mut()` when it is time to reply. One fewer `dup()` per connection.
+    let mut reader = BufReader::new(conn);
 
     let mut request_line = String::new();
     if reader.read_line(&mut request_line)? == 0 {
@@ -220,12 +514,9 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let method = parts.next().unwrap_or("").to_string();
     let path = parts.next().unwrap_or("/").to_string();
 
-    // Liveness for the auto-shutdown watchdog: any request (asset load, API call,
-    // or the heartbeat ping) means a tab is open right now.
-    if let Ok(mut t) = state.last_seen.lock() {
-        *t = Instant::now();
-    }
-    state.connected.store(true, Ordering::Relaxed);
+    // Liveness for the auto-shutdown watchdog. **Moved below the gate** — see `keep_alive` — so
+    // that an unauthenticated stranger cannot hold the app open, while a *paired* device can:
+    // the watchdog's question is "is anyone using this?", not "is the desktop using this?".
 
     // Read headers; we care about the body length, who is calling, and the byte range a
     // media element is asking for.
@@ -233,6 +524,7 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     let mut origin: Option<String> = None;
     let mut range: Option<String> = None;
     let mut host: Option<String> = None;
+    let mut cookie: Option<String> = None;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -253,15 +545,36 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
             range = Some(v.trim().to_string());
         } else if let Some(v) = lower.strip_prefix("host:") {
             host = Some(v.trim().to_string());
+        } else if lower.starts_with("cookie:") {
+            // **From the un-lowercased line**: a token is base16 and survives lowercasing today,
+            // but reading a credential out of a string we have deliberately mangled is how that
+            // stops being true the day the token format changes.
+            cookie = line.split_once(':').map(|(_, v)| v.trim().to_string());
         }
     }
-    // Guard against a hostile/oversized upload before allocating the body.
-    if content_length > 512 * 1024 * 1024 {
-        return write_response(&mut stream, "413 Payload Too Large", "text/plain", b"payload too large");
+    // **The cap is on the declared length; the allocation must not be.**
+    //
+    // This used to check the ceiling and then `vec![0u8; content_length]` — allocating whatever
+    // the *header* claimed, before reading a byte. A peer that sends `Content-Length: 536870911`
+    // and then nothing costs half a gigabyte of resident memory per connection, and this server
+    // is thread-per-connection: fifty sockets, no payload, ~25 GB. Harmless while only this
+    // machine could open one; a two-line denial of service once the port is on a network.
+    //
+    // So: a much lower ceiling for anyone who is not this machine (the UI's own ingest limit is
+    // 48 MB, so this is not a restriction anybody meets), and the buffer grows as bytes actually
+    // arrive rather than being sized from a promise.
+    let ceiling = if peer.loopback { 512 * 1024 * 1024 } else { 64 * 1024 * 1024 };
+    if content_length > ceiling {
+        return write_response(reader.get_mut(), "413 Payload Too Large", "text/plain", b"payload too large");
     }
-    let mut body = vec![0u8; content_length];
+    let mut body = Vec::new();
     if content_length > 0 {
-        reader.read_exact(&mut body)?;
+        // `take` bounds it a second time, so a lying `Content-Length` cannot read past what we
+        // agreed to accept even if the header and the stream disagree.
+        std::io::Read::take(&mut reader, content_length as u64).read_to_end(&mut body)?;
+        if body.len() != content_length {
+            return write_response(reader.get_mut(), "400 Bad Request", "text/plain", b"short body");
+        }
     }
 
     // **DNS rebinding.** Binding to 127.0.0.1 keeps other *machines* out, but it does not
@@ -281,13 +594,54 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
             Some(rest) => rest.split(']').next().unwrap_or(""),
             None => h.split(':').next().unwrap_or(""),
         };
-        if !matches!(bare, "127.0.0.1" | "localhost" | "::1") {
+        //
+        // **A shared listener does not relax this — it changes what the published names are.**
+        // The reasoning above gets *stronger* when the port is on a network, because now any
+        // page any device on that network visits can reach us. A remote request must therefore
+        // arrive under a bare IP literal (which has no DNS to rebind — that is the whole point)
+        // or a `.local` mDNS name. Anything else is a name we never published.
+        let expected: bool = if peer.loopback {
+            matches!(bare, "127.0.0.1" | "localhost" | "::1")
+        } else {
+            bare.parse::<std::net::IpAddr>().is_ok() || bare.ends_with(".local")
+        };
+        if !expected {
             return write_response(
-                &mut stream,
+                reader.get_mut(),
                 "403 Forbidden",
                 "text/plain",
                 b"unexpected Host header",
             );
+        }
+    }
+
+    // ---- Who is calling, and what may they reach? ------------------------------------------
+    //
+    // **One point, above every route.** Sited here — after the Host gate, before everything else
+    // — because below this line lie the blob route, `/api/alive`, the agent routes, the command
+    // dispatch and the static files, and each of them would otherwise need to remember. An
+    // earlier draft of this put authentication here and *authorization* inside `api()`, which
+    // sits below the agent routes: `/api/set_agent` would have escaped it entirely, and that
+    // route runs `Command::new("bash")`.
+    let scope = match authorize(peer, &path, cookie.as_deref(), state) {
+        Ok(s) => s,
+        Err(refusal) => return refusal.write(reader.get_mut()),
+    };
+
+    // Liveness for the auto-shutdown watchdog, now that we know the caller is entitled to be
+    // here. **Any authenticated peer counts, not just loopback.** The alternative — only this
+    // machine keeps the app alive — kills the server out from under someone actively working on
+    // a paired tablet, which is the whole use case; and `FM_AUTO_SHUTDOWN` is set by the desktop
+    // launcher, i.e. the owner's normal way of starting it, so that failure would be the common
+    // path rather than an edge case. A tablet left face-up is handled where it belongs: the UI
+    // stops beating when the page is hidden.
+    if let Ok(mut t) = state.last_seen.lock() {
+        *t = Instant::now();
+    }
+    state.connected.store(true, Ordering::Relaxed);
+    if !peer.loopback {
+        if let Ok(mut t) = state.share.last_remote.lock() {
+            *t = Some(Instant::now());
         }
     }
 
@@ -300,16 +654,36 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // No `Origin` at all means a non-browser client — curl, a script, a test.
     // That is not a CSRF vector (there are no ambient credentials to abuse) and
     // refusing it would break every command-line workflow, so it passes.
+    //
+    // **That last paragraph is true only of loopback, and it stopped being a safe default the
+    // moment a cookie existed.** "No ambient credentials to abuse" was the load-bearing clause,
+    // and a paired device carries exactly that: a browser attaches its cookie to a request from
+    // any page it happens to load. `SameSite` blocks the obvious version at the browser, but a
+    // security property we can check ourselves should not be delegated to one. So a remote peer
+    // gets **no carve-out**: a browser always sends `Origin` on a POST, and a remote caller that
+    // does not send one is not a browser and has no business writing to a vault.
+    //
+    // Loopback keeps the carve-out untouched, which is why `fm-cli`, curl and the study agent
+    // (`fm-agent-run` sends no `Origin` — that is exactly why it passes today) need no changes.
     if method == "POST" && path.starts_with("/api/") {
-        if let Some(o) = &origin {
-            if !state.origins.iter().any(|allowed| allowed == o) {
+        match &origin {
+            Some(o) if !allowed_origin(o, peer, state) => {
                 return write_response(
-                    &mut stream,
+                    reader.get_mut(),
                     "403 Forbidden",
                     "text/plain",
                     b"cross-origin request refused",
                 );
             }
+            None if !peer.loopback => {
+                return write_response(
+                    reader.get_mut(),
+                    "403 Forbidden",
+                    "text/plain",
+                    b"a remote request must state its origin",
+                );
+            }
+            _ => {}
         }
     }
 
@@ -318,7 +692,11 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // is how the old object-URL path behaved. Streamed from disk, so it costs one buffer.
     if (method == "GET" || method == "HEAD") && path.starts_with("/api/blob/") {
         let hash = path[10..].split('?').next().unwrap_or("");
-        return blob::serve(&mut stream, state, hash, range.as_deref(), method == "HEAD");
+        // **Scoped, and it has to be passed in.** This route is deliberately not a command, so
+        // it never reaches `dispatch`'s enforcement. Blobs are content-addressed and
+        // deduplicated, so a hash a paired device legitimately learns from its own vault would
+        // otherwise resolve against a private one — same bytes, same answer, wrong audience.
+        return blob::serve(reader.get_mut(), state, &scope, hash, range.as_deref(), method == "HEAD");
     }
 
     // Liveness, and *only* liveness — the cheapest possible "a tab is still here".
@@ -332,8 +710,21 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // It is also transport-shaped, not app-shaped: the auto-shutdown watchdog is a property
     // of *this* server, and a frontend with no watchdog would never call it. Putting it in
     // `dispatch` would push a transport concern into the shared surface.
+    // It now also **carries the share capability back**, which is why the body stopped being
+    // empty. That report has to reach the UI on a timer (a listener can fail, and a network can
+    // stop carrying packets, long after the settings screen was last open), and this is already
+    // the transport's own beat — `ping` belongs to `dispatch`, which knows nothing about
+    // sharing, and inventing a third timer for it would be a third thing to keep in step.
     if path == "/api/alive" {
-        return write_response(&mut stream, "200 OK", "text/plain", b"");
+        let body = share::status_json(state).to_string();
+        return write_response(reader.get_mut(), "200 OK", "application/json", body.as_bytes());
+    }
+
+    // Pairing and the sharing settings — transport-shaped for the same reason the agent routes
+    // are: `dispatch` is shared with `fm-cli` and the phone, and *who is calling* is a property
+    // of the connection, which neither of them has.
+    if let Some(done) = share::route(reader.get_mut(), &path, &body, peer, state) {
+        return done;
     }
 
     // The study agent's transport routes — the on/off setting, the live "working…" activity, and
@@ -341,19 +732,19 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
     // command, so the shared core stays agent-agnostic). Without the feature this call is gone and the
     // routes don't exist. `None` means "not an agent route" — fall through to the command dispatch.
     #[cfg(feature = "agent")]
-    if let Some(done) = agent::route(&mut stream, &path, &body, state) {
+    if let Some(done) = agent::route(reader.get_mut(), &path, &body, state) {
         return done;
     }
 
     let (status, ctype, data) = if method == "POST" && path.starts_with("/api/") {
-        api(&path[5..], &body, state)
+        api(&path[5..], &body, &scope, state)
     } else if method == "GET" || method == "HEAD" {
         static_file(&path, state)
     } else {
         ("405 Method Not Allowed", "text/plain".to_string(), b"method not allowed".to_vec())
     };
 
-    write_response(&mut stream, status, &ctype, &data)
+    write_response(reader.get_mut(), status, &ctype, &data)
 }
 
 /// Turn one HTTP request into one [`dispatch`] call, and its answer back into HTTP.
@@ -371,7 +762,12 @@ fn handle(mut stream: TcpStream, state: &AppState) -> std::io::Result<()> {
 ///
 /// Errors come back as a plain-text 500 body, which the UI shows in its error banner or
 /// degrades to the missing-asset placeholder.
-fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u8>) {
+fn api(
+    cmd: &str,
+    body: &[u8],
+    scope: &Scope,
+    state: &AppState,
+) -> (&'static str, String, Vec<u8>) {
     let (cmd, query) = cmd.split_once('?').unwrap_or((cmd, ""));
 
     let args: Value = if query.is_empty() {
@@ -380,7 +776,7 @@ fn api(cmd: &str, body: &[u8], state: &AppState) -> (&'static str, String, Vec<u
         Value::Object(query_pairs(query).map(|(k, v)| (k, Value::String(v))).collect())
     };
 
-    match dispatch(cmd, &args, body, &state.app, &Desktop) {
+    match dispatch_as(cmd, &args, body, &state.app, &Desktop, scope) {
         Ok(Output::Bytes(b)) => ("200 OK", "application/octet-stream".to_string(), b),
         Ok(Output::Json(b)) => ("200 OK", "application/json".to_string(), b),
         Err(msg) => {
@@ -585,13 +981,30 @@ base-uri 'self'; \
 form-action 'none'";
 
 pub(crate) fn write_response(
-    stream: &mut TcpStream,
+    stream: &mut dyn Conn,
     status: &str,
     ctype: &str,
     body: &[u8],
 ) -> std::io::Result<()> {
+    write_response_with(stream, status, ctype, "", body)
+}
+
+/// The same, plus caller-supplied header lines (each already `\r\n`-terminated).
+///
+/// Exactly one caller needs it — `/api/pair`, to set the device's cookie — and it goes through
+/// here rather than hand-building a header block so that the security headers above cannot be
+/// forgotten by a route that only wanted to add one line. That is not hypothetical: the 416
+/// branch in `blob.rs` built its own header and was, for a while, the only response in the
+/// server without a CSP.
+pub(crate) fn write_response_with(
+    stream: &mut dyn Conn,
+    status: &str,
+    ctype: &str,
+    extra: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     let header = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {CSP}\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {CSP}\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\n{extra}Content-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(header.as_bytes())?;
@@ -603,6 +1016,7 @@ pub(crate) fn write_response(
 mod tests {
     use super::*;
     use std::io::{BufRead as _, BufReader as _BufReader, Read as _Read};
+    use std::net::TcpStream;
 
     /// Drive the **real** `handle` over a real socket with a raw request, and return the
     /// status line plus headers.
@@ -612,18 +1026,46 @@ mod tests {
     /// by hand. They are also exactly the kind of code that is easy to get subtly wrong and
     /// impossible to notice: a guard that stops refusing still serves every page correctly.
     fn request(raw: &str, origins: Vec<String>) -> (String, String) {
+        request_as(raw, origins, Peer { loopback: true, tls: false }, None)
+    }
+
+    /// The same, with the caller's identity chosen rather than inferred.
+    ///
+    /// A test cannot make the OS deliver a genuinely non-loopback connection, and it should not
+    /// try: `Peer` is computed once in the accept loop from `peer_addr()` and then *carried*, so
+    /// supplying it here exercises precisely the code every real remote request runs. `shared`
+    /// turns the feature on, since a remote peer is refused outright when the user has not shared
+    /// anything — which is itself worth asserting.
+    /// A request from a paired device: sharing on, and a device registered for vault `v` holding
+    /// `token`. `None` means paired-with-nothing — a stranger on the network.
+    fn remote(raw: &str, token: Option<&str>) -> (String, String) {
+        request_as(raw, ours(), Peer { loopback: false, tls: true }, Some(token))
+    }
+
+    fn request_as(
+        raw: &str,
+        origins: Vec<String>,
+        peer: Peer,
+        shared: Option<Option<&str>>,
+    ) -> (String, String) {
         let dir = tempfile::tempdir().unwrap();
         let vault = dir.path().join("v");
         std::fs::create_dir_all(vault.join("notes")).unwrap();
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
         let state = AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, origins, 0);
+        if let Some(token) = shared {
+            state.share.force_enabled_for_test();
+            if let Some(t) = token {
+                state.share.add_device_for_test(t, &["v"]);
+            }
+        }
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let server = std::thread::spawn(move || {
-            let (sock, _) = listener.accept().unwrap();
-            let _ = handle(sock, &state);
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = handle(&mut sock, peer, &state);
         });
 
         let mut client = TcpStream::connect(addr).unwrap();
@@ -734,6 +1176,161 @@ mod tests {
         let (status, _) =
             request("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    // ---- Sharing: who may reach what --------------------------------------------------------
+    //
+    // Written as **refusal** tests. A test that only checked "a paired device can read its own
+    // vault" would pass just as happily against a gate that let everyone read everything, which
+    // is the failure mode that matters here.
+
+    const TOKEN: &str = "0123456789abcdef0123456789abcdef";
+
+    fn get(path: &str) -> String {
+        format!("GET {path} HTTP/1.1\r\nHost: 192.168.1.5:8765\r\n\r\n")
+    }
+
+    fn rpost(path: &str, token: Option<&str>) -> String {
+        let cookie = token
+            .map(|t| format!("Cookie: {SHARE_COOKIE}={t}\r\n"))
+            .unwrap_or_default();
+        format!(
+            "POST {path} HTTP/1.1\r\nHost: 192.168.1.5:8765\r\n\
+             Origin: http://192.168.1.5:8765\r\n{cookie}Content-Length: 2\r\n\r\n{{}}"
+        )
+    }
+
+    /// Sharing off is the default, and it must be a wall rather than a setting nobody set: a
+    /// listener that somehow ends up reachable while the user never opted in refuses everything.
+    #[test]
+    fn a_remote_request_is_refused_outright_when_nothing_is_shared() {
+        let (status, _) =
+            request_as(&rpost("/api/ping", Some(TOKEN)), ours(), Peer { loopback: false, tls: true }, None);
+        assert_eq!(status, "HTTP/1.1 403 Forbidden");
+    }
+
+    /// No token, sharing on: 401 on **every** API surface, including the three that are not
+    /// commands and would each have had to remember on their own.
+    #[test]
+    fn an_unpaired_device_reaches_no_api_at_all() {
+        for path in ["/api/ping", "/api/alive", "/api/agent_status", "/api/recent"] {
+            let (status, _) = remote(&rpost(path, None), Some(TOKEN));
+            assert_eq!(status, "HTTP/1.1 401 Unauthorized", "{path} was reachable unauthenticated");
+        }
+        let (status, _) = remote(&get("/api/blob/abcdef0123456789"), Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 401 Unauthorized", "blob bytes were served without a token");
+    }
+
+    /// A wrong token is not a weaker token.
+    #[test]
+    fn a_token_we_never_issued_is_refused() {
+        let (status, _) = remote(&rpost("/api/ping", Some("not-a-real-token")), Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 401 Unauthorized");
+    }
+
+    /// The pairing screen has to load before there is any token, so static assets stay open.
+    /// What that discloses is the UI bundle, which is public source.
+    #[test]
+    fn the_page_itself_loads_so_the_device_can_pair() {
+        let (status, _) = remote(&get("/"), Some(TOKEN));
+        assert_ne!(status, "HTTP/1.1 401 Unauthorized");
+        let (status, _) = remote(&rpost("/api/pair", None), Some(TOKEN));
+        assert_ne!(status, "HTTP/1.1 401 Unauthorized", "pairing must be reachable unpaired");
+    }
+
+    /// **The regression this gate was re-sited to prevent.** `agent::route` is dispatched before
+    /// `api()`, so a denylist that lived inside `api()` never saw `/api/set_agent` — a route that
+    /// runs `Command::new("bash")` and starts a multi-GB model on the desktop's GPU, and persists
+    /// so it comes back at every launch. A *valid* token must still not reach it.
+    #[test]
+    fn a_paired_device_cannot_start_a_process_on_the_host() {
+        for path in ["/api/set_agent", "/api/set_transcribe", "/api/agent_activity"] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");
+        }
+    }
+
+    /// The rest of the denylist: hands text to `git`, probes the filesystem, discloses the host,
+    /// or destroys something irreversibly.
+    #[test]
+    fn a_paired_device_cannot_reach_the_host_bound_commands() {
+        for path in [
+            "/api/probe_remote",
+            "/api/check_path",
+            "/api/config",
+            "/api/delete",
+            "/api/open_external",
+            "/api/create_vault",
+            "/api/set_git_remote",
+            "/api/backup",
+        ] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");
+        }
+    }
+
+    /// Turning sharing off, minting a code and revoking devices are things a guest must not be
+    /// able to do to its host — even holding a valid token.
+    #[test]
+    fn a_paired_device_cannot_administer_the_sharing_itself() {
+        for path in ["/api/set_share", "/api/share_code", "/api/revoke_devices"] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable remotely");
+        }
+    }
+
+    /// With a real token the ordinary surface works, or the gate would be a wall rather than a
+    /// door. This is the one non-refusal test here, and it exists to prove the refusals above
+    /// are not simply "everything is 403".
+    #[test]
+    fn a_paired_device_can_use_the_app() {
+        let (status, _) = remote(&rpost("/api/ping", Some(TOKEN)), Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        let (status, _) = remote(&rpost("/api/recent", Some(TOKEN)), Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    /// The DNS-rebinding guard, on the shared listener. A name an attacker controls, pointed at
+    /// the desktop's LAN address, is a name we never published — and a bare IP cannot be rebound
+    /// at all, which is why IP literals are what a remote peer must arrive under.
+    #[test]
+    fn a_remote_request_under_an_invented_hostname_is_refused() {
+        let raw = format!(
+            "POST /api/ping HTTP/1.1\r\nHost: vault.attacker.example\r\n\
+             Origin: http://vault.attacker.example\r\nCookie: {SHARE_COOKIE}={TOKEN}\r\n\r\n"
+        );
+        let (status, _) = remote(&raw, Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 403 Forbidden");
+    }
+
+    /// The missing-`Origin` carve-out is loopback-only. It exists because a non-browser client
+    /// has no ambient credentials to abuse — and a paired device carries exactly that, a cookie
+    /// a browser attaches to requests from any page it loads.
+    #[test]
+    fn a_remote_post_must_state_its_origin() {
+        let raw = format!(
+            "POST /api/ping HTTP/1.1\r\nHost: 192.168.1.5:8765\r\nCookie: {SHARE_COOKIE}={TOKEN}\r\n\r\n"
+        );
+        let (status, _) = remote(&raw, Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 403 Forbidden");
+
+        // …while loopback keeps it, which is what `fm-cli`, curl and the study agent rely on.
+        let (status, _) = request("POST /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    /// A declared body far larger than the remote ceiling is refused *before* anything is
+    /// allocated. The old code sized a buffer from this header alone, so fifty sockets claiming
+    /// half a gigabyte each cost ~25 GB of memory and no payload.
+    #[test]
+    fn a_remote_peer_cannot_make_us_allocate_from_a_promise() {
+        let raw = format!(
+            "POST /api/ingest HTTP/1.1\r\nHost: 192.168.1.5:8765\r\n\
+             Origin: http://192.168.1.5:8765\r\nCookie: {SHARE_COOKIE}={TOKEN}\r\n\
+             Content-Length: 536870911\r\n\r\n"
+        );
+        let (status, _) = remote(&raw, Some(TOKEN));
+        assert_eq!(status, "HTTP/1.1 413 Payload Too Large");
     }
 
     /// The beacon guard. A note that arrives through a merge or a shared vault can contain

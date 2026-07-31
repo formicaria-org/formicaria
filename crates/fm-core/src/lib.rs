@@ -15,7 +15,7 @@ pub mod frontmatter;
 mod file;
 pub use file::FileStore;
 mod multi;
-pub use multi::MultiStore;
+pub use multi::{MultiStore, Scoped};
 pub mod edit;
 pub use edit::apply_property;
 pub mod blob;

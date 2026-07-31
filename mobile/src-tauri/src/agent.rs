@@ -71,6 +71,16 @@ fn set_present(name: &str, present: bool) {
 /// model in memory**: the watch loop is stopped and the `llama-server` child killed.
 struct Control {
     running: bool,
+    /// Which launch attempt is the current one. **The off-switch cannot be a flag alone**, because
+    /// for the first minutes of a launch there is nothing to switch off: `launch` claims the slot,
+    /// then spends up to a ~1.4 GB resumable download on a background thread before a stopper
+    /// exists. `stop()` in that window used to `take()` a `None` stopper, set `running = false` and
+    /// return — so "off" did not turn it off (the download finished and started a model against a
+    /// persisted `enabled: false`), and `is_running()` then answered `false` while a model ran,
+    /// which let the next on-toggle past the double-launch guard and spawn a *second*
+    /// `llama-server` on the same port. A generation counter is what lets the worker discover it
+    /// was cancelled at any point, including before it had anything to cancel.
+    generation: u64,
     stopper: Option<fm_agent::watchdog::StopFlag>,
     /// The whisper-server off-switch, when audio transcription is on. Tripped alongside `stopper` so
     /// "off" (and app exit) frees the whisper model's memory too.
@@ -78,7 +88,19 @@ struct Control {
 }
 fn control() -> &'static std::sync::Mutex<Control> {
     static C: std::sync::OnceLock<std::sync::Mutex<Control>> = std::sync::OnceLock::new();
-    C.get_or_init(|| std::sync::Mutex::new(Control { running: false, stopper: None, whisper_stopper: None }))
+    C.get_or_init(|| {
+        std::sync::Mutex::new(Control {
+            running: false,
+            generation: 0,
+            stopper: None,
+            whisper_stopper: None,
+        })
+    })
+}
+
+/// Is `generation` still the launch the app wants? False once anything has stopped or restarted it.
+fn current(generation: u64) -> bool {
+    control().lock().map(|c| c.running && c.generation == generation).unwrap_or(false)
 }
 
 /// Is a model running right now? (What Settings shows, and the guard against a double launch.)
@@ -88,8 +110,16 @@ pub fn is_running() -> bool {
 
 /// Clear the running state — called on every exit path of the runner thread, so the slot frees up for
 /// a future on-toggle whether the model stopped cleanly or failed to start.
-fn clear_running() {
+///
+/// **Only if the caller still owns the slot.** A worker that was cancelled and then finishes its own
+/// unwinding must not clear state that belongs to the launch which replaced it: off → on in quick
+/// succession would otherwise leave `running = false` with a live model, which is exactly the lie
+/// that lets a third launch spawn a duplicate `llama-server` on the same port.
+fn clear_running(generation: u64) {
     if let Ok(mut c) = control().lock() {
+        if c.generation != generation {
+            return;
+        }
         c.running = false;
         c.stopper = None;
         c.whisper_stopper = None;
@@ -149,6 +179,10 @@ pub fn stop() {
             s.stop();
         }
         c.running = false;
+        // Retires the in-flight launch too, whatever stage it reached. A worker still downloading
+        // weights sees this and returns without starting a model; one that has just started a model
+        // kills it instead of registering it.
+        c.generation += 1;
     }
 }
 
@@ -213,7 +247,10 @@ impl VaultAccess for DispatchVault {
         // In-process there is no HTTP blob route: resolve the path through the same `blob_path` fm-serve
         // uses, then read the bytes read-only. (Transcription itself is a later phone spike — the model
         // runtime isn't wired here yet — but the accessor exists so the seam is uniform.)
-        let path = fm_app::dispatch::blob_path(&self.app, reference)?;
+        // `Scope::All`: the on-device agent is this phone's own user, the same standing every
+        // loopback caller has (`fm_app::scope`). A narrower scope here would be a second, weaker
+        // access model — and there is no paired device on the *inside* of the app to narrow to.
+        let path = fm_app::dispatch::blob_path(&self.app, &fm_app::Scope::All, reference)?;
         let bytes = std::fs::read(&path).map_err(|e| format!("read blob {reference}: {e}"))?;
         let mime = fm_core::ingest::sniff_mime(&path).unwrap_or_else(|| "application/octet-stream".into());
         Ok((bytes, mime))
@@ -280,9 +317,16 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
 
     // Claim the running slot now, before the (possibly long) download, so a second start()/on-toggle
     // no-ops instead of racing a duplicate model. Cleared on every exit path of the thread below.
-    if let Ok(mut c) = control().lock() {
-        c.running = true;
-    }
+    // `generation` is this attempt's identity: everything below checks it is still the wanted one,
+    // so an off-toggle during the download is honoured instead of silently losing the race.
+    let generation = match control().lock() {
+        Ok(mut c) => {
+            c.running = true;
+            c.generation += 1;
+            c.generation
+        }
+        Err(_) => return Err("the agent's control state is poisoned".to_string()),
+    };
 
     std::thread::spawn(move || {
         // Fetch the weights if this is the first enable (resumable + checksum, retrying through the
@@ -301,7 +345,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             Ok(p) => p,
             Err(e) => {
                 log::info!("study agent: no model yet ({e})");
-                clear_running();
+                clear_running(generation);
                 return;
             }
         };
@@ -318,6 +362,14 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                     }
                 }
             }
+        }
+
+        // **Cancelled while downloading?** Then stop here, before a model is in memory. This is the
+        // window an off-toggle used to fall into silently: the user turned the assistant off, the
+        // download carried on, and a model started anyway against a persisted `enabled: false`.
+        if !current(generation) {
+            log::info!("study agent: cancelled before the model was started");
+            return;
         }
 
         let mut cmd = std::process::Command::new(&server_bin);
@@ -339,13 +391,27 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             Ok(m) => m,
             Err(e) => {
                 log::warn!("study agent: model failed to launch: {e}");
-                clear_running();
+                clear_running(generation);
                 return;
             }
         };
-        // Register the off-switch so Settings-off (and app exit) can stop this model now.
-        if let Ok(mut c) = control().lock() {
-            c.stopper = Some(model.stopper());
+        // Register the off-switch so Settings-off (and app exit) can stop this model now — unless
+        // an off-toggle landed in the microseconds since the check above, in which case the model
+        // that just started is nobody's and is killed rather than registered. Registering it would
+        // publish a stopper for a launch the app has already retired, and the *next* on-toggle would
+        // then overwrite it — leaking a model nothing can stop.
+        let mine = match control().lock() {
+            Ok(mut c) if c.running && c.generation == generation => {
+                c.stopper = Some(model.stopper());
+                true
+            }
+            _ => false,
+        };
+        if !mine {
+            log::info!("study agent: cancelled as the model came up — stopping it");
+            model.stopper().stop();
+            let _ = model.wait();
+            return;
         }
 
         // Audio→transcript: when enabled and the runtime is bundled, fetch the small whisper model and
@@ -373,8 +439,17 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                         let wbytes = std::fs::metadata(&wmodel).map(|m| m.len()).unwrap_or(80_000_000);
                         match SupervisedModel::launch(wcmd, SystemMonitor, &Need::new(wbytes, 300_000_000), Limits::resident()) {
                             Ok(wm) => {
-                                if let Ok(mut c) = control().lock() {
-                                    c.whisper_stopper = Some(wm.stopper());
+                                // Same generation test as the text model: whisper's own download
+                                // is another window an off-toggle can land in, and a stopper
+                                // registered for a retired launch is a model nothing can stop.
+                                match control().lock() {
+                                    Ok(mut c) if c.running && c.generation == generation => {
+                                        c.whisper_stopper = Some(wm.stopper());
+                                    }
+                                    _ => {
+                                        log::info!("study agent: cancelled — stopping whisper");
+                                        wm.stopper().stop();
+                                    }
                                 }
                                 whisper_port_val = Some(wport);
                                 log::info!("study agent: audio transcription on (whisper :{wport}, {whisper_name})");
@@ -415,7 +490,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         serve_loop(&agent, &model_name, &logs_dir, 1, &|| model.finished(), &|| stopper.stop());
         set_present(&model_name, false);
         let _ = model.wait();
-        clear_running();
+        clear_running(generation);
         log::info!("study agent stopped");
     });
     Ok(())

@@ -17,7 +17,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#seams`** (the compile-time invariants): *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): *The in-process sync path: the app merges* ·
+- **`#git` / `#sync`** (git, merge, collaboration): ***A backend that cannot finish a merge must
+  refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
+  here) · *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
   *Collaboration is git, exposed* · *Squash-on-push — a deliberate reversal* · *A commit that
@@ -25,22 +27,310 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   tiers*. **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
 - **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
-  *`fm-serve` sends a CSP*.
-- **`#ui`** (workspace/views/render): *One shell, two arrangements* · *`.view` files parsed
+  *`fm-serve` sends a CSP* · ***Startup is a contract*** (read before touching the shell's `setup`
+  hook or the render gate) · *An emulator may be installed to; the owner's phone may only be looked
+  at*.
+- **`#ui`** (workspace/views/render): *A contributor is an email, everywhere* · *One shell, two
+  arrangements* · *`.view` files parsed
   server-side* · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
   product* · *Whiteboard = embedded Excalidraw* · *Board images strip to the blob store* · *Assets
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): *Vaults are audiences* · *Every entity shows its vault badge* ·
+- **`#vault`** (audience/cross-vault): *A caller is a member of some audiences, not all* (`Scope`
+  — read before adding a read path or touching `find_blob`/`Vaults::config`) · *Vaults are audiences* · *Every entity shows its vault badge* ·
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: *The auto-commit stages what we wrote* · *The lost-update token is a content hash*.
-- **`#toolchain`**: *The core ships as one file; pixi is the only package manager* · *Every external
+- **`#data`**: *The auto-commit stages what we wrote* (**+ the explicit catch-up**: it could
+  *permanently skip* a note, not merely lag) · *A conflict surface is derived from git, not from
+  markers* · *The lost-update token is a content hash* ·
+  *The poll answers a comparison, not a report* (the generation counter — read this before
+  touching `ping` or assuming one client).
+- **`#toolchain`**: *The core ships as one file; pixi is the only package manager* · *The TLS
+  exception: a self-signed leaf, share-only* (read before touching `rustls`/`rcgen` — the `ring`
+  pin is a licence gate) · *Every external
   tool is an optional feature* · *No plugin API*.
-- **`#agent`**: *Inline meeting actions become their own note*. (Model/agent decisions that are not
-  yet folded up live in `ai-agents-plan.md`.)
+- **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
+  deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
+  `ai-agents-plan.md`.)
+
+## A conflict surface must be derived from git, not from markers in the text (2026-07-31, `#git` `#data`)
+
+**Decision.** `conflicts` is answered from **`vcs::conflicted`** — git's unmerged paths, each with its
+kind — unioned with the old body-marker scan, and every entry says whether there are markers to edit.
+`resolve_conflict(vault, path, keep)` keeps a side for the kinds that have none, **and finishes the
+merge when it was the last one**. Both git backends implement it, and a test asserts they agree
+byte-for-byte (`fm-cli/tests/conflict_resolution_both_devices.rs`).
+
+**Why.** A surface derived from a *symptom* misses every case without the symptom. Markers are the
+symptom of exactly one of git's seven conflict codes; a delete/modify (`DU`/`UD`) has none, because
+one side has no blob and the `.md` driver is never called. So the app warned about a conflict it could
+not display, and told the user in every message to *"open each one, both versions are marked in the
+text"* — impossible advice, with no other action offered, while `commit_all`'s refusal to commit
+mid-merge froze the whole vault. Measured cost on the owner's laptop: **7 days, 95 notes never
+committed**, from one invisible note (`sessions/2026-07-31-the-gray-screen-on-first-open.md` covers
+the same day's Android work; this one is in `known-issues.md`).
+
+**Consequence.** Finishing the merge is part of `resolve_conflict`, not the caller's job: `commit_all`
+stages only paths the app remembers writing, so it can answer "nothing of ours changed" and return
+*without* committing — leaving `MERGE_HEAD` standing, which is itself what makes it refuse. Resolving
+the last conflict and staying frozen would have been the same bug wearing a different hat.
+**`keep theirs`/`keep mine` is deliberately not offered for a marker conflict**: there, both sides'
+text exists and picking one discards the other, so the editor is the honest tool.
+
+## `commit_all` may lag, but it must never *silently skip* — an explicit catch-up exists (2026-07-31, `#data`)
+
+**Decision.** `vcs::unrecorded(vault, notes_rel)` lists notes on disk that git does not have, a
+toolbar chip counts them, and `record_unrecorded` stages exactly those and commits. The debounced
+auto-commit is **unchanged** — still only the paths this process recorded writing.
+
+**Why.** The precision was right and its scope was wrong. Staging only recorded paths is what keeps a
+vault that is also a project repo from having its owner's carefully staged work swept into an `auto:`
+commit every five seconds — but that record is **per-process memory**, so a note written before the
+last restart could never be staged by it. Not "history lags", which is what `known-issues.md` claimed:
+history was *permanently missing* those notes, and nothing surfaced it. 95 had accumulated.
+
+**Consequence.** The catch-up is **explicit and human-initiated**, never on a timer — the same
+reasoning as *"auto-push is explicit, never silent"*: it stages files the app does not remember
+writing, which is a judgement a person should make. And the count is a **persistent chip**, not a
+banner, for the reason the "unreadable notes" chip is: the condition lasts until someone acts, and its
+entire failure mode was silence.
+
+## A contributor is an email, everywhere — the name is only a label (2026-07-31, `#git` `#ui`)
+
+**Decision.** `activity.svelte.ts` exports `authorKey(e)` = the lowercased email, falling back to the
+name — and **both** the contributor chips and the note filter use it. `contributors()` returns
+`{key, label}` so the key travels with the label and the two cannot drift.
+
+**Why.** They had drifted. The chips already deduplicated by email, with a comment naming the exact
+case (*"a vault signed `singhbal-baljinder` on one machine and `Baljinder Singh` on another is still
+one human"*), while `shown()` hid notes by comparing the author **name**. So one chip represented one
+person and hid only the spelling it happened to be labelled with. Measured in the owner's own vault:
+**534 commits as `singhbal-baljinder`, 77 as `Baljinder`, 3 as `baljinder` in another vault — one
+email.** Clicking the chip left 77 notes on screen while reporting "hidden".
+
+**Which name counts, since three things are called one:** the **email** is the identity — it is what
+git carries as the stable half, what GitHub attributes commits by, and now what this app groups by. A
+git `user.name` is a display string. A **GitHub username** counts for almost nothing here: it is the
+username field beside a PAT, and with a token that field is nearly free-form. And a **vault name** is a
+local label for an audience, unrelated to any of them. Recording this because the owner reasonably
+assumed the GitHub username was the load-bearing one; it is the least.
+
+**Consequence.** `hiddenAuthors` in `localStorage` now holds keys rather than names. A stale entry from
+before this change simply matches nothing — the filter fails *open* (the note is shown), which is the
+right direction for a preference: a filter that silently hides notes after an upgrade would look like
+data loss. The agent identities (`<model>@fm-agents.local`) are separate emails and stay separate
+contributors, which is the intent — a model's commits are labelled as the model's.
+
+## A backend that cannot finish a merge must refuse to commit — and "I edited it" is a resolution (2026-07-31, `#git`)
+
+**Decision.** Three rulings, all forced by one differential test:
+
+1. **Neither backend may commit while anything is unmerged.** The subprocess one always refused; the
+   libgit2 one had **no such guard**, and `index.add_path` clears a path's conflict stages — so a
+   debounced auto-commit five seconds after a conflicting pull committed the note **with its
+   `<<<<<<<` markers as content**, dropped the merge's second parent, and pushed it.
+2. **A merge in flight is committed as a merge**: `MERGE_HEAD` as the second parent, then
+   `cleanup_state()`. A single-parent commit silently drops the incoming history; a `MERGE_HEAD` left
+   standing freezes the vault for good (`push_squashed`, `merge_proposal_branch` and the next `pull`
+   all refuse over an unfinished merge) — unrecoverable on a phone, which has no shell.
+   The subprocess side had the mirror-image bug: it committed with `--only <paths>`, which git refuses
+   outright mid-merge (*"cannot do a partial commit during a merge"*), so the ordinary resolution
+   failed on every attempt and the vault stayed frozen behind a scary banner.
+3. **`Keep::Edited` exists**, because **editing a note resolves nothing as far as git is concerned** —
+   verified against real git: clean text over a `UU` path leaves all three index stages, so the path
+   stays unmerged. The app's own instruction ("open each one, both versions are marked in the text")
+   therefore settled nothing, and since the conflict *list* was derived from markers in the body, the
+   note left the UI the moment the markers were tidied — taking the only sign of trouble with it while
+   the vault silently stopped recording history. Git's verb for "I reconciled this" is `add`, and
+   nothing called it. It is **refused while markers remain** (`merge::has_conflict_markers`, now the
+   single definition shared with the conflict list): staging a marked-up file is what git reads as
+   "resolved", and it would publish `<<<<<<<` to every collaborator.
+
+**Why it was invisible.** `vcs.rs`'s own comment says the `#[cfg]` inside each routed function means
+"the two backends cannot drift in shape without the compiler saying so" — true, and only for a build
+that *has* the feature. `pixi run ci` does not build `native-git`, so shape drift reaches only the
+phone. Behaviour drift is not checked by any compiler at all: both backends had `commit_all`, and both
+were wrong, in opposite directions, on the same path.
+
+**Consequence.** `ci/checks.sh` now greps that every `route!`d name exists in **both** backends (shape,
+cheap, in the default gate), and the parity assertions live in `pixi run test-native-git` — where they
+were written to fail first and did, catching both bugs on the first run. The check's failure message
+says explicitly that a green grep is not evidence the backends agree.
+
+## Startup is a contract: the store is reachable first, and no state renders a blank screen (2026-07-31, `#track-m` `#ui`)
+
+**Decision.** Three rules, all now enforced rather than intended.
+
+1. **The Android `setup` hook may not fail upward, and nothing slow may precede the store.** Tauri
+   builds the webview *before* the hook runs (`tauri/src/app.rs:2521`), and the event loop that
+   delivers an IPC reply does not start until the hook returns — so the hook's duration is a window
+   in which the page is asking questions nobody can answer. Startup therefore lives in one
+   `boot()`: `catch_unwind` around `App::load`, `manage` the instant the store exists, then the CA
+   bundle and the model on a spawned thread. A failure is recorded in `BOOT` and **every command
+   answers with it**, because a `?` there panics the shell's thread and leaves a live webview with
+   no backend — which is not a crash anyone can report, it is a screen that never paints.
+2. **`BOOT` is a `Mutex`, never a `OnceLock`**, and `boot()` is re-attempted by the first command
+   that finds no store. The first version froze the first failure for the life of the process, so
+   the UI's "Try again" re-asked, got the same stale sentence, and could not possibly help. A retry
+   that cannot retry is worse than no button.
+3. **No state of the render gate may paint an empty document.** `vaults === null` renders
+   `Starting` — silent for 700 ms so a fast launch never flashes it, then a status, then at 8 s an
+   escalation with the backend's verbatim reason and a retry. And a *refusal* is not an empty vault
+   list: `.catch(() => (vaults = []))` offered to create a first vault to someone who has ten.
+
+**Why.** The owner's phone opened to a gray screen on the first launch and worked on the second
+(`sessions/2026-07-31-the-gray-screen-on-first-open.md`). Every ingredient was ordinary; the
+combination was unreportable, because a phone has no console, no stdout in logcat, and (on MIUI) not
+even our own tag. **The identical first-paint contention bug had been fixed on the desktop a week
+earlier** — "the study agent's model warm-up is deferred", below — and nobody asked whether the phone
+had the same shape. It did, and worse: there the *vault open* was in front of the first frame too.
+
+**Consequence.** The boot poll is **time-driven, not rejection-driven** — the actual symptom was an
+invoke that never settled, which no `.catch` can observe. `ci/checks.sh` greps the shell structurally
+(no `?`/`unwrap`/`expect`/`panic` in the hook or in `boot`; the store managed before
+`install_ca_bundle`/`agent::start`), because the mobile crate cannot compile in `pixi run ci` at all
+and a rule nothing checks is a rule that lasts one refactor. `mock.ts` grew a fault surface
+(`reject`/`hang`/`delay`) so the UI's refusal, stall and never-answers paths are testable — the
+general form of a lesson `known-issues.md` had already recorded about one hand-written guard.
+
+## An emulator may be installed to and force-stopped; the owner's phone may only be looked at (2026-07-31, `#track-m`)
+
+**Decision.** Automated device tests target an emulator, and `ci/android-smoke.sh` **refuses to run
+against any serial that is not `emulator-*`** — before it checks anything else, including whether its
+own tools are present. The real-phone pass stays observation only (screencap via `exec-out`, which
+writes nothing on the device; `dumpsys`; `ps`), with the owner doing the installing and the tapping.
+
+**Why.** The test has to install, force-stop, `am kill` and uninstall to be worth anything, and the
+device this project is developed against is the owner's personal phone. A guard that is a sentence in
+a header is not a guard; this one is the first executable line and was verified to refuse with the
+phone attached.
+
+**Consequence.** `pixi run android-smoke` is opt-in, in the `android` feature, and deliberately **not**
+part of `pixi run ci` — which must stay green for a contributor with no NDK. What it asserts is shaped
+by the bug it exists to catch: **two consecutive cold launches must both paint**, because "fine the
+second time" was the whole signature and a one-launch test would have gone green throughout. "Painted"
+is `vips deviate` over a screenshot (a flat surface is ~0, a real screen is tens), with every measured
+number written to `stats.txt` so the threshold stays grounded rather than guessed.
+
+## The TLS exception: a self-signed **leaf**, share-only, and only for the microphone (2026-07-26)
+
+**Decision.** `fm-serve` links `rustls` + `rcgen` behind a `tls` feature (default on;
+`--no-default-features` still builds the std-only server, now CI-enforced). The shared listener
+gets its own port and a **self-signed leaf certificate**, not a local CA.
+
+**Why, in the shape of the libgit2 exception.** Sharing over plain HTTP was built first and
+carries the whole feature — touch editing, photo and video capture (`<input capture>` is a
+picker, not `getUserMedia`), ingest, blobs, whiteboard. The exception buys exactly one thing:
+`getUserMedia`, which browsers disable outside a secure context and which no amount of
+server-side care can grant over http. **You cannot hand-roll TLS**, which is the one place
+`decisions.md`'s "40 lines against a dependency" stance does not reach. Terminating TLS in a
+subprocess would have been more consistent with "invoke, don't link" and is the route to revisit
+if a terminator ever resolves on all four `pixi.toml` platforms.
+
+**Narrowly limited to:** the `tls` feature, `fm-serve` alone (`fm-core`/`fm-app`/`fm-query` link
+nothing), and **`ring` backends pinned on both crates** — the default is `aws-lc-rs`, whose
+licence includes `OpenSSL`, which `deny.toml` does not allow and which also wants cmake.
+`ci/checks.sh` now fails if `aws-lc-rs` appears in `Cargo.lock`, because a transitive
+default-feature flip is silent.
+
+**A leaf, not a CA — the security call.** A private CA is the *convenient* design: re-mint the
+leaf when DHCP moves and no paired device notices. Rejected. A root CA in a tablet's trust store
+signs **any name for that device's entire browsing life**; its key would sit in a config
+directory, be swept into whatever backs that directory up (including this app's own restic
+backup), and outlive uninstalling formicaria. Leaked leaf key → one notebook server. The DHCP
+problem it solved is answered instead by putting `<hostname>.local` in the SANs and advertising
+*that*: mDNS is resolved by both iOS and Android, already advertised by avahi/Bonjour, and a name
+survives a lease change where a bookmarked IP does not. The certificate is re-minted whenever the
+machine's name set changes.
+
+**No click-through path is documented, anywhere.** The 2026-07-19 Android TLS entry rejects
+`certificate_check → CertificateOk` emphatically, for skipping hostname verification; telling a
+user to dismiss an interstitial is the same act with the user as the actor, and under this design
+a warning only ever appears on a certificate that is *not* the expected one. Instead the
+certificate is a **file to carry across**, and its SHA-256 fingerprint is printed on the desktop
+and shown in Settings so it can be compared against what the device displays before installing.
+That comparison *is* the verification, performed by a human because a home network offers no
+other root of trust. A device that will not trust it simply has no in-app microphone — a
+supported state, with the message already written in `record.ts`. **Also rejected: HSTS** (it
+would pin the address to https permanently; when DHCP hands that IP to a printer the user has an
+error they cannot clear) and **fetching the certificate over the connection it authenticates**
+(trust-on-first-use with no verification step at all).
+
+**Consequence for the cookie.** `Secure` + a week's `Max-Age` on TLS; a **session** cookie on the
+plain-HTTP fallback, because a long-lived bearer token in clear on a LAN is precisely the
+`userpass_plaintext`-over-an-unauthenticated-connection shape the Android entry refuses.
+
+## A caller is a member of some audiences, not all of them: `Scope` (2026-07-26)
+
+**Decision.** `dispatch_as(.., &Scope)` narrows a caller to named vaults; `dispatch` keeps its old
+signature and means `Scope::All`, so `fm-cli`, the phone, the study agent and the desktop's own
+browser are untouched. Enforcement is `fm_core::Scoped`, a **view** of `MultiStore` over a subset
+of its vaults, reached through `Vaults::store(scope)`.
+
+**Why.** *Vaults are audiences* has always been the model, but every caller was the person at the
+keyboard, so "sees everything" was correct by construction. It stops being correct the instant a
+device can pair. Three specific ways the boundary leaked, each fixed at its own choke point:
+
+- **Reads** federate through `Store::candidates`, so board/agenda/search/recent/activity/`.view`
+  are all scoped by narrowing the set the read *runs over*. Filtering results afterwards would not
+  be a filter but a redaction — the other audience's notes would already have been read.
+- **`find_blob` searched every vault**, and its doc comment *justified* that: "whichever vault
+  answers, the bytes hash to the reference." True, and exactly the hazard — content-addressing
+  deduplicates, so a hash learned legitimately from a shared vault resolves against a private one.
+  `GET /api/blob` is not a command, so it takes the scope explicitly.
+- **`Vaults::config("")` resolved the default to `list[0]` *before* the store saw it**, so a
+  capture from a scoped caller would have been filed into an audience it cannot read. The default
+  is now the caller's first *reachable* vault. Found by a test, not by reading.
+
+**Consequence.** An unknown vault and an out-of-scope vault give the identical error, so a caller
+cannot probe for names it was not given; `list_vaults` is filtered, because the switcher and the
+copy-to menu are built from it and a vault's *name* discloses. An empty scope grants nothing —
+that inversion is how a device whose vaults were revoked would silently gain all of them.
+`Scope::All` is a variant, not "a list of every vault", so a vault created later is included
+rather than silently denied to the machine's own user.
+
+**Where the halves live:** mechanism in `fm-core` (it needs the vault list, and a check that can
+be forgotten is not a check); policy in `fm-app::scope`. Deliberately not a permission system —
+no roles, no verbs. Location is the permission, exactly as on disk. Tests:
+`fm-core/tests/scoped.rs` (mechanism), `fm-app/tests/scoped_dispatch.rs` (wiring — the half that
+rots, since a new read path reaching `Vaults::all` would leave every mechanism test passing).
+
+## The poll answers a comparison, not a report: `ping` carries a generation (2026-07-26)
+
+**Decision.** `ping` takes the `since` the client last saw and answers `changed = generation >
+since`, where `generation` is a monotonic per-process counter on `App`. It is bumped by any
+command not on `dispatch::READ_ONLY`, and by a reindex that finds drift.
+
+**Why — two separate defects, one cause: the answer was a *report*, and a report can only be
+made once.**
+
+- **Drift is consumed by whoever asks first.** `changed` was "did *this* incremental reindex find
+  moved mtimes?" — but that same reindex writes the fresh mtimes back. The first client to ask
+  got the news; every other client was told "nothing changed" indefinitely. `App.svelte` had
+  carried a comment describing this since it was written, mitigated by an unconditional refresh
+  on `visibilitychange` — a mitigation that **does not exist on a tablet**, which is held in the
+  hand and never backgrounded.
+- **A write through `dispatch` produced no drift at all** — the larger half, and it was not
+  known. `FileStore::put` indexes the file it just wrote, mtime included (`file.rs::index_object`),
+  so afterwards the index and the disk agree and an incremental reindex finds *nothing*. The poll
+  therefore only ever saw **out-of-band** edits — a `git pull`, the merge driver, Vim. That was
+  sufficient for exactly as long as there was one client, and it is why a second client would
+  never have seen the first one's notes at all, not merely seen them late.
+
+**Consequence.** N clients each hold their own cursor, so the server needs no identity, no
+per-client eviction, and no definition of "gone" — and a client that misses a beat catches up on
+the next one. `READ_ONLY` is an **allowlist**, so the failure mode of forgetting to classify a new
+command is "one redundant re-query" and never "silently invisible to every other screen"; `ping`
+is on it and bumps from inside its own arm instead, or the poll would report a change on every
+beat forever. A `since` of 0 (a client with no cursor) is told `changed` deliberately: its initial
+queries are not atomic with its first beat, so assuming it is behind is the recoverable error.
+Refused writes do **not** bump — a stale `base` on a debounced editor would otherwise fan a
+re-query out to every client on every keystroke.
+
+**Consequence for the reader:** `ping` is no longer "is this vault dirty?" — it is "have I fallen
+behind?", and those differ the moment there are two clients. Tests: `tests/poll_generation.rs`.
 
 ## The in-process sync path: the app merges, because libgit2 cannot (2026-07-19)
 
@@ -1343,3 +1633,19 @@ fix touched only `sync.svelte.ts` — so the dominant caller kept swallowing it.
 costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` signatures were
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
+
+## The study agent's model warm-up is deferred a few seconds after launch (2026-07-24, `#agent`)
+**Why:** with the agent enabled, `fm-serve` auto-spawns the whole stack at launch — and the model
+server reads a **multi-GB GGUF off disk and loads it onto the GPU the instant it starts**. Since
+adopting Qwen3-VL-4B (2.4 GB) that load began *the moment the browser is told to open*, and on the
+owner's laptop (4 GB GPU shared Intel iGPU + NVIDIA via Vulkan, Firefox compositing on the same GPU)
+it starves exactly the disk and GPU the browser needs to paint the app's first frame. Measured:
+`fm-serve` binds in ~57 ms and fires `xdg-open` at ~33 ms, but the *window* crawled in because the
+2.4 GB read + Vulkan load hit at t≈0. That is what "double-click takes forever now" was — not the
+launcher or the server, which were never slow. **Consequence:** `agent::spawn_at_launch` now claims
+the run slot immediately (so a concurrent settings toggle still can't double-spawn) but sleeps
+`AGENT_WARMUP_DELAY_SECS` (5 s) on a background thread before the actual spawn, releasing the slot if
+that spawn fails. The page gets an uncontended window to render; the assistant warms a beat after the
+app is already usable. This is *only* about launch contention — the `/api/set_agent` "turn it on now"
+path stays immediate, because there the user is asking for the model, not for the app to open.
+Verified after the change: browser-open at +0.06 s, model spawn at +5.09 s.

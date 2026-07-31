@@ -86,8 +86,91 @@ edit-gesture)._
 > including ones we have decided to live with. The ranked **work queue** — with what "done"
 > looks like for each — is [outstanding.md](./outstanding.md).
 
+## Android startup/shutdown — what two adversarial audits found and this pass did NOT fix (2026-07-31)
+
+The gray-screen fix and its tests are in
+`sessions/2026-07-31-the-gray-screen-on-first-open.md` and `decisions.md#track-m`. These are the
+*other* findings from auditing the launch and teardown paths — all anchored, none fixed:
+
+- **A kill mid-`pull` leaves a vault mid-merge — now recoverable from the app, which it was not.**
+  Fixed 2026-07-31 (`decisions.md#git`): both backends' `commit_all` refuse while anything is unmerged
+  and, once the index is settled, commit the merge with **both parents** and call `cleanup_state()`.
+  Previously `cleanup_state` had exactly one call site and `commit_all` never inspected `repo.state()`,
+  so a resolution committed with the second parent silently dropped and `push_squashed` /
+  `merge_proposal_branch` refused **forever** — reached by a `SIGKILL` with no user action at all, and
+  on Android a `SIGKILL` is how the app is normally closed.
+  **What remains:** the window *inside* `pull` (between `repo.merge()` and its commit) still leaves
+  `MERGE_HEAD` on a hard kill — deliberately, exactly as an interrupted `git merge` does. The
+  difference is that the conflict surface now finds it, explains it, and can settle it.
+- **The phone's `fmblob` handler buffers whole blobs and honours no `Range`**
+  (`mobile/src-tauri/src/lib.rs`, the `blob_response` arm). Ruling 7's streaming/seeking path exists
+  only in `fm-serve/src/blob.rs`; the handler's own doc comment claims otherwise. On a device already
+  swapping 3 GB, opening a large blob is a multi-hundred-MB transient — i.e. an invitation to the
+  renderer kill described below.
+- **The model fetcher verifies neither length nor hash** (`fm-agent-run/src/fetch.rs:111-149`;
+  `agents/models.toml` pins no `sha256`, so both verification branches are dead code). A body that
+  closes early is renamed as complete, and `ensure_model` then returns that file forever — nothing in
+  the tree ever deletes a bad `.gguf`. The only self-heal is uninstalling the app, which also
+  destroys the vault.
+- **A poisoned vault mutex bricks every command for the life of the process**
+  (`fm-app/src/dispatch.rs:186`, `lock().map_err(...)` with no recovery). The agent thread and the
+  webview both `dispatch`, so a panic in either poisons for both.
+- **`activity` holds the vault mutex across a per-vault libgit2 revwalk**, and it is among the first
+  things the first `refresh()` fires (`fm-app/src/dispatch.rs`, the `activity` arm; `App.svelte`
+  fires it before awaiting the feeds). Every other command queues behind a year of git history. This
+  is the arm the module's own "five arms drop the lock before slow I/O" note does not cover.
+- **Android reclaiming the WebView renderer kills the app, silently**, because `RustWebViewClient`
+  has no `onRenderProcessGone` override and the framework default is to kill the process. So a
+  memory-tight phone can make formicaria vanish with nothing saying why. **A logging override cannot
+  be injected from `ci/android-inject-service.sh`** — tried 2026-07-31: anything under `gen/android/
+  .../generated/` is rewritten by tauri's own codegen *during* `tauri android build`, i.e. after the
+  pre-build hook has run, so the patch reappeared and vanished on every build with no error anywhere
+  (`AgentService.kt`/`MainActivity.kt` are patchable only because they live outside `generated/`).
+  Needs a Gradle source-transform or an upstream hook; not worth it for a log line, but **do not
+  spend the afternoon rediscovering why the awk block "didn't work"**.
+- **Turning the assistant off leaves its foreground notification up.** `agent::set_running(false)`
+  kills the model but nothing calls `stopSelf`/`stopForeground`, so "formicaria study assistant —
+  Running on your device" persists over an app that is running nothing. (The worse half of this — a
+  `START_STICKY` service resurrecting a *hollow* process with no Rust in it at all — was fixed.)
+- **The `unsafe set_var` calls' stated justification is false.** `mobile/src-tauri/src/lib.rs`'s
+  `configure_paths` and `fm-app/src/secrets.rs` both say "single-threaded, before any vault is
+  opened"; the webview is already loaded and invoking by then, and bionic's `setenv` is not
+  thread-safe. The window is small and the fix is not obvious — but do not trust the comment.
+- **A `configure_paths` early return produces a *wrong* screen, not a blank one.** If
+  `app_data_dir()` fails, `FM_CONFIG_DIR`/`FM_VAULT` stay unset, `App::load` **succeeds** with zero
+  vaults, and the user is shown the first-run form — whose `create_vault` then cannot persist
+  anything.
+
 ## Known gaps / not fully working
 
+- **A paired device's microphone needs the certificate installed, and there is deliberately no
+  way around that.** `getUserMedia` requires a secure context, so it works over the TLS listener
+  and not over the plain-HTTP fallback (`--no-default-features`, or a machine where no
+  certificate could be minted). **No click-through path is offered** — see `decisions.md`'s TLS
+  exception for why. **Photo/video capture never needed any of this**: it is a plain
+  `<input type="file" capture="environment">`, a picker rather than `getUserMedia`. `/transcribe`
+  also treats an *attached* clip identically to a recorded one, so the fallback is real.
+- **Nothing verifies the certificate for the user.** There is no CA, no OCSP, no CRL — trust is
+  the human comparing the SHA-256 fingerprint Settings prints against what the device shows,
+  once. Consequently **"Disconnect all devices" revokes tokens, not trust**: a device that
+  installed the certificate still trusts this computer until the profile is deleted there.
+- **The share cookie is not port-scoped, because no cookie is** (RFC 6265). A token set on the
+  share port is sent to every port on that host. `Secure` keeps it off plain-http listeners
+  entirely, which is most of the exposure; what remains is another *https* service on the same
+  machine. `__Host-` would not fix ports either — nothing does.
+- **A blob hash is still an existence oracle across the boundary.** The Origin check is POST-only,
+  so a page that already knows a sha256 can put it in an `<img src>` and learn from
+  `onload`/`onerror` whether this machine holds it. It cannot read the bytes (no CORS headers, and
+  do not add any). Known and accepted: the hash has to be known first, and the alternative is
+  authenticating subresource loads, which cookies are the only mechanism for.
+- **A refused cross-vault write answers `500`, not `403`.** `api()` maps every `dispatch` error to
+  500, so "no vault named 'personal'" arrives with the wrong status. The *message* is right and
+  is deliberately identical to a nonexistent vault (a caller must not be able to probe for names),
+  but the status code is sloppy. Fixing it means classifying `dispatch`'s error type, which is a
+  larger change than this feature.
+- **Sharing applies at the next launch**, deliberately (the `agent.rs` precedent) — starting and
+  stopping a listener under live connections buys nothing a reopen does not. The Settings toggle
+  says so; if it ever stops saying so, that is the bug.
 - **Android can carry bytes to the app only as base64 in a JSON string**, and that is a platform
   limit with no workaround at this layer. Both binary doors are shut: Tauri states *"On Android,
   `InvokeBody::Raw` is not supported"*, and wry intercepts through
@@ -171,6 +254,41 @@ edit-gesture)._
   helper, no `rclone config`), so the phone forces a real Keystore decision the moment a second
   transport needs a secret.
 
+- **Two conflict traps, both fixed 2026-07-31 — the lessons, because the shape recurs.**
+  A vault sat **mid-merge for 7 days** on one `DU` ("deleted by us") path — a template deleted on
+  the laptop and edited on the phone — with **95 new notes never committed**, because `commit_all`
+  refuses while a vault is mid-merge. Two independent defects, and the pairing is what made it
+  costly:
+  1. The app held **two different definitions of "conflict"**. `commit` asked git for unmerged
+     paths (all seven codes), while the list the UI showed was derived by **scanning note bodies for
+     `<<<<<<<`**. A delete/modify conflict has no markers and never will — one side has no blob, so
+     the `.md` driver is not even called — so the app warned about a conflict it could not show, and
+     every message said *"open each one, both versions are marked in the text"*, which for that kind
+     is advice nobody can follow. Git's own resolutions (`add` = theirs, `rm` = ours) had **no UI at
+     all**, and the owner has no terminal. Now `vcs::conflicted` carries the kind, `resolve_conflict`
+     keeps a side *and finishes the merge*, and the Collaboration surface offers both.
+  2. **`commit_all` could permanently skip a note, not merely lag.** It stages exactly the paths
+     `FileStore::put`/`delete` recorded — correct, so that a vault which is also a project repo never
+     has its owner's staged work swept into an `auto:` commit — but that record is **per-process
+     memory**. Every note written before the last restart was unstageable *forever*, and nothing said
+     so. Now `vcs::unrecorded` lists them and a toolbar chip counts them.
+  **The durable lessons:** a surface derived from a *symptom* (markers in text) will silently miss
+  every case that lacks the symptom, so derive it from the *authority* (git) and keep the symptom as
+  the union; and "history can lag" is a very different claim from "history can be skipped" — the
+  second one needs a visible count, because nobody audits git by hand.
+  3. A third defect, found the same day by the new differential test and worse than both: **editing a
+     note resolves nothing as far as git is concerned** (all three index stages remain), so the
+     documented resolution settled nothing, and the note left the UI as soon as the markers were
+     tidied. Both backends' `commit_all` were also broken on that path in opposite directions — the
+     phone silently committing markers as note content, the laptop erroring with *"cannot do a partial
+     commit during a merge"*. Fixed; see `decisions.md#git`, "A backend that cannot finish a merge must
+     refuse to commit".
+  **Still true:** resolving a marker conflict by *editing* remains the only way to keep both sides;
+  `keep theirs`/`keep mine` on a `UU` would discard one, which is why the UI offers **Open the note**
+  + **Mark resolved** there instead.
+  **And the gate to remember:** a compiler that checks signatures says nothing about behaviour, and
+  the suite that catches backend divergence (`pixi run test-native-git`) is **opt-in** — run it
+  whenever `commit_all` or `git_native.rs` changes.
 - **A conflicted note is surfaced only by name** (current behaviour, not a bug): the `.md` driver
   puts the markers in the note *body*, so it opens and resolves in the ordinary editor. `commit`
   answers `CommitResult { committed, conflicts }` and all three callers (the 5 s auto-commit in
@@ -206,6 +324,19 @@ edit-gesture)._
   not `updated`, so an edit that never bumps a timestamp — Vim — still moves it. Measured at
   1.6 ms in release for a 2.8 MB whiteboard body, against a 600 ms save debounce, and pinned
   by a perf budget.
+- **On Android the app is normally left by being killed — so "commits can lag" is worse there than
+  the desktop framing says.** Swipe-away and an LMKD reclaim are a `SIGKILL`: no unwinding, no
+  destructors, no flush. *Back* can do the same — `TauriActivity` sets `handleBackNavigation = false`,
+  so a Back that reaches the Activity finishes it and tao's event loop then calls
+  `std::process::exit` — **but measured on the owner's phone 2026-07-31 it did not**: this frontend
+  pushes history (`NotePanel` handles `onpopstate`), so the WebView had somewhere to go back to and
+  absorbed the key. Treat Back as *may* exit, depending on the page's history; the kills that always
+  happen are the swipe and the reclaim. The 500 ms save debounce and the 5 s auto-commit
+  are browser `setTimeout`s, so *the ordinary way of leaving the app* can skip both. Since 2026-07-31
+  `pagehide`/`visibilitychange` flush them — **best-effort only**: a WebView is not guaranteed to
+  deliver either event before the Activity is torn down, and nothing in wry/tauri wires Android's
+  `onPause` to the page. Files themselves are never at risk (atomic temp+rename); up to 500 ms of
+  *typed text* and a pending commit are.
 - **The phone shell has never run on a phone.** The reflow and the tap→move menu are verified
   at a narrow viewport, by `pointer: coarse`, and by component tests — not on a device. Chrome's
   touch emulation is *actively misleading* here: it synthesises PointerEvents but does not

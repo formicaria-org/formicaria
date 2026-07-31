@@ -60,7 +60,15 @@ class AgentService : Service() {
         } else {
             startForeground(1, notification)
         }
-        return START_STICKY
+        // **NOT_STICKY, deliberately — it used to be STICKY and that resurrected a lie.** Android
+        // restarts a sticky service after killing its process, and it restarts *only the service*:
+        // no Activity, so `WryActivity.onCreate` never runs, so `Rust.create()` never runs, so there
+        // is no vault, no dispatch and no model in that process. What the user got was a permanent
+        // "formicaria study assistant — Running on your device" notification over an empty JVM,
+        // holding the foreground-service priority that makes LMKD reap other apps first (on the
+        // owner's phone it was outliving Chrome and the Play Store). MainActivity starts this
+        // service on every launch, so stickiness bought nothing a tap does not.
+        return START_NOT_STICKY
     }
 }
 KT
@@ -85,6 +93,25 @@ class MainActivity : TauriActivity() {
   }
 }
 KT
+
+# 2b) **Do NOT try to patch anything under `generated/` from here — it will not survive.**
+#
+# Attempted 2026-07-31, for a good reason: `RustWebViewClient` overrides no `onRenderProcessGone`,
+# and the framework default for that is to **kill the app process** — so on a memory-tight phone
+# (the owner's swaps ~3 GB while LMKD reaps Chrome and the Play Store, formicaria surviving on this
+# very service while holding ~2 GB of model mappings) the app can simply vanish with nothing
+# anywhere saying why. A logging override would at least name the cause, since `didCrash()`
+# distinguishes "the system took the renderer" from "the renderer crashed".
+#
+# **It was applied, and then silently overwritten**: `tauri android build` re-runs its own codegen
+# over `generated/` *during* the build, i.e. after this pre-build hook has finished. The patch
+# reappeared and vanished on every build and no error was raised anywhere — verified by grepping the
+# file mid-build. There is no post-codegen, pre-compile hook to hang it on. `AgentService.kt` and
+# `MainActivity.kt` are only editable here because they sit **outside** `generated/`.
+#
+# So the diagnostic is not built, and the gap is recorded in `docs/context/known-issues.md` instead
+# of being pretended to. If it is ever worth having, it needs a Gradle source-transform (or an
+# upstream tauri hook), not another awk block here.
 
 # 3) Manifest: the foreground-service permissions (after INTERNET) and the <service> (before
 #    </application>). Idempotent — only inject what is absent.

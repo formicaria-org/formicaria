@@ -38,13 +38,20 @@
     runView,
     activity as fetchActivity,
     backupStatus,
+    resolveConflict,
+    unrecorded,
+    recordUnrecorded,
   } from './lib/ipc';
-  import { setActivity, lastEditFor, contributors } from './lib/activity.svelte';
+  import { setActivity, lastEditFor, contributors, authorKey } from './lib/activity.svelte';
   import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
-  import type { ObjectMeta, VaultInfo, ViewInfo } from './lib/types';
+  import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, Unrecorded } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
+  import Pairing from './lib/Pairing.svelte';
+  import Starting from './lib/Starting.svelte';
+  import { isRemote } from './lib/remote';
+  import * as ipc from './lib/ipc';
   import ViewBar from './lib/ViewBar.svelte';
   import * as keys from './lib/keys';
 
@@ -275,8 +282,13 @@
   // `.filter(shown)` re-runs when any of them change (the reads happen inside the derived).
   const shown = (n: { id: string; vault: string }) => {
     if (n.vault && hiddenVaults.includes(n.vault)) return false;
-    const author = lastEditFor(n.id)?.author;
-    return !author || !hiddenAuthors.includes(author);
+    // **Keyed by identity, not by name spelling.** The chips deduplicate one person by email; this
+    // used to compare the author *name*, so hiding a chip hid only the spelling it was labelled
+    // with — notes last edited under another spelling of the same person stayed visible while the
+    // chip read "hidden". One vault here had 534 commits as `singhbal-baljinder` and 77 as
+    // `Baljinder`, one email (2026-07-31).
+    const last = lastEditFor(n.id);
+    return !last || !hiddenAuthors.includes(authorKey(last));
   };
 
   function toggleVault(name: string) {
@@ -289,10 +301,11 @@
       // A browser that won't remember the preference still honours it this session.
     }
   }
-  function toggleAuthor(name: string) {
-    hiddenAuthors = hiddenAuthors.includes(name)
-      ? hiddenAuthors.filter((a) => a !== name)
-      : [...hiddenAuthors, name];
+  /// Takes the contributor **key** (email-based), not a display name — see `shown` above.
+  function toggleAuthor(key: string) {
+    hiddenAuthors = hiddenAuthors.includes(key)
+      ? hiddenAuthors.filter((a) => a !== key)
+      : [...hiddenAuthors, key];
     try {
       localStorage.setItem('fm-hidden-authors', JSON.stringify(hiddenAuthors));
     } catch {
@@ -320,7 +333,12 @@
   // the beat that follows opening it — and because a note staying broken must not make
   // the list flicker.
   let skippedOpen = $state(false);
+  /// The last-reported set of unopenable vaults, so the notice fires on change and not per beat.
+  let lastUnopened = '';
   let skippedNotes = $state<import('./lib/ipc').SkippedNote[]>([]);
+  /// This device has not been let in — see the `{#if}` at the top of the markup for why that
+  /// replaces the whole app rather than showing beside it.
+  let needsPairing = $state(false);
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
   let createOpen = $state(false);
   let searchOpen = $state(false);
@@ -630,7 +648,16 @@
   $effect(() => {
     if (!import.meta.env.PROD) return; // the mock has no server to keep alive
     void alive();
-    const id = setInterval(() => void alive(), 15000);
+    // **A hidden tab on a paired device stops beating.** The watchdog counts any authenticated
+    // peer as "someone is using this" — it has to, or closing the desktop tab would kill the
+    // server out from under someone working on the tablet. The other half of that bargain is
+    // here: a tablet left face-up on a table must not hold the app open all day. The desktop
+    // keeps beating regardless, because on the machine itself an open tab *is* the app being
+    // open, which is exactly what `FM_AUTO_SHUTDOWN` means.
+    const id = setInterval(() => {
+      if (isRemote() && document.hidden) return;
+      void alive();
+    }, 15000);
     return () => clearInterval(id);
   });
 
@@ -650,9 +677,19 @@
   // battery argument that motivates dropping the poll is a phone argument; on a desktop it
   // buys nothing and costs that.
   $effect(() => {
+    // A device that has not paired gets 401 on everything, so the whole app is replaced by the
+    // pairing screen. Driven by a callback rather than polled: the very first command fails, and
+    // waiting a beat to notice would show a broken app for that beat.
+    ipc.onNeedsPairing(() => (needsPairing = true));
+
+    // How far this client has caught up. Sent as `since`, replaced by whatever comes back —
+    // including when nothing changed, so a client that was away does not re-run the same query
+    // on every beat forever.
+    let generation = 0;
     const beat = async () => {
-      const r = await ping().catch(() => null);
+      const r = await ping(generation).catch(() => null);
       if (r) {
+        generation = r.generation;
         gitAvailable = r.git;
         resticAvailable = r.restic;
         // Once, not every beat. The notebook is fine; be accurate about what isn't.
@@ -671,6 +708,20 @@
       // conflict that persists must not become a notification every fifteen seconds, and a
       // *new* one must not be swallowed because an older one is already showing.
       if (r) {
+        // A configured vault that would not open. Stated the same way and for the same reason as the
+        // unreadable notes below: the app now opens the *others* instead of refusing everything, and
+        // that is only an improvement if the missing one is named — a vault silently absent reads as
+        // lost notes. Keyed on the set, so it is said when it changes rather than every 15 seconds.
+        const vk = (r.unopened_vaults ?? []).join(String.fromCharCode(0));
+        if (vk !== lastUnopened) {
+          lastUnopened = vk;
+          if (r.unopened_vaults?.length) {
+            report(
+              `${r.unopened_vaults.length} vault(s) could not be opened and their notes are not ` +
+                `showing: ${r.unopened_vaults.join('; ')}. Everything else is unaffected.`,
+            );
+          }
+        }
         skippedNotes = r.skipped;
         const key = r.skipped.map((s) => `${s.vault}/${s.name}`).join(String.fromCharCode(0));
         if (key !== lastSkipped) {
@@ -695,16 +746,28 @@
     void beat();
     if (!import.meta.env.PROD) return;
 
-    // Coming back to the tab refreshes **unconditionally**, rather than asking `changed`
-    // first. `ping` reindexes, and a reindex writes the new mtimes back — so with two tabs
-    // open the first one to ask consumes the answer and the second is told "nothing
-    // changed" forever. Gating the foreground refresh on that flag is how a tab you just
-    // returned to shows you stale notes.
+    // Coming back to the tab beats immediately rather than waiting out the interval, so a tab
+    // you just returned to is current before you have finished looking at it.
+    //
+    // This used to call `refresh()` **unconditionally**, because `changed` could not be
+    // trusted: it was derived from whether this reindex found drift, and a reindex writes the
+    // fresh mtimes back, so the first client to ask consumed the answer and the rest were told
+    // "nothing changed" forever. `changed` is now `generation > since` — a comparison every
+    // client can make independently — so asking is enough, and a quiet return costs one
+    // heartbeat instead of a full re-query of every open view.
     const onVisible = () => {
-      if (document.hidden) return;
-      void refresh();
+      // Going *away* is the half that used to be ignored, and on a phone it is the half that
+      // costs something: the app is usually left by being killed, so a commit owed "in five
+      // seconds" is a commit that never happens. Spend the notice we get.
+      if (document.hidden) {
+        flushPendingCommit();
+        return;
+      }
+      void beat();
     };
     document.addEventListener('visibilitychange', onVisible);
+    // `pagehide` because a WebView teardown does not reliably fire `visibilitychange` first.
+    window.addEventListener('pagehide', flushPendingCommit);
 
     const id = setInterval(() => {
       if (document.hidden) return;
@@ -713,20 +776,91 @@
     return () => {
       clearInterval(id);
       document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pagehide', flushPendingCommit);
     };
   });
 
   // Which vaults exist. Answered once at startup and again whenever one is created —
   // it changes about as often as you start a new project, so it does not ride the 3s beat.
-  $effect(() => {
+  //
+  // **A refusal is not an empty vault list, and this used to conflate them.** `.catch(() => [])`
+  // sent every failure to the first-run screen — offering to create your first vault to someone
+  // who has ten, because one command did not answer. On the phone that is not hypothetical: the
+  // shell answers `fm` only once it has opened the vaults, so a launch can legitimately refuse for
+  // a moment ("still opening your vaults") and can refuse permanently if the open failed. So:
+  // record the reason, keep `vaults` at `null` — which now renders `Starting`, not nothing — and
+  // ask again.
+  //
+  // **The retry is not PROD-gated**, though the first draft of it was. A retry that runs only in
+  // the shipped bundle is a retry no test can reach, on the one path that only ever fails on a
+  // phone — the same shape of hole this whole fix exists to close. The mock answers immediately
+  // unless a test asks it not to (`mock.faults`), so nothing repeats in the suite.
+  // **Time-driven, not rejection-driven — because the symptom was a call that never settled.**
+  // The first draft retried in `.catch`, which a promise that never resolves *or* rejects never
+  // reaches: `bootError` stayed null, no retry was ever scheduled, and the phone showed a bare
+  // "Opening your vaults…" forever. That is the exact geometry of the bug (Tauri's event loop, which
+  // delivers the reply, does not start until the shell's setup hook returns — so an invoke issued
+  // before that can simply never come back). A watchdog re-asks on elapsed time, so a silent
+  // backend, a refusing one and a slow one all converge on the same recovering path.
+  let bootError = $state<string | null>(null);
+  let bootAttempts = $state(0);
+  let bootWaited = $state(0);
+  // The counters live in plain variables and are *assigned* into the `$state` ones, never
+  // incremented through them: `bootAttempts += 1` reads what it writes, and this runs inside an
+  // `$effect`, so that read makes the effect its own dependency — an infinite re-run
+  // (`effect_update_depth_exceeded`, which took out 36 tests on the way in).
+  let bootTries = 0;
+  let bootTimer: ReturnType<typeof setInterval> | undefined;
+  const BOOT_BEAT_MS = 1200;
+  function loadVaults() {
+    bootAttempts = ++bootTries;
     void listVaults()
-      .then((v) => (vaults = v))
-      .catch(() => (vaults = []));
+      .then((v) => {
+        vaults = v;
+        bootError = null;
+        // Nothing left to watch: a boot that succeeded must not keep polling `list_vaults`
+        // behind a working app for the rest of the session.
+        clearInterval(bootTimer);
+        bootTimer = undefined;
+      })
+      .catch((e) => {
+        bootError = String((e as { message?: string })?.message ?? e);
+      });
+  }
+  $effect(() => {
+    loadVaults();
+    // One beat, doing both jobs: it re-asks (covering the never-settles case that no `.catch` can
+    // see) and it counts elapsed time, which is what lets the screen escalate its wording instead
+    // of saying "opening…" identically at 1 second and at 3 minutes.
+    bootTimer = setInterval(() => {
+      if (vaults) {
+        clearInterval(bootTimer);
+        bootTimer = undefined;
+        return;
+      }
+      bootWaited += BOOT_BEAT_MS;
+      loadVaults();
+    }, BOOT_BEAT_MS);
+    return () => clearInterval(bootTimer);
   });
 
   // The saved views the sidebar lists. Same cadence reasoning as vaults — a `.view` file
   // changes when you author one, not every few seconds.
+  //
+  // **Keyed on `vaults` so an early refusal is not permanent.** This fires at t≈0, concurrently
+  // with `list_vaults`, and on the phone that is before the shell can answer anything — so a
+  // `.catch(() => [])` here meant the user's saved views were missing from the sidebar and from
+  // every pane's view picker for the whole session, from one badly-timed call. Reading `vaults`
+  // makes the effect re-run once the backend is actually up.
+  // What the app forgot it wrote. Same cadence as the saved views (and the same `vaults` key, so an
+  // early refusal is not permanent) — plus after anything that could change it.
   $effect(() => {
+    if (!vaults) return;
+    void loadUnrecorded();
+  });
+
+  $effect(() => {
+    if (!vaults) return;
     void listViews()
       .then((v) => (views = v))
       .catch(() => (views = []));
@@ -874,7 +1008,24 @@
   function scheduleCommit() {
     if (gitAvailable === false) return;
     clearTimeout(commitTimer);
-    commitTimer = setTimeout(() => {
+    commitPending = true;
+    commitTimer = setTimeout(commitNow, 5000);
+  }
+
+  /// Whether a debounced commit is still owed. Tracked so leaving the app can settle it: the timer
+  /// is a browser `setTimeout`, and on Android the ordinary way to leave is a process kill (Back
+  /// exits, swipe-away and LMKD `SIGKILL`), so "in five seconds" can simply never arrive. Files are
+  /// still safe — writes are atomic temp+rename — it is the *history* that would silently lag.
+  let commitPending = false;
+  function flushPendingCommit() {
+    if (!commitPending) return;
+    clearTimeout(commitTimer);
+    commitNow();
+  }
+
+  function commitNow() {
+    commitPending = false;
+    {
       const stamp = new Date().toISOString();
       for (const v of vaults ?? []) {
         commit(`auto: ${stamp}`, v.name)
@@ -903,7 +1054,57 @@
               `History and backup are paused until that is fixed.`;
           });
       }
-    }, 5000);
+    }
+  }
+
+  /// Resolve a conflict by keeping a side — the only resolution that exists when there are no
+  /// markers to edit (one device deleted the note, the other edited it).
+  ///
+  /// **This is the button whose absence froze a vault for a week.** Git's own answers are `add` and
+  /// `rm`; the app offered neither, and every message told the user to open the note and keep the
+  /// text they wanted — text that does not exist in this case. Refreshing afterwards matters as much
+  /// as the resolution: the note reappears (or goes), and the vault starts committing again, so the
+  /// surfaces that were stuck must be re-read rather than left showing the frozen state.
+  async function onResolveConflict(c: ConflictInfo, keep: 'theirs' | 'mine' | 'edited') {
+    try {
+      await resolveConflict(c.vault, c.path, keep);
+      await refresh();
+      // Recording what was waiting is the point of unfreezing: the commit that had been refused for
+      // as long as the conflict stood is now possible, so take it rather than waiting for the next
+      // edit to trigger the debounce.
+      scheduleCommit();
+      await loadUnrecorded();
+      notice =
+        keep === 'edited'
+          ? 'Resolved, and the merge is finished — this vault can commit again.'
+          : `Resolved. Keeping the ${keep === 'theirs' ? "other device's" : "this device's"} version.`;
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  /// Notes on disk that git does not have — per vault, refreshed on load and after anything that
+  /// could change it. See `ipc.unrecorded`: the app could forget it wrote a note and then never
+  /// stage it, silently, forever.
+  let unrecordedList = $state<Unrecorded[]>([]);
+  async function loadUnrecorded() {
+    unrecordedList = await unrecorded().catch(() => []);
+  }
+  const unrecordedTotal = $derived(unrecordedList.reduce((n, u) => n + u.count, 0));
+  /// Record every vault's forgotten notes. One click, because the answer is never "some of them".
+  async function recordAllUnrecorded() {
+    for (const u of unrecordedList) await onRecordUnrecorded(u.vault);
+  }
+  async function onRecordUnrecorded(vault: string) {
+    try {
+      const r = await recordUnrecorded(vault);
+      notice = r.committed
+        ? `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${vault}” that had never been committed.`
+        : `Nothing left to record in “${vault}”.`;
+      await loadUnrecorded();
+    } catch (e) {
+      error = String(e);
+    }
   }
 
   // Backing up is a conversation, not a fire-and-forget: the panel owns setting
@@ -983,14 +1184,23 @@
 <svelte:window onkeydown={onGlobalKey} />
 
 <!-- The gate. Three states, and the middle one is the point:
-     null - we have not asked yet. Show NOTHING; unknown is not "no", and flashing an
-            empty board or a first-run screen at someone who has ten vaults is a lie we
-            would tell for 40ms.
+     null - we have not asked yet, or the backend has not answered. `Starting` renders nothing
+            for its first 700ms — unknown is not "no", and flashing a first-run screen at
+            someone who has ten vaults is a lie we would tell for 40ms — and only then says so.
+            **A `null` that never resolves used to render nothing forever**, which on a phone is
+            an unreportable blank window (2026-07-31); it now shows the reason and a Retry.
      []   - the first run. The vault form IS the app: no rail, no views, no palette,
             because there is genuinely nothing else to do and offering it would be a menu
             of things that all fail.
-     [..] - the app. -->
-{#if vaults?.length === 0}
+     [..] - the app.
+
+     Pairing comes **before** all of it: a device that has not been let in gets 401 on every
+     command, so "no vaults" and "the first run" are not things it can distinguish — it would
+     render the new-vault form at someone who has ten vaults they simply cannot see yet, and
+     whose attempt to create an eleventh would also be refused. -->
+{#if needsPairing}
+  <Pairing />
+{:else if vaults?.length === 0}
   <NewVault
     firstRun
     git={gitAvailable}
@@ -1000,7 +1210,14 @@
       void refresh();
     }}
   />
-{:else if vaults}
+{:else if !vaults}
+  <Starting
+    error={bootError}
+    attempts={bootAttempts}
+    waitedMs={bootWaited}
+    onretry={loadVaults}
+  />
+{:else}
 <div class="app" data-layout={workspace.layout ?? 'auto'}>
   <!-- The nav is a horizontal top bar now (it was a tall left rail that wasted vertical
        space). Everything the rail held lives here in one row; the workspace gets the full
@@ -1126,16 +1343,18 @@
       <!-- Contributor filter — the git-authorship twin of the vault filter. One click hides a
            person's notes everywhere; the coloured dot matches their "edited by" label. -->
       <div class="vaults" aria-label="contributor filter">
-        {#each allContributors as who (who)}
+        {#each allContributors as who (who.key)}
           <button
             class="vault-chip contrib"
-            class:off={hiddenAuthors.includes(who)}
-            style="--ch:{hashHue(who)}"
-            aria-pressed={!hiddenAuthors.includes(who)}
-            onclick={() => toggleAuthor(who)}
-            title={hiddenAuthors.includes(who) ? `Show ${who}'s notes` : `Hide ${who}'s notes`}
+            class:off={hiddenAuthors.includes(who.key)}
+            style="--ch:{hashHue(who.key)}"
+            aria-pressed={!hiddenAuthors.includes(who.key)}
+            onclick={() => toggleAuthor(who.key)}
+            title={hiddenAuthors.includes(who.key)
+              ? `Show ${who.label}'s notes`
+              : `Hide ${who.label}'s notes`}
           >
-            <span class="contrib-dot" aria-hidden="true"></span>{who}
+            <span class="contrib-dot" aria-hidden="true"></span>{who.label}
           </button>
         {/each}
       </div>
@@ -1158,6 +1377,20 @@
         onclick={() => (skippedOpen = true)}
         title="Notes that could not be read — usually a conflicted merge">
         {skippedNotes.length} unreadable
+      </button>
+    {/if}
+
+    {#if unrecordedTotal}
+      <!-- **Notes that exist and are not in history.** A chip for the same reason "unreadable" is
+           one: this condition is not transient, and its whole failure mode was silence. `commit_all`
+           stages only the paths the app remembers writing, and that memory dies with the process —
+           so a note written before the last restart could never be staged by it, and nothing said
+           so. Ninety-five had accumulated over a week before anyone noticed (2026-07-31). -->
+      <button
+        class="tb-chip moved"
+        onclick={() => recordAllUnrecorded()}
+        title="Notes on disk that git does not have yet — click to record them">
+        {unrecordedTotal} not in history
       </button>
     {/if}
 
@@ -1246,6 +1479,7 @@
             startEditing={pane.kind === 'note' && pane.noteId === editingId}
             vaults={allVaults}
             onopen={openNote}
+            onresolve={onResolveConflict}
             onmove={onMove}
             onstatus={onSetStatus}
             onnavigate={openNoteInPane}

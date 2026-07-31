@@ -127,7 +127,7 @@
         // Not an early return: `busy = false` lives after this block, not in a `finally`,
         // so returning here would leave the panel frozen.
         steps.push({
-          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Nothing is being committed until they are settled — open each one, both versions are marked in the text.`,
+          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Nothing is being committed until they are settled — see “Needs resolution” in the Collaboration view, which says what to do for each one.`,
           ok: false,
         });
       }
@@ -136,7 +136,7 @@
         // nothing further to report; the line above is the answer
       } else if (r.conflicts.length) {
         steps.push({
-          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${(await conflictLabels(r.conflicts)).join(', ')}. Open each one — both versions are marked in the text.`,
+          text: `Merged${of(v)}, but ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} need you: ${(await conflictLabels(r.conflicts)).join(', ')}. See “Needs resolution” in the Collaboration view: some are resolved by editing the note, and some only by choosing a side.`,
           ok: false,
         });
       } else if (r.merged) {
@@ -367,7 +367,9 @@
                markers in the body, so each still opens in the editor. -->
           <p class="error">
             {v.conflicts.length} note{v.conflicts.length === 1 ? '' : 's'} still need you:
-            {v.conflicts.join(', ')}. Open each and keep the text you want.
+            {v.conflicts.join(', ')}. Resolve them in “Needs resolution” (Collaboration) — a note
+            deleted on one device and edited on the other has no text to merge, so it needs you to
+            pick a side.
           </p>
         {:else if v.remote_moved}
           <p class="moved">Someone has pushed work you don't have yet.</p>

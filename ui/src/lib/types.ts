@@ -172,6 +172,33 @@ export interface BackupStatus {
   restic: boolean;
 }
 
+/** A conflicted note **and what kind of conflict it is**.
+ *
+ *  `has_markers` is the field that matters. For a delete/modify conflict it is `false` and there is
+ *  nothing in the note to edit — one side has no file, so git writes no markers and never will. The
+ *  UI told every user, in every case, to "open each one, both versions are marked in the text";
+ *  following that advice on a marker-less conflict is impossible, and while it sat unresolved its
+ *  vault committed nothing at all. Mirrors `fm_app::dto::ConflictInfo`. */
+export interface ConflictInfo {
+  note: ObjectMeta;
+  /** Vault-relative path git is unmerged on. Empty when this came from the body-marker scan. */
+  path: string;
+  vault: string;
+  /** Git's two-letter code (`UU`, `DU`, `UD`, …). */
+  code: string;
+  /** One plain sentence: what the two sides did. */
+  what: string;
+  has_markers: boolean;
+}
+
+/** Notes on disk that git does not have, per vault — what the app forgot it wrote.
+ *  Mirrors `fm_app::dto::Unrecorded`. */
+export interface Unrecorded {
+  vault: string;
+  count: number;
+  sample: string[];
+}
+
 /** What a commit did. `committed: false` with conflicts listed is not "nothing to do" —
  *  it is "this vault is mid-merge, so nothing will be committed until a human settles it".
  *  Those two used to be the same `false`, which is how a conflicted note could silently

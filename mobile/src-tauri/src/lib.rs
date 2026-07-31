@@ -24,6 +24,115 @@ mod agent;
 /// rather than pretending, because a silent no-op here looks like a broken PDF to a user.
 struct AndroidHost;
 
+/// The last startup failure, if there was one — and the lock that serialises attempts to fix it.
+///
+/// A startup failure used to be a `?` out of the `setup` hook, i.e. a panic on the thread Tauri
+/// runs `run()` on. The Android Activity does not die with it: `WryActivity.onCreate` has long
+/// since returned, so the webview stays up, the IPC replies stop, and the page waits forever on a
+/// `list_vaults` that will never answer. Holding the reason here instead means every command can
+/// hand the UI a sentence to render.
+static BOOT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Ensures the after-the-store work happens exactly once however many times boot is attempted.
+static FINISH: std::sync::Once = std::sync::Once::new();
+
+/// Open the vaults, publish them, and kick off everything that comes after — or return why not.
+///
+/// **Callable more than once, and that is the point.** The first draft recorded a failure in a
+/// `OnceLock` and stopped there, which froze the message for the life of the process: the UI's
+/// "Try again" button re-invoked `list_vaults`, `list_vaults` found no managed state, and answered
+/// the same stale sentence — a button that provably could not help, in front of an app that a
+/// single transient failure (an `index.sqlite` busy for one launch, a read that failed under memory
+/// pressure) had bricked until the user found the app switcher. Since `manage` works on an
+/// `AppHandle` at any time, a retry can genuinely retry.
+///
+/// `catch_unwind` because the shell must survive a panic *inside* the open — rusqlite, a descriptor
+/// parse, serde — for the same reason: a panicked thread leaves a webview asking a backend that
+/// will never speak, and the phone has no other channel to say so.
+fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
+    use tauri::Manager;
+    let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(App::load))
+        .map_err(|_| "opening the vaults panicked — see logcat for the backtrace".to_string())
+        .and_then(|r| r.map_err(|e| format!("could not open vaults: {e}")));
+    let (fm_app, skipped) = match loaded {
+        Ok(v) => v,
+        Err(e) => {
+            log::error!("{e}");
+            return Err(e);
+        }
+    };
+    if !skipped.is_empty() {
+        // Same discipline as the desktop: a note that could not be read is named, never
+        // swallowed. The UI surfaces these on the heartbeat.
+        log::warn!("unreadable notes: {}", skipped.join("; "));
+    }
+    let app_state = Arc::new(fm_app);
+    // **Published before anything else runs.** From here the `fm` command can answer, so every
+    // millisecond spent after this point is a millisecond the UI has data for.
+    handle.manage(app_state.clone());
+    // One line, and it is load-bearing: it is what `ci/android-smoke.sh` greps to prove the vaults
+    // opened *before* the optional work — the ordering whose absence made the first open gray.
+    // (On the owner's own phone even this is invisible: MIUI suppresses our tag, which is why the
+    // same fact has to reach the screen — see known-issues.md.)
+    log::info!("vaults ready: {} vault(s)", app_state.configs().map(|c| c.len()).unwrap_or(0));
+
+    // The rest is off the critical path, in this order, on one thread: the trust store first (the
+    // agent's downloads need it), then the model. Both used to sit *above* the open, where they
+    // delayed the first thing the user sees to buy nothing — neither is needed to read a note.
+    let after = handle.clone();
+    let for_agent = app_state.clone();
+    FINISH.call_once(move || {
+        std::thread::spawn(move || {
+            install_ca_bundle(&after);
+            // A notes-only build (`--no-default-features`) compiles no agent at all, so the store
+            // it would have been handed is deliberately dropped here.
+            #[cfg(not(feature = "agent"))]
+            let _ = for_agent;
+            #[cfg(feature = "agent")]
+            {
+                use tauri::Manager;
+                if let Ok(dir) = after.path().app_data_dir() {
+                    if let Err(e) = agent::start(for_agent, dir.join("agents")) {
+                        log::info!("study agent not started: {e}");
+                    }
+                }
+            }
+        });
+    });
+    Ok(app_state)
+}
+
+/// The vault store, or a sentence saying why not — retrying the open if it never succeeded.
+///
+/// **Deliberately not a `tauri::State<Arc<App>>` parameter.** That extractor answers an unmanaged
+/// state with *"state not managed for field `app` on command `fm`. You must call `.manage()`"* — a
+/// message about our own wiring, shown to someone holding a phone. Resolving it by hand costs a few
+/// lines and lets the shell recover instead of explaining itself.
+fn vault_state(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
+    use tauri::Manager;
+    if let Some(state) = handle.try_state::<Arc<App>>() {
+        return Ok(state.inner().clone());
+    }
+    // Serialise the attempts: the webview, the heartbeat and the agent all call in, and two
+    // concurrent `App::load()`s would open — and reindex — every vault twice.
+    let mut last = BOOT.lock().map_err(|_| "the startup lock is poisoned".to_string())?;
+    // Re-check under the lock: whoever we queued behind may have succeeded.
+    if let Some(state) = handle.try_state::<Arc<App>>() {
+        *last = None;
+        return Ok(state.inner().clone());
+    }
+    match boot(handle) {
+        Ok(app) => {
+            *last = None;
+            Ok(app)
+        }
+        Err(e) => {
+            *last = Some(e.clone());
+            Err(e)
+        }
+    }
+}
+
 impl Host for AndroidHost {
     fn open_external(&self, path: &std::path::Path) -> Result<(), String> {
         Err(format!(
@@ -168,8 +277,9 @@ fn fm_ingest(
     name: String,
     vault: String,
     data: String,
-    app: tauri::State<'_, Arc<App>>,
+    app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
+    let app = vault_state(&app_handle)?;
     let bytes = b64_decode(&data).ok_or_else(|| format!("{name}: could not decode the file"))?;
     let args = serde_json::json!({ "name": name, "vault": vault });
     let out = dispatch("ingest", &args, &bytes, &app, &AndroidHost).inspect_err(|e| {
@@ -220,7 +330,6 @@ fn b64_decode(s: &str) -> Option<Vec<u8>> {
 fn fm(
     cmd: String,
     args: serde_json::Value,
-    app: tauri::State<'_, Arc<App>>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
     // `agents`/`agent_status`/`set_agent` are **transport** concerns — the assistant's presence and its
@@ -239,7 +348,7 @@ fn fm(
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
         if cmd == "set_agent" {
             let on = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
-            agent::set_running(app.inner().clone(), dir, on)?;
+            agent::set_running(vault_state(&app_handle)?, dir, on)?;
             return Ok("{\"ok\":true}".to_string());
         }
         if cmd == "set_transcribe" {
@@ -258,7 +367,10 @@ fn fm(
     if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
         return Ok("{\"enabled\":false,\"transcribe\":false,\"ok\":true}".to_string());
     }
-    let _ = &app_handle;
+    // Resolved here rather than in the signature, so the arms above answer while the vaults are
+    // still opening (the `@`-picker and the Settings toggles need no store) and this one reports
+    // *why* it cannot.
+    let app = vault_state(&app_handle)?;
     // **Logged before it is returned.** The UI shows the message, but a phone screen is not
     // somewhere a stack of failures can be compared — and the whole point of the tag is that
     // a failing clone can be read off `adb logcat` instead of retyped by hand.
@@ -377,37 +489,29 @@ pub fn run() {
             // First, so that everything below is visible — including its own failures.
             install_logger();
             configure_paths(app.handle());
-            install_ca_bundle(app.handle());
             // The git token, if this device has one. **Only ever reached here**: a desktop
             // delegates to git's credential helper and stores nothing, so this call is the
             // mobile half of that split (`fm_app::secrets`). Must run before the first sync,
             // and after `configure_paths` — it reads from the config directory that sets up.
+            // Cheap (one small file), so it stays on the critical path.
             fm_app::secrets::install_into_env();
-            // Opening the vaults is the one slow thing at startup; do it after the paths are
-            // set, and fail loudly rather than starting with a store that is not there.
-            let (fm_app, skipped) = App::load().map_err(|e| -> Box<dyn std::error::Error> {
-                format!("could not open vaults: {e}").into()
-            })?;
-            if !skipped.is_empty() {
-                // Same discipline as the desktop: a note that could not be read is named, never
-                // swallowed. The UI surfaces these on the heartbeat.
-                log::warn!("unreadable notes: {}", skipped.join("; "));
+            // Opening the vaults is the one slow thing left before the app can answer anything.
+            //
+            // **Nothing slow may be added above this line, and a failure here must not panic.**
+            // The webview is built by Tauri *before* this hook runs (`tauri::app::setup` creates
+            // the config windows first), so the page is already loading and already invoking
+            // while we are here — and the event loop that delivers a reply does not start until
+            // this returns. Whatever goes wrong, the phone must end up with a backend that can
+            // say so: a `?` here fails the hook, which panics this thread and leaves the Activity
+            // holding a webview with nothing behind it. That is not a crash the user can see or
+            // report — it is a screen that never paints. Diagnosed on the owner's phone
+            // 2026-07-31 ("gray screen on the first open, fine on the second").
+            //
+            // So the whole of it lives in `boot`, which cannot fail upward, and which the first
+            // arriving command will attempt again if this pass did not manage it.
+            if let Ok(mut last) = BOOT.lock() {
+                *last = boot(app.handle()).err();
             }
-            let app_state = Arc::new(fm_app);
-            // Start the study agent **in-process** if its model is installed (an `agents/` dir in app
-            // storage: models.toml + models/ + runtime/llama-server). Best-effort — without it the app
-            // is a working notebook, exactly as before. Behind the `agent` feature: a notes-only build
-            // does not compile this block at all, so it cannot start (or link) anything.
-            #[cfg(feature = "agent")]
-            {
-                use tauri::Manager;
-                if let Ok(dir) = app.handle().path().app_data_dir() {
-                    if let Err(e) = agent::start(app_state.clone(), dir.join("agents")) {
-                        log::info!("study agent not started: {e}");
-                    }
-                }
-            }
-            tauri::Manager::manage(app, app_state);
             Ok(())
         })
         .register_uri_scheme_protocol("fmblob", |ctx, req| {

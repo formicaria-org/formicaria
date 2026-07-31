@@ -164,6 +164,18 @@ pub fn commit_all(
     paths: &[std::path::PathBuf],
 ) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
+    // **Never commit while anything is unmerged**, mirroring the subprocess backend's early return.
+    //
+    // Not a symmetry nicety — without it this function *silently resolved conflicts by publishing
+    // them*. `index.add_path` below stages whatever is on disk and clears that path's conflict
+    // stages, so a debounced auto-commit five seconds after a conflicting pull would commit the note
+    // **with its `<<<<<<<` markers as content**, drop the merge's second parent, and push it. The
+    // subprocess backend's refusal has always documented this ("staging the conflict markers, which
+    // git reads as 'the human resolved it'"); the phone had no such guard. Found by the differential
+    // test, 2026-07-31 — the two backends were wrong in opposite directions on the same path.
+    if !conflicted(vault)?.is_empty() {
+        return Ok(false);
+    }
     let repo = Repository::open(vault).map_err(map)?;
 
     let mut index = repo.index().map_err(map)?;
@@ -207,9 +219,32 @@ pub fn commit_all(
     }
 
     let sig = repo.signature().map_err(map)?;
-    let parents: Vec<&git2::Commit> = parent.iter().collect();
+    // **A merge in flight is committed as a merge**, with `MERGE_HEAD` as the second parent, and the
+    // state cleared afterwards. A single-parent commit here would silently drop the incoming side
+    // from history, and a `MERGE_HEAD` left standing freezes the vault permanently: `push_squashed`
+    // and `merge_proposal_branch` both refuse over an unfinished merge, as does the next `pull`. On a
+    // phone — no shell, no `git` binary, no file manager — that is unrecoverable from inside the app.
+    let merging = merge_head(vault)?.and_then(|oid| repo.find_commit(oid).ok());
+    let mut parents: Vec<&git2::Commit> = parent.iter().collect();
+    if let Some(their) = &merging {
+        parents.push(their);
+    }
     repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents).map_err(map)?;
+    if merging.is_some() {
+        repo.cleanup_state().map_err(map)?;
+    }
     Ok(true)
+}
+
+/// The other side of an unfinished merge, if there is one. One reader, so the two callers
+/// (`commit_all` and `finish_merge_if_resolved`) cannot disagree about what "mid-merge" means.
+fn merge_head(vault: &Path) -> Result<Option<git2::Oid>, StoreError> {
+    let path = vault.join(".git/MERGE_HEAD");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| StoreError::Io(e.to_string()))?;
+    git2::Oid::from_str(text.trim()).map(Some).map_err(|e| StoreError::Io(e.to_string()))
 }
 
 /// Mirrors [`crate::git::clone`]: clone, then make the result a vault.
@@ -488,6 +523,183 @@ pub fn conflicts(vault: &Path) -> Result<Vec<String>, StoreError> {
         // `our` is the side we keep the path from; a delete/modify conflict may have only one.
         if let Some(entry) = c.our.or(c.their).or(c.ancestor) {
             out.push(String::from_utf8_lossy(&entry.path).into_owned());
+        }
+    }
+    out.sort();
+    out.dedup();
+    Ok(out)
+}
+
+/// Mirrors [`crate::git::conflicted`]: every unmerged path **with its kind**, so a surface can tell
+/// the one kind that has editable markers from the kinds where the only resolution is a side.
+///
+/// The kind comes from which of the three index stages exist, which is what git's two-letter codes
+/// are derived from anyway: no `our` stage means we deleted it, no `their` stage means they did, and
+/// an absent ancestor with both sides present is a both-added.
+pub fn conflicted(vault: &Path) -> Result<Vec<crate::git::Conflict>, StoreError> {
+    use crate::git::{Conflict, ConflictKind};
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let index = repo.index().map_err(map)?;
+    if !index.has_conflicts() {
+        return Ok(Vec::new());
+    }
+    let mut out: Vec<Conflict> = Vec::new();
+    for c in index.conflicts().map_err(map)?.flatten() {
+        let Some(entry) = c.our.as_ref().or(c.their.as_ref()).or(c.ancestor.as_ref()) else {
+            continue;
+        };
+        let path = String::from_utf8_lossy(&entry.path).into_owned();
+        let kind = match (c.ancestor.is_some(), c.our.is_some(), c.their.is_some()) {
+            (_, true, true) if c.ancestor.is_some() => ConflictKind::BothModified,
+            (false, true, true) => ConflictKind::BothAdded,
+            (true, false, true) => ConflictKind::DeletedByUs,
+            (true, true, false) => ConflictKind::DeletedByThem,
+            (true, false, false) => ConflictKind::BothDeleted,
+            (false, true, false) => ConflictKind::AddedByUs,
+            (false, false, true) => ConflictKind::AddedByThem,
+            // No stage at all cannot happen — the `let Some(entry)` above needed one — but the
+            // compiler is right to insist, and "both modified" is the conservative answer: it is the
+            // kind whose resolution is *editing the note*, which never destroys a side.
+            (true, true, true) | (false, false, false) => ConflictKind::BothModified,
+        };
+        out.push(Conflict { path, kind });
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out.dedup_by(|a, b| a.path == b.path);
+    Ok(out)
+}
+
+/// Mirrors [`crate::git::resolve_conflict`] — keep a side, then finish the merge if that was the
+/// last unmerged path (for the same reason: `commit_all` would otherwise leave `MERGE_HEAD` in place
+/// with nothing left to resolve, and a `MERGE_HEAD` is what makes it refuse to commit).
+///
+/// In-index rather than by subprocess: staging *is* removing the path's conflict stages and writing
+/// the chosen blob at stage 0, which is what `git add`/`git rm` do underneath.
+pub fn resolve_conflict(vault: &Path, rel: &str, keep: crate::git::Keep) -> Result<(), StoreError> {
+    use crate::git::{ConflictKind::*, Keep::*};
+    let conflict = conflicted(vault)?
+        .into_iter()
+        .find(|c| c.path == rel)
+        .ok_or_else(|| StoreError::Io(format!("{rel} is not in conflict")))?;
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut index = repo.index().map_err(map)?;
+    // `Edited` — the reconciliation on disk is the answer. Same guard as the subprocess backend, from
+    // the same predicate: staging a still-marked file is what git reads as "resolved", and it would
+    // publish `<<<<<<<` as the note's content.
+    if keep == Edited {
+        let full = vault.join(rel);
+        let text = std::fs::read_to_string(&full)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", full.display())))?;
+        if crate::merge::has_conflict_markers(&text) {
+            return Err(StoreError::Io(format!(
+                "{rel} still has conflict markers — remove them and keep the text you want, or choose a side"
+            )));
+        }
+        let path = std::path::Path::new(rel);
+        index.remove_path(path).map_err(map)?;
+        index.add_path(path).map_err(map)?;
+        index.write().map_err(map)?;
+        return finish_merge_if_resolved(vault);
+    }
+    let entry = index
+        .conflicts()
+        .map_err(map)?
+        .flatten()
+        .find(|c| {
+            let p = c.our.as_ref().or(c.their.as_ref()).or(c.ancestor.as_ref());
+            p.map(|e| String::from_utf8_lossy(&e.path) == rel).unwrap_or(false)
+        })
+        .ok_or_else(|| StoreError::Io(format!("{rel} is not in conflict")))?;
+
+    // `IndexEntry` is not `Clone` in git2 0.21, and the borrow ends with `entry` — so take the one
+    // thing needed downstream, the blob id of the chosen side.
+    let wanted: Option<git2::Oid> = match keep {
+        Theirs => entry.their.as_ref().map(|e| e.id),
+        Mine => entry.our.as_ref().map(|e| e.id),
+        // Unreachable: `Edited` returned above. An error, not a panic — same reasoning as the
+        // subprocess backend, and doubly so here, where a panic is invisible on a phone.
+        Edited => return Err(StoreError::Io(format!("{rel}: 'edited' is handled before this"))),
+    };
+    let path = std::path::Path::new(rel);
+    // Clear the conflict stages first: every resolution starts by saying "this path is settled".
+    index.remove_path(path).map_err(map)?;
+    match (conflict.kind, wanted) {
+        // Nothing to keep on the chosen side: the resolution is that the note is gone.
+        (BothDeleted, _) | (_, None) => {
+            let _ = std::fs::remove_file(vault.join(rel));
+        }
+        // Keep a real blob: write it to disk *and* stage it, so the working tree and the index agree
+        // — a staged blob with different bytes on disk is the shape that makes the next status lie.
+        (_, Some(oid)) => {
+            let blob = repo.find_blob(oid).map_err(map)?;
+            let full = vault.join(rel);
+            if let Some(parent) = full.parent() {
+                std::fs::create_dir_all(parent).map_err(|err| StoreError::Io(err.to_string()))?;
+            }
+            // Temp + rename in the same directory, the vault's own write discipline: a note must
+            // never be observable half-written, and a resolution is a note write like any other.
+            let tmp = full.with_extension("md.resolve");
+            std::fs::write(&tmp, blob.content()).map_err(|err| StoreError::Io(err.to_string()))?;
+            std::fs::rename(&tmp, &full).map_err(|err| StoreError::Io(err.to_string()))?;
+            index.add_path(path).map_err(map)?;
+        }
+    }
+    index.write().map_err(map)?;
+    finish_merge_if_resolved(vault)
+}
+
+/// Commit the merge once nothing is unmerged. No-op while conflicts remain or no merge is in flight.
+///
+/// Two parents, from `HEAD` and `MERGE_HEAD`, so history records that a merge happened — the same
+/// shape `pull` writes when it resolves everything itself. Then `cleanup_state`, which is the line
+/// whose absence leaves a vault "mid-merge" forever with every commit refused.
+fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
+    if !conflicted(vault)?.is_empty() || !vault.join(".git/MERGE_HEAD").exists() {
+        return Ok(());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let Some(their_oid) = merge_head(vault)? else { return Ok(()) };
+    let their_commit = repo.find_commit(their_oid).map_err(map)?;
+    let our_commit = repo.head().and_then(|h| h.peel_to_commit()).map_err(map)?;
+    let mut index = repo.index().map_err(map)?;
+    let tree_oid = index.write_tree().map_err(map)?;
+    let tree = repo.find_tree(tree_oid).map_err(map)?;
+    let sig = repo.signature().map_err(map)?;
+    repo.commit(Some("HEAD"), &sig, &sig, "merge: conflicts resolved", &tree, &[
+        &our_commit,
+        &their_commit,
+    ])
+    .map_err(map)?;
+    repo.cleanup_state().map_err(map)?;
+    Ok(())
+}
+
+/// Mirrors [`crate::git::unrecorded`]: notes on disk that git does not have, or has differently.
+///
+/// Same purpose and the same scoping to the vault's own notes directory. `STATUS_OPT` asks for
+/// untracked files individually (not collapsed to their directory), which is the difference between
+/// naming 95 notes and naming `notes/`.
+pub fn unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut opts = git2::StatusOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true).include_ignored(false);
+    opts.pathspec(notes_rel);
+    let statuses = repo.statuses(Some(&mut opts)).map_err(map)?;
+    let prefix = format!("{}/", notes_rel.trim_end_matches('/'));
+    let mut out = Vec::new();
+    for s in statuses.iter() {
+        if s.status().is_conflicted() {
+            continue; // a conflict is not an unrecorded note; it has its own surface
+        }
+        let p = s.path().unwrap_or("");
+        if p.starts_with(&prefix) && p.ends_with(".md") {
+            out.push(p.to_string());
         }
     }
     out.sort();

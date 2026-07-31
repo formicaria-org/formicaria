@@ -27,8 +27,8 @@
 
 use crate::{write_response, AppState};
 use std::fs::File;
-use std::io::{self, Read, Seek, SeekFrom, Write};
-use std::net::TcpStream;
+use std::io::{self, Read, Seek, SeekFrom};
+
 
 /// How much we move between disk and socket at a time. The point of the whole route is
 /// never to hold the file in memory, so this is the only buffer.
@@ -36,15 +36,23 @@ const CHUNK: usize = 64 * 1024;
 
 /// Serve one blob, honouring `Range`. `head` sends the headers and no body — which is how a
 /// media element discovers the length before it starts seeking.
+///
+/// `scope` is the caller's audiences. **This route needs it passed in explicitly** because it is
+/// deliberately not a command (a command answers with a `Vec<u8>`, which is what forces a whole
+/// video into memory), so it reaches storage on its own and cannot inherit `dispatch`'s
+/// enforcement. Blobs are content-addressed and deduplicated, which means a reference learned
+/// from a shared vault would otherwise resolve against a private one — same hash, same bytes,
+/// wrong audience.
 pub fn serve(
-    stream: &mut TcpStream,
+    stream: &mut dyn crate::Conn,
     state: &AppState,
+    scope: &fm_app::Scope,
     reference: &str,
     range: Option<&str>,
     head: bool,
 ) -> io::Result<()> {
     let reference = crate::percent_decode(reference);
-    let path = match fm_app::dispatch::blob_path(&state.app, &reference) {
+    let path = match fm_app::dispatch::blob_path(&state.app, scope, &reference) {
         Ok(p) => p,
         // Absent is a 404, not a 500: "media absence is a warning, never an error" — the
         // read view degrades to its placeholder.
@@ -252,7 +260,8 @@ mod tests {
 
         let server = std::thread::spawn(move || {
             let (mut sock, _) = listener.accept().unwrap();
-            super::serve(&mut sock, &state, &reference, range.as_deref(), false).unwrap();
+            super::serve(&mut sock as &mut dyn crate::Conn, &state, &fm_app::Scope::All, &reference, range.as_deref(), false)
+                .unwrap();
         });
 
         // Nothing is written from this end: `serve` is handed an already-parsed request, so
@@ -334,6 +343,59 @@ mod tests {
     fn an_absent_blob_is_a_404_not_a_500() {
         let (status, _, _) = get(b"present", "0000deadbeef", None);
         assert_eq!(status, "HTTP/1.1 404 Not Found");
+    }
+
+    /// **The streaming path is no longer tied to a socket** — asserted rather than assumed.
+    ///
+    /// `serve` took a `&mut TcpStream` until TLS needed it not to. Changing a signature to
+    /// `&mut dyn Conn` is the easy half; the half worth pinning is that nothing *inside* still
+    /// reaches for a socket-only capability, because the next thing to reach through this
+    /// function is a TLS session, which can offer none of them. Running it over a plain
+    /// in-memory sink proves that with no network at all.
+    #[test]
+    fn a_blob_can_be_streamed_to_something_that_is_not_a_socket() {
+        /// Reads as permanently-empty, collects everything written. About as far from a
+        /// `TcpStream` as a `Conn` can be.
+        struct Sink(Vec<u8>);
+        impl std::io::Read for Sink {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Ok(0)
+            }
+        }
+        impl std::io::Write for Sink {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                self.0.extend_from_slice(b);
+                Ok(b.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let stored = fm_core::BlobStore::new(&vault).put_bytes(b"the bytes").unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state =
+            AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, Vec::new(), 0);
+
+        let mut sink = Sink(Vec::new());
+        super::serve(
+            &mut sink as &mut dyn crate::Conn,
+            &state,
+            &fm_app::Scope::All,
+            &stored.hash,
+            None,
+            false,
+        )
+        .unwrap();
+
+        let out = String::from_utf8_lossy(&sink.0).to_string();
+        assert!(out.starts_with("HTTP/1.1 200 OK"), "{out}");
+        assert!(out.contains("Accept-Ranges: bytes"));
+        assert!(sink.0.ends_with(b"the bytes"), "the body reached the sink");
     }
 
     /// The whole point of the allowlist. An SVG is a scriptable document, and note bodies

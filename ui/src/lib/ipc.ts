@@ -18,9 +18,12 @@ import type {
   VaultInfo,
   ViewInfo,
   ViewResult,
+  ConflictInfo,
+  Unrecorded,
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
+import type { ShareStatus } from './remote';
 
 // Two backends, one contract:
 //   • Production browser (served by `fm-serve`) → the Rust commands over HTTP
@@ -78,6 +81,22 @@ async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promi
   return mock.handle<T>(cmd, args);
 }
 
+/// Set once any command comes back `401`. Read by `App.svelte` to swap the whole app for the
+/// pairing screen — see `http` below for why this is a flag and not a thrown error.
+export let needsPairing = false;
+let onPairingNeeded: (() => void) | undefined;
+
+/// Let the shell hear about it immediately rather than on its next poll.
+export function onNeedsPairing(f: () => void): void {
+  onPairingNeeded = f;
+}
+
+/// After a successful pairing the cookie exists, so the flag has to be cleared or the screen
+/// would persist over a working app.
+export function clearPairingFlag(): void {
+  needsPairing = false;
+}
+
 // POST /api/<cmd> with camelCase args (fm-serve maps them to the Rust snake_case
 // params). resolve_asset returns raw bytes (an ArrayBuffer); void commands return
 // an empty body.
@@ -87,6 +106,14 @@ async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(args),
   });
+  // **401 is the one status with a meaning rather than a message**: this device has not paired,
+  // or its token was revoked. It is raised as a flag rather than thrown to each caller because
+  // *every* command gets it at once — the answer is a whole screen, not an error banner on
+  // whichever query happened to fire first.
+  if (res.status === 401) {
+    needsPairing = true;
+    onPairingNeeded?.();
+  }
   if (!res.ok) throw new Error((await res.text()) || res.statusText);
   if (cmd === 'resolve_asset') return (await res.arrayBuffer()) as T;
   const text = await res.text();
@@ -104,10 +131,16 @@ export const capture = (body: string, vault = '') =>
   invoke<ObjectMeta>('capture', { body, vault });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
-// `base` is the `updated` stamp you last saw for this note; the new one comes back, and you
-// hold it for the next write. That round trip is the **lost-update guard**: an editor open
-// across someone else's pull would otherwise save its pre-merge text straight over the
-// merge. Send `''` to opt out (nothing in the app does).
+// `base` is the **`version`** — the content hash of the body you last saw (`ObjectMeta.version`),
+// *not* the `updated` stamp. The new one comes back, and you hold it for the next write. That
+// round trip is the **lost-update guard**: an editor open across someone else's pull would
+// otherwise save its pre-merge text straight over the merge. Send `''` to opt out (nothing in
+// the app does).
+//
+// This comment used to say `updated`, and two conflict handlers in `NotePanel.svelte` believed
+// it. A stamp never equals a hash, so once they had conflicted they conflicted forever and the
+// note stopped reaching disk entirely. The field is `version` — keep it that way here, because
+// this line is what callers read.
 export const updateBody = (id: string, body: string, base = '') =>
   invoke<string>('update_body', { id, body, base });
 // Destructive: unlink the note's file + index rows. Named `deleteNote` because
@@ -152,9 +185,32 @@ export const backlinks = (id: string) => invoke<ObjectMeta[]>('backlinks', { id 
  *  template is just a tagged note; tag one to make it a starting point, untag to unmake it. */
 export const templates = () => invoke<ObjectMeta[]>('templates');
 
-/** Notes that came back from a merge in conflict — both versions marked in the body, needing a
- *  human. Derived by scanning for the markers, so the list is always current (resolve one → it drops). */
-export const conflicts = () => invoke<ObjectMeta[]>('conflicts');
+/** Notes that came back from a merge in conflict, **each with its kind**.
+ *
+ *  Git is asked first (it is what actually blocks every commit in the vault, and the only thing that
+ *  knows *how* the two sides disagreed); the body-marker scan is unioned in for notes whose index
+ *  entry git has settled but whose text still carries markers. `has_markers === false` means editing
+ *  the note is not a resolution — see `resolveConflict`. */
+export const conflicts = () => invoke<ConflictInfo[]>('conflicts');
+
+/** Resolve a conflict by keeping a side. **The only resolution that exists for a delete/modify**:
+ *  one side has no file, so there is no text to fix. Finishes the merge when it was the last one —
+ *  otherwise `MERGE_HEAD` would stand with nothing left to resolve, and a standing `MERGE_HEAD` is
+ *  exactly what makes every commit in the vault refuse. */
+export const resolveConflict = (vault: string, path: string, keep: 'theirs' | 'mine' | 'edited') =>
+  invoke<{ resolved: string }>('resolve_conflict', { vault, path, keep });
+
+/** Notes on disk that git does not have, per vault — what the app forgot it wrote.
+ *
+ *  `commit_all` stages only the paths the app remembers writing, and that memory dies with the
+ *  process, so every note written before the last restart was permanently unstageable and nothing
+ *  said so. This is how it gets said. */
+export const unrecorded = () => invoke<Unrecorded[]>('unrecorded');
+
+/** Record them. Explicit, never on a timer: it stages files the app does not remember writing, which
+ *  is a decision for a person rather than a five-second debounce. */
+export const recordUnrecorded = (vault: string) =>
+  invoke<{ committed: boolean; notes: number }>('record_unrecorded', { vault });
 
 /** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
  *  newest first. The Collaboration surface's feed.
@@ -288,9 +344,49 @@ export const streamsBlobs = import.meta.env.PROD;
 // files, and never reaches `fm_app::dispatch`, because the auto-shutdown watchdog is a
 // property of this server rather than of the app. Kept separate from `ping` so a hidden
 // tab can stay alive without making the server reindex a vault it is not looking at.
-export async function alive(): Promise<void> {
-  if (!import.meta.env.PROD) return;
-  await fetch('/api/alive', { method: 'POST' }).catch(() => {});
+// It also carries the **share capability** back, which is why it now has a return value. That
+// report has to arrive on a timer — a listener can fail, and a network can stop carrying packets,
+// long after the settings screen was last looked at — and this is already the transport's own
+// beat. `ping` belongs to the command surface, which knows nothing about sharing.
+export async function alive(): Promise<ShareStatus | null> {
+  if (!import.meta.env.PROD) return null;
+  const r = await fetch('/api/alive', { method: 'POST' }).catch(() => null);
+  if (!r?.ok) return null;
+  return (await r.json().catch(() => null)) as ShareStatus | null;
+}
+
+// ---- Sharing with a nearby device -----------------------------------------------------------
+//
+// Transport routes, not commands: `dispatch` is shared with `fm-cli` and the phone, and *who is
+// calling* is a property of the connection that neither of them has. All of these except `pair`
+// are refused unless the request came from the computer itself.
+
+/// Mint a pairing code for the chosen vaults. **A device is paired to audiences, never to the
+/// machine**, so this refuses an empty list rather than quietly granting everything.
+export const shareCode = (vaults: string[]) =>
+  post<{ code: string; expires_in: number }>('/api/share_code', { vaults });
+
+export const setShare = (enabled: boolean) =>
+  post<{ enabled: boolean; restart_required: boolean }>('/api/set_share', { enabled });
+
+export const revokeDevices = () => post<{ devices: number }>('/api/revoke_devices', {});
+
+/// Redeem a code. The token comes back as an `HttpOnly` cookie, so nothing here ever sees it —
+/// which is the point: a script that could read it could exfiltrate it, and note bodies arrive
+/// from collaborators.
+export const pairDevice = (code: string, name: string) =>
+  post<{ vaults: string[] }>('/api/pair', { code, name });
+
+/// These sit beside `invoke` rather than going through it: they are not commands, so they have no
+/// place in the command dispatcher's error handling or its argument conventions.
+async function post<T>(path: string, args: unknown): Promise<T> {
+  const r = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  if (!r.ok) throw new Error((await r.text()) || r.statusText);
+  return (await r.json()) as T;
 }
 
 // A URL a media element can point at directly, so the browser fetches only the
@@ -437,8 +533,25 @@ export const pull = (vault = '') => invoke<PullResult>('pull', { vault });
  *  it, only history does not. `restic` is the same kind of claim, and it decides whether
  *  "restore from a backup" is offered at all — Android has no restic and never will, so
  *  there the route is absent rather than present and failing. */
-export const ping = () =>
-  invoke<{ changed: boolean; git: boolean; restic: boolean; skipped: SkippedNote[] }>('ping');
+// `since` is the `generation` the last beat handed back — the cursor into "how many times have
+// the vaults moved". Hold it and send it every time: `changed` is nothing more than
+// `generation > since`, computed server-side.
+//
+// It is per-client state and it has to be, because `changed` used to be derived from whether
+// *this* reindex found drift — and a reindex writes the fresh mtimes back, so the first tab to
+// ask consumed the answer and every other client was told "nothing changed" indefinitely. With
+// one tab that was a curiosity; with a tab and a tablet it is every edit.
+export const ping = (since = 0) =>
+  invoke<{
+    changed: boolean;
+    generation: number;
+    git: boolean;
+    restic: boolean;
+    skipped: SkippedNote[];
+    /** Configured vaults that would not open, as `name: why`. A vault that is silently absent is
+     *  indistinguishable from data loss, so the heartbeat names it. Almost always empty. */
+    unopened_vaults: string[];
+  }>('ping', { since });
 
 /** A note the vault could not read, and enough to show it in a list. No path: the backend
  *  resolves that from the same set, so the only files openable this way are ones it just

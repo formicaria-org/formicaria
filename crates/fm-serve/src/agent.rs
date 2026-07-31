@@ -9,9 +9,9 @@
 
 use crate::agent_registry::AgentRegistry;
 use crate::{write_response, AppState};
-use std::net::TcpStream;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// All the agent-only state, in one field so `AppState` gains exactly one gated member: the live
 /// registry, whether the agent process was already spawned this run, and the port it watches.
@@ -143,18 +143,36 @@ fn set_transcribe(transcribe: bool) -> Result<(), String> {
     write_settings(enabled(), transcribe)
 }
 
-/// At launch: start the agent if the setting is on and the script is present. Returns whether it was
-/// spawned, so the caller can record it.
-pub fn spawn_at_launch(state: &AppState) {
-    if enabled() && spawn(state.agent.port) {
-        state.agent.running.store(true, Ordering::Relaxed);
+/// How long after launch to wait before warming the agent's model. See `spawn_at_launch` for why.
+const AGENT_WARMUP_DELAY_SECS: u64 = 5;
+
+/// At launch: start the agent if the setting is on and the script is present.
+///
+/// **Deferred on purpose.** The agent stack reads a multi-GB model off disk and loads it onto the
+/// GPU the instant it starts. Doing that the moment the browser is told to open starves the very
+/// disk and GPU the browser needs to paint the app's first frame — so on a laptop the window crawls
+/// in *even though fm-serve was listening within ~30 ms* (measured). We claim the run slot **now**
+/// (so a concurrent settings toggle can't also spawn) but wait a few seconds before the actual
+/// load, giving the page an uncontended window to render; the assistant then warms in the
+/// background, a beat after the app is already usable. If the deferred spawn fails, we release the
+/// slot so the settings toggle can retry.
+pub fn spawn_at_launch(state: Arc<AppState>) {
+    if !enabled() || state.agent.running.swap(true, Ordering::Relaxed) {
+        return;
     }
+    let port = state.agent.port;
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(AGENT_WARMUP_DELAY_SECS));
+        if !spawn(port) {
+            state.agent.running.store(false, Ordering::Relaxed);
+        }
+    });
 }
 
 /// Handle the `/api/agent_*` transport routes. `None` means "not an agent route" — the caller falls
 /// through to the normal command dispatch. This is the ONE place the agent touches the request path;
 /// without the feature it does not exist, and the routes simply aren't there.
-pub fn route(stream: &mut TcpStream, path: &str, body: &[u8], state: &AppState) -> Option<std::io::Result<()>> {
+pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppState) -> Option<std::io::Result<()>> {
     let r = &state.agent.registry;
     let resp: (&str, &str, Vec<u8>) = match path {
         // The on/off setting the settings screen reads/writes. A *launcher* concern, deliberately not

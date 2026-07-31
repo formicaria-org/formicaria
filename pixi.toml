@@ -112,6 +112,12 @@ android-stage-whisper = "sh ci/android-stage-whisper.sh"
 # Inject the foreground service so Android keeps the app + its network alive for the agent's model
 # download and inference (else Doze stalls the download and LMKD can reap the model). Also generated.
 android-inject-service = "sh ci/android-inject-service.sh"
+# **Does the app actually paint — twice in a row, and after being killed?** The unattended startup +
+# closure test, on the emulator only (it installs and force-stops, so it refuses any serial that is
+# not `emulator-*`; the phone this is developed against is the owner's personal device). Deliberately
+# NOT part of `pixi run ci`, which must stay green with no Android toolchain — run it after touching
+# the shell's startup, the boot gate, or before `android-release`. See the script's header.
+android-smoke = "sh ci/android-smoke.sh"
 # Build the APK. `PATH` puts our `rustup` shim first — Tauri shells out to `rustup target add`
 # and this project has no rustup (targets come from conda-forge, pinned in pixi.lock); the shim
 # verifies rather than pretends. `JAVA_HOME` is pinned because conda's default JDK is 25, whose
@@ -244,7 +250,7 @@ docs = "mdbook build docs"                       # render the manual; broken lin
 # Grade the in-process git backend against the subprocess one. Not in `pixi run ci`: the
 # feature builds libgit2 + OpenSSL from source, which a contributor with no interest in mobile
 # must not pay for. Run it whenever `git_native.rs` or the rules it shares change.
-test-native-git = { cmd = "cargo test -p fm-core --features native-git --test git_differential && cargo test -p fm-cli --features native-git --test git_native_merge && cargo test -p fm-cli --features native-git --test collaboration_pipeline && cargo test -p fm-cli --features native-git --test mixed_device_collaboration" }
+test-native-git = { cmd = "cargo test -p fm-core --features native-git --test git_differential && cargo test -p fm-cli --features native-git --test git_native_merge && cargo test -p fm-cli --features native-git --test collaboration_pipeline && cargo test -p fm-cli --features native-git --test mixed_device_collaboration && cargo test -p fm-cli --features native-git --test conflict_resolution_both_devices" }
 android-init = "sh ci/android-init.sh"
 
 [tasks.ci]

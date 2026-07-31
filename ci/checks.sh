@@ -62,6 +62,33 @@ if grep -REn 'fm_core::git::[a-z_]+|use fm_core::git;' crates/*/src mobile/src-t
     fail=1
 fi
 
+echo "[check] every routed vcs operation exists on both git backends..."
+# `vcs.rs` routes each operation to one of two backends. Its own comment says the `#[cfg]` lives
+# *inside* each function "so that a build without the feature still compiles every signature
+# identically — the two backends cannot drift in shape without the compiler saying so". True, and only
+# for a build that HAS the feature: `pixi run ci` does not build `native-git` (it would compile libgit2
+# + OpenSSL from source), so a function added to `git.rs` alone sails through this gate and breaks only
+# the phone — which is the device nobody can debug. This grep is that missing half.
+#
+# **Shape only.** Behavioural parity is what `pixi run test-native-git` is for, and on 2026-07-31 it
+# earned that distinction: both backends had `commit_all`, with opposite bugs — the subprocess one
+# erroring on every merge commit, the libgit2 one silently committing conflict markers as content.
+# Do not read a green grep here as "the backends agree".
+missing_backend=""
+for fn in $(grep -oE '^route!\([a-z_]+' crates/fm-core/src/vcs.rs | sed 's/^route!(//'); do
+    grep -qE "^pub fn ${fn}\b|^pub fn ${fn}\(" crates/fm-core/src/git.rs \
+        || missing_backend="$missing_backend git.rs:$fn"
+    grep -qE "^pub fn ${fn}\b|^pub fn ${fn}\(" crates/fm-core/src/git_native.rs \
+        || missing_backend="$missing_backend git_native.rs:$fn"
+done
+if [ -n "$missing_backend" ]; then
+    echo "  FAIL: routed through vcs but missing from a backend:$missing_backend"
+    echo "        A routed operation must exist in BOTH git.rs and git_native.rs. Missing it in"
+    echo "        git_native.rs compiles fine here (ci does not build native-git) and breaks only the"
+    echo "        phone, where there is no git binary and no way to read the error."
+    fail=1
+fi
+
 echo "[check] renderers must not hardcode status values..."
 if [ -d ui/src/renderers ]; then
     if grep -REniw 'todo|doing|done' ui/src/renderers; then
@@ -127,6 +154,36 @@ for crate in libgit2-sys openssl-src; do
     fi
 done
 
+echo "[check] TLS uses the ring backend, never aws-lc-rs (licence + toolchain)..."
+# `rustls` and `rcgen` both DEFAULT to `aws-lc-rs`, whose licence is
+# `ISC AND (Apache-2.0 OR ISC) AND OpenSSL` — and `OpenSSL` is not in deny.toml's allow list, so
+# `cargo deny` fails. It also wants cmake and a C toolchain pixi does not provide, so the failure
+# on a fresh machine is a confusing build error rather than a licence message.
+#
+# Both are pinned to `ring` in fm-serve/Cargo.toml. This guards the pin, because the way it breaks
+# is silent: any future dependency that enables the default features of either crate drags
+# aws-lc-rs back into the graph without touching a line we would notice.
+if grep -q '^name = "aws-lc-rs"$' Cargo.lock 2>/dev/null; then
+    echo "  FAIL: aws-lc-rs is in Cargo.lock. Something enabled the default features of rustls"
+    echo "        or rcgen. Pin them to \`default-features = false, features = [\"ring\", ...]\`."
+    echo "        See crates/fm-serve/Cargo.toml."
+    fail=1
+fi
+
+echo "[check] fm-serve still builds with no default features (std-only, no TLS, no agent)..."
+# The crate's own doc promises "std-only networking", and `tls` is the one feature that carries a
+# dependency. That promise was never actually gated — this is the compile-time proof, and the same
+# guarantee the `agent` feature gives for subprocesses. Cheap: a `check`, not a build.
+if command -v cargo >/dev/null 2>&1; then
+    if ! cargo check -q -p fm-serve --no-default-features 2>/dev/null; then
+        echo "  FAIL: \`cargo check -p fm-serve --no-default-features\` does not compile."
+        echo "        Something outside the \`tls\`/\`agent\` features now depends on them."
+        fail=1
+    fi
+else
+    echo "  (skipped: cargo not on PATH)"
+fi
+
 echo "[check] the mobile study agent stays behind the 'agent' feature (notes-only pays nothing)..."
 # The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
 # mobile shell must give the same guarantee, or a notes-only APK silently links the whole model
@@ -154,6 +211,91 @@ fi
 if grep -Eq '^[[:space:]]*mod agent;' "$mobile_lib" 2>/dev/null \
     && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(feature = "agent")'; then
     echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(feature = \"agent\")]."
+    fail=1
+fi
+
+echo "[check] the Android setup hook: no panic path, and the store reachable before slow work..."
+# **This is the only thing in `pixi run ci` that looks at the phone's startup at all**, so it is
+# checked structurally rather than not at all: `pixi run ci` has no Android toolchain (ruling 3) and
+# the mobile crate cannot even compile here (it is workspace-excluded and its desktop tauri backend
+# wants webkit2gtk, which this env does not carry). Everything below is a real defect that shipped.
+#
+# The shape of the bug it pins (the owner's phone, 2026-07-31 — "gray screen on the first open, fine
+# on the second"): Tauri builds the webview BEFORE this hook runs, so the page is already invoking
+# while the hook works; the event loop that delivers a reply does not start until the hook returns;
+# and a `?` inside it panics that thread, leaving a live webview with no backend behind it. That is
+# not a crash anyone can report — it is a screen that never paints.
+# 1) Neither the setup closure nor `boot` may fail upward or panic: the phone must end up with a
+#    backend that can *say* what went wrong, which is what `BOOT` holds.
+for region in 'setup' 'boot'; do
+    case "$region" in
+        setup) body=$(awk '/\.setup\(\|app\| \{/{on=1} on{print} on && /^        \}\)/{exit}' "$mobile_lib" 2>/dev/null || true)
+               what='the Android setup hook' ;;
+        boot)  body=$(awk '/^fn boot\(/{on=1} on{print} on && /^\}/{exit}' "$mobile_lib" 2>/dev/null || true)
+               what='fn boot' ;;
+    esac
+    if [ -z "$body" ]; then
+        echo "  FAIL: cannot find $what in $mobile_lib — this guard can no longer see the startup"
+        echo "        path. Re-anchor it rather than deleting it."
+        fail=1
+        continue
+    fi
+    # `catch_unwind`'s own name is allowed to mention panics; a `?`/unwrap/expect is not.
+    if printf '%s\n' "$body" | grep -vE 'catch_unwind|AssertUnwindSafe|^ *//' \
+        | grep -nE '\?;|\.unwrap\(\)|\.expect\(|panic!\(|unreachable!' ; then
+        echo "  FAIL: $what (lines above) must not use ?/unwrap/expect/panic — a failure there"
+        echo "        panics the shell's thread and leaves a webview with no backend, which the user"
+        echo "        sees as a blank screen and cannot report. Record it in BOOT and let every"
+        echo "        command answer with the reason instead."
+        fail=1
+    fi
+done
+# 2) The store must be published before the optional work, or every millisecond of cert-store
+#    reading and model launching is a millisecond the UI has no data and cannot say why.
+manage_at=$(grep -n '\.manage(\|Manager::manage(' "$mobile_lib" | head -1 | cut -d: -f1)
+if [ -z "$manage_at" ]; then
+    echo "  FAIL: $mobile_lib never manages the vault store — no command can ever be answered."
+    fail=1
+else
+    for slow in 'install_ca_bundle(&' 'agent::start(' 'ca_bundle::install'; do
+        at=$(grep -nF "$slow" "$mobile_lib" | head -1 | cut -d: -f1 || true)
+        if [ -n "$at" ] && [ "$at" -lt "$manage_at" ]; then
+            echo "  FAIL: '$slow' runs before the store is managed in $mobile_lib. The webview is"
+            echo "        already asking by then, so this is dead time the user spends looking at a"
+            echo "        startup screen. Keep it after the manage(), off the critical path."
+            fail=1
+        fi
+    done
+fi
+# 3) The reason has to be recorded somewhere the commands can read it, and a retry has to be able
+#    to genuinely retry — a frozen reason is a "Try again" button that cannot help.
+if ! grep -q 'static BOOT' "$mobile_lib"; then
+    echo "  FAIL: $mobile_lib has no BOOT state — a failed startup then answers commands with"
+    echo "        tauri's 'state not managed for field \`app\`' instead of what actually went wrong."
+    fail=1
+fi
+if grep -q 'static BOOT:.*OnceLock' "$mobile_lib"; then
+    echo "  FAIL: BOOT must not be a OnceLock — that freezes the first failure for the life of the"
+    echo "        process, so the UI's retry re-asks and gets the same stale sentence forever."
+    fail=1
+fi
+
+echo "[check] the boot gate has a screen for every state (no blank first paint)..."
+# The other half of the same bug: `App.svelte`'s gate rendered NOTHING while `vaults === null`, so
+# "the backend has not answered yet" and "the backend is dead" were one screen with no words on it.
+# The behavioural tests live in `ui/src/App.boot.test.ts` (driven against a mock that can refuse,
+# stall and hang); this grep is what stops the *screen* being deleted and the tests being deleted
+# with it, since a gate with a missing branch is a one-line regression.
+gate=ui/src/App.svelte
+if ! grep -q 'Starting' "$gate"; then
+    echo "  FAIL: $gate no longer renders <Starting>. Some gate state now paints an empty document,"
+    echo "        which on a phone is an unreportable blank screen — there is no console, no stdout"
+    echo "        and no logcat there (known-issues.md). Keep a screen for every state."
+    fail=1
+fi
+if [ ! -f ui/src/App.boot.test.ts ]; then
+    echo "  FAIL: ui/src/App.boot.test.ts is gone — the slow/refusing/silent-backend cases are the"
+    echo "        only tests that can see the blank-screen class of bug. Do not delete them."
     fail=1
 fi
 

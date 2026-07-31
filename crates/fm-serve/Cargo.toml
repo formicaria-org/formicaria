@@ -19,8 +19,17 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent"]
+default = ["agent", "tls"]
 agent = []
+# **The only feature that carries a dependency**, which is why it is a feature at all.
+#
+# Sharing itself is dep-free and always compiled. `tls` adds `rustls` + `rcgen`, and exists so
+# that `--no-default-features` still builds the std-only server this crate's doc promises — the
+# same property the `agent` feature gives for subprocesses, enforced the same way (see
+# `ci/checks.sh`). On by default because the thing it buys — a microphone on a paired tablet —
+# is useless if the shipped binary cannot do it, and a feature nobody ships is a compile-time
+# alibi rather than a preserved principle.
+tls = ["dep:rustls", "dep:rcgen"]
 
 [dependencies]
 fm-model = { workspace = true }
@@ -29,6 +38,20 @@ fm-core = { workspace = true }
 fm-app = { path = "../fm-app" }
 serde = { workspace = true }
 serde_json = "1"
+# The one thing in the sharing path that must not be hand-rolled. Everything else it needs —
+# sha256 (via fm-core), a constant-time compare, hex — is a few lines and is written out; entropy
+# is the exception, because a weak token is silent and unfixable. Pinned to the 0.3 line already
+# in `Cargo.lock` (transitively, via `ulid`), so it adds no new crate to the tree.
+getrandom = "0.3"
+
+# **Both of these MUST pin the `ring` backend.** Left to their defaults they pull `aws-lc-rs`,
+# whose licence is `ISC AND (Apache-2.0 OR ISC) AND OpenSSL` — and `OpenSSL` is not in
+# `deny.toml`'s allow list, so `pixi run deny` fails; it also wants cmake and a C toolchain that
+# pixi does not provide. `ring` is already in `Cargo.lock` (via `ureq`, behind `fm-agent-run`'s
+# optional `download` feature) and already passes deny. `ci/checks.sh` asserts `aws-lc-rs` never
+# reappears, because a transitive default-feature flip would be silent.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "logging", "tls12"], optional = true }
+rcgen = { version = "0.13", default-features = false, features = ["pem", "ring"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"   # a throwaway vaults.json for the config writer's tests

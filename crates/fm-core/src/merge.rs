@@ -49,6 +49,30 @@ pub enum Merged {
     Conflicted,
 }
 
+/// True when this text still carries git conflict markers.
+///
+/// **One definition, because two would eventually disagree about what "resolved" means.** It is used
+/// by the list of conflicted notes (`fm_app::commands::conflicts`) *and* by the guard that refuses to
+/// mark a conflict resolved while markers remain — and those two must never differ: a list that says
+/// a note is clean while the guard refuses it (or worse, the reverse) is how `<<<<<<<` gets committed
+/// as a note's content and pushed to a collaborator.
+///
+/// Requires **both** an opening and a closing marker, so a note that merely *writes about* merge
+/// conflicts is not flagged. That tolerance is deliberate and load-bearing: this app's own notes
+/// discuss merges.
+pub fn has_conflict_markers(text: &str) -> bool {
+    let mut opened = false;
+    let mut closed = false;
+    for line in text.lines() {
+        if line.starts_with("<<<<<<<") {
+            opened = true;
+        } else if line.starts_with(">>>>>>>") {
+            closed = true;
+        }
+    }
+    opened && closed
+}
+
 /// Git's merge-driver entry point: read the three versions, write the result back over
 /// `ours` (that is `%A`, which git takes as the answer), and report whether it is clean.
 ///
