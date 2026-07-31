@@ -245,13 +245,24 @@
     /* Wide rows scroll inside their own container rather than pushing the panel sideways. */
     overflow-x: auto;
   }
+  /* **The title gets its own line.** With the `kind`, `role` and size/date columns all competing on
+     one flex row, a narrow screen squeezed the title to about one character per line — "Me / eti / ng"
+     for a note called "Meeting". Seen on the phone; no test could show it and svelte-check cannot
+     either. Badges and metadata share the first line, the title owns the second. */
   .notes li {
     display: flex;
-    gap: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
     align-items: baseline;
-    padding: 0.2rem 0;
+    padding: 0.3rem 0;
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
+  }
+  .notes .title {
+    flex: 1 1 100%;
+  }
+  .notes .meta {
+    margin-left: auto;
   }
   .role,
   .copies {
