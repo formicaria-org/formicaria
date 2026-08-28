@@ -590,6 +590,23 @@ The gray-screen fix and its tests are in
   pipeline's status is its *last* command's. Run `pixi run ci` unpiped, or append
   `; echo "exit: $?"`, and read the count — never trust the exit status of a pipe.
 
+- **The manual tab does not keep the server alive, and that is deliberate.** With
+  `FM_AUTO_SHUTDOWN` (which the shipped launchers set), the watchdog quits ~90 s after the last
+  authenticated request. The manual makes none — `/manual/*` is served under `MANUAL_CSP`, whose
+  `connect-src 'none'` provably forbids it calling anything. So closing the *app* tab while leaving
+  the *manual* tab open stops the server, and the manual tab then breaks on its next navigation.
+  **Do not "fix" this by injecting a heartbeat into the book**: that would make the manual a live
+  client of the vault API, which is exactly what `connect-src 'none'` exists to prevent. Reopen the
+  app instead.
+
+- **The busy-port probe identifies formicaria, not *which* formicaria.** `serving_formicaria`
+  asks `/api/alive` and trusts a `HTTP/1.1 200`. With two unpacked copies on one machine, launching
+  the second opens a browser at the first — which is right for the common case (a second
+  double-click) and wrong for the rare one (two installs, two vaults). The message says "if that is
+  a different copy, quit it first", which is the honest half-fix; a real one needs `/api/alive` to
+  carry something identifying, and it must not be the vault path — `/api/config` is in
+  `REMOTE_DENIED` precisely because that discloses the host's absolute paths to a paired device.
+
 - **`fm-app`'s `who_left_a_message_is_read_from_git` goes red intermittently under load.** Seen once
   in a full `pixi run ci` on 2026-08-28 and green on every re-run since. It is not the test in
   isolation: **0 of 40** sequential runs of the binary fail, but a burst of 8x8 concurrent runs

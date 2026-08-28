@@ -32,7 +32,7 @@ mod tls;
 use fm_app::{dispatch_as, App, Host, Output, Scope};
 use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -147,7 +147,35 @@ fn main() {
     // learns that sharing exists. Sharing gets its *own* socket below rather than widening this
     // one, because TLS is a property of a socket and because a bug in the sharing path then
     // cannot reach a listener that was never exposed.
-    let listener = TcpListener::bind(&addr).unwrap_or_else(|e| panic!("bind {addr}: {e}"));
+    // **A busy port is not a crash.** This used to `panic!`, which on Windows means a
+    // double-clicked console window flashes and vanishes with nothing readable in it — and a busy
+    // port is the *normal* second launch, because the app that owns 8765 is almost always our own
+    // earlier instance. So the two cases are told apart and answered differently: ours is not an
+    // error at all, and anything else cannot be fixed by opening a browser. The sharing listener
+    // below already refuses gracefully; this is the same courtesy on the path everybody takes.
+    let listener = match TcpListener::bind(&addr) {
+        Ok(l) => l,
+        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+            if serving_formicaria(&addr) {
+                println!("formicaria is already running — open http://{addr} in your browser");
+                // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
+                // so the double-click case lands the user in the running app, which is what they
+                // were trying to do.
+                if env_flag("FM_OPEN") {
+                    let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+                }
+                return;
+            }
+            eprintln!("Something else on this machine is already using {addr},");
+            eprintln!("so formicaria cannot start. Close it, or pick another port:");
+            eprintln!("    FM_ADDR=127.0.0.1:8788");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("formicaria could not listen on {addr}: {e}");
+            std::process::exit(1);
+        }
+    };
     for v in &configs {
         println!("formicaria is serving {} at {}", v.name, v.path.display());
     }
@@ -165,7 +193,7 @@ fn main() {
     // arriving before `accept()` runs waits in the backlog; it cannot be refused. The accept loop
     // starts a few lines below, microseconds away. So the sleep guarded against nothing and cost
     // 400ms of every single launch — measured while looking for exactly this kind of leftover.
-    if std::env::var_os("FM_OPEN").is_some() {
+    if env_flag("FM_OPEN") {
         let url = format!("http://{addr}");
         std::thread::spawn(move || {
             let _ = open_native(std::ffi::OsStr::new(&url));
@@ -175,7 +203,7 @@ fn main() {
     // The launcher also sets FM_AUTO_SHUTDOWN so that closing the browser tab
     // closes the app — no server left running in the background. `pixi run serve`
     // does NOT set it, so the dev loop keeps the server up until Ctrl-C.
-    if std::env::var_os("FM_AUTO_SHUTDOWN").is_some() {
+    if env_flag("FM_AUTO_SHUTDOWN") {
         spawn_watchdog(Arc::clone(&state));
     }
 
@@ -230,6 +258,9 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/open_skipped",
     "/api/set_git_credential",
     "/api/clear_git_credential",
+    // `set_identity` runs `ensure_repo` and names the committer for every future commit in the
+    // host's vault. A paired tablet is a guest; it does not get to say who this machine is.
+    "/api/set_identity",
     // Hands caller-supplied text to `git`, or probes the host's filesystem. `check_path` reports
     // existence and writability for an arbitrary path — a filesystem oracle over the whole
     // machine, and its only legitimate caller (`create_vault`) is denied anyway.
@@ -715,6 +746,13 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     // stop carrying packets, long after the settings screen was last open), and this is already
     // the transport's own beat — `ping` belongs to `dispatch`, which knows nothing about
     // sharing, and inventing a third timer for it would be a third thing to keep in step.
+    // The manual. Above the static-file arm because it must not inherit the SPA fallback, and
+    // routed here rather than in `static_file` because it writes its own CSP — see `manual`.
+    if (method == "GET" || method == "HEAD") && (path == "/manual" || path.starts_with("/manual/"))
+    {
+        return manual(reader.get_mut(), &path);
+    }
+
     if path == "/api/alive" {
         let body = share::status_json(state).to_string();
         return write_response(reader.get_mut(), "200 OK", "application/json", body.as_bytes());
@@ -785,6 +823,44 @@ fn api(
     }
 }
 
+/// A switch from the environment, read as a **value** rather than as a presence.
+///
+/// `var_os(..).is_some()` meant `FM_OPEN=0` turned the browser *on* — the opposite of what anyone
+/// typing it meant. That was arguable while the only thing setting these was a launcher nobody
+/// edited; it stopped being arguable the moment a launcher ships inside the archive, where turning
+/// something off by changing a 1 to a 0 is the obvious thing to try.
+fn env_flag(key: &str) -> bool {
+    std::env::var(key).is_ok_and(|v| {
+        !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "no" | "off")
+    })
+}
+
+/// Is *formicaria* the thing already listening on `addr`?
+///
+/// Distinguishes "I double-clicked twice" from "something unrelated holds this port". They need
+/// opposite answers — the first is not an error and the user just wants their app, the second
+/// cannot be fixed by opening a browser — and guessing wrong either strands the user or points
+/// them at a stranger's web page.
+///
+/// `/api/alive` is the cheapest honest witness: it answers 200 with JSON to a loopback caller and
+/// does not care about the method, while anything that is not us refuses, times out, or answers
+/// differently. Short timeouts throughout: this runs on the startup path of every launch that
+/// finds a busy port, and a hung probe would be indistinguishable from a hung app.
+fn serving_formicaria(addr: &str) -> bool {
+    let Ok(mut sock) = TcpStream::connect(addr) else { return false };
+    let timeout = Some(Duration::from_millis(500));
+    if sock.set_read_timeout(timeout).is_err() || sock.set_write_timeout(timeout).is_err() {
+        return false;
+    }
+    let req = format!("GET /api/alive HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
+    if sock.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut head = [0u8; 32];
+    let read = sock.read(&mut head).unwrap_or(0);
+    head[..read].starts_with(b"HTTP/1.1 200")
+}
+
 /// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place
 /// that knows how each platform spells that. Every OS has this; only the name differs.
 fn open_native(target: &std::ffi::OsStr) -> std::io::Result<()> {
@@ -849,6 +925,82 @@ fn static_file(path: &str, state: &AppState) -> (&'static str, String, Vec<u8>) 
         },
     }
 }
+
+/// Serve one page of the built manual, from the copy baked into this binary.
+///
+/// **Its own function rather than a branch in [`static_file`], for two reasons that are really
+/// one: there is no SPA fallback here, and the response carries its own Content-Security-Policy.**
+///
+/// The fallback first. `static_file` answers an unknown path with `index.html` so the frontend
+/// owns client-side routing; right for `/board`, and wrong here, where a mistyped chapter would
+/// render the *notebook* and look like a page that exists.
+///
+/// The policy second, and it is the one that would have shipped broken. mdBook writes six inline
+/// `<script>` blocks into every page — they set `path_to_root`, pick the theme before first paint,
+/// and restore the sidebar — and [`CSP`] has no `'unsafe-inline'`, so under the app's own header
+/// the manual arrives with no theme, no chapter list and no search, and *nothing says why*. It
+/// returns 200 with the right bytes the whole time, which is exactly the kind of failure a curl
+/// check calls a pass.
+fn manual(conn: &mut dyn Conn, path: &str) -> std::io::Result<()> {
+    // `/manual` must become `/manual/` before a byte is served: every href, stylesheet and script
+    // in the book is relative, so at `/manual` they resolve one level too high and the page loads
+    // bare. A real 301 rather than a meta-refresh — `write_response_with` already threads extra
+    // header lines through for `/api/pair`.
+    if path == "/manual" {
+        return write_response_with(
+            conn,
+            "301 Moved Permanently",
+            "text/plain",
+            "Location: /manual/\r\n",
+            b"",
+        );
+    }
+    let rel = path["/manual/".len()..].split(['?', '#']).next().unwrap_or("");
+    let rel = if rel.is_empty() { "index.html" } else { rel };
+    // The same guard as the UI path, for the same reason: a guard that applies sometimes is a
+    // guard nobody can reason about.
+    if rel.split('/').any(|seg| seg == "..") {
+        return write_response(conn, "400 Bad Request", "text/plain", b"bad path");
+    }
+    match MANUAL_ASSETS.iter().find(|(name, _)| *name == rel) {
+        Some((_, bytes)) => {
+            write_response_full(conn, "200 OK", content_type(rel), "", MANUAL_CSP, bytes)
+        }
+        // Two different 404s, because they have two different fixes and one of them is ours.
+        None if MANUAL_ASSETS.is_empty() => write_response(
+            conn,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"no manual is embedded in this binary - run `pixi run docs` and rebuild",
+        ),
+        None => write_response(
+            conn,
+            "404 Not Found",
+            "text/plain; charset=utf-8",
+            b"that page is not in the manual - start at /manual/",
+        ),
+    }
+}
+
+/// The manual's policy. See [`manual`] for why it is not [`CSP`].
+///
+/// `script-src 'unsafe-inline'` is the concession; **`connect-src 'none'` is what pays for it.**
+/// These pages are our own build output and no note body reaches them, but a same-origin document
+/// with relaxed script rules still should not be able to call `/api/` — and with `connect-src
+/// 'none'` it provably cannot. Checked against the book's own JS: `toc.js`, `searcher.js` and
+/// elasticlunr make no network call at all (the search index arrives as a `<script src>`, not a
+/// fetch), so nothing here needs the network.
+const MANUAL_CSP: &str = "default-src 'self'; \
+img-src 'self' data:; \
+style-src 'self' 'unsafe-inline'; \
+font-src 'self'; \
+script-src 'self' 'unsafe-inline'; \
+connect-src 'none'; \
+object-src 'none'; \
+frame-src 'none'; \
+frame-ancestors 'none'; \
+base-uri 'self'; \
+form-action 'none'";
 
 /// One UI file, from wherever the UI is coming from: an explicit `FM_UI_DIST` (the dev
 /// loop — edit a `.svelte`, reload, no Rust rebuild) or the embedded table (every release
@@ -1003,8 +1155,23 @@ pub(crate) fn write_response_with(
     extra: &str,
     body: &[u8],
 ) -> std::io::Result<()> {
+    write_response_full(stream, status, ctype, extra, CSP, body)
+}
+
+/// The one place a response is written. `csp` is a parameter rather than a constant for exactly
+/// one caller — [`manual`] — and it goes through here for the same reason `/api/pair`'s extra
+/// header does: a route that only wanted to change one line must not be able to lose the other
+/// three security headers on its way past.
+pub(crate) fn write_response_full(
+    stream: &mut dyn Conn,
+    status: &str,
+    ctype: &str,
+    extra: &str,
+    csp: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     let header = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {CSP}\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\n{extra}Content-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Security-Policy: {csp}\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\n{extra}Content-Length: {}\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(header.as_bytes())?;

@@ -229,27 +229,59 @@ lands on exactly the create-seam above, so building that seam serves both.
 
 ---
 
-### 2.6 The manual ships in the archive, but the app cannot point at it
-Since 2026-08-28 every release archive carries the manual (`decisions.md#toolchain`): rendered HTML
-at `manual/index.html`, Markdown at `manual/source/`. That closes *"the user has no
-documentation"* — it does **not** close *"the user can find the documentation"*. Nothing in the
-running app links to it, so reaching the manual means remembering which folder you unpacked and
-leaving the app to open a file. For an owner who works entirely inside the UI, that is most of the
-remaining distance.
+### 2.6 The welcome screen — the last piece of the friendly release
+**Closed on 2026-08-28:** the in-app manual route this entry used to ask for is done — the book is
+baked into the binary, `/manual/` serves it under its own CSP, and a Help button sits beside the
+gear (`decisions.md#toolchain`). What is left is the other half of that session's decision.
 
-**Done looks like** a `/manual` route on `fm-serve` plus one visible entry point in the UI — a Help
-item beside the keyboard-shortcut panel in `ui/src/lib/SettingsPanel.svelte` is the obvious home.
-The serving half is small: the static handler is `crates/fm-serve/src/main.rs:833-860`, resolving
-against `FM_UI_DIST` or the `UI_ASSETS` table `build.rs` bakes from `ui/dist`.
+The archive now ships a **ready empty vault**, so the app opens straight into somewhere real and
+the `vaults.length === 0` gate in `App.svelte` never fires. The owner's ruling was that a **short
+welcome screen** should come first: name, email, and optionally a remote — then into the app.
 
-**The design question is which of two**, and it should be chosen rather than defaulted into:
-embedding the book adds ~2 MB to an already 14 MB binary and makes the manual survive the archive
-being taken apart; serving it from a sibling `manual/` directory keeps the binary lean but breaks
-the moment someone copies out just the executable — which is precisely the mistake the
-`fm`/`fm-serve` warning in the release README already exists to prevent.
+**Landed already (the backend half):** `set_identity` is its own `dispatch` command, because
+`set_git_remote` sets an identity only alongside a URL and refuses an empty one — so "just my name,
+no remote" wrote the identity to disk *and reported failure*. It is in `REMOTE_DENIED`: a paired
+tablet does not get to name the host's committer. `ipc.ts` exposes `setIdentity`.
 
-Deliberately not done alongside the packaging change: shipping a file and serving it are two
-decisions, and only the first one was forced.
+**Still to build:** `ui/src/lib/Welcome.svelte` and its gate. Three things decide whether it is
+right:
+- **The trigger must be cheap.** Gate on identity, read from `list_vaults` (add `identity` to
+  `VaultInfo`, beside the `remote_label` call that already spawns git locally) — **never**
+  `backup_status`, which shells out `git ls-remote` per vault. The 2026-07-17 ruling already
+  refused to make a first-run screen wait on the slowest git command.
+- **It must be skippable, and skipping must cost nothing.** The notebook needs no git at all;
+  `ensure_repo` commits under a placeholder identity, so a user who skips keeps full history and is
+  asked again by `BackupPanel` at the moment a remote makes a name matter. Hide it entirely when
+  git is absent, or a git-less user is trapped on a form that can never save.
+- **Save identity first, and separately.** A bad remote URL must lose the remote and keep the name.
+
+### 2.7 The manual is shipped and reachable — it is still not written for this reader
+The 2026-08-28 audit found what the tester felt. Fixed then: `user/running.md` (chapter 1 told a
+release user to run `pixi run serve`, which they cannot) and `introduction.md`'s "Where to go next"
+(one third of it routed beginners into the developer guide). Everything below is unchanged:
+
+- **Zero screenshots** in a ~7,200-word manual for a GUI. The biggest single gap, and the slowest
+  to close. `docs/context/shots/` proves the capture path exists.
+- **`user/notes.md` is 2,245 words unsplit** — 19% of the book in one chapter.
+- **The developer guide shares one sidebar with the user guide**, permanently expanded: `fold` in
+  `book.toml` is a no-op because no chapter has children.
+- **`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
+  on the page says so.
+- **No glossary.** *frontmatter*, *ULID*, *content-addressed*, *blob*, *merge driver*, *remote*
+  and *FTS* all appear in user chapters undefined.
+- **`user/views.md` documents saved views only as hand-written YAML**, plus a 9-row filter DSL.
+
+### 2.8 The Windows and macOS launchers have never been executed
+`packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched
+from an unrelated working directory, from a path containing a space, and the note landed beside the
+app with `~/.config/formicaria/vaults.json` untouched. `Formicaria.command` is byte-identical below
+its header, so its *logic* is covered — its Finder behaviour is not. `formicaria.vbs` and
+`formicaria.bat` have been executed by nobody.
+
+**Known risks, unmeasured:** Windows Script Host is disabled by policy in many managed
+environments, and `.vbs` launchers are a malware idiom that AV heuristics flag — on an unsigned
+binary that is two strikes. `formicaria.bat` ships beside it as the visible-console fallback for
+exactly that reason. **Done looks like** one run of each on a real machine of each kind.
 
 ## 3. Known and accepted — do not "fix" without deciding
 

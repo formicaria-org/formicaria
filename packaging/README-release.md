@@ -10,31 +10,25 @@ This archive contains the whole application.
 
 ## Run it
 
-There is no installer and no setup step. Unpack, and run `fm-serve`. It starts a small
-server on your own machine and opens your browser — that is the app.
+There is no installer. Unpack the archive, then double-click the launcher inside it. It starts a
+small server on your own machine and opens your browser — that *is* the app. Nothing is installed,
+nothing is written outside this folder, and nothing is sent anywhere.
 
-**Linux**
-```sh
-tar xzf formicaria-*-linux-x86_64.tar.gz
-cd formicaria-*
-./fm-serve
-```
+**Unpack it first.** Running from inside a zip preview gives you a temporary folder that Windows
+or macOS deletes afterwards — and takes your notes with it.
 
-**macOS**
-```sh
-tar xzf formicaria-*-macos-arm64.tar.gz
-cd formicaria-*
-xattr -dr com.apple.quarantine .    # macOS quarantines downloads; this is not signed
-./fm-serve
-```
+| | Double-click |
+|---|---|
+| **Windows** | `formicaria.vbs` — starts it with no console window. Use `formicaria.bat` instead if you want to see the messages, or if scripting is disabled on your machine. |
+| **macOS** | `Formicaria.command` — **right-click it and choose Open the first time**, then click "Open" in the dialog. A Terminal window stays open beside the app; that is normal, and closing it quits. |
+| **Linux** | `formicaria.sh`. Some file managers ask what to do with a script — choose "Run". From a terminal: `./formicaria.sh`. |
 
-**Windows**
-```powershell
-# Unzip, then from that folder:
-.\fm-serve.exe
-```
+Your browser opens on its own. To stop, close the browser tab — the app quits a few seconds later.
 
-Then open <http://127.0.0.1:8765>. Stop it with Ctrl-C.
+> **Windows and macOS will warn you.** These binaries are not signed by Microsoft or Apple, which
+> costs money we have not spent, so you get "Windows protected your PC" (click **More info → Run
+> anyway**) or a Gatekeeper dialog (right-click → **Open**). The warning is about the absence of a
+> paid signature, not about anything found in the file.
 
 > **Keep `fm` and `fm-serve` together.** They must stay in the same folder. `fm` is the
 > command-line tool, but it is *also* what git calls to merge notes — if it isn't beside
@@ -61,32 +55,26 @@ The manual is files you own, exactly like your notes.
 
 ## Where your notes live
 
-By default, a `vault` folder next to wherever you ran `fm-serve` from. To choose:
+**In the `vault` folder inside this one.** The launcher points formicaria at it explicitly, so
+everything — your notes and the list of your vaults — stays in this folder and nowhere else.
+
+That is what makes this a portable app: copy the whole folder to a USB stick or another computer
+and your notes travel with it. Nothing is left behind in your home directory.
+
+Your notes are `vault/notes/*.md`. Plain Markdown files, one per note. Back them up, sync them,
+open them in any editor — they are yours, and this app is not required to read them.
+
+To keep notes somewhere else instead, set `FM_VAULT` before starting — but then you are choosing
+the location yourself, and the folder stops being portable:
 
 ```sh
 FM_VAULT=/path/to/my/notes ./fm-serve        # Linux/macOS
 $env:FM_VAULT="C:\path\to\notes"; .\fm-serve.exe   # Windows PowerShell
 ```
 
-A vault is just a directory. Your notes are `vault/notes/*.md`. Back it up, sync it, open
-it in Vim — it's yours, and this app is not required to read it.
-
-Several vaults (one per audience — personal, lab, a paper with someone) go in a config
-file. **Linux** `~/.config/formicaria/vaults.json`, **macOS** `~/Library/Application
-Support/formicaria/vaults.json`, **Windows** `%APPDATA%\formicaria\vaults.json`:
-
-```json
-{
-  "vaults": [
-    { "name": "personal", "path": "~/notes" },
-    { "name": "lab",      "path": "~/lab-notes", "restic": "/backups/lab" }
-  ]
-}
-```
-
-The first is the default for new notes. Each vault is its own git repo with its own
-collaborators — which is the point: **where a note lives decides who can see it**, and
-that is not something you can mistype into a file.
+Several vaults — one per audience, say personal and lab — are listed in `vaults.json` beside the
+app. The first is the default for new notes. **Where a note lives decides who can see it**, which
+is not something you can mistype into a file.
 
 ---
 

@@ -29,15 +29,26 @@ browser. There is no cloud, no account, and no native window to fight with.
 - **Built to last and to be maintained.** A small Rust core behind a compile-time
   seam, a generic renderer model, and no plugin API to rot.
 
-The canonical design spec is `formicaria/MASTERPLAN.md` in the repository; this
-manual is the practical user + developer guide and complements the spec rather
-than duplicating it.
-
 ## Where to go next
 
-- New here? Start with [Running formicaria](./user/running.md).
-- Already have a project whose notes you want to read? See
-  [The vault format](./user/vault.md) — a `vault.json` points formicaria at them
-  where they already live.
-- Want to extend it? Read [Architecture](./dev/architecture.md) then
-  [How to add a feature](./dev/adding-features.md).
+**If you have just downloaded formicaria**, read these three, in order. They are all you need to
+be using it properly:
+
+1. [Starting formicaria](./user/running.md) — unpack it, double-click, and know where your notes
+   are kept.
+2. [Creating & organizing notes](./user/notes.md) — writing, linking, tagging, and getting things
+   back out.
+3. [Views](./user/views.md) — boards, agendas and panes: the same notes, arranged the way the
+   question you are asking needs them.
+
+After that, read whichever answers a question you actually have:
+[Assets & media](./user/assets.md), [Backup & versioning](./user/backup.md),
+[Collaboration](./user/collaboration.md), [The study assistant](./user/assistant.md), or
+[The vault format](./user/vault.md) if you already have a folder of notes you want formicaria to
+open where it stands.
+
+**If you are here to work on formicaria itself**, the Developer guide and Reference sections below
+are for you, and the rest of this section is not: start at [Architecture](./dev/architecture.md),
+then [How to add a feature](./dev/adding-features.md). The canonical design spec is
+`formicaria/MASTERPLAN.md` in the repository — it ships with the source, not with the app — and
+this manual complements it rather than duplicating it.

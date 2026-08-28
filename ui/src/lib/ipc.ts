@@ -567,6 +567,12 @@ export const setGitRemote = (
   identity?: { name: string; email: string },
   vault = '',
 ) => invoke<void>('set_git_remote', { url, vault, ...identity });
+/** Who is committing, with no remote involved. `setGitRemote` can also set this, but only
+ *  alongside a URL — and git refuses to commit *anything* without a committer, so a user who
+ *  never shares still needs it. Asked once on first run; skippable, because notes on disk do
+ *  not depend on git having an opinion about who wrote them. */
+export const setIdentity = (name: string, email: string, vault = '') =>
+  invoke<void>('set_identity', { name, email, vault });
 /** Squashes the unpushed commits into one; returns how many were squashed. */
 export const push = (message: string, vault = '') => invoke<number>('push', { message, vault });
 /** Bring a collaborator's work home. Merges through the `.md` driver, so two people

@@ -205,11 +205,16 @@ serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --r
 # your collaborator's edit). Build fm-serve alone and the merge driver silently
 # never installs: every concurrent edit conflicts on the `updated:` line, which is
 # the exact thing Phase 1 exists to prevent. Ask how this was found.
-build = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli"
+# **`depends-on = ["docs"]` is load-bearing, not tidiness.** Since 2026-08-28 `fm-serve` bakes
+# `docs/book` into the binary at compile time, exactly as it bakes `ui/dist`. Without this the
+# release workflow's order — `pixi run build`, and only later `pixi run docs` — compiles against a
+# `docs/book` that does not exist yet, and ships a binary whose in-app Help is empty while the
+# `manual/` folder beside it is perfectly correct. Nothing fails; the button just does nothing.
+build = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli", depends-on = ["docs"] }
 # The debug counterpart: unoptimized binaries with full debuginfo at
 # `target/debug/{fm-serve,fm}` (fast to compile, large + slow) for stepping through
 # the server. Pairs with the same `ui/dist`. `fm` for the same reason as above.
-build-debug = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build -p fm-serve -p fm-cli", env = { FM_UI_DIST = "ui/dist" } }
+build-debug = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build -p fm-serve -p fm-cli", env = { FM_UI_DIST = "ui/dist" }, depends-on = ["docs"] }
 # Run the ALREADY-BUILT release binary — NO rebuild — inside the activated env
 # (so `pdftotext`/`vipsthumbnail` are on PATH for ingest). This is what the
 # desktop launcher runs, so a double-click starts instantly; update what it runs

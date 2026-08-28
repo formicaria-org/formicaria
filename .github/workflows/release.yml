@@ -121,6 +121,30 @@ jobs:
           diff -r docs/src "stage/${DIR}/manual/source" >/dev/null \
             || { echo "stage: manual/source does not match docs/src" >&2; exit 1; }
 
+          # **The double-click way in.** Without a launcher a release is a bare console binary:
+          # no browser opens (FM_OPEN unset), the server is never stopped by closing the tab
+          # (FM_AUTO_SHUTDOWN unset), and the notes have nowhere to go. Those three features all
+          # existed already and were simply unreachable from a download, because the only scripts
+          # that set them assume a git checkout. These resolve everything from the archive's own
+          # folder, which is what makes the folder portable.
+          case "${{ matrix.target }}" in
+            windows-*) launchers="formicaria.vbs formicaria.bat" ;;
+            macos-*)   launchers="Formicaria.command" ;;
+            *)         launchers="formicaria.sh" ;;
+          esac
+          for l in $launchers; do
+            cp "packaging/launcher/$l" "stage/${DIR}/$l"
+            # Assert the staged file, the same as the manual above: a missing launcher would not
+            # fail the build, it would ship an archive that no non-technical user can open.
+            [ -s "stage/${DIR}/$l" ] || { echo "stage: launcher $l did not land in the archive" >&2; exit 1; }
+            case "$l" in *.sh|*.command) chmod +x "stage/${DIR}/$l" ;; esac
+          done
+
+          # A ready, empty vault. The app then opens into somewhere real instead of asking a
+          # brand-new user to invent a location before they have seen the app at all — and
+          # because it lives here, copying this folder to a USB stick copies the notes with it.
+          mkdir -p "stage/${DIR}/vault"
+
           echo "DIR=${DIR}" >> "$GITHUB_ENV"
           ls -la "stage/${DIR}"
 

@@ -1201,6 +1201,22 @@ fn dispatch_inner(
             vcs::set_remote(&path, &s("url")).map_err(err)?;
             nothing()
         }
+        // **Identity on its own, with no remote in sight.**
+        //
+        // `set_git_remote` above can also set it, and until now that was the *only* way — fine
+        // while the one moment worth asking was a vault gaining an audience. A first-run welcome
+        // screen asks earlier, and for a different reason: git refuses to commit anything at all
+        // without a committer, so someone who never adds a remote still needs this, or their
+        // first backup fails citing a name nobody ever asked them for.
+        //
+        // A separate command rather than letting `set_git_remote` take an empty URL: that would
+        // leave a command whose name promises a remote quietly not setting one, and the next
+        // reader would have to run it to find out which it did.
+        "set_identity" => {
+            let path = lock()?.config(scope, &s("vault"))?.path;
+            vcs::set_identity(&path, &s("name"), &s("email")).map_err(err)?;
+            nothing()
+        }
         "push" => {
             // Same reason as `commit`: don't let a push snapshot the vault mid-write.
             let g = lock()?;

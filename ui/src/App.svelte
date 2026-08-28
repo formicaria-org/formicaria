@@ -1606,6 +1606,24 @@
       {/if}
     </div>
 
+    <!-- The manual, one click from anywhere in the app.
+         The first non-technical tester's verdict was that it was "difficult to find and click on"
+         — it shipped in the archive as a folder, and nothing in the running app ever mentioned
+         it. It is baked into the binary, so this works offline and still works when someone has
+         copied out just the executable.
+
+         **Not on the phone.** There the UI is served by the Tauri shell, not `fm-serve`, so
+         `/manual/` resolves to nothing; a Help button that 404s is worse than no Help button. -->
+    {#if !isPhone()}
+      <button
+        class="icon-btn"
+        onclick={() => window.open('/manual/', '_blank', 'noopener')}
+        aria-label="help"
+        title="Help — the manual, inside this app">
+        <Icon name="help" size={16} />
+      </button>
+    {/if}
+
     <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
       <Icon name="gear" size={16} />
     </button>

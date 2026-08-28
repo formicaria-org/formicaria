@@ -58,10 +58,64 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   pin is a licence gate) · *Every external
   tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
   it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest) ·
-  *The manual travels in the archive* (built-and-discarded docs do not exist).
+  *The manual travels in the archive* (built-and-discarded docs do not exist) ·
+  ***What ships is an app, not a binary*** (read before touching `packaging/launcher/` or the
+  `stage` step — the portable-vault recipe is exact and the CSP one is not obvious).
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## What ships is an app, not a binary — the launcher owns *where*, the server owns *why* (2026-08-28, `#toolchain`)
+
+A non-technical tester opened v0.2.0 cold and reported: the manual assumes a terminal, the manual
+was hard to find, and they expected a portable double-click app. Every complaint was structurally
+right, and the release was worse than they could see.
+
+**Every feature they were missing already existed and was unreachable.** `FM_OPEN` opens the
+browser, `FM_AUTO_SHUTDOWN` stops the server when the tab closes — and the only two files that set
+them, `packaging/formicaria.sh` and `install.sh`, are checkout-only and **were never staged into
+the archive**. So a download opened no browser and never stopped, which meant the *next* launch met
+a held port, and `main.rs` answered that with `panic!`: on a Windows double-click, a console that
+flashes and vanishes. Three defects, one cause — nobody had ever run the artifact as a user.
+
+So: **three archive-relative launchers in `packaging/launcher/`**, one per OS, staged by target.
+They are deliberately not `packaging/formicaria.sh`, which assumes `target/release/`, `.pixi/` and
+falls back to `pixi run build` — from a USB stick that would try to compile the workspace.
+
+**Portable means both vault variables, absolute, resolved from the script's own directory.** Not
+`$PWD`: a file manager launches from the user's home, which is the exact hazard behind the
+2026-07-17 removal of the relative `FM_VAULT="vault"` default. That ruling kept `FM_VAULT` set
+*explicitly* valid, and this is that path, not a revival of what it banned. `FM_VAULTS` must be set
+**with** it, because `FM_VAULT` alone stops working the moment a second vault exists — `save`
+materialises the list, `load` starts preferring the file, and vault #1 disappears. Verified by
+running an unpacked archive from `/`, from a path containing a space: the note landed beside the
+app and `~/.config/formicaria/vaults.json` was byte-identical afterwards.
+
+**The division of labour is the reusable part.** A launcher decides *where*; everything that can
+fail once the server is up is the server's job to explain, because three launchers cannot each
+learn to speak HTTP and the answer must be identical on all three. Hence the busy-port logic moved
+*into* `fm-serve`, where it is testable on every platform: it probes `/api/alive`, and answers "the
+app you asked for is already running" (exit 0, open the browser) differently from "something else
+holds this port" (exit 1, name `FM_ADDR`). Telling those apart matters — guessing wrong either
+strands the user or points their browser at a stranger's server.
+
+**`FM_OPEN=0` used to mean yes.** `var_os().is_some()` reads presence, not value. Arguable while
+nobody edited the launcher; not arguable now that one ships inside the archive, where changing a 1
+to a 0 is the obvious way to turn something off.
+
+**The embedded manual needed its own CSP, and this is the trap worth remembering.** mdBook writes
+six inline `<script>` blocks per page — `path_to_root`, the pre-paint theme, the sidebar — and the
+app's `CSP` has no `'unsafe-inline'`. Served under it the manual returns 200 with correct bytes and
+renders with no theme, no chapter list and no search. **A `curl` check calls that a pass**; only a
+browser sees it. `MANUAL_CSP` is looser in exactly one clause and tighter in two: inline script is
+allowed, `connect-src`/`form-action` are `'none'`, so a manual page can style itself and provably
+cannot reach `/api/`. It also must not inherit the SPA fallback — a mistyped chapter answered with
+`index.html` renders the *notebook* and looks like a page that exists.
+
+**`pixi run build` now depends on `docs`.** The binary bakes `docs/book` at compile time, and the
+release workflow's order was build-then-docs — which would have shipped a binary whose Help is
+empty beside a `manual/` folder that is perfectly correct. Nothing fails; the button just does
+nothing. That is the whole class of bug this release exists to stop.
 
 ## The manual travels in the archive — documentation that is built and discarded does not exist (2026-08-28, `#toolchain`)
 

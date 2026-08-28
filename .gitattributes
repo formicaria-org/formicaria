@@ -20,3 +20,11 @@
 *.pdf binary
 *.ico binary
 *.icns binary
+
+# Windows launchers are the one exception to LF-forever, and it is the platform's rule, not ours.
+# `cmd.exe` parses a batch file line by line as it executes it, and an LF-only file can lose the
+# last line or mis-parse; Windows Script Host is likewise happiest with CRLF. These two files are
+# never read on Linux or macOS — they ship only in the windows-x86_64 archive — so nothing else
+# sees the difference. Everything above still holds: notes and shell scripts stay LF everywhere.
+*.bat text eol=crlf
+*.vbs text eol=crlf
