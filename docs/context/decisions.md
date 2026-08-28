@@ -56,10 +56,32 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#toolchain`**: *The core ships as one file; pixi is the only package manager* · *The TLS
   exception: a self-signed leaf, share-only* (read before touching `rustls`/`rcgen` — the `ring`
   pin is a licence gate) · *Every external
-  tool is an optional feature* · *No plugin API*.
+  tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
+  it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest).
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A hand-fired release names itself after the ref it was fired on (2026-08-28, `#toolchain`)
+
+`release.yml` stamped the archive version `dev-<sha>` whenever the event was `workflow_dispatch`.
+That was correct while `push: tags: ['v*']` existed beside it: a dispatch then genuinely meant *"a
+binary from this commit, without cutting a tag"*, and a sha was the only honest name for such a
+build.
+
+The no-remote-CI standing order (2026-07-18) removed the tag trigger from every workflow. That
+silently changed what a dispatch **means** — firing by hand on a tag became the only way a release
+gets built at all — but the condition still asked the event name. So v0.2.0 would have shipped as
+`formicaria-dev-3493b4a-*`, attached by the `attach` job to a `v*` release, where the one thing a
+downloader needs to read is which version they are holding.
+
+The test is now `GITHUB_REF_TYPE`, which is exactly `tag` or `branch`: a dispatch on a branch keeps
+the dev- stamp, a dispatch on a tag is named after the tag.
+
+**The general shape is the part worth keeping.** Disabling a trigger does not merely remove a path;
+it changes the meaning of the paths that remain. Any condition that was really asking *"which ref am
+I on?"* through the proxy of *"how was I started?"* becomes wrong the moment that proxy stops
+holding — and it fails quietly, in the artifact's name, long after the change that broke it.
 
 ## A view says what it leaves out, and a board admits it scrolls (2026-08-24, `#ui`)
 
