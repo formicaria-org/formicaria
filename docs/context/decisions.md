@@ -65,6 +65,37 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
 
+## Opening the browser and quitting with the tab are defaults, not opt-ins (2026-08-28, `#toolchain`)
+
+A user double-clicked `fm-serve.exe` on Windows, copied the address out of the console into their
+browser, and then **closed the console** — which stopped the server. Reported alongside the
+observation that this cannot happen on Ubuntu, where no terminal appears and there is nothing to
+think about.
+
+**That is not a mistake a person makes; it is a trap the program set.** The console printed an
+address, which invites copying it and then tidying the black window away, and the one thing keeping
+the notebook alive was that window. Every part of it was working as designed.
+
+`FM_OPEN` and `FM_AUTO_SHUTDOWN` both existed and both fixed it — and both were **opt-in, set only
+by a launcher**. So the behaviour that makes the app usable was reserved for people who had already
+found the right file to click, and denied to the person most likely to click the wrong one. The
+defaults are now on. The asymmetry decides it: **someone who double-clicks cannot set an environment
+variable, and someone who can set one is a developer who can equally turn it off.** `pixi run serve`
+opts out of both explicitly — there a browser tab per restart is noise, and a closed tab means "about
+to reload", not "finished".
+
+On Windows only, startup now also says *"Keep this window open while you work. Closing it stops
+formicaria."* — because there the console belongs to the program and closing it is fatal, whereas on
+macOS and Linux a bare launch happens in a terminal the user already owned.
+
+This does not remove the console, which is what the report actually asked for. That needs
+`windows_subsystem = "windows"`, whose real cost is that **every** subprocess then flashes its own
+window — and `fm_core::git` shells out from a debounce that runs every few seconds. Measured while
+writing this: **23 `Command::new` sites in the whole workspace, 3 of them git.** Contained enough to
+route through one spawn helper with `CREATE_NO_WINDOW`, which is the prerequisite, and a
+`ci/checks.sh` grep to keep it that way — a new `Command::new` would otherwise regress it silently
+and only on the platform nobody here can debug.
+
 ## The manual is built per OS, and the short path is the only path a beginner is shown (2026-08-28, `#toolchain`)
 
 The owner's reading of the tester's experience, and it is the sharpest framing yet:

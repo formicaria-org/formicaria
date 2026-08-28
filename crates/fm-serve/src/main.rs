@@ -161,7 +161,7 @@ fn main() {
                 // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
                 // so the double-click case lands the user in the running app, which is what they
                 // were trying to do.
-                if env_flag("FM_OPEN") {
+                if env_flag("FM_OPEN", true) {
                     let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
                 }
                 return;
@@ -179,13 +179,24 @@ fn main() {
     for v in &configs {
         println!("formicaria is serving {} at {}", v.name, v.path.display());
     }
-    println!("open  http://{addr}  in your browser");
+    if env_flag("FM_OPEN", true) {
+        println!("formicaria is opening in your browser:  http://{addr}");
+    } else {
+        println!("open  http://{addr}  in your browser");
+    }
+    // **Only Windows gets this line, and only Windows needs it.** Double-clicking an .exe there
+    // creates a console that belongs to the program, so closing it kills the server — and that
+    // window is showing an address which invites exactly that: copy it out, then tidy the black
+    // window away. On macOS and Linux a bare launch happens from a terminal the user already owned.
+    #[cfg(windows)]
+    println!("\nKeep this window open while you work. Closing it stops formicaria.");
 
     if state.share.enabled() {
         spawn_shared_listener(Arc::clone(&state), &port);
     }
 
-    // The launcher sets FM_OPEN so a double-click opens the default browser.
+    // **On by default.** A double-click — of the launcher or of the binary itself — should land
+    // the user in the app, not in front of an address to copy out by hand.
     //
     // **No delay here, and there never needed to be one.** This slept 400ms first, to "let the
     // listener accept before the browser's first request" — but `TcpListener::bind` above also
@@ -193,17 +204,17 @@ fn main() {
     // arriving before `accept()` runs waits in the backlog; it cannot be refused. The accept loop
     // starts a few lines below, microseconds away. So the sleep guarded against nothing and cost
     // 400ms of every single launch — measured while looking for exactly this kind of leftover.
-    if env_flag("FM_OPEN") {
+    if env_flag("FM_OPEN", true) {
         let url = format!("http://{addr}");
         std::thread::spawn(move || {
             let _ = open_native(std::ffi::OsStr::new(&url));
         });
     }
 
-    // The launcher also sets FM_AUTO_SHUTDOWN so that closing the browser tab
-    // closes the app — no server left running in the background. `pixi run serve`
-    // does NOT set it, so the dev loop keeps the server up until Ctrl-C.
-    if env_flag("FM_AUTO_SHUTDOWN") {
+    // **On by default too**, so closing the browser tab closes the app and nothing is left running
+    // behind it. The dev loop opts out (`pixi run serve` sets it to 0): there a closed tab means
+    // "I am about to reload", not "I am finished".
+    if env_flag("FM_AUTO_SHUTDOWN", true) {
         spawn_watchdog(Arc::clone(&state));
     }
 
@@ -823,16 +834,23 @@ fn api(
     }
 }
 
-/// A switch from the environment, read as a **value** rather than as a presence.
+/// A switch from the environment, read as a **value**, with a default for when it is absent.
 ///
-/// `var_os(..).is_some()` meant `FM_OPEN=0` turned the browser *on* — the opposite of what anyone
-/// typing it meant. That was arguable while the only thing setting these was a launcher nobody
-/// edited; it stopped being arguable the moment a launcher ships inside the archive, where turning
-/// something off by changing a 1 to a 0 is the obvious thing to try.
-fn env_flag(key: &str) -> bool {
-    std::env::var(key).is_ok_and(|v| {
-        !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "no" | "off")
-    })
+/// Two corrections live here. `var_os(..).is_some()` meant `FM_OPEN=0` turned the browser *on* —
+/// the opposite of what anyone typing it meant, and unarguable once a launcher shipped that a user
+/// might edit.
+///
+/// And the **defaults are on**, which matters more. Opening the browser and quitting with the tab
+/// were opt-in, set only by a launcher — so anyone who ran the binary directly met a console
+/// printing an address, copied it into a browser, and then closed the window that was keeping their
+/// notebook alive. That is not a mistake a person makes; it is a trap the program set. Someone who
+/// double-clicks cannot set an environment variable, and someone who can set one is a developer who
+/// can equally turn these off.
+fn env_flag(key: &str, default: bool) -> bool {
+    match std::env::var(key) {
+        Ok(v) => !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "no" | "off"),
+        Err(_) => default,
+    }
 }
 
 /// Is *formicaria* the thing already listening on `addr`?

@@ -187,10 +187,15 @@ agent-chat = "cargo run -q -p fm-agent-run --bin agent-chat --"
 #     their REAL ~/.config/formicaria/vaults.json, and from then on `pixi run
 #     serve` reads that file, ignores FM_VAULT, and ./vault silently disappears.
 #     Gitignored. To reach the first-run screen: rm it and unset FM_VAULT.
-serve = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json" } }
+# **FM_OPEN=0 / FM_AUTO_SHUTDOWN=0 keep the DEV loop as it was.** Both now default to *on* in the
+# binary, because a person double-clicking cannot set an environment variable and was otherwise
+# left copying an address out of a console window that quietly kept their notebook alive. Neither
+# default suits this loop: a browser tab per restart is noise, and here a closed tab means "about
+# to reload", not "finished".
+serve = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json", FM_OPEN = "0", FM_AUTO_SHUTDOWN = "0" } }
 # Same, but the RELEASE build (the [profile.release] in Cargo.toml: stripped +
 # thin-LTO, ~3 MB, faster runtime). Slower to compile; what you'd run daily.
-serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --release -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json" } }
+serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --release -p fm-serve", env = { FM_UI_DIST = "ui/dist", FM_VAULT = "vault", FM_VAULTS = ".dev-vaults.json", FM_OPEN = "0", FM_AUTO_SHUTDOWN = "0" } }
 # Produce the shippable artifacts WITHOUT running them: the optimized binaries at
 # `target/release/{fm-serve,fm}` plus the production UI bundle at `ui/dist`. Those
 # together ARE the app — run fm-serve from the repo root (it defaults FM_UI_DIST

@@ -1,9 +1,10 @@
 @echo off
 rem Start formicaria on Windows with the console VISIBLE.
 rem
-rem `formicaria.vbs` beside this is the normal way in — it starts the same server with no window.
-rem This one exists for the two cases that need output: Windows Script Host disabled by policy,
-rem and diagnosing a launch that did not work. Closing this window stops the app.
+rem "Start formicaria.vbs" beside this is the normal way in - it runs the same server with no
+rem window at all. This one exists for the two cases that need the output: script hosting disabled
+rem by policy, and diagnosing a launch that did not work. fm-serve prints the keep-this-window-open
+rem warning itself, so this file does not repeat it.
 setlocal
 set "HERE=%~dp0"
 set "FM_VAULT=%HERE%vault"
