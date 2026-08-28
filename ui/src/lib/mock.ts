@@ -359,6 +359,15 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
 // The study-assistant on/off setting, mocked (the real one is a per-device launcher setting served
 // by fm-serve, not a vault command).
 let mockAgentEnabled = false;
+let mockSavedViews: ViewInfo[] = [
+  { name: 'Recent notes', renderer: 'timeline', group_by: null },
+  { name: 'Active', renderer: 'board', group_by: 'status' },
+];
+// **The assistant's capability, modelled separately from its switch.** The mock answered only
+// `enabled`, so the panel's "can this machine run it at all" branch was never exercised — the same
+// shape of gap that twice before let a defect through because the mock was too polite to fail.
+// Flip this to see the not-installed row the way a released build shows it.
+let mockAgentInstalled = true;
 let mockTranscribeEnabled = false;
 
 /// **A backend that can misbehave, because the real one does.**
@@ -518,8 +527,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
   }
   switch (cmd) {
     case 'agent_status':
-      return { enabled: mockAgentEnabled, transcribe: mockTranscribeEnabled } as T;
+      return { enabled: mockAgentEnabled, transcribe: mockTranscribeEnabled, installed: mockAgentInstalled } as T;
     case 'set_agent':
+      // Refuses exactly as the server does, so a test can see the refusal rather than a cheerful ok.
+      if (args.enabled && !mockAgentInstalled) {
+        throw new Error('The study assistant is not installed on this machine.');
+      }
       mockAgentEnabled = Boolean(args.enabled);
       return { ok: true } as T;
     case 'set_transcribe':
@@ -1047,6 +1060,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // three restic questions rather than collapsing them into one happy case.
         restic_installed: true,
         restic_password_set: false,
+        // **False on purpose.** The dev loop should show the not-available wording by default,
+        // because that is the state a released machine is most often in and the one that used to
+        // be invisible. A happy-path mock is how the silence lasted this long.
+        pdf_text: false,
         // The desktop shape: the user picks their own locations. The managed-root path is a
         // phone, and is exercised there.
         vault_root: null,
@@ -1161,11 +1178,26 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // so a filter that removes a whole column removes it with nothing on screen to say so. A mock
     // that only ever answered an unfiltered timeline could not reproduce that, which is precisely
     // why it went unnoticed.
+    // Writable in the mock too, so the dev loop and tests exercise the path that used to require
+    // a text editor. Kept in a module-level list so save/delete actually change what list_views
+    // returns — a mock that accepted a write and reported the old list would hide the bug.
+    case 'save_view': {
+      const name = String(args.name ?? '').trim();
+      if (!name) throw new Error('a view needs a name');
+      mockSavedViews = mockSavedViews.filter((v) => v.name !== name);
+      mockSavedViews.push({
+        name,
+        renderer: String(args.view ?? 'board') as ViewInfo['renderer'],
+        group_by: args.group_by ? String(args.group_by) : null,
+      });
+      return mockSavedViews.slice() as T;
+    }
+    case 'delete_view': {
+      mockSavedViews = mockSavedViews.filter((v) => v.name !== String(args.name ?? ''));
+      return mockSavedViews.slice() as T;
+    }
     case 'list_views': {
-      const views: ViewInfo[] = [
-        { name: 'Recent notes', renderer: 'timeline', group_by: null },
-        { name: 'Active', renderer: 'board', group_by: 'status' },
-      ];
+      const views: ViewInfo[] = mockSavedViews.slice();
       return views as T;
     }
     case 'run_view': {

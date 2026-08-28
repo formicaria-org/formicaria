@@ -8,7 +8,7 @@ here. Status: ✅ shipped · 🟚 partial · 📋 planned. "the code wins" — v
 | Feature | Status | One line | Detail / plan |
 |---|---|---|---|
 | **Notes & storage** | ✅ | files-as-truth: one note = one `<ulid>.md`; `Store`/`FileStore`/`MultiStore`, FTS5 index (disposable) | `overview.md` (seams) · `decisions.md#seams` |
-| **Query & views** | ✅ | pure `fm-query` engine; board/agenda/timeline/search, generic literal-free renderers, `.view` files — **a filtered view names what it leaves out and offers the unfiltered one; the board carries a column rail** (2026-08-24) | `overview.md` · `decisions.md#ui` |
+| **Query & views** | ✅ | pure `fm-query` engine; board/agenda/timeline/search, generic literal-free renderers, `.view` files — **a filtered view names what it leaves out and offers the unfiltered one; the board carries a column rail** (2026-08-24); **saveable from the app** — an arrangement you keep, not a query you write (2026-08-28); editing a filter is still file-level | `overview.md` · `decisions.md#ui` |
 | **Editor & workspace** | ✅ | pane-grid workspace, `/` slash menu at caret, note↔note refs, double-click-to-edit | `decisions.md#ui` |
 | **Media / blobs** | 🟚 | content-addressed blobs, ingest, streaming `GET /api/blob`; **video capped**; phone byte path is base64-over-IPC | `known-issues.md` · `decisions.md#vault` |
 | **Whiteboard** | 🟚 | embedded Excalidraw, element-wise scene merge; **canvas-in-embed** still open, unverified in headless | `decisions.md#ui` · `known-issues.md` |

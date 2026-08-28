@@ -1421,6 +1421,9 @@ fn dispatch_inner(
                 // its value, which is why it is a bool and not an `env` entry.
                 git: fm_core::vcs::available(),
                 restic_installed: backup::available(),
+                // Reported for the same reason git and restic are: a feature that quietly does not
+                // work is one you discover on the day you needed it.
+                pdf_text: fm_core::ingest::pdf_text_available(),
                 restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
                 vault_root: vaults::vault_root().map(|p| p.display().to_string()),
                 ca_bundle: crate::ca_bundle::status(),
@@ -1476,6 +1479,31 @@ fn dispatch_inner(
         // git-tracked *in* the vault it belongs to, but the query it defines runs against
         // the whole set (so `prop: vault` can narrow, or a dashboard can span audiences).
         // A view that won't parse is listed with its error, never dropped.
+        // **Saving what you arranged.** Until now a `.view` could be neither written nor deleted
+        // from the UI, so the only documented way to have one was to author YAML in a text editor —
+        // for a headline feature, in an app whose owner works only through the UI. This saves the
+        // arrangement (renderer, and a board's grouping); editing a filter stays a file-level job
+        // and `views::save_view` refuses to silently drop one.
+        "save_view" => {
+            let path = lock()?.config(scope, &s("vault"))?.path;
+            let renderer: crate::views::Renderer = serde_json::from_value(
+                args.get("view").cloned().unwrap_or(Value::String("board".into())),
+            )
+            .map_err(|_| "that is not a view kind this app can render".to_string())?;
+            let group = s("group_by");
+            crate::views::save_view(
+                &path,
+                &s("name"),
+                renderer,
+                if group.is_empty() { None } else { Some(group.as_str()) },
+            )?;
+            json(crate::views::list_views(&path))
+        }
+        "delete_view" => {
+            let path = lock()?.config(scope, &s("vault"))?.path;
+            crate::views::delete_view(&path, &s("name"))?;
+            json(crate::views::list_views(&path))
+        }
         "list_views" => {
             let g = lock()?;
             let mut all = Vec::new();
@@ -1841,6 +1869,8 @@ struct Config {
     /// answerable only as one, which is how a panel enables a control for a tool that is
     /// not installed.
     restic_installed: bool,
+    /// Whether the text inside a PDF can be read out and made searchable.
+    pdf_text: bool,
     restic_password_set: bool,
     /// The directory this installation puts vaults in, or `null` when the user chooses their
     /// own. **Present on a phone, absent on a desktop** — and it is what tells the form

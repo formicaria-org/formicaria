@@ -95,13 +95,12 @@ pub fn transcribe_enabled() -> bool {
 /// Returns whether it started. The agent (a separate process) then follows this server's liveness and
 /// stops itself when we stop answering, so it needs no supervision from here.
 pub fn spawn(port: u16) -> bool {
-    let script = std::path::Path::new("agents/start-agent.sh");
-    if !script.exists() {
-        eprintln!("study agent: enabled, but agents/start-agent.sh is not here — skipping");
+    let Some(script) = script_path() else {
+        eprintln!("study agent: enabled, but the agent stack is not on this machine — skipping");
         return false;
-    }
+    };
     let mut cmd = std::process::Command::new("bash");
-    cmd.arg(script).arg(port.to_string());
+    cmd.arg(&script).arg(port.to_string());
     // The agent stack inherits this; agent-serve.sh turns on whisper only when it is set.
     if transcribe_enabled() {
         cmd.env("FM_TRANSCRIBE", "1");
@@ -116,6 +115,37 @@ pub fn spawn(port: u16) -> bool {
             false
         }
     }
+}
+
+/// Where the agent stack is, if it is on this machine at all.
+///
+/// **Resolved beside the running binary first, not against the working directory.** This was a bare
+/// relative `agents/start-agent.sh`, which resolves against whatever cwd the process was handed —
+/// `$HOME` for a double-clicked launcher — so a released build could never find the stack even if it
+/// had been shipped. Same reasoning, and the same fix, as `fm_core::git`'s merge-driver lookup:
+/// *never a bare relative path hoping the cwd will answer.*
+///
+/// The checkout root stays a fallback, because that is where the dev loop runs from.
+pub fn script_path() -> Option<PathBuf> {
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|p| p.join("agents").join("start-agent.sh")));
+    beside
+        .into_iter()
+        .chain(std::iter::once(PathBuf::from("agents/start-agent.sh")))
+        .find(|p| p.exists())
+}
+
+/// **Can this machine actually run the assistant?** — not "is the switch on".
+///
+/// The distinction is the whole point. `enabled()` reads a stored flag and cannot fail, so the
+/// settings row used to offer a toggle that returned `{"ok":true}`, promised *"Starts with
+/// formicaria on the next launch"*, and did nothing at all — because the release archive ships no
+/// `agents/` directory and the only diagnostic went to a stderr the Windows launcher hides by
+/// design. That is precisely the failure `decisions.md` already ruled against: **a capability must
+/// mean "this will work", never "this is configured".**
+pub fn installed() -> bool {
+    script_path().is_some()
 }
 
 /// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
@@ -177,13 +207,34 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
     let resp: (&str, &str, Vec<u8>) = match path {
         // The on/off setting the settings screen reads/writes. A *launcher* concern, deliberately not
         // a dispatch command, so the shared core never learns the agent exists.
+        // `installed` is the capability; `enabled` is only the stored preference. The UI needs both
+        // so it can offer a switch when there is something to switch on, and say what is missing
+        // when there is not.
         "/api/agent_status" => (
             "200 OK",
             "application/json",
-            format!("{{\"enabled\": {}, \"transcribe\": {}}}", enabled(), transcribe_enabled()).into_bytes(),
+            format!(
+                "{{\"enabled\": {}, \"transcribe\": {}, \"installed\": {}}}",
+                enabled(),
+                transcribe_enabled(),
+                installed()
+            )
+            .into_bytes(),
         ),
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;
+            // **Refuse rather than report success.** Turning this on when the stack is not here
+            // stored the preference, answered `{"ok":true}`, and silently did nothing — the one
+            // place this app told a user something worked when it had not.
+            if want && !installed() {
+                return Some(crate::write_response(
+                    stream,
+                    "409 Conflict",
+                    "text/plain; charset=utf-8",
+                    b"The study assistant is not installed on this machine, so it cannot be turned \
+                      on yet. Everything else works as normal.",
+                ));
+            }
             match set_enabled(want) {
                 // Turning it ON starts it immediately (the atomic guard makes sure only one spawns);
                 // OFF just persists the setting — the running agent stops when the app closes.

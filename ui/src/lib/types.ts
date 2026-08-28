@@ -355,6 +355,8 @@ export interface Config {
    *  (`restic_password_set`). Conflating them is how a control enables for a tool that is
    *  not there. */
   restic_installed: boolean;
+  /** Whether the text inside a PDF can be read out, so a paper is searchable by its contents. */
+  pdf_text: boolean;
   /** Present/absent only. The value is never sent. */
   restic_password_set: boolean;
   /** The one directory this installation puts vaults in, or `null` when the user chooses.

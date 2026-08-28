@@ -256,7 +256,10 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
  *  not a vault command). When on, the agent (a small local model that reads your notes and answers
  *  in discussions) auto-starts with formicaria and stops when you close it; off is pure, super-light
  *  formicaria. Takes effect at the next launch. */
-export const agentStatus = () => invoke<{ enabled: boolean; transcribe: boolean }>('agent_status');
+/** `enabled` is the stored preference; **`installed` is whether it can actually run here.** The two
+ *  used to be conflated, so the switch reported success on a machine with no assistant at all. */
+export const agentStatus = () =>
+  invoke<{ enabled: boolean; transcribe: boolean; installed: boolean }>('agent_status');
 export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
 /** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
  *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the
@@ -696,6 +699,18 @@ export const restoreVault = (name: string, path: string, repo: string) =>
 export const config = () => invoke<Config>('config');
 
 /** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
+/** Save the arrangement you are looking at as a named view, in the vault's `views/` folder.
+ *  Deliberately not a filter editor: what a person actually does is arrange a pane and want to keep
+ *  it. A view that already carries a filter is refused rather than silently flattened. */
+export const saveView = (
+  name: string,
+  view: 'board' | 'agenda' | 'timeline',
+  group_by = '',
+  vault = '',
+) => invoke<ViewInfo[]>('save_view', { name, view, group_by, vault });
+/** Remove a saved view. Missing is success — the user asked for it to be gone. */
+export const deleteView = (name: string, vault = '') =>
+  invoke<ViewInfo[]>('delete_view', { name, vault });
 export const listViews = () => invoke<ViewInfo[]>('list_views');
 /** Run one saved view by name — the query is defined server-side; we send only the name. */
 export const runView = (name: string) => invoke<ViewResult>('run_view', { name });

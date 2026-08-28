@@ -426,6 +426,81 @@ fn parse_date(s: &Option<String>, which: &str) -> Result<Option<Date>, String> {
 
 /// Read `<vault>/views/*.view` and report each. A file that fails to parse is listed with its
 /// error and named by its filename stem, never dropped.
+/// The file a view of this name lives in.
+///
+/// **The name is a label; the filename is derived from it and never trusted.** A view name reaches
+/// this from the UI, so anything that is not a letter, digit or space becomes `-` and the result is
+/// bounded — otherwise a name containing `../` chooses where in the filesystem we write. The label
+/// itself is preserved verbatim inside the file, so the user still sees what they typed.
+fn view_path(vault: &Path, name: &str) -> Result<std::path::PathBuf, String> {
+    let stem: String = name
+        .trim()
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '-' })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join("-")
+        .to_lowercase();
+    let stem: String = stem.chars().take(60).collect();
+    if stem.is_empty() {
+        return Err("a view needs a name".to_string());
+    }
+    Ok(vault.join("views").join(format!("{stem}.view")))
+}
+
+/// Write a saved view: a renderer, and for a board the property its columns group by.
+///
+/// **Deliberately not a filter editor.** The `filter:` grammar is nine kinds of predicate, and a UI
+/// for it is a query builder — which is the thing a non-technical user was never going to use, and
+/// the reason `views.md` documented a text editor as the way in. What a person actually does is
+/// *arrange* a pane and want to keep it, so that is what this saves. A view written by hand keeps
+/// its filter; saving over one from the app would not, which is why `save` refuses to overwrite a
+/// view that has one rather than silently dropping it.
+pub fn save_view(
+    vault: &Path,
+    name: &str,
+    view: Renderer,
+    group_by: Option<&str>,
+) -> Result<(), String> {
+    let path = view_path(vault, name)?;
+    if let Ok(existing) = read_view(&path) {
+        if !existing.filter.is_empty() {
+            return Err(format!(
+                "\"{}\" already exists and filters its notes. Saving over it here would drop that \
+                 filter, so it is refused — rename this one, or edit that view's file.",
+                existing.name
+            ));
+        }
+    }
+    let renderer = match view {
+        Renderer::Board => "board",
+        Renderer::Agenda => "agenda",
+        Renderer::Timeline => "timeline",
+        Renderer::Search => "search",
+        Renderer::Gallery => "gallery",
+    };
+    // Written as the same YAML a person would write by hand — this is a file they own, in their
+    // vault, tracked by git and read by collaborators, not an opaque app artifact.
+    let mut body = format!("name: {}\nview: {renderer}\n", name.trim());
+    if let Some(g) = group_by.filter(|g| !g.is_empty()) {
+        body.push_str(&format!("group_by: {g}\n"));
+    }
+    let dir = path.parent().ok_or("no views directory")?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    std::fs::write(&path, body).map_err(|e| format!("could not write {}: {e}", path.display()))
+}
+
+/// Remove a saved view. Missing is success — the user asked for it to be gone.
+pub fn delete_view(vault: &Path, name: &str) -> Result<(), String> {
+    let path = view_path(vault, name)?;
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("could not delete {}: {e}", path.display())),
+    }
+}
+
 pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
     let dir = vault.join("views");
     let mut out = Vec::new();

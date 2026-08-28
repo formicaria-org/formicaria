@@ -9,7 +9,7 @@ from notes. Identical files are stored once; the hash *is* the identity.
 In a note's editor you have two fast paths:
 
 - **Drag a file in.** Drop it onto the editor; formicaria ingests it (hashing,
-  MIME sniffing, text extraction, thumbnail) and inserts a reference at your
+  MIME sniffing, text extraction) and inserts a reference at your
   cursor.
 - **Type `/`.** A menu opens at your cursor listing your **most recent notes**;
   keep typing to search by name (and extracted text) across everything. The
@@ -45,4 +45,4 @@ note (in git), so a paper is searchable even before its blob arrives.
 
 Blobs are written under `vault/blobs/` and are **git-ignored** — they sync
 out-of-band (backup / a file-sync tool), keeping the notes repository small and
-clonable. Thumbnails are regenerated under `vault/derived/`.
+clonable.

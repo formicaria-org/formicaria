@@ -146,6 +146,7 @@
       const st = await agentStatus();
       agentOn = st.enabled;
       transcribeOn = st.transcribe;
+      agentInstalled = st.installed;
     } catch {
       agentOn = null;
     }
@@ -156,6 +157,10 @@
   // The local study assistant: whether it auto-starts with formicaria. Off by default; a change
   // takes effect at the next launch. `null` while unknown/unavailable.
   let agentOn = $state<boolean | null>(null);
+  // **Whether the assistant can actually run here** — not whether the switch is on. Separate from
+  // `agentOn` on purpose: a stored preference cannot fail, so conflating them is how this panel came
+  // to offer a switch that reported success and did nothing.
+  let agentInstalled = $state(true);
   // Audio transcription (whisper) — a sub-setting of the assistant. Persisted like the on/off above;
   // it loads a local speech-to-text runtime the assistant uses for `/transcribe`.
   let transcribeOn = $state(false);
@@ -350,6 +355,17 @@
             effect at the next launch.
           </p>
           <ul class="caps">
+            {#if !agentInstalled}
+              <!-- No switch at all when there is nothing to switch on. The same shape git and restic
+                   already use: name what is missing, say what it costs, say the notes are fine. -->
+              <li>
+                <span class="k">not installed</span>
+                <span class="muted">
+                  The assistant is not on this machine yet, so it cannot be turned on. Everything
+                  else works normally — your notes, search, boards and backup are unaffected.
+                </span>
+              </li>
+            {:else}
             <li>
               <label class="choice">
                 <input
@@ -364,7 +380,8 @@
                 </span>
               </label>
             </li>
-            {#if agentOn}
+            {/if}
+            {#if agentInstalled && agentOn}
               <li>
                 <label class="choice">
                   <input
@@ -646,6 +663,17 @@
             {:else}
               <span class="none">not installed</span> — notes are still files and still safe;
               there is no history, backup or sharing without it.
+            {/if}
+          </li>
+          <li>
+            <!-- Named for what it does, not for poppler. Until 2026-08-28 this failed in complete
+                 silence: a PDF ingested with an empty body and search simply never found it. -->
+            <span class="k">search inside PDFs</span>
+            {#if cfg.pdf_text}
+              <span class="ok">available</span>
+            {:else}
+              <span class="none">not available</span> — PDFs are still stored, opened and shown;
+              their contents just are not searchable on this machine.
             {/if}
           </li>
           <li>

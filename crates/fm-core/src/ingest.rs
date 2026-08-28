@@ -95,6 +95,28 @@ fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
     if text.is_empty() { None } else { Some(text) }
 }
 
+/// Can this machine read the text out of a PDF?
+///
+/// **Declared, because until now this feature failed in total silence.** `pdftotext` had no
+/// capability check and no user-facing string anywhere: a PDF ingested with an empty body, search
+/// never found it, and nothing said why — you discover it on the day you go looking for a paper you
+/// know you filed. Every other external tool here declares itself (`git::available`,
+/// `backup::available`); this one was simply missed.
+///
+/// Cached like the others: poppler does not appear halfway through a run, and this is asked on the
+/// heartbeat.
+pub fn pdf_text_available() -> bool {
+    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        Command::new("pdftotext")
+            .arg("-v")
+            .output()
+            // `pdftotext -v` prints its version to stderr and exits non-zero on some builds, so the
+            // question is whether it RAN, not what it returned.
+            .is_ok()
+    })
+}
+
 /// poppler's `pdftotext`; `-` writes plain text to stdout. Invoked as a
 /// subprocess, never linked — poppler is GPL and must stay out of our binary.
 fn pdftotext(blob: &Path) -> Option<String> {

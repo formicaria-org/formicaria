@@ -35,6 +35,7 @@
     alive,
     listVaults,
     listViews,
+    saveView,
     runView,
     activity as fetchActivity,
     backupStatus,
@@ -459,7 +460,7 @@
         void onNew();
         break;
       case 'newView':
-        openSettings('commands');
+        void saveCurrentView();
         break;
       case 'focusSearch':
         searchEl?.focus();
@@ -926,6 +927,32 @@
       .then((v) => (views = v))
       .catch(() => (views = []));
   });
+
+  /// **Save the arrangement you are looking at, under a name.**
+  ///
+  /// This command existed, was labelled "New view", and opened the Settings list — a label promising
+  /// a capability that did not exist. A `.view` could be neither written nor deleted from the app at
+  /// all, so the only documented way to have one was to author YAML in a text editor, for a headline
+  /// feature, in an app whose owner works only through the UI.
+  ///
+  /// Deliberately *not* a filter builder: the filter grammar is nine kinds of predicate, and a UI
+  /// for it is a query builder nobody non-technical would use. What a person actually does is
+  /// arrange a board or an agenda and want to keep it — so that is what this saves.
+  async function saveCurrentView() {
+    const pane = workspace.panes[focused];
+    const kind = pane?.kind;
+    if (kind !== 'board' && kind !== 'agenda' && kind !== 'timeline') {
+      error = 'Open a board, agenda or timeline first — that is the arrangement a view saves.';
+      return;
+    }
+    const name = window.prompt('Save this arrangement as a view named:')?.trim();
+    if (!name) return;
+    try {
+      views = await saveView(name, kind, kind === 'board' ? pane.groupBy : '');
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   $effect(reloadTemplates);
 

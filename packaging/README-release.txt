@@ -95,19 +95,30 @@ This folder contains the whole application. Nothing gets installed.
 ------------------------------------------------------------------------------
 
   Writing notes, tasks, dates, the board and search all work with nothing
-  else installed. These add features if you have them, and if you do not,
-  the app simply says so and carries on.
+  else installed at all.
 
-    git           Keeps a history of your notes, so you can go back, and
-                  lets you back them up or share a notebook with someone.
-                  This is the one worth having.
+  Two further things are possible if your computer has the right program for
+  them. Settings -> "This machine" always tells you which of these this
+  computer can currently do.
 
-    pdftotext     Makes the text inside PDFs searchable.
-    vipsthumbnail Shows picture and PDF previews.
-    restic        Encrypted backup of your images and attachments.
+    KEEPING A HISTORY, AND BACKING UP
+      Go back to how a note was last week, back your notes up, or share a
+      notebook with someone else. This is the one worth having.
+      On Windows it already works - nothing to install.
+      On macOS and Linux it needs "git", which most machines already have.
 
-  Without git your notes are still perfectly safe - they are files - but
-  there is no history to go back to.
+    SEARCHING INSIDE PDFs
+      Find a paper by a phrase that is in it, not just by its title.
+      PDFs are stored, opened and shown either way; without this their
+      contents simply are not searched.
+      Needs "poppler".
+
+    BACKING UP PHOTOS AND ATTACHMENTS
+      An encrypted, space-efficient backup of the heavy files, separate from
+      the notes themselves. Needs "restic", and a place to put the backup.
+
+  Without any of them your notes are still perfectly safe - they are ordinary
+  files on your disk - you just do not get that particular extra.
 
 
 ------------------------------------------------------------------------------

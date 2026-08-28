@@ -41,12 +41,24 @@ cannot find in five years would defeat the point of keeping it in the vault at a
 Urgency and grouping are **derived**, never stored — there is no priority field;
 nudging a note's `due` date is the whole reprioritization gesture.
 
-## Saved views (`.view` files)
+## Saved views
 
-A **view** is a saved query drawn through one of the built-in renderers — *"a filtered
-board"*, *"this week's lab agenda"*, *"everything tagged `reading` that isn't done"*. You
-write one as a small YAML file in your vault under `views/`, ending in `.view`; it then
-appears alongside Board / Agenda / Timeline in the top bar and in each pane's view picker.
+A **view** is an arrangement you keep — *"my board grouped by status"*, *"this week's lab
+agenda"* — that appears alongside Board / Agenda / Timeline in the top bar and in each pane's
+view picker.
+
+**To make one:** arrange a board, agenda or timeline the way you want it, then use **New
+view** and give it a name. That is the whole thing.
+
+Because a view lives in your vault as a small file, it is **git-tracked and travels to
+collaborators** — a shared view is shared exactly like a note.
+
+### Filtering a view
+
+A view can also *filter* what it shows — *"everything tagged `reading` that isn't done"*.
+That part is not editable in the app yet: it is written into the view's file by hand, in the
+format below. A view you filtered by hand keeps its filter, and saving over it from the app is
+refused rather than quietly dropping it.
 Because it lives in the vault, it is
 **git-tracked and travels to collaborators** — a shared view is shared exactly like a note.
 

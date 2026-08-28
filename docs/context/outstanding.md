@@ -255,6 +255,43 @@ right:
   git is absent, or a git-less user is trapped on a form that can never save.
 - **Save identity first, and separately.** A bad remote URL must lose the remote and keep the name.
 
+### 2.6b Features a user asks for are still not *delivered* — only declared
+**Closed 2026-08-28** (`decisions.md#agent`): nothing now claims a capability it lacks, and saved
+views are writable from the app. What the owner asked for goes further — *"a user picks features and
+never thinks about dependencies, and asking for a feature must deliver it working, like any app"* —
+and that half is deliberately not built yet.
+
+**The installer.** Fetch what a feature needs into `<app>/program/tools/` — portable, no admin
+rights, travels when the folder is copied. Every piece exists and none is wired together:
+- `crates/fm-agent-run/src/fetch.rs` — resumable, SHA-256 verified, atomic, progress callback,
+  hermetic tests already in `pixi run ci`, **desktop-excluded by one Cargo feature**.
+- `pixi.lock` already pins poppler, libvips and restic for all four platforms with checksums, so
+  installing means fetching *the exact artifact pixi would*.
+- `packaging/formicaria.sh` records the proof they are relocatable: run "with PATH alone, resolving
+  every shared library (conda binaries carry their own RPATH)".
+- The lookup is the missing link: three `available()` functions all use bare `Command::new`, with no
+  indirection at all. `fm_core::git`'s `merge_command()` already argues the fix — *never a bare name
+  hoping PATH will answer* — for our own `fm` binary; nothing applies it to a third-party tool.
+
+**Delivering a feature is usually three steps, not one.** Encrypted backup needs restic **plus** a
+repo location (hand-edited `vaults.json`; Settings says verbatim *"there is no UI for it"*) **plus**
+`RESTIC_PASSWORD` (an env var whose documented answer is *"a launcher you have edited yourself"*).
+Note `vaults::save` is append-only by design and never rewrites an entry — that constraint has to be
+met, not worked around.
+
+**The assistant, delivered.** Fetch the model in-app with progress as Android already does on first
+enable, ship the manifest in the archive, start the runtime. **Blocker to fix in the same change:**
+`agents/models.toml` publishes **no SHA-256**, so `fetch.rs`'s verification path is inert for models
+today.
+
+**Smaller, same theme:** the backup panel has no token field (one exists only in the clone flow), so
+a user who created a vault locally and later adds an HTTPS remote has nowhere to put a token. And the
+"save this view" naming step is a `window.prompt()` — genuinely in-app, but not the app-quality
+affordance the owner asked for.
+
+**A thumbnail consumer.** Generation works; nothing requests it (`render.ts`: *"There is no thumbnail
+path on any platform"*). Until one exists, previews cannot be offered as a feature at all.
+
 ### 2.7 The manual reads for a beginner now — it still has no pictures
 **Closed 2026-08-28** (`decisions.md#toolchain`): setup is per-OS and assembled by `ci/docs.sh`, so
 each archive carries instructions for its own platform only; `Start here` is two short chapters and

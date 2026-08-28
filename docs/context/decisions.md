@@ -34,7 +34,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): *A contributor is an email, everywhere* · *One shell, two
+- **`#ui`** (workspace/views/render): ***A saved view is an arrangement you keep, not a query you
+  write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · *One shell, two
   arrangements* · *`.view` files parsed
   server-side* · ***A view says what it leaves out, and a board admits it scrolls*** (read before
   changing what a pane shows about its own filtering) · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
@@ -69,6 +70,60 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A feature the app cannot deliver must not offer itself (2026-08-28, `#agent` `#ui`)
+
+The owner's frame for the release: **a user picks the features they want and never thinks about what
+dependency allows it — and asking for a feature must deliver it working, like any app.** Auditing
+against that found three places the app claimed a capability it did not have. All three are breaches
+of a rule this repo already wrote down: *"a capability must mean 'this will work', never 'this is
+configured'"*.
+
+**The assistant was the serious one — the only place the app told a user something worked when it
+had not.** `agent_status` answered from a stored flag that cannot fail, so the switch rendered,
+`set_agent` returned `{"ok":true}`, and the UI promised *"Starts with formicaria on the next
+launch."* — while the release archive ships no `agents/` directory at all and the sole diagnostic
+was an `eprintln!` to a stderr the Windows launcher hides by design. It now reports **capability**,
+and turning it on where the stack is absent is a **409 with a plain sentence** rather than a cheerful
+ok. The stack is also resolved beside the running binary instead of against the working directory —
+a bare relative path resolves against whatever a file manager handed the process, so a release could
+never have found it even had it been shipped.
+
+**PDF search failed in total silence.** `pdftotext` had no capability check and no user-facing string
+anywhere: a PDF ingested with an empty body and search never found it. Now declared like `git` and
+`restic`, and named for what it does — *"search inside PDFs"* — not for poppler.
+
+**Previews were advertised and unbuilt.** `render.ts` records that nothing ever requests a thumbnail;
+installing libvips delivered nothing. The claim is gone from the release sheet and the manual; the
+generation half stays, and building a consumer is in `outstanding.md`.
+
+**And the release sheet's "Optional features" was itself the framing error** — a *tool* table asking
+the reader to reason from dependency to capability. Rewritten as capabilities, with the tool name
+demoted to a parenthetical.
+
+## A saved view is an arrangement you keep, not a query you write (2026-08-28, `#ui`)
+
+`.view` files could be **neither written nor deleted from the app** — the documented way to have one
+was to author YAML plus a nine-row filter grammar in a text editor, for a headline feature, in an app
+whose owner works only through the UI. A keyboard command *labelled* "New view" opened the Settings
+list: a label promising a capability that did not exist.
+
+**Decision: save the arrangement, not the query.** `save_view` writes what the user is looking at —
+the renderer, and a board's grouping — under a name they choose. **Rejected: a filter editor.** The
+grammar is nine kinds of predicate and a UI for it is a query builder, which is exactly the thing a
+non-technical user was never going to use and the reason the manual documented a text editor instead.
+What a person actually does is arrange a board and want to keep it.
+
+Two consequences worth stating. **Saving over a view that carries a filter is refused**, not
+flattened — a hand-written view's filter must not vanish because someone pressed save. And **the
+filename is derived from the name and never trusted**: a view name reaches this from the UI, so
+`../../escape` becomes `------escape.view` inside `views/` (verified) rather than choosing where in
+the filesystem we write. The label the user typed is preserved verbatim inside the file, which stays
+the same YAML a person would write by hand — it is theirs, in their vault, tracked by git and read by
+collaborators.
+
+Editing an existing view's **filter** stays out of the app; the manual should say so plainly rather
+than documenting YAML as the way in.
 
 ## libgit2 ships on Windows too — the exception is "no git binary", not "not a desktop" (2026-08-28, `#git` `#toolchain`)
 
