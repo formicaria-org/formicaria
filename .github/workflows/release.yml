@@ -61,7 +61,12 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+          # Only a dispatch on a *branch* gets the dev- stamp. Under the no-remote-CI standing
+          # order the `v*` push trigger is off, so firing this by hand on a tag is now the only
+          # way to cut a release — and without the ref-type test that path named its archives
+          # `formicaria-dev-<sha>-*` and attached them to a `v*` release. GITHUB_REF_TYPE is
+          # exactly `tag` or `branch`, so it separates the two cases the event name cannot.
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF_TYPE}" != "tag" ]; then
             VERSION="dev-$(git rev-parse --short HEAD)"
           fi
           DIR="formicaria-${VERSION}-${{ matrix.target }}"
