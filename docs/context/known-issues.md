@@ -177,9 +177,34 @@ The gray-screen fix and its tests are in
   `WebViewClient.shouldInterceptRequest(view, request: WebResourceRequest)` — Android's
   `WebResourceRequest` has **no body accessor**, so a POST to a custom scheme arrives with its
   body silently dropped. That silence stored every phone photo as zero bytes for days. Ingest
-  therefore goes through `fm_ingest` with the file base64-encoded, capped at `MAX_INGEST` (48 MB)
-  — above any phone photo, below video. **Video on Android is refused with an explanation**;
-  chunked ingest would lift it and is not built.
+  therefore goes through `fm_ingest` with the file base64-encoded, capped at `MAX_INGEST`
+  (**16 MB since 2026-08-20**, down from 48 — see `decisions.md#track-m`: the old number counted
+  the string and not the ~10 copies the transport makes, so it permitted a ~600 MB transient and
+  an unexplained renderer kill) — above any phone photo, below video. **Video on Android is
+  refused with an explanation**; chunked ingest would lift it and is **still not built**. It is now
+  the *named* next step rather than a vague one: `fm_ingest_chunk` + `fm_ingest_finish` over
+  `BlobStore::put_file`, which already streams and hashes in 64 KB chunks, with `commands::
+  asset_note` already factored out for exactly this second byte-arrival path. Bounds the transient
+  at one chunk regardless of file size. The one new hazard is orphan sessions after a `SIGKILL`
+  mid-upload — sweep the session dir at boot.
+  **Both ends of the bridge are now tested** (they were not, which is how the zero-byte photo
+  shipped): `fm-app/src/wire.rs` for the decoder, `ui/src/lib/ingest.phone.test.ts` for the
+  encoder and the ceiling, `fm-app/tests/mobile_workload.rs` for a real multi-MB photo.
+
+- **The read view never asks for a thumbnail — on any platform.** Easy to mis-diagnose as an
+  Android gap, and it is not. `ingest::thumbnail` shells `vipsthumbnail` and writes
+  `derived/<hash>/thumb.webp`, but the only readers are `fm-cli` and `asset_status`'s `has_thumb`
+  flag; `NotePanel`'s resolver uses `assetUrl(ref)`, which has no `kind` parameter at all, so every
+  inline image is the **full blob** on desktop and phone alike. The Gallery view that used to
+  consume thumbnails was removed. So a note with five 12 MP photos decodes ~200 MB of bitmap
+  everywhere — the desktop simply has the memory to survive it.
+  **Do not "fix" this by passing `kind: "thumb"` from the phone.** `commands.rs`'s `resolve_asset`
+  hard-errors on a missing thumb (there is no fallback to the full blob), and `vipsthumbnail` does
+  not exist on Android — so every image in every note would become a 404 placeholder. The real fix
+  is a downscale path that works on both platforms, which is M8 (pure-Rust media extraction),
+  deliberately unsequenced in `mobile-design.md`. Mitigated 2026-08-20 with `loading="lazy"` +
+  `decoding="async"` in `render.ts`, so off-screen images cost nothing; the on-screen ones still
+  decode at full camera resolution.
 
 - **The owner's phone has no diagnostic channel except the app's own UI.** `eprintln!`/stdout
   never reaches logcat from a Tauri Android shell, and — found the hard way on 2026-07-20 — the
@@ -311,15 +336,21 @@ The gray-screen fix and its tests are in
   (`fm-core/tests/perf.rs`) — which is what caught the deletion sweep being O(n²) against a
   `Vec` (453 ms → 50 ms per quiet beat, 2026-07-18). Before reaching for a watcher (inotify)
   note that a watcher is a dependency and a per-platform behaviour, which is why polling won
-  on the way in. `FileStore::open` is still a **full** rebuild by design (the
-  disposable-index escape hatch), and switching it to `Incremental` is **not** a drop-in:
-  mtime-only detection is blind to every mtime-preserving writer (`restic restore`,
-  `rsync -a`, `cp -p`, `tar -x`), and the full rebuild at open is currently the only thing
-  that heals them. Doing it needs an index-format version gate (nothing in CI enforces the
-  bump), an `objects(path)` index — `forget_path` full-scans today, so Incremental can be
-  *slower* than Full after a big pull — and cold-start tests that do not exist. Wanted for
-  mobile (Android kills backgrounded apps, so every relaunch pays a full rebuild); worth
-  little on desktop, which starts once.
+  on the way in.
+  **The cold-start half of this is done (2026-08-20), on Android only.** `FileStore::open` is still
+  a full rebuild and remains the default everywhere; the phone opens through
+  `open_incremental`/`ColdStart::TrustIndex` (see `decisions.md#track-m`). The three
+  preconditions this entry named are met: a schema gate (`PRAGMA user_version` vs `INDEX_SCHEMA`,
+  doubling as a completion marker written *after* the reindex commits — so marker-present implies
+  rows-durable, which is what matters when `SIGKILL` leaves no shutdown hook), the
+  `objects(path)` index (which already existed) **plus** the `fts_rowid` seek that removed the real
+  cause of "Incremental can be slower than Full" — `forget_path` and `index_object` were both
+  scanning the whole FTS table, so incremental was O(2·k·n) — and cold-start tests, now
+  `fm-core/tests/cold_start.rs`.
+  **What is unchanged is the hazard**: mtime-only detection is blind to every mtime-preserving
+  writer (`restic restore`, `rsync -a`, `cp -p`, `tar -x`), which is exactly why this is a
+  frontend claim and not a default. `cold_start.rs` asserts that divergence as a *failing* case on
+  purpose. Do not extend `TrustIndex` to the desktop.
 - **A stale editor can no longer overwrite a merge — but only where `updated` moves.**
   Fixed 2026-07-18: `update_body` takes the **version** the caller last saw — the sha256 of
   the body it loaded, carried on `NoteDetail.version` — and returns the new one; a mismatch is
@@ -347,12 +378,82 @@ The gray-screen fix and its tests are in
   deliver either event before the Activity is torn down, and nothing in wry/tauri wires Android's
   `onPause` to the page. Files themselves are never at risk (atomic temp+rename); up to 500 ms of
   *typed text* and a pending commit are.
+  **Weakened slightly on 2026-08-20, deliberately.** The flush calls `save()` without awaiting it,
+  and while the IPC commands were *blocking* that made the write effectively synchronous —
+  `postMessage` did not return until the temp+rename+`sync_all` had completed. Now that the
+  commands are `#[tauri::command(async)]` (they had to be; see `decisions.md#track-m`), the write
+  starts immediately on a worker instead of finishing inline. Sub-millisecond, and a clear net win
+  against removing multi-second freezes from every command — but it *is* a change to what this
+  entry promised, and it is written down rather than discovered.
 - **The phone shell has never run on a phone.** The reflow and the tap→move menu are verified
   at a narrow viewport, by `pointer: coarse`, and by component tests — not on a device. Chrome's
   touch emulation is *actively misleading* here: it synthesises PointerEvents but does not
   reproduce Android's `dragstart` suppression, so emulation can hide the very bug the menu
   exists to work around. One real device is needed once, to confirm card drag is genuinely dead
   there, the menu is reachable, and the targets are hittable.
+
+- **The suite could not see the phone at all, until 2026-08-20 — and that is why four weeks of
+  unusable app produced no red test.** Worth keeping as a *shape of gap*, because it will recur
+  for the next platform. Four separate things each made the mobile path unreachable from CI, and
+  none of them looked like a hole:
+  1. `ipc.ts` chose its backend from a module-scope `const isTauri`, so no test could ever take the
+     Tauri branch (it is `isPhone()` in `platform.ts` now, read at call time).
+  2. jsdom reports a fine pointer, so every `(pointer: coarse)` branch was dead code
+     (`test-setup.ts` supplies a settable stub).
+  3. `mock.ts`'s `ingest` hashed the **filename** and discarded the bytes, so no byte-path defect
+     could be observed — the zero-byte-photo class of bug was structurally invisible.
+  4. `mobile/src-tauri` is workspace-excluded, so `b64_decode` — which every photo passes
+     through — had never been compiled by a test (the pure half now lives in `fm_app::wire`).
+  Plus two smaller ones found on the way: `asyncUtilTimeout` equalled `testTimeout`, so a slow
+  query failed as an opaque *"Test timed out"* with no element name; and the mock's fixture dates
+  were literals, so `App.flow.test.ts` went red when the calendar rolled past them.
+  **The lesson to carry:** none of these produced a *failing* test. They produced an absence, and
+  an absence looks exactly like coverage. When a platform's defects are not reproducing, check
+  first whether any test executes that platform's branches at all.
+
+- **Double-click-to-edit could splice an insertion *inside* a reference, corrupting the note.**
+  Found on the owner's phone 2026-08-20, in real data: a note had been rewritten to
+  `asset:sha256-a52bb![JPEG_….jpg](asset:sha256-cd63457f…)` — a second image reference spliced five
+  characters into the first one's hash. The app logged `asset_status: parse error: not an asset
+  reference` on every startup and the image was permanently broken, with nothing on screen saying
+  why.
+  **Mechanism:** `clickedOffset` (`NotePanel.svelte`) maps a double-clicked word to a source offset
+  by *ordinal* — count the word in the rendered text, find that occurrence in the source. `locate.ts`
+  always said that answer is a hint, but the caller used it as a caret. Rendered and source text
+  disagree by much more than "syntax the reader never sees": an image's alt text is an attribute and
+  contributes nothing to `textContent` **unless the blob is missing**, when the placeholder renders
+  it as words; a `note:` chip renders a title where the source has an id; an embed renders a whole
+  other note's body. So the drift depends on which blobs happen to be present.
+  **Fixed** by `locate.ts::outsideDestination` — the caret is pushed out of any `](…)` destination
+  before it is used. That is a floor, not a mapping: the caret can still be a few words off, which
+  is an annoyance, where landing inside a reference was silent data loss. **An exact mapping needs
+  source positions threaded through `marked` and `extractMath`** and is still not built.
+  **The existing corrupted note is not repaired by this** — the fix prevents recurrence only.
+
+- **Trap: `DELETE … WHERE rowid IN (subquery)` is a full scan on an fts5 table.** SQLite pushes a
+  `rowid = ?` constraint down to a virtual table's `xBestIndex`, which fts5 answers as a lookup; it
+  does **not** push down `rowid IN (...)`, so that form walks the entire full-text table however
+  small the subquery is. Same for `WHERE id IN (...)` — `fts.id` is `UNINDEXED`, so the predicate
+  is evaluated per row, *including when the subquery is empty*. Both forms were written during the
+  2026-08-20 seek work and both silently reintroduced the scan they were meant to remove. Resolve
+  the rowid in Rust and delete by equality; guard any legacy `id`-matched delete behind a cheap
+  `objects_path` existence check. Costs measured at 8k notes: 1.6× residual growth from the `IN`
+  form, flat once it was an equality seek.
+
+- **Trap: a perf budget can measure the wrong denominator and fail on correct code.** The first
+  version of `an_incremental_poll_stays_linear_in_what_changed` divided the *whole* incremental
+  pass by the number of changed notes, and read 3.7× on a correct implementation — because an
+  incremental poll has an inherent O(n) component (`SELECT path, mtime_ns` over every row, a
+  `read_dir`, a `stat` per file) that `perf.rs` already budgets separately as the quiet case.
+  Subtract the quiet pass at the same `n` and divide what is left. Related: keep the changed-note
+  count well above the noise in that subtraction — at 40 the ratio swung 1.07→1.59 run to run and
+  looked like a signal; at 200 it is stable.
+
+- **`ping` under heavy contention is not fast.** Measured ~0.5 s worst case while another thread
+  hammered `asset_status`/`recent` on a 300-note vault (`fm-app/tests/mobile_workload.rs`). That
+  is an artificial worst case and it is inside the 1 s budget the test asserts, so it is not a
+  defect — but it is the number to beat if "the app feels sticky while syncing" is ever reported,
+  and it is why the budget is a ceiling rather than a target.
 - **No per-view object cache.** Board/Agenda/Timeline each YAML-parse the whole
   corpus via `load_all` per request. Same scale caveat as above.
 - **Missing media is a warning, never a crash** — by design. A missing blob
@@ -393,6 +494,14 @@ The gray-screen fix and its tests are in
   column value) — view preferences, per-browser, **not** in the vault, so they
   don't sync across machines. Intentional; the vault-side `.view` file would
   change that (still deferred). Column DnD is mouse-only (like card DnD).
+- **A `.view` file cannot be written, edited or deleted from the UI — only stepped out of.**
+  `list_views`/`run_view` are the only commands; there is no `save_view`, and no CLI subcommand
+  either, so a saved view is authored by hand in `<vault>/views/*.view`. Since 2026-08-24 a
+  filtered view at least *declares* what it leaves out and offers one click to the unfiltered
+  built-in renderer (`decisions.md#ui`) — but the owner works only through the UI, so **changing
+  what a view filters is still not something they can do**. Whoever adds view authoring: the
+  words for the filter already exist (`views::describe_pred`), which is most of an editor's
+  read side.
 - **The caret-anchored `/` menu is unverified in headless.** `caret.ts` measures
   with a mirror div, and **jsdom has no layout** — `caretXY` returns zeros there,
   so the menu degrades to the editor's top-left and the tests can't see the real
@@ -698,3 +807,17 @@ All verified **2026-07-19**.
    not retire the "design against Syncthing's profile on paper" hedge — a paper target has no bus
    factor — it **validates git as the coordinator**: fetch/merge/push is a discrete resumable job
    that fits every budget both OSes grant; a P2P mesh fits none.
+
+- **The phone's 41 duplicate copies have no identified trigger.** 20 message bodies exist 2–6 times
+  each in `formicarium-vault`, every copy a `role: message` agent command (`… /search`,
+  `… /transcribe sha256:…`). The reply path is therefore implicated, but *what* re-sent them is
+  unknown — a user retrying an unanswered command and a resend loop in the send path look identical in
+  the notes themselves. `created` on each copy is the next evidence: identical `created` across a
+  family means one write fanned out; distinct `created` means separate sends.
+
+- **Testing Library's async default was shorter than a loaded machine needs.** Adding one test file made
+  an unrelated one fail: `findBy*` retries for 1 s, and a full `App` mount in jsdom under parallel load
+  exceeds that. It reads as cross-file state leakage, which vitest already isolates per file — so the
+  hunt goes to the wrong place. `ui/src/test-setup.ts` sets `asyncUtilTimeout: 5000`. Suspect this
+  first when a test fails only in a full run.
+

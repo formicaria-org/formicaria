@@ -21,6 +21,27 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// The shape of the index this build writes, stamped into `PRAGMA user_version`.
+///
+/// **Bump this whenever the index's meaning changes** — the `objects`/`fts` columns, the pinned
+/// tokenizer, or what `Object::searchable_text()` returns. [`FileStore::open_incremental`] trusts
+/// an index only when this matches, so a stale value means serving search results built under the
+/// old rules; a bumped one costs exactly one full rebuild, which is free by design.
+///
+/// It doubles as the **completion marker**, and the ordering is the whole guarantee: it is written
+/// only *after* [`Store::reindex`] has returned, i.e. after that method's own transaction has
+/// committed. So **the marker present implies the rows are durable** — the one direction that
+/// matters. A rebuild interrupted partway (Android exits by `SIGKILL`; there is no clean shutdown
+/// to hook) rolls its transaction back and never reaches the marker, so the next open sees a value
+/// that does not match and rebuilds.
+///
+/// The marker is deliberately *not* written inside that transaction — it does not need to be, and
+/// `reindex` owns its transaction. Writing it after is both simpler and strictly safer: the failure
+/// mode of writing it too early (marking an index complete that is not) cannot arise at all.
+///
+/// 1 — `objects` gains `fts_rowid`, so deletes seek instead of scanning.
+const INDEX_SCHEMA: i64 = 1;
+
 pub struct FileStore {
     notes: PathBuf,
     db: Connection,
@@ -66,7 +87,19 @@ impl FileStore {
     /// label users see and filter on, so it belongs to whoever configured the vault
     /// list, not to whatever the directory happens to be called.
     pub fn named(root: impl AsRef<Path>, name: impl Into<String>) -> Result<Self, StoreError> {
-        let root = root.as_ref();
+        let mut store = Self::prepare(root.as_ref(), name.into())?;
+        store.init_schema()?;
+        let stats = store.reindex(Reindex::Full)?;
+        store.skipped = stats.skipped;
+        store.mark_index_complete()?;
+        Ok(store)
+    }
+
+    /// Everything both constructors do before deciding *how* to index: resolve the descriptor and
+    /// the name, make the notes directory, open the database. Factored out so the two entry points
+    /// differ in exactly one thing — the reindex mode — rather than by duplicated setup that could
+    /// drift apart.
+    fn prepare(root: &Path, given: String) -> Result<Self, StoreError> {
         // `<vault>/vault.json`, if the vault has an opinion. Absent is the common case and
         // means exactly today's behaviour: notes in `notes/`, name from the caller.
         //
@@ -79,33 +112,93 @@ impl FileStore {
         // Caller > descriptor > directory. The caller is the vault *list* — the audience
         // label this user chose — so a repo they cloned never renames it out from under
         // them. The directory is the last resort: it is whatever git called the clone.
-        let name = {
-            let given: String = name.into();
-            if !given.is_empty() {
-                given
-            } else {
-                desc.name.clone().unwrap_or_else(|| {
-                    root.file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| "vault".to_string())
-                })
-            }
+        let name = if !given.is_empty() {
+            given
+        } else {
+            desc.name.clone().unwrap_or_else(|| {
+                root.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| "vault".to_string())
+            })
         };
         fs::create_dir_all(&notes).map_err(io)?;
         let db = Connection::open(root.join("index.sqlite")).map_err(sql)?;
-        let mut store =
-            FileStore {
-                notes,
-                db,
-                skipped: Vec::new(),
-                name,
-                description: desc.description,
-                written: Default::default(),
-            };
+        Ok(FileStore {
+            notes,
+            db,
+            skipped: Vec::new(),
+            name,
+            description: desc.description,
+            written: Default::default(),
+        })
+    }
+
+    /// Open a vault **without** re-reading every file, when the index on disk can be trusted.
+    ///
+    /// **Why this exists.** [`FileStore::open`] rebuilds the entire index on every open. That is
+    /// the disposable-index escape hatch working as designed, and on a desktop you pay it once a
+    /// day. Android kills backgrounded apps constantly, so there it is the cost of *every*
+    /// relaunch — the app's slowest moment, repeated all day, with a persisted `index.sqlite`
+    /// sitting right there buying nothing. `mobile-design.md` has asked for this since M0.
+    ///
+    /// **Why it is a separate constructor and not a flag on `open`.** Trusting the index is only
+    /// safe where nothing can change a note file *without moving its mtime*, because mtime is the
+    /// whole basis of [`Reindex::Incremental`]'s reconciliation. `cp -p`, `rsync -a` and a restic
+    /// restore all preserve mtimes, and any of them would leave a note served stale indefinitely.
+    /// A phone has none of them — no shell, no restic, and libgit2 writes files fresh — which is
+    /// what makes the trade defensible *there* and nowhere else. Making it a distinct entry point
+    /// keeps that judgement at the call site, where a reader can see it, instead of behind a
+    /// boolean. `crates/fm-core/tests/cold_start.rs` asserts the divergence rather than papering
+    /// over it.
+    ///
+    /// **Two gates, and it falls back to a full rebuild if either fails:**
+    ///  - the schema version must match [`INDEX_SCHEMA`] — a change to `searchable_text`, the
+    ///    tokenizer, or the row shape makes an old index wrong rather than merely stale;
+    ///  - a completion marker must be present. It is written only *after* the reindex has
+    ///    committed, so a marker implies the rows are durable and an interrupted rebuild never
+    ///    reaches it. That matters precisely because Android exits by `SIGKILL`: there is no
+    ///    shutdown hook that could be trusted to mark the index clean on the way out, so the
+    ///    marker records what *finished*, not what was intended.
+    ///
+    /// Unknown is always resolved toward `Full`. A slow start is a cost; a wrong index is a
+    /// vault whose notes quietly disagree with the files, and the files are the truth.
+    pub fn open_incremental(root: impl AsRef<Path>) -> Result<Self, StoreError> {
+        Self::named_incremental(root, "")
+    }
+
+    /// [`open_incremental`], under a caller-chosen name. See [`FileStore::named`] for the
+    /// name precedence, which is identical.
+    ///
+    /// [`open_incremental`]: FileStore::open_incremental
+    pub fn named_incremental(
+        root: impl AsRef<Path>,
+        name: impl Into<String>,
+    ) -> Result<Self, StoreError> {
+        let mut store = Self::prepare(root.as_ref(), name.into())?;
         store.init_schema()?;
-        let stats = store.reindex(Reindex::Full)?;
+        let mode =
+            if store.index_is_complete()? { Reindex::Incremental } else { Reindex::Full };
+        let stats = store.reindex(mode)?;
         store.skipped = stats.skipped;
+        store.mark_index_complete()?;
         Ok(store)
+    }
+
+    /// Is the index on disk one *this* build wrote, and did the write finish?
+    fn index_is_complete(&self) -> Result<bool, StoreError> {
+        let version: i64 =
+            self.db.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(sql)?;
+        Ok(version == INDEX_SCHEMA)
+    }
+
+    /// Stamp the index as complete. Called after a successful reindex — and because `reindex`
+    /// commits its transaction before returning, "successful" here means the rows are durable.
+    fn mark_index_complete(&self) -> Result<(), StoreError> {
+        // `PRAGMA user_version` takes no bound parameters, hence the format. The value is a
+        // compile-time constant, so there is nothing to inject.
+        self.db
+            .execute_batch(&format!("PRAGMA user_version = {INDEX_SCHEMA}"))
+            .map_err(sql)
     }
 
     /// This vault's name — its audience.
@@ -170,7 +263,14 @@ impl FileStore {
                      id        TEXT PRIMARY KEY,
                      path      TEXT NOT NULL,
                      mtime_ns  INTEGER NOT NULL,
-                     content   TEXT NOT NULL
+                     content   TEXT NOT NULL,
+                     -- **Where this note's row lives in `fts`.** See `index_object`: `fts` is
+                     -- declared `id UNINDEXED`, so `DELETE FROM fts WHERE id = ?` cannot seek and
+                     -- scans the whole table. `fts5` has a real implicit `rowid`, so remembering
+                     -- it here turns every delete into a seek. Nullable, because a row written by
+                     -- an older version has none — `index_object` falls back to the old scan for
+                     -- those rather than risking a duplicate entry.
+                     fts_rowid INTEGER
                  );
                  -- **`path` is queried, so it is indexed.** `forget_path` deletes by path on
                  -- every write and once per changed note in a reindex; without this SQLite
@@ -185,7 +285,24 @@ impl FileStore {
                      tokenize = 'unicode61 remove_diacritics 2'
                  );",
             )
-            .map_err(sql)
+            .map_err(sql)?;
+        // `CREATE TABLE IF NOT EXISTS` does not add a column to a table that already exists, so an
+        // index written by an older version needs the column bolting on. Guarded by a lookup
+        // rather than by swallowing the error, so a *real* failure here is still an error.
+        //
+        // Nothing needs backfilling: `FileStore::open` rebuilds the whole index (`Reindex::Full`)
+        // before anything can write, and that populates `fts_rowid` for every row on the way
+        // through. The disposable index earns its keep here — this is a migration that costs a
+        // column definition and no data path.
+        let has_column: bool = self
+            .db
+            .prepare("SELECT 1 FROM pragma_table_info('objects') WHERE name = 'fts_rowid'")
+            .and_then(|mut s| s.exists([]))
+            .map_err(sql)?;
+        if !has_column {
+            self.db.execute_batch("ALTER TABLE objects ADD COLUMN fts_rowid INTEGER").map_err(sql)?;
+        }
+        Ok(())
     }
 
     fn path_for(&self, id: Id) -> PathBuf {
@@ -224,7 +341,68 @@ impl FileStore {
     /// The delete is still correct and still needed for an ordinary write and for the incremental
     /// poll, where it runs for the handful of notes that actually changed rather than for all of
     /// them.
+    ///
+    /// **The `fresh` flag fixed the rebuild and left every ordinary write paying the scan.**
+    /// `put` calls this with `fresh: false`, so *saving one note* — a keystroke pause in the
+    /// editor, a board drag, a `set_property` — cost a full `fts` table scan, growing with the
+    /// size of the vault. At a few thousand notes that is the single most expensive thing an
+    /// autosave does, and on Android it happens while the UI thread waits.
+    ///
+    /// So the row's `rowid` is remembered in `objects.fts_rowid` and the delete seeks it.
+    /// `fts5` maintains a genuine implicit `rowid`, so `DELETE FROM fts WHERE rowid = ?` is a
+    /// lookup rather than a walk — which also makes an *incremental* reindex genuinely O(changed)
+    /// and removes the crossover where it could cost more than a full rebuild.
+    ///
+    /// **All of it runs inside a `SAVEPOINT`, and that is a correctness requirement, not tidiness.**
+    /// The `fts` insert and the `objects` upsert are two statements, and `objects.fts_rowid` is the
+    /// *only* record of where the note's full-text row lives. Interrupted between them — Android
+    /// tears the process down by `SIGKILL`, and since the IPC commands became `(async)` a write can
+    /// genuinely be in flight when it does — the new `fts` row is orphaned and `objects` still
+    /// names the old, deleted one. Nothing can then find the orphan: `forget_path` keys off
+    /// `objects.path`, the `fresh: false` branch off `objects.fts_rowid`, and `reindex` passes
+    /// `fresh: true`. **The note is returned twice by every search, permanently.**
+    ///
+    /// It used to self-heal, and this change set removed the healer: `FileStore::open` always ran a
+    /// full rebuild, which empties both tables. Android now opens through
+    /// [`FileStore::open_incremental`], so nothing sweeps it up. Confirmed by an adversarial review
+    /// with a reproduction, not reasoned about.
+    ///
+    /// A `SAVEPOINT` rather than a transaction because this is called *from inside* `reindex`'s
+    /// transaction, and SQLite has no nested `BEGIN`. Savepoints nest; outside a transaction one
+    /// behaves like a transaction, which makes the `put` path one fsync instead of three.
     fn index_object(
+        &self,
+        obj: &Object,
+        path: &Path,
+        content: &str,
+        fresh: bool,
+    ) -> Result<(), StoreError> {
+        self.in_savepoint(|| self.index_object_inner(obj, path, content, fresh))
+    }
+
+    /// Run `f` inside a `SAVEPOINT`, releasing it on success and rolling back on failure.
+    ///
+    /// Nestable, unlike `BEGIN` — so this is safe whether or not a caller already holds a
+    /// transaction. The rollback is best-effort by necessity: if it fails there is nothing useful
+    /// left to do, and the original error is the one worth reporting.
+    fn in_savepoint<T>(
+        &self,
+        f: impl FnOnce() -> Result<T, StoreError>,
+    ) -> Result<T, StoreError> {
+        self.db.execute_batch("SAVEPOINT fm_index").map_err(sql)?;
+        match f() {
+            Ok(v) => {
+                self.db.execute_batch("RELEASE fm_index").map_err(sql)?;
+                Ok(v)
+            }
+            Err(e) => {
+                let _ = self.db.execute_batch("ROLLBACK TO fm_index; RELEASE fm_index");
+                Err(e)
+            }
+        }
+    }
+
+    fn index_object_inner(
         &self,
         obj: &Object,
         path: &Path,
@@ -233,20 +411,40 @@ impl FileStore {
     ) -> Result<(), StoreError> {
         let id = obj.id.to_string();
         let mtime = mtime_ns(path)?;
-        self.db
-            .execute(
-                "INSERT OR REPLACE INTO objects (id, path, mtime_ns, content)
-                 VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, path.to_string_lossy(), mtime, content],
-            )
-            .map_err(sql)?;
         if !fresh {
-            self.db.execute("DELETE FROM fts WHERE id = ?1", [&id]).map_err(sql)?;
+            // A primary-key lookup, then a rowid delete. Both seeks.
+            let previous: Option<Option<i64>> = self
+                .db
+                .query_row("SELECT fts_rowid FROM objects WHERE id = ?1", [&id], |r| r.get(0))
+                .optional()
+                .map_err(sql)?;
+            match previous.flatten() {
+                Some(rowid) => {
+                    self.db
+                        .execute("DELETE FROM fts WHERE rowid = ?1", [rowid])
+                        .map_err(sql)?;
+                }
+                // Written before this column existed, or never indexed. Fall back to the scan:
+                // slow, and unreachable in practice (`open` rebuilds before anything can write),
+                // but skipping the delete would leave a stale row and return the note twice from
+                // every search. Correctness first on a path that costs nothing to keep.
+                None => {
+                    self.db.execute("DELETE FROM fts WHERE id = ?1", [&id]).map_err(sql)?;
+                }
+            }
         }
         self.db
             .execute(
                 "INSERT INTO fts (id, text) VALUES (?1, ?2)",
                 rusqlite::params![id, obj.searchable_text()],
+            )
+            .map_err(sql)?;
+        let fts_rowid = self.db.last_insert_rowid();
+        self.db
+            .execute(
+                "INSERT OR REPLACE INTO objects (id, path, mtime_ns, content, fts_rowid)
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![id, path.to_string_lossy(), mtime, content, fts_rowid],
             )
             .map_err(sql)?;
         Ok(())
@@ -301,10 +499,67 @@ impl FileStore {
     /// Drop whatever the index holds for one file path, from both tables. Keyed by
     /// path because that is what a filesystem scan knows; the `fts` rows go by the
     /// ids that path currently maps to.
+    /// Drop everything the index holds for one file.
+    ///
+    /// Both halves are seeks now: `objects_path` covers the subquery, and the `fts` delete goes by
+    /// `rowid`. It used to match `fts` on `id`, an `UNINDEXED` column, so this scanned the whole
+    /// full-text table — on **every write** and once per changed note in a reindex. The
+    /// `IS NOT NULL` guard is for rows written before `fts_rowid` existed; the `id` fallback below
+    /// keeps those correct.
     fn forget_path(&self, path: &str) -> Result<(), StoreError> {
-        self.db
-            .execute("DELETE FROM fts WHERE id IN (SELECT id FROM objects WHERE path = ?1)", [path])
+        // **Resolved first, then deleted by equality — `rowid IN (subquery)` is not a seek here.**
+        //
+        // `fts` is an fts5 *virtual* table. SQLite pushes a `rowid = ?` constraint down to a
+        // virtual table's `xBestIndex`, which fts5 answers as a lookup; it does **not** push down
+        // `rowid IN (...)`, so that form walks the whole full-text table however small the
+        // subquery is. Shipped that way it left a residual O(n) term on every incremental poll —
+        // measured as 1.6x growth over a 4x vault where the fix should be flat, which is small
+        // enough to look like noise and is not.
+        //
+        // The subquery is an `objects_path` index seek and returns one row or none, so this is a
+        // lookup plus at most one delete.
+        let rowids: Vec<i64> = self
+            .db
+            .prepare("SELECT fts_rowid FROM objects WHERE path = ?1 AND fts_rowid IS NOT NULL")
+            .and_then(|mut s| {
+                s.query_map([path], |r| r.get(0))?.collect::<Result<Vec<i64>, _>>()
+            })
             .map_err(sql)?;
+        for rowid in rowids {
+            self.db.execute("DELETE FROM fts WHERE rowid = ?1", [rowid]).map_err(sql)?;
+        }
+        // Legacy rows only (no remembered rowid) — and **asked about before being deleted**,
+        // because the delete itself is the expensive thing.
+        //
+        // The obvious version of this is one statement:
+        //
+        // ```sql
+        // DELETE FROM fts WHERE id IN (SELECT id FROM objects WHERE path = ? AND fts_rowid IS NULL)
+        // ```
+        //
+        // which looks free when the subquery is empty and is not: `fts.id` is `UNINDEXED`, so
+        // SQLite has no way to seek and walks the **whole full-text table** to evaluate the
+        // predicate for every row, empty subquery or not. Shipped that way it made `forget_path`
+        // — which runs once per changed note in every incremental poll — a full FTS scan again,
+        // undoing the rowid work one line below where the rowid work is done. It measured 3.4x
+        // growth over a 4x vault, i.e. no better than before the fix.
+        //
+        // The guard is an `objects_path` index seek, so the common case costs a lookup that finds
+        // nothing and stops.
+        let has_legacy: bool = self
+            .db
+            .prepare("SELECT 1 FROM objects WHERE path = ?1 AND fts_rowid IS NULL")
+            .and_then(|mut s| s.exists([path]))
+            .map_err(sql)?;
+        if has_legacy {
+            self.db
+                .execute(
+                    "DELETE FROM fts WHERE id IN
+                       (SELECT id FROM objects WHERE path = ?1 AND fts_rowid IS NULL)",
+                    [path],
+                )
+                .map_err(sql)?;
+        }
         self.db.execute("DELETE FROM objects WHERE path = ?1", [path]).map_err(sql)?;
         Ok(())
     }
@@ -388,13 +643,47 @@ impl Store for FileStore {
         }
         // A deletion is a change we made, and git needs it staged as one.
         self.written.insert(path.clone());
-        self.db
-            .execute("DELETE FROM objects WHERE id = ?1", [id.to_string()])
-            .map_err(sql)?;
-        self.db
-            .execute("DELETE FROM fts WHERE id = ?1", [id.to_string()])
-            .map_err(sql)?;
-        Ok(())
+        // Read the remembered `fts` rowid **before** dropping the row that holds it. Deleting a
+        // note otherwise matched `fts` on the `UNINDEXED` `id` column, which scans the whole
+        // full-text table — the same defect `index_object` documents, on the one path that had
+        // no budget covering it.
+        // **`fts` first, `objects` second — the order is the crash-safety.**
+        //
+        // `objects.fts_rowid` is the only record of where the full-text row lives, so dropping the
+        // `objects` row first and being interrupted leaves an orphan nothing can ever find: every
+        // remaining path keys off `objects` (`forget_path` on `path`, `index_object` on
+        // `fts_rowid`, `reindex` passes `fresh: true`). The note then comes back through a pull and
+        // search reports it **twice, permanently**. `FileStore::open`'s unconditional full rebuild
+        // used to sweep that up; Android now opens through `open_incremental`, so nothing does.
+        //
+        // This way round an interruption leaves an `objects` row whose `fts_rowid` names a rowid
+        // that is already gone — which every later delete treats as a harmless no-op. The savepoint
+        // makes it atomic anyway; the ordering is the belt to its braces, and costs nothing.
+        self.in_savepoint(|| {
+            let fts_rowid: Option<Option<i64>> = self
+                .db
+                .query_row("SELECT fts_rowid FROM objects WHERE id = ?1", [id.to_string()], |r| {
+                    r.get(0)
+                })
+                .optional()
+                .map_err(sql)?;
+            match fts_rowid.flatten() {
+                Some(rowid) => {
+                    self.db.execute("DELETE FROM fts WHERE rowid = ?1", [rowid]).map_err(sql)?;
+                }
+                // Indexed before the column existed. Correct, just slow, and unreachable in
+                // practice because every open reindexes before anything can be deleted.
+                None => {
+                    self.db
+                        .execute("DELETE FROM fts WHERE id = ?1", [id.to_string()])
+                        .map_err(sql)?;
+                }
+            }
+            self.db
+                .execute("DELETE FROM objects WHERE id = ?1", [id.to_string()])
+                .map_err(sql)?;
+            Ok(())
+        })
     }
 
     /// Full-text is the one predicate FileStore accelerates. With a `Text` in the
@@ -499,8 +788,11 @@ impl Store for FileStore {
                     // So: first path wins, the other is named. Serving one file's content
                     // under another's id is worse than serving neither, and "loud and
                     // recoverable" is the discipline the unreadable-note skip already sets.
-                    if let Some(other) = self.path_of(obj.id)? {
-                        if other != key && Path::new(&other).exists() {
+                    // Consulted once and used twice: to refuse a duplicate id, and below to drop
+                    // the row this note left behind if its file moved.
+                    let held_at = self.path_of(obj.id)?;
+                    if let Some(other) = held_at.as_deref() {
+                        if other != key && Path::new(other).exists() {
                             skipped.push(crate::SkippedNote {
                                 vault: vault_name.clone(),
                                 name: name(),
@@ -509,7 +801,7 @@ impl Store for FileStore {
                                     "duplicate id {} — already held by {}. Give one of them a \
                                      fresh id; until then only the first is indexed.",
                                     obj.id,
-                                    Path::new(&other)
+                                    Path::new(other)
                                         .file_name()
                                         .unwrap_or_default()
                                         .to_string_lossy()
@@ -527,9 +819,34 @@ impl Store for FileStore {
                     // cannot exist. It stays for the incremental path, where the file's `id:`
                     // may genuinely have changed under us and the old row must go.
                     if mode == Reindex::Incremental {
+                        // **And the row this id left at its previous path**, when the file moved
+                        // and the old one is gone (a file that still exists was refused as a
+                        // duplicate above, so this is the only remaining case). Without it the
+                        // id keeps a second `fts` row until the deletion sweep at the end of the
+                        // loop — and, more to the point, `fresh` below would be a lie.
+                        if let Some(other) = held_at.as_deref() {
+                            if other != key {
+                                self.forget_path(other)?;
+                            }
+                        }
                         self.forget_path(&key)?;
                     }
-                    self.index_object(&obj, &path, &content, mode == Reindex::Full)?;
+                    // **`fresh: true` in both modes, and it is honest in both.**
+                    //
+                    // `Full` empties the tables before the loop. `Incremental` has just deleted
+                    // every `fts` row this id could own, by `rowid`, in the two calls above.
+                    //
+                    // This used to pass `mode == Reindex::Full`, i.e. `false` here — and that
+                    // quietly undid the whole point of remembering `fts_rowid`. `forget_path`
+                    // removes the `objects` row, so `index_object`'s rowid lookup found nothing
+                    // and fell through to its legacy `DELETE FROM fts WHERE id = ?`, which is the
+                    // full-table scan the rowid exists to avoid. The result was one FTS scan **per
+                    // changed note** on exactly the path that runs every 15 s (`ping`) and on the
+                    // phone's cold start. `put` was unaffected, which is why the per-save budget
+                    // in `big_notes.rs` went green while this stayed broken —
+                    // `an_incremental_poll_stays_linear_in_what_changed` is the budget that covers
+                    // it.
+                    self.index_object(&obj, &path, &content, true)?;
                     updated += 1;
                 }
                 Err(e) => {

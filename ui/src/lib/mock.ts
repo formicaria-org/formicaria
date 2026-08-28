@@ -64,13 +64,33 @@ function makeNote(partial: Partial<ObjectMeta> & { preview: string }): ObjectMet
 // membership here, which flips `proposal_diff` to the merged/gone answer.
 const acceptedProposals = new Set<string>();
 
+/// A day in the **current** month, `offset` days from today, clamped to the month's bounds.
+///
+/// **The fixtures used to carry literal dates** (`due: '2026-07-11'`), and that made the whole
+/// suite expire. The Agenda pane opens on the Calendar, which draws the *current* month — so once
+/// the clock passed into August, a note due 2026-07-11 was simply not on screen, and
+/// `App.flow.test.ts` went red for a reason that had nothing to do with the code. A test that
+/// fails on a date gets deleted rather than fixed, which costs the coverage it was bought for.
+///
+/// Clamping to the month is the load-bearing part: "visible on this month's calendar" is what both
+/// `pnpm dev` and the flow test actually depend on, and an unclamped `today − 3` falls off the
+/// grid for the first three days of every month — a flake that would appear ten times a year and
+/// be blamed on anything else.
+function dayInThisMonth(offset: number): string {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const day = Math.min(Math.max(now.getDate() + offset, 1), lastDay);
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${String(day).padStart(2, '0')}`;
+}
+
 const notes: ObjectMeta[] = [
   makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
-  makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: '2026-07-16', due: '2026-07-20', hard: true, props: { project: 'alpha' } }),
-  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: '2026-07-11', hard: true, tags: ['neurips'], vault: 'lab' }),
+  makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: dayInThisMonth(-1), due: dayInThisMonth(4), hard: true, props: { project: 'alpha' } }),
+  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: dayInThisMonth(-3), hard: true, tags: ['neurips'], vault: 'lab' }),
   makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
-  makeNote({ preview: 'Weekly sync notes', start: '2026-07-16T14:30', due: '2026-07-16T15:00', tags: ['meeting'], vault: 'lab' }),
+  makeNote({ preview: 'Weekly sync notes', start: `${dayInThisMonth(0)}T14:30`, due: `${dayInThisMonth(0)}T15:00`, tags: ['meeting'], vault: 'lab' }),
   makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
   makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
   makeNote({ preview: 'Architecture sketch', title: 'Architecture sketch', props: { view: 'board', project: 'alpha' } }),
@@ -83,6 +103,26 @@ function fakeHash(name: string): string {
   for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return h.toString(16).padStart(8, '0').repeat(8);
 }
+
+/// The same, over **bytes** — which is what content-addressing actually means.
+///
+/// `ingest` used to hash the *filename* and throw the bytes away, so no test could tell a photo
+/// that arrived from one that arrived empty. That is not a hypothetical: every photo taken on the
+/// phone was stored as zero bytes for days (`known-issues.md`), `ingest` hashed the empty string,
+/// and every capture produced the same reference — a defect the entire suite was structurally
+/// blind to. Hashing the bytes makes the arrival observable.
+function fakeHashBytes(bytes: Uint8Array): string {
+  let h = 0;
+  for (let i = 0; i < bytes.length; i += 1) h = (Math.imul(31, h) + bytes[i]) | 0;
+  // Length is folded in so a truncated payload cannot collide with the whole one.
+  h = (Math.imul(31, h) + bytes.length) | 0;
+  return (h >>> 0).toString(16).padStart(8, '0').repeat(8);
+}
+
+/// References whose bytes this mock has actually been given, so `asset_status` can answer
+/// `has_blob` honestly for them. Everything else stays `false`, which is what the fixture notes'
+/// `sha256:deadbeef` placeholders rely on.
+const blobs = new Map<string, number>();
 
 function valueOf(n: ObjectMeta, key: string): string {
   switch (key) {
@@ -134,6 +174,14 @@ const isDiscussion = (n: ObjectMeta) => n.props?.thread_of === `note:${n.id}`;
  *  discussion message, and not a proposal. **Keep these in step** — a mock that disagrees with
  *  the server is a mock that hides a server bug (and vice versa). */
 const isNote = (n: ObjectMeta) => n.type !== 'asset' && !isMessage(n) && !isProposal(n);
+
+/// The one property/value the mock's saved **board** view filters out — i.e. the column a test
+/// should find missing from `run_view('Active')` and present on the built-in board.
+///
+/// Exported so a test names it from here rather than hardcoding a status: what matters about that
+/// column is that *a view removed it*, not which one it is. The board is group-by-anything and the
+/// UI carries no status literals; a test that spelled one would be asserting the wrong thing.
+export const MOCK_VIEW_HIDDEN = { key: 'status', value: 'done' } as const;
 
 function buildBoard(groupBy: string): Board {
   const sorted = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
@@ -335,6 +383,13 @@ export type Fault = {
   /// Apply to this many calls, then let the command succeed. Omitted = forever.
   times?: number;
 };
+/// Make `record_unrecorded` answer the way a git refusal does: notes found, nothing committed, a reason.
+/// The `Fault` machinery cannot express this — it is not an error, it is a *successful* reply that says
+/// no, which is exactly why the UI mistook it for "nothing to do". Test-only.
+let recordRefused = false;
+export function setRecordRefused(on: boolean) {
+  recordRefused = on;
+}
 /// Conflicts the mock cannot invent for itself: the marker-less kinds (delete/modify), which are the
 /// ones the UI has to offer a *side* for rather than an editor. Test-only.
 let mockConflicts: ConflictInfo[] = [];
@@ -363,12 +418,91 @@ export function faults(list: Fault[]): void {
 }
 /// Call from `beforeEach`: module state outlives a test, because vitest isolates per *file*, not
 /// per test — the trap `known-issues.md` records for `bodyOverrides` and the `seq` counter.
+///
+/// Deliberately does **not** touch the note list; use [`reset`] for that.
 export function clearFaults(): void {
   mockFaults = [];
   mockConflicts = [];
   mockUnrecorded = [];
   mockUnopenedVaults = [];
   mockDuplicates = [];
+}
+
+/// The nine fixture notes exactly as they were built at import, so [`reset`] can put them back
+/// **without re-running `makeNote`** — which would mint new ids and re-stamp `created`/`updated`
+/// from a later `Date.now()`, shifting the dates other tests group by. Snapshot, not recipe.
+const FIXTURES = notes.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta);
+const FIXTURE_SEQ = seq;
+/// The vault list as imported. `create_vault`/`forget_vault` mutate `mockVaults` in place, so a
+/// test that creates one leaks it into every later test in the file unless `reset()` puts it back.
+const FIXTURE_VAULTS = JSON.parse(JSON.stringify(mockVaults)) as typeof mockVaults;
+
+/// Put the mock back to its just-imported state.
+///
+/// **The gap this closes.** There was no way to undo a seeded note. `clearFaults()` deliberately
+/// leaves `notes` and `bodyOverrides` alone, and neither was exported, so a test that added 500
+/// notes leaked them into every later test *in the same file* — which is why no test had ever
+/// tried. A suite that cannot seed a realistic vault cannot test the app at the size the owner
+/// actually runs it.
+/// **Every mutable cell in this module, or the name is a lie.** The first version restored the
+/// notes and forgot `recordRefused`, `mockVaults`, `mockAgentEnabled` and `mockTranscribeEnabled` —
+/// so a test that turned the agent on, or refused a recording, silently changed the starting
+/// conditions of every later test in the same file. That is the precise trap the comment on
+/// `clearFaults` warns about, reintroduced by the function written to fix it.
+export function reset(): void {
+  clearFaults();
+  notes.length = 0;
+  notes.push(...FIXTURES.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta));
+  bodyOverrides.clear();
+  blobs.clear();
+  acceptedProposals.clear();
+  seq = FIXTURE_SEQ;
+  recordRefused = false;
+  mockAgentEnabled = false;
+  mockTranscribeEnabled = false;
+  mockVaults = JSON.parse(JSON.stringify(FIXTURE_VAULTS)) as typeof mockVaults;
+}
+
+/// Fill the vault to a realistic size.
+///
+/// The phone's problems are size problems — a full-corpus scan is free at nine notes and is
+/// seconds at a few thousand — so a suite that only ever sees nine notes cannot see them at all.
+/// Notes are pushed directly rather than through `handle('capture')`: seeding is setup, and it
+/// should not be the thing under test (the same reasoning as `fm-core/tests/perf.rs`, which writes
+/// its 10k notes straight to disk so only the query is timed).
+///
+/// Returns the ids in creation order, so a test can open a known one.
+export function seed(opts: { notes?: number; bodyBytes?: number; vault?: string } = {}): string[] {
+  const count = opts.notes ?? 0;
+  const vault = opts.vault ?? 'personal';
+  const ids: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    // Varied on purpose: every note identical would let a grouping or sort regression pass.
+    const n = makeNote({
+      preview: `seeded note ${i} about gradients and estimators`,
+      title: `Seeded ${i}`,
+      status: ['todo', 'doing', 'done'][i % 3],
+      tags: i % 4 === 0 ? ['seeded'] : [],
+      vault,
+    });
+    notes.push(n);
+    ids.push(n.id);
+  }
+  if (opts.bodyBytes && ids.length) {
+    // One genuinely large note, on the first seeded id. Not `'x'.repeat(n)`: a body of identical
+    // bytes lets a renderer or a diff regress invisibly, and the editor path we care about is
+    // "many lines", not "one enormous line".
+    const line = 'The advantage estimate leaks across the meta-update boundary. ';
+    const lines: string[] = [];
+    let size = 0;
+    for (let i = 0; size < opts.bodyBytes; i += 1) {
+      const l = `${i}. ${line}`;
+      lines.push(l);
+      size += l.length + 1;
+    }
+    bodyOverrides.set(ids[0], lines.join('\n'));
+  }
+  return ids;
 }
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
@@ -534,8 +668,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return mockUnrecorded as T;
     case 'record_unrecorded': {
       const hit = mockUnrecorded.find((u) => u.vault === String(args.vault));
+      // **The refusal is reachable here too.** The server can find notes and still be declined by git
+      // (a note mid-merge, no identity); reporting that as an empty vault is the bug that hid 147
+      // unrecorded notes behind a reassuring message. `Fault.recordRefused` lets a test drive it.
+      if (hit && recordRefused) {
+        return {
+          committed: false,
+          notes: hit.count,
+          reason: '1 note(s) in this vault are mid-merge. Git refuses to commit anything until those are resolved — open Conflicts and settle them first.',
+        } as T;
+      }
       mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== String(args.vault));
-      return { committed: !!hit, notes: hit?.count ?? 0 } as T;
+      return { committed: !!hit, notes: hit?.count ?? 0, reason: '' } as T;
     }
     case 'templates': {
       // A template is just a note tagged `template`, exactly as the server sees it (a `TagsAll`
@@ -806,16 +950,24 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'ingest': {
       // No vault in the browser/test: synthesize an asset note so the editor can
-      // insert a reference. Deterministic hash so re-adding the same name "dedups".
+      // insert a reference.
       const name = String(args.name ?? 'asset');
       // The asset joins the audience of the note it was dropped on — same rule the real
       // backend follows, mirrored so `pnpm dev` can't show a flow the backend refuses.
       const vault = mockVault(args.vault).name;
+      // **Address the bytes when there are bytes.** The phone hands them over (base64 through
+      // `fm_ingest`, decoded by the harness); the browser dev path has none and keeps the old
+      // name-derived hash so `pnpm dev` still "dedups" a re-added file. The difference is the
+      // point: with a byte hash, a photo that arrives truncated or empty gets a *different*
+      // reference and a test can see it.
+      const bytes = args.bytes as Uint8Array | undefined;
+      const hash = bytes ? fakeHashBytes(bytes) : fakeHash(name);
+      if (bytes) blobs.set(`sha256:${hash}`, bytes.length);
       const n = makeNote({
         preview: name,
         type: 'asset',
         title: name,
-        assets: [`sha256:${fakeHash(name)}`],
+        assets: [`sha256:${hash}`],
         vault,
       });
       notes.unshift(n);
@@ -826,7 +978,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'resolve_asset':
       return null as T;
     case 'asset_status': {
-      const status: AssetStatus = { has_blob: false, has_thumb: false, mime: null };
+      // Honest for anything this mock was actually given bytes for; `false` for the fixture
+      // notes' placeholder references, which is what makes the "no bytes in vault" path
+      // reachable in `pnpm dev` and in the render tests.
+      const ref = String(args.reference ?? '');
+      const has = blobs.has(ref);
+      const status: AssetStatus = {
+        has_blob: has,
+        has_thumb: false,
+        mime: has ? 'image/jpeg' : null,
+      };
       return status as T;
     }
     case 'open_external':
@@ -992,19 +1153,46 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const restored: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return restored as T;
     }
-    // Saved views. The mock ships one so the sidebar's view list is exercised; a real
-    // `.view` lives in the vault and is parsed server-side, which the mock does not model.
+    // Saved views. A real `.view` lives in the vault and is parsed server-side, which the mock
+    // does not model — but it ships two, and the *second* one matters: a **filtered board**.
+    //
+    // Until it existed, neither the dev build nor any test could show the shape that cost the owner
+    // an afternoon (2026-08-24): a `view: board` draws through the same renderer as the Board pane,
+    // so a filter that removes a whole column removes it with nothing on screen to say so. A mock
+    // that only ever answered an unfiltered timeline could not reproduce that, which is precisely
+    // why it went unnoticed.
     case 'list_views': {
-      const views: ViewInfo[] = [{ name: 'Recent notes', renderer: 'timeline', group_by: null }];
+      const views: ViewInfo[] = [
+        { name: 'Recent notes', renderer: 'timeline', group_by: null },
+        { name: 'Active', renderer: 'board', group_by: 'status' },
+      ];
       return views as T;
     }
     case 'run_view': {
+      // The board view answers a board with its filtered column genuinely absent — the same thing
+      // the server does, and the only way a test can assert that the column comes back.
+      if (String(args.name ?? '') === 'Active') {
+        const full = buildBoard(MOCK_VIEW_HIDDEN.key);
+        const result: ViewResult = {
+          name: 'Active',
+          renderer: 'board',
+          group_by: MOCK_VIEW_HIDDEN.key,
+          // The words ride with the payload, exactly as the Rust sends them.
+          filters: [`${MOCK_VIEW_HIDDEN.key} is not ${MOCK_VIEW_HIDDEN.value}`],
+          board: {
+            group_by: MOCK_VIEW_HIDDEN.key,
+            columns: full.columns.filter((c) => c.value !== MOCK_VIEW_HIDDEN.value),
+          },
+        };
+        return result as T;
+      }
       // Reuse the mock's own note set; the sample view just lists them like the timeline.
       const rows = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
       const result: ViewResult = {
         name: String(args.name ?? ''),
         renderer: 'timeline',
         group_by: null,
+        filters: [],
         rows,
       };
       return result as T;
@@ -1030,9 +1218,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // Nothing here is ever unreadable, so these are only reachable from a hand-crafted
       // call. Fail the way the real arms do rather than pretending they worked.
       throw new Error('not a currently-unreadable note');
-    case 'commit':
-      // Nothing to commit, and nothing blocking it — the mock vault is never mid-merge.
-      return { committed: false, conflicts: [] } as T;
+    case 'commit': {
+      // **A commit records what git did not have**, including notes an earlier process wrote and
+      // never staged (`App::load` re-adopts them). The mock used to answer a flat "nothing to
+      // commit", which meant no test could see that the "not in history" count is a fact about git
+      // that a commit changes. The mock vault is never mid-merge, so there are no conflicts.
+      const vault = String(args.vault);
+      const had = mockUnrecorded.find((u) => u.vault === vault);
+      mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== vault);
+      return { committed: !!had, conflicts: [] } as T;
+    }
     case 'backup':
       return undefined as T;
     case 'backup_status': {

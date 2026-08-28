@@ -121,6 +121,24 @@ pub struct ViewResult {
     pub name: String,
     pub renderer: Renderer,
     pub group_by: Option<String>,
+    /// **What this view leaves out, in words** — one phrase per `filter:` entry, from
+    /// [`describe_pred`]. Empty for a view that filters nothing.
+    ///
+    /// It exists because a view draws through the *same renderer as the built-in it shadows*: a
+    /// `view: board` and the Board pane are the same pixels, so a filter that removes a whole
+    /// column removes it invisibly. The owner reported exactly that (2026-08-24, "my done column
+    /// is not showing up") against a view whose filter is `not: {prop: status, eq: done}` — and a
+    /// `.view` file can be neither written nor deleted from the UI, so the filter was unreachable
+    /// as well as unseen. Same discipline as the parse `error` on [`ViewInfo`]: *say why, rather
+    /// than let an absence masquerade as missing notes.*
+    ///
+    /// **Here and not on [`ViewInfo`]** — it belongs to the payload it describes. The view list is
+    /// fetched once per vault change and can fail (it has, on the phone); these words arrive with
+    /// the very rows they explain, from the same file that was just read, so they can be neither
+    /// late nor stale.
+    ///
+    /// Always serialised, `[]` and not absent, so the client has one shape to handle.
+    pub filters: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub board: Option<Board>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -279,6 +297,111 @@ fn lower_pred(p: &PredDto) -> Result<Predicate, String> {
     unreachable!("selector count guaranteed exactly one above")
 }
 
+/// One `filter:` entry **in words** — the sentence half of [`lower_pred`].
+///
+/// Written against the *file's own vocabulary* (the table in `docs/src/user/views.md`) rather than
+/// the lowered [`Predicate`], on purpose: the DSL is what the author wrote, so describing it reads
+/// the file back. Describing the lowered form would answer `tagged any of ["lab"]` for something
+/// spelled `tag: lab`, which is the engine's business and not the reader's.
+///
+/// `neg` carries a surrounding `not:` **into** each arm instead of wrapping the result, so a
+/// negation reads like English — `status is not done`, not `not (status is done)`. `not:` recurses
+/// with it flipped; `any:` becomes *none of* under it, which is De Morgan rather than a paraphrase.
+///
+/// **Total by construction.** A `.view` that parses as YAML can still be nonsense `lower_pred`
+/// rejects (`prop:` with both `eq:` and `ne:`, or with no selector at all), and [`list_views`]
+/// deliberately does not lower — it lists what is there. So every path answers *something*; the
+/// real diagnosis comes from `run_view`, which does lower and reports the error.
+fn describe_pred(p: &PredDto, neg: bool) -> String {
+    // A scalar as the reader would recognise it. Deliberately *not* `to_value`, which is fallible
+    // and stricter than it needs to be here: a float under `eq:` is a value `lower_pred` will
+    // reject, and "1.5" is still the honest thing to show while explaining what the file says.
+    let scalar = |v: &serde_yaml_ng::Value| {
+        use serde_yaml_ng::Value;
+        match v {
+            Value::String(s) => s.clone(),
+            Value::Bool(b) => b.to_string(),
+            Value::Number(n) => n.to_string(),
+            _ => "a value this app cannot read".to_string(),
+        }
+    };
+
+    if let Some(key) = &p.prop {
+        return match (&p.eq, &p.ne, p.exists) {
+            (Some(v), None, None) if neg => format!("{key} is not {}", scalar(v)),
+            (Some(v), None, None) => format!("{key} is {}", scalar(v)),
+            (None, Some(v), None) if neg => format!("{key} is {}", scalar(v)),
+            (None, Some(v), None) => format!("{key} is not {}", scalar(v)),
+            // `exists: false` and a surrounding `not:` cancel, so the two flags decide together.
+            (None, None, Some(want)) if want == neg => format!("{key} is unset"),
+            (None, None, Some(_)) => format!("{key} is set"),
+            _ => format!("{key} — an entry this app cannot read"),
+        };
+    }
+    if let Some(t) = &p.tag {
+        return if neg { format!("not tagged {t}") } else { format!("tagged {t}") };
+    }
+    if let Some(ts) = &p.tags_any {
+        return if neg {
+            format!("tagged none of {}", join_words(ts, "or"))
+        } else {
+            format!("tagged {}", join_words(ts, "or"))
+        };
+    }
+    if let Some(ts) = &p.tags_all {
+        // The negation of "has all of these" is "is missing at least one" — say that, rather than
+        // "not tagged a and b", which a reader would take for "has neither".
+        return if neg {
+            format!("not tagged all of {}", join_words(ts, "and"))
+        } else {
+            format!("tagged {}", join_words(ts, "and"))
+        };
+    }
+    if let Some(needle) = &p.text {
+        return if neg {
+            format!("text does not match “{needle}”")
+        } else {
+            format!("text matches “{needle}”")
+        };
+    }
+    if let Some(key) = &p.date {
+        return match (&p.from, &p.to) {
+            (Some(a), Some(b)) if neg => format!("{key} outside {a} to {b}"),
+            (Some(a), Some(b)) => format!("{key} between {a} and {b}"),
+            (Some(a), None) if neg => format!("{key} before {a}"),
+            (Some(a), None) => format!("{key} on or after {a}"),
+            (None, Some(b)) if neg => format!("{key} after {b}"),
+            (None, Some(b)) => format!("{key} on or before {b}"),
+            (None, None) if neg => format!("{key} is not a date"),
+            (None, None) => format!("{key} is a date"),
+        };
+    }
+    if let Some(inner) = &p.not {
+        return describe_pred(inner, !neg);
+    }
+    if let Some(ps) = &p.any {
+        let parts: Vec<String> = ps.iter().map(|q| describe_pred(q, false)).collect();
+        return if neg {
+            // Commas, not "or": "none of: a or b" reads as though one of them were still allowed.
+            format!("none of: {}", parts.join(", "))
+        } else {
+            join_words(&parts, "or")
+        };
+    }
+    "an entry this app cannot read".to_string()
+}
+
+/// `["a"]` → `a`; `["a","b"]` → `a or b`; `["a","b","c"]` → `a, b or c`; `[]` → `nothing`.
+/// An empty list is a real (if pointless) thing to write in a `.view`, and a phrase ending in a
+/// dangling "tagged " would read as a bug in the app rather than a quirk of the file.
+fn join_words(items: &[String], conj: &str) -> String {
+    match items {
+        [] => "nothing".to_string(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} {conj} {last}", rest.join(", ")),
+    }
+}
+
 /// A YAML scalar → `PropertyValue`. A string is `Text`, a bool is `Bool`, an integer is `Int`.
 /// A date-shaped string stays `Text` — it is only ever used with `eq`/`ne` (equality on the
 /// stored day string), never an ordered comparison, so the variant-order trap cannot bite.
@@ -342,6 +465,8 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
     let file = read_view(&path).map_err(StoreError::Io)?;
     let q = lower(&file).map_err(StoreError::Io)?;
     let res = store.query(&q)?;
+    // Described from the same parse that just ran, so the words and the rows can never disagree.
+    let filters: Vec<String> = file.filter.iter().map(|p| describe_pred(p, false)).collect();
 
     Ok(match file.view {
         Renderer::Board => {
@@ -360,6 +485,7 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
                 name: file.name,
                 renderer: file.view,
                 group_by: Some(group_by.clone()),
+                filters,
                 board: Some(Board { group_by, columns }),
                 rows: None,
             }
@@ -368,6 +494,7 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
             name: file.name,
             renderer: file.view,
             group_by: None,
+            filters,
             board: None,
             rows: Some(res.rows.iter().map(ObjectMeta::from).collect()),
         },
@@ -475,6 +602,82 @@ mod tests {
         assert!(rows.iter().all(|o| o.status.as_deref() != Some("done")));
     }
 
+    /// **The column that vanished.** The owner's only `.view` is a board that filters `done` out,
+    /// and a `view: board` draws through the same renderer as the Board pane — so the missing
+    /// column read as missing notes (2026-08-24). `list_views` now carries what the view narrows
+    /// to, in the file's own words, and the pane header says it.
+    #[test]
+    fn a_filtered_view_says_what_it_leaves_out() {
+        let d = tempdir().unwrap();
+        let s = seed(d.path());
+        write_view(
+            d.path(),
+            "active.view",
+            "name: Active\nview: board\ngroup_by: status\nfilter:\n  - not:\n      prop: status\n      eq: done\n",
+        );
+        let r = run_view(&s, d.path(), "Active").unwrap();
+        // English, not an expression: the `not:` is carried into the phrase, not wrapped round it.
+        assert_eq!(r.filters, vec!["status is not done".to_string()]);
+        // And the words describe *this* board: the column they name is the one that is absent.
+        let cols = r.board.unwrap().columns;
+        assert!(
+            !cols.iter().any(|c| c.value == "done"),
+            "the filtered column is gone — which is exactly why the words have to travel with it",
+        );
+    }
+
+    /// Every spelling the manual documents, so a view that narrows by tag, text or date is as
+    /// legible as one that narrows by status — the phrase must never be status-shaped.
+    #[test]
+    fn each_filter_spelling_has_words() {
+        let d = tempdir().unwrap();
+        let s = seed(d.path());
+        write_view(
+            d.path(),
+            "many.view",
+            "name: Many\nview: timeline\nfilter:\n  - tag: lab\n  - tags_all: [a, b]\n  \
+             - not:\n      tags_any: [x, y]\n  - text: kalman\n  - date: due\n    from: 2026-07-14\n    \
+             to: 2026-07-27\n  - prop: due\n    exists: true\n  - any:\n      - prop: status\n        \
+             eq: doing\n      - tag: urgent\n",
+        );
+        assert_eq!(
+            run_view(&s, d.path(), "Many").unwrap().filters,
+            vec![
+                "tagged lab",
+                "tagged a and b",
+                "tagged none of x or y",
+                "text matches “kalman”",
+                "due between 2026-07-14 and 2026-07-27",
+                "due is set",
+                "status is doing or tagged urgent",
+            ]
+        );
+    }
+
+    /// A `.view` can be valid YAML and still be nonsense the engine rejects. `describe_pred` runs
+    /// over the parsed file, not the lowered query, so it must answer *something* for those rather
+    /// than panic — the refusal itself is `run_view`'s (the test below), and it must be the thing
+    /// the user sees, not a panic from the describer racing it there.
+    #[test]
+    fn an_unreadable_entry_gets_a_phrase_instead_of_a_panic() {
+        let bad = PredDto {
+            prop: Some("status".into()),
+            eq: Some(serde_yaml_ng::Value::String("doing".into())),
+            ne: Some(serde_yaml_ng::Value::String("done".into())),
+            ..Default::default()
+        };
+        assert!(describe_pred(&bad, false).contains("cannot read"));
+        // Nothing set at all — `- {}` in a filter list.
+        assert!(describe_pred(&PredDto::default(), false).contains("cannot read"));
+        // A value `lower_pred` will reject is still shown for what it is, not swallowed.
+        let float = PredDto {
+            prop: Some("weight".into()),
+            eq: Some(serde_yaml_ng::Value::Number(1.5.into())),
+            ..Default::default()
+        };
+        assert_eq!(describe_pred(&float, false), "weight is 1.5");
+    }
+
     #[test]
     fn a_broken_view_is_listed_with_its_error_not_dropped() {
         let d = tempdir().unwrap();
@@ -488,6 +691,16 @@ mod tests {
         assert!(broken.renderer.is_none());
         let good = views.iter().find(|v| v.name == "Good").unwrap();
         assert!(good.error.is_none());
+    }
+
+    /// A view that hides nothing says nothing: `[]`, not a phrase — that empty list is what keeps
+    /// the pane's "filtered" chip off an unfiltered view.
+    #[test]
+    fn an_unfiltered_view_has_nothing_to_disclose() {
+        let d = tempdir().unwrap();
+        let s = seed(d.path());
+        write_view(d.path(), "all.view", "name: All\nview: timeline\n");
+        assert!(run_view(&s, d.path(), "All").unwrap().filters.is_empty());
     }
 
     #[test]

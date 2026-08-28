@@ -24,6 +24,7 @@ import type {
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
+import { isPhone } from './platform';
 import type { ShareStatus } from './remote';
 
 // Two backends, one contract:
@@ -33,14 +34,17 @@ import type { ShareStatus } from './remote';
 //     backend at all.
 // `import.meta.env.PROD` is true only in the built bundle, so dev and tests hit
 // the mock while the shipped bundle hits real data over HTTP.
-// Is this bundle running inside the Tauri shell rather than a browser? Tauri v2 puts this on
-// `window` before any of our code runs.
+// Is this bundle running inside the Tauri shell rather than a browser? Tauri v2 puts
+// `__TAURI_INTERNALS__` on `window` before any of our code runs; `isPhone()` reads it.
 //
 // **The order matters, and it is the trap.** A Tauri build is `import.meta.env.PROD`, so
 // without this branch *first* the app would take the HTTP path and `fetch('/api/…')` against a
 // server that does not exist on the device. Same bundle, three backends, and the most specific
 // one has to win.
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+//
+// Read through `platform.ts` at call time rather than captured in a `const` here — see that file
+// for why. The short version: as a `const` this branch could not be reached by any test, and it
+// is the branch the phone actually runs.
 
 // Resolved once, lazily: importing `@tauri-apps/api` at module scope would pull it into the
 // web bundle, which never uses it.
@@ -73,7 +77,7 @@ function nativeInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T>
 }
 
 async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  if (isTauri) {
+  if (isPhone()) {
     return nativeInvoke<T>(cmd, args);
   }
   if (import.meta.env.PROD) {
@@ -236,7 +240,7 @@ export const unrecorded = () => invoke<Unrecorded[]>('unrecorded');
 /** Record them. Explicit, never on a timer: it stages files the app does not remember writing, which
  *  is a decision for a person rather than a five-second debounce. */
 export const recordUnrecorded = (vault: string) =>
-  invoke<{ committed: boolean; notes: number }>('record_unrecorded', { vault });
+  invoke<{ committed: boolean; notes: number; reason?: string }>('record_unrecorded', { vault });
 
 /** Every open proposal across vaults — the notes carrying a well-formed `proposes: branch:<name>`,
  *  newest first. The Collaboration surface's feed.
@@ -364,7 +368,14 @@ export const resolveAsset = (reference: string, kind: 'full' | 'thumb') =>
 // claimed to stream and then pointed at `/api/blob/…`, a route that only exists in the desktop
 // server — every image failed. Same trap as the `invoke` transport switch above, in the same
 // file, for the same reason: PROD is not a statement about which backend is present.
-export const streamsBlobs = import.meta.env.PROD;
+//
+// So it names the two streaming backends explicitly rather than leaning on `PROD` to imply them,
+// and it is a function for the same reason `isPhone` is: as a `const` this read `false` under
+// Vitest even in phone mode, so a phone test would have silently exercised the mock's
+// object-URL path instead of the `fmblob://` one the device uses.
+export function streamsBlobs(): boolean {
+  return isPhone() || import.meta.env.PROD;
+}
 
 // "A tab is still here" — and nothing else. Not a command: it takes no lock, reads no
 // files, and never reaches `fm_app::dispatch`, because the auto-shutdown watchdog is a
@@ -428,7 +439,7 @@ function assetBase(): string {
 }
 
 export const assetUrl = (reference: string) => {
-  if (!isTauri) return `/api/blob/${encodeURIComponent(reference)}`;
+  if (!isPhone()) return `/api/blob/${encodeURIComponent(reference)}`;
   return `${assetBase()}${encodeURIComponent(reference)}`;
 };
 
@@ -454,11 +465,25 @@ export const openExternal = (reference: string) =>
 /// string. Base64 inflates by a third and the payload is copied a few times between the page and
 /// Rust, so a large video is not slow here — it fails, or takes the app down with it.
 ///
-/// 48 MB is chosen to sit comfortably above any photo a phone takes (a 12 MP JPEG is ~4 MB, a
-/// 48 MP one ~12 MB) while staying well inside what a WebView will serialise. Video is the case
-/// this does not serve, and saying so plainly beats an out-of-memory crash — a real fix is
-/// chunking, which is a larger piece and is recorded as such.
-const MAX_INGEST = 48 * 1024 * 1024;
+/// **It was 48 MB, and that number was arrived at by counting the wrong thing.** The old note
+/// reasoned that 48 MB sits "well inside what a WebView will serialise", which is true of the
+/// string and false of the operation. Counting the copies a file actually makes on the way in:
+/// the `File` itself, the `readAsDataURL` result (~1.37×), Tauri's `JSON.stringify` of the whole
+/// message (~1.37×), the JS→Java string marshal (~2.7×, UTF-16), wry's `get_string` and
+/// `to_string_lossy` (~1.37× each), `serde_json`'s parse into a `Value` and then into the `data`
+/// argument (~1.37× each), and finally the decoded `Vec<u8>`. That is roughly **ten copies**, so a
+/// 12 MP photo peaks around 150 MB and the old ceiling permitted a peak near 600 MB — which is not
+/// a slow attach, it is `onRenderProcessGone` and the app disappearing with no message
+/// (`known-issues.md`: the framework default kills the process and nothing here overrides it).
+///
+/// **16 MB keeps every photo a phone takes** — a 12 MP JPEG is ~4 MB, a 48 MP one ~12 MB — and
+/// drops the peak to roughly a third. Chunking the *encode* would not have helped: it removes one
+/// copy of the ten, all the others being on the transport. The real fix is chunked **ingest**
+/// (`fm_ingest_chunk`/`fm_ingest_finish` over `BlobStore::put_file`, which already streams and
+/// hashes in 64 KB chunks), which bounds the transient regardless of file size and lifts the video
+/// refusal. That is a transport change, deliberately not smuggled in beside a bug fix; this number
+/// buys the headroom to do it properly. Recorded in `known-issues.md`.
+const MAX_INGEST = 16 * 1024 * 1024;
 
 /// A `File` as standard base64, without the `data:` prefix.
 ///
@@ -485,7 +510,7 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
   // photo as JSON would mean base64, a third larger and copied several times. The shell's
   // `fmblob` protocol handler receives a request body as bytes, so this is an ordinary `fetch`
   // with the File as the body, exactly as the browser path below does.
-  if (isTauri) {
+  if (isPhone()) {
     // **Base64 over the IPC command, because Android has no other door.**
     //
     // This was a `fetch` POST to the `fmblob://` handler, which is correct-looking and silently

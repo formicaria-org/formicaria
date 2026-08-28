@@ -232,7 +232,11 @@ export interface UnrecordedNote {
    *  inventing a name would be worse than admitting that. */
   title: string | null;
   bytes: number | null;
+  /** When the *file* was written. A copy, restore or migration resets this for every file at once, so
+   *  it is not "when the note was made" — that is `created`. */
   modified: string | null;
+  /** The note's own `created`, from its frontmatter. Survives copying. */
+  created: string | null;
   /** `note` | `message` | `proposal` | `unreadable` | `deleted` — which code path wrote it. A title
    *  says what a note is about; this says who made it, which is the question when 142 appear in one
    *  minute. */
@@ -316,6 +320,15 @@ export interface ViewResult {
   name: string;
   renderer: Renderer;
   group_by: string | null;
+  /** What this view leaves out, one phrase per `filter:` entry ("status is not done"), from the
+   *  server. Empty for a view that filters nothing — and empty is *sent*, never omitted, so there
+   *  is one shape to handle.
+   *
+   *  A `view: board` draws through the same renderer as the Board pane, so a filter that removes a
+   *  column removes it invisibly; this is what lets the pane say so. It travels with the payload
+   *  it describes rather than with the view *list*, which is fetched once per vault change and has
+   *  failed on the phone — words that arrive late or not at all are the bug over again. */
+  filters: string[];
   board?: Board;
   rows?: ObjectMeta[];
 }

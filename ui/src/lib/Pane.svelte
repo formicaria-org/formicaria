@@ -17,7 +17,7 @@
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
-  import { paneTitle, clampSpan, BUILTIN_PANES } from './panes';
+  import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
   import { orderColumns, moveValue } from './boardOrder';
 
@@ -183,6 +183,36 @@
   ]);
   const currentIndex = $derived(Math.max(0, options.findIndex((o) => o.value === pickValue)));
   const currentLabel = $derived(options[currentIndex]?.label ?? 'Board');
+
+  /// **What the saved view on show leaves out** — so the header can say so.
+  ///
+  /// A `view: board` draws through the very same `Board.svelte` as the Board pane, so a view whose
+  /// filter removes a column removes it with nothing on screen to explain the gap. That is not
+  /// hypothetical: the owner's only `.view` hides one status, and the missing column read as
+  /// missing notes (2026-08-24).
+  ///
+  /// **Read from the feed, not from `savedViews`.** The words belong to the payload they describe:
+  /// they arrive with the board itself, from the same parse that produced it. Looking them up in
+  /// the view *list* would make the explanation depend on a second fetch that happens once per
+  /// vault change and has failed outright on the phone — and a filtered board with no explanation
+  /// is precisely the bug. `undefined` until the feed lands, which is also when the board lands.
+  const shownView = $derived(pane.kind === 'view' ? feed?.view : undefined);
+  const hides = $derived(shownView?.filters ?? []);
+  /// The whole sentence, including the way out — the visible chip is one line and gets clipped in a
+  /// narrow pane, so the accessible name has to be the complete thought on its own.
+  const hidesTitle = $derived(
+    `“${pane.viewName}” shows only notes where ${hides.join(', and ')}. Click to see everything.`,
+  );
+  /// Leave the view for the built-in renderer it shadows, unfiltered, keeping its grouping — the
+  /// one click that answers "where did my column go". The rotator walks back to the view.
+  function showEverything() {
+    if (!shownView) return;
+    onchange({
+      kind: rendererKind(shownView.renderer),
+      viewName: null,
+      groupBy: shownView.group_by ?? pane.groupBy,
+    });
+  }
   function rotate(dir: number) {
     if (!options.length) return;
     pick(options[(currentIndex + dir + options.length) % options.length].value);
@@ -416,6 +446,15 @@
           <button class:on={pane.agendaMode === 'week'} onclick={() => onchange({ agendaMode: 'week' })}>W</button>
           <button class:on={pane.agendaMode === 'list'} onclick={() => onchange({ agendaMode: 'list' })}>L</button>
         </div>
+      {:else if pane.kind === 'view' && hides.length}
+        <!-- **A filtered view has to admit it.** Everything else in this chain tunes a pane; this
+             one explains it. The words come from the server (`ViewInfo.filters`), so nothing here
+             knows what a status is and a view that narrows by tag or date reads just as well.
+             The text is *visible*, not tucked into `title`: a phone has no hover, and the whole
+             point is to be legible at the moment the column looks missing. -->
+        <button type="button" class="hides" onclick={showEverything} title={hidesTitle} aria-label={hidesTitle}>
+          filtered: {hides.join(' · ')}
+        </button>
       {:else if pane.kind === 'search'}
         <input
           class="ctl"
@@ -704,6 +743,28 @@
     min-width: 5rem;
     text-align: left;
     white-space: nowrap;
+  }
+  /* Sized to the header rather than to its text: the sentence can be long (several filter
+     entries), and a chip that pushed the close button off the end would trade one lost control
+     for another. It clips, and `title`/`aria-label` carry the whole thing. */
+  .hides {
+    font: inherit;
+    font-size: 0.85rem;
+    min-width: 0;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--surface);
+    color: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    cursor: pointer;
+  }
+  .hides:hover {
+    color: var(--text);
+    border-color: var(--accent);
   }
   .rotator:hover {
     border-color: var(--accent);

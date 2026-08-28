@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import Icon from './lib/Icon.svelte';
   import Pane from './lib/Pane.svelte';
   import {
@@ -54,6 +54,8 @@
   import Pairing from './lib/Pairing.svelte';
   import Starting from './lib/Starting.svelte';
   import { isRemote } from './lib/remote';
+  import { isPhone } from './lib/platform';
+  import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
   import * as ipc from './lib/ipc';
   import ViewBar from './lib/ViewBar.svelte';
   import * as keys from './lib/keys';
@@ -541,7 +543,12 @@
     }
     if (type === 'view') {
       const r = await runView(arg);
-      return r.board ? { board: r.board } : { cards: r.rows ?? [] };
+      // What the view leaves out travels with what it returned — a saved view draws through the
+      // same renderer as the built-in it shadows, so the pane needs this to explain a column (or a
+      // note) that a filter removed. Carried here rather than looked up in `views`, which is
+      // fetched once per vault change and can arrive late or not at all.
+      const view = { filters: r.filters ?? [], renderer: r.renderer, group_by: r.group_by };
+      return r.board ? { board: r.board, view } : { cards: r.rows ?? [], view };
     }
     return {};
   }
@@ -576,9 +583,36 @@
   // Reload when the set of distinct feeds the workspace needs changes (a pane added, closed,
   // regrouped, or its search edited). Fetches only the distinct feeds, so N panes over M
   // feeds cost M requests, not N.
+  //
+  // **The key must be a `$derived`, not computed and discarded inside the effect.** It used to be
+  // `void distinctFeeds(workspace.panes).join('|')` right here — which computes the key, throws it
+  // away, and leaves the effect subscribed to the whole `workspace.panes` proxy. So it did not
+  // fire "when the set of distinct feeds changes" as the comment claimed; it fired on *any* pane
+  // mutation — focus, resize, reorder, a note pane opening — and each firing reloads every
+  // distinct feed, and every feed query is a full-corpus `load_all()` on the server. On a phone,
+  // where each of those parks the UI thread, that is a large share of the general lag.
+  //
+  // As a memo it does what it says: same key, no reload.
+  //
+  // **`untrack` is load-bearing and not decoration.** The memo alone achieved nothing, because
+  // `refresh()` is called from inside this effect and its own first lines read
+  // `distinctFeeds(workspace.panes)` synchronously — which re-subscribes the effect to the whole
+  // proxy, exactly as before. The dependency has to be narrowed at *both* ends: `feedKeys` says
+  // what this effect should watch, and `untrack` stops the work it triggers from widening that
+  // again. Verified by an adversarial review that caught the memo being a no-op.
+  //
+  // **And the dependencies are then named explicitly, because `untrack` removes real ones too.**
+  // `refresh()` returns early until `vaults` has loaded, and it reads `vaults` to do so — so the
+  // effect had been depending on the vault list *by accident*, and that accident is what reloaded
+  // the board once the list arrived. Untracking `refresh()` without saying so took the board out
+  // with it (twelve tests, all "the board never rendered"). So both real triggers are listed here
+  // where they can be read, and `untrack` keeps everything else `refresh()` happens to touch —
+  // `errorIsTransient`, `feeds` — from silently becoming a trigger too.
+  let feedKeys = $derived(distinctFeeds(workspace.panes).join('|'));
   $effect(() => {
-    void distinctFeeds(workspace.panes).join('|');
-    void refresh();
+    void feedKeys; // the set of feeds the workspace needs
+    void vaults; // …and the vault list they are read from
+    untrack(() => void refresh());
   });
 
   // Automatic "someone pushed" awareness. `backup_status` computes `remote_moved` per vault (a
@@ -620,18 +654,37 @@
   }
   $effect(() => {
     if (!import.meta.env.PROD) return; // network poll: production only (the mock has no remote)
+    // **`PROD` is not a statement about which device this is** — a Tauri build is `PROD` too, so
+    // this ran on the phone: a per-vault `ls-remote` every 45 s *and* on every return to the app,
+    // on mobile data, on a battery. `pollIntervalMs`/`foregroundCheckDue` carry the policy (and
+    // are unit-tested there); this keeps only the wiring.
+    const phone = isPhone();
     // **Not at t=0.** This shells out to `git ls-remote` *per vault*, so firing it as the app
     // opens puts a network round trip per vault against the first paint. It never blocked
-    // rendering — `backup_status` drops the vault lock before the network, deliberately — but it
-    // competes for CPU and IO at the one moment the user is waiting. Nobody needs to know within
-    // three seconds that a collaborator pushed; they need their notes on screen.
-    const first = setTimeout(() => void checkRemotes(), 3000);
-    const id = setInterval(() => void checkRemotes(), 45000);
-    const onFocus = () => void checkRemotes();
+    // rendering on the desktop — `backup_status` drops the vault lock before the network,
+    // deliberately — but it competes for CPU and IO at the one moment the user is waiting. Nobody
+    // needs to know within three seconds that a collaborator pushed; they need their notes on
+    // screen.
+    // On a phone the foreground *is* the schedule, rate-limited — Android fires this every time
+    // the screen wakes or a shade is dismissed, which is not the same thing as "the user came
+    // back to work". Seeded by the startup check below so the two never fire back to back.
+    let lastCheck = 0;
+    const first = setTimeout(() => {
+      lastCheck = Date.now();
+      void checkRemotes();
+    }, 3000);
+    const every = pollIntervalMs(phone);
+    const id = every === null ? undefined : setInterval(() => void checkRemotes(), every);
+    const onFocus = () => {
+      const now = Date.now();
+      if (!foregroundCheckDue(phone, now, lastCheck)) return;
+      lastCheck = now;
+      void checkRemotes();
+    };
     window.addEventListener('focus', onFocus);
     return () => {
       clearTimeout(first);
-      clearInterval(id);
+      if (id !== undefined) clearInterval(id);
       window.removeEventListener('focus', onFocus);
     };
   });
@@ -1054,8 +1107,9 @@
     commitSince = 0;
     {
       const stamp = new Date().toISOString();
+      const runs: Promise<unknown>[] = [];
       for (const v of vaults ?? []) {
-        commit(`auto: ${stamp}`, v.name)
+        const run = commit(`auto: ${stamp}`, v.name)
           .then((r) => {
             // **A commit that committed nothing is not automatically fine.** `commit_all`
             // refuses outright while the vault is mid-merge — correctly, since staging
@@ -1080,7 +1134,11 @@
               `Your notes are saved as files, but git could not record a change in '${v.name}': ${e}. ` +
               `History and backup are paused until that is fixed.`;
           });
+        runs.push(run);
       }
+      // The same reason as the backup path: this commit is exactly what moves a note *into*
+      // history, so the count of what is outside it is stale the moment this settles.
+      void Promise.allSettled(runs).then(loadUnrecorded);
     }
   }
 
@@ -1149,14 +1207,35 @@
   async function onRecordUnrecorded(vault: string) {
     try {
       const r = await recordUnrecorded(vault);
-      notice = r.committed
-        ? `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${labelFor(vault)}”. ` +
-          `They are in this device's history now — back up to send them to a remote.`
-        : `Nothing left to record in “${labelFor(vault)}”.`;
+      if (r.committed) {
+        notice =
+          `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${labelFor(vault)}”. ` +
+          `They are in this device's history now — back up to send them to a remote.`;
+      } else if (r.notes > 0) {
+        // **A refusal is not a success.** This used to say "Nothing left to record" whenever the
+        // backend answered `committed: false` — including when it had found notes and git had
+        // *declined* to commit them. The owner tapped Record with 147 outstanding and was told there
+        // was nothing to record. Anything the backend can explain goes on screen verbatim, and this
+        // is an `error`, not a `notice`, because the action did not happen.
+        //
+        // **Through `report()`, not a bare assignment.** A direct `error = …` leaves
+        // `errorIsTransient` at whatever the last poll set it to, and `refresh()` clears the banner
+        // whenever that flag is true — so the one message explaining why 147 notes are still
+        // unrecorded could vanish on the next 15 s beat, before it had been read. `report()` is
+        // what marks a message as worth outliving a poll, which is exactly what this one is.
+        report(
+          `Could not record the ${r.notes} note${r.notes === 1 ? '' : 's'} in “${labelFor(vault)}”. ` +
+            (r.reason ?? 'Git declined, and gave no reason.'),
+        );
+      } else {
+        notice = `Nothing left to record in “${labelFor(vault)}”.`;
+      }
       await loadUnrecorded();
       await loadDuplicates();
     } catch (e) {
-      error = String(e);
+      // Same reasoning as the refusal above: a failure the user asked for by tapping Record must
+      // outlive the next poll, so it goes through `report()`.
+      report(String(e));
     }
   }
 
@@ -1226,6 +1305,12 @@
       report(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       savingLabel = null;
+      // **Backup commits, so the "not in history" chip must be re-read here.** It was loaded once
+      // per `vaults` change and after the panel's own Record button — nowhere else. So backing up
+      // recorded the notes and left the chip saying the old number, which reads as "Backup did not
+      // clear them" (reported 2026-08-24 with a count of 1). The count is a fact about git, and
+      // this is the moment git changed.
+      await loadUnrecorded();
     }
   }
 

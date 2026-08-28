@@ -100,19 +100,65 @@ fn notes_written_before_a_restart_are_found_and_recordable() {
     // ── Session two: a fresh App, with no memory of those writes. ──
     let app = open_app(&home, &vault);
 
-    // The commit path records **nothing**, because it stages only what *this* process wrote. That is
-    // the precision that protects a project vault from an `auto:` commit sweeping the user's index —
-    // it is not the bug, and a future change that makes this line commit is a regression.
-    let committed = call(&app, "commit", serde_json::json!({ "message": "auto", "vault": "v" }))
-        .expect("commit must not error, only decline");
-    assert_eq!(committed["committed"], false, "nothing of *this* process's changed: {committed}");
-    assert_eq!(
-        String::from_utf8_lossy(&git(&vault, &["log", "--oneline"]).stdout).lines().count(),
-        1,
-        "history still holds only session zero's commit — the three notes are nowhere"
-    );
+    // **This assertion was reversed on 2026-08-20, deliberately — see `decisions.md#data`.**
+    //
+    // It used to require that `commit` record *nothing* here, on the reasoning that staging only
+    // what this process wrote is what protects a project vault from an `auto:` commit sweeping the
+    // user's index, and that "a future change that makes this line commit is a regression".
+    //
+    // The protection is real; attributing it to the *per-process memory* was the error. What
+    // actually provides it is the **naming scheme**: `adoptable` stages only
+    // `<notes dir>/<ULID>.md`, which is what `FileStore` writes and nothing else produces. The
+    // memory contributed nothing to safety and one large cost — whether your work is recorded
+    // depended on when the process happened to start. The owner met that as **180 notes not in
+    // history in a vault with a remote, which pressing Backup would not clear**, and named the
+    // product rule it breaks: *"When I press backup it should commit and push. I do not commit as a
+    // user, that is a background concept."*
+    //
+    // `App::load` had already abandoned the old property at open (it adopts, so the next commit
+    // after a relaunch records everything); this test only still asserted it because `open_app`
+    // uses `App::new` and skips that path. So the invariant was already gone in production and
+    // alive only here.
+    //
+    // What is asserted instead is the property that was actually being protected, and it is
+    // asserted *directly* rather than as a side effect of forgetfulness — see the two files below.
+    std::fs::write(vault.join("notes").join("hand-written.md"), "not ours: no ULID name\n").unwrap();
+    std::fs::write(vault.join("README.md"), "the project's own file\n").unwrap();
 
-    // The reconciliation surface finds them, and says how they are out of history.
+    let committed = call(&app, "commit", serde_json::json!({ "message": "auto", "vault": "v" }))
+        .expect("commit must not error");
+    assert_eq!(committed["committed"], true, "the three notes must now be recorded: {committed}");
+
+    let tracked = String::from_utf8_lossy(&git(&vault, &["ls-files"]).stdout).to_string();
+    assert_eq!(
+        tracked.lines().filter(|l| l.ends_with(".md")).count(),
+        4,
+        "session zero's note plus the three from session one, and nothing else: {tracked}"
+    );
+    assert!(
+        !tracked.contains("hand-written.md"),
+        "a file in the notes dir that this app did not name must never be staged: {tracked}"
+    );
+    assert!(
+        !tracked.contains("README.md"),
+        "a file outside the notes dir must never be staged: {tracked}"
+    );
+    // Clean up so the `unrecorded` counts below describe only the notes under test.
+    std::fs::remove_file(vault.join("notes").join("hand-written.md")).unwrap();
+    std::fs::remove_file(vault.join("README.md")).unwrap();
+
+    // ── The reconciliation surface, on a backlog `commit` has not already cleared. ──
+    //
+    // Written straight to disk rather than through `capture`, because `commit` now records what it
+    // can find: to describe an outstanding backlog the notes have to arrive *after* it.
+    for body in ["fourth", "fifth", "sixth"] {
+        let o = fm_model::Object::new(fm_model::Kind::Note, body.to_string());
+        std::fs::write(
+            vault.join("notes").join(format!("{}.md", o.id)),
+            fm_core::frontmatter::to_file(&o).unwrap(),
+        )
+        .unwrap();
+    }
     let un = call(&app, "unrecorded", serde_json::json!({})).unwrap();
     assert_eq!(un[0]["vault"], "v");
     assert_eq!(un[0]["count"], 3, "{un}");
@@ -316,4 +362,74 @@ fn duplicates_are_counted_by_body_and_the_role_names_the_code_path() {
     let plain = rows.iter().find(|n| n["role"] == "note").expect("the ordinary note");
     assert_eq!(plain["copies"], 1, "a unique note is not a duplicate: {plain}");
     assert_eq!(plain["title"], "An ordinary note");
+}
+
+/// **A refusal must not be reported as "nothing to do".**
+///
+/// `commit_all` answers `bool`, and it returns `false` for reasons that are worlds apart: nothing of
+/// ours moved (the quiet, correct case for a debounced auto-commit) and *git refuses* because a path is
+/// unmerged. `record_unrecorded` passed that bool straight up, and the UI printed
+/// **"Nothing left to record"** for both — so with notes outstanding and one note mid-merge, the one
+/// button that rescues unrecorded notes reported success and did nothing, indefinitely. The owner hit
+/// exactly this on the phone with 147 outstanding (2026-07-31).
+///
+/// What is pinned: with notes found and a merge in flight, `committed` is false, `notes` is **not**
+/// zero — that difference is what lets the UI tell a refusal from an empty vault — and `reason` names
+/// the merge, so the message on screen points at the action that unblocks it.
+#[test]
+fn a_refused_recording_reports_a_reason_and_not_an_empty_vault() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let home = tempdir().unwrap();
+    let vault = home.path().join("v");
+    std::fs::create_dir_all(vault.join("notes")).unwrap();
+    git(&vault, &["init", "-q", "-b", "main"]);
+    git(&vault, &["config", "user.name", "T"]);
+    git(&vault, &["config", "user.email", "t@e.com"]);
+
+    // Session zero, as above: history plus `ensure_repo`'s own files committed.
+    {
+        let app = open_app(&home, &vault);
+        call(&app, "capture", serde_json::json!({ "body": "the shared note", "vault": "v" })).unwrap();
+        call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
+    }
+    let rel = {
+        let mut found = std::fs::read_dir(vault.join("notes"))
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        found.sort();
+        format!("notes/{}", found.pop().expect("the recorded note"))
+    };
+
+    // A delete/modify merge in flight — the kind with no markers, which is how the owner's froze.
+    git(&vault, &["checkout", "-q", "-b", "theirs"]);
+    std::fs::write(vault.join(&rel), "---\nschema: 1\ntype: note\n---\ntheir edit\n").unwrap();
+    git(&vault, &["commit", "-qam", "their edit"]);
+    git(&vault, &["checkout", "-q", "main"]);
+    git(&vault, &["rm", "-q", &rel]);
+    git(&vault, &["commit", "-qm", "our delete"]);
+    git(&vault, &["merge", "theirs"]);
+    assert!(vault.join(".git/MERGE_HEAD").exists(), "precondition: mid-merge");
+
+    // And an unrecorded note, written by a process that is now gone.
+    std::fs::write(
+        vault.join("notes/01BBBBBBBBBBBBBBBBBBBBBBBB.md"),
+        "---\nschema: 1\nid: 01BBBBBBBBBBBBBBBBBBBBBBBB\ntype: note\ncreated: 2026-07-31T07:44:00Z\nupdated: 2026-07-31T07:44:00Z\n---\nforgotten\n",
+    )
+    .unwrap();
+
+    let app = open_app(&home, &vault);
+    let rec = call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
+    assert_eq!(rec["committed"], false, "git refuses over an unmerged path: {rec}");
+    // The load-bearing pair: it *found* notes. `notes: 0` is what the UI reads as "nothing to record",
+    // and reporting zero here is the lie that hid the problem.
+    assert!(rec["notes"].as_u64().is_some_and(|n| n > 0), "it found work to do: {rec}");
+    let reason = rec["reason"].as_str().unwrap_or_default();
+    assert!(reason.contains("mid-merge"), "the reason names the merge: {reason:?}");
+    // And it points at the surface that can actually clear it, rather than merely declining.
+    assert!(reason.contains("Conflicts"), "and at the way out: {reason:?}");
 }

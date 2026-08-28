@@ -13,6 +13,16 @@ license.workspace = true
 name = "fm_app"
 path = "src/lib.rs"
 
+# **So the phone's git backend is reachable from a dispatch-level test.**
+#
+# `vcs.rs` warns that on any machine with a `git` binary every routed call resolves to the
+# subprocess backend, "which makes the phone's real code path unreachable from any test that drives
+# the app commands" — the blind spot that let the proposal lifecycle ship desktop-only. `fm-cli` had
+# a passthrough for exactly this; `fm-app`, where `dispatch` lives, did not, so no test of a
+# *command* could select libgit2. This adds it. Off by default: the desktop links no libgit2.
+[features]
+native-git = ["fm-core/native-git"]
+
 [dependencies]
 fm-model = { workspace = true }
 fm-query = { workspace = true }

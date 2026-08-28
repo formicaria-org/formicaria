@@ -22,6 +22,65 @@
 
   let over = $state<string | null>(null);
 
+  /// The scrolling strip, and where along it we are — what the rail below the board reads.
+  ///
+  /// Measured from the DOM rather than tracked as state, the same discipline as `dropBefore` and
+  /// the column-reorder edge: the browser owns the scroll position, and a second copy of it in a
+  /// variable is a copy that goes stale on a resize, a font change or a snap the finger did.
+  let strip = $state<HTMLElement | null>(null);
+  let at = $state(0);
+  let overflowing = $state(false);
+
+  /// Which column is at the left edge, and is there anything past the edge at all. Runs on scroll,
+  /// on a resize, and whenever the columns change — every way the answer can move.
+  function measure() {
+    if (!strip) return;
+    // `+1` absorbs sub-pixel widths: a strip that fits exactly reports a scrollWidth a fraction
+    // larger on fractional-DPI screens, and a rail that appears when nothing is hidden is noise.
+    overflowing = strip.scrollWidth > strip.clientWidth + 1;
+    const cols = strip.querySelectorAll<HTMLElement>('.column');
+    if (!cols.length) return;
+    // Rects, not `offsetLeft`: offsets are relative to whichever ancestor happens to be
+    // positioned, and this component does not control that. Distances are comparable either way.
+    const edge = strip.getBoundingClientRect().left;
+    let best = 0;
+    let closest = Infinity;
+    cols.forEach((el, i) => {
+      const d = Math.abs(el.getBoundingClientRect().left - edge);
+      if (d < closest) {
+        closest = d;
+        best = i;
+      }
+    });
+    at = best;
+  }
+
+  /// Bring column `i` to the left edge. `scrollIntoView` is guarded because jsdom does not
+  /// implement it — the test asserts the call, and the real scrolling is a thing for the eye.
+  function jump(i: number) {
+    const el = strip?.querySelectorAll<HTMLElement>('.column')[i];
+    el?.scrollIntoView?.({ inline: 'start', block: 'nearest', behavior: 'smooth' });
+    at = i;
+  }
+
+  // Re-measure when the column set changes (a filter, a vault toggle, a card moved) and once on
+  // mount. Reading `.length` is what subscribes this effect to it.
+  $effect(() => {
+    board.columns.length;
+    measure();
+  });
+
+  // And when the *pane* resizes, which a window listener would miss: panes are resized by dragging
+  // one corner, and the column width itself changes at a container breakpoint. Guarded because
+  // jsdom ships no `ResizeObserver` — there, the effect above is the only trigger, which is all a
+  // layout-free environment could honour anyway.
+  $effect(() => {
+    if (!strip || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(strip);
+    return () => ro.disconnect();
+  });
+
   /**
    * Which card does a drop at `clientY` land above? The first card whose vertical
    * midpoint is below the pointer — i.e. the one that gets pushed down. Null when
@@ -91,7 +150,14 @@
   }
 </script>
 
-<div class="board">
+<!-- **A board that scrolls sideways has to admit it.** In a narrow pane a column fills the width
+     and the strip snaps one at a time, so a fourth column is three swipes away with nothing on
+     screen to say it exists — which reads exactly like a column that is not there (reported
+     2026-08-24). The rail is the map: every column by name, the one you are on marked, and a tap
+     jumps to it. Generic, like the rest of this renderer — the names are `col.label`, data the
+     board never inspects. -->
+<div class="board-wrap" class:overflowing>
+  <div class="board" bind:this={strip} onscroll={measure}>
   {#each board.columns as col (col.value)}
     <section class="column" class:over={over === col.value} use:column={col.value}>
       <header
@@ -123,17 +189,95 @@
       </div>
     </section>
   {/each}
+  </div>
+
+  {#if board.columns.length > 1}
+    <!-- Always in the DOM, shown by CSS: whether it is *needed* is a question about layout, and
+         layout is the one thing the tests cannot see (jsdom applies no CSS and measures nothing).
+         Rendering it unconditionally keeps the rail itself testable — its entries, their names and
+         where a tap goes — and leaves only "is it visible" to the eye. -->
+    <nav class="rail" aria-label="columns on this board">
+      {#each board.columns as col, i (col.value)}
+        <button
+          type="button"
+          class="rail-stop"
+          class:on={i === at}
+          aria-current={i === at ? 'true' : undefined}
+          onclick={() => jump(i)}
+        >
+          <!-- The separator is deliberate: it keeps a rail entry's own text ("Backlog ·") from
+               reading as the identical string to its column header ("Backlog"). The rail names
+               every column, so without it every column label would appear twice in the document —
+               ambiguous for anything, or anyone, searching the page by name. -->
+          {col.label} ·<span class="rail-count">{col.cards.length}</span>
+        </button>
+      {/each}
+    </nav>
+  {/if}
 </div>
 
 <style>
+  /* The wrap owns the pane's height; the strip takes what is left after the rail. `min-height: 0`
+     on both, or the flex child refuses to shrink and the rail is pushed out of the pane. */
+  .board-wrap {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+  }
   .board {
     display: flex;
     gap: 0.85rem;
     align-items: flex-start;
     overflow-x: auto;
     padding: 1rem;
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     box-sizing: border-box;
+  }
+
+  /* Hidden until it earns its place: a board whose columns all fit needs no map, and a strip of
+     names under a board that shows those same names is clutter. `.overflowing` is measured; the
+     narrow-pane rule below shows it unconditionally, because there one column fills the pane and
+     every other column is off-screen by construction. */
+  .rail {
+    display: none;
+    gap: 0.3rem;
+    align-items: center;
+    overflow-x: auto;
+    padding: 0.35rem 1rem 0.5rem;
+    border-top: 1px solid var(--column-border);
+    flex: 0 0 auto;
+  }
+  .board-wrap.overflowing .rail {
+    display: flex;
+  }
+  .rail-stop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: var(--column-bg);
+    border: 1px solid var(--column-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    cursor: pointer;
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rail-stop.on {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .rail-count {
+    opacity: 0.65;
+    font-variant-numeric: tabular-nums;
   }
   .column {
     flex: 0 0 17rem;
@@ -200,6 +344,13 @@
     .column {
       flex: 0 0 min(85vw, 22rem);
       scroll-snap-align: start;
+    }
+    /* One column fills the pane here, so every other column is off-screen whatever the
+       measurement says — and a swipe is the only way to learn they exist. The rail is how you
+       learn it without swiping. */
+    .rail {
+      display: flex;
+      padding: 0.35rem 0.5rem 0.5rem;
     }
   }
 

@@ -301,28 +301,51 @@ export function extractMath(src: string): { text: string; math: MathSpan[] } {
   return { text: out, math };
 }
 
-/** Resolve `asset:`/`sha256:` refs to inline media by MIME, or a placeholder. */
+/** Resolve `asset:`/`sha256:` refs to inline media by MIME, or a placeholder.
+ *
+ *  **Concurrent, and deduplicated by reference.** This was a `for … await` loop, so a note with
+ *  fifteen images cost fifteen *sequential* backend round trips before the read view was usable —
+ *  and on Android each of those parked the WebView's JS thread, which is a large part of why
+ *  opening an image-heavy note felt like a hang. Each iteration touches a distinct element and the
+ *  list is captured up front, so there is no ordering dependency to preserve.
+ *
+ *  The dedupe matters as much as the concurrency: the same asset referenced twice in a note used
+ *  to be asked about twice. `asset_status` is a lock-taking command, so that is not free. */
 async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Promise<void> {
-  const imgs = Array.from(el.querySelectorAll('img'));
-  for (const img of imgs) {
+  const imgs = Array.from(el.querySelectorAll('img')).filter((img) => {
     const src = img.getAttribute('src') ?? '';
-    if (!src.startsWith('asset:') && !src.startsWith('sha256:')) continue;
-    const alt = img.getAttribute('alt') ?? '';
-    const asset = await resolveAsset(src).catch((e) => ({
+    return src.startsWith('asset:') || src.startsWith('sha256:');
+  });
+  // One in-flight promise per distinct reference, shared by every element that names it.
+  const inflight = new Map<string, ReturnType<AssetResolver>>();
+  const ask = (src: string) => {
+    const existing = inflight.get(src);
+    if (existing) return existing;
+    const p = resolveAsset(src).catch((e) => ({
       reason: e instanceof Error ? e.message : String(e),
     }));
-    if (!asset || 'reason' in asset) {
-      const ph = document.createElement('span');
-      ph.className = 'asset-missing-inline';
-      // The label the note gave it, then the reason — so the line still reads as the thing that
-      // is missing, and says what happened to it.
-      const why = asset && 'reason' in asset ? asset.reason : 'not available';
-      ph.textContent = `${alt || 'asset'} — ${why}`;
-      img.replaceWith(ph);
-      continue;
-    }
-    upgradeAsset(img, asset, alt);
-  }
+    inflight.set(src, p);
+    return p;
+  };
+
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute('src') ?? '';
+      const alt = img.getAttribute('alt') ?? '';
+      const asset = await ask(src);
+      if (!asset || 'reason' in asset) {
+        const ph = document.createElement('span');
+        ph.className = 'asset-missing-inline';
+        // The label the note gave it, then the reason — so the line still reads as the thing that
+        // is missing, and says what happened to it.
+        const why = asset && 'reason' in asset ? asset.reason : 'not available';
+        ph.textContent = `${alt || 'asset'} — ${why}`;
+        img.replaceWith(ph);
+        return;
+      }
+      upgradeAsset(img, asset, alt);
+    }),
+  );
 }
 
 /** Swap the placeholder `<img>` for the element that best fits the MIME. Uses
@@ -343,6 +366,20 @@ function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string):
   const mime = asset.mime;
   if (mime.startsWith('image/') || mime === '') {
     img.src = asset.url;
+    // **Off-screen photos are never decoded.** There is no thumbnail path on any platform — the
+    // read view always points at the full blob (`has_thumb` has no consumer; `assetUrl` has no
+    // `kind`) — so every inline image decodes at whatever resolution the camera produced. A 12 MP
+    // JPEG is ~50 MB of decoded pixels; five in one note is a renderer kill on a phone, and the
+    // kill is silent (`onRenderProcessGone` is unhandled, so the framework default takes the
+    // process). `lazy` means the ones below the fold cost nothing at all, and `async` keeps the
+    // ones on screen off the critical path.
+    //
+    // This is a mitigation, not the fix — the fix is generating and serving a downscaled
+    // derivative, which is M8 and needs a pure-Rust image path on Android. Recorded in
+    // `known-issues.md` so the next reader does not re-diagnose it as an Android bug: the desktop
+    // has exactly the same missing path, it just has the memory to survive it.
+    img.loading = 'lazy';
+    img.decoding = 'async';
     return;
   }
   if (mime === 'application/pdf') {
@@ -401,21 +438,36 @@ function replaceWithFigure(img: HTMLImageElement, media: HTMLElement, alt: strin
  *  no longer resolves degrades to a visible placeholder keeping the link text,
  *  so a stale reference is obvious but never blanks the pane. */
 async function resolveNotes(el: HTMLElement, resolveNote: NoteResolver): Promise<void> {
-  const links = Array.from(el.querySelectorAll('a'));
-  for (const a of links) {
-    const href = a.getAttribute('href') ?? '';
-    if (!href.startsWith('note:')) continue;
-    const text = a.textContent ?? '';
-    const note = await resolveNote(href.slice('note:'.length)).catch(() => null);
-    if (!note) {
-      const ph = document.createElement('span');
-      ph.className = 'note-missing-inline';
-      ph.textContent = text || 'note not available';
-      a.replaceWith(ph);
-      continue;
-    }
-    a.replaceWith(noteChip(note, text));
-  }
+  const links = Array.from(el.querySelectorAll('a')).filter((a) =>
+    (a.getAttribute('href') ?? '').startsWith('note:'),
+  );
+  // Same shape as `resolveAssets`: concurrent, and one request per distinct id. A note that
+  // mentions the same reference five times used to cost five `get` round trips — sequentially,
+  // and on the phone each one blocking the UI thread.
+  const inflight = new Map<string, ReturnType<NoteResolver>>();
+  const ask = (id: string) => {
+    const existing = inflight.get(id);
+    if (existing) return existing;
+    const p = resolveNote(id).catch(() => null);
+    inflight.set(id, p);
+    return p;
+  };
+
+  await Promise.all(
+    links.map(async (a) => {
+      const href = a.getAttribute('href') ?? '';
+      const text = a.textContent ?? '';
+      const note = await ask(href.slice('note:'.length));
+      if (!note) {
+        const ph = document.createElement('span');
+        ph.className = 'note-missing-inline';
+        ph.textContent = text || 'note not available';
+        a.replaceWith(ph);
+        return;
+      }
+      a.replaceWith(noteChip(note, text));
+    }),
+  );
 }
 
 /** The chip for a resolved note reference: title + live status, keyed by type.

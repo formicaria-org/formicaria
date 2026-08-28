@@ -29,6 +29,9 @@ pub mod secrets;
 pub mod thread;
 pub mod vaults;
 pub mod views;
+// Encodings a shell needs on the way in — here rather than in the (workspace-excluded, untested)
+// mobile crate, so `cargo test --workspace` reaches them.
+pub mod wire;
 
 pub use dispatch::{dispatch, dispatch_as, App, Host, Output};
 pub use scope::Scope;

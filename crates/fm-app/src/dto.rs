@@ -185,7 +185,12 @@ pub struct UnrecordedNote {
     /// Size on disk, and when it last changed — the two facts that make a pattern visible. Both
     /// `None` for a deleted note.
     pub bytes: Option<u64>,
+    /// When the *file* was last written. A copy, restore or migration resets this for every file at
+    /// once, so it does not mean "when the note was made" — see `created`.
     pub modified: Option<String>,
+    /// The note's own `created`, from its frontmatter. Survives copying, so this is the one that says
+    /// when the note came into being.
+    pub created: Option<String>,
     /// **What kind of note this is**: `note`, `message` (a discussion reply), `proposal`, or
     /// `unreadable`. It names the *code path* that wrote it, which a title cannot — and that is the
     /// difference between "the capture path duplicated something" and "the reply path did".

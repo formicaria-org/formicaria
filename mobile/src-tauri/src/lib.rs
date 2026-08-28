@@ -5,13 +5,19 @@
 //! than a fork: the `match` over command names, the vault list, and the lock discipline all live
 //! in `fm-app`, so this crate has no opinion about any of them.
 //!
-//! There is exactly one `#[tauri::command]`, taking a command name and a JSON blob, because the
+//! There is essentially one command — [`fm`], taking a command name and a JSON blob, because the
 //! wire contract already *is* "name plus JSON" — `ui/src/lib/ipc.ts` posts precisely that to
 //! `/api/<cmd>`. Enumerating thirty wrapper functions here would be thirty places to forget one.
+//! [`fm_ingest`] is the one unavoidable second, because Android cannot carry bytes any other way.
+//!
+//! **Both are `#[tauri::command(async)]`, and that is not a style choice** — a blocking command
+//! parks the WebView's JS thread for its whole duration on this platform. See [`fm`] for the
+//! three-fact chain, and `ci/checks.sh` for the guard that keeps a new command from forgetting it.
 
 use std::sync::Arc;
 
 use fm_app::{dispatch, App, Host};
+use fm_core::ColdStart;
 
 // Behind the `agent` feature (default on). A `--no-default-features` build compiles none of it, so
 // a notes-only APK never links the model runner — the mobile half of "the core never knows the
@@ -51,9 +57,28 @@ static FINISH: std::sync::Once = std::sync::Once::new();
 /// will never speak, and the phone has no other channel to say so.
 fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     use tauri::Manager;
-    let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(App::load))
-        .map_err(|_| "opening the vaults panicked — see logcat for the backtrace".to_string())
-        .and_then(|r| r.map_err(|e| format!("could not open vaults: {e}")));
+    // **`TrustIndex`, and this is the one place that claim can honestly be made.**
+    //
+    // Opening a vault rebuilt its whole FTS index from every file on disk, every time. On a
+    // desktop that is a startup cost you pay once a day; Android kills backgrounded apps
+    // constantly, so here it was the cost of *every* relaunch — the app's slowest moment, all day,
+    // with a perfectly good `index.sqlite` sitting beside it.
+    //
+    // The reason it is safe here and not on the desktop: reconciliation is by mtime, so a tool
+    // that rewrites a file while *preserving* its mtime is invisible to it. `cp -p`, `rsync -a`
+    // and a restic restore all do that. A phone has none of them — no shell, no restic, and
+    // libgit2 writes files fresh — so no such writer exists on this platform. That is a fact about
+    // the device, which is why the shell says it rather than the store assuming it. See
+    // `fm_core::ColdStart`, and `fm-core/tests/cold_start.rs`, which asserts the divergence
+    // instead of pretending it is not there.
+    //
+    // It fails safe in both directions anyway: an index from another schema, or one whose rebuild
+    // was interrupted (`SIGKILL` — there is no shutdown hook to trust), carries no completion
+    // marker and is rebuilt in full.
+    let loaded =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| App::load_with(ColdStart::TrustIndex)))
+            .map_err(|_| "opening the vaults panicked — see logcat for the backtrace".to_string())
+            .and_then(|r| r.map_err(|e| format!("could not open vaults: {e}")));
     let (fm_app, skipped) = match loaded {
         Ok(v) => v,
         Err(e) => {
@@ -233,26 +258,12 @@ fn blob_response(
 
 /// Minimal percent-decoding for the one place a reference crosses a URL.
 ///
-/// Hand-rolled rather than adding a crate: a `sha256:` reference is hex plus one colon, so the
-/// only escape that ever appears is `%3A`. Anything else passes through unchanged, which is the
-/// conservative direction — a reference that fails to resolve renders a placeholder.
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
-                out.push(b);
-                i += 3;
-                continue;
-            }
-        }
-        out.push(bytes[i]);
-        i += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
+/// **Lives in `fm_app::wire`**, not here. This crate is excluded from the workspace, so anything
+/// written in it is never compiled by `cargo test --workspace` and never tested — which is how
+/// `b64_decode`, the function every phone photo passes through, reached production with no test
+/// at all. The pure encodings moved to where the tests already run; what stays here is what
+/// genuinely needs Tauri.
+use fm_app::wire::percent_decode;
 
 /// **Ingest, the only way Android allows.**
 ///
@@ -272,7 +283,10 @@ fn percent_decode(s: &str) -> String {
 /// So base64 it is: a third larger and copied a few times, against media that does not arrive at
 /// all. The size ceiling that costs is real and is stated to the user rather than discovered as a
 /// crash — see `MAX_INGEST` below.
-#[tauri::command]
+/// **`(async)`, and that word is the difference between a usable app and a frozen one.** See the
+/// note on [`fm`] — this command is the worst case, because decoding a photo and writing a blob is
+/// the longest thing the phone ever does inside one call.
+#[tauri::command(async)]
 fn fm_ingest(
     name: String,
     vault: String,
@@ -288,45 +302,47 @@ fn fm_ingest(
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
 }
 
-/// Standard base64 → bytes. Hand-rolled rather than adding a crate for one function on one
-/// platform: the alphabet is fixed, there is no padding subtlety worth a dependency, and this is
-/// the only place in the tree that decodes any.
-///
-/// Returns `None` on any character outside the alphabet, so a truncated or mangled payload fails
-/// loudly instead of ingesting a prefix of the photo.
-fn b64_decode(s: &str) -> Option<Vec<u8>> {
-    const fn val(c: u8) -> i8 {
-        match c {
-            b'A'..=b'Z' => (c - b'A') as i8,
-            b'a'..=b'z' => (c - b'a' + 26) as i8,
-            b'0'..=b'9' => (c - b'0' + 52) as i8,
-            b'+' => 62,
-            b'/' => 63,
-            _ => -1,
-        }
-    }
-    let mut out = Vec::with_capacity(s.len() / 4 * 3);
-    let mut acc: u32 = 0;
-    let mut bits = 0u8;
-    for &c in s.as_bytes() {
-        if c == b'=' || c == b'\n' || c == b'\r' {
-            continue;
-        }
-        let v = val(c);
-        if v < 0 {
-            return None;
-        }
-        acc = (acc << 6) | v as u32;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-        }
-    }
-    Some(out)
-}
+/// Standard base64 → bytes — **in `fm_app::wire`**, for the reason given on `percent_decode`
+/// above: a function in this crate is a function no test can reach. Its guarantee (a mangled
+/// payload fails rather than ingesting a prefix of the photo) is now pinned by tests that run in
+/// `pixi run ci`.
+use fm_app::wire::b64_decode;
 
-#[tauri::command]
+/// **Every command on this platform must be `(async)`, or it freezes the screen.**
+///
+/// Three facts compose into one, and none of them is visible from this file alone:
+///
+/// 1. **Android never gets Tauri's async custom-protocol IPC.** `tauri`'s own `ipc-protocol.js`
+///    opens with `const canUseCustomProtocol = osName !== 'android'`; the fallback is
+///    `window.ipc.postMessage(JSON.stringify(payload))`.
+/// 2. **`postMessage` is an `@JavascriptInterface` method, and wry runs the handler inline** —
+///    `(ipc.handler)(request)` on the calling thread, no spawn, no channel. A JS→Java bridge call
+///    is *synchronous*: the page's JS thread is parked until Java returns.
+/// 3. **A plain `#[tauri::command]` is `ExecutionContext::Blocking`** — the macro runs the body
+///    and resolves the promise before returning.
+///
+/// Together: the UI could not paint for the duration of *any* command. Not a slow one — any one.
+/// That is why the phone presented as *freezing* rather than as merely slow, and why every other
+/// cost on this platform (a full-corpus scan, an `ls-remote`, a full FTS rebuild) showed up as the
+/// app locking up instead of as latency. The desktop never sees this: `fm-serve` is
+/// thread-per-connection.
+///
+/// `(async)` on the *sync* function is the whole fix. The macro then emits
+/// `resolver.respond_async_serialized(async move { … })`, which spawns onto the tokio runtime and
+/// returns immediately — the JNI call returns, `postMessage` returns, JS keeps running.
+///
+/// **Deliberately `#[tauri::command(async)]` and not `async fn`.** There is no `.await` in either
+/// body, so no `MutexGuard` can be held across one — the hazard that would make `App`'s
+/// `std::sync::Mutex` unsound here simply cannot arise. Writing `async fn` would create a future
+/// in which a later refactor *could* introduce one. The bound lands on the generated async block,
+/// which captures only `String`/`Value`/`AppHandle`, all `Send + 'static`; `Arc<App>` is resolved
+/// *inside* the body by `vault_state`, never passed across the boundary.
+///
+/// Two consequences to know about, both recorded in `known-issues.md`:
+///   - the `pagehide` flush weakens from effectively-synchronous to fire-and-forget;
+///   - replies can now interleave, so `NotePanel`'s note-loading effect needs the stale-response
+///     guard it always should have had.
+#[tauri::command(async)]
 fn fm(
     cmd: String,
     args: serde_json::Value,
@@ -341,6 +357,21 @@ fn fm(
         return Ok(serde_json::json!({ "agents": agent::online_agents() }).to_string());
         #[cfg(not(feature = "agent"))]
         return Ok("{\"agents\":[]}".to_string());
+    }
+    // **`agent_activity_poll` exists only in `fm-serve`, and the phone was asking anyway.**
+    //
+    // It is `fm-serve/src/agent.rs`'s own bookkeeping about a turn it is running — the core
+    // `dispatch` has never had such an arm, and should not: it is a transport concern, like
+    // `agents` above. So on the phone every poll fell through to `dispatch`, came back
+    // `unknown command: agent_activity_poll`, and was `log::error!`-ed on the way out. While a
+    // discussion was open that was a guaranteed-failing blocking round trip every 1.5 s — forty a
+    // minute, each one parking the JS thread and filling logcat with the same line.
+    //
+    // Answering it here costs nothing and is *honest*: this shell runs no turn of its own, so it
+    // has no activity to report. `{"active": false}` is the exact shape `ipc.ts` already falls
+    // back to on error, so the UI is unchanged — it just stops paying for the error.
+    if cmd == "agent_activity_poll" {
+        return Ok("{\"active\":false}".to_string());
     }
     #[cfg(feature = "agent")]
     if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {

@@ -157,6 +157,7 @@ describe('notes that are not in history', () => {
             title: 'A note nobody committed',
             bytes: 412,
             modified: '2026-07-31T09:57',
+            created: '2026-07-31T09:57',
             role: 'note',
             copies: 1,
           },
@@ -241,6 +242,9 @@ describe('the duplicate count', () => {
             title: '@lfm2.5-230m does mRNA change DNA? /search',
             bytes: 267,
             modified: '2026-07-31T07:44',
+            // The distinction that matters: made weeks earlier, *written* at 07:44 — which is what a
+            // copy or migration looks like, and not a burst of new notes.
+            created: '2026-07-10T11:02',
             role: 'message',
             copies: 138,
           },
@@ -253,7 +257,9 @@ describe('the duplicate count', () => {
     // The three things that turn a count into a cause: how many copies, which code path, and when.
     expect(await screen.findByText('×138')).toBeTruthy();
     expect(screen.getByText('message')).toBeTruthy();
-    expect(screen.getByText(/2026-07-31 07:44/)).toBeTruthy();
+    // Both stamps, each labelled — the row must not let one masquerade as the other.
+    expect(screen.getByText(/made 2026-07-10 11:02/)).toBeTruthy();
+    expect(screen.getByText(/written 2026-07-31 07:44/)).toBeTruthy();
   });
 });
 

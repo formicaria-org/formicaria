@@ -28,11 +28,14 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* · ***Startup is a contract*** (read before touching the shell's `setup`
-  hook or the render gate) · *An emulator may be installed to; the owner's phone may only be looked
-  at*.
+  hook or the render gate) · ***Every Android IPC command is `(async)`*** (read before adding a
+  command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
+  index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
+  may be installed to; the owner's phone may only be looked at*.
 - **`#ui`** (workspace/views/render): *A contributor is an email, everywhere* · *One shell, two
   arrangements* · *`.view` files parsed
-  server-side* · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
+  server-side* · ***A view says what it leaves out, and a board admits it scrolls*** (read before
+  changing what a pane shows about its own filtering) · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
   product* · *Whiteboard = embedded Excalidraw* · *Board images strip to the blob store* · *Assets
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
@@ -57,6 +60,145 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A view says what it leaves out, and a board admits it scrolls (2026-08-24, `#ui`)
+
+**Decision.** Two things a surface must disclose about what it is not showing:
+
+1. **`run_view` returns `filters`** — one plain-English phrase per `filter:` entry, built by
+   `views::describe_pred` from the file's own DSL (`status is not done`, `tagged lab`, `due between
+   X and Y`), and the pane header renders it as a chip that opens the **unfiltered** built-in
+   renderer with the same grouping. It rides on `ViewResult`, **not** `ViewInfo`: the words belong
+   to the payload they describe, and `list_views` is a separate fetch that runs once per vault
+   change and has failed outright on the phone before — an explanation that can arrive late, or
+   never, is the bug over again.
+2. **The board carries a rail** naming every column with its card count, marking the one at the
+   edge and jumping to any of them. It is always in the DOM and shown by CSS — measured overflow on
+   a wide pane, unconditional in the narrow container query — because *whether it is needed* is a
+   layout question and layout is the one thing jsdom cannot answer.
+
+**Why.** The owner: *"My done column in the board is not showing up, even though I have done
+notes."* The notes were there and the built-in board had the column. Two mechanisms can take a
+column off the screen and neither said a word: a saved view (`view: board` draws through the **same
+renderer** as the Board pane — same pixels, one column fewer) and horizontal scroll (a narrow pane
+snaps one column at a time, so column four is three swipes away). The vault's only `.view` was the
+first case.
+
+This is the discipline the manual already stated for a *broken* view — *"a broken view tells you
+why … so 'no matches' never masquerades as 'your file is wrong'"* — extended to a **working** one:
+a filter that deletes a column must not let the absence masquerade as missing notes. It matters
+more here than it would elsewhere because a `.view` file can be neither authored nor deleted from
+the UI, so the filter was unreachable as well as unseen (`known-issues.md`).
+
+**Consequence.** `describe_pred` carries negation *into* each phrase (`not:` recurses with `neg`
+flipped) so a filter reads as English rather than as an expression, and it is total by
+construction — it runs over the parsed file, before `lower_pred` validates it, so a conjunct the
+engine would reject still gets words instead of a panic. The renderers stay literal-free: the rail
+labels are `col.label`, and the chip's words come from the server. Pinned by `views.rs`' own tests,
+`ui/src/App.filteredView.test.ts` and `ui/src/renderers/Board.rail.test.ts`.
+
+## Backup is sufficient on its own — `commit` records the backlog, not just this process's writes (2026-08-20, `#data`)
+
+**Decision.** The `commit` arm stages the paths this process wrote **plus** everything `adoptable`
+finds outstanding in the vault. Recording is no longer a thing a user can be required to do: Backup
+(`commit → push`) clears the "N not in history" chip by itself. `record_unrecorded` stays as a
+targeted repair, not as a step anyone must know about.
+
+**Why.** The owner: *"When I press backup it should commit and push. I do not commit as a user,
+that is a background concept."* They were looking at **180 notes not in history in a vault that has
+a remote**, which Backup would not clear. Committing is git's model, and Backup is the only
+durability affordance the product offers — so whatever Backup does has to be enough.
+
+**Consequence — this reverses a guarded invariant, and the reversal is the point.**
+`unrecorded_after_restart.rs` asserted that a commit from a fresh process must record *nothing*,
+with the comment *"a future change that makes this line commit is a regression"*. The protection it
+named is real; attributing it to the **per-process write list** was the error. What actually
+protects a project vault from an `auto:` commit sweeping someone's index is the **naming scheme** —
+`adoptable` stages only `<notes dir>/<ULID>.md`, which `FileStore` writes and nothing else
+produces. The memory added no safety and one large cost: whether your work was recorded depended on
+when the process happened to start. `App::load` had already abandoned the property at open (it
+adopts, so the next commit after a relaunch records everything), so the invariant was already gone
+in production and alive only in a test that used `App::new` and skipped that path. The test now
+asserts the real property *directly*: a non-ULID file in the notes dir and a file outside it are
+both left alone.
+
+**Also fixed the blind spot that hid it.** `fm-app` had no `native-git` feature, so no test of a
+*command* could select the phone's backend — the exact gap `vcs::force_native`'s own doc warns
+about. It has one now, and `pixi run test-native-git` runs these tests through libgit2.
+
+**Still open:** `sync.svelte.ts`'s `commitStep` treats `committed: false` with no conflicts as
+success and pushes on, so a vault that records nothing can still report `synced`. Harmless once a
+commit records everything it can find; wrong in principle, and the reason a silent failure here
+looked like a working backup for weeks.
+
+## Every Android IPC command is `(async)` — a blocking one freezes the screen (2026-08-20, `#track-m`)
+
+**Decision.** Both commands in `mobile/src-tauri/src/lib.rs` are `#[tauri::command(async)]`, on the
+*sync* functions. `ci/checks.sh` fails the build on a bare `#[tauri::command]` in that file.
+
+**Why.** Three facts nobody had composed. Android never gets Tauri's async custom-protocol IPC
+(`canUseCustomProtocol = osName !== 'android'`), so it falls back to `window.ipc.postMessage`;
+that is an `@JavascriptInterface` method and wry runs the handler **inline**, and a JS→Java bridge
+call is synchronous, so the page's JS thread is parked until Rust returns; and a plain
+`#[tauri::command]` is `ExecutionContext::Blocking`. Net: **the UI could not paint for the duration
+of any command.** That is why the phone presented as *freezing* rather than as slow, and why every
+other cost on the platform — a full-corpus scan, an `ls-remote`, a full FTS rebuild — showed up as
+the app locking up. The desktop never saw it: `fm-serve` is thread-per-connection.
+
+**Consequence.** Deliberately `#[tauri::command(async)]` and **not** `async fn`: there is no
+`.await` in either body, so no `MutexGuard` can be held across one, and the hazard cannot arise;
+`async fn` would create a future in which a refactor could introduce it. Two follow-ons landed in
+the same change, both of which the blocking bridge had been hiding: replies can now interleave, so
+`NotePanel`'s note-loading effect gained the `cancelled` guard `ProposalReview` already had; and
+the `pagehide` flush weakens from effectively-synchronous to fire-and-forget (recorded in
+`known-issues.md`). Verified structurally, not by compiling — the mobile crate is
+workspace-excluded, which is the same reason the setup-hook guard beside it is a grep.
+
+## Android trusts its persisted index on open; the desktop rebuilds (2026-08-20, `#track-m` `#data`)
+
+**Decision.** `FileStore::open_incremental` / `MultiStore::open_with(_, ColdStart)` /
+`App::load_with(ColdStart)`. The Android shell passes `TrustIndex`; `fm-serve` and every test keep
+`Rebuild`. Gated on `PRAGMA user_version == INDEX_SCHEMA`, written only **after** the reindex has
+committed, falling back to a full rebuild whenever it does not match.
+
+**Why.** `open` rebuilt the entire FTS index from every file, every time. Android kills
+backgrounded apps constantly, so that was the cost of *every* relaunch — the app's slowest moment,
+all day, next to an `index.sqlite` that was buying nothing. `mobile-design.md` has asked for this
+since M0; what was missing was any way to know it is safe, which `known-issues.md` named as
+*"cold-start tests that do not exist."*
+
+**Consequence.** It is a **parameter, not a `cfg!`**, because it is a claim about the machine:
+incremental reconciles on mtime, so a writer that rewrites a file while preserving its mtime
+(`cp -p`, `rsync -a`, a restic restore) is invisible to it. A phone has none of those — no shell,
+no restic, and libgit2 writes files fresh. The frontend knows that; the store does not, and a
+`#[cfg(target_os)]` in the library would compile a wrong answer for every platform not yet listed
+(the same reasoning that made `open_external` a trait). `crates/fm-core/tests/cold_start.rs`
+asserts the mtime divergence **as a failing case on purpose**, so the gate's justification is
+executable rather than remembered. The marker is a *completion* marker, not a shutdown one:
+Android exits by `SIGKILL`, so there is nothing to hook on the way out. The ordering is the whole
+guarantee — the marker is written after `reindex` has committed, so **marker present implies rows
+durable**, and an interrupted rebuild rolls back without ever reaching it. Writing it inside the
+transaction was considered and is strictly worse: it reintroduces the one failure it exists to
+prevent (a marker for an index that is not complete).
+
+## The Android attachment ceiling is 16 MB, and the number counts copies (2026-08-20, `#track-m` `#vault`)
+
+**Decision.** `MAX_INGEST` drops from 48 MB to 16 MB.
+
+**Why.** 48 MB was chosen as a size a WebView could serialise, which measures the wrong thing. A
+file on the way in is copied roughly **ten** times — the `File`, the `readAsDataURL` result,
+Tauri's `JSON.stringify`, the JS→Java marshal (UTF-16, so ~2.7×), wry's `get_string` and
+`to_string_lossy`, `serde_json` into a `Value` and then into the argument, and the decoded
+`Vec<u8>`. A 12 MP photo peaks near 150 MB; the old ceiling permitted a peak near 600 MB, which is
+not a slow attach but `onRenderProcessGone` and the app vanishing with no message. 16 MB keeps
+every photo a phone takes (a 48 MP JPEG is ~12 MB) at roughly a third of the peak.
+
+**Consequence.** Chunking the *encode* was considered and rejected as a fix — it removes one copy
+of the ten, all the others being on the transport. The real fix is chunked **ingest**
+(`fm_ingest_chunk`/`fm_ingest_finish` over `BlobStore::put_file`, which already streams and hashes
+in 64 KB chunks), which would bound the transient regardless of file size and lift the video
+refusal. That is a transport change and is deliberately **not** smuggled in beside a bug fix; this
+number buys the headroom to do it properly. Recorded as outstanding in `known-issues.md`.
 
 ## A conflict surface must be derived from git, not from markers in the text (2026-07-31, `#git` `#data`)
 
@@ -1791,3 +1933,36 @@ that spawn fails. The page gets an uncontended window to render; the assistant w
 app is already usable. This is *only* about launch contention — the `/api/set_agent` "turn it on now"
 path stays immediate, because there the user is asking for the model, not for the app to open.
 Verified after the change: browser-open at +0.06 s, model spawn at +5.09 s.
+
+## 2026-07-31 — an unrecorded note shows **both** its `created` and its file mtime `#data`
+
+The "Not in history" rows showed one timestamp: the file's mtime. All 147 of the phone's rows read
+`2026-07-31 07:44`, and I read that as a one-minute burst of writes at machine pace. That inference is
+not available from mtime alone — a copy, a restore or a bulk rewrite stamps every file at once, weeks
+after the notes were made — and it was steering the diagnosis.
+
+So the row carries `created` (the note's own frontmatter, which survives copying) beside `modified`,
+each labelled *made* / *written*, and shown only when they differ. **Made ≠ written is the diagnosis**:
+same minute means the notes really were created then; an old `created` with a fresh `modified` means
+something rewrote notes it did not need to, which is a different bug with a different fix.
+
+Cost is one extra parse per displayed row, capped at `UNRECORDED_DETAIL` (50) — the same read that
+already yields `title` and `role`.
+
+## 2026-07-31 — a refused recording says **why**; `committed: false` was two answers wearing one face `#data`
+
+`commit_all` answers `bool`. It returns `false` when nothing of ours moved — the normal, quiet outcome
+of a debounced auto-commit — and also when **git refuses**, because a path is unmerged or the tree is
+unchanged. `record_unrecorded` passed that bool through, and the UI printed *"Nothing left to record"*
+for both. So the owner tapped Record with 147 notes outstanding and was told there was nothing to do.
+
+A silent refusal on the one action that rescues unrecorded notes is worse than an error, because it
+looks like success and stops the user looking. `record_unrecorded` now returns `reason` when it declines
+— recomputed at that call site rather than threaded through `commit_all`'s signature, since it is the
+only caller that owes an explanation — naming the unmerged notes, the missing identity, or the
+unchanged tree, and pointing at the surface that clears it. The UI shows it as an **error**, not a
+notice, because the action did not happen, and distinguishes it from an empty vault by `notes > 0`.
+
+Pinned by `fm-app/tests/unrecorded_after_restart.rs` (notes outstanding *and* a merge in flight) and
+`ui/src/App.recordRefused.test.ts`.
+

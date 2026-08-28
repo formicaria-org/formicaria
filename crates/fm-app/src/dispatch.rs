@@ -20,7 +20,7 @@
 use crate::commands;
 use crate::vaults::{self, VaultConfig};
 use crate::scope::Scope;
-use fm_core::{backup, git, vcs, MultiStore, Reindex, Scoped, Store};
+use fm_core::{backup, git, vcs, ColdStart, MultiStore, Reindex, Scoped, Store};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -131,6 +131,22 @@ impl Output {
     }
 }
 
+/// **`App` must stay shareable across threads, and this is the only place CI can check it.**
+///
+/// Every transport already relies on it — `fm-serve` is thread-per-connection, and the mobile
+/// shell's commands are `#[tauri::command(async)]`, so `tauri`'s `.manage(Arc<App>)` and its
+/// spawned futures both require `Send + Sync + 'static`. But the mobile crate is excluded from
+/// the workspace, so if a field here were swapped for something thread-hostile (an `Rc`, a
+/// `RefCell`, a raw pointer) `pixi run ci` would stay green and the breakage would appear only in
+/// an Android build nobody runs on the change that caused it.
+///
+/// A `const` assertion costs nothing at runtime and fails at compile time, in `cargo test
+/// --workspace`, naming exactly what broke.
+const _: () = {
+    const fn assert_shareable<T: Send + Sync + 'static>() {}
+    assert_shareable::<App>();
+};
+
 impl App {
     /// Open every configured vault and build the surface over them.
     ///
@@ -141,10 +157,24 @@ impl App {
     /// incomplete vault is the one outcome worse than not starting at all, which is why
     /// this hands them back rather than logging them somewhere a frontend cannot see.
     pub fn load() -> Result<(Self, Vec<String>), String> {
+        Self::load_with(ColdStart::Rebuild)
+    }
+
+    /// [`App::load`], with the shell's claim about how much of the index it can trust.
+    ///
+    /// **Only a shell can answer this**, which is why it is a parameter and not a `cfg!` in
+    /// `fm-core`. See [`ColdStart`]: trusting the persisted index is safe exactly where no tool
+    /// can rewrite a note file while preserving its mtime. The Android shell knows it is on a
+    /// platform with no shell, no restic and no `rsync`; `fm-serve` knows the opposite. Neither
+    /// fact belongs to the store, and a `#[cfg(target_os)]` inside the library would compile a
+    /// wrong answer for every platform not yet listed — the same reasoning that made
+    /// `open_external` a trait rather than a ladder.
+    pub fn load_with(cold: ColdStart) -> Result<(Self, Vec<String>), String> {
         let vaults::VaultList { vaults, path: config, writable: config_writable } =
             vaults::load();
-        let mut store = MultiStore::open(
+        let mut store = MultiStore::open_with(
             &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
+            cold,
         )
         .map_err(|e| format!("open vaults: {e}"))?;
         // **Rebuild the write-record from the filesystem, once, here.**
@@ -287,6 +317,14 @@ fn describe_conflict(kind: git::ConflictKind) -> String {
         AddedByThem => "Created on the other device, and this side does not have it.",
     }
     .to_string()
+}
+
+/// When the note says it was created, from its own frontmatter — the stamp shown beside an
+/// unrecorded note, so "written 7 days ago and never committed" is legible at a glance.
+fn created_of(full: &std::path::Path) -> Option<String> {
+    let text = std::fs::read_to_string(full).ok()?;
+    let obj = fm_core::frontmatter::from_file(&text).ok()?;
+    Some(crate::dto::stamp(obj.created))
 }
 
 /// Which code path wrote this note, from the markers the note itself carries.
@@ -700,6 +738,15 @@ fn dispatch_inner(
                                 .and_then(|m| m.modified().ok())
                                 .map(crate::dto::stamp_of),
                             role: role_of(&full),
+                            // **The note's own `created`, beside the file's mtime.** They answer
+                            // different questions and I conflated them: mtime says when the *file* was
+                            // written, which a copy, a restore or a migration resets wholesale. Every
+                            // one of 147 rows showing the same minute looked like a one-minute burst of
+                            // writes; it is equally consistent with the whole set being copied into
+                            // this vault in one minute, weeks after the notes were made. `created`
+                            // tells the two apart, and without it the timestamp column invites exactly
+                            // the wrong conclusion.
+                            created: created_of(&full),
                             copies: body_key(&full)
                                 .and_then(|b| bodies.get(&b).copied())
                                 .unwrap_or(1),
@@ -732,7 +779,44 @@ fn dispatch_inner(
             let message =
                 format!("notes: recording {} note(s) the app had not staged", found.len());
             let made = vcs::commit_all(&cfg.path, &message, &paths).map_err(err)?;
-            json(serde_json::json!({ "committed": made, "notes": found.len() }))
+            // **When git declines, say why.** `commit_all` answers `bool`, and every reason it can
+            // return `false` for collapses into that one value: an unmerged path, an unchanged tree,
+            // nothing staged. The caller then reported `false` as *"Nothing left to record"* — so with
+            // 147 notes outstanding and one note mid-merge, the button reassured the owner that there
+            // was nothing to do, forever. A silent refusal on the one action that rescues unrecorded
+            // notes is worse than an error, because it looks like success.
+            //
+            // The reasons are recomputed here rather than threaded through `commit_all`'s signature:
+            // this is the only caller that needs to explain itself (a debounced auto-commit returning
+            // `false` is the normal, quiet case), and the checks are the same two conditions the
+            // backend tested, read back after the fact.
+            let reason = if made {
+                String::new()
+            } else {
+                let unmerged = vcs::conflicted(&cfg.path).map_err(err)?;
+                if !unmerged.is_empty() {
+                    format!(
+                        "{} note(s) in this vault are mid-merge. Git refuses to commit anything \
+                         until those are resolved — open Conflicts and settle them first.",
+                        unmerged.len()
+                    )
+                } else if vcs::identity(&cfg.path).is_none() {
+                    "This vault has no git identity, so nothing can be committed. Set your name \
+                     and email in Backup settings."
+                        .to_string()
+                } else {
+                    format!(
+                        "Git accepted no change for the {} note(s) found. Nothing was lost — the \
+                         notes are still on this device.",
+                        found.len()
+                    )
+                }
+            };
+            json(serde_json::json!({
+                "committed": made,
+                "notes": found.len(),
+                "reason": reason,
+            }))
         }
         // The collaboration read-model: who last edited each note, and when, straight from each
         // vault's git log — one command behind the authorship labels, the activity stream, and
@@ -1038,7 +1122,37 @@ fn dispatch_inner(
             // Exactly the files this app wrote or deleted — not a directory, and certainly
             // not `-A`. A vault may also be a repo you commit to yourself, and this fires
             // five seconds after every save.
-            let paths = g.all.written(&cfg.name);
+            let mut paths = g.all.written(&cfg.name);
+            // **Plus anything outstanding this process has no memory of writing.**
+            //
+            // The write list is per-process, and that precision is deliberate. But the owner's
+            // report is the case it fails: *"When I press backup it should commit and push. I do
+            // not commit as a user, that is a background concept."* Backup is the only durability
+            // affordance in the product, so a commit that records only what *this* run happened to
+            // write is not sufficient — and on Android, where the app is normally left by being
+            // killed, "this run" is usually a few minutes of work while the backlog is everything
+            // before it. That backlog reached 180 notes on the owner's phone, in a vault with a
+            // remote, and pressing Backup did not clear it.
+            //
+            // `App::load` already adopts them at open, which fixes the *next* commit after a
+            // relaunch. It does not help a session that has been running since before the notes
+            // appeared, and it made "is my work recorded?" depend on when the process happened to
+            // start — which is exactly the background concept a user should never have to hold.
+            // Doing it here makes the answer independent of that.
+            //
+            // **The safety argument is unchanged and is the naming scheme**, not the memory: a
+            // file at `<notes dir>/<ULID>.md` is what `FileStore` writes and nothing else
+            // produces, so this can never sweep up a hand-written file or someone's staged work.
+            // It is the same filter `adoptable` has applied at open since 2026-07-31; only the
+            // moment is new.
+            //
+            // Costs one `git status` over the notes dir per commit, on a path already debounced to
+            // once per five seconds, and only for paths git does not already have.
+            for extra in adoptable(&cfg.path) {
+                if !paths.contains(&extra) {
+                    paths.push(extra);
+                }
+            }
             let made = vcs::commit_all(&cfg.path, &s("message"), &paths).map_err(err)?;
             // Cleared only once the commit actually landed: a failed commit that forgot its
             // list would leave those notes unstaged forever.

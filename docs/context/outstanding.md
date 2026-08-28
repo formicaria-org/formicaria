@@ -75,6 +75,38 @@ launches clean, but `img-src` is only really proven by **a note with an image** 
 `fmblob://` to `http://fmblob.localhost`) and `worker-src`/fonts by **a whiteboard**. If either
 policy is wrong the symptom is a broken image, not a crash — so it will not announce itself.
 
+**◐ Narrowed again 2026-08-20**, and the reason is worth stating precisely, because it changes what
+"seen by eye" is still buying. The suite can now *drive* the phone's own branches — `asPhone()` in
+`ui/src/lib/harness.ts` installs a fake `__TAURI_INTERNALS__` so `ipc.ts` takes the Tauri transport,
+and `test-setup.ts` supplies a settable `matchMedia` so `(pointer: coarse)` branches execute. So
+"the touch shell is untested" is no longer true of the *logic*.
+What it does **not** buy, and what still needs the device:
+- **Layout, reach and legibility.** jsdom applies no CSS at all. Thumb reach on the 2.75rem targets,
+  the single-column reflow, and anything behind a `@media (pointer: coarse)` block are unchanged by
+  any of this.
+- **The synchronous JNI bridge**, which is the mechanism behind the freezes that prompted the
+  2026-08-20 work. Nothing host-side reproduces it; the `(async)` fix is verified by a `checks.sh`
+  grep and by compiling for `aarch64-linux-android`, **not by running**.
+- **The CSP claims above**, unchanged — still a real note with a real image, and a whiteboard.
+**Done now looks like:** install the next APK, open a big note and type a paragraph, add a photo,
+leave the app and come back. Those are the three reported symptoms and none is provable from CI.
+
+### 1.3 Chunked ingest — the real fix for the photo path
+`MAX_INGEST` dropped 48 → 16 MB on 2026-08-20 (`decisions.md#track-m`), which keeps every phone
+photo and drops the transient peak from ~600 MB to ~200 MB. It is an interim: a file still crosses
+the bridge as **one JSON string**, copied roughly ten times between the page and Rust, so the
+ceiling is a memory limit wearing a size limit's clothes and **video is still refused**.
+
+**Done looks like:** `fm_ingest_chunk(session, seq, data)` + `fm_ingest_finish(session, name, vault)`
+over `BlobStore::put_file`, which already streams and hashes in 64 KB chunks; `commands::asset_note`
+is already factored out for exactly this second byte-arrival path. Bounds the transient at one chunk
+regardless of file size, and lifts the video refusal. Content addressing is safe — the hash is taken
+once over the assembled file, chunks being pure transport. **The one new hazard** is an orphan
+session after a `SIGKILL` mid-upload; sweep the session directory at boot.
+
+Deliberately *not* done alongside the 2026-08-20 fixes: it is a transport design change, and
+smuggling one in beside a bug fix is how a transport ends up with two shapes nobody chose.
+
 ### 1.2 Where a phone's media actually survives
 **Video attaches and plays on a real phone (owner-confirmed, 2026-07-20)** — this entry used to
 say it did not, which was overstated. Photos and video both go through the same base64 `fm_ingest`

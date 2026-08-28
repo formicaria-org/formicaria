@@ -32,6 +32,30 @@ pub struct MultiStore {
     unopened: Vec<(String, String)>,
 }
 
+/// How much of the persisted index to trust when opening a vault.
+///
+/// **This is a claim about the machine, not a performance knob**, which is why it is an explicit
+/// argument rather than a flag someone can flip for speed.
+///
+/// [`FileStore::named_incremental`] reconciles on mtime, so trusting the index is safe only where
+/// nothing can change a note file *without moving its mtime*. `cp -p`, `rsync -a` and a restic
+/// restore all do exactly that, and any of them would leave a note served stale until something
+/// else happened to touch it. Whether such a writer can exist is a property of the platform, and
+/// the platform is known to the frontend, not to the store.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ColdStart {
+    /// Re-read every file. The default, and the only safe answer on a desktop, where the user has
+    /// a shell, restic, and every other tool that can restore a file's old mtime.
+    Rebuild,
+    /// Reconcile against the persisted index, falling back to a full rebuild if it was written by
+    /// another schema or never finished.
+    ///
+    /// Chosen by the Android shell: a phone has no shell, no restic, and libgit2 writes files
+    /// fresh — so no mtime-preserving writer exists there. It matters most there too, because the
+    /// OS kills backgrounded apps constantly, making the cold path the *common* path.
+    TrustIndex,
+}
+
 impl MultiStore {
     /// Open every vault in the list. The **first is the default**: a note that names no
     /// vault (anything from `Object::new`, i.e. every fresh capture) lands there, so the
@@ -55,10 +79,24 @@ impl MultiStore {
     /// simply missing, which is indistinguishable from data loss. Same discipline as
     /// `FileStore::skipped`: named, never dropped.
     pub fn open<P: AsRef<Path>>(vaults: &[(String, P)]) -> Result<Self, StoreError> {
+        Self::open_with(vaults, ColdStart::Rebuild)
+    }
+
+    /// [`MultiStore::open`], choosing how much of the persisted index to trust.
+    ///
+    /// The choice belongs to the *frontend*, not here: see [`ColdStart`].
+    pub fn open_with<P: AsRef<Path>>(
+        vaults: &[(String, P)],
+        cold: ColdStart,
+    ) -> Result<Self, StoreError> {
         let mut open = Vec::new();
         let mut unopened = Vec::new();
         for (name, path) in vaults {
-            match FileStore::named(path, name.clone()) {
+            let opened = match cold {
+                ColdStart::Rebuild => FileStore::named(path, name.clone()),
+                ColdStart::TrustIndex => FileStore::named_incremental(path, name.clone()),
+            };
+            match opened {
                 Ok(store) => open.push(store),
                 Err(e) => unopened.push((name.clone(), e.to_string())),
             }

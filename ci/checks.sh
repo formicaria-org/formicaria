@@ -280,6 +280,55 @@ if grep -q 'static BOOT:.*OnceLock' "$mobile_lib"; then
     fail=1
 fi
 
+echo "[check] every Android IPC command is (async) — a blocking one freezes the screen..."
+# **The single biggest cause of "the phone app is unusable".** Three facts compose:
+#   1. Android never gets Tauri's async custom-protocol IPC (`canUseCustomProtocol = osName !==
+#      'android'`), so it falls back to `window.ipc.postMessage`.
+#   2. That is an `@JavascriptInterface` method and wry runs the handler INLINE — a JS->Java bridge
+#      call is synchronous, so the page's JS thread is parked until Rust returns.
+#   3. A plain `#[tauri::command]` is `ExecutionContext::Blocking` — the body runs before the call
+#      returns.
+# Net: the UI could not paint for the duration of *any* command, which is why every other cost on
+# this platform presented as a freeze rather than as latency. `(async)` makes the macro spawn and
+# return immediately.
+#
+# Structural grep for the same reason as the guards above: `pixi run ci` has no Android toolchain
+# and the mobile crate is workspace-excluded, so nothing here compiles it. One forgotten `(async)`
+# on a new command silently reintroduces the freeze for that command only — the hardest kind to
+# attribute, which is exactly why it is worth a line in CI.
+#
+# Anchored to the start of the line so the attribute is matched and prose about it is not: this
+# file's own doc comments discuss `#[tauri::command]` by name, and an unanchored grep failed on
+# them — a guard that cannot be explained in a comment beside itself is a guard people delete.
+#
+# **Every `.rs` in the crate, and every spelling of the attribute.** The first version of this
+# guard matched only the exact literal `#[tauri::command]` in `lib.rs`, which an adversarial review
+# showed has two false negatives that both reintroduce the freeze with CI green: a command carrying
+# any other argument (`#[tauri::command(rename_all = "snake_case")]`) is blocking and was not
+# matched, and a command added to `agent.rs` — or any future module — was not looked at.
+#
+# So: scan the whole crate, match any `#[tauri::command` attribute, and require a bare `async`
+# among its arguments.
+for f in mobile/src-tauri/src/*.rs; do
+    [ -f "$f" ] || continue
+    bad_cmds=$(grep -nE '^[[:space:]]*#\[tauri::command(\]|\()' "$f" 2>/dev/null \
+        | grep -vE '#\[tauri::command\(([^)]*,[[:space:]]*)?async[[:space:]]*[,)]' || true)
+    if [ -n "$bad_cmds" ]; then
+        echo "$bad_cmds" | sed "s|^|  $f:|"
+        echo "  FAIL: the commands above are blocking (#[tauri::command] with no 'async'). On"
+        echo "        Android that parks the WebView's JS thread for the whole call and the app"
+        echo "        freezes. Use #[tauri::command(async)] — on the sync fn, not by making it"
+        echo "        'async fn', so no MutexGuard can ever be held across an .await."
+        fail=1
+    fi
+done
+if ! grep -rqE '^[[:space:]]*#\[tauri::command\(([^)]*,[[:space:]]*)?async[[:space:]]*[,)]' \
+    mobile/src-tauri/src 2>/dev/null; then
+    echo "  FAIL: mobile/src-tauri/src exposes no async #[tauri::command] at all — this guard can"
+    echo "        no longer see the IPC surface. Re-anchor it rather than deleting it."
+    fail=1
+fi
+
 echo "[check] the boot gate has a screen for every state (no blank first paint)..."
 # The other half of the same bug: `App.svelte`'s gate rendered NOTHING while `vaults === null`, so
 # "the backend has not answered yet" and "the backend is dead" were one screen with no words on it.

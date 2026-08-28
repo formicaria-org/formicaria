@@ -145,6 +145,16 @@ export interface Feed {
   /** Conflicted notes (Collaboration surface) — shown above proposals as "needs resolution".
    *  Carries the conflict *kind*, because only one kind can be resolved by editing the note. */
   conflicts?: ConflictInfo[];
+  /** The saved view this feed came from, when it came from one — what it filters out, in words,
+   *  plus the built-in renderer it shadows so the pane can offer the unfiltered version.
+   *
+   *  **It rides with the feed, not with the view list.** The words describe *this* payload, and a
+   *  pane rendering a view before (or without) a successful `list_views` would otherwise show a
+   *  filtered board with nothing to explain it — which is the bug, reintroduced through the fix's
+   *  own data source. `list_views` is fetched once per `vaults` change and has failed on the phone
+   *  before (`App.boot.test.ts`); `run_view` arrives with the board itself and cannot disagree
+   *  with it. */
+  view?: { filters: string[]; renderer: Renderer; group_by: string | null };
 }
 
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or

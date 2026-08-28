@@ -88,14 +88,14 @@ filter:              # every entry is ANDed onto the renderer's own filter
 | `not:` + one entry | the negation of it |
 | `any:` + a list of entries | at least one of them (an OR) |
 
-```
-
 > **Only three renderers actually draw differently.** `search` and `gallery` are still
 > *accepted* in a `.view` file, but there is no Search or Gallery pane renderer any more —
 > both fall through to the **timeline**, so a view asking for them renders as a journal.
 > Use `board`, `agenda` or `timeline` and say what you mean. (Full-text search lives in the
 > top bar; assets are reached from the notes that reference them, which is why the standalone
-> gallery went away.)yaml
+> gallery went away.)
+
+```yaml
 name: Lab, due this fortnight, still open
 view: agenda
 filter:
@@ -117,6 +117,17 @@ your filter narrows *within* that, it cannot widen it to include assets.
 If a `.view` file has a mistake it is still **listed, with its parse error** rather than
 quietly dropped — a broken view tells you why. Running it surfaces the same error instead of
 returning an empty result, so "no matches" never masquerades as "your file is wrong".
+
+### A view says what it leaves out
+
+A view draws through the same renderer as the built-in it shadows: a `view: board` and the
+Board are the same screen. So a filter that removes a whole column removes it *silently* —
+and a missing column reads as missing notes.
+
+The pane header therefore shows what the view narrows to, in the words of the file itself —
+**filtered: status is not done** — and clicking it opens the plain, unfiltered Board (or
+Agenda, or Timeline) with the same grouping, so the rest of your notes are one click away.
+The view picker takes you back.
 
 ## Theme
 

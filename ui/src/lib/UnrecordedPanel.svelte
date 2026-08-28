@@ -120,7 +120,14 @@
               <!-- **The duplicate count is the diagnosis.** "147 notes" says nothing; "one note
                    written 138 times" names a loop. -->
               {#if n.copies > 1}<span class="copies">×{n.copies}</span>{/if}
-              <span class="meta">{size(n.bytes)}{n.bytes != null && n.modified ? ' · ' : ''}{when(n.modified)}</span>
+              <!-- **Both times, and labelled**, because they answer different questions: a copy or a
+                   restore resets every file's mtime at once, which makes an old set look like a fresh
+                   burst. `created` is the note's own. -->
+              <span class="meta">
+                {size(n.bytes)}
+                {#if n.created}· made {when(n.created)}{/if}
+                {#if n.modified && n.created !== n.modified}· written {when(n.modified)}{/if}
+              </span>
             </li>
           {/each}
         </ul>

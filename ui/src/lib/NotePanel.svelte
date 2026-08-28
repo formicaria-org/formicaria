@@ -35,8 +35,9 @@
   import { clickOutside } from './clickOutside';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
-  import { countOf, nthIndexOf } from './locate';
+  import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
+  import { beatMs, POLL_BUSY_MS } from './pollBeat';
   import { startRecording, type Recording } from './record';
   import { isRemote } from './remote';
   import VaultBadge from './VaultBadge.svelte';
@@ -231,7 +232,7 @@
         return { reason: `no bytes in vault "${note?.vault || 'default'}" for ${ref}` };
       }
       const mime = status.mime ?? '';
-      if (streamsBlobs) return { url: assetUrl(ref), mime };
+      if (streamsBlobs()) return { url: assetUrl(ref), mime };
       const buf = await ipcResolveAsset(ref, 'full');
       if (!buf || buf.byteLength === 0) {
         return { reason: 'the vault has this blob but it read back empty' };
@@ -244,13 +245,26 @@
     }
   }
 
+  // Load the note this pane points at, and **ignore a reply that arrives after the pane has
+  // moved on** — the same `cancelled` guard `ProposalReview.svelte` already carries.
+  //
+  // It was safe to omit here only by accident. On Android every command went over a *synchronous*
+  // JNI bridge, so a second `getNote` could not start until the first had finished and the race
+  // was unreachable; on the desktop the panel is fast enough that nobody hit it. Making the
+  // shell's commands `(async)` — which is what stops the phone freezing — makes replies
+  // genuinely concurrent, and without this an older, slower `get` lands last and shows the wrong
+  // note in the pane, with `draft`/`base` to match. `base` being wrong is the dangerous part: the
+  // next autosave would carry another note's version.
   $effect(() => {
+    const which = id;
+    let cancelled = false;
     note = null;
     editing = false;
     boardFull = false; // opening a different note leaves any full-screen board
     revokeAssets();
-    getNote(id)
+    getNote(which)
       .then((n) => {
+        if (cancelled) return;
         note = n;
         draft = n?.body ?? '';
         base = n?.version ?? '';
@@ -268,7 +282,12 @@
           if (startEditing) editing = true; // "New note" opens straight in the editor
         }
       })
-      .catch((e) => (error = String(e)));
+      .catch((e) => {
+        if (!cancelled) error = String(e);
+      });
+    return () => {
+      cancelled = true;
+    };
   });
 
   // Render the read view when not editing (a textarea holds the literal bytes).
@@ -793,6 +812,27 @@
   // no new Kind (the model resists that).
   let isBoard = $derived(note?.props?.view === 'board');
 
+  /// **Which note this pane is showing — as a memo, so effects stop re-running on every save.**
+  ///
+  /// Two `$effect`s below want to fire when the pane changes note. Both read `note?.id`, and in
+  /// Svelte 5 that subscribes them to the whole `note` signal, not to the id. `save()` does
+  /// `note = { ...note, body: draft }` — a fresh object, so the signal is invalidated and both
+  /// effects re-run — **every 500 ms of typing**, even though the id never moved.
+  ///
+  /// What that cost, and it is not just cost:
+  ///  - `backlinks` has no `Text` predicate, so the server falls back to `load_all()`: every note
+  ///    in every vault, YAML-hydrated, body-scanned, under the vault lock. Once per autosave.
+  ///  - the discussion effect re-ran too, and on an ordinary note its `else` branch sets
+  ///    `discOpen = false` — so opening a note's comment thread and then typing in the body
+  ///    **closed the thread on the next autosave**. That is a functional defect reachable by
+  ///    ordinary use, and it is the reason this is a fix and not an optimisation.
+  ///
+  /// A `$derived` returning an unchanged value is a genuine memo barrier — the runtime only bumps
+  /// the derived's version when `!equals(value)` — so the effects below now re-run when the id
+  /// really changes and not otherwise. `untrack` is not needed, and would be worse: it would hide
+  /// the dependency rather than narrow it.
+  let noteId = $derived(note?.id ?? null);
+
   // A first-class discussion — a note that is the root of its own thread (`thread_of` points at
   // itself, the self-anchor `create_discussion` writes). Its content is the conversation, not a
   // document, so the pane suppresses the read/edit body and shows the thread as the body.
@@ -815,7 +855,7 @@
   // scan on the server, no reverse index); shown only when there is at least one.
   let backRefs = $state<ObjectMeta[]>([]);
   $effect(() => {
-    const id = note?.id;
+    const id = noteId; // the memo, not `note?.id` — see `noteId` for what that cost
     backRefs = [];
     if (id) void ipcBacklinks(id).then((r) => (backRefs = r)).catch(() => {});
   });
@@ -922,17 +962,38 @@
   // between. One cheap poll does both: it shows the wheel with the current stage, and it picks up
   // the reply the moment it lands (and clears the wheel). Torn down when the discussion closes or
   // the note changes, so nothing polls in the background.
+  /// Was the agent working on the previous tick? Used to refresh the proposal on the *edge*
+  /// rather than on every tick — see below. Plain `let`: nothing renders it.
+  let agentWasActive = false;
+
   async function pollAgent() {
     if (!note) return;
     // Refresh who's online (for the picker + offline warning) alongside the activity poll.
     ipcOnlineAgents().then((names) => (agentsOnline = names));
-    void refreshProposal(); // the agent may have created/refined this note's PR since the last tick
     let a;
     try {
       a = await ipcAgentActivity(note.id);
     } catch {
       a = { active: false } as const;
     }
+    // **`proposal_for` is refreshed on an edge, never on every tick.** It used to run
+    // unconditionally right here, and it is not cheap: `open_proposal_for` calls `proposals()`,
+    // whose filter carries no `Text` predicate, so the server falls back to `load_all()` — every
+    // note in every vault, hydrated — and then opens a libgit2 handle per candidate. At a 1.5 s
+    // interval that is 40 full-corpus scans a minute, for as long as any discussion is open, each
+    // one parking the phone's UI thread. A proposal only appears or changes when a turn starts or
+    // a reply lands, so those are the moments worth asking at.
+    //
+    // **The edge is "a turn is in flight", not `a.active`, and that distinction is the phone.**
+    // `agent_activity_poll` is `fm-serve`'s own bookkeeping and does not exist in the core
+    // dispatcher, so the Android shell answers a flat `{"active": false}` — meaning `a.active` is
+    // *never* true there. Keying the refresh on it alone left the phone's proposals appearing only
+    // when a reply happened to change the thread count, which an adversarial review caught before
+    // it shipped. `pending`/`agentWorking` are set locally by this frontend when the user asks,
+    // so they work identically on both platforms; `a.active` refines them when a backend can say.
+    const busy = a.active || agentWorking !== null || pending !== null;
+    if (busy !== agentWasActive) void refreshProposal(); // both edges: a turn began, or it ended
+    agentWasActive = busy;
     // Reload the thread whenever anything might have changed (agent active, we were working, or we're
     // waiting on a reply), so a landed reply both shows *and* clears the wheel.
     if (a.active || agentWorking !== null || pending !== null) {
@@ -941,6 +1002,7 @@
         if (t.count !== discCount || t.messages.at(-1)?.id !== discMessages.at(-1)?.id) {
           discMessages = t.messages;
           discCount = t.count;
+          void refreshProposal(); // a reply landed — the other moment a PR can have moved
         }
       } catch {
         /* transient — the next poll retries */
@@ -968,7 +1030,11 @@
     // thread (which is not `isDiscussion` but still has a reply box + @-picker). Gating on
     // `isDiscussion` was the bug: in a note's comment thread the poll never started, so the picker's
     // agent/collaborator data was never fetched and `@` showed nothing.
-    if (!(discOpen && note?.id)) return;
+    // `noteId`, not `note?.id` — the memo, for the same reason as the two effects above. Reading
+    // `note` here subscribed this effect to the whole signal, so **every autosave tore the poll
+    // down and rebuilt it**, and the teardown clears `agentWorking`/`pending` — i.e. typing in a
+    // note while an agent was working wiped the progress wheel every 500 ms.
+    if (!(discOpen && noteId)) return;
     // Who can be @-mentioned here — the vault's collaborators (git authors of every discussion),
     // fetched once when it opens. Unioned with the live agents in `mentionCandidates`. Best-effort:
     // a git-less or empty vault just leaves the picker to the online agents.
@@ -982,9 +1048,41 @@
         collaborators = [...names];
       })
       .catch(() => {});
-    const timer = setInterval(pollAgent, 1500);
+
+    // **A self-rescheduling timeout, not a fixed interval, so the beat matches the stakes.**
+    //
+    // 1.5 s is right while an agent turn is in flight — that is a progress wheel, and a stale one
+    // is worse than none. It is wrong when nothing is happening, which is nearly always: an open
+    // discussion with an idle agent was costing two blocking IPC round trips every 1.5 s, on a
+    // battery device, indefinitely.
+    //
+    // `setInterval` cannot express that, because the delay is fixed at creation. A timeout that
+    // reschedules itself *after* the poll resolves also stops ticks from stacking up behind a slow
+    // one — which on Android, where each round trip parks the JS thread, is how a poll turns into
+    // a permanent freeze. The two numbers live in `pollBeat.ts`, where they are testable without
+    // a clock.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let stopped = false;
+    // **`beat()` must not be called while this effect body is running.**
+    //
+    // It reads `agentWorking` and `pending`, and a read during the effect's synchronous execution
+    // *subscribes the effect to them*. Since `pollAgent` writes both, the effect then re-ran on
+    // every poll — and its cleanup sets `agentWorking = null; pending = null`, which writes them
+    // again. A feedback loop that also wiped the progress wheel it exists to drive.
+    //
+    // The first delay is therefore a plain constant, and every later one is computed inside
+    // `tick`, which runs from a timer — outside any tracking context, so those reads subscribe to
+    // nothing. `POLL_BUSY_MS` for the first tick because a discussion that was just opened is the
+    // case most likely to have something in flight.
+    const tick = async () => {
+      await pollAgent();
+      if (!stopped) timer = setTimeout(tick, beatMs(agentWorking !== null || pending !== null));
+    };
+    timer = setTimeout(tick, POLL_BUSY_MS);
     return () => {
-      clearInterval(timer);
+      stopped = true;
+      clearTimeout(timer);
+      agentWasActive = false;
       agentWorking = null;
       pending = null;
     };
@@ -1001,10 +1099,16 @@
 
   // A discussion opens straight onto its conversation: the thread is shown and fetched as soon as
   // the note loads, never collapsed. A plain note starts collapsed (and this also clears a prior
-  // discussion's open state when the pane switches notes). Runs on note-change, not on toggle —
-  // it reads `note?.id`/`isDiscussion`, so a manual toggle below does not re-trigger it.
+  // discussion's open state when the pane switches notes). Runs on note-**change**, not on toggle.
+  //
+  // **It reads `noteId`, the memo, and that is load-bearing.** Reading `note?.id` here subscribed
+  // it to the whole `note` signal, which `save()` reassigns on every autosave — so on an ordinary
+  // note the `else` branch fired mid-typing and set `discOpen = false`, silently closing a comment
+  // thread the user had opened (and tearing down the poll effect above with it). Two more
+  // full-corpus scans per keystroke-pause on a discussion, and a disappearing thread on everything
+  // else. See `noteId`.
   $effect(() => {
-    const id = note?.id;
+    const id = noteId;
     noteProposal = null; // never carry another note's PR across a pane switch
     if (isDiscussion && id) {
       discOpen = true;
@@ -1278,7 +1382,11 @@
       return draft.length; // selection escaped the read view — no ordinal to count
     }
     const hit = nthIndexOf(draft, word, countOf(before.toString(), word));
-    return hit >= 0 ? hit : draft.length;
+    // **Never inside a reference.** The ordinal is a hint (see `locate.ts`), and a hint used as a
+    // caret put an insertion five characters into an image's hash on the owner's phone, corrupting
+    // the note permanently. Snapping costs a caret that is occasionally a few words off; not
+    // snapping costs the note.
+    return hit >= 0 ? outsideDestination(draft, hit) : draft.length;
   }
 
   async function openEditor(at?: number) {
