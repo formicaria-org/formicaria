@@ -28,6 +28,25 @@ When you finish substantive work, **before ending** (full protocol in `docs/cont
 Prune the always-read layer (a stale synthesis is worse than none); append the decision record.
 Keep the two layers together under ~400 lines — `ci/checks.sh` fails on a dead router pointer.
 
+## Before you add anything — four questions
+
+This repo has ruled on a lot, and the rulings are easy to contradict by accident: every addition is
+justified locally, and nothing here checks the sum. So before writing code that **adds** something —
+a dependency, a file in the release archive, a relaxed guard, a changed default:
+
+1. **What subject is this?** Grep `decisions.md`'s index: `#seams` `#git` `#sync` `#track-m` `#ui`
+   `#vault` `#data` `#toolchain` `#agent`.
+2. **Read the entries it names — and read past them.** The index is a starting point, not a
+   contents page. (Found the hard way: the decisive ruling on desktop libgit2 is filed under
+   `#track-m`, while the index lists the question under `#git`.)
+3. **Classify honestly: permitted / extends an exception / contradicts a standing decision.** If
+   everything you ever check comes back "permitted", you are not applying this.
+4. **Does it widen what ships?** If yes it earns a `decisions.md` entry whatever the verdict.
+
+**If it contradicts, write the dated reversal first** — and put a `> SUPERSEDED` banner on the entry
+it supersedes. Writing it first forces the argument while changing course is still cheap; writing it
+afterwards is how a project stops being what it said it was, one reasonable step at a time.
+
 ## Non-negotiable house rules (full detail in docs/context/)
 
 - **Toolchain is pixi-only.** `cargo/node/pnpm/mdbook/restic` are not on PATH —

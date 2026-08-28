@@ -276,6 +276,40 @@ What the 2026-08-28 audit found and this did **not** fix:
   chapter has children, so a beginner still sees `Architecture` and `Design system` in the same
   column as their own two chapters — further down now, but present.
 
+### 2.8 Windows has no git, and the fix is one line we have not earned yet
+A user hit *"Git is not installed"* on Windows when backing up. The capability to fix it already
+exists: `fm_core::vcs` picks a git binary when there is one and **falls back to libgit2** when there
+is not — built for the phone, which has no binary either. `fm-serve` simply never exposed the
+feature. Proven locally: with it compiled in and no git anywhere on PATH, capture → `set_identity` →
+commit succeeds and libgit2 writes a real `.git`.
+
+**Deliberately not shipped, and the feature was reverted rather than left sitting in the tree**, per
+the conformance step (`decisions.md#toolchain`). The verdict is *extends an exception*: `vcs.rs`
+chooses at **runtime** and a real binary still wins, so this reaches only machines with no git —
+exactly the phone's case the mobile exception already covers. It therefore does **not** touch Track M
+ruling 1's sequencing gates, which bind *swapping the desktop's backend*, not adding a fallback.
+
+**Done looks like** a dated `decisions.md#git` entry carrying five things, then one line in
+`crates/fm-serve/Cargo.toml`:
+- `deny.toml`'s *"mobile only"* wording, which appears **three times** and becomes false;
+- the stated position that `pixi run ci` must not build libgit2 + OpenSSL (`Cargo.toml`,
+  `pixi.toml`, `checks.sh` all say so);
+- the two grounds of the 2026-07-18 `git2` rejection never retired — weight/replaceability, and
+  decade-scale maintenance;
+- `docs/src/dev/adding-features.md` (*"Never link a GPL tool — invoke it"*) and `MASTERPLAN.md`,
+  already stale on this;
+- splitting `vendored-openssl` per target, so Windows and macOS do not compile OpenSSL for nothing.
+
+`ci/checks.sh` now fails if anyone ships it without doing that.
+
+### 2.9 A backup with no git reports success and records nothing
+Separately, and worse than the report above: on the build that ships today, with no git binary,
+`commit` returns `{"committed":true}` and creates **no repository at all**. `ping.git` likewise
+reports `true` when git is provably absent (`env` cannot find it). A user can be told their notes
+are backed up when nothing was recorded — the failure class this repo names repeatedly, *a surface
+that will not say what it knows*. Diagnosed but not root-caused; independent of whether libgit2 ever
+ships on the desktop.
+
 ### 2.8 The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched
 from an unrelated working directory, from a path containing a space, and the note landed beside the

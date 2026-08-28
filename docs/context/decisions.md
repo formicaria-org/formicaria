@@ -60,10 +60,81 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest) ·
   *The manual travels in the archive* (built-and-discarded docs do not exist) ·
   ***What ships is an app, not a binary*** (read before touching `packaging/launcher/` or the
-  `stage` step — the portable-vault recipe is exact and the CSP one is not obvious).
+  `stage` step — the portable-vault recipe is exact and the CSP one is not obvious) ·
+  ***An addition is checked against the record before it is written*** (read before adding a
+  dependency, an archive file, a relaxed guard or a changed default) · *The manual's CSP is a named
+  exception* (`#ui`).
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## An addition is checked against the record before it is written (2026-08-28, `#toolchain`)
+
+Twelve commits landed in one session, each driven by a real user report and each defensible alone.
+That is the condition under which a project accretes: every step is justified locally and nothing
+checks the sum. The owner asked for a step that catches it.
+
+**The gap was specific.** This repo has an append-only decision log with a subject index, a router,
+22 architectural gates and a licence gate — and **nothing that answers "does this contradict
+something already ruled on?"** The evidence, gathered rather than assumed:
+
+- **`SUPERSEDED` appears twice in 2,196 lines** — the rule itself, and one banner. Yet an entry
+  titled *"Squash-on-push — a deliberate reversal of 'don't build commit management'"* reverses a
+  `MASTERPLAN.md` passage that still states the original, unbannered. The convention is not applied
+  and nothing notices.
+- **The cold-read audit is the only recall check** — manual, quarterly, self-graded. Six of seven
+  answered wrong on 2026-07-19; no count recorded since.
+- **An entry written that same morning promised a `ci/checks.sh` grep that was never built.** Now
+  corrected in place.
+
+**The step** (in `CLAUDE.md`, with a router row): name the subject · read the entries **and read
+past them** · classify *permitted / extends an exception / contradicts* · ask whether it widens what
+ships. If it contradicts, write the dated reversal **first**.
+
+**"Read past them" is the load-bearing half**, and it came from being wrong. The index files the
+desktop-libgit2 question under `#git` and names a two-entry chain. The decisive text is a **third**
+entry under `#track-m` — the owner's binding Track M ruling 1 — which names the desktop as the
+intended destination and attaches sequencing gates. Reading only what the index pointed at produced
+a confidently wrong answer. **An index is a starting point, not a contents page.**
+
+**One guard, chosen because it is the near-miss that prompted this.** `deny.toml` says *"libgit2,
+for mobile only"* three times; `cargo deny` reports `licenses ok` for libgit2 **and always will**
+(`libgit2-sys` declares MIT/Apache and says nothing about the GPL C it vendors); `checks.sh` passed.
+Enabling `fm-serve/native-git` is one line, changes no behaviour on a machine that has git, breaks
+no test — and makes that central claim false with nothing red. So `ci/checks.sh` now asserts the
+claim mechanically: no shipped desktop crate may pull `git2` in a default build, with a canary that
+fails if the check can no longer see git2 even when the feature is on. Widening the exception stays
+allowed; doing it **silently** does not.
+
+**Rejected:** guards on every widening surface (dependencies, CSP constants, staged files, defaults)
+— one guard that fires beats three that produce noise people learn to route around. **Rejected:**
+documentation alone — this repo already documents the discipline it then did not apply.
+
+## The manual's CSP is a named exception, not an oversight (2026-08-28, `#ui` `#track-m`)
+
+`main.rs` calls `script-src 'self'` with no `'unsafe-inline'` **"the clause worth protecting"**, and
+records the price already paid for it: Excalidraw's asset-path line was moved out of `index.html`
+into its own file rather than relax the policy. The precedent is *restructure the content*.
+
+Then the embedded manual arrived and `MANUAL_CSP` allowed `'unsafe-inline'`, because mdBook writes
+six inline `<script>` blocks per page (`path_to_root`, the pre-paint theme, the sidebar) and without
+them the manual renders with no theme, no chapter list and no search. That relaxation was reasoned
+about and written down — but never checked against the standing clause, which is the whole reason
+the conformance step above now exists. Found by applying it retroactively.
+
+**Decision: keep the exception, scoped and named, and state its price.** It applies to `/manual/*`
+only; the app's own `CSP` is untouched. What pays for it: `connect-src 'none'` and `form-action
+'none'`, both **tighter** than the app's policy, so a manual page can style itself and provably
+cannot reach `/api/`. The content is our own build output — no note body, no user text, reaches it.
+
+**The conformant fix, and why it is not being done now.** Per-page CSP hashes: each page's inline
+scripts differ, but the union of hashes across the book is bounded and could live in one header
+computed at build time. That needs SHA-256 inside `fm-serve/build.rs`, which is std-only by
+design — so the fix for a philosophy violation would itself add a dependency to a crate kept
+deliberately bare. That trade deserves its own decision rather than being smuggled in here.
+
+**Rejected:** leaving it unrecorded. A relaxation of the one clause the codebase singles out as
+worth protecting is exactly the thing that must not sit in a source comment only.
 
 ## Opening the browser and quitting with the tab are defaults, not opt-ins (2026-08-28, `#toolchain`)
 
@@ -92,9 +163,15 @@ This does not remove the console, which is what the report actually asked for. T
 `windows_subsystem = "windows"`, whose real cost is that **every** subprocess then flashes its own
 window — and `fm_core::git` shells out from a debounce that runs every few seconds. Measured while
 writing this: **23 `Command::new` sites in the whole workspace, 3 of them git.** Contained enough to
-route through one spawn helper with `CREATE_NO_WINDOW`, which is the prerequisite, and a
-`ci/checks.sh` grep to keep it that way — a new `Command::new` would otherwise regress it silently
-and only on the platform nobody here can debug.
+route through one spawn helper with `CREATE_NO_WINDOW`, which is the prerequisite; a `ci/checks.sh`
+grep would then be needed to keep it that way, since a new `Command::new` would otherwise regress it
+silently and only on the platform nobody here can debug.
+
+**Neither the helper nor the grep exists yet — this paragraph describes work, not a mitigation in
+place.** Corrected the same day it was written, because the original wording read as though the
+guard were part of the change. This repo's own rule is that *a mitigation naming a mechanism must
+name an executor that exists* (`README.md`), and an entry that quietly claims a guard it never built
+is exactly the drift the conformance step above was added to catch.
 
 ## The manual is built per OS, and the short path is the only path a beginner is shown (2026-08-28, `#toolchain`)
 

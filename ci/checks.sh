@@ -437,6 +437,43 @@ if ! grep -qF 'stage/${DIR}/program/' .github/workflows/release.yml; then
     fail=1
 fi
 
+echo "[check] the libgit2 exception is still mobile-only, in fact and not just in prose..."
+# `deny.toml` says it three times — "ONE named exception: libgit2, for mobile only" — and **nothing
+# defends it**. `cargo deny` reports `licenses ok` for libgit2 and always will: `libgit2-sys`
+# declares "MIT OR Apache-2.0", saying nothing about the ~230k lines of GPL C it vendors, and
+# `[[licenses.clarify]]` was tried and removed because it never fires. So the whole gate on
+# widening that exception is documentary.
+#
+# That is the failure this check exists for, and it is not hypothetical: turning on
+# `fm-serve/native-git` is one line, changes no behaviour on a machine that has git, breaks no
+# test — and silently makes deny.toml's central claim false. Scope drift with nothing red.
+#
+# Widening the exception may well be right (the owner's Track M ruling 1 names the desktop as the
+# destination). This does not forbid it. It requires that the prose move at the same time, by
+# failing until someone has been back to `deny.toml` and `decisions.md#git`.
+if command -v cargo >/dev/null 2>&1; then
+    for crate in fm-serve fm-cli; do
+        if cargo tree -p "$crate" -e normal 2>/dev/null | grep -q 'git2 v'; then
+            echo "  FAIL: $crate pulls git2 in a DEFAULT build, but deny.toml still says the"
+            echo "        libgit2 exception is 'mobile only'. Widening it is allowed — but write"
+            echo "        the dated decisions.md#git entry and fix deny.toml's wording first,"
+            echo "        because no other gate in this repo will notice (cargo deny cannot see"
+            echo "        libgit2's real licence, and never will)."
+            fail=1
+        fi
+    done
+    # The guard must fail loudly if it can no longer see what it measures — the same rule the
+    # Android boot checks above are held to. If `native-git` stops pulling git2, this check has
+    # been silently measuring nothing.
+    # Anchored on fm-core, whose `native-git` feature is the long-standing one the mobile exception
+    # is built on — not on whichever shipped crate happens to expose a passthrough this week.
+    if ! cargo tree -p fm-core --features native-git -e normal 2>/dev/null | grep -q 'git2 v'; then
+        echo "  FAIL: this check can no longer see git2 even with native-git enabled, so it is"
+        echo "        measuring nothing. Re-anchor it rather than deleting it."
+        fail=1
+    fi
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

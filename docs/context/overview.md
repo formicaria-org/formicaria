@@ -24,6 +24,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
+| **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 
 ## What formicaria is
