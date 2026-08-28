@@ -437,39 +437,39 @@ if ! grep -qF 'stage/${DIR}/program/' .github/workflows/release.yml; then
     fail=1
 fi
 
-echo "[check] the libgit2 exception is still mobile-only, in fact and not just in prose..."
-# `deny.toml` says it three times — "ONE named exception: libgit2, for mobile only" — and **nothing
-# defends it**. `cargo deny` reports `licenses ok` for libgit2 and always will: `libgit2-sys`
-# declares "MIT OR Apache-2.0", saying nothing about the ~230k lines of GPL C it vendors, and
-# `[[licenses.clarify]]` was tried and removed because it never fires. So the whole gate on
-# widening that exception is documentary.
+echo "[check] the libgit2 exception stays scoped to devices with no git binary..."
+# `deny.toml` names one licence exception, and **nothing else defends its scope**. `cargo deny`
+# reports `licenses ok` for libgit2 and always will: `libgit2-sys` declares "MIT OR Apache-2.0",
+# saying nothing about the ~230k lines of GPL C it vendors, and `[[licenses.clarify]]` was tried
+# and removed because it never fires. So the whole gate on widening it is documentary — which is
+# exactly how scope drifts with nothing red.
 #
-# That is the failure this check exists for, and it is not hypothetical: turning on
-# `fm-serve/native-git` is one line, changes no behaviour on a machine that has git, breaks no
-# test — and silently makes deny.toml's central claim false. Scope drift with nothing red.
+# The boundary, as of 2026-08-28 (`decisions.md#git`): libgit2 ships where there is **no git
+# binary** — Android, and Windows, which ships none. Linux and macOS desktops overwhelmingly have
+# git, keep the subprocess backend, and must not pay for a vendored C library they never call.
 #
-# Widening the exception may well be right (the owner's Track M ruling 1 names the desktop as the
-# destination). This does not forbid it. It requires that the prose move at the same time, by
-# failing until someone has been back to `deny.toml` and `decisions.md#git`.
+# Checked against those two targets **explicitly, not against the host**: `pixi run ci` also runs
+# on the Windows runner via `cross.yml`, where a host-resolved tree legitimately contains git2.
 if command -v cargo >/dev/null 2>&1; then
-    for crate in fm-serve fm-cli; do
-        if cargo tree -p "$crate" -e normal 2>/dev/null | grep -q 'git2 v'; then
-            echo "  FAIL: $crate pulls git2 in a DEFAULT build, but deny.toml still says the"
-            echo "        libgit2 exception is 'mobile only'. Widening it is allowed — but write"
-            echo "        the dated decisions.md#git entry and fix deny.toml's wording first,"
-            echo "        because no other gate in this repo will notice (cargo deny cannot see"
-            echo "        libgit2's real licence, and never will)."
-            fail=1
-        fi
+    for target in x86_64-unknown-linux-gnu aarch64-apple-darwin; do
+        for crate in fm-serve fm-cli; do
+            if cargo tree -p "$crate" -e normal --target "$target" 2>/dev/null | grep -q 'git2 v'; then
+                echo "  FAIL: $crate pulls git2 for $target, where a git binary is expected to exist."
+                echo "        Widening the exception again is allowed — but move deny.toml's wording"
+                echo "        and write the dated decisions.md#git entry first, because no other gate"
+                echo "        here will notice (cargo deny cannot see libgit2's licence, and never"
+                echo "        will)."
+                fail=1
+            fi
+        done
     done
-    # The guard must fail loudly if it can no longer see what it measures — the same rule the
-    # Android boot checks above are held to. If `native-git` stops pulling git2, this check has
-    # been silently measuring nothing.
-    # Anchored on fm-core, whose `native-git` feature is the long-standing one the mobile exception
-    # is built on — not on whichever shipped crate happens to expose a passthrough this week.
-    if ! cargo tree -p fm-core --features native-git -e normal 2>/dev/null | grep -q 'git2 v'; then
-        echo "  FAIL: this check can no longer see git2 even with native-git enabled, so it is"
-        echo "        measuring nothing. Re-anchor it rather than deleting it."
+    # Windows is supposed to be INSIDE the exception now. If it stops pulling git2, the Windows
+    # backup path has silently reverted to "git is not installed" — the bug this fixed.
+    if ! cargo tree -p fm-serve -e normal --target x86_64-pc-windows-msvc 2>/dev/null | grep -q 'git2 v'; then
+        echo "  FAIL: fm-serve does NOT pull git2 for Windows. Windows ships no git binary, so this"
+        echo "        is a build with no history, no backup and no collaboration — see"
+        echo "        decisions.md#git. (Or this check can no longer see what it measures, in which"
+        echo "        case re-anchor it rather than deleting it.)"
         fail=1
     fi
 fi

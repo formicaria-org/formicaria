@@ -276,31 +276,24 @@ What the 2026-08-28 audit found and this did **not** fix:
   chapter has children, so a beginner still sees `Architecture` and `Design system` in the same
   column as their own two chapters — further down now, but present.
 
-### 2.8 Windows has no git, and the fix is one line we have not earned yet
-A user hit *"Git is not installed"* on Windows when backing up. The capability to fix it already
-exists: `fm_core::vcs` picks a git binary when there is one and **falls back to libgit2** when there
-is not — built for the phone, which has no binary either. `fm-serve` simply never exposed the
-feature. Proven locally: with it compiled in and no git anywhere on PATH, capture → `set_identity` →
-commit succeeds and libgit2 writes a real `.git`.
+### 2.8 Windows gets libgit2 — one cost accepted and deferred
+**Taken 2026-08-28** (`decisions.md#git`): the libgit2 exception is now scoped to *any device with
+no git binary*, so `fm-serve` pulls it through a `[target.'cfg(windows)'.dependencies]` entry.
+Windows users get history, backup and collaboration without installing anything; machines that have
+git are unchanged, because `vcs.rs` chooses at runtime.
 
-**Deliberately not shipped, and the feature was reverted rather than left sitting in the tree**, per
-the conformance step (`decisions.md#toolchain`). The verdict is *extends an exception*: `vcs.rs`
-chooses at **runtime** and a real binary still wins, so this reaches only machines with no git —
-exactly the phone's case the mobile exception already covers. It therefore does **not** touch Track M
-ruling 1's sequencing gates, which bind *swapping the desktop's backend*, not adding a fallback.
+**The deferred cost:** `crates/fm-core/Cargo.toml` pins `git2` to `vendored-openssl` for Android's
+sake — Android has no system OpenSSL — and that feature is **not split per target**, so the Windows
+build compiles OpenSSL it does not need. libgit2 on Windows can use the OS's own TLS. Splitting it
+means separate `[target.…]` blocks for `git2` **and** for `openssl-sys` (which `native-git` also
+pulls, purely for Android's in-memory trust store), so the Android path must not break.
+**Done looks like** a smaller, faster Windows build with the Android trust-store path untouched and
+`pixi run android-check` still green.
 
-**Done looks like** a dated `decisions.md#git` entry carrying five things, then one line in
-`crates/fm-serve/Cargo.toml`:
-- `deny.toml`'s *"mobile only"* wording, which appears **three times** and becomes false;
-- the stated position that `pixi run ci` must not build libgit2 + OpenSSL (`Cargo.toml`,
-  `pixi.toml`, `checks.sh` all say so);
-- the two grounds of the 2026-07-18 `git2` rejection never retired — weight/replaceability, and
-  decade-scale maintenance;
-- `docs/src/dev/adding-features.md` (*"Never link a GPL tool — invoke it"*) and `MASTERPLAN.md`,
-  already stale on this;
-- splitting `vendored-openssl` per target, so Windows and macOS do not compile OpenSSL for nothing.
-
-`ci/checks.sh` now fails if anyone ships it without doing that.
+**Unverified, and it is the thing most likely to bite:** no Windows build of this has been run.
+`cargo tree` resolves correctly per target from here, but compiling vendored OpenSSL on the Windows
+runner needs Perl and NASM on the image. If the release's Windows job fails, this is the first
+suspect.
 
 ### 2.9 A backup with no git reports success and records nothing
 Separately, and worse than the report above: on the build that ships today, with no git binary,

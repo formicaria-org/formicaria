@@ -55,3 +55,21 @@ rcgen = { version = "0.13", default-features = false, features = ["pem", "ring"]
 
 [dev-dependencies]
 tempfile = "3"   # a throwaway vaults.json for the config writer's tests
+
+# **libgit2, on Windows only** (`decisions.md#git`, 2026-08-28). Windows ships no `git` binary, so
+# without this a Windows user is told "git is not installed" and loses history, backup and
+# collaboration — while `fm_core::vcs` carries a fully tested libgit2 fallback it was never allowed
+# to compile.
+#
+# A target-gated **dependency**, not a feature flag: nobody has to remember to pass it, the release
+# workflow needs no change, and — measured — `cargo tree` resolves 0 `git2` for the Linux target
+# against 1 for Windows, so `pixi run ci` on a Linux machine still never builds libgit2 + OpenSSL.
+#
+# This changes nothing on a machine that HAS git: `vcs.rs` chooses at runtime and a real binary
+# still wins, so the `.md` merge driver stays on the path that uses it.
+#
+# **Placement is load-bearing.** It must stay at the end of the file — a `[target.…]` header written
+# inside `[dependencies]` silently captures every key below it, which made `serde` and `getrandom`
+# Windows-only and was caught by the `--no-default-features` check rather than by review.
+[target.'cfg(windows)'.dependencies]
+fm-app = { path = "../fm-app", features = ["native-git"] }

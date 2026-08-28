@@ -17,7 +17,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#seams`** (the compile-time invariants): *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): ***A backend that cannot finish a merge must
+- **`#git` / `#sync`** (git, merge, collaboration): ***libgit2 ships on Windows too*** (the
+  exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
+  `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
   here) · *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
@@ -67,6 +69,56 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## libgit2 ships on Windows too — the exception is "no git binary", not "not a desktop" (2026-08-28, `#git` `#toolchain`)
+
+**Reversal chain (`#git`):** widens *"The libgit2 exception"* (2026-07-19), which scoped it to
+mobile. That entry's reasoning is unchanged and its conditions still hold; only the boundary moves.
+Read the pair — and read *"`git2` is rejected"* (2026-07-18) beneath both, which this does **not**
+revive.
+
+**Why now.** A Windows user was told *"Git is not installed"* when backing up, and lost history,
+backup and collaboration entirely. Windows ships no git and most people will never install one. The
+capability to serve them already existed, fully tested, unreachable: `fm_core::vcs` prefers a git
+binary and **falls back to libgit2**, built for the phone for exactly this reason, and `fm-serve`
+never compiled it in.
+
+**The boundary was drawn in the wrong place.** The 2026-07-19 exception says *mobile*, because at the
+time the phone was the only device with no git binary. But the property that earned the exception
+was never "is a phone" — it was **"has no git binary"**. Windows satisfies it identically. Stating
+the rule by its reason rather than by the example that prompted it is the whole change.
+
+**What this does not touch, and the checking matters more than the conclusion.** It is *not* a
+reversal of *"the desktop keeps shelling out"*. `vcs.rs` selects at **runtime**, so a machine with
+git is byte-for-byte unaffected — it still uses the binary, and still gets the `.md` merge driver a
+collaborator's terminal `git pull` uses. And it does **not** engage Track M ruling 1's sequencing
+gates (build the body-merge engine and differential harness *before* swapping): those bind
+*replacing* the desktop's backend, not *adding a fallback for machines that have none*. The
+`git merge-file` oracle is untouched because the path that uses it is untouched.
+
+**Consequence.** `crates/fm-serve/Cargo.toml` gains a `[target.'cfg(windows)'.dependencies]` entry
+pulling `fm-app` with `native-git`. Deliberately a **target-gated dependency rather than a feature
+flag**: nobody has to remember to pass it, the release workflow needs no change, and — measured —
+`cargo tree` resolves 0 `git2` for the Linux target and 1 for the Windows target, so **`pixi run ci`
+on a Linux machine still never builds libgit2 + OpenSSL**. That was a stated position in three files
+and it survives intact rather than being overturned.
+
+`deny.toml`'s wording moves with it: the exception is one crate for *any device with no git binary*.
+`cargo deny` still cannot see libgit2's real licence and never will, so `ci/checks.sh` carries the
+enforcement — now asserting that **Linux and macOS** desktops pull no `git2`, checked against those
+targets explicitly rather than against whichever host happens to run it.
+
+**Accepted costs, named rather than discovered later:** a larger Windows binary and a slower Windows
+build, since `git2` is pinned to `vendored-openssl` for Android's sake and that is not yet split per
+target — Windows compiles OpenSSL it does not need (`outstanding.md`). The two grounds of the
+2026-07-18 rejection never retired — weight, and decade-scale maintenance — are accepted here for
+Windows specifically, on the basis that a notebook which cannot keep history on the world's most
+common desktop OS is not a notebook anyone should be asked to trust.
+
+**Rejected:** telling Windows users to install Git for Windows — the download this was meant to
+remove. **Rejected:** shipping a `git.exe` beside the binary — a GPL tool linked in spirit, and the
+one-file ruling refuses it. **Rejected:** enabling it on every desktop — Linux and macOS overwhelm-
+ingly have git, and the narrower rule is the one whose reason is true.
 
 ## An addition is checked against the record before it is written (2026-08-28, `#toolchain`)
 
@@ -1037,10 +1089,16 @@ add a fourth.
 
 ## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19)
 
+> **WIDENED (`#git`)** by *"libgit2 ships on Windows too"* (2026-08-28, above): the exception is no
+> longer "mobile only" but **"any device with no git binary"**, which is the property this entry's
+> reasoning actually rests on. Everything below still holds — the licence analysis, the vendoring,
+> the conditions — only the boundary moved. Read this entry for *why the exception is safe*; read the
+> 2026-08-28 one for *why Windows was always inside it*.
+>
 > **Reversal chain (`#git`):** narrows *"`git2` is rejected"* (2026-07-18, below) — which still
-> holds **for the desktop**. This is the mobile-only exception. Later realized in code: the
-> `native-git` backend + the `vcs` router now carry the full history *and* proposal lifecycle on the
-> phone (`sessions/2026-07-24-proposals-on-the-phone.md`). **This entry is current.**
+> holds for any machine that **has** a git binary; `vcs.rs` chooses at runtime and the binary wins.
+> Later realized in code: the `native-git` backend + the `vcs` router now carry the full history
+> *and* proposal lifecycle on the phone (`sessions/2026-07-24-proposals-on-the-phone.md`).
 
 **Decision — one named exception, vendored, mobile only.** `fm-core` gains an optional
 `native-git` feature (**off by default**) pulling `git2` with `vendored-libgit2`. The desktop

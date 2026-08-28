@@ -3,7 +3,8 @@
 # must fail the build. GPL tools like pdftotext/libvips are invoked as
 # subprocesses and never appear in this graph.
 #
-# ONE named exception, below: libgit2, for mobile only. The rule above is unchanged and
+# ONE named exception, below: libgit2, for any device with NO git binary — the phone, and
+# Windows, which ships none (widened 2026-08-28, `decisions.md#git`). The rule above is unchanged and
 # still applies to everything else — the exception is scoped to a single crate on purpose,
 # rather than widening `allow`, so nothing else can arrive under the same licence unnoticed.
 
@@ -33,7 +34,8 @@ confidence-threshold = 0.8
 unused-allowed-license = "allow"
 
 # ---------------------------------------------------------------------------------------
-# THE ONE LICENCE EXCEPTION: libgit2, mobile only (owner's ruling, 2026-07-19).
+# THE ONE LICENCE EXCEPTION: libgit2, on any device with no git binary (owner's ruling,
+# 2026-07-19, widened to Windows 2026-08-28 — see `decisions.md#git`).
 #
 # WHY: a phone has no `git` binary to shell out to — Android ships none, iOS forbids
 # executing one — so the subprocess stance that keeps this gate clean on the desktop cannot

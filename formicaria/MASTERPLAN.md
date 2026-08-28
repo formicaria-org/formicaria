@@ -167,7 +167,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 | walkdir + rayon | 2.5.0 / 1.12.0 | Parallel reindex traversal. | MIT |
 | pulldown-cmark | 0.13.4 | Markdown parse where the backend needs it (and available to the read renderer). | MIT |
 | time | 0.3.53 | Dates/timestamps. | MIT/Apache |
-| **git** (subprocess) | — | Auto-commit, the `.md` merge driver, push/pull, and the `git log` collaboration read-model. **Shelled out, never linked.** A `git2`/libgit2 dependency was specified here and then *rejected* (2026-07-18): libgit2 cannot invoke external merge drivers — so linking it would silently disable our own — and `deny.toml` forbids linking GPL, which libgit2 is. Git stays a **capability**. | — |
+| **git** (subprocess) | — | Auto-commit, the `.md` merge driver, push/pull, and the `git log` collaboration read-model. **Shelled out wherever a `git` binary exists.** A `git2`/libgit2 dependency was specified here and then *rejected* (2026-07-18), then admitted as one named exception for devices that ship no `git` binary — Android (2026-07-19) and Windows (2026-08-28); see `docs/context/decisions.md#git`. `fm_core::vcs` chooses at runtime and a real binary always wins, so the `.md` merge driver stays on the path that uses it. Git stays a **capability**, not a requirement. | — |
 | **mlua** (`lua54`,`vendored`) | 0.12.0 | Optional scripting hatch (off by default). | MIT |
 | clap · thiserror · tempfile · tracing | 4.6.1 · 2.0.18 · 3.27.0 | CLI, errors, atomic temp files, logging. | MIT/Apache |
 

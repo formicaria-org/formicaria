@@ -89,5 +89,10 @@ the legacy aliases), a new theme re-skins the whole app with no component edits.
 
 Pin it in `pixi.toml` `[dependencies]` (conda-forge) so it's reproducible, then
 shell out to it from `fm-core` following the `backup.rs` / `ingest.rs` pattern
-(`std::process::Command`, map failure to `StoreError`). Never link a GPL tool —
+(`std::process::Command`, map failure to `StoreError`). Do not link a GPL tool —
 invoke it.
+
+There is exactly one exception, and it is named rather than general: libgit2,
+linked where the operating system ships no `git` binary (Android, and Windows).
+It qualifies on its own GPL linking exception, and `deny.toml` records the scope.
+Adding a second such dependency needs a dated `decisions.md` entry first.
