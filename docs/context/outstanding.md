@@ -229,6 +229,28 @@ lands on exactly the create-seam above, so building that seam serves both.
 
 ---
 
+### 2.6 The manual ships in the archive, but the app cannot point at it
+Since 2026-08-28 every release archive carries the manual (`decisions.md#toolchain`): rendered HTML
+at `manual/index.html`, Markdown at `manual/source/`. That closes *"the user has no
+documentation"* — it does **not** close *"the user can find the documentation"*. Nothing in the
+running app links to it, so reaching the manual means remembering which folder you unpacked and
+leaving the app to open a file. For an owner who works entirely inside the UI, that is most of the
+remaining distance.
+
+**Done looks like** a `/manual` route on `fm-serve` plus one visible entry point in the UI — a Help
+item beside the keyboard-shortcut panel in `ui/src/lib/SettingsPanel.svelte` is the obvious home.
+The serving half is small: the static handler is `crates/fm-serve/src/main.rs:833-860`, resolving
+against `FM_UI_DIST` or the `UI_ASSETS` table `build.rs` bakes from `ui/dist`.
+
+**The design question is which of two**, and it should be chosen rather than defaulted into:
+embedding the book adds ~2 MB to an already 14 MB binary and makes the manual survive the archive
+being taken apart; serving it from a sibling `manual/` directory keeps the binary lean but breaks
+the moment someone copies out just the executable — which is precisely the mistake the
+`fm`/`fm-serve` warning in the release README already exists to prevent.
+
+Deliberately not done alongside the packaging change: shipping a file and serving it are two
+decisions, and only the first one was forced.
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.

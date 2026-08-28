@@ -57,10 +57,45 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   exception: a self-signed leaf, share-only* (read before touching `rustls`/`rcgen` — the `ring`
   pin is a licence gate) · *Every external
   tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
-  it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest).
+  it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest) ·
+  *The manual travels in the archive* (built-and-discarded docs do not exist).
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## The manual travels in the archive — documentation that is built and discarded does not exist (2026-08-28, `#toolchain`)
+
+`docs/src` has been a complete 16-file manual for months: ~11,600 words on views, notes, media,
+search, backup, collaboration and the assistant, plus a full command and frontmatter reference. CI
+rendered it on every single run — `pixi run docs` is in `[tasks.ci]`, and `docs.yml` exists for
+nothing else. **Nobody ever received it.** `docs.yml` uploads no artifact and deploys no site, so
+the HTML died with the runner; `release.yml` copied five files and none came from `docs/`; and
+`packaging/README-release.md`, which ships as the archive's `README.md`, is an install sheet that
+did not even link to it. Someone who downloaded a release got the whole application and no
+instructions for using it.
+
+**The trap is that this looked healthy from the inside.** A green `docs` task and a workflow named
+`docs` both report that documentation is *being built*, which is not the same claim as
+documentation *reaching a reader* — and nothing can fail for a document nobody was handed, so the
+gap is invisible to CI by construction. It is the same shape as the surfaces that would not say
+what they knew (2026-08-24), one layer out: the pipeline was honest about every step it ran and
+silent about the step that was missing.
+
+So the `stage` step now puts the manual in every archive: rendered HTML at `manual/` (open
+`manual/index.html` — fully offline, mdBook's search is client-side and every asset reference is
+relative) and the Markdown at `manual/source/`. Both forms deliberately: the HTML is what a reader
+wants, the Markdown is what survives, and a manual you own as plain files is the same promise the
+notes make.
+
+**Delivery is asserted, never assumed** — the rule `ci/android-release.sh` already applies to its
+own artifact. `mdbook` can exit 0 having written nothing, and `docs/src` is a *tree*, so the
+obvious `cp docs/src/*.md` ships `SUMMARY.md` and `introduction.md` and drops the fourteen chapters
+that matter without a word. The step checks `docs/book/index.html` is non-empty and compares the
+staged page count against the source count, so a short copy fails the build instead of shipping a
+`manual/` that looks like documentation until you open it. Verified locally against a real archive:
+16 of 16 pages, and the deliberate glob mistake caught at 2 of 16.
+
+Not fixed here: there is still no in-app route to the manual — see `outstanding.md`.
 
 ## A hand-fired release names itself after the ref it was fired on (2026-08-28, `#toolchain`)
 

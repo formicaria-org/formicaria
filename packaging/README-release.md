@@ -43,6 +43,21 @@ Then open <http://127.0.0.1:8765>. Stop it with Ctrl-C.
 
 ---
 
+## Learn to use it
+
+The full manual is in this archive. Open **`manual/index.html`** in your browser. It needs no
+network and no account — it reads the same whether or not you are online.
+
+It covers everything this sheet does not: views, panes and boards; writing notes, links and
+backlinks, templates and checkboxes; images, PDFs and whiteboards; search; backup; sharing a
+vault and working through proposals; and the optional on-device assistant. There is a reference
+section too — every command, and every frontmatter field.
+
+Prefer plain text? The same pages are Markdown in **`manual/source/`**, readable in any editor.
+The manual is files you own, exactly like your notes.
+
+---
+
 ## Where your notes live
 
 By default, a `vault` folder next to wherever you ran `fm-serve` from. To choose:
@@ -124,4 +139,6 @@ never meant to need any.
 ---
 
 MIT licensed — see `LICENSE`. `THIRD-PARTY.md` lists the libraries built into these
-binaries and their notices. Source: <https://github.com/singhbal-baljinder/formicaria>
+binaries and their notices. The manual is `manual/` — open `manual/index.html`, or read its
+Markdown sources in `manual/source/`.
+Source: <https://github.com/singhbal-baljinder/formicaria>
