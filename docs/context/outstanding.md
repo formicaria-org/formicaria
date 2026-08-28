@@ -255,21 +255,26 @@ right:
   git is absent, or a git-less user is trapped on a form that can never save.
 - **Save identity first, and separately.** A bad remote URL must lose the remote and keep the name.
 
-### 2.7 The manual is shipped and reachable — it is still not written for this reader
-The 2026-08-28 audit found what the tester felt. Fixed then: `user/running.md` (chapter 1 told a
-release user to run `pixi run serve`, which they cannot) and `introduction.md`'s "Where to go next"
-(one third of it routed beginners into the developer guide). Everything below is unchanged:
+### 2.7 The manual reads for a beginner now — it still has no pictures
+**Closed 2026-08-28** (`decisions.md#toolchain`): setup is per-OS and assembled by `ci/docs.sh`, so
+each archive carries instructions for its own platform only; `Start here` is two short chapters and
+ends by telling the reader they are done; `Going further`/`Reference`/`Developer guide` hold the
+depth; and the introduction routes beginners at beginners.
 
-- **Zero screenshots** in a ~7,200-word manual for a GUI. The biggest single gap, and the slowest
-  to close. `docs/context/shots/` proves the capture path exists.
-- **`user/notes.md` is 2,245 words unsplit** — 19% of the book in one chapter.
-- **The developer guide shares one sidebar with the user guide**, permanently expanded: `fold` in
-  `book.toml` is a no-op because no chapter has children.
+What the 2026-08-28 audit found and this did **not** fix:
+
+- **Zero screenshots** in a manual for a GUI. Now the largest remaining gap by some distance, and
+  the slowest to close. `docs/context/shots/` proves the capture path exists.
+- **`user/notes.md` is 2,245 words unsplit** — it is now the first chapter under *Going further*,
+  so it is the first wall a curious beginner hits.
+- **No glossary.** *frontmatter*, *ULID*, *content-addressed*, *blob*, *merge driver*, *remote* and
+  *FTS* all appear in user chapters undefined.
 - **`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
   on the page says so.
-- **No glossary.** *frontmatter*, *ULID*, *content-addressed*, *blob*, *merge driver*, *remote*
-  and *FTS* all appear in user chapters undefined.
 - **`user/views.md` documents saved views only as hand-written YAML**, plus a 9-row filter DSL.
+- **The sidebar still shows every part at once.** `fold` in `book.toml` is a no-op because no
+  chapter has children, so a beginner still sees `Architecture` and `Design system` in the same
+  column as their own two chapters — further down now, but present.
 
 ### 2.8 The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched

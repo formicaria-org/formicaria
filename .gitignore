@@ -61,3 +61,6 @@ mobile/*.apk.idsig
 # Python bytecode (agents/bench harness)
 __pycache__/
 *.pyc
+
+# The manual's setup chapter is assembled per-OS by ci/docs.sh from user/setup-<os>.md.
+docs/src/user/setup.md

@@ -34,18 +34,12 @@ browser. There is no cloud, no account, and no native window to fight with.
 **If you have just downloaded formicaria**, read these three, in order. They are all you need to
 be using it properly:
 
-1. [Starting formicaria](./user/running.md) — unpack it, double-click, and know where your notes
-   are kept.
-2. [Creating & organizing notes](./user/notes.md) — writing, linking, tagging, and getting things
-   back out.
-3. [Views](./user/views.md) — boards, agendas and panes: the same notes, arranged the way the
-   question you are asking needs them.
+1. [Set up formicaria](./user/setup.md) — unpack it, start it, and know where your notes are kept.
+   Written for the computer you are actually using.
+2. [Your first ten minutes](./user/first-note.md) — write a note, find it again, keep it safe.
 
-After that, read whichever answers a question you actually have:
-[Assets & media](./user/assets.md), [Backup & versioning](./user/backup.md),
-[Collaboration](./user/collaboration.md), [The study assistant](./user/assistant.md), or
-[The vault format](./user/vault.md) if you already have a folder of notes you want formicaria to
-open where it stands.
+**That is all you need.** Everything under *Going further* is there for when you have a question,
+not to be read in order. If you never open it, you are still using formicaria properly.
 
 **If you are here to work on formicaria itself**, the Developer guide and Reference sections below
 are for you, and the rest of this section is not: start at [Architecture](./dev/architecture.md),

@@ -65,6 +65,42 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
 
+## The manual is built per OS, and the short path is the only path a beginner is shown (2026-08-28, `#toolchain`)
+
+The owner's reading of the tester's experience, and it is the sharpest framing yet:
+
+> *"People do not read readmes, they want clear manuals, not too long, that have the instructions
+> for their systems as well. Easy to setup and understand."*
+
+Three claims, and only one is a writing problem.
+
+**"They do not read readmes"** retires an assumption this repo had been leaning on. Effort spent on
+`README.txt` is effort spent on a file most people never open; the *manual* is the artifact, and
+until now it was the one thing the app never pointed at and the archive made hard to find.
+
+**"Instructions for their systems"** was available for free and nobody had taken it. **We already
+ship one archive per OS** — the Windows zip knows it is Windows — so a setup chapter listing three
+platforms makes every reader skip two-thirds and work out which third is theirs. The one thing a
+first-time reader must not have to do is *choose*. So `user/setup.md` is now **assembled, not
+written**: `ci/docs.sh` picks `setup-<os>.md`, and the OS is **detected rather than passed**,
+because each release job already runs on the target it builds for — the Windows runner produces the
+Windows manual with nobody having to remember. `FM_DOCS_OS` overrides for preview; an unknown value
+**fails the build** rather than shipping the wrong instructions, which is the failure that would
+otherwise be silent and land on a user. The assembled file is gitignored and carries a
+"GENERATED — do not edit" banner, because a generated file inside a hand-edited tree eats somebody's
+work exactly once.
+
+**"Not too long"** is answered by *what a beginner is shown*, not by deleting anything. The user
+guide was eight chapters and ~7,200 words before anyone reached "how do I write a note". Now
+**Start here** is two short chapters — set up, then *Your first ten minutes*, which ends by telling
+the reader they are done and can go and write — and everything else moved behind **Going further**
+and **Reference**, with the developer guide last instead of sharing a beginner's sidebar. Nothing was
+removed; the reading *order* was the defect.
+
+**The rule worth keeping: per-artifact truth beats per-reader instruction.** We knew the platform at
+build time and were still asking the reader to work it out. Whenever a document has to say "if you
+are on X, do this", check first whether the thing shipping it already knows which X.
+
 ## The archive's top level is a door, not an inventory — and the readme opens in Notepad (2026-08-28, `#toolchain`)
 
 The same tester came back after the packaging work with three sentences, and every one of them is a

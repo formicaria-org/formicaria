@@ -243,7 +243,11 @@ checks = "sh ci/checks.sh"                       # architectural greps: seam + g
 # list goes stale the first time someone adds a crate); the release workflow drops the
 # output into every archive.
 third-party = "sh ci/third-party.sh"
-docs = "mdbook build docs"                       # render the manual; broken links fail the build
+# Renders the manual FOR THIS MACHINE'"'"'S OS — the setup chapter is assembled from
+# `user/setup-<os>.md` first, because each release archive should carry instructions for its own
+# platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`
+# to preview another platform.
+docs = "sh ci/docs.sh"
 # Unpack the Android toolchain into a gitignored `.android/`, each artifact verified against
 # its SHA-256 in `android/toolchain.lock`. The NDK/SDK/platform-tools have no conda packaging,
 # so they cannot ride in `pixi.lock` — but "outside pixi" must not become "outside the

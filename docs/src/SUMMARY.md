@@ -2,16 +2,25 @@
 
 [Introduction](./introduction.md)
 
-# User guide
+# Start here
 
-- [Running formicaria](./user/running.md)
-- [Views](./user/views.md)
+- [Set up formicaria](./user/setup.md)
+- [Your first ten minutes](./user/first-note.md)
+
+# Going further
+
 - [Creating & organizing notes](./user/notes.md)
+- [Views](./user/views.md)
 - [Assets & media](./user/assets.md)
-- [The study assistant](./user/assistant.md)
-- [Collaboration](./user/collaboration.md)
 - [Backup & versioning](./user/backup.md)
+- [Collaboration](./user/collaboration.md)
+- [The study assistant](./user/assistant.md)
+
+# Reference
+
 - [The vault format](./user/vault.md)
+- [Commands](./reference/commands.md)
+- [Frontmatter schema](./reference/frontmatter.md)
 
 # Developer guide
 
@@ -19,8 +28,3 @@
 - [How to add a feature](./dev/adding-features.md)
 - [Design system](./dev/design-system.md)
 - [Testing & CI](./dev/testing.md)
-
-# Reference
-
-- [Commands](./reference/commands.md)
-- [Frontmatter schema](./reference/frontmatter.md)
