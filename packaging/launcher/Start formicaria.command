@@ -26,4 +26,4 @@ export FM_VAULT FM_VAULTS FM_OPEN FM_AUTO_SHUTDOWN
 
 mkdir -p "$FM_VAULT"
 
-exec "$here/fm-serve"
+exec "$here/program/fm-serve"

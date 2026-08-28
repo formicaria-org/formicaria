@@ -33,4 +33,4 @@ If Not fso.FolderExists(vault) Then fso.CreateFolder vault
 
 sh.CurrentDirectory = here
 ' 0 = no window; False = do not wait for it to finish.
-sh.Run """" & here & "\fm-serve.exe""", 0, False
+sh.Run """" & here & "\program\fm-serve.exe""", 0, False

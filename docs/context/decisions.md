@@ -65,6 +65,44 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
 
+## The archive's top level is a door, not an inventory — and the readme opens in Notepad (2026-08-28, `#toolchain`)
+
+The same tester came back after the packaging work with three sentences, and every one of them is a
+defect we could not have found ourselves:
+
+> *"There is no clear manual to install formicaria upon clicking the manual folder. The README file
+> is in an MD file format, I would prefer it to be in a format where I can open it in Notepad as I'm
+> unable to open in MD file format. [The] manual folder [shows] many miscellaneous files which may
+> cause confusion."*
+
+**`.md` is a developer's file extension.** Double-clicking one on Windows offers an app picker;
+`.txt` opens Notepad. We had shipped the one document a stranded user most needs in a format they
+could not open, and called it a readme. It is now `README.txt`, written as plain text — no tables,
+no backticks — and converted to CRLF for the Windows archive, because Notepad on older Windows 10
+renders an LF-only file as one unbroken line.
+
+**A website's entry point is only obvious to someone who knows it is `index.html`.** mdBook emits
+~50 files — chapters, stylesheets, fonts, a search index — and we shipped that directory under a
+name promising "the manual". Opening it is the reasonable thing to do and it yields noise. So the
+folder keeps the machinery and a single `Manual.html` sits one level up and redirects into it. The
+door is the artifact; the book is what is behind it.
+
+**And the top level itself was an inventory.** Nine entries, three of which looked launchable
+(`formicaria.vbs`, `formicaria.bat`, `fm-serve.exe`) — we had answered "what do I click?" three
+times with three different files. Binaries and licence notices moved to `program/`, launchers were
+renamed to **`Start formicaria.*`**, and the unzipped folder is now six entries of which exactly one
+says *start*.
+
+**The reusable rule: legibility is a property of the artifact, not of the documentation.** Every one
+of these was already explained correctly in prose that the user never got far enough to read. A
+readme cannot rescue a folder that does not say what to do, and `ci/checks.sh` now holds the whole
+chain — `README.txt` → `Manual.html` → `manual/index.html`, plus the binaries staying under
+`program/` — because each link is invisible to us and load-bearing for them.
+
+The deeper reason we shipped it: **we had never once unzipped our own release and looked at it.**
+Every check we had asserted that files were *present*, which is not the same question as whether a
+stranger can tell what to do with them.
+
 ## What ships is an app, not a binary — the launcher owns *where*, the server owns *why* (2026-08-28, `#toolchain`)
 
 A non-technical tester opened v0.2.0 cold and reported: the manual assumes a terminal, the manual

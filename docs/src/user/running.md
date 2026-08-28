@@ -6,6 +6,7 @@ installer, no account and no cloud. Nothing you write leaves this computer unles
 ## Unpack, then double-click
 
 Download the archive for your system and **unpack it somewhere real** — your Documents or Desktop.
+On Windows: right-click the `.zip`, choose **Extract All…**, and pick a folder.
 Opening it straight from inside the zip gives you a temporary folder that gets deleted afterwards,
 along with anything you wrote.
 
@@ -13,9 +14,12 @@ Then double-click the launcher:
 
 | | Double-click |
 |---|---|
-| **Windows** | `formicaria.vbs` — starts with no console window. `formicaria.bat` does the same thing with the messages visible. |
-| **macOS** | `Formicaria.command` — **right-click and choose Open the first time**, then click "Open". A Terminal window stays open beside the app; closing it quits. |
-| **Linux** | `formicaria.sh`. If your file manager asks what to do with a script, choose "Run". |
+| **Windows** | **Start formicaria.vbs** — opens with no black console window. *Start formicaria (show messages).bat* does the same thing with the messages visible, if something goes wrong. |
+| **macOS** | **Start formicaria.command** — **right-click and choose Open the first time**, then click "Open". A Terminal window stays open beside the app; closing it quits. |
+| **Linux** | **Start formicaria.sh**. If your file manager asks what to do with a script, choose "Run". |
+
+Everything else in the folder is out of your way: `program` holds the application itself, `manual`
+holds the pages this manual is built from, and `vault` is where your notes are kept.
 
 Your browser opens by itself at `http://127.0.0.1:8765`. That address is your own computer — the
 `127.0.0.1` part means it goes nowhere else.
@@ -45,8 +49,9 @@ formicaria tells you so and stops rather than guessing. If it is another copy of
 will simply open your browser at the copy already running.
 
 **Nothing happens when you double-click.** On Linux, some file managers open scripts in a text
-editor instead of running them; open a terminal in the folder and run `./formicaria.sh`. On
-Windows, try `formicaria.bat`, which shows what went wrong instead of hiding it.
+editor instead of running them; open a terminal in the folder and run `./Start\ formicaria.sh`. On
+Windows, try *Start formicaria (show messages).bat*, which shows what went wrong instead of hiding
+it.
 
 **The page loads but is empty.** Close the tab and start the app again. If it persists, the
 `Skipped` panel in the app lists any notes that could not be read.

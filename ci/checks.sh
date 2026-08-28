@@ -399,27 +399,43 @@ if grep -nE '~~.*~~[^*]*FIXED' docs/context/known-issues.md; then
 fi
 
 echo "[check] the release sheet points at paths the release actually stages..."
-# `packaging/README-release.md` ships AS the archive's `README.md`, and since 2026-08-28 it tells
-# the reader to open `manual/index.html` and to read the Markdown in `manual/source/`. Those are
-# promises made to the one reader who cannot check anything: someone holding a .tar.gz, offline,
-# with no way to discover that the folder was renamed after the sheet was written.
+# The archive's README is read by the one person who can check nothing: someone holding a .zip,
+# offline, with no way to discover that a folder was renamed after the sheet was written. This is
+# the docs/context router check one layer out, and the difference is who pays — a stale router
+# costs a maintainer one grep, a stale release sheet costs a user the app.
 #
-# This is the docs/context router check one layer out — a pointer to a path that is not there. The
-# difference is who pays. A stale router costs a maintainer one grep; this costs a user the manual,
-# silently, inside an artifact they have already downloaded. So the sheet and the workflow must name
-# the same paths: change both, or neither.
-for p in manual/index.html manual/source; do
-    if ! grep -qF "$p" packaging/README-release.md; then
-        echo "  FAIL: packaging/README-release.md no longer names $p — the archive's README would"
-        echo "        send its reader to a path that is not there."
-        fail=1
-    fi
+# The chain has three links since 2026-08-28, because a tester opened `manual/`, met ~50 files and
+# could not tell which to click:
+#     README.txt  ->  Manual.html  ->  manual/index.html
+# Each link is checked against the step that actually stages it. Break any one and the user lands
+# on a path that is not there.
+if ! grep -qF 'Manual.html' packaging/README-release.txt; then
+    echo "  FAIL: packaging/README-release.txt no longer sends the reader to Manual.html —"
+    echo "        which is the only unambiguous way into the manual from an unzipped folder."
+    fail=1
+fi
+if ! grep -qF 'manual/index.html' packaging/launcher/Manual.html; then
+    echo "  FAIL: packaging/launcher/Manual.html no longer points at manual/index.html, so the"
+    echo "        one door into the manual opens onto nothing."
+    fail=1
+fi
+for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt'; do
     if ! grep -qF "$p" .github/workflows/release.yml; then
-        echo "  FAIL: .github/workflows/release.yml no longer stages $p, but the release sheet"
-        echo "        still promises it. Change both, or neither."
+        echo "  FAIL: .github/workflows/release.yml no longer stages $p, but the release still"
+        echo "        promises it. Change both, or neither."
         fail=1
     fi
 done
+
+# The top level is the whole point of the 2026-08-28 repackaging: a first-time user must meet a
+# door, not an inventory. `program/` is where the machinery went, and a binary copied back to the
+# top level would quietly undo that — with nothing failing, because the launcher would still work
+# on the developer's machine where they never looked at the folder.
+if ! grep -qF 'stage/${DIR}/program/' .github/workflows/release.yml; then
+    echo "  FAIL: release.yml no longer stages the binaries under program/. The archive's top"
+    echo "        level is what a non-technical user sees; keep it a door, not an inventory."
+    fail=1
+fi
 
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."

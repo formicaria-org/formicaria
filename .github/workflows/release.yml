@@ -74,20 +74,40 @@ jobs:
             VERSION="dev-$(git rev-parse --short HEAD)"
           fi
           DIR="formicaria-${VERSION}-${{ matrix.target }}"
-          mkdir -p "stage/${DIR}"
+
+          # **The top level is what a non-technical user sees, so almost nothing lives there.**
+          # A tester unzipped v0.2.0, met nine entries of which three looked launchable, opened
+          # the `manual` folder, found "many miscellaneous files", and could not tell what to
+          # click. The machinery now lives in `program/`; the top level is a door, a manual, a
+          # readme and your notes.
+          mkdir -p "stage/${DIR}/program"
           for b in fm-serve fm; do
             if [ -f "target/release/${b}.exe" ]; then
-              cp "target/release/${b}.exe" "stage/${DIR}/"
+              cp "target/release/${b}.exe" "stage/${DIR}/program/"
             else
-              cp "target/release/${b}" "stage/${DIR}/"
+              cp "target/release/${b}" "stage/${DIR}/program/"
             fi
           done
-          cp packaging/README-release.md "stage/${DIR}/README.md"
-          # Our licence, plus the notices of the ~87 crates linked into the binary —
-          # MIT and Apache both require those to travel with it. Generated from the real
-          # dependency tree, never hand-maintained.
-          cp LICENSE "stage/${DIR}/"
-          pixi run sh ci/third-party.sh "stage/${DIR}/THIRD-PARTY.md"
+          # `fm` moves WITH `fm-serve` and that is not incidental: `ensure_repo` installs the
+          # `.md` merge driver by pointing git at the `fm` beside the running binary, and
+          # installs nothing when it cannot find one. They stay in the same directory forever.
+
+          # **Plain text, not Markdown.** The tester's words: "I would prefer it to be in a
+          # format where I can open it in Notepad as I'm unable to open in MD file format."
+          # Double-clicking a `.md` on Windows offers an app picker; `.txt` opens Notepad. On
+          # Windows it also needs CRLF, because Notepad on older Windows 10 renders LF-only text
+          # as one unbroken line — which is a readme nobody can read.
+          if [ "${{ matrix.target }}" = "windows-x86_64" ]; then
+            sed 's/$/\r/' packaging/README-release.txt > "stage/${DIR}/README.txt"
+          else
+            cp packaging/README-release.txt "stage/${DIR}/README.txt"
+          fi
+
+          # Our licence, plus the notices of the ~87 crates linked into the binary — MIT and
+          # Apache both require those to travel with it. Generated from the real dependency tree,
+          # never hand-maintained. Beside the binaries they describe, not in the user's way.
+          cp LICENSE "stage/${DIR}/program/"
+          pixi run sh ci/third-party.sh "stage/${DIR}/program/THIRD-PARTY.md"
 
           # **The manual ships WITH the app.** `docs.yml` only ever built the book as a link
           # check and threw the HTML away with the runner — no artifact, no Pages deploy — and
@@ -127,11 +147,17 @@ jobs:
           # existed already and were simply unreachable from a download, because the only scripts
           # that set them assume a git checkout. These resolve everything from the archive's own
           # folder, which is what makes the folder portable.
+          # Pipe-separated because every name now contains a space — the whole point of the
+          # rename — and word-splitting would turn each into two missing files.
           case "${{ matrix.target }}" in
-            windows-*) launchers="formicaria.vbs formicaria.bat" ;;
-            macos-*)   launchers="Formicaria.command" ;;
-            *)         launchers="formicaria.sh" ;;
+            windows-*) launchers="Start formicaria.vbs|Start formicaria (show messages).bat" ;;
+            macos-*)   launchers="Start formicaria.command" ;;
+            *)         launchers="Start formicaria.sh" ;;
           esac
+          # Names, not just files. "Start formicaria" answers the question a first-time user
+          # actually has; `fm-serve.exe` answered a different one, and `formicaria.vbs` beside
+          # `formicaria.bat` beside `fm-serve.exe` offered three plausible answers at once.
+          IFS='|'
           for l in $launchers; do
             cp "packaging/launcher/$l" "stage/${DIR}/$l"
             # Assert the staged file, the same as the manual above: a missing launcher would not
@@ -139,6 +165,13 @@ jobs:
             [ -s "stage/${DIR}/$l" ] || { echo "stage: launcher $l did not land in the archive" >&2; exit 1; }
             case "$l" in *.sh|*.command) chmod +x "stage/${DIR}/$l" ;; esac
           done
+          unset IFS
+
+          # **One obvious door to the manual.** The book is ~50 files and its entry point is only
+          # obvious to someone who already knows it is `index.html` — which is exactly what the
+          # tester could not know. This sits one level up and redirects.
+          cp packaging/launcher/Manual.html "stage/${DIR}/Manual.html"
+          [ -s "stage/${DIR}/Manual.html" ] || { echo "stage: Manual.html did not land" >&2; exit 1; }
 
           # A ready, empty vault. The app then opens into somewhere real instead of asking a
           # brand-new user to invent a location before they have seen the app at all — and
