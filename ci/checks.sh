@@ -398,6 +398,29 @@ if grep -nE '~~.*~~[^*]*FIXED' docs/context/known-issues.md; then
     fail=1
 fi
 
+echo "[check] the release sheet points at paths the release actually stages..."
+# `packaging/README-release.md` ships AS the archive's `README.md`, and since 2026-08-28 it tells
+# the reader to open `manual/index.html` and to read the Markdown in `manual/source/`. Those are
+# promises made to the one reader who cannot check anything: someone holding a .tar.gz, offline,
+# with no way to discover that the folder was renamed after the sheet was written.
+#
+# This is the docs/context router check one layer out — a pointer to a path that is not there. The
+# difference is who pays. A stale router costs a maintainer one grep; this costs a user the manual,
+# silently, inside an artifact they have already downloaded. So the sheet and the workflow must name
+# the same paths: change both, or neither.
+for p in manual/index.html manual/source; do
+    if ! grep -qF "$p" packaging/README-release.md; then
+        echo "  FAIL: packaging/README-release.md no longer names $p — the archive's README would"
+        echo "        send its reader to a path that is not there."
+        fail=1
+    fi
+    if ! grep -qF "$p" .github/workflows/release.yml; then
+        echo "  FAIL: .github/workflows/release.yml no longer stages $p, but the release sheet"
+        echo "        still promises it. Change both, or neither."
+        fail=1
+    fi
+done
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

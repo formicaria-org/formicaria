@@ -109,10 +109,15 @@ jobs:
           # number to keep up to date as chapters are added, and — the reason it is not `find`
           # — `find` on the Windows runner can resolve to Windows' own `find.exe`, which is a
           # text search with entirely different semantics. `diff` is unambiguous on all three.
-          [ -s docs/book/index.html ] || { echo "stage: mdbook produced no docs/book/index.html" >&2; exit 1; }
           mkdir -p "stage/${DIR}/manual/source"
           cp -R docs/book/. "stage/${DIR}/manual/"
           cp -R docs/src/.  "stage/${DIR}/manual/source/"
+          # Assert the **staged** entry point, not `docs/book/index.html`. `manual/index.html` is
+          # the path the archive's own README tells the reader to open, so it is the path the build
+          # owes them; checking mdbook's output directory instead asserts the tool one step short of
+          # the artifact, and `cp -R docs/book/. …` over an empty book succeeds silently either way.
+          [ -s "stage/${DIR}/manual/index.html" ] \
+            || { echo "stage: no manual/index.html in the archive — mdbook produced nothing" >&2; exit 1; }
           diff -r docs/src "stage/${DIR}/manual/source" >/dev/null \
             || { echo "stage: manual/source does not match docs/src" >&2; exit 1; }
 

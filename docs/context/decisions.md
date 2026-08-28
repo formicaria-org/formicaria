@@ -92,8 +92,20 @@ own artifact. `mdbook` can exit 0 having written nothing, and `docs/src` is a *t
 obvious `cp docs/src/*.md` ships `SUMMARY.md` and `introduction.md` and drops the fourteen chapters
 that matter without a word. The step checks `docs/book/index.html` is non-empty and compares the
 staged page count against the source count, so a short copy fails the build instead of shipping a
-`manual/` that looks like documentation until you open it. Verified locally against a real archive:
-16 of 16 pages, and the deliberate glob mistake caught at 2 of 16.
+`manual/` that looks like documentation until you open it. The assertion is on the **staged**
+`manual/index.html` rather than mdbook's `docs/book/index.html` — the path the archive's README
+sends the reader to is the path the build owes them, and checking the tool's output instead stops
+one step short of the artifact. Verified locally against a real archive: 16 of 16 pages, and all
+three failure modes caught — the glob mistake at 2 of 16, an empty book, and a tampered page.
+
+**The whole book ships, developer guide included.** Splitting it means maintaining a second mdBook
+or a filtered copy, and a manual missing four chapters is a manual whose table of contents lies; a
+reader with no interest in `dev/architecture` simply does not click it.
+
+`ci/checks.sh` now holds the sheet and the workflow to the same paths. That is the `docs/context`
+router check one layer out, and the difference is who pays: a stale router costs a maintainer one
+grep, a stale release sheet costs a *user* the manual — silently, offline, inside an artifact they
+have already downloaded and cannot diagnose.
 
 Not fixed here: there is still no in-app route to the manual — see `outstanding.md`.
 

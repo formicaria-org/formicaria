@@ -46,7 +46,8 @@ Then open <http://127.0.0.1:8765>. Stop it with Ctrl-C.
 ## Learn to use it
 
 The full manual is in this archive. Open **`manual/index.html`** in your browser. It needs no
-network and no account — it reads the same whether or not you are online.
+network and no account — it reads the same whether or not you are online. Unpack the archive
+first: opened from inside a zip preview, the page appears without its styling or its search.
 
 It covers everything this sheet does not: views, panes and boards; writing notes, links and
 backlinks, templates and checkboxes; images, PDFs and whiteboards; search; backup; sharing a
