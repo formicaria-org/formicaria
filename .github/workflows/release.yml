@@ -9,12 +9,16 @@
 # them, in one archive named after the platform it actually runs on.
 name: release
 
-# Manual-only by owner's standing order (2026-07-18): no remote CI billing until re-enabled.
-# The `v*` tag trigger is removed too, so even cutting a tag builds nothing until you run it
-# by hand (Actions → release → Run workflow). Restore by putting back below:
-#   push:
-#     tags: ['v*']
+# **Re-enabled 2026-08-28 on the owner's instruction**: cutting a `v*` tag builds the
+# release again, unattended. This workflow is the deliberate *exception* to the 2026-07-18
+# no-remote-CI standing order — `ci.yml`, `cross.yml` and `docs.yml` stay `workflow_dispatch`-
+# only. The exception is worth its cost because a release that must be fired by hand is a
+# release that silently does not exist: the tag lands, nothing builds, and the gap is only
+# noticed by someone looking for a download that was never produced.
 on:
+  push:
+    tags: ['v*']
+  # "I want a binary from this commit" without cutting a tag.
   workflow_dispatch:
 
 concurrency:
