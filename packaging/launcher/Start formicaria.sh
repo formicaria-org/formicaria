@@ -1,15 +1,9 @@
 #!/bin/sh
 # Start formicaria from an unpacked release archive. Double-click this.
 #
-# **Not `packaging/formicaria.sh`.** That one is the developer launcher: it assumes a git
-# checkout (`REPO=`, `target/release/`, `.pixi/envs/`) and falls back to `pixi run build`, which
-# from a USB stick would try to compile the whole workspace. This one assumes nothing but the
-# files beside it.
-#
-# Everything is resolved from **this script's own directory**, never the working directory. That
-# is the exact hazard behind the 2026-07-17 ruling that removed the relative `FM_VAULT="vault"`
-# default: a launcher started from elsewhere silently created an empty vault while the real notes
-# appeared to have vanished. `FM_VAULT` set *explicitly* stayed valid, and this is that path.
+# Everything is resolved from this script's own directory, never the working directory: a file
+# manager starts you in your home folder, so anything relative would put the notes somewhere you
+# did not choose.
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)

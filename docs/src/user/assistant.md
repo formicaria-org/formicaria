@@ -84,10 +84,8 @@ the AI or a person you share the vault with.
 
 ## Choosing a model
 
-The catalogue lives in [`agents/models.toml`](https://github.com/singhbal-baljinder/formicaria). Each
-device has a sweet spot — small enough to stay responsive and not block the rest of the system, large
-enough to answer well. Measured on real hardware (see the maintainer note
-`docs/context/model-benchmarks-2026-07-22.md`):
+Each device has a sweet spot — small enough to stay responsive and not slow the rest of the system
+down, large enough to answer well. Measured on real hardware:
 
 | Device | Recommended | Why |
 |---|---|---|

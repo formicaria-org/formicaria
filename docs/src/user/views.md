@@ -38,11 +38,6 @@ that proposes a change to a git branch; it lives in the **Collaboration** view, 
 on your board. All three still turn up in **Search** — a message or a proposal you
 cannot find in five years would defeat the point of keeping it in the vault at all.
 
-> **Property-filtered by choice.** Messages and proposals are kept out of the
-> planning views by a *property* (`thread_of`, `proposes`) parsed at query time —
-> not by a separate folder or note *type*. That is deliberate ("resist adding kinds,
-> add properties"); do not "harmonize" it into a hidden directory.
-
 Urgency and grouping are **derived**, never stored — there is no priority field;
 nudging a note's `due` date is the whole reprioritization gesture.
 
@@ -88,12 +83,9 @@ filter:              # every entry is ANDed onto the renderer's own filter
 | `not:` + one entry | the negation of it |
 | `any:` + a list of entries | at least one of them (an OR) |
 
-> **Only three renderers actually draw differently.** `search` and `gallery` are still
-> *accepted* in a `.view` file, but there is no Search or Gallery pane renderer any more —
-> both fall through to the **timeline**, so a view asking for them renders as a journal.
-> Use `board`, `agenda` or `timeline` and say what you mean. (Full-text search lives in the
-> top bar; assets are reached from the notes that reference them, which is why the standalone
-> gallery went away.)
+> **Use `board`, `agenda` or `timeline`.** Those are the three that draw differently. A view
+> asking for `search` or `gallery` is accepted but renders as a timeline. Full-text search is in
+> the top bar, and images are reached from the notes that use them.
 
 ```yaml
 name: Lab, due this fortnight, still open

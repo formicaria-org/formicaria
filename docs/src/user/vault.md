@@ -37,10 +37,8 @@ above. `notes` is relative to the vault root and **must stay inside it** — whi
 note belongs to is decided by which repo holds it, so notes living outside would make "who
 can see this" unanswerable.
 
-There is deliberately no `author`, no `collaborators`, no `remote` and no `created` here.
-Git already knows all of those, and the rule this file is held to is that **every field must
-be a fact git cannot supply**. If you find yourself wanting to add one, the question to
-answer first is why git's answer was wrong.
+There is no `author`, `collaborators`, `remote` or `created` field here, because git already
+records all of those.
 
 `name` gives way to the name in your own vault list if you set one there: a repo you cloned
 does not get to rename your audience out from under you.

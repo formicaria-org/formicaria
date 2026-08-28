@@ -1,7 +1,6 @@
 # Your first ten minutes
 
-formicaria is open in your browser. This page is everything you need to start using it properly.
-It is short on purpose — the rest of the manual is there when you want it, not before.
+formicaria is open in your browser. Here is how to start using it.
 
 ## Write a note
 
@@ -34,9 +33,9 @@ you can plan with:
 - A **status** — something to do, doing, done.
 - A **date** — when it is due, or when it happens.
 
-Set them from the note's own header. Once notes have them, the **Board** and **Agenda** views become
-useful: the same notes, arranged by status or laid out on dates. You do not have to use either. A
-notebook of plain notes is a perfectly good notebook.
+Set them from the note's own header. Once notes have them, the **Board** and **Agenda** views show
+the same notes arranged by status, or laid out on dates. Neither is required — notes work perfectly
+well without them.
 
 ## Keep them safe
 
@@ -58,14 +57,10 @@ Setting up backup to another computer, and sharing a notebook with someone else,
 - **?** top right — this manual, at any time.
 - **⚙** top right — settings.
 
-## What to read next
-
-Only when you want it, and only the one that matches a question you actually have:
+## More, when you need it
 
 - Working with more than plain notes — [Creating & organizing notes](./notes.md)
 - Boards, agendas, and arranging panes — [Views](./views.md)
 - Images, PDFs, whiteboards — [Assets & media](./assets.md)
 - History, backup, another machine — [Backup & versioning](./backup.md)
 - Writing with someone else — [Collaboration](./collaboration.md)
-
-If none of those is a question you have yet, you are done. Go and write.
