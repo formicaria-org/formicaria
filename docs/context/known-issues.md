@@ -590,6 +590,19 @@ The gray-screen fix and its tests are in
   pipeline's status is its *last* command's. Run `pixi run ci` unpiped, or append
   `; echo "exit: $?"`, and read the count — never trust the exit status of a pipe.
 
+- **`fm-app`'s `who_left_a_message_is_read_from_git` goes red intermittently under load.** Seen once
+  in a full `pixi run ci` on 2026-08-28 and green on every re-run since. It is not the test in
+  isolation: **0 of 40** sequential runs of the binary fail, but a burst of 8x8 concurrent runs
+  produced **8 failures (~12%)** — and a second identical burst produced none, so it tracks machine
+  load (that first burst followed an Android build) rather than concurrency by itself. The panic is
+  always `discussions.rs:95`, *"the discussion has participants"*: `fm_core::vcs::activity(vault,
+  "@0")` yielded nothing for a commit `commit_all` had just returned `true` for. **`--since=@0` is
+  git's epoch syntax — "everything since 1970" — so this is NOT a time-window race**, which was the
+  obvious first guess and is wrong. The mechanism is **unidentified**; it is recorded here so the
+  next red is not misread as a regression from whatever was being changed at the time. Re-run the
+  binary alone before believing it. Repro:
+  `for i in $(seq 1 8); do target/debug/deps/discussions-* who_left_a_message_is_read_from_git --exact >/dev/null 2>&1 || echo FAIL & done; wait`
+
 - **`tauri icon` rewrites `mobile/src-tauri/icons/*` non-deterministically.** Every
   `ci/android-release.sh` run re-encodes all platforms' icons, so an *Android* build leaves the
   *macOS* `icon.icns` dirty with 43k of 44k bytes changed and no semantic difference. It is
