@@ -575,6 +575,29 @@ export const commit = (message: string, vault = '') =>
  *  repo is per repository — there is no one destination a set of vaults could share. */
 export const backup = (vault = '') => invoke<void>('backup', { vault });
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
+
+/** Point one vault's media backup at a restic repository — a path, or an `s3:`/`sftp:` URL.
+ *
+ *  Per vault, because a restic repo is per repository. An empty `repo` clears it, which is how a
+ *  user says "this vault's media stays here" without editing a file. Answers the fresh
+ *  `backup_status`, so the panel's promise is the backend's, not one it computed for itself. */
+export const setResticRepo = (repo: string, vault = '') =>
+  invoke<BackupStatus>('set_restic_repo', { repo, vault });
+
+/** The password that unlocks every restic repository this machine writes to.
+ *
+ *  **One for all of them** — a per-vault password would multiply the places a secret lives. Kept
+ *  `0600` in formicaria's own config directory and never in `vaults.json`, which is a file of paths
+ *  a user may reasonably open or send someone. Write-only from here: nothing reads it back, and
+ *  `backup_status` reports only whether there is one.
+ *
+ *  **Lose it and the backups are gone.** Restic has no recovery for a repository whose password is
+ *  missing, which is why the panel says so at the moment it is set. */
+export const setResticPassword = (password: string) =>
+  invoke<BackupStatus>('set_restic_password', { password });
+
+/** Forget the stored password. The repositories are untouched and still need it. */
+export const clearResticPassword = () => invoke<BackupStatus>('clear_restic_password');
 /** Point the vault at a remote. `name`/`email` are sent only when the vault has no
  *  identity yet — sharing a vault is what makes the committer name matter, so it is
  *  the one moment worth asking. */

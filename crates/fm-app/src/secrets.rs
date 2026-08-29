@@ -46,6 +46,9 @@ use std::path::PathBuf;
 /// The environment variable `fm_core::git_native`'s credential callback reads.
 const ENV: &str = "FM_GIT_TOKEN";
 
+/// The environment variable restic reads. Kept as the override, never as the only way in.
+const RESTIC_ENV: &str = "RESTIC_PASSWORD";
+
 /// Whether this platform has to keep the token itself.
 ///
 /// **`false` wherever git exists**, which is the whole point: a desktop delegates to the
@@ -70,22 +73,7 @@ pub fn token_path() -> Option<PathBuf> {
 pub fn save_token(token: &str) -> Result<(), String> {
     let path = token_path()
         .ok_or("this device has no config directory, so there is nowhere to keep a token")?;
-    let parent = path.parent().ok_or("bad token path")?;
-    std::fs::create_dir_all(parent).map_err(|e| format!("could not create {}: {e}", parent.display()))?;
-
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    let mut f = opts.open(&path).map_err(|e| format!("could not write {}: {e}", path.display()))?;
-    {
-        use std::io::Write;
-        f.write_all(token.trim().as_bytes())
-            .map_err(|e| format!("could not write {}: {e}", path.display()))?;
-    }
+    write_private(&path, token.trim())?;
     install(token.trim());
     Ok(())
 }
@@ -128,6 +116,105 @@ pub fn install_into_env() {
     }
 }
 
+// ---- The restic repository password ---------------------------------------------------------
+//
+// **Why this one has no "the platform already has somewhere for it" escape.** The git token above
+// exists only where there is no credential helper, because everywhere else git owns the secret and
+// this module must not. Restic has no such helper on any platform: it reads `RESTIC_PASSWORD` or a
+// `--password-file`, and nothing else. So until now the documented answer was *"an environment
+// variable set in a launcher you have edited yourself"* — which means encrypted media backup was
+// reachable only by someone willing to edit a startup script, i.e. not by the person this feature
+// is for. Every other tier of backup is configurable from the app; this one was not.
+//
+// It is deliberately **not** in `vaults.json`: that file is a list of paths a user may reasonably
+// open, copy, or send someone while debugging, and a password beside the paths it unlocks is the
+// one place it must never be (`backup_status` has said so since this feature landed). One password
+// for every repo, for the same reason — a per-vault password would multiply the places it lives.
+//
+// **Losing this file loses the backups.** Restic cannot recover a repository whose password is
+// gone; there is no reset. The UI says so where the password is set, because that is the only
+// moment the warning is actionable.
+
+/// Where the restic password goes — beside the git token, same directory, same `0600`.
+pub fn restic_password_path() -> Option<PathBuf> {
+    crate::vaults::config_dir().map(|d| d.join("formicaria").join("restic-password"))
+}
+
+/// Persist the restic password `0600`, and make it usable immediately.
+pub fn save_restic_password(password: &str) -> Result<(), String> {
+    if password.trim().is_empty() {
+        return Err("an empty password would lock you out of your own backups".into());
+    }
+    let path = restic_password_path()
+        .ok_or("this device has no config directory, so there is nowhere to keep a password")?;
+    write_private(&path, password.trim())?;
+    // Safety: a deliberate user action from the single command surface — the same contract
+    // `install` below and `configure_paths` already rely on.
+    unsafe { std::env::set_var(RESTIC_ENV, password.trim()) };
+    Ok(())
+}
+
+/// Forget it. The repository is untouched and still needs this password — which is exactly why
+/// the surface offering this has to say so.
+pub fn clear_restic_password() -> Result<(), String> {
+    if let Some(path) = restic_password_path() {
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("could not remove {}: {e}", path.display())),
+        }
+    }
+    // Safety: as above.
+    unsafe { std::env::remove_var(RESTIC_ENV) };
+    Ok(())
+}
+
+/// The password to hand restic, from the environment or from disk.
+///
+/// **This one does return the secret**, unlike [`has_token`] — restic is a subprocess and the
+/// value has to reach it. Every caller passes it straight to `fm_core::backup`, which puts it in
+/// the child's environment and nowhere else; it is never logged, never serialised, and never sent
+/// to a client.
+///
+/// The environment wins, so an existing launcher that exports `RESTIC_PASSWORD` keeps working
+/// exactly as before and the stored file is the fallback rather than a competing source of truth.
+pub fn restic_password() -> Option<String> {
+    if let Ok(v) = std::env::var(RESTIC_ENV) {
+        if !v.is_empty() {
+            return Some(v);
+        }
+    }
+    restic_password_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+}
+
+/// Is there a password at all — the question the panel asks, with no value attached.
+pub fn has_restic_password() -> bool {
+    restic_password().is_some()
+}
+
+/// Create `path` owner-only **before** the secret goes in, then fill it.
+///
+/// Creating it world-readable and chmod'ing afterwards leaves a window in which the secret is on
+/// disk and readable, which on a multi-user machine is the whole vulnerability.
+fn write_private(path: &PathBuf, secret: &str) -> Result<(), String> {
+    let parent = path.parent().ok_or("bad secret path")?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("could not create {}: {e}", parent.display()))?;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path).map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    use std::io::Write;
+    f.write_all(secret.as_bytes()).map_err(|e| format!("could not write {}: {e}", path.display()))
+}
+
 fn install(token: &str) {
     // Safety: startup, or a deliberate user action from the single command surface. The same
     // contract `configure_paths` already relies on.
@@ -157,6 +244,34 @@ mod tests {
 
         clear_token().unwrap();
         assert!(!path.exists(), "clearing removes the file, not just the variable");
+    }
+
+    /// The restic password gets the same treatment as the token, and for a sharper reason: there
+    /// is no keychain to fall back to on any platform, so this file is the only copy. A
+    /// group-readable one on a shared machine hands over every backup it unlocks.
+    #[cfg(unix)]
+    #[test]
+    fn a_stored_restic_password_is_only_readable_by_its_owner() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("FM_CONFIG_DIR", dir.path());
+        std::env::set_var("XDG_CONFIG_HOME", dir.path());
+        std::env::remove_var("RESTIC_PASSWORD");
+
+        assert!(!has_restic_password(), "nothing stored yet");
+        // An empty password is refused rather than written: restic would accept it and the user
+        // would have an encrypted repository anyone can open.
+        assert!(save_restic_password("   ").is_err());
+
+        save_restic_password("correct horse battery staple").unwrap();
+        let path = restic_password_path().unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "a password file must not be readable by anyone else");
+        assert_eq!(restic_password().as_deref(), Some("correct horse battery staple"));
+
+        clear_restic_password().unwrap();
+        assert!(!path.exists(), "clearing removes the file, not just the variable");
+        assert!(!has_restic_password());
     }
 
     /// A desktop delegates to git's credential helper and must never take this path.

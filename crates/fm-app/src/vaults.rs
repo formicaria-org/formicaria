@@ -194,6 +194,51 @@ pub fn save(list: &[VaultConfig], to: &Path) -> Result<(), String> {
     write_atomic(to, text.as_bytes())
 }
 
+/// Set (or clear) **one** key of **one** entry: this vault's restic repository.
+///
+/// [`save`] deliberately leaves a known entry's every byte alone — *"theirs"* — which is right for
+/// a function whose job is appending vaults, and is exactly why it cannot be the one that changes
+/// a setting on a vault that already exists. Without this, giving an existing vault a media-backup
+/// repo meant editing `vaults.json` by hand, which Settings said in as many words.
+///
+/// So: a narrow writer, not a relaxed [`save`]. It rewrites the `restic` key of the named entry and
+/// nothing else — every other key of that entry, every other entry, and any part of the file this
+/// app does not understand are carried through untouched, and the same atomic replace protects a
+/// crash mid-write. `None` removes the key rather than writing `null`, so "no repo" reads the same
+/// way it always has.
+///
+/// The entry has to exist: this is a setting on a vault, and inventing one from a name would let a
+/// typo create a phantom. Call [`save`] with the live list first — which is what materialises an
+/// `FM_VAULT`-only install into the file — and then this.
+pub fn set_restic(name: &str, repo: Option<&str>, to: &Path) -> Result<(), String> {
+    let text = std::fs::read_to_string(to)
+        .map_err(|e| format!("{} could not be read: {e}", to.display()))?;
+    let mut root: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("{} is not valid JSON ({e}) — fix it first", to.display()))?;
+    let entry = root
+        .as_object_mut()
+        .and_then(|o| o.get_mut("vaults"))
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| format!("{}'s \"vaults\" is not an array — fix it first", to.display()))?
+        .iter_mut()
+        .find(|e| e.get("name").and_then(Value::as_str) == Some(name))
+        .ok_or_else(|| format!("no vault named '{name}' in {}", to.display()))?;
+    let obj = entry
+        .as_object_mut()
+        .ok_or_else(|| format!("the '{name}' entry in {} is not an object", to.display()))?;
+    match repo.map(str::trim).filter(|r| !r.is_empty()) {
+        Some(r) => {
+            obj.insert("restic".into(), json!(r));
+        }
+        None => {
+            obj.remove("restic");
+        }
+    }
+    let mut out = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    out.push('\n');
+    write_atomic(to, out.as_bytes())
+}
+
 /// Temp file in the **same directory** + rename: atomic on one filesystem, so a crash
 /// leaves the old list or the new one, never a truncated one. The same discipline as
 /// `FileStore::write_atomic`, for the same reason.
@@ -421,6 +466,39 @@ mod tests {
 
         let p = read(&f)["vaults"][0]["path"].as_str().unwrap().to_string();
         assert!(Path::new(&p).is_absolute(), "wrote a relative path: {p}");
+    }
+
+    #[test]
+    /// The narrow writer earns its existence by what it does **not** touch: `save` refuses to
+    /// rewrite a known entry at all, so a relaxed `save` would have been the alternative — and
+    /// that is the version that quietly reformats a file someone hand-edited.
+    #[test]
+    fn setting_a_restic_repo_edits_one_key_and_leaves_the_rest_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vaults.json");
+        std::fs::write(
+            &path,
+            r#"{"vaults":[{"name":"personal","path":"/p","note":"mine"},
+                          {"name":"lab","path":"/l","restic":"/backup/lab"}],
+                "something_we_do_not_understand": 7}"#,
+        )
+        .unwrap();
+
+        set_restic("personal", Some("/backup/personal"), &path).unwrap();
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(v["vaults"][0]["restic"], "/backup/personal");
+        assert_eq!(v["vaults"][0]["note"], "mine", "an unrelated key of that entry survived");
+        assert_eq!(v["vaults"][1]["restic"], "/backup/lab", "another vault was not touched");
+        assert_eq!(v["something_we_do_not_understand"], 7, "a shape we don't own survived");
+
+        // Clearing removes the key, rather than writing `null` — "no repo" must read the same way
+        // it does for a vault that never had one.
+        set_restic("lab", None, &path).unwrap();
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert!(v["vaults"][1].get("restic").is_none());
+
+        // A name that is not there is a typo, not an invitation to invent a vault.
+        assert!(set_restic("ghost", Some("/backup/ghost"), &path).is_err());
     }
 
     #[test]

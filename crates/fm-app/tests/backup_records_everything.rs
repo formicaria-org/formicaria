@@ -215,3 +215,45 @@ fn backup_alone_clears_the_backlog_without_a_record_step() {
          about.",
     );
 }
+
+/// **`outstanding.md` §2.9, put to the test: "a backup with no git reports success and records
+/// nothing".**
+///
+/// The report was that on a device with no `git` binary, `commit` answers `{"committed":true}` and
+/// creates **no repository at all** — the failure class this repo names repeatedly, *a surface that
+/// will not say what it knows*. It was diagnosed but never root-caused, and it long predates
+/// Windows getting libgit2.
+///
+/// This is that exact shape, on the backend such a device actually uses: a vault that has never
+/// been a repository, one note on disk, one press of Backup. Either a repository appears and the
+/// answer is true, or no repository appears and the answer must not be `true`. Both halves are
+/// asserted, because the bug is the *pair* — a truthful `false` here would be almost as bad, since
+/// `commitStep` carries a no-conflict `false` straight on to the push and reports "synced".
+#[test]
+fn a_first_backup_on_a_device_with_no_git_binary_creates_the_repository() {
+    if !cfg!(feature = "native-git") && !have_git() {
+        eprintln!("skipping: no git on PATH and no libgit2 in this build");
+        return;
+    }
+    let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+    let home = tempdir().unwrap();
+    let dir = tempdir().unwrap();
+    let vault = dir.path().join("v");
+    let notes = vault.join("notes");
+    std::fs::create_dir_all(&notes).unwrap();
+    write_note(&notes, "the only note, in a vault that has never been a repo");
+
+    let app = boot(&home, &vault);
+    assert!(!vault.join(".git").exists(), "the premise: no repository yet");
+
+    let out = call(&app, "commit", serde_json::json!({ "vault": "v", "message": "backup" }))
+        .expect("a first backup must not error");
+
+    assert!(
+        vault.join(".git").exists(),
+        "pressing Backup reported {out} and created no repository — the notes are files on disk \
+         and nothing else, while the user has been told their vault was backed up",
+    );
+    assert_eq!(out["committed"], serde_json::json!(true), "a first commit records the note");
+    assert_eq!(unrecorded_count(&app), 0, "nothing may be left outstanding after a first backup");
+}

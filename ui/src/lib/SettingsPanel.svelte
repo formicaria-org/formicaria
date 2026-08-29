@@ -1,11 +1,13 @@
 <script lang="ts">
   // Settings: what this installation is *actually* configured as.
   //
-  // **A mirror, not a form.** Nothing here is editable, and that is a property of the backend
-  // rather than a preference: `vaults::save` is append-only and never rewrites an existing
-  // entry, so a field offering to change a vault's path or restic repo would silently do
-  // nothing — the worst kind of control. Where something genuinely is editable it stays where
-  // it already is: the backup panel owns remotes and identity, and NewVault owns creation.
+  // **A mirror, not a form.** Nothing here is editable, and that stays true now that a vault's
+  // restic repo *is* settable (2026-08-29, via `vaults::set_restic` — a narrow writer, because
+  // `vaults::save` still refuses to rewrite an existing entry). The reason is placement, not
+  // capability: every editable thing lives where it is used, so the backup panel owns remotes,
+  // identity, backup repos and the backup password, and NewVault owns creation. This screen
+  // answers "what is this installation actually configured as" and points at whoever owns the
+  // change — which is why the rows below name a panel rather than a config file.
   //
   // What it is for is the question nobody could answer before: *which* vaults, at *which*
   // paths, backing up *where*, under *which* overrides. `VaultInfo.path` has been on the wire
@@ -658,8 +660,8 @@
               {#if resticFor(v.name)}
                 <code>{resticFor(v.name)}</code>
               {:else}
-                <span class="none">not configured</span> — set <code>restic</code> on this
-                vault in the vault list file; there is no UI for it.
+                <span class="none">not configured</span> — its attachments stay on this machine.
+                Set a backup repo for it in <strong>Backup</strong>.
               {/if}
             </p>
           </div>
@@ -726,8 +728,9 @@
             {#if cfg.restic_password_set}
               <span class="ok">set</span>
             {:else}
-              <span class="none">unset</span> — <code>RESTIC_PASSWORD</code> is read from the
-              environment and never stored. Heavy backups can't run without it.
+              <span class="none">unset</span> — attachment backups cannot run without it. Set one
+              in <strong>Backup</strong>; <code>RESTIC_PASSWORD</code> still wins if you'd rather
+              set it in the environment.
             {/if}
           </li>
         </ul>

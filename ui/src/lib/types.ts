@@ -170,6 +170,10 @@ export interface BackupStatus {
    *  installed" and "restic installed but this vault has no repo" are different things to
    *  tell someone. */
   restic: boolean;
+  /** Whether this machine holds the restic password — one for every repository here, and a bool
+   *  rather than the value, which nothing on this side needs. The third of the three conditions
+   *  `restic_ready` folds together, reported on its own so the panel can name which is missing. */
+  restic_password_set: boolean;
 }
 
 /** A conflicted note **and what kind of conflict it is**.

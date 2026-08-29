@@ -273,11 +273,13 @@ rights, travels when the folder is copied. Every piece exists and none is wired 
   indirection at all. `fm_core::git`'s `merge_command()` already argues the fix — *never a bare name
   hoping PATH will answer* — for our own `fm` binary; nothing applies it to a third-party tool.
 
-**Delivering a feature is usually three steps, not one.** Encrypted backup needs restic **plus** a
-repo location (hand-edited `vaults.json`; Settings says verbatim *"there is no UI for it"*) **plus**
-`RESTIC_PASSWORD` (an env var whose documented answer is *"a launcher you have edited yourself"*).
-Note `vaults::save` is append-only by design and never rewrites an entry — that constraint has to be
-met, not worked around.
+**Delivering a feature is usually three steps, not one.** Encrypted backup needed restic **plus** a
+repo location **plus** a password, and only the first of those was ever a capability the app could
+see. **Done 2026-08-29** (`decisions.md#vault`): the backup panel takes a repo per vault and one
+password per machine. `vaults::save`'s append-only rule was *met, not worked around* — a narrow
+`vaults::set_restic` rewrites that one key of that one entry and carries every other byte through,
+so a hand-edited list is still safe. The password is `0600` beside the vault list and never in it;
+`RESTIC_PASSWORD` still wins, so an edited launcher keeps working.
 
 **The assistant, delivered.** Fetch the model in-app with progress as Android already does on first
 enable, ship the manifest in the archive, start the runtime. **The blocker is cleared** (2026-08-29,
@@ -286,10 +288,11 @@ enable, ship the manifest in the archive, start the runtime. **The blocker is cl
 split and the cancel flag it needed before being armed. What remains is the *desktop* wiring — the
 Cargo feature is still off there, and the runtime is still not in the archive.
 
-**Smaller, same theme:** the backup panel has no token field (one exists only in the clone flow), so
-a user who created a vault locally and later adds an HTTPS remote has nowhere to put a token. And the
-"save this view" naming step is a `window.prompt()` — genuinely in-app, but not the app-quality
-affordance the owner asked for.
+**Smaller, same theme:** the "save this view" naming step is still a `window.prompt()` — genuinely
+in-app, but not the app-quality affordance the owner asked for. *(The backup panel's missing token
+field is **done 2026-08-29**: an HTTPS remote with no stored credential now asks for one, in the
+same words and with the same scope advice as the clone form, and asks for nothing where the remote
+is SSH or the helper already holds it.)*
 
 **A thumbnail consumer.** Generation works; nothing requests it (`render.ts`: *"There is no thumbnail
 path on any platform"*). Until one exists, previews cannot be offered as a feature at all.
@@ -335,12 +338,17 @@ runner needs Perl and NASM on the image. If the release's Windows job fails, thi
 suspect.
 
 ### 2.9 A backup with no git reports success and records nothing
-Separately, and worse than the report above: on the build that ships today, with no git binary,
-`commit` returns `{"committed":true}` and creates **no repository at all**. `ping.git` likewise
-reports `true` when git is provably absent (`env` cannot find it). A user can be told their notes
-are backed up when nothing was recorded — the failure class this repo names repeatedly, *a surface
-that will not say what it knows*. Diagnosed but not root-caused; independent of whether libgit2 ever
-ships on the desktop.
+**Closed 2026-08-29** (`decisions.md#git`). Root-caused, and it was neither half of what the report
+guessed: `git::unrecorded` answers "nothing" for a directory that is **not yet a repository** — it
+has to, git cannot say otherwise — while `commit_all` only creates the repository once it is already
+running. So the first backup of a new vault swept for orphans *before* there was a repo to be
+missing from, found none, then init'd, staged the `.gitignore`/`.gitattributes` it had just written,
+and answered `committed: true` with not one note in history. Pinned by
+`a_first_backup_on_a_device_with_no_git_binary_creates_the_repository`, on both backends.
+
+The *other* claim did not reproduce and was measured rather than argued: on a Linux build with no
+git binary, `ping.git` is `false`, `backup_status.git` is `false`, and `commit` returns
+`io error: could not run git (is it installed?)`. Those surfaces were honest already.
 
 ### 2.8 The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched

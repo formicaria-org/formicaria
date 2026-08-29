@@ -20,12 +20,23 @@
   // overstatement this panel exists to prevent — hence a vault with no restic repo is
   // named, not skipped in silence.
   import { onMount } from 'svelte';
-  import { backup, backupStatus, commit, forgetVault, pull, setGitRemote } from './ipc';
+  import {
+    backup,
+    backupStatus,
+    commit,
+    forgetVault,
+    gitAuth,
+    pull,
+    setGitCredential,
+    setGitRemote,
+    setResticPassword,
+    setResticRepo,
+  } from './ipc';
   import { syncVault, syncFor } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import { labelFor } from './vaultLabels.svelte';
-  import type { BackupStatus, VaultStatus } from './types';
+  import type { BackupStatus, GitAuth, VaultStatus } from './types';
 
   // `onnewvault` because this panel is already "a list, not a form" — the one surface in
   // the app that is *about the set of vaults*, which makes it where you add one. (The
@@ -41,6 +52,31 @@
   let remoteDrafts = $state<Record<string, string>>({});
   let nameDrafts = $state<Record<string, string>>({});
   let emailDrafts = $state<Record<string, string>>({});
+  // **The credential half of "your notes can leave this machine".** A vault created here and
+  // later given an `https://` remote had a URL, an identity, and nowhere to put a token — the
+  // field existed only in the clone form, which this user never went through. So Back up failed
+  // at the push with an authentication error and the panel offered nothing to do about it.
+  //
+  // Per vault, like every other draft here, and cleared the instant it is stored: a token is a
+  // bearer credential and has no business outliving the request that carries it.
+  let tokenDrafts = $state<Record<string, string>>({});
+  // What this machine can do about credentials for each vault's remote, from `git_auth` — which
+  // is a **local** question (which helper is configured, do we already hold something for this
+  // host) and costs no network. Deliberately not a `probe_remote`: `backup_status` already does
+  // one `ls-remote` per vault, and a second round trip per vault, per panel open, to learn
+  // something git can answer from disk would be a poor trade.
+  let auth = $state<Record<string, GitAuth | null>>({});
+  let authSaved = $state<Record<string, boolean>>({});
+  // **The media tier, configurable at last.** Both halves of it used to live outside the app: the
+  // repo was a key you hand-edited into `vaults.json` (Settings said so, verbatim: *"there is no
+  // UI for it"*) and the password was an environment variable whose documented answer was a
+  // launcher you had edited yourself. Every other tier of backup is set up here; this one asked
+  // the user to be a system administrator first.
+  let resticDrafts = $state<Record<string, string>>({});
+  // One for every repo, so it is not per vault — a second password would only multiply the places
+  // a secret lives, and losing any of them loses the backups it unlocks.
+  let passwordDraft = $state('');
+  let passwordSaved = $state(false);
   let heavy = $state(false);
   let busy = $state(false);
   let steps = $state<Step[]>([]);
@@ -65,6 +101,15 @@
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
   const needsIdentity = (v: VaultStatus) => v.identity === null;
+  // **Only an `https://` remote can use a token.** An `ssh://`/`git@` remote authenticates with
+  // the key in your agent, and offering a token field for one would be inviting a user to solve
+  // a problem they do not have with a credential that will never be consulted.
+  const usesToken = (v: VaultStatus) => !!v.remote && /^https?:\/\//i.test(v.remote);
+  // Ask for a token only where pasting one would change something: an HTTPS remote, git present,
+  // and nothing already stored for it. A machine whose helper already has the credential is
+  // finished, and says so instead of showing an empty box.
+  const needsToken = (v: VaultStatus) =>
+    usesToken(v) && !noGit && !!auth[v.name] && !auth[v.name]!.have_credential;
   const canSaveRemote = (v: VaultStatus) =>
     !busy &&
     !noGit &&
@@ -114,7 +159,55 @@
         remoteDrafts[v.name] ??= v.remote ?? '';
         nameDrafts[v.name] ??= '';
         emailDrafts[v.name] ??= '';
+        resticDrafts[v.name] ??= v.restic_repo ?? '';
       }
+      await loadAuth();
+    } catch (e) {
+      error = msg(e);
+    }
+  }
+
+  /// Where credentials would come from for each HTTPS remote. Failures are left as `null`,
+  /// which renders as no token row at all — a panel that cannot answer the question must not
+  /// invent an answer, and everything else here still works.
+  async function loadAuth() {
+    for (const v of status?.vaults ?? []) {
+      if (!usesToken(v)) continue;
+      auth[v.name] = await gitAuth(v.remote ?? '').catch(() => null);
+    }
+  }
+
+  async function saveToken(v: VaultStatus) {
+    const token = tokenDrafts[v.name]?.trim();
+    if (!token || busy) return;
+    error = null;
+    try {
+      auth[v.name] = await setGitCredential(v.remote ?? '', token);
+      tokenDrafts[v.name] = ''; // never keep it in the page once it is stored
+      authSaved[v.name] = true;
+    } catch (e) {
+      error = msg(e);
+    }
+  }
+
+  async function saveRestic(v: VaultStatus) {
+    if (busy) return;
+    error = null;
+    try {
+      status = await setResticRepo(resticDrafts[v.name]?.trim() ?? '', v.name);
+    } catch (e) {
+      error = msg(e);
+    }
+  }
+
+  async function savePassword() {
+    const password = passwordDraft.trim();
+    if (!password || busy) return;
+    error = null;
+    try {
+      status = await setResticPassword(password);
+      passwordDraft = ''; // as with the token: no secret stays in the page
+      passwordSaved = true;
     } catch (e) {
       error = msg(e);
     }
@@ -320,6 +413,46 @@
       </p>
     {/if}
 
+    {#if !noRestic && status && !status.restic_password_set && vaults.some((v) => !!v.restic_repo)}
+      <!-- **Per machine, so asked once** — one password unlocks every repository here. Shown only
+           once a vault actually has a repo to unlock: asking for a password before there is
+           anything it opens is a form with no purpose, and the repo field below is where this
+           journey starts. -->
+      <div class="vault">
+        <div class="identity">
+          <p class="why">
+            Your attachment backups are encrypted, and they need a password. Choose one now — it is
+            kept on this machine only, readable by nobody else, and never written into the vault
+            list.
+          </p>
+          <div class="row">
+            <input
+              type="password"
+              bind:value={passwordDraft}
+              onkeydown={(e) => e.key === 'Enter' && void savePassword()}
+              placeholder="a password you can find again"
+              autocomplete="off"
+              spellcheck="false"
+              disabled={busy}
+            />
+            <button onclick={() => void savePassword()} disabled={busy || !passwordDraft.trim()}>
+              Save password
+            </button>
+          </div>
+          <!-- The one warning that is not optional. Restic cannot open a repository whose password
+               is gone — there is no reset and nobody to ask. Said here because this is the only
+               moment it is actionable. -->
+          <p class="why">
+            <strong>Write it down somewhere safe.</strong> If this password is lost, the backups it
+            protects cannot be opened again — not by us, not by anyone. Your notes themselves are
+            unaffected: they are plain files, and they travel with git.
+          </p>
+        </div>
+      </div>
+    {:else if passwordSaved && !noRestic}
+      <div class="vault"><p class="why">✓ Backup password saved.</p></div>
+    {/if}
+
     <!-- One block per vault: each is its own repo, its own remote, its own audience.
          A single-vault install is a list of one and reads exactly as it always did. -->
     {#each vaults as v (v.name)}
@@ -338,7 +471,14 @@
               spellcheck="false"
               disabled={busy}
             />
-            <button onclick={() => saveRemote(v)} disabled={!canSaveRemote(v)}>Save</button>
+            <!-- Two "Save" buttons sit in every vault block now (a git remote and a backup repo),
+                 and in a multi-vault panel that is a screenful of identically-named controls. The
+                 accessible name says which one this is; the visible label stays "Save", and
+                 contains it, so the two never disagree. -->
+            <button
+              onclick={() => saveRemote(v)}
+              disabled={!canSaveRemote(v)}
+              aria-label={`Save the ${v.name} git remote`}>Save</button>
           </div>
         </label>
 
@@ -371,6 +511,95 @@
               />
             </div>
           </div>
+        {/if}
+
+        <!-- `|| authSaved` so the confirmation is actually seen: storing the token flips
+             `have_credential`, which makes `needsToken` false and would otherwise take the whole
+             block — including the ✓ — off screen in the same frame. -->
+        {#if needsToken(v) || authSaved[v.name]}
+          <!-- The credential, asked for where it is actually needed. The clone form has had this
+               field all along; a vault created *here* and later pointed at a private HTTPS repo
+               had no way to reach it, so Back up failed at the push with nothing to do about it.
+               Same shape as the identity block above: shown only while it is unanswered, and
+               gone the moment the machine has what it needs. -->
+          <div class="identity">
+            {#if authSaved[v.name]}
+              <p class="why">✓ Saved. Back up will use it from now on.</p>
+            {:else}
+              <p class="why">
+                {auth[v.name]?.storage === 'app'
+                  ? 'This repo is reached over HTTPS, which needs an access token. There is no system-wide git configuration on this device, so formicaria keeps it in its own private storage.'
+                  : "This repo is reached over HTTPS, which needs an access token. It goes to git's own credential helper — the terminal and every other tool get it too, and formicaria keeps nothing."}
+              </p>
+              <div class="row">
+                <input
+                  type="password"
+                  bind:value={tokenDrafts[v.name]}
+                  onkeydown={(e) => e.key === 'Enter' && void saveToken(v)}
+                  placeholder="github_pat_…"
+                  autocomplete="off"
+                  spellcheck="false"
+                  autocapitalize="off"
+                  disabled={busy}
+                />
+                <button onclick={() => void saveToken(v)} disabled={busy || !tokenDrafts[v.name]?.trim()}>
+                  Save token
+                </button>
+              </div>
+              <!-- The advice that actually limits a leak, in the same words the clone form uses.
+                   A token is a *bearer* credential: it is not tied to a device, so scope and
+                   expiry are the only things that bound the damage. -->
+              <p class="why">
+                Use a <strong>fine-grained</strong> token limited to this one repository, with
+                contents read/write and an expiry date. Anyone who has the token can use it from
+                anywhere, so a narrow one is the protection.
+              </p>
+              {#if auth[v.name]?.helper?.plaintext}
+                <p class="why">
+                  Heads up: git on this machine uses the <code>{auth[v.name]?.helper?.configured}</code>
+                  helper, which keeps credentials as <strong>plain text</strong> on disk. That is
+                  where this token will go.
+                </p>
+              {/if}
+            {/if}
+          </div>
+        {/if}
+
+        {#if !noRestic}
+          <!-- Where this vault's *media* goes. Separate field from the git remote because they are
+               separate destinations with separate reasons: notes are text and travel in history,
+               attachments are large and do not. Hidden entirely where restic is not installed —
+               the capability line below already says why, and a field that configures a tool the
+               machine does not have is a form that cannot be completed. -->
+          <label class="remote">
+            <span>{plural ? `The ${v.name} vault's` : "Your attachments'"} backup repo</span>
+            <div class="row">
+              <input
+                bind:value={resticDrafts[v.name]}
+                onkeydown={(e) => e.key === 'Enter' && void saveRestic(v)}
+                placeholder="/backup/{v.name}  ·  sftp:you@host:/backup  ·  s3:…"
+                spellcheck="false"
+                disabled={busy}
+              />
+              <button
+                onclick={() => void saveRestic(v)}
+                disabled={busy || (resticDrafts[v.name] ?? '') === (v.restic_repo ?? '')}
+                aria-label={`Save the ${v.name} backup repo`}
+              >
+                Save
+              </button>
+            </div>
+            <!-- Say what clearing does, since an empty field is how you say "nowhere". -->
+            <small class="why">
+              {#if v.restic_repo}
+                Images, PDFs and recordings in this vault are snapshotted here, encrypted. Clear the
+                field and save to stop — nothing already backed up is removed.
+              {:else}
+                Empty means this vault's attachments stay on this machine. Notes are unaffected:
+                they travel with git.
+              {/if}
+            </small>
+          </label>
         {/if}
 
         {#if steps.length === 0}

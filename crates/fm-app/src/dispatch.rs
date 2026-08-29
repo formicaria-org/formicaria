@@ -770,6 +770,11 @@ fn dispatch_inner(
             let g = lock()?;
             let cfg = g.config(scope, &s("vault"))?;
             let notes_rel = notes_rel_of(&cfg.path);
+            // Same ordering as `commit`, for the same reason: `unrecorded` answers "nothing" for a
+            // directory that is not a repository, so without this the one button that rescues
+            // unstaged notes reported *"Nothing left to record"* to a user whose vault had never
+            // been a repo — every note outstanding, and the surface saying there was nothing to do.
+            vcs::ensure_repo(&cfg.path).map_err(err)?;
             let found = vcs::unrecorded(&cfg.path, &notes_rel).map_err(err)?;
             if found.is_empty() {
                 return json(serde_json::json!({ "committed": false, "notes": 0 }));
@@ -1148,6 +1153,23 @@ fn dispatch_inner(
             //
             // Costs one `git status` over the notes dir per commit, on a path already debounced to
             // once per five seconds, and only for paths git does not already have.
+            //
+            // **The repository has to exist before we ask git what it is missing.** `unrecorded`
+            // answers "nothing" for a directory that is not a repo — correctly, git cannot say
+            // otherwise — and `commit_all` only creates the repo once it is already running. So on
+            // the very first backup of a new vault the sweep below found nothing, `commit_all`
+            // init'd the repo, staged the `.gitignore`/`.gitattributes` it had just written, and
+            // answered **`committed: true`** with not one note in history. The user is told their
+            // vault is backed up; `commitStep` carries a no-conflict result straight on to the push
+            // and reports "synced"; and the notes only *become* visibly unrecorded afterwards,
+            // because now there is a repo to be missing from. That is `outstanding.md` §2.9 — a
+            // surface that will not say what it knows — and it is one line: ask first.
+            //
+            // Idempotent and free on every later commit (`ensure_repo` returns early on a `.git`
+            // that exists); `commit_all` still calls it, so this is an ordering fix, not a second
+            // responsibility. On a machine with no git at all it fails here instead of a few lines
+            // down, with the same error.
+            vcs::ensure_repo(&cfg.path).map_err(err)?;
             for extra in adoptable(&cfg.path) {
                 if !paths.contains(&extra) {
                     paths.push(extra);
@@ -1424,7 +1446,9 @@ fn dispatch_inner(
                 // Reported for the same reason git and restic are: a feature that quietly does not
                 // work is one you discover on the day you needed it.
                 pdf_text: fm_core::ingest::pdf_text_available(),
-                restic_password_set: std::env::var("RESTIC_PASSWORD").is_ok_and(|v| !v.is_empty()),
+                // Env **or** the password formicaria keeps: setting one in the app has to move
+                // this, or the panel goes on saying "no password" about a machine that has one.
+                restic_password_set: crate::secrets::has_restic_password(),
                 vault_root: vaults::vault_root().map(|p| p.display().to_string()),
                 ca_bundle: crate::ca_bundle::status(),
             })
@@ -1463,6 +1487,43 @@ fn dispatch_inner(
                 crate::secrets::save_token(&token)?;
             }
             json(git_auth(&url))
+        }
+        // **Media backup, configurable from the app at last.** Both halves of it were env vars and
+        // hand-edited JSON: Settings said *"there is no UI for it"* about the repo, and the
+        // documented answer for the password was *"a launcher you have edited yourself"*. A tier of
+        // backup only reachable by editing a startup script is not a feature this product has.
+        "set_restic_repo" => {
+            let (vault, repo) = (s("vault"), s("repo"));
+            let config = app.config.clone().ok_or(
+                "there is nowhere to save the vault list on this machine — set FM_VAULTS"
+                    .to_string(),
+            )?;
+            let mut g = lock()?;
+            // Resolved through the scope, so a paired device cannot reconfigure an audience it
+            // was never given — and a name that is not ours is refused before anything is written.
+            let cfg = g.config(scope, &vault)?;
+            // Materialise first: an `FM_VAULT`-only install has no file yet, and `set_restic`
+            // edits an entry rather than inventing one. `save` leaves every known entry alone,
+            // so this cannot disturb a list that already exists.
+            let list = g.configs();
+            vaults::save(&list, &config)?;
+            let repo = Some(repo.trim()).filter(|r| !r.is_empty()).map(str::to_string);
+            // The file first: if it fails nothing has changed, which is the recoverable order.
+            vaults::set_restic(&cfg.name, repo.as_deref(), &config)?;
+            g.set_restic(&cfg.name, repo);
+            drop(g);
+            json(backup_status(app)?)
+        }
+        // One password for every repo — a per-vault one would multiply the places a secret lives,
+        // and it is deliberately not written into `vaults.json`, which is a file of paths a user
+        // may reasonably open or send someone while debugging.
+        "set_restic_password" => {
+            crate::secrets::save_restic_password(&s("password"))?;
+            json(backup_status(app)?)
+        }
+        "clear_restic_password" => {
+            crate::secrets::clear_restic_password()?;
+            json(backup_status(app)?)
         }
         "clear_git_credential" => {
             crate::secrets::clear_token()?;
@@ -1689,6 +1750,21 @@ impl Vaults {
         self.list.push(cfg);
     }
 
+    /// Point a vault's media backup at a repository, in the live set.
+    ///
+    /// The **memory** half of `vaults::set_restic`; the file is the other half. Both, or the
+    /// running app disagrees with the file it will reload from — the same failure `forget`
+    /// orders its two steps to avoid.
+    fn set_restic(&mut self, name: &str, repo: Option<String>) -> bool {
+        match self.list.iter_mut().find(|c| c.name == name) {
+            Some(c) => {
+                c.restic = repo;
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Drop a vault from the live set. Both halves again, for the same reason.
     fn remove(&mut self, name: &str) -> bool {
         let had = self.all.remove(name);
@@ -1899,7 +1975,7 @@ struct VaultRestic {
 
 /// An `FM_*` override actually in effect. Only these are reported: they change where data
 /// lives or how the server binds, which is exactly what a confused user needs to see. No
-/// secret appears here — `RESTIC_PASSWORD` is reported as a bool and never by value.
+/// secret appears here — the restic password is reported as a bool and never by value.
 #[derive(serde::Serialize)]
 struct EnvVar {
     name: String,
@@ -1990,7 +2066,7 @@ struct VaultStatus {
     /// vaults needs one each, and you may well not want one for all of them.
     restic_repo: Option<String>,
     /// This vault's media could actually be backed up **right now**: restic is installed,
-    /// this vault has a repo, and `RESTIC_PASSWORD` is set. All three, because "ready"
+    /// this vault has a repo, and a password is set. All three, because "ready"
     /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
     /// and then fails on a machine with no restic.
     restic_ready: bool,
@@ -2017,12 +2093,20 @@ struct BackupStatus {
     /// from `restic_ready` on purpose: "no restic installed" and "restic installed but this
     /// vault has no repo" are different sentences to say to someone.
     restic: bool,
+    /// Whether this machine holds the restic password. **Per machine, like the tool itself** —
+    /// one password unlocks every repository here, because a per-vault one would only multiply
+    /// the places a secret lives.
+    ///
+    /// A bool and never the value: nothing downstream needs the password, so no shape here can
+    /// leak it. It is the third of the three conditions `restic_ready` folds together, reported
+    /// separately so the panel can name *which* one is missing instead of greying a row out.
+    restic_password_set: bool,
 }
 
 fn backup_status(app: &App) -> Result<BackupStatus, String> {
     // One password for every repo. A per-vault password would have to live somewhere,
     // and the one place it must never live is the config file next to the paths.
-    let has_password = std::env::var("RESTIC_PASSWORD").is_ok();
+    let has_password = crate::secrets::has_restic_password();
     // The tool itself. Media backup is an optional *feature*: no restic, no feature — but
     // the notebook is untouched, and the panel has to say which of those it is.
     let has_restic = backup::available();
@@ -2046,7 +2130,12 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
             restic_repo: v.restic.clone(),
         })
         .collect();
-    Ok(BackupStatus { vaults, git: vcs::available(), restic: has_restic })
+    Ok(BackupStatus {
+        vaults,
+        git: vcs::available(),
+        restic: has_restic,
+        restic_password_set: has_password,
+    })
 }
 
 /// The media tier, for **one** vault — snapshot it into *its own* restic repo.
@@ -2064,8 +2153,11 @@ fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<(), String> {
     let repo = v.restic.as_ref().ok_or_else(|| {
         format!("no restic repo configured for '{}' — its media has nowhere to go", v.name)
     })?;
-    let password = std::env::var("RESTIC_PASSWORD")
-        .map_err(|_| "set RESTIC_PASSWORD for the restic repository".to_string())?;
+    let password = crate::secrets::restic_password().ok_or_else(|| {
+        "this vault has a media-backup repo but no password, so nothing can be written to it — \
+         set one in Backup settings"
+            .to_string()
+    })?;
     backup::backup(&v.path, Path::new(repo), &password)
         .map_err(|e| format!("backing up '{}': {e}", v.name))
 }
@@ -2365,10 +2457,12 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
                     restore from — a vault can still be created here, or cloned with git"
             .into());
     }
-    let password = std::env::var("RESTIC_PASSWORD")
-        .ok()
-        .filter(|p| !p.is_empty())
-        .ok_or("set RESTIC_PASSWORD to the repository's password — the app never stores it")?;
+    // **Points at the field that exists.** This used to say the app never stores a password and
+    // send the reader to an environment variable; since 2026-08-29 it keeps one, `0600`, and the
+    // panel asks for it. Advice naming a mechanism the product no longer uses is worse than none.
+    let password = crate::secrets::restic_password().ok_or(
+        "set the media-backup password in Backup settings — it is what unlocks the repository",
+    )?;
     let config = app.config.clone().ok_or(
         "there is nowhere to save the vault list on this machine — set FM_VAULTS".to_string(),
     )?;

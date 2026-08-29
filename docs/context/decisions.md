@@ -2336,6 +2336,63 @@ costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` si
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
 
+## 2026-08-29 — ask git for a repository before asking git what it is missing `#git` `#data`
+
+`outstanding.md` §2.9 had been open and un-root-caused since it was reported: *"a backup with no git
+reports success and records nothing."* Neither half of the guess was the bug.
+
+`git::unrecorded` returns an empty list for a directory that is **not a repository** — it has to,
+git cannot answer otherwise — and `commit_all` creates the repository as its own first act. So the
+`commit` arm swept for orphaned notes *before* there was a repo for them to be missing from, found
+none, and `commit_all` then init'd, staged the `.gitignore`/`.gitattributes` it had just written,
+and returned `true`. **The first backup of a new vault reported success with not one note in
+history** — and `commitStep` carries a no-conflict result straight on to the push and says "synced".
+Worse, the notes only *became* visibly unrecorded afterwards, because now there was a repo.
+
+**Decision:** `vcs::ensure_repo` is called in the `commit` arm before `adoptable`, and in
+`record_unrecorded` before its `unrecorded` scan. Ordering, not a new responsibility: `commit_all`
+still calls it, it returns early on a `.git` that exists, and a machine with no git fails at the
+same place with the same error. Pinned by
+`a_first_backup_on_a_device_with_no_git_binary_creates_the_repository` on **both** backends.
+
+**What did not reproduce, measured rather than argued:** on Linux with no git binary, `ping.git` and
+`backup_status.git` are both `false` and `commit` returns `io error: could not run git (is it
+installed?)`. Those surfaces were honest already, and the entry's second sentence was wrong about
+them. Recorded because "diagnosed but not root-caused" survived months partly on that sentence.
+
+## 2026-08-29 — formicaria keeps one restic password, and it is not in `vaults.json` `#vault`
+
+Encrypted media backup needed three things and the app could only ever see one of them: restic
+installed (a capability it reported), a repo location (a key you hand-edited into `vaults.json` —
+Settings said *"there is no UI for it"* in as many words), and `RESTIC_PASSWORD` (documented answer:
+*"a launcher you have edited yourself"*). A tier of backup reachable only by someone willing to be
+their own system administrator is not a feature this product has.
+
+**The repo:** a **narrow writer**, `vaults::set_restic`, not a relaxed `vaults::save`. `save`
+deliberately leaves a known entry's every byte alone — right for a function whose job is appending
+vaults, and exactly why it could not be the one that changes a setting. `set_restic` rewrites that
+one key of that one named entry and carries every other key, every other entry, and any shape this
+app does not understand straight through. The constraint was met, not worked around.
+
+**The password:** kept by the app, `0600`, beside the git token in its own config directory —
+**never** in `vaults.json`, which is a file of paths a user may reasonably open, copy, or send
+someone while debugging, and a password beside the paths it unlocks is the one place it must never
+be. One password for every repo, because a per-vault one only multiplies the places a secret lives.
+`RESTIC_PASSWORD` still wins over it, so an already-edited launcher keeps working and the stored
+file is a fallback rather than a competing source of truth.
+
+**Unlike the git token, this has no "the platform already has somewhere for it" escape.**
+`secrets.rs` exists only where there is no credential helper, because everywhere else git owns the
+secret and we must not. Restic has no helper on any platform — `RESTIC_PASSWORD` or
+`--password-file`, and nothing else — so this is the only answer, on every platform, and the module
+doc says so rather than letting the reader assume the token's reasoning applies.
+
+**Consequence:** losing that file loses the backups, and restic has no recovery. The panel says so
+in those words at the moment the password is set, which is the only moment it is actionable. The
+same panel gained the **git token field** it never had: an HTTPS remote with no stored credential
+asks for one, with the clone form's scope advice; an SSH remote and a machine whose helper already
+holds it are asked nothing.
+
 ## 2026-08-29 — the assistant is not a user, and must not keep the app alive `#agent` `#ui`
 
 `fm-serve` exits when nobody has been in touch for 90 s, so **closing the tab closes the app**. It

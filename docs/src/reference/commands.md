@@ -29,9 +29,11 @@ second copy of the table below.
 | `open_external`  | `reference`                  | —                      | opens the blob in the OS default app |
 | `commit`         | `message`                    | `{committed, conflicts}` | git-commit the vault. `committed: false` with `conflicts` non-empty is **not** "nothing to do" — the vault is mid-merge and nothing will be committed until those notes are settled |
 | `push`           | `message`                    | `u32`                  | squash the unpushed window → push; returns commits squashed (0 on the first push) |
-| `backup_status`  | —                            | `BackupStatus`         | `{vaults, git, restic}`; each vault carries `{name, remote, unpushed, identity, remote_moved, conflicts, restic_repo, restic_ready}` — never the restic password |
+| `backup_status`  | —                            | `BackupStatus`         | `{vaults, git, restic, restic_password_set}`; each vault carries `{name, remote, unpushed, identity, remote_moved, conflicts, restic_repo, restic_ready}` — the password only ever as a bool, never by value |
 | `set_git_remote` | `vault`, `url`, `name`, `email` | —                   | sets the vault's `origin`, and its git identity when `name`/`email` are non-empty (asked only of a vault git has never met); blank URL refused |
-| `backup`         | `vault`                      | —                      | restic snapshot, media included (env repo/password) |
+| `backup`         | `vault`                      | —                      | restic snapshot, media included; repo per vault, password from `RESTIC_PASSWORD` or the stored one |
+| `set_restic_repo` | `vault`, `repo`             | `BackupStatus`         | point one vault's media backup at a repository; empty `repo` clears it |
+| `set_restic_password` / `clear_restic_password` | `password` / — | `BackupStatus` | the one password every restic repo here uses; written `0600` beside the vault list, never into it |
 | `pull`           | `vault`                      | `{merged, conflicts}`  | fetch + merge through the `.md` driver; `conflicts` is a *result*, not an error |
 | `delete`         | `id`                         | —                      | unlinks the file and both index rows |
 | `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log |

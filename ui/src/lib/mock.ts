@@ -297,6 +297,11 @@ function noteDetail(id: string): NoteDetail | null {
 // panel that is a list rather than a form. The first is the default, as in the real
 // config. Identity starts null on both, like a machine with no git config, so the
 // identity question is on screen rather than on the path only configured users see.
+// Where each vault's media would go, and whether this machine can unlock any of it. Mutable so
+// the backup panel's restic fields can be developed against the mock, exactly like `gitVaults`.
+const mockRestic: Record<string, string | null> = {};
+let mockResticPassword = false;
+
 const gitVaults: Array<{
   name: string;
   remote: string | null;
@@ -1293,14 +1298,36 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           // Per vault, like the real backend: a restic repo is per repository. Null here
           // because the mock has no vault to snapshot, which also puts the "this vault's
           // media has nowhere to go" wording on screen under `pnpm dev`.
-          restic_repo: null,
-          restic_ready: false,
+          restic_repo: mockRestic[v.name] ?? null,
+          // The real rule: restic installed, this vault has a repo, and a password is set. All
+          // three, because "ready" must mean the backup would actually run.
+          restic_ready: !!mockRestic[v.name] && mockResticPassword,
         })),
         git: true,
         restic: true,
+        restic_password_set: mockResticPassword,
       };
       return status as T;
     }
+    // Media backup, modelled with the two things that actually go wrong: restic missing, and a
+    // password that was never set. A mock that always succeeded would leave the panel's honest
+    // branches unexercised — the failure this file has been caught by twice.
+    case 'set_restic_repo': {
+      const v = mockVault(args.vault);
+      const repo = String(args.repo ?? '').trim();
+      mockRestic[v.name] = repo || null;
+      return handle<T>('backup_status', {});
+    }
+    case 'set_restic_password': {
+      if (!String(args.password ?? '').trim()) {
+        throw new Error('an empty password would lock you out of your own backups');
+      }
+      mockResticPassword = true;
+      return handle<T>('backup_status', {});
+    }
+    case 'clear_restic_password':
+      mockResticPassword = false;
+      return handle<T>('backup_status', {});
     case 'set_git_remote': {
       const v = mockVault(args.vault);
       const name = String(args.name ?? '').trim();

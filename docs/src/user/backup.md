@@ -62,18 +62,26 @@ backed up would destroy the only copy of it.
 
 Tick **Include media** to also snapshot the whole vault — blobs and all — to a
 [restic](https://restic.net) repository: dedup, encryption, integrity, and
-off-site remotes, none of which formicaria reimplements. It needs two environment
-variables set before you launch:
+off-site remotes, none of which formicaria reimplements.
 
-```sh
-export FM_RESTIC_REPO=/path/or/remote/for/restic
-export RESTIC_PASSWORD=…            # keep this safe — it encrypts the repo
-```
+Set it up in **Backup**, in two steps:
 
-Without them the checkbox is disabled and says so. Note that the desktop launcher
-does not set them — this tier is for a terminal launch, or for a launcher you have
-edited yourself. From the CLI you also get `fm backup`, `fm restore`, and `fm check`
-(the last re-reads every pack to catch silent bit-rot).
+1. **Where the backups go.** Each notebook gets its own **backup repo** — a folder
+   on another drive, or a remote like `sftp:you@host:/backup`. Leave it empty and
+   that notebook's attachments simply stay on this computer.
+2. **A password.** The backups are encrypted, so they need one. You set it once and
+   it covers every backup repo on this computer.
+
+> **Keep the password somewhere safe.** If it is lost, the backups it protects
+> cannot be opened again — by anyone. Your notes themselves are unaffected: they are
+> plain files, and they travel with the notes backup above.
+
+If **restic** is not installed on this computer, the fields do not appear and the
+tick box says why — notes are unaffected either way.
+
+From a terminal you also get `fm backup`, `fm restore`, and `fm check` (the last
+re-reads every pack to catch silent bit-rot). `RESTIC_PASSWORD` still works if you
+prefer to set it in the environment: it wins over the stored one.
 
 If you only ever push notes, **restore what you can and check what you lost**: a
 git-only restore brings back every note, and `fm verify` then reads the notes' own
