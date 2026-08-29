@@ -293,16 +293,69 @@ fn filestore_matches_memorystore() {
     let dir = tempdir().unwrap();
     let mut fs_store = FileStore::open(dir.path()).unwrap();
     seed(&mut fs_store);
+    // **The shared seed is notes only**, which would make every `Kind(Asset)` case below compare
+    // empty against empty and pass while proving nothing. An asset is added here, locally, so the
+    // kind cases actually discriminate — and so a pushdown that dropped or kept the wrong rows
+    // shows up as a disagreement rather than as two identical empties.
+    let mut asset = Object::new(Kind::Asset, "extracted text of a trust region paper");
+    asset.title = Some("paper.pdf".into());
+    fs_store.put(&asset).unwrap();
 
     let mut mem = MemoryStore::new();
     for o in fs_store.query(&Query::default()).unwrap().rows {
         mem.put(&o).unwrap();
     }
 
+    // **`Kind` is pushed into SQL by `FileStore` and evaluated in memory by `MemoryStore`**, so it
+    // is the one predicate where the two backends run genuinely different code — and until
+    // 2026-08-29 this list, the guard that exists to prove they agree, did not mention it once.
+    // The pushdown was correct; nothing here would have noticed if it had not been. Every shape
+    // that could diverge is enumerated: the empty list, an intersection, a *disjoint* intersection
+    // (which must answer nothing), and the two compositions under which a `Kind` must NOT be
+    // pushed down because it no longer narrows the result.
     let queries = vec![
         Query { filter: Filter::new().and(Predicate::Text("trust".into())), ..Default::default() },
         Query { group_by: Some("status".into()), ..Default::default() },
         Query { sort: vec![SortKey::asc("created")], ..Default::default() },
+        Query { filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])), ..Default::default() },
+        Query { filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])), ..Default::default() },
+        Query {
+            filter: Filter::new().and(Predicate::Kind(vec![Kind::Note, Kind::Asset])),
+            ..Default::default()
+        },
+        Query { filter: Filter::new().and(Predicate::Kind(vec![])), ..Default::default() },
+        // Two that intersect to one kind, and two that intersect to none.
+        Query {
+            filter: Filter::new()
+                .and(Predicate::Kind(vec![Kind::Note, Kind::Asset]))
+                .and(Predicate::Kind(vec![Kind::Note])),
+            ..Default::default()
+        },
+        Query {
+            filter: Filter::new()
+                .and(Predicate::Kind(vec![Kind::Note]))
+                .and(Predicate::Kind(vec![Kind::Asset])),
+            ..Default::default()
+        },
+        // Under a negation and under a disjunction a `Kind` does not narrow the result set, so
+        // pushing it would silently drop rows the engine keeps.
+        Query {
+            filter: Filter::new().and(Predicate::Not(Box::new(Predicate::Kind(vec![Kind::Asset])))),
+            ..Default::default()
+        },
+        Query {
+            filter: Filter::new().and(Predicate::Any(vec![
+                Predicate::Kind(vec![Kind::Asset]),
+                Predicate::Text("trust".into()),
+            ])),
+            ..Default::default()
+        },
+        // And the combination the planning views actually issue: a kind plus a sort.
+        Query {
+            filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
+            sort: vec![SortKey::asc("created")],
+            ..Default::default()
+        },
     ];
     for q in &queries {
         let a = fs_store.query(q).unwrap();

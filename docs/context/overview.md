@@ -25,6 +25,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
+| **Papers, PDFs, annotations** (`fm-app/src/paper.rs`, the anchored `asset:` reference, the reader) | `papers-plan.md` — the direction, the four adversarial reviews it survived, and the owner's *separate app* ruling; then `decisions.md#data` |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 
 ## What formicaria is
@@ -118,7 +119,10 @@ ui/        Svelte 5 + Vite; renderers are generic + literal-free
 The SQLite index (FTS5) is **disposable**, rebuilt from the files on open. Git
 versioning of the notes + restic backup provide durability.
 
-## The commands — all of them through `fm_app::dispatch`
+## The commands — every one of them through `fm_app::dispatch`
+
+_The list below drifts; `dispatch.rs`'s `match` is the truth. What is **not** allowed to drift is
+the claim that there is exactly one door._
 
 `board` · `gallery` · `agenda` · `get` · `search` · `recent` · `capture` ·
 `set_property` · `update_body` · `delete` · `asset_status` · `resolve_asset` ·
@@ -132,6 +136,8 @@ first-run signal** — deliberately not `backup_status`, which shells out per va
 file) · `create_vault` / `clone_vault` / `restore_vault` (**three ways a vault comes into being**:
 start empty, git-clone a shared one, restic-restore a backup — identical registration, differing
 only in what fills the folder first; all three route through `acquire::naturalise`) ·
+`create_paper` / `paper_bibtex` (a paper note from a pasted citation, and its BibTeX back out —
+both offline; `decisions.md#data`) ·
 `list_views` / `run_view` (**saved `.view`
 files** — `query + a renderer`, parsed server-side, so the UI sends a *name* and no `Query`
 ever crosses the wire) · `ping` (the **local poll**: its `{changed}` is how a `git pull` or a

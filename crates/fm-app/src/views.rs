@@ -105,6 +105,11 @@ struct PredDto {
 impl PredDto {
     /// Is this predicate *only* a `tag:`? The one shape [`save_view`] can write, so it is also the
     /// one it may overwrite without losing anything the user put there.
+    /// The tag this predicate restricts to, when it restricts to exactly one and nothing else.
+    fn only_tag(&self) -> Option<String> {
+        self.is_only_tag().then(|| self.tag.clone()).flatten()
+    }
+
     fn is_only_tag(&self) -> bool {
         self.tag.is_some()
             && self.prop.is_none()
@@ -493,10 +498,20 @@ pub fn save_view(
     tag: Option<&str>,
 ) -> Result<(), String> {
     let path = view_path(vault, name)?;
+    let mut tag_carried_over: Option<String> = None;
     if let Ok(existing) = read_view(&path) {
         // What this surface can faithfully round-trip: nothing, or exactly one `tag:`.
         let expressible = existing.filter.is_empty()
             || (existing.filter.len() == 1 && existing.filter[0].is_only_tag());
+        // **An absent tag means "leave the filter alone", never "delete it".** The dialog opens
+        // with the box empty and does not prefill, so re-saving a tag-filtered view to change its
+        // grouping would otherwise silently drop the filter — the exact guarantee the ruling this
+        // extends exists to protect. Clearing a filter is a deletion and needs its own gesture.
+        if tag.map(str::trim).is_none_or(str::is_empty) {
+            if let Some(existing_tag) = existing.filter.first().and_then(PredDto::only_tag) {
+                tag_carried_over = Some(existing_tag);
+            }
+        }
         if !expressible {
             return Err(format!(
                 "\"{}\" already exists and filters its notes in a way this screen cannot rewrite. \
@@ -519,9 +534,15 @@ pub fn save_view(
     if let Some(g) = group_by.filter(|g| !g.is_empty()) {
         body.push_str(&format!("group_by: {g}\n"));
     }
-    if let Some(t) = tag.map(str::trim).filter(|t| !t.is_empty()) {
-        // The same two lines a person writes by hand — `views.md` documents this exact shape.
-        body.push_str(&format!("filter:\n  - tag: {t}\n"));
+    let tag = tag.map(str::trim).filter(|t| !t.is_empty()).map(str::to_string).or(tag_carried_over);
+    if let Some(t) = tag.as_deref() {
+        // **Serialised, never interpolated.** A tag may contain any character since tags became
+        // comma-separated, and `format!("tag: {t}")` writes a file YAML cannot read — or, worse,
+        // one it reads *wrongly*: a tag of `#todo` starts a comment, so the view parses clean,
+        // lists as healthy in the sidebar, and silently matches nothing.
+        let quoted = serde_yaml_ng::to_string(&serde_yaml_ng::Value::String(t.to_string()))
+            .map_err(|e| format!("could not write that tag: {e}"))?;
+        body.push_str(&format!("filter:\n  - tag: {}\n", quoted.trim_end()));
     }
     let dir = path.parent().ok_or("no views directory")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;

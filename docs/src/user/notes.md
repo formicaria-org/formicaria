@@ -50,7 +50,7 @@ The editor also gives you a **properties form**:
 | Due     | a deadline                | a date picker (`YYYY-MM-DD`)             |
 | Hard    | a hard deadline           | a checkbox                               |
 | Title   | an optional title         | free text                                |
-| Tags    | tags                      | comma- or space-separated                |
+| Tags    | tags                      | comma-separated (a tag may contain spaces) |
 
 **Status has a shortcut.** The status chip on every board and timeline card
 rotates through the statuses your vault already uses, then through "no status",
@@ -227,3 +227,36 @@ There are no folders to manage. You organize by **properties** and see the
 results through views: a status board, an agenda of due dates, tag-based boards,
 custom properties like `project`. Add any property you like — a new key in a
 note's frontmatter flows straight through to grouping with no configuration.
+
+**Every property is editable in the app.** Open a note's **＋ options** window and pick
+**Edit**: below the fields formicaria knows about (status, dates, title, tags) you get a row for
+every other property the note carries — `project`, `author`, whatever you have added — and an
+**Add** row for a new one. Leaving a value empty removes that property.
+
+A few properties are shown but not editable, greyed out: those are ones formicaria sets itself to
+keep track of where a note belongs, and typing into them would strand the note.
+
+A value keeps its kind. Typing `2017` stores a number, so a board grouped by it sorts sensibly;
+typing `007123` stores exactly that text, because a code with leading zeros is not the number
+7123. You get whatever you would have got by typing it into the file yourself.
+
+## Papers
+
+If you read research papers, formicaria will keep them as ordinary notes.
+
+Press **＋ → New paper** and paste whatever you have: a citation copied from a publisher's page (a
+BibTeX entry), a DOI, an arXiv link, or just the title. Formicaria fills in what it can — title,
+authors, year, journal — and makes a note tagged `paper` that you can then annotate, schedule, put
+on a board and search like anything else.
+
+**Nothing is looked up online**, ever. Everything comes from what you pasted, or from the paper
+itself: when you attach a PDF, formicaria reads the first page for a DOI or arXiv number and
+records it without asking.
+
+To cite one, open its **＋ options** and pick **Copy as BibTeX**.
+
+To collect them, make a view: arrange a board how you like it, press **Save view**, name it
+`Papers` and put `paper` in the *only notes tagged* box.
+
+*(Reading and highlighting a PDF inside formicaria is not built yet — for now a PDF opens in your
+browser's own viewer, and a link can point at a page of it.)*

@@ -32,7 +32,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
-  `tauri.conf.json` carries the same clause and had the same bug) · ***Startup is a contract*** (read before touching the shell's `setup`
+  `tauri.conf.json` carries the same clause — **but see *A PDF renders on the desktop; the phone
+  opens it externally*: the phone fix was inert and is withdrawn**) · ***Startup is a contract*** (read before touching the shell's `setup`
   hook or the render gate) · ***Every Android IPC command is `(async)`*** (read before adding a
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
@@ -55,7 +56,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: ***An anchored asset reference points at a place, and stays an ordinary link***
+- **`#data`**: ***A tag may contain a space, and both doors must agree what that means*** ·
+  ***An anchored asset reference points at a place, and stays an ordinary link***
   (read before touching `parse_ref`, `assetUrl` or the resolve passes) · ***A paper is a note, made from the citation you already have*** (read before
   adding a metadata field or an acquisition route) · ***A list property is writable, and a scalar where a list belongs is read, not
   dropped*** (read before adding a field to `Object` — a typed field with no `apply_property` arm is
@@ -79,6 +81,64 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A PDF renders on the desktop; the phone opens it externally (2026-08-29, `#track-m`)
+
+> Corrects the phone half of *The read view may frame its own blob* (same day). Written because an
+> adversarial audit found the claim false — twice, by two independent routes.
+
+**The claim was "PDFs render again on every platform". They never rendered on Android and still do
+not, and the fix shipped for the phone was inert.** Three separate reasons, any one sufficient:
+
+1. `mobile-design.md` has said all along that `open_external` is *"the only way to view a PDF on
+   Android, since the System WebView can't render PDFs inline."* The always-read layer was made to
+   contradict an on-demand doc — the precise failure the two-layer split exists to prevent.
+2. `frame-src 'self'` **cannot match `fmblob:`**. The phone's blob URLs come from `blobBase()` as
+   `fmblob://localhost/` (or `http://fmblob.localhost/` under wry's workaround), and the evidence
+   was two clauses away in the string being edited: `img-src` and `media-src` both enumerate
+   `asset: http://asset.localhost fmblob: http://fmblob.localhost` for exactly this reason.
+3. The phone serves every blob as `application/octet-stream` (`mobile/src-tauri/src/lib.rs`),
+   because the blob store is content-addressed and keeps no MIME beside the bytes. Nothing renders
+   a PDF inline from that, whatever the policy says.
+
+**So `tauri.conf.json` goes back to `frame-src 'none'`** — the phone frames nothing, and an inert
+change that reads as a fix is worse than no change. `features.md` now says *desktop*.
+
+**The process failure is the point, and it is not subtle.** The verification was a headless browser
+on the desktop; the conclusion was written about "every platform". A capability claim was made for a
+device that was never tested, in a repo whose standing ruling is *A feature the app cannot deliver
+must not offer itself* and whose `known-issues.md` already says layout and CSP claims on the phone
+are not provable from CI. **Verify on the device you are about to make a claim about, or scope the
+claim to the device you tested.**
+
+## A tag may contain a space, and both doors must agree what that means (2026-08-29, `#data`)
+
+> Supersedes the description of `tags` in *A list property is writable…* (same day), which said
+> `tags` splits on `[',', ' ']`. It no longer does.
+
+**`tags` is comma-separated.** It split on `[',', ' ']`, so `Machine Learning` silently became two
+unrelated tags — which blocks every mapping of an external name onto a tag (a Zotero collection
+called `To Read`, a folder, an imported keyword) and blocks the board's own drag write-back, which
+sends a column *name*. A "comma if present, else whitespace" heuristic was tried and rejected: it
+left a *single* multi-word tag needing a trailing comma, a rule nobody would guess. One separator,
+the same one `assets`/`code` use.
+
+**The read side had to move with it, and that is the half that was missed.** `as_string_seq` had
+just been made lenient about a bare scalar, so a hand-written `tags: alpha, beta` read as the single
+tag `"alpha, beta"` — and the first save split it into two. **Opening a note and saving it changed
+what it was tagged with.** `tags` now parses a scalar by splitting on commas, exactly as
+`apply_property` writes it, so the same text means the same tags whichever door it came through.
+`assets`/`code` deliberately keep scalar-as-one-element: a path may contain a comma.
+
+**The cost, stated:** `todo urgent` is now one tag, not two. Visible immediately as a single chip,
+and the field's placeholder and the manual both say comma.
+
+**And this entry exists because it nearly did not.** The separator change shipped with a long code
+comment, a long commit message, and **no entry** — while the entry above, written ninety minutes
+earlier, still asserted the old behaviour as current. That is the four-questions step failing in the
+exact way it was written to catch: the check gets applied where an entry was going to be written
+anyway, and skipped where the change feels like a bug fix. **A changed default is a decision even
+when it arrives inside a fix.**
 
 ## An anchored asset reference points at a place, and stays an ordinary link (2026-08-29, `#data`)
 
@@ -248,7 +308,9 @@ legacy `type:` values. A note is a file a person may write by hand, and `assets:
 obvious thing to type. Anything that is neither a sequence nor a string is still nothing.
 
 **Comma, never space — deliberately not what `tags` does.** `tags` splits on `[',', ' ']`, which is
-why a multi-word tag is unrepresentable through the only write path this app has. A blob reference
+why a multi-word tag is unrepresentable through the only write path this app has.
+*(**SUPERSEDED the same day**: `tags` is comma-separated now too — see *A tag may contain a space*
+below. The reasoning here is why; the description of `tags` is no longer current.)* A blob reference
 or a path may not contain a space, so splitting on one buys nothing and costs the same expressivity.
 The imitation was the trap: the obvious way to add these arms was to copy the `tags` arm.
 
@@ -261,6 +323,9 @@ serialiser changes its shape. Any future `Vec<String>` or non-`Text` field needs
 it is added.
 
 ## The read view may frame its own blob — a policy clause had been forbidding a shipped feature (2026-08-29, `#ui` `#track-m`)
+
+> **CORRECTED same day** by *A PDF renders on the desktop; the phone opens it externally* below —
+> the desktop half of this entry stands; **its phone half was wrong and is withdrawn.**
 
 **No PDF has ever rendered in this app.** `ui/src/lib/render.ts` shows every PDF in an `<iframe>`
 pointing at `/api/blob/…` — the design `MASTERPLAN.md:341` calls for, native elements, no JS media

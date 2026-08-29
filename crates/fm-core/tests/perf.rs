@@ -240,8 +240,10 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
     assert_eq!(bare_total, NOTES, "the notes-only vault holds only notes");
     assert_eq!(mixed_total, NOTES, "and the mixed vault answers with the same notes");
 
-    // Measured on this machine: ~1.5x with the pushdown, ~4.9x without. 3.0 sits in the gap with
-    // room on both sides, so a slow or loaded machine does not turn this into a flaky test.
+    // Measured: ~1.4-1.6x with the pushdown (stable across seven unloaded and three CPU-loaded
+    // runs — load raises both halves, so it *compresses* the ratio rather than inflating it), and
+    // ~4.9x without. 2.0 keeps ~25% headroom over the honest value while still failing a clean 2x
+    // regression, which 3.0 would have waved through.
     let ratio = mixed.as_secs_f64() / bare.as_secs_f64().max(1e-9);
     println!(
         "board over {NOTES} notes: bare {bare:?}, with {ASSETS} asset notes \
@@ -249,7 +251,7 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
         ASSETS * PDF_TEXT / 1_000_000
     );
     assert!(
-        ratio < 3.0,
+        ratio < 2.0,
         "a Kind(Note) view got {ratio:.1}x slower merely because the vault also holds \
          {ASSETS} asset notes it filters out ({bare:?} -> {mixed:?}). The bodies are being \
          hydrated before the filter runs — see `FileStore::candidates`."

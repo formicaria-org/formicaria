@@ -79,3 +79,39 @@ fn a_hand_written_filter_richer_than_one_tag_is_refused_not_flattened() {
     let raw = fs::read_to_string(views_dir(dir.path()).join("active.view")).unwrap();
     assert!(raw.contains("eq: done"), "the original filter survives the refusal:\n{raw}");
 }
+
+/// **A tag may now contain any character**, since `tags` became comma-separated in the same
+/// session — so interpolating it into YAML writes a file that either fails to parse or, worse,
+/// parses *wrongly*. `#todo` starts a comment: the view listed as healthy and matched nothing.
+#[test]
+fn a_tag_with_yaml_syntax_in_it_still_makes_a_working_view() {
+    for tag in ["#todo", "@home", "a: b", "- x", "*star", "Machine Learning", "y: [1,2]"] {
+        let dir = tempdir().unwrap();
+        save_view(dir.path(), "V", Renderer::Board, None, Some(tag)).unwrap();
+        let listed = list_views(dir.path());
+        let v = listed.iter().find(|v| v.name == "V").expect("listed");
+        assert!(v.error.is_none(), "tag {tag:?} wrote an unparseable view: {:?}", v.error);
+
+        // Parsing clean is not enough — `#todo` did that. It must carry the tag it was given.
+        let raw = fs::read_to_string(views_dir(dir.path()).join("v.view")).unwrap();
+        let parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&raw).unwrap();
+        let got = parsed["filter"][0]["tag"].as_str();
+        assert_eq!(got, Some(tag), "tag {tag:?} did not survive the file:\n{raw}");
+    }
+}
+
+/// **An empty tag box means "leave the filter alone", not "delete it".** The dialog opens empty
+/// and does not prefill, so re-saving a tag-filtered view to change its grouping would otherwise
+/// drop the filter silently — the exact guarantee the 2026-08-28 ruling protects, lost by the
+/// change that claimed to extend it.
+#[test]
+fn re_saving_without_a_tag_keeps_the_filter_that_is_there() {
+    let dir = tempdir().unwrap();
+    save_view(dir.path(), "Papers", Renderer::Board, Some("status"), Some("paper")).unwrap();
+    // Same view, new grouping, tag box untouched.
+    save_view(dir.path(), "Papers", Renderer::Board, Some("year"), None).unwrap();
+
+    let raw = fs::read_to_string(views_dir(dir.path()).join("papers.view")).unwrap();
+    assert!(raw.contains("group_by: year"), "the grouping changed:\n{raw}");
+    assert!(raw.contains("tag: paper"), "and the filter survived:\n{raw}");
+}

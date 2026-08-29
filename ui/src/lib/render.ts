@@ -325,7 +325,10 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
   // documents for `note:`. Here the fix is *not* a button: unlike `note:`, this resolves to a real
   // same-origin URL, so an `<a href>` is the honest element and the fragment does its job.
   const links = Array.from(el.querySelectorAll('a')).filter((a) => {
-    const href = a.getAttribute('href') ?? '';
+    // Lowercased first: `URI_ALLOWED` carries `/i`, so `ASSET:` survives the sanitiser too — and a
+    // scheme that slips this filter stays a *live* link to something nothing resolves, which is
+    // the navigate-out-of-the-WebView trap this pass exists to close.
+    const href = (a.getAttribute('href') ?? '').toLowerCase();
     return href.startsWith('asset:') || href.startsWith('sha256:');
   });
   // One in-flight promise per distinct reference, shared by every element that names it.

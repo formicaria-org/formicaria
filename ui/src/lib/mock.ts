@@ -220,7 +220,11 @@ function setProp(id: string, key: string, value: string): void {
       n.start = parseStampOrThrow('start', value);
       break;
     case 'tags':
-      n.tags = value ? value.split(/[,\s]+/).filter(Boolean) : [];
+      // Comma only, matching `apply_property` — this file's own rule is that the mock must refuse
+      // what the Rust refuses, or the UI suite passes against a backend that does not exist. When
+      // tags became comma-separated so a tag could contain a space, this arm was left behind and
+      // every UI test kept splitting on whitespace.
+      n.tags = value ? value.split(',').map((t) => t.trim()).filter(Boolean) : [];
       break;
     default:
       if (value) n.props[key] = value;
@@ -1242,9 +1246,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // so a filter that removes a whole column removes it with nothing on screen to say so. A mock
     // that only ever answered an unfiltered timeline could not reproduce that, which is precisely
     // why it went unnoticed.
-    // Writable in the mock too, so the dev loop and tests exercise the path that used to require
-    // a text editor. Kept in a module-level list so save/delete actually change what list_views
-    // returns — a mock that accepted a write and reported the old list would hide the bug.
     // The paste path, mirroring the Rust closely enough for the dialog's tests to mean something:
     // a BibTeX title wins, then an identifier, then the raw text as a title.
     case 'create_paper': {
@@ -1277,6 +1278,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'paper_bibtex': {
       return '@article{mock2026,\n  title = {A mock paper}\n}\n' as T;
     }
+    // Writable in the mock too, so the dev loop and tests exercise the path that used to require
+    // a text editor. Kept in a module-level list so save/delete actually change what list_views
+    // returns — a mock that accepted a write and reported the old list would hide the bug.
     case 'save_view': {
       const name = String(args.name ?? '').trim();
       if (!name) throw new Error('a view needs a name');

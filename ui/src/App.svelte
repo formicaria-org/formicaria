@@ -376,7 +376,11 @@
     searchEl?.focus();
   }
 
-  /// What the red plus offers: **three things you can make**, and nothing else.
+  /// What the red plus offers: **things you can make**, and nothing else.
+  ///
+  /// This said "three things" and had said it since before `New discussion` was added; `New paper`
+  /// made five. The number was never the rule — the rule is the sentence after it, and it still
+  /// holds: a **document** belongs here, a *view* does not.
   ///
   /// A note and a board are documents. A **window** is a place to look at them — and it opens on
   /// the board and is then *rotated* to whatever view you want, rather than being chosen from a
@@ -1081,6 +1085,9 @@
     paperOpen = true;
   }
   async function confirmNewPaper() {
+    // Nothing typed is not a paper. Without this, submitting an empty box `put`s a titleless,
+    // bodyless note tagged `paper`, which then shows up in the Papers view as a blank card.
+    if (!paperInput.trim()) return;
     try {
       const meta = await createPaper(paperInput, createTarget);
       paperOpen = false;
@@ -1904,7 +1911,7 @@
         </p>
         <div class="sv-actions">
           <button class="sv-cancel" onclick={() => (paperOpen = false)}>Cancel</button>
-          <button class="sv-save" onclick={confirmNewPaper}>Add paper</button>
+          <button class="sv-save" onclick={confirmNewPaper} disabled={!paperInput.trim()}>Add paper</button>
         </div>
       </div>
     </div>

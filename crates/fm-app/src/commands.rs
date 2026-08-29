@@ -98,10 +98,6 @@ pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError
         }))
 }
 
-/// Capture a note; the text becomes the body. `vault` is the audience it joins —
-/// empty means the default vault, an unknown name is refused by `Store::put`'s
-/// routing (same discipline as `ingest`). Returns the new card's meta so the UI
-/// can slot it into the board without a full refetch.
 /// A note's citation as a BibTeX entry — the thing a user pastes into a manuscript.
 ///
 /// Server-side so the format has **one** implementation: `paper::parse_bibtex` reads it and
@@ -169,6 +165,10 @@ pub fn create_paper(
     Ok(ObjectMeta::from(&obj))
 }
 
+/// Capture a note; the text becomes the body. `vault` is the audience it joins —
+/// empty means the default vault, an unknown name is refused by `Store::put`'s
+/// routing (same discipline as `ingest`). Returns the new card's meta so the UI
+/// can slot it into the board without a full refetch.
 pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectMeta, StoreError> {
     let mut obj = Object::new(Kind::Note, body);
     obj.vault = vault.to_string();

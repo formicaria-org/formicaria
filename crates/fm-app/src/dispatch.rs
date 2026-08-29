@@ -462,6 +462,10 @@ const READ_ONLY: &[&str] = &[
     "proposal_for",
     "asset_status",
     "resolve_asset",
+    // A `store.get` and a `format!`. Absent from this list, copying a citation bumped the
+    // generation and told every connected client — desktop, phone, paired tablet — that the
+    // vault had changed, so each refetched its whole workspace for nothing.
+    "paper_bibtex",
     "backup_status",
     "ping",
     "read_skipped",

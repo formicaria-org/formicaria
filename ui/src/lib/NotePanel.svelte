@@ -147,7 +147,7 @@
 
   // Editable property fields, initialized from the note when it loads. Each maps
   // to exactly what `apply_property` (via set_property) accepts: hard is a bool,
-  // tags are comma/space separated. There is no type field — notes are
+  // tags are comma separated. There is no type field — notes are
   // differentiated by tags, and `asset` is set only by ingest.
   //
   // start/due are split across two inputs because the model's time is OPTIONAL:
@@ -1348,15 +1348,28 @@
   // TypeScript would drift. Offered only where it means something: a note tagged `paper`.
   let copiedBibtex = $state(false);
   const isPaper = $derived(!!note?.tags?.includes('paper'));
+  // `navigator.clipboard` is undefined outside a secure context — which is exactly the paired
+  // tablet reached over `http://<lan-ip>`, the case `record.ts` already learned and wrote a plain
+  // sentence for. Offering the button there and answering with a raw `TypeError` is the failure
+  // *A feature the app cannot deliver must not offer itself* is about, so the capability is checked
+  // where the button is *drawn*, not only where it is pressed.
+  const clipboardAvailable = $derived(
+    typeof navigator !== 'undefined' && !!navigator.clipboard?.writeText,
+  );
   async function copyBibtex() {
     if (!note) return;
     try {
       const text = await paperBibtex(note.id);
+      if (!navigator.clipboard?.writeText) {
+        throw new Error(
+          'copying needs a secure context — open the app on localhost, or use the note\'s own fields',
+        );
+      }
       await navigator.clipboard.writeText(text);
       copiedBibtex = true;
       setTimeout(() => (copiedBibtex = false), 1500);
     } catch (e) {
-      error = String(e);
+      error = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -1949,7 +1962,7 @@
                   {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
                 </button>
               {/if}
-              {#if isPaper}
+              {#if isPaper && clipboardAvailable}
                 <button class="opt" onclick={() => { optionsOpen = false; void copyBibtex(); }}>
                   {copiedBibtex ? 'Copied' : 'Copy as BibTeX'}
                 </button>

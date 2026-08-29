@@ -47,18 +47,23 @@ A **view** is an arrangement you keep — *"my board grouped by status"*, *"this
 agenda"* — that appears alongside Board / Agenda / Timeline in the top bar and in each pane's
 view picker.
 
-**To make one:** arrange a board, agenda or timeline the way you want it, then use **New
-view** and give it a name. That is the whole thing.
+**To make one:** arrange a board, agenda or timeline the way you want it, then press **Save
+view** in the pane's own header and give it a name. That is the whole thing.
 
 Because a view lives in your vault as a small file, it is **git-tracked and travels to
 collaborators** — a shared view is shared exactly like a note.
 
 ### Filtering a view
 
-A view can also *filter* what it shows — *"everything tagged `reading` that isn't done"*.
-That part is not editable in the app yet: it is written into the view's file by hand, in the
-format below. A view you filtered by hand keeps its filter, and saving over it from the app is
-refused rather than quietly dropping it.
+A view can also *filter* what it shows. The **Save view** box asks for one optional thing
+besides the name — *only notes tagged …* — which is enough for the common case: a `Papers` view
+that shows the notes tagged `paper`, a `Reading` view for `reading`.
+
+Anything more than a single tag is still written into the view's file by hand, in the format
+below — the full grammar is nine kinds of condition, and a screen for it would be a query builder.
+A view you filtered by hand **keeps its filter**: saving over it from the app is refused rather
+than quietly dropping it, and re-saving a tag-filtered view without touching the tag box leaves
+its tag where it is.
 Because it lives in the vault, it is
 **git-tracked and travels to collaborators** — a shared view is shared exactly like a note.
 

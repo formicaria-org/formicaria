@@ -130,6 +130,56 @@ app saying it, rather than the user discovering it.
 
 ## 2. Not started
 
+### 2.0 The papers tool — the reader is the part that is still missing
+Full direction, with the four adversarial reviews behind it: [`papers-plan.md`](./papers-plan.md).
+**Owner's ruling: it is a separate app**, not a feature inside the notebook.
+
+**Shipped (2026-08-29):** the library. A paper is a `Kind::Note` tagged `paper` with flat metadata;
+`create_paper` builds one from a pasted BibTeX entry, a DOI, an arXiv link or a title, all offline
+(the core links no HTTP client — `fm-agent-run`'s ruling); the identifier a PDF prints on itself is
+read at ingest; `paper_bibtex` copies a citation back out; a `Papers` view is one saved tag filter.
+
+**Not started, and this is the half the owner actually asked for** — highlight a word, a sentence, a
+figure, a formula, and have the note be anchored to that place:
+
+- **The reader.** pdf.js with `isEvalSupported: false` (the CSP has no `'unsafe-eval'`, by a
+  deliberate ruling) **plus** its `cmaps/` and `standard_fonts/` assets, or CJK and
+  non-embedded-font papers render blank. Desktop only — say so; Android cannot render a PDF inline
+  at all (`decisions.md#track-m`).
+- **The anchor format.** `#page=N` ships and is the human/degradation half. The machine half does
+  not exist: a highlight is `rects` — **plural**, and one crossing a line break has several, which
+  in a two-column paper is the common case; ink is `paths`; an EPUB position is a CFI. None of that
+  belongs in a URL fragment. It needs a structured block in an annotation note, versioned and
+  explicit about its coordinate space, **designed before a line of reader code**.
+- **Annotations as notes from the start.** A highlight-as-prose-block can never hold multi-rect,
+  ink, colour, per-annotation tags or `sortIndex`. They must also be excluded from the planning
+  views via `thread::notes_base`, or every board and every search fills with fragments — the volume
+  disease the plan diagnoses in every competitor.
+- **The Zotero port**, which the owner made a hard requirement. Local API only: **every export
+  route drops annotations** (`case 'annotation': return false`, upstream of every translator), and
+  area-annotation images often do not exist on disk until the PDF has been opened in Zotero's own
+  reader — so the importer must render crops itself and therefore *depends on* the reader. Needs an
+  atomic idempotent `import_item`, a reserved `source_key`, and an import path allowed to set
+  `created`/`updated`. PDF-only: EPUB and snapshot annotations have no landing site.
+
+**Three obligations the owner's *separate app* ruling incurs, none started, all cheaper now than
+later** (`papers-plan.md` Part 5): a dated reversal of `MASTERPLAN.md:341` with a `> SUPERSEDED`
+banner — **not** a scoping entry; widening `ci/checks.sh`'s HTML-sink and literal-free-renderer
+greps to the second app **in the same commit that creates it**; and an npm licence gate, because
+`deny.toml` and `third-party.sh` are keyed on `Cargo.lock` and will never see pdf.js. There is also
+no bundle-size gate at all today, and the eager JS payload is ~70 KB gz.
+
+### 2.0b Extracted PDF text still lives in the note body
+`asset_note` puts `pdftotext` output in the body, measured at 1.7–2.2 KB per page — so a few
+thousand papers is >100 MB of note body, in git, in `objects.content`, and in the FTS shadow table.
+The `Kind` pushdown (2026-08-29) stops the *planning views* hydrating it, which was the urgent half.
+Moving it to `derived/<hash>/text.txt` would fix git size, launch time, and search returning
+`paper.pdf` instead of the paper — **but `Predicate::Text` is a substring scan over the body in
+`MemoryStore`, so text only `FileStore` can see breaks the store-equivalence invariant
+`decisions.md#seams` protects.** That is why it was not done inside a feature commit; it needs its
+own design and its own entry.
+
+
 ### 2.1 Track V4 — adoption
 Any `.md` reads for free with a **transient, index-only id**; the first time you cite or edit
 it, it is stamped with a real ULID. This is what makes "point formicaria at every repo you own"

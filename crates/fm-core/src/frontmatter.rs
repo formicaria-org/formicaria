@@ -170,7 +170,11 @@ pub fn from_file(text: &str) -> Result<Object, ParseError> {
             "hard" => hard = matches!(v, Value::Bool(true)),
             "created" => created = as_string(v),
             "updated" => updated = as_string(v),
-            "tags" => tags = as_string_seq(v),
+            // **A scalar `tags:` splits on commas**, because that is what `apply_property` writes
+            // and therefore what the value means. Without this, a hand-written `tags: alpha, beta`
+            // read as the single tag "alpha, beta" — and then the first save split it into two,
+            // silently changing what the note was tagged with just for having been opened.
+            "tags" => tags = as_tag_seq(v),
             "assets" => assets = as_string_seq(v),
             "code" => code = as_string_seq(v),
             _ => {
@@ -241,6 +245,22 @@ fn as_string(v: Value) -> Option<String> {
 /// strict `_ => Vec::new()` here is what turned it into *silent* data loss on the next read
 /// rather than a visible oddity. Accepting the scalar recovers every note already written that
 /// way. Anything that is neither a sequence nor a string is still nothing.
+/// `tags` out of YAML. A sequence is taken as-is; a **scalar is split on commas**, matching
+/// `apply_property`'s write path exactly, so the same text means the same tags whichever door it
+/// came through. (`assets`/`code` deliberately do *not* do this: a path may contain a comma, and
+/// there the scalar form is a one-element list.)
+fn as_tag_seq(v: Value) -> Vec<String> {
+    match v {
+        Value::Sequence(_) => as_string_seq(v),
+        other => as_string(other)
+            .into_iter()
+            .flat_map(|s| {
+                s.split(',').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect::<Vec<_>>()
+            })
+            .collect(),
+    }
+}
+
 fn as_string_seq(v: Value) -> Vec<String> {
     match v {
         Value::Sequence(items) => items.into_iter().filter_map(as_string).collect(),
@@ -262,9 +282,6 @@ fn prop_to_yaml(p: &PropertyValue) -> Value {
     }
 }
 
-/// YAML -> PropertyValue for a custom key. Integers become `Int`; anything the
-/// model can't type precisely (floats, nested maps) is kept as `Text` so the
-/// value round-trips rather than being lost.
 /// The `PropertyValue` a **hand-typed scalar** should become — the same one this file would have
 /// produced had the user written that text into the file's frontmatter themselves.
 ///
@@ -300,6 +317,9 @@ pub fn scalar_property(raw: &str) -> PropertyValue {
     }
 }
 
+/// YAML -> PropertyValue for a custom key. Integers become `Int`; anything the
+/// model can't type precisely (floats, nested maps) is kept as `Text` so the
+/// value round-trips rather than being lost.
 fn yaml_to_prop(v: &Value) -> PropertyValue {
     match v {
         Value::Null => PropertyValue::Null,

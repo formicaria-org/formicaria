@@ -81,7 +81,8 @@ Notes:
   local date — there is no stored priority field. It is **day-granular**: a time
   changes how a note is *displayed*, never which urgency band it lands in.
 - The body is literal Markdown; it round-trips byte-for-byte through edits.
-- `assets`/`code` are read-only from the UI (set by ingest / tooling).
+- `assets`/`code` are lists of references. Ingest sets `assets`; both are editable from the note's
+  details panel like any other field, comma-separated.
 
 Example:
 

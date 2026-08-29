@@ -23,6 +23,12 @@ use std::path::{Path, PathBuf};
 
 /// The shape of the index this build writes, stamped into `PRAGMA user_version`.
 ///
+/// **Every bump owes a line here *and* a column migration in [`FileStore::init_schema`]** — the
+/// two together are the upgrade path, and the missing history line is what made it obvious the
+/// migration had been forgotten:
+///   - **1** — `objects` gains `fts_rowid`.
+///   - **2** — `objects` gains `kind`, so `candidates` can narrow a planning view in SQL.
+///
 /// **Bump this whenever the index's meaning changes** — the `objects`/`fts` columns, the pinned
 /// tokenizer, or what `Object::searchable_text()` returns. [`FileStore::open_incremental`] trusts
 /// an index only when this matches, so a stale value means serving search results built under the
@@ -308,6 +314,25 @@ impl FileStore {
             .map_err(sql)?;
         if !has_column {
             self.db.execute_batch("ALTER TABLE objects ADD COLUMN fts_rowid INTEGER").map_err(sql)?;
+        }
+        // Same again for `kind` (schema 2). **Bumping `INDEX_SCHEMA` is not a migration** — it only
+        // makes `index_is_complete` false, which selects `Reindex::Full`, and `Full` does
+        // `DELETE FROM objects`, never `DROP TABLE`. Without this the v2 insert meets a v1 table and
+        // fails with "table objects has no column named kind"; `MultiStore::open_with` then files
+        // *every* vault under `unopened`, `list_vaults` answers `[]`, and `[]` is the first-run
+        // signal — so the whole library goes quiet behind a "create your first vault" screen.
+        //
+        // `NOT NULL` needs a default (SQLite refuses `ADD COLUMN … NOT NULL` without one). Nothing
+        // is backfilled and nothing needs to be: the `Reindex::Full` that follows rewrites every row.
+        let has_kind: bool = self
+            .db
+            .prepare("SELECT 1 FROM pragma_table_info('objects') WHERE name = 'kind'")
+            .and_then(|mut s| s.exists([]))
+            .map_err(sql)?;
+        if !has_kind {
+            self.db
+                .execute_batch("ALTER TABLE objects ADD COLUMN kind TEXT NOT NULL DEFAULT 'note'")
+                .map_err(sql)?;
         }
         Ok(())
     }
@@ -967,9 +992,6 @@ fn fts_tokens(s: &str) -> Vec<String> {
         .collect()
 }
 
-/// Drop `Text` predicates from a query — the FTS MATCH already applied them, so
-/// the pure engine only evaluates the remaining (structured) predicates.
-/// The filter minus what FTS5 already answered — see [`Store::candidates`].
 /// The kinds a **top-level** `Predicate::Kind` restricts this query to, if any.
 ///
 /// `Filter.all` is a conjunction, so a `Kind` sitting directly in it must hold for every result
@@ -989,6 +1011,9 @@ fn kind_pushdown(filter: &Filter) -> Option<Vec<Kind>> {
     acc
 }
 
+/// Drop `Text` predicates from a query — the FTS MATCH already applied them, so
+/// the pure engine only evaluates the remaining (structured) predicates.
+/// The filter minus what FTS5 already answered — see [`Store::candidates`].
 fn strip_text(filter: &Filter) -> Filter {
     let mut f = filter.clone();
     f.all.retain(|p| !matches!(p, Predicate::Text(_)));
@@ -1011,4 +1036,68 @@ fn sql(e: rusqlite::Error) -> StoreError {
 }
 fn parse(e: frontmatter::ParseError) -> StoreError {
     StoreError::Parse(e.to_string())
+}
+
+#[cfg(test)]
+mod upgrade_tests {
+    use super::*;
+    use fm_model::{Kind, Object};
+
+    /// **An index written by an older build must still open.** `index.sqlite` is per-machine and
+    /// gitignored, so it survives an in-place upgrade — a released v0.2.x carries `INDEX_SCHEMA = 1`
+    /// and an `objects` table with no `kind` column.
+    ///
+    /// Bumping the constant is **not** a migration: it only makes `index_is_complete` false, which
+    /// selects `Reindex::Full` — and `Full` does `DELETE FROM objects`, never `DROP TABLE`, while
+    /// `CREATE TABLE IF NOT EXISTS` is a no-op on a table that is already there. So the v2 insert
+    /// met a v1 table and failed with *"table objects has no column named kind"*.
+    ///
+    /// The blast radius is why this is a unit test and not a footnote: `MultiStore::open_with` files
+    /// a failed vault under `unopened` rather than erroring, so **every** vault fails, `list_vaults`
+    /// answers `[]` — and `[]` is the documented first-run signal. The upgrade path was
+    /// "your whole library disappears and the app offers to create your first vault".
+    fn v1_index(dir: &std::path::Path) {
+        // Exactly the v1 column list, then the v1 stamp.
+        let db = Connection::open(dir.join("index.sqlite")).unwrap();
+        db.execute_batch(
+            "ALTER TABLE objects DROP COLUMN kind; PRAGMA user_version = 1;",
+        )
+        .unwrap();
+        let cols: Vec<String> = db
+            .prepare("SELECT name FROM pragma_table_info('objects')")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(cols, ["id", "path", "mtime_ns", "content", "fts_rowid"], "the v1 shape");
+    }
+
+    #[test]
+    fn an_index_from_an_older_release_still_opens() {
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let mut s = FileStore::open(dir.path()).unwrap();
+            s.put(&Object::new(Kind::Note, "a note from before the upgrade")).unwrap();
+        }
+        v1_index(dir.path());
+
+        let s = FileStore::open(dir.path()).expect("a v1 index must not sink the vault");
+        let all = s.query(&fm_query::Query::default()).unwrap();
+        assert_eq!(all.total, 1, "and the note is still there after the rebuild");
+    }
+
+    #[test]
+    fn an_index_from_an_older_release_still_opens_incrementally() {
+        // The phone's door: `ColdStart::TrustIndex` routes through `open_incremental`.
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let mut s = FileStore::open(dir.path()).unwrap();
+            s.put(&Object::new(Kind::Note, "a note from before the upgrade")).unwrap();
+        }
+        v1_index(dir.path());
+
+        let s = FileStore::open_incremental(dir.path()).expect("the phone must not lose its vault");
+        assert_eq!(s.query(&fm_query::Query::default()).unwrap().total, 1);
+    }
 }

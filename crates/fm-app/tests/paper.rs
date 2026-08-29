@@ -63,6 +63,28 @@ fn the_identifier_a_pdf_prints_on_itself_comes_from_the_front_only() {
     assert_eq!(identifier_in_text(&body), None, "a cited DOI is not this paper's DOI");
 }
 
+/// **A multi-byte character straddling the scan budget must not panic.** `FRONT` is a *byte* count
+/// and `&str[..n]` panics off a char boundary. `pdftotext` emits ’ “ — ﬁ and accented names as a
+/// matter of course, so this was a dice roll per document and a certainty across a library — and it
+/// fires inside `asset_note` with the global `Mutex` held, so it poisoned the lock and killed the
+/// app until restart. Not one other test in this file contains a non-ASCII byte, which is exactly
+/// why it survived review.
+#[test]
+fn a_multibyte_character_on_the_scan_boundary_does_not_panic() {
+    // Byte 4000 lands inside this ’ (bytes 3999..4002).
+    let text = format!("{}\u{2019}rest of the paper", "x".repeat(3999));
+    assert_eq!(identifier_in_text(&text), None, "no identifier here — the point is it returns");
+
+    // And every offset around the budget, so an off-by-one cannot hide.
+    for pad in 3_990..4_010 {
+        let t = format!("{}\u{201C}arXiv:2401.12345", "x".repeat(pad));
+        let _ = identifier_in_text(&t);
+    }
+    // A real one just inside the window still reads, so the fix did not shrink the scan to nothing.
+    let found = format!("{}\u{2014} arXiv:2401.12345", "é".repeat(50));
+    assert_eq!(identifier_in_text(&found), Some(Identifier::ArXiv("2401.12345".into())));
+}
+
 #[test]
 fn a_pasted_bibtex_entry_becomes_the_fields() {
     let entry = r#"

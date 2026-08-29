@@ -61,7 +61,7 @@ second copy of the table below.
 | `start` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
 | `due`   | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
 | `hard`  | `true`/`yes`/`1` → true, else false            | → false     |
-| `tags`  | comma- or space-separated                      | clears      |
+| `tags`  | comma-separated; a tag may contain spaces      | clears      |
 | *(other)* | free text → a custom frontmatter property    | removes it  |
 
 ## The lost-update guard (`update_body`'s `base`)

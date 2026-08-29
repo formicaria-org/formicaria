@@ -49,7 +49,8 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
         // **Comma only, deliberately not `tags`' `split([',', ' '])`.** A blob reference or a path
         // may not contain a space, so splitting on one buys nothing here and costs the ability to
         // ever express a value that has one. (That split is also why a multi-word tag is
-        // unrepresentable today; the bug should not spread to a second key by imitation.)
+        // unrepresentable until the `tags` arm below was fixed the same day; the split must not spread
+        // to a second key by imitation.)
         "assets" => obj.assets = split_list(raw),
         "code" => obj.code = split_list(raw),
         "id" | "created" | "updated" | "schema" => {

@@ -167,7 +167,16 @@ pub fn parse_identifier(input: &str) -> Option<Identifier> {
 /// finding nothing.
 pub fn identifier_in_text(text: &str) -> Option<Identifier> {
     const FRONT: usize = 4_000;
-    let head = &text[..text.len().min(FRONT)];
+    // **Cut on a character, not a byte.** `FRONT` is a byte budget and `&str[..n]` panics when `n`
+    // lands inside a multi-byte character — which `pdftotext` output does routinely, because real
+    // papers carry ’ “ — ﬁ and accented names. This runs inside `asset_note` with the global
+    // `Mutex` held and nothing catches unwinds, so the panic poisoned the lock and every later
+    // command failed until the process restarted: one dropped PDF, one dead app.
+    let mut end = text.len().min(FRONT);
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let head = &text[..end];
     // arXiv first: an arXiv preprint's DOI, when it has one, is usually the publisher's rather
     // than the copy in front of you.
     find_arxiv(head)
