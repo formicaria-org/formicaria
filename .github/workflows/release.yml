@@ -225,40 +225,59 @@ jobs:
           files: dist/*
           generate_release_notes: true
           body: |
-            Download the archive for your system, unpack it, and double-click the launcher inside.
-            Nothing is installed and nothing is sent anywhere.
+            **formicaria** is a notebook for research and writing. Your notes are ordinary Markdown
+            files on your own computer — no account, no cloud, nothing sent anywhere. Nothing is
+            installed: you unpack a folder and double-click.
 
-            | Your system | Download | Then double-click |
+            ### Get started
+
+            | Your system | Download | Double-click |
             |---|---|---|
-            | Windows 10/11 | `…-windows-x86_64.zip` | `Start formicaria.vbs` |
-            | Mac (Apple silicon) | `…-macos-arm64.tar.gz` | `Start formicaria.command` |
-            | Linux (x86-64) | `…-linux-x86_64.tar.gz` | `Start formicaria.sh` |
+            | Windows 10/11 (64-bit) | `…-windows-x86_64.zip` | `Start formicaria.vbs` |
+            | Mac, Apple silicon | `…-macos-arm64.tar.gz` | `Start formicaria.command` |
+            | Linux, x86-64 | `…-linux-x86_64.tar.gz` | `Start formicaria.sh` |
 
-            Your browser opens by itself — that is the app. Closing the tab stops it; double-click
-            the same file to start it again.
+            **Unpack it first** — do not run it from inside the zip. Windows opens zips in a
+            temporary folder it later deletes, and it would take your notes with it.
+
+            Your browser opens by itself: that is the app. Closing the tab stops it, and
+            double-clicking the same file starts it again. Your notes stay in the `vault` folder
+            beside it, so copying that folder to a USB stick takes them with you.
 
             ### Your computer will warn you the first time
 
             formicaria is free and open source, and we have not paid Microsoft or Apple to sign it.
-            The warnings are about that missing signature, not about anything found in the files.
+            Both warn about the missing signature — not about anything found in the files.
 
-            **Windows** — your browser blocks the download first: click the three dots beside the
+            **Windows.** Your browser blocks the download first: click the three dots beside the
             message, then **Keep** → **Keep anyway**. Then Windows shows a blue *"Windows protected
-            your PC"* box with no visible button: click the small grey **More info** text, then
+            your PC"* box with no visible button — click the small grey **More info** text, then
             **Run anyway**.
 
-            **macOS** — the first launch is refused, and the dialog offers only **Done** and **Move
-            to Trash**. **Do not click Move to Trash.** Click **Done**, then go to  → **System
-            Settings** → **Privacy & Security**, scroll to the bottom, and click **Open Anyway**.
-            Then open it again and click **Open**. Once only.
+            **macOS.** The first launch is refused, and the dialog offers only **Done** and **Move
+            to Trash**.
 
-            **Linux** — no warning. If your file manager will not run it, mark it executable, or run
+            > ⚠️ **Do not click "Move to Trash".**
+
+            Click **Done**, then  → **System Settings** → **Privacy & Security**, scroll to the
+            bottom, and click **Open Anyway** beside the line about formicaria. Confirm with Touch
+            ID, then double-click the launcher again and choose **Open**. Once only — after that a
+            double-click just works. (Older guides say to right-click and choose Open; Apple removed
+            that in macOS Sequoia.)
+
+            **Linux.** No warning. If your file manager will not run it, mark it executable, or run
             `./Start\ formicaria.sh` from a terminal.
 
-            ### Where your notes live
+            ### What is in the folder
 
-            In the `vault` folder inside the one you unpacked — plain Markdown files you can open in
-            any editor. Copy that folder to a USB stick and your notes go with it.
+            `README.txt` and `Manual.html` — the whole manual, offline, also behind the **?** button
+            in the app. `vault/` is your notes. `program/` is the application; you never need to
+            open it.
 
-            Full instructions for your system are in `Manual.html` inside the archive, and behind
-            the **?** button in the app.
+            ### Good to know
+
+            - **Backup and history need `git`** on Linux and macOS — Windows has it built in. The
+              app works fully without it; you just have no history to step back through.
+            - **Searching the text inside PDFs** needs `poppler`, and **encrypted media backup**
+              needs `restic`. Settings tells you what this computer has.
+            - The **Android app** is built separately and attached by hand when available.
