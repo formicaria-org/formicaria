@@ -132,6 +132,7 @@ app saying it, rather than the user discovering it.
 
 ### 2.0 The papers tool — the reader is the part that is still missing
 Full direction, with the four adversarial reviews behind it: [`papers-plan.md`](./papers-plan.md).
+How it got here: [`sessions/2026-08-29-papers-and-what-three-audits-found.md`](./sessions/2026-08-29-papers-and-what-three-audits-found.md).
 **Owner's ruling: it is a separate app**, not a feature inside the notebook.
 
 **Shipped (2026-08-29):** the library. A paper is a `Kind::Note` tagged `paper` with flat metadata;

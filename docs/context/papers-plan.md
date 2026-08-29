@@ -5,6 +5,9 @@ _This is the on-demand topic doc for the papers/PDF-annotation direction, reache
 cold session could reconstruct the shipped bug fixes and none of the direction — see the note on
 the record at the end of Part 4._
 
+How this got here, and what three audits found underneath it:
+[`sessions/2026-08-29-papers-and-what-three-audits-found.md`](./sessions/2026-08-29-papers-and-what-three-audits-found.md).
+
 **Owner's rulings (2026-08-29), which govern everything below:**
 - **The papers tool is a separate app** over the existing command seam, not a feature inside the
   notebook. The counter-argument is in Part 5, and it was overruled — read it before revisiting.
