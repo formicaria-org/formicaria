@@ -16,6 +16,7 @@ const v = (name: string, label: string | null): VaultInfo => ({
   default: false,
   git_assets_max: null,
   label,
+  identity: null,
 });
 
 beforeEach(() => setVaultLabels([]));

@@ -229,7 +229,7 @@ lands on exactly the create-seam above, so building that seam serves both.
 
 ---
 
-### 2.6 The welcome screen — the last piece of the friendly release
+### 2.6 The welcome screen — done
 **Closed on 2026-08-28:** the in-app manual route this entry used to ask for is done — the book is
 baked into the binary, `/manual/` serves it under its own CSP, and a Help button sits beside the
 gear (`decisions.md#toolchain`). What is left is the other half of that session's decision.
@@ -243,17 +243,12 @@ welcome screen** should come first: name, email, and optionally a remote — the
 no remote" wrote the identity to disk *and reported failure*. It is in `REMOTE_DENIED`: a paired
 tablet does not get to name the host's committer. `ipc.ts` exposes `setIdentity`.
 
-**Still to build:** `ui/src/lib/Welcome.svelte` and its gate. Three things decide whether it is
-right:
-- **The trigger must be cheap.** Gate on identity, read from `list_vaults` (add `identity` to
-  `VaultInfo`, beside the `remote_label` call that already spawns git locally) — **never**
-  `backup_status`, which shells out `git ls-remote` per vault. The 2026-07-17 ruling already
-  refused to make a first-run screen wait on the slowest git command.
-- **It must be skippable, and skipping must cost nothing.** The notebook needs no git at all;
-  `ensure_repo` commits under a placeholder identity, so a user who skips keeps full history and is
-  asked again by `BackupPanel` at the moment a remote makes a name matter. Hide it entirely when
-  git is absent, or a git-less user is trapped on a form that can never save.
-- **Save identity first, and separately.** A bad remote URL must lose the remote and keep the name.
+**Built 2026-08-29** (`decisions.md#ui`), to all three conditions: `identity` rides on
+`VaultInfo` from `list_vaults` — one local `git config` read beside the `remote_label` spawn that
+already happens, never `backup_status`; **Skip for now** saves nothing and is remembered per
+browser; the screen never renders where git is absent or unknown; and the identity is saved
+first and on its own, so a typo'd remote leaves the name standing and says both halves.
+`Welcome.svelte.test.ts` pins the component's promises, `App.welcome.test.ts` the gate.
 
 ### 2.6b Features a user asks for are still not *delivered* — only declared
 **Closed 2026-08-28** (`decisions.md#agent`): nothing now claims a capability it lacks, and saved

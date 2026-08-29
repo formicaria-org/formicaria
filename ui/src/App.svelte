@@ -52,6 +52,7 @@
   import { labelFor, setVaultLabels } from './lib/vaultLabels.svelte';
   import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, DuplicateFamily, Unrecorded } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
+  import Welcome from './lib/Welcome.svelte';
   import Pairing from './lib/Pairing.svelte';
   import Starting from './lib/Starting.svelte';
   import { isRemote } from './lib/remote';
@@ -249,6 +250,23 @@
   // screen exists to end, and it must not inherit it: the vault you just made is the one
   // most likely to be empty.
   let vaults = $state<VaultInfo[] | null>(null);
+
+  // **Has this person told git who they are?** Read from `list_vaults`, which already spawns git
+  // locally for each vault's label — never from `backup_status`, which runs a network `ls-remote`
+  // per vault and would make the first screen wait on the network (the 2026-07-17 ruling).
+  //
+  // Gated on the *default* vault, the one every fresh note lands in. Asking per vault would mean a
+  // welcome screen that reappears whenever someone clones a second notebook, which is not what a
+  // welcome is.
+  //
+  // `welcomeDone` is a per-browser dismissal: skipping has to stick, or "skip" means "ask me again
+  // next launch". It is a convenience, not state — losing it re-asks a question that is cheap to
+  // answer and skippable again, which is why `localStorage` is the right home for it.
+  let welcomeDone = $state(true);
+  const needsWelcome = $derived(
+    !welcomeDone && gitAvailable === true && !!vaults?.length && !vaults[0].identity,
+  );
+
   const allVaults = $derived((vaults ?? []).map((v) => v.name).sort());
   // The create destination, clamped to a vault that still exists (a removed/renamed one
   // falls back to the default rather than erroring on the next capture). Empty = default vault.
@@ -870,6 +888,27 @@
   let bootTries = 0;
   let bootTimer: ReturnType<typeof setInterval> | undefined;
   const BOOT_BEAT_MS = 1200;
+  /// The welcome screen's dismissal, remembered per browser. Wrapped because every storage
+  /// accessor can throw — a private window, cleared site data, a browser set to block it — and a
+  /// welcome screen that crashes the app on the way past would be worse than no welcome screen.
+  /// Failing to read means "already done": never trap someone on a screen we cannot dismiss.
+  const WELCOME_KEY = 'fm-welcome-done';
+  function dismissWelcome() {
+    welcomeDone = true;
+    try {
+      localStorage.setItem(WELCOME_KEY, '1');
+    } catch {
+      /* nothing to do: the screen is dismissed for this session either way */
+    }
+  }
+  $effect(() => {
+    try {
+      welcomeDone = localStorage.getItem(WELCOME_KEY) === '1';
+    } catch {
+      welcomeDone = true;
+    }
+  });
+
   function loadVaults() {
     bootAttempts = ++bootTries;
     void listVaults()
@@ -1387,6 +1426,19 @@
      whose attempt to create an eleventh would also be refused. -->
 {#if needsPairing}
   <Pairing />
+{:else if needsWelcome}
+  <!-- Before the app, after pairing, and only when there is something to ask: the archive now
+       ships a ready empty vault, so `NewVault`'s first-run branch below no longer fires for most
+       people and this is what greets them instead. Hidden entirely where git is absent — every
+       field on it would be a control that cannot do anything — and hidden the moment a committer
+       exists, which is also what makes it stop appearing after it is answered. -->
+  <Welcome
+    vault={vaults?.[0]?.name ?? ''}
+    ondone={() => {
+      dismissWelcome();
+      void loadVaults();
+    }}
+  />
 {:else if vaults?.length === 0}
   <NewVault
     firstRun

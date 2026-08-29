@@ -2,6 +2,17 @@
 
 formicaria is open in your browser. Here is how to start using it.
 
+## The first screen
+
+formicaria may ask for your name and email before anything else. It uses them to stamp each saved
+change, so that later you can tell who wrote what — nothing is sent anywhere.
+
+There is also a box for a backup repository. Leave it empty; you can set that up later under
+**Back up**.
+
+If you would rather get straight to writing, choose **Skip for now**. Nothing is lost by skipping,
+and you will be asked again the first time it actually matters.
+
 ## Write a note
 
 Click the **＋** button in the top left — *make something new* — and choose **New note**. Or just

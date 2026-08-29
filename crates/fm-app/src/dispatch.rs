@@ -2011,6 +2011,15 @@ struct VaultInfo {
     /// owner's laptop and phone did — so one *audience* looked like two different vaults depending on
     /// which screen you were on. The remote is the thing both devices agree about.
     label: Option<String>,
+    /// The committer this vault signs with, or `None` when git has never been told who you are.
+    ///
+    /// **Here rather than in `backup_status`, and that placement is the whole point.** The welcome
+    /// screen gates on "does this person have an identity yet", which has to be answered on the
+    /// path that renders the app — and `backup_status` runs a network `git ls-remote` per vault,
+    /// the slowest command in the product. A first-run screen that waits on it is a first-run
+    /// screen that waits on the network. This list already spawns git locally for `label`, so the
+    /// answer costs one more local `git config` read beside a call that was happening anyway.
+    identity: Option<fm_core::git::Identity>,
 }
 
 /// What the create-vault form needs: the filesystem facts, plus the ones only the vault
@@ -2744,6 +2753,8 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
             git_assets_max: fm_core::descriptor::Descriptor::read(&e.path)
                 .ok()
                 .and_then(|d| d.git_assets_max),
+            // Local `git config` read, beside the `remote_label` spawn above — never a network call.
+            identity: vcs::identity(&e.path),
         })
         .collect()
 }

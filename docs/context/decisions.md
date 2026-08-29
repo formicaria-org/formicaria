@@ -2336,6 +2336,39 @@ costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` si
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
 
+## 2026-08-29 — the welcome screen asks the one question git asks at the worst moment `#ui` `#git`
+
+Git refuses to commit without a committer. The app covers for that — `ensure_repo` writes a
+placeholder identity, so a notebook works perfectly with nobody's name on it — but a placeholder is
+permanent in a way a setting is not: it is stamped into every commit, and history is not corrected
+later. The moment it starts to matter is the moment someone else clones the vault, which is months
+of commits too late. So it is asked once, at the start, where the answer is cheap.
+
+**The gate reads `VaultInfo.identity`, not `backup_status`.** That is the load-bearing choice. The
+gate sits on the path that renders the app, and `backup_status` runs a network `git ls-remote` per
+vault — the slowest command in the product. A first-run screen that waits on it waits on the
+network. `list_vaults` already spawns git locally for each vault's `label`, so this is one more
+local `git config` read beside a call that was happening anyway; the 2026-07-17 ruling refused
+exactly this trade once already. Gated on the **default** vault, because per-vault would make a
+welcome screen reappear whenever someone clones a second notebook.
+
+**Skipping is a real answer.** A notebook that demands a name before it will hold a note has
+misunderstood what it is: the placeholder keeps full history, and `BackupPanel` asks again at the
+moment a remote makes a name matter. The dismissal is remembered in `localStorage` — a convenience,
+not state, and losing it re-asks a question that is cheap and skippable again. Every access is
+wrapped, and a storage failure means **dismissed**: never trap someone on a screen we cannot
+dismiss.
+
+**Hidden entirely where git is absent, or unknown.** Every field would be a control that cannot do
+anything, and `gitAvailable` is `null` until the first heartbeat answers — unknown is not "yes", so
+the gate fires on `=== true` and not on a maybe.
+
+**Identity is saved first, and on its own.** `set_git_remote` can carry an identity but only
+alongside a URL, and the two fail for unrelated reasons — so a typo'd remote must not cost the name
+that was typed correctly. Two calls in a fixed order, and a failure of the second reports **both**
+halves ("your name was saved; the backup repository was not"), because printing only one of them is
+how someone retypes a stored name or walks away believing a remote is set.
+
 ## 2026-08-29 — ask git for a repository before asking git what it is missing `#git` `#data`
 
 `outstanding.md` §2.9 had been open and un-root-caused since it was reported: *"a backup with no git

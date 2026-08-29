@@ -283,6 +283,13 @@ export interface VaultInfo {
    *  when two vaults would derive the same label. Display only; `name` stays the identity. See
    *  `vaultLabels.svelte.ts`. */
   label: string | null;
+  /** The committer this vault signs with, or `null` when git has never been told who you are.
+   *
+   *  **Here and not in `BackupStatus`** because the welcome screen gates on it, and that gate sits
+   *  on the path that renders the app. `backup_status` runs a network `git ls-remote` per vault;
+   *  a first-run screen that waits on it waits on the network. This list already spawns git
+   *  locally for `label`, so the answer is one more local read beside a call already happening. */
+  identity: { name: string; email: string } | null;
 }
 
 /** What would happen if we created a vault at a path. The server owns `ok`: duplicating

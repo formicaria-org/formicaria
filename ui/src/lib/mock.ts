@@ -324,9 +324,29 @@ let mockVaults: Array<{
   path: string;
   git_assets_max: number | null;
   label: string | null;
+  identity: { name: string; email: string } | null;
 }> = [
-  { name: 'personal', path: '/home/you/notes', git_assets_max: null, label: null },
-  { name: 'lab', path: '/home/you/lab-notes', git_assets_max: 2_000_000, label: 'lab-notes' },
+  // **Both vaults carry an identity, and the default one must.** The welcome screen gates on
+  // `vaults[0].identity`, and the rest of this mock describes a notebook already in use — notes,
+  // boards, saved views, unpushed commits. A returning user has told git who they are, so leaving
+  // this null would put a first-run screen in front of every test and every `pnpm dev` session,
+  // which is a premise the mock does not otherwise hold. `Welcome.svelte`'s own tests supply the
+  // null case; `create_vault` and `restore_vault` below still produce one, which is the honest
+  // place for it.
+  {
+    name: 'personal',
+    path: '/home/you/notes',
+    git_assets_max: null,
+    label: null,
+    identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
+  },
+  {
+    name: 'lab',
+    path: '/home/you/lab-notes',
+    git_assets_max: 2_000_000,
+    label: 'lab-notes',
+    identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
+  },
 ];
 
 /** The size grammar the Rust accepts, mirrored so the mock refuses what the backend refuses. */
@@ -428,6 +448,18 @@ export function setUnopenedVaults(list: string[]): void {
 let mockUnrecorded: Unrecorded[] = [];
 export function setUnrecorded(list: Unrecorded[]): void {
   mockUnrecorded = list.map((u) => ({ ...u }));
+}
+
+/// Set (or clear) the **default** vault's committer — what the welcome screen gates on.
+///
+/// The fixtures describe a notebook already in use, so `personal` carries an identity and the
+/// welcome screen stays out of the way of every other test. This is how a test says "nobody has
+/// told git who they are yet" without a second mock of `list_vaults`, in the same shape as
+/// [`faults`]. Call it from `beforeEach`: module state outlives a test.
+export function setMockIdentity(identity: { name: string; email: string } | null): void {
+  mockVaults[0].identity = identity;
+  const git = gitVaults.find((v) => v.name === mockVaults[0].name);
+  if (git) git.identity = identity;
 }
 
 let mockFaults: Fault[] = [];
@@ -1098,6 +1130,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         git_assets_max: null,
         // A freshly created vault has no remote, so nothing to label it with — it keeps its name.
         label: null,
+        // Nor a committer: git has not been told who you are, which is what the welcome screen asks.
+        identity: null,
       });
       const created: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return created as T;
@@ -1169,6 +1203,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           .split(/[/:]/)
           .pop()
           ?.replace(/\.git$/, '') || null,
+        // A clone names its committer as part of the form, which is why this one is never null.
+        identity: {
+          name: String(args.gitName ?? ''),
+          email: String(args.gitEmail ?? ''),
+        },
       });
       const cloned: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return cloned as T;
@@ -1187,6 +1226,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         git_assets_max: null,
         // A restored vault has no remote until one is set.
         label: null,
+        // The restore brings back a repository whose commits already carry a committer, but this
+        // machine's git has not been told who is writing *now* — so the welcome screen still asks.
+        identity: null,
       });
       const restored: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return restored as T;
@@ -1328,6 +1370,19 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'clear_restic_password':
       mockResticPassword = false;
       return handle<T>('backup_status', {});
+    // The welcome screen's first call. Modelled because the screen's whole promise is that a
+    // failing *remote* leaves the name standing — which is only visible if the two are separate
+    // here as well.
+    case 'set_identity': {
+      const v = mockVault(args.vault);
+      const name = String(args.name ?? '').trim();
+      const email = String(args.email ?? '').trim();
+      if (!name || !email) throw new Error('a committer needs both a name and an email');
+      v.identity = { name, email };
+      const vaults = mockVaults.find((m) => m.name === v.name);
+      if (vaults) vaults.identity = { name, email };
+      return undefined as T;
+    }
     case 'set_git_remote': {
       const v = mockVault(args.vault);
       const name = String(args.name ?? '').trim();
