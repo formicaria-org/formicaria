@@ -283,8 +283,19 @@ enable, ship the manifest in the archive, start the runtime. **The blocker is cl
 split and the cancel flag it needed before being armed. What remains is the *desktop* wiring — the
 Cargo feature is still off there, and the runtime is still not in the archive.
 
-**Smaller, same theme:** the "save this view" naming step is still a `window.prompt()` — genuinely
-in-app, but not the app-quality affordance the owner asked for. *(The backup panel's missing token
+**Smaller, same theme — closed 2026-08-29** (`decisions.md#ui`, *One tag is an arrangement*): the
+"save this view" naming step is a real dialog now, not a `window.prompt()`, and it asks the two
+questions a prompt could not ask at once. Two further §2.6b failures went with it: `newView` had an
+empty default key in an app whose palette was removed, so **"New view" was a labelled capability
+with no way to invoke it** — there is a *Save view* button in the pane header now; and a filtered
+view could not be produced from the app at all, which is what the optional tag fixes.
+
+**Also closed 2026-08-29** (`decisions.md#data`): the note's property form showed six fixed fields,
+so any other frontmatter key was written to the file and then **invisible in the app** — a paper's
+`authors`/`year`/`doi` were editable only in a text editor. Every key is now shown and editable,
+structural ones read-only, and a hand-typed value is stored with the type the *file* would have
+given it (lossless-only inference), so the app and an editor can no longer disagree about whether
+`year: 2017` is a number. *(The backup panel's missing token
 field is **done 2026-08-29**: an HTTPS remote with no stored credential now asks for one, in the
 same words and with the same scope advice as the clone form, and asks for nothing where the remote
 is SSH or the helper already holds it.)*

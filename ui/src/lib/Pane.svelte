@@ -44,6 +44,8 @@
     onresize: (patch: { colSpan?: number; rowSpan?: number }) => void;
     onclose: () => void;
     onfocus: () => void;
+    /// Keep this arrangement as a named view. Only the kinds that *are* an arrangement offer it.
+    onsaveview?: () => void;
   }
   let {
     pane,
@@ -67,6 +69,7 @@
     onresize,
     onclose,
     onfocus,
+    onsaveview,
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -466,6 +469,19 @@
           aria-label="search"
         />
       {/if}
+      <!-- **Keeping an arrangement had no button at all.** `newView` is a command with an empty
+           default key and the palette that used to carry it is gone, so "New view" was reachable
+           only by binding a key to it in Settings — a labelled capability with no way in, which is
+           the failure `outstanding.md` §2.6b is about. Offered on the three kinds that *are* an
+           arrangement; a note, a search or an existing view is not one. -->
+      {#if onsaveview && (pane.kind === 'board' || pane.kind === 'agenda' || pane.kind === 'timeline')}
+        <button
+          type="button"
+          class="ctl save-view-btn"
+          onclick={onsaveview}
+          title="Keep this arrangement as a named view"
+          aria-label="save this view">Save view</button>
+      {/if}
     {/if}
 
     <span class="spacer"></span>
@@ -768,6 +784,10 @@
   }
   .rotator:hover {
     border-color: var(--accent);
+  }
+  .save-view-btn {
+    cursor: pointer;
+    white-space: nowrap;
   }
   .ctl {
     font: inherit;

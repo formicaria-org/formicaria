@@ -145,6 +145,18 @@ The gray-screen fix and its tests are in
 
 ## Known gaps / not fully working
 
+- **A multi-word tag is unrepresentable through the app.** `apply_property`'s `tags` arm splits on
+  `[',', ' ']` (`crates/fm-core/src/edit.rs`), so `Machine Learning` becomes two tags, `Machine` and
+  `Learning`. The *model* is fine — `tags` is a `Vec<String>` and a hand-written YAML sequence with
+  a space in an entry round-trips correctly — it is only the single write path that cannot express
+  it. Confirmed 2026-08-29 while adding the `assets`/`code` arms beside it, which deliberately split
+  on comma only (`decisions.md#data`).
+
+  **This blocks anything that maps an external hierarchy onto tags** — a Zotero collection named
+  `To Read`, a folder, an imported keyword. Fixing it means choosing a separator or a quoting rule
+  for the one string the board's drag write-back sends, and the board is the caller that makes it
+  awkward: it writes a column *name* back as a value.
+
 - **A paired device's microphone needs the certificate installed, and there is deliberately no
   way around that.** `getUserMedia` requires a secure context, so it works over the TLS listener
   and not over the plain-HTTP fallback (`--no-default-features`, or a machine where no
@@ -543,6 +555,26 @@ The gray-screen fix and its tests are in
   reason behind the browser pivot ([decisions.md](./decisions.md)).
 
 ## Traps for whoever works here next
+
+- **A jsdom test can never see a Content-Security-Policy, so a policy can forbid a shipped feature
+  and every test still passes.** Found 2026-08-29: the app policy carried `frame-src 'none'` while
+  `ui/src/lib/render.ts` renders every PDF in an `<iframe>` at `/api/blob/…`, so **no PDF had ever
+  rendered** — desktop or phone, both policies had the clause. The symptom is a broken-document
+  placeholder: nothing throws, nothing logs where a user looks. `render.test.ts` asserted the
+  `<iframe>` element and passed the whole time, because Vitest's jsdom applies no CSP; meanwhile two
+  user-facing strings said PDFs were *"stored, opened and shown"*. Fixed and pinned by
+  `the_policy_lets_the_read_view_frame_its_own_pdf` in `crates/fm-serve/src/main.rs`
+  (`decisions.md#ui` — *the read view may frame its own blob*).
+
+  **The lesson: a CSP clause is a claim about what the app is permitted to do, so it has to be
+  tested against the real response header, server-side.** Any UI test that renders an element the
+  policy governs — a frame, a worker, a `blob:` URL, a font — is testing the element, not the
+  permission. The rest of the policy is *only* covered by
+  `every_response_carries_a_policy_that_stops_a_note_phoning_home` and this new sibling; anything
+  they do not assert is unverified.
+
+  Two clauses are load-bearing and currently unasserted anywhere: **`worker-src`** (Excalidraw's
+  pica resize worker) and **`font-src`** (KaTeX's bundled woff2). Both fail the same silent way.
 
 - **A quadratic hides at the size you develop at.** The full index rebuild was O(n²) from the
   start and nobody saw it, because at a few hundred notes it is milliseconds. Measured 2026-07-20

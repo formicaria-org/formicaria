@@ -736,14 +736,17 @@ export const config = () => invoke<Config>('config');
 
 /** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
 /** Save the arrangement you are looking at as a named view, in the vault's `views/` folder.
- *  Deliberately not a filter editor: what a person actually does is arrange a pane and want to keep
- *  it. A view that already carries a filter is refused rather than silently flattened. */
+ *  Still not a filter editor — the grammar is nine predicates and a UI for it is a query builder —
+ *  but one `tag` may narrow it, because "the ones tagged `paper`" is a sentence a person says and
+ *  without it the app can offer no filtered view at all. A view whose filter is richer than a
+ *  single tag is refused rather than silently flattened. */
 export const saveView = (
   name: string,
   view: 'board' | 'agenda' | 'timeline',
   group_by = '',
   vault = '',
-) => invoke<ViewInfo[]>('save_view', { name, view, group_by, vault });
+  tag = '',
+) => invoke<ViewInfo[]>('save_view', { name, view, group_by, vault, tag });
 /** Remove a saved view. Missing is success — the user asked for it to be gone. */
 export const deleteView = (name: string, vault = '') =>
   invoke<ViewInfo[]>('delete_view', { name, vault });

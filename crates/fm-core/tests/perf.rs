@@ -175,3 +175,83 @@ fn a_full_rebuild_stays_linear_in_the_note_count() {
         per_note_large * 1e6,
     );
 }
+
+/// **A planning view must not pay for the bodies it is about to discard.**
+///
+/// Every budget above this one seeds ~55-byte bodies, so all of them measure *note count* and
+/// none can see *bytes per note* — and bytes per note is the axis a library of papers moves.
+/// `ingest` puts a PDF's extracted text in the **body of its asset note**
+/// (`commands::asset_note`), which measures 1.7–2.2 KB per page, so a few thousand papers is
+/// >100 MB of body. `board`/`agenda`/`recent`/`timeline` all filter `Kind(Note)` and never want
+/// any of it.
+///
+/// Until 2026-08-29 `FileStore::candidates` pushed only `Predicate::Text` into SQL and answered
+/// everything else with `load_all()`, so each of those views hydrated — YAML-parsed, then copied
+/// the body twice — every asset note on every switch.
+///
+/// **The assertion is a ratio, not a millisecond count**, for the reason `known-issues.md` records
+/// after the O(n²) rebuild: a wall-clock budget only catches what someone thought to measure at
+/// the right size, while a shape holds on any machine. Same note count, same query, the only
+/// difference being asset notes the filter excludes — so the honest answer is "about the same".
+#[test]
+fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
+    const NOTES: usize = 300;
+    const ASSETS: usize = 600;
+    // ~60 KB ≈ a thirty-page paper's extracted text.
+    const PDF_TEXT: usize = 60_000;
+
+    fn timed_board(with_assets: bool) -> (std::time::Duration, usize) {
+        let dir = tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        for i in 0..NOTES {
+            let o = Object::new(Kind::Note, format!("a plan about step {i}"));
+            std::fs::write(notes.join(format!("{}.md", o.id)), frontmatter::to_file(&o).unwrap())
+                .unwrap();
+        }
+        if with_assets {
+            let text = "lorem ipsum dolor sit amet ".repeat(PDF_TEXT / 27);
+            for _ in 0..ASSETS {
+                let mut o = Object::new(Kind::Asset, text.clone());
+                o.title = Some("paper.pdf".into());
+                std::fs::write(
+                    notes.join(format!("{}.md", o.id)),
+                    frontmatter::to_file(&o).unwrap(),
+                )
+                .unwrap();
+            }
+        }
+        let store = FileStore::open(dir.path()).unwrap();
+
+        // What every planning view asks for.
+        let q = Query {
+            filter: Filter { all: vec![Predicate::Kind(vec![Kind::Note])] },
+            sort: vec![SortKey::desc("updated")],
+            ..Default::default()
+        };
+        let t = Instant::now();
+        let page = store.query(&q).unwrap();
+        (t.elapsed(), page.total)
+    }
+
+    let (bare, bare_total) = timed_board(false);
+    let (mixed, mixed_total) = timed_board(true);
+
+    assert_eq!(bare_total, NOTES, "the notes-only vault holds only notes");
+    assert_eq!(mixed_total, NOTES, "and the mixed vault answers with the same notes");
+
+    // Measured on this machine: ~1.5x with the pushdown, ~4.9x without. 3.0 sits in the gap with
+    // room on both sides, so a slow or loaded machine does not turn this into a flaky test.
+    let ratio = mixed.as_secs_f64() / bare.as_secs_f64().max(1e-9);
+    println!(
+        "board over {NOTES} notes: bare {bare:?}, with {ASSETS} asset notes \
+         ({} MB of extracted text) {mixed:?} — ratio {ratio:.1}x",
+        ASSETS * PDF_TEXT / 1_000_000
+    );
+    assert!(
+        ratio < 3.0,
+        "a Kind(Note) view got {ratio:.1}x slower merely because the vault also holds \
+         {ASSETS} asset notes it filters out ({bare:?} -> {mixed:?}). The bodies are being \
+         hydrated before the filter runs — see `FileStore::candidates`."
+    );
+}

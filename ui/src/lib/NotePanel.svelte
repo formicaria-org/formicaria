@@ -163,6 +163,48 @@
   let pTags = $state('');
   let propTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
+  // **Every other frontmatter key, shown and editable.** Until 2026-08-29 the panel offered six
+  // fixed fields and nothing else, so any key a user (or an importer) added was written to the
+  // file and then invisible in the app — correctable only in a text editor, which
+  // `outstanding.md` §2.6b rules out.
+  //
+  // Structural keys are listed but NOT editable. They are how a note is hidden from every view
+  // (`fm_app::thread`), and `apply_property` already refuses two of them for exactly this reason:
+  // a value written here by hand would strand the note. `mime` is machine-set on ingest.
+  const STRUCTURAL = ['thread_of', 'reply_to', 'proposes', 'targets', 'declined', 'mime', 'view'];
+  let customDraft: Record<string, string> = $state({});
+  let newPropKey = $state('');
+  let newPropValue = $state('');
+
+  // The custom properties to show: everything the note carries, sorted, plus any key being
+  // edited right now, so a row cannot vanish under the cursor mid-edit.
+  const customKeys = $derived(
+    [...new Set([...Object.keys(note?.props ?? {}), ...Object.keys(customDraft)])].sort(),
+  );
+  // A property value as one editable line. A list joins with ", " — which is what
+  // `apply_property` splits `assets`/`code` on, and what a user would type back.
+  function propText(v: unknown): string {
+    if (v === null || v === undefined) return '';
+    if (Array.isArray(v)) return v.map((x) => String(x)).join(', ');
+    return String(v);
+  }
+  function customValue(key: string): string {
+    return customDraft[key] ?? propText(note?.props?.[key]);
+  }
+  function editCustom(key: string, value: string) {
+    customDraft[key] = value;
+    setPropDebounced(key, value);
+  }
+  async function addCustomProp() {
+    const key = newPropKey.trim();
+    if (!key) return;
+    newPropKey = '';
+    const value = newPropValue;
+    newPropValue = '';
+    customDraft[key] = value;
+    await setProp(key, value);
+  }
+
   // The body editor, for caret-based insertion (drag-drop + slash-menu).
   let editorEl = $state<HTMLTextAreaElement | undefined>(undefined);
   let adding = $state(false);
@@ -2111,6 +2153,47 @@
               spellcheck="false"
             />
           </label>
+          {#each customKeys as key (key)}
+            <label class="field wide">
+              <span>{key}</span>
+              {#if STRUCTURAL.includes(key)}
+                <input
+                  aria-label={key}
+                  value={customValue(key)}
+                  readonly
+                  title="Set by formicaria itself — editing it here would detach this note from the view it belongs to."
+                />
+              {:else}
+                <input
+                  aria-label={key}
+                  value={customValue(key)}
+                  oninput={(e) => editCustom(key, e.currentTarget.value)}
+                  placeholder="empty removes this property"
+                  spellcheck="false"
+                />
+              {/if}
+            </label>
+          {/each}
+          <div class="field wide add-prop">
+            <span>Add</span>
+            <span class="pair">
+              <input
+                aria-label="new property name"
+                bind:value={newPropKey}
+                placeholder="name, e.g. author"
+                spellcheck="false"
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addCustomProp(); } }}
+              />
+              <input
+                aria-label="new property value"
+                bind:value={newPropValue}
+                placeholder="value"
+                spellcheck="false"
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addCustomProp(); } }}
+              />
+              <button class="add-prop-btn" onclick={addCustomProp} disabled={!newPropKey.trim()}>Add</button>
+            </span>
+          </div>
         </div>
       {/if}
       {#if isDiscussion}
@@ -2894,6 +2977,42 @@
     width: 6.5em;
   }
   .when input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  /* A custom property whose value formicaria sets itself (`thread_of`, `mime`, …). Shown so the
+     note has no hidden state, dimmed so it does not read as an invitation — writing a column name
+     into one of these is exactly how a note gets stranded out of every view. */
+  .field input[readonly] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  /* Name + value + button on one row, the value taking the slack. */
+  .add-prop .pair {
+    display: flex;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .add-prop .pair input:first-child {
+    flex: 0 0 auto;
+    width: 10em;
+    min-width: 0;
+  }
+  .add-prop .pair input:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+  }
+  .add-prop-btn {
+    flex: 0 0 auto;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .add-prop-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }

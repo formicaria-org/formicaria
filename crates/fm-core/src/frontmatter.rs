@@ -232,10 +232,19 @@ fn as_string(v: Value) -> Option<String> {
     }
 }
 
+/// A `Vec<String>` field (`tags`, `assets`, `code`) out of YAML.
+///
+/// **A bare scalar counts as a one-element list.** Two reasons, one of them a repair. A note is a
+/// file a person may write by hand, and `assets: sha256:abc` is the obvious thing to type — the
+/// same leniency `Kind::from_str` extends to legacy `type:` values. And until 2026-08-29
+/// `apply_property` had no `assets`/`code` arm, so the app itself wrote exactly that scalar; the
+/// strict `_ => Vec::new()` here is what turned it into *silent* data loss on the next read
+/// rather than a visible oddity. Accepting the scalar recovers every note already written that
+/// way. Anything that is neither a sequence nor a string is still nothing.
 fn as_string_seq(v: Value) -> Vec<String> {
     match v {
         Value::Sequence(items) => items.into_iter().filter_map(as_string).collect(),
-        _ => Vec::new(),
+        other => as_string(other).into_iter().filter(|s| !s.is_empty()).collect(),
     }
 }
 
@@ -256,6 +265,41 @@ fn prop_to_yaml(p: &PropertyValue) -> Value {
 /// YAML -> PropertyValue for a custom key. Integers become `Int`; anything the
 /// model can't type precisely (floats, nested maps) is kept as `Text` so the
 /// value round-trips rather than being lost.
+/// The `PropertyValue` a **hand-typed scalar** should become — the same one this file would have
+/// produced had the user written that text into the file's frontmatter themselves.
+///
+/// **Why this exists.** `apply_property`'s catch-all used to store every custom value as
+/// `PropertyValue::Text`, while a value parsed from YAML became `Int`/`Bool`/`List`. `PropertyValue`
+/// derives `Ord` and compares the **variant before the value** (documented at
+/// `fm_model::PropertyValue`), so one corpus could hold `year: 2017` as two incomparable types and
+/// sort into two disjoint blocks depending only on whether the app or an editor wrote it. Typing it
+/// in and typing it into the file now agree, which is the property that bug violated.
+///
+/// **A type is inferred only when it is lossless.** The parse is accepted *only* if re-serialising
+/// the result reproduces the input byte for byte; otherwise the text is kept verbatim. That is what
+/// protects the values where the string is the point: `007123` would parse as the number `7123`, so
+/// it stays `Text` — as do leading `+`, trailing zeros, and anything else YAML would normalise. The
+/// guard is the rule, not a special case list, so a value can never be quietly rewritten.
+pub fn scalar_property(raw: &str) -> PropertyValue {
+    let Ok(parsed) = serde_yaml_ng::from_str::<Value>(raw) else {
+        return PropertyValue::Text(raw.to_string());
+    };
+    let prop = yaml_to_prop(&parsed);
+    // Text in, text out — nothing to check, and no risk of a quoted form coming back different.
+    if matches!(prop, PropertyValue::Text(_)) {
+        return PropertyValue::Text(raw.to_string());
+    }
+    let round_trip = serde_yaml_ng::to_string(&prop_to_yaml(&prop))
+        .unwrap_or_default()
+        .trim_end()
+        .to_string();
+    if round_trip == raw {
+        prop
+    } else {
+        PropertyValue::Text(raw.to_string())
+    }
+}
+
 fn yaml_to_prop(v: &Value) -> PropertyValue {
     match v {
         Value::Null => PropertyValue::Null,

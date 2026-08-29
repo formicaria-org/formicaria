@@ -1552,11 +1552,13 @@ fn dispatch_inner(
             )
             .map_err(|_| "that is not a view kind this app can render".to_string())?;
             let group = s("group_by");
+            let tag = s("tag");
             crate::views::save_view(
                 &path,
                 &s("name"),
                 renderer,
                 if group.is_empty() { None } else { Some(group.as_str()) },
+                if tag.is_empty() { None } else { Some(tag.as_str()) },
             )?;
             json(crate::views::list_views(&path))
         }

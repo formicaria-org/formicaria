@@ -1135,8 +1135,18 @@ fn content_type(name: &str) -> &'static str {
 ///   Excalidraw's asset-path line was moved out of `index.html` into its own file for it.
 ///   `wasm-unsafe-eval` allows bundled WebAssembly without allowing `eval` of strings.
 /// - `connect-src 'self'` — even a script that does run cannot exfiltrate by `fetch`.
-/// - `object-src`/`frame-src 'none'`, `base-uri 'self'`, `form-action 'none'` — close the
+/// - `object-src 'none'`, `base-uri 'self'`, `form-action 'none'` — close the
 ///   remaining ways a document can be made to reach out.
+/// - `frame-src 'self'` — the read view renders a PDF in an `<iframe>` pointing at
+///   `/api/blob/…` (`ui/src/lib/render.ts`). This clause read `'none'` until 2026-08-29, which
+///   blocked that frame outright: a PDF showed a broken-document placeholder while Settings and
+///   the release README both said PDFs were "stored, opened and shown". Measured in a browser
+///   rather than reasoned about — the console said `CSP BLOCKED: frame-src`. Widening to
+///   `'self'` grants a *note body* nothing: DOMPurify's default tag allowlist contains no
+///   `iframe`/`object`/`embed`/`frame` (checked against the pinned 3.4.12 with `render.ts`'s
+///   own `ALLOWED_URI_REGEXP`), so the only frame on the page is the one the renderer builds
+///   itself, after sanitising, from a blob `inline_safe()` already agreed to serve inline.
+///   `MANUAL_CSP` keeps `'none'`: the book is static HTML and frames nothing.
 /// - `frame-ancestors 'none'` — **not** covered by `default-src`, and the one clause aimed at
 ///   the threat the Host/Origin guards above already take seriously: the server sits at a fixed
 ///   localhost port with no authentication, so any page the user visits can frame it. Without
@@ -1163,7 +1173,7 @@ script-src 'self' 'wasm-unsafe-eval'; \
 worker-src 'self' blob:; \
 connect-src 'self'; \
 object-src 'none'; \
-frame-src 'none'; \
+frame-src 'self'; \
 frame-ancestors 'none'; \
 base-uri 'self'; \
 form-action 'none'";
@@ -1633,6 +1643,34 @@ mod tests {
             !scripts.split(';').next().unwrap_or("").contains("'unsafe-inline'"),
             "script-src must never allow inline: {csp}"
         );
+    }
+
+    /// The read view renders a PDF in an `<iframe>` at `/api/blob/…` (`ui/src/lib/render.ts`).
+    /// `frame-src 'none'` blocked that outright, on the desktop and the phone, and **nothing
+    /// caught it**: a blocked frame is a placeholder rather than an error, and the only test
+    /// that touched this path (`ui/src/lib/render.test.ts`) asserts the element in jsdom, where
+    /// no CSP is applied at all. Meanwhile two strings told the user PDFs were shown. Pinned
+    /// here, against the real header, so the clause cannot quietly return to `'none'`.
+    #[test]
+    fn the_policy_lets_the_read_view_frame_its_own_pdf() {
+        let (_, headers) = request("GET / HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        let csp = headers
+            .lines()
+            .find_map(|l| l.strip_prefix("Content-Security-Policy: "))
+            .unwrap_or_else(|| panic!("no CSP on a page response:\n{headers}"));
+
+        let frame = csp.split("frame-src").nth(1).unwrap_or("").split(';').next().unwrap_or("");
+        assert!(
+            frame.contains("'self'"),
+            "frame-src must allow 'self' or the read view cannot show a PDF: {csp}"
+        );
+        // Same origin and no further: the widening buys the blob route, never a remote document.
+        assert!(
+            !frame.contains('*') && !frame.contains("http"),
+            "frame-src must stay same-origin: {csp}"
+        );
+        // Unchanged by the widening — framing *us* is still forbidden.
+        assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
     }
 
     #[test]

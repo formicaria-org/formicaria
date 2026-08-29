@@ -977,17 +977,39 @@
   /// Deliberately *not* a filter builder: the filter grammar is nine kinds of predicate, and a UI
   /// for it is a query builder nobody non-technical would use. What a person actually does is
   /// arrange a board or an agenda and want to keep it — so that is what this saves.
-  async function saveCurrentView() {
+  // The save dialog's state. This was a `window.prompt()` until 2026-08-29 — genuinely in-app, but
+  // not an affordance this app would otherwise ship, and it could ask exactly one question.
+  let saveViewOpen = $state(false);
+  let saveViewName = $state('');
+  let saveViewTag = $state('');
+  let saveViewKind = $state<'board' | 'agenda' | 'timeline'>('board');
+
+  function saveCurrentView() {
     const pane = workspace.panes[focused];
     const kind = pane?.kind;
     if (kind !== 'board' && kind !== 'agenda' && kind !== 'timeline') {
       error = 'Open a board, agenda or timeline first — that is the arrangement a view saves.';
       return;
     }
-    const name = window.prompt('Save this arrangement as a view named:')?.trim();
+    saveViewKind = kind;
+    saveViewName = '';
+    saveViewTag = '';
+    saveViewOpen = true;
+  }
+
+  async function confirmSaveView() {
+    const name = saveViewName.trim();
     if (!name) return;
+    const pane = workspace.panes[focused];
     try {
-      views = await saveView(name, kind, kind === 'board' ? pane.groupBy : '');
+      views = await saveView(
+        name,
+        saveViewKind,
+        saveViewKind === 'board' ? pane.groupBy : '',
+        '',
+        saveViewTag.trim(),
+      );
+      saveViewOpen = false;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -1754,6 +1776,7 @@
             onchange={(patch) => changePane(pane.id, patch)}
             onreorder={movePane}
             onresize={(patch) => resizePane(pane.id, patch)}
+            onsaveview={() => { focused = i; saveCurrentView(); }}
             onclose={() => closePane(pane.id)}
             onfocus={() => (focused = i)}
           />
@@ -1824,6 +1847,52 @@
     {/await}
   {/if}
 
+  {#if saveViewOpen}
+    <div class="sheet-backdrop" role="presentation" onclick={() => (saveViewOpen = false)}></div>
+    <div
+      class="sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Save this view"
+      tabindex="-1"
+      onkeydown={(e) => e.key === 'Escape' && (saveViewOpen = false)}>
+      <!-- One child: `.sheet` is a full-screen centring container and `.sheet > *` is what gets the
+           card's background, border and shadow. Several children would each become their own card. -->
+      <div class="save-view">
+        <h2>Save this view</h2>
+        <label class="sv-field">
+          <span>Name</span>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          aria-label="view name"
+          bind:value={saveViewName}
+          placeholder="e.g. Papers"
+          autofocus
+          spellcheck="false"
+          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void confirmSaveView(); } }}
+        />
+      </label>
+        <label class="sv-field">
+          <span>Only notes tagged <em>(optional)</em></span>
+        <input
+          aria-label="only notes tagged"
+          bind:value={saveViewTag}
+          placeholder="leave empty for every note"
+          spellcheck="false"
+          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void confirmSaveView(); } }}
+        />
+      </label>
+        <p class="sv-hint">
+        Saved as a file in your vault's <code>views</code> folder, so it travels with your notes.
+      </p>
+        <div class="sv-actions">
+          <button class="sv-cancel" onclick={() => (saveViewOpen = false)}>Cancel</button>
+          <button class="sv-save" onclick={confirmSaveView} disabled={!saveViewName.trim()}>Save</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if newVaultOpen}
     <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
     <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
@@ -1845,6 +1914,54 @@
 <style>
   /* The new-vault dialog. Genuinely modal — a form, not a peer view — so it keeps the
      fixed backdrop the note trail gave up. */
+  .save-view {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    width: min(26rem, calc(100vw - 2 * var(--space-5)));
+  }
+  .save-view h2 {
+    margin: 0;
+    font-size: var(--text-md);
+  }
+  .sv-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+  .sv-field input {
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--text-sm);
+  }
+  .sv-hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+  }
+  .sv-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+  .sv-actions button {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .sv-actions .sv-save:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
   .sheet-backdrop {
     position: fixed;
     inset: 0;

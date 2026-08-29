@@ -102,6 +102,27 @@ struct PredDto {
     any: Option<Vec<PredDto>>,
 }
 
+impl PredDto {
+    /// Is this predicate *only* a `tag:`? The one shape [`save_view`] can write, so it is also the
+    /// one it may overwrite without losing anything the user put there.
+    fn is_only_tag(&self) -> bool {
+        self.tag.is_some()
+            && self.prop.is_none()
+            && self.eq.is_none()
+            && self.ne.is_none()
+            && self.exists.is_none()
+            && self.tags_any.is_none()
+            && self.tags_all.is_none()
+            && self.text.is_none()
+            && self.date.is_none()
+            && self.from.is_none()
+            && self.to.is_none()
+            && self.not.is_none()
+            && self.any.is_none()
+    }
+}
+
+
 /// What the UI lists in the sidebar. A view that would not parse still appears — with its
 /// `error` set — because a view that silently vanished is exactly the failure the parse-error
 /// discipline exists to prevent.
@@ -449,26 +470,38 @@ fn view_path(vault: &Path, name: &str) -> Result<std::path::PathBuf, String> {
     Ok(vault.join("views").join(format!("{stem}.view")))
 }
 
-/// Write a saved view: a renderer, and for a board the property its columns group by.
+/// Write a saved view: a renderer, for a board the property its columns group by, and optionally
+/// **one tag to narrow it to**.
 ///
-/// **Deliberately not a filter editor.** The `filter:` grammar is nine kinds of predicate, and a UI
-/// for it is a query builder — which is the thing a non-technical user was never going to use, and
-/// the reason `views.md` documented a text editor as the way in. What a person actually does is
-/// *arrange* a pane and want to keep it, so that is what this saves. A view written by hand keeps
-/// its filter; saving over one from the app would not, which is why `save` refuses to overwrite a
-/// view that has one rather than silently dropping it.
+/// **Still deliberately not a filter editor.** The `filter:` grammar is nine kinds of predicate and
+/// a UI for it is a query builder, which is the thing a non-technical user was never going to use.
+/// One tag is not that. "Show me the ones tagged `paper`" is a sentence a person says, it is the
+/// narrowing they already perform by eye, and without it the app could offer *no* filtered view at
+/// all — the documented way to get one was to author YAML in a text editor, in an app whose owner
+/// works only through the UI. So the rule is unchanged in spirit and one question wider in
+/// practice: an arrangement you keep, now including who is in it.
+///
+/// **A richer filter is still never flattened.** A view written by hand may carry anything the
+/// grammar allows; saving over it from here can only express a single `tag`, so anything else is
+/// refused rather than silently dropped. Re-saving a view whose filter *is* a single tag is fine —
+/// that is the one this surface can faithfully rewrite.
 pub fn save_view(
     vault: &Path,
     name: &str,
     view: Renderer,
     group_by: Option<&str>,
+    tag: Option<&str>,
 ) -> Result<(), String> {
     let path = view_path(vault, name)?;
     if let Ok(existing) = read_view(&path) {
-        if !existing.filter.is_empty() {
+        // What this surface can faithfully round-trip: nothing, or exactly one `tag:`.
+        let expressible = existing.filter.is_empty()
+            || (existing.filter.len() == 1 && existing.filter[0].is_only_tag());
+        if !expressible {
             return Err(format!(
-                "\"{}\" already exists and filters its notes. Saving over it here would drop that \
-                 filter, so it is refused — rename this one, or edit that view's file.",
+                "\"{}\" already exists and filters its notes in a way this screen cannot rewrite. \
+                 Saving over it here would drop that filter, so it is refused — rename this one, or \
+                 edit that view's file.",
                 existing.name
             ));
         }
@@ -485,6 +518,10 @@ pub fn save_view(
     let mut body = format!("name: {}\nview: {renderer}\n", name.trim());
     if let Some(g) = group_by.filter(|g| !g.is_empty()) {
         body.push_str(&format!("group_by: {g}\n"));
+    }
+    if let Some(t) = tag.map(str::trim).filter(|t| !t.is_empty()) {
+        // The same two lines a person writes by hand — `views.md` documents this exact shape.
+        body.push_str(&format!("filter:\n  - tag: {t}\n"));
     }
     let dir = path.parent().ok_or("no views directory")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;

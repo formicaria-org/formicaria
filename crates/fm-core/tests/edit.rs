@@ -131,3 +131,123 @@ fn custom_property_is_groupable_like_any_other() {
     let alpha = groups.iter().find(|g| g.label == "alpha").unwrap();
     assert_eq!(alpha.rows.len(), 2);
 }
+
+/// **`assets` and `code` had no write path at all, and losing one was silent.** `apply_property`
+/// matched neither key, so both fell through to the `extra` catch-all and were written as a
+/// *scalar* (`assets: sha256:…`) — while `from_file` reads them with `as_string_seq`, which
+/// answers `Vec::new()` for anything that is not a YAML sequence. The value was therefore gone on
+/// the very next load, with no error at any layer. Found 2026-08-29.
+///
+/// `assets` is the field that links a note to its blob, so this is the one property whose silent
+/// loss detaches a note from its attachment. `code` shares the shape and the bug.
+#[test]
+fn setting_assets_or_code_survives_a_reload() {
+    let dir = tempdir().unwrap();
+    let mut s = FileStore::open(dir.path()).unwrap();
+    let mut o = Object::new(Kind::Note, "a note that points at a blob");
+    let id = o.id;
+    s.put(&o).unwrap();
+
+    fm_core::edit::apply_property(&mut o, "assets", "sha256:aa11").unwrap();
+    fm_core::edit::apply_property(&mut o, "code", "src/main.rs").unwrap();
+    s.put(&o).unwrap();
+
+    // It must land in the typed field, not in `extra` — otherwise it serialises as a scalar.
+    assert_eq!(o.assets, vec!["sha256:aa11".to_string()], "assets is a typed field, not `extra`");
+    assert_eq!(o.code, vec!["src/main.rs".to_string()], "code is a typed field, not `extra`");
+
+    // The file carries a YAML *sequence*, which is the only shape `as_string_seq` reads back.
+    let raw = fs::read_to_string(dir.path().join(format!("notes/{id}.md"))).unwrap();
+    assert!(raw.contains("- sha256:aa11"), "assets must serialise as a sequence:\n{raw}");
+
+    // And the round trip holds.
+    let got = FileStore::open(dir.path()).unwrap().get(id).unwrap().unwrap();
+    assert_eq!(got.assets, vec!["sha256:aa11".to_string()], "assets survived the reload");
+    assert_eq!(got.code, vec!["src/main.rs".to_string()], "code survived the reload");
+}
+
+/// Several references at once, and the separator is a comma — **never a space**, unlike `tags`.
+/// A blob reference cannot contain a space, and copying the `tags` arm's `split([',', ' '])` is
+/// exactly the bug that makes a multi-word tag unrepresentable; it must not spread to a new key.
+#[test]
+fn assets_takes_several_references_separated_by_commas() {
+    let mut o = Object::new(Kind::Note, "two attachments");
+    fm_core::edit::apply_property(&mut o, "assets", "sha256:aa11, sha256:bb22").unwrap();
+    assert_eq!(o.assets, vec!["sha256:aa11".to_string(), "sha256:bb22".to_string()]);
+
+    // Empty clears it, the way every other optional property clears.
+    fm_core::edit::apply_property(&mut o, "assets", "").unwrap();
+    assert!(o.assets.is_empty(), "an empty value clears the list");
+}
+
+/// A note written by hand — or by the app before 2026-08-29, when `apply_property` had no
+/// `assets` arm and wrote a scalar — must still be read. The strict sequence-only read is what
+/// made that bug silent; this is the recovery half of it.
+#[test]
+fn a_hand_written_scalar_asset_is_read_as_a_one_element_list() {
+    let dir = tempdir().unwrap();
+    let notes = dir.path().join("notes");
+    fs::create_dir_all(&notes).unwrap();
+    // Author a valid note, then degrade exactly the one line — a scalar where a sequence
+    // would normally be, which is precisely what the missing `apply_property` arm produced.
+    let mut hand = Object::new(Kind::Note, "x");
+    hand.assets = vec!["sha256:aa11".into()];
+    let id = hand.id;
+    let good = frontmatter::to_file(&hand).unwrap();
+    assert!(good.contains("- sha256:aa11"), "precondition: normally a sequence:\n{good}");
+    let degraded = good.replace("assets:\n- sha256:aa11", "assets: sha256:aa11");
+    assert!(degraded.contains("assets: sha256:aa11"), "degraded form:\n{degraded}");
+    fs::write(notes.join(format!("{id}.md")), degraded).unwrap();
+
+    let got = FileStore::open(dir.path()).unwrap().get(id).unwrap().unwrap();
+    assert_eq!(got.assets, vec!["sha256:aa11".to_string()], "a scalar reads as one reference");
+
+    // And rewriting it normalises the file to a sequence, without losing the reference.
+    let mut s = FileStore::open(dir.path()).unwrap();
+    s.put(&got).unwrap();
+    let raw = fs::read_to_string(notes.join(format!("{id}.md"))).unwrap();
+    assert!(raw.contains("- sha256:aa11"), "rewritten as a sequence:\n{raw}");
+}
+
+/// A custom property typed into the app must end up as the same `PropertyValue` a text editor
+/// would have produced, because `PropertyValue`'s derived `Ord` compares the **variant before the
+/// value** — so a corpus holding `year` as both `Int` and `Text` sorts into two disjoint blocks
+/// depending on nothing but which surface wrote it.
+#[test]
+fn a_typed_in_property_gets_the_type_the_file_would_have_given_it() {
+    let cases = [
+        ("2017", PropertyValue::Int(2017)),
+        ("-3", PropertyValue::Int(-3)),
+        ("true", PropertyValue::Bool(true)),
+        ("false", PropertyValue::Bool(false)),
+        ("NeurIPS", PropertyValue::Text("NeurIPS".into())),
+        ("10.48550/arXiv.1706.03762", PropertyValue::Text("10.48550/arXiv.1706.03762".into())),
+    ];
+    for (raw, want) in cases {
+        let mut o = Object::new(Kind::Note, "x");
+        fm_core::edit::apply_property(&mut o, "year", raw).unwrap();
+        assert_eq!(o.get("year"), want, "typing {raw:?} should store {want:?}");
+    }
+
+    // And it agrees with the file: the same text written into frontmatter by hand parses the same.
+    let mut o = Object::new(Kind::Note, "x");
+    fm_core::edit::apply_property(&mut o, "year", "2017").unwrap();
+    let reparsed = frontmatter::from_file(&frontmatter::to_file(&o).unwrap()).unwrap();
+    assert_eq!(reparsed.get("year"), PropertyValue::Int(2017), "app and file agree");
+}
+
+/// **The inference is lossless-only.** A value YAML would *normalise* keeps its text, because for
+/// these the exact string is the datum: an identifier with leading zeros, a version, a phone
+/// number. Getting this wrong silently rewrites user data, which is worse than the bug it fixes.
+#[test]
+fn a_value_yaml_would_rewrite_keeps_its_text() {
+    for raw in ["007123", "1.50", "+7", "0x1f", "1e3", "2026-08-01"] {
+        let mut o = Object::new(Kind::Note, "x");
+        fm_core::edit::apply_property(&mut o, "code_no", raw).unwrap();
+        assert_eq!(
+            o.get("code_no"),
+            PropertyValue::Text(raw.into()),
+            "{raw:?} must survive verbatim — inferring a type here would rewrite it"
+        );
+    }
+}

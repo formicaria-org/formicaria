@@ -14,7 +14,9 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): *`fm-query` may never touch fs/db* · *Generic,
+- **`#seams`** (the compile-time invariants): ***`Kind` is the second predicate that reaches SQL***
+  (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
+  *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
 - **`#git` / `#sync`** (git, merge, collaboration): ***libgit2 ships on Windows too*** (the
@@ -29,13 +31,16 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   tiers*. **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
 - **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
-  *`fm-serve` sends a CSP* · ***Startup is a contract*** (read before touching the shell's `setup`
+  *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
+  `tauri.conf.json` carries the same clause and had the same bug) · ***Startup is a contract*** (read before touching the shell's `setup`
   hook or the render gate) · ***Every Android IPC command is `(async)`*** (read before adding a
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***A saved view is an arrangement you keep, not a query you
-  write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · *One shell, two
+- **`#ui`** (workspace/views/render): ***One tag is an arrangement, not a query builder***
+  (read with the 2026-08-28 saved-view ruling — they are a pair) · ***The read view may frame its own blob*** (read before
+  touching `frame-src` or assuming a jsdom test covers a policy) · ***A saved view is an arrangement
+  you keep, not a query you write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · *One shell, two
   arrangements* · *`.view` files parsed
   server-side* · ***A view says what it leaves out, and a board admits it scrolls*** (read before
   changing what a pane shows about its own filtering) · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
@@ -50,7 +55,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: *A count is a symptom; the kind is the diagnosis* · *The auto-commit stages what we
+- **`#data`**: ***A list property is writable, and a scalar where a list belongs is read, not
+  dropped*** (read before adding a field to `Object` — a typed field with no `apply_property` arm is
+  silently lossy) · *A count is a symptom; the kind is the diagnosis* · *The auto-commit stages what we
   wrote* (**+ the explicit catch-up**: it could
   *permanently skip* a note, not merely lag) · *A conflict surface is derived from git, not from
   markers* · *The lost-update token is a content hash* ·
@@ -70,6 +77,137 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## One tag is an arrangement, not a query builder (2026-08-29, `#ui`)
+
+> Extends *A saved view is an arrangement you keep, not a query you write* (2026-08-28) — the
+> reasoning there is unchanged and still governs; this widens the surface by exactly one question.
+
+**The app could not produce a filtered view at all.** `save_view` wrote `name`/`view`/`group_by` and
+nothing else, and **refused outright** to overwrite a view carrying a filter, so the only documented
+way to have one was to author YAML plus a nine-row predicate grammar in a text editor — for a
+headline feature, in an app whose owner works only through the UI (`outstanding.md` §2.6b). The
+2026-08-28 entry was right that a UI over that grammar is a query builder nobody non-technical would
+use. It left a gap it did not intend: *no* filter, ever, from the app.
+
+**One `tag:` is the whole widening.** "Show me the ones tagged `paper`" is a sentence a person says,
+and it is the narrowing they already perform by eye. It is not a predicate language: no operators, no
+composition, no nesting — one optional field on the save dialog, empty by default.
+
+**A richer filter is still never flattened.** A hand-written view may carry anything the grammar
+allows; this surface can express exactly one tag, so `save_view` refuses anything else and says why,
+leaving the file untouched. Re-saving a view whose filter *is* a single tag is allowed — that is the
+one shape it can faithfully rewrite (`PredDto::is_only_tag`).
+
+**Two smaller things fell out, both of them the same §2.6b failure.** The naming step was a
+`window.prompt()`, which can ask exactly one question — replaced by a dialog that asks both at once.
+And `newView` is a command whose default key is `''`, in an app whose command palette was removed:
+**"New view" was a labelled capability with no way to invoke it** unless the user bound a key in
+Settings. There is now a *Save view* button in the pane header, on the three kinds that *are* an
+arrangement (board, agenda, timeline) — a note, a search or an existing view is not one.
+
+**Consequence.** `crates/fm-app/tests/save_view.rs` pins the written YAML, the empty-tag case, the
+re-save, and the refusal (including that the original file survives it); `ui/src/App.saveView.test.ts`
+pins the dialog, and stubs `window.prompt` to **throw**, so a regression to the prompt fails rather
+than quietly passing.
+
+## `Kind` is the second predicate that reaches SQL, and the index may denormalise to make that cheap (2026-08-29, `#seams` `#data`)
+
+**`FileStore::candidates` pushed exactly one predicate down — `Text`, via FTS5 — and answered every
+other query with `load_all()`.** That was right while a note was prose: a few hundred bytes, and the
+count is what grows. It stops being right the moment a vault holds papers, because `commands::asset_note`
+puts a PDF's **extracted text in the body of its asset note**, measured at 1.7–2.2 KB per page. A few
+thousand papers is >100 MB of body — and `board`, `agenda`, `recent`, `timeline` and `run_view` all
+filter `Kind(Note)`, so every one of them YAML-parsed and copied all of it, on every view switch, to
+throw it away.
+
+**`objects` now carries a `kind` column**, and `candidates` narrows the non-FTS branch with it.
+Denormalising is legitimate here precisely because **the index is disposable**: it is rebuilt from
+the files on open, so it may hold whatever makes a query cheap, and `INDEX_SCHEMA` (bumped 1 → 2)
+turns an older index into exactly one free rebuild.
+
+**The predicate is pushed down but deliberately *not* stripped from the residual filter** — unlike
+`Text`, which must be stripped because FTS5 is pinned to `remove_diacritics 2` and a second
+substring pass would drop folded matches. `Kind` re-applied is simply idempotent, so the pure engine
+still decides the answer and `MemoryStore` cannot diverge. The narrowing is an optimisation that
+cannot change a result, which is the only kind of pushdown worth having at this seam.
+
+**Only a *top-level* `Kind` is pushed.** `Filter.all` is a conjunction, so one sitting directly in it
+must hold for every row; one nested inside `Not`/`Any` does not narrow anything and pushing it would
+silently drop rows the engine would have kept.
+
+**The budget that proves it is a ratio, not a millisecond count.** Every existing `perf.rs` case
+seeds ~55-byte bodies, so all of them measure note *count* and none can see bytes per note — this
+change was invisible to the entire suite by construction.
+`a_planning_view_does_not_hydrate_the_assets_it_filters_out` times the same `Kind(Note)` query over
+the same 300 notes with and without 600 asset notes carrying 36 MB of text, and asserts the two are
+comparable: **measured 1.5x with the pushdown and 4.9x without**, so it fails against the old code.
+That follows the lesson `known-issues.md` recorded after the O(n²) rebuild — *assert the shape, not a
+duration* — because a wall-clock budget only catches what someone thought to measure at the right
+size.
+
+## A list property is writable, and a scalar where a list belongs is read, not dropped (2026-08-29, `#data`)
+
+**`assets` and `code` had no write path, and losing one was silent.** `apply_property` matched
+neither key, so both fell through to the `extra` catch-all, which writes a `PropertyValue::Text`;
+`to_file` then emitted a **scalar** (`assets: sha256:…`) while `from_file` reads them with
+`as_string_seq`, which answered `Vec::new()` for anything that was not a sequence. The value was
+gone on the very next load, with no error at any layer — on the one field that ties a note to its
+blob. `set_property(id, "assets", …)` therefore appeared to succeed and detached the attachment.
+
+**Two halves, and the second is a repair.** `apply_property` now has `assets`/`code` arms writing
+the typed fields; and `as_string_seq` now accepts a **bare scalar as a one-element list**, which
+recovers every note already written that way and matches the leniency `Kind::from_str` extends to
+legacy `type:` values. A note is a file a person may write by hand, and `assets: sha256:abc` is the
+obvious thing to type. Anything that is neither a sequence nor a string is still nothing.
+
+**Comma, never space — deliberately not what `tags` does.** `tags` splits on `[',', ' ']`, which is
+why a multi-word tag is unrepresentable through the only write path this app has. A blob reference
+or a path may not contain a space, so splitting on one buys nothing and costs the same expressivity.
+The imitation was the trap: the obvious way to add these arms was to copy the `tags` arm.
+
+**Consequence.** Pinned by `setting_assets_or_code_survives_a_reload`,
+`assets_takes_several_references_separated_by_commas` and
+`a_hand_written_scalar_asset_is_read_as_a_one_element_list` in `crates/fm-core/tests/edit.rs`; the
+first two fail against the old code. The durable lesson: **a typed field with no arm in
+`apply_property` is not read-only, it is silently lossy** — the catch-all accepts the write and the
+serialiser changes its shape. Any future `Vec<String>` or non-`Text` field needs an arm on the day
+it is added.
+
+## The read view may frame its own blob — a policy clause had been forbidding a shipped feature (2026-08-29, `#ui` `#track-m`)
+
+**No PDF has ever rendered in this app.** `ui/src/lib/render.ts` shows every PDF in an `<iframe>`
+pointing at `/api/blob/…` — the design `MASTERPLAN.md:341` calls for, native elements, no JS media
+library — while the app policy carried **`frame-src 'none'`**, which blocks every frame source
+including `'self'`. Both policies had it: the desktop `CSP` and `mobile/src-tauri/tauri.conf.json`.
+
+**Why it survived.** A blocked frame is a broken-document placeholder, not an error — nothing throws,
+nothing logs where a user would look. And the one test over that path, `render.test.ts`, asserts the
+`<iframe>` **in jsdom, which applies no CSP at all**, so it passed throughout. Meanwhile
+`SettingsPanel.svelte` and `packaging/README-release.txt` both told the user PDFs were *"stored,
+opened and shown"*. This is the same failure as *"A feature the app cannot deliver must not offer
+itself"* below, arriving from the opposite direction: there the capability was missing and the string
+lied; here the *feature was built correctly* and a security header quietly forbade it.
+
+**Measured, not reasoned about.** A headless browser served the exact shipped headers reported
+`CSP BLOCKED: frame-src ← /api/blob/…`; the same page with `frame-src 'self'` rendered the PDF.
+
+**What the widening does not buy anyone else.** DOMPurify's default tag allowlist contains no
+`iframe`/`object`/`embed`/`frame` — checked against the pinned 3.4.12 using `render.ts`'s own
+`ALLOWED_URI_REGEXP`, all four sanitise to `""`. A note body arrives from collaborators through the
+merge driver and still **cannot introduce a frame**; the only frame on the page is the one the
+renderer builds itself, *after* sanitising, from a blob `inline_safe()` had already agreed to serve
+inline. `'self'` and no more: never a remote document.
+
+**Two things deliberately left alone.** The blob response keeps its own
+`Content-Security-Policy: default-src 'none'; sandbox` — it was the other suspected blocker and was
+measured *not* to be one; the PDF renders with it in place, so the belt stays beside the braces. And
+`MANUAL_CSP` keeps `frame-src 'none'`: the book is static HTML and frames nothing.
+
+**Consequence.** Pinned by `the_policy_lets_the_read_view_frame_its_own_pdf`, which asserts against
+the real response header and **fails against the old value**. The durable lesson is the test's, not
+the clause's: *a CSP clause is a claim about what the app is allowed to do, and a DOM test in jsdom
+can never check it.*
 
 ## A feature the app cannot deliver must not offer itself (2026-08-28, `#agent` `#ui`)
 

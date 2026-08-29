@@ -13,7 +13,7 @@
 
 use crate::frontmatter;
 use crate::{Reindex, ReindexStats, Store, StoreError};
-use fm_model::{Id, Object};
+use fm_model::{Id, Kind, Object};
 use fm_query::{Filter, Predicate};
 use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashMap;
@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 /// mode of writing it too early (marking an index complete that is not) cannot arise at all.
 ///
 /// 1 — `objects` gains `fts_rowid`, so deletes seek instead of scanning.
-const INDEX_SCHEMA: i64 = 1;
+const INDEX_SCHEMA: i64 = 2;
 
 pub struct FileStore {
     notes: PathBuf,
@@ -264,6 +264,13 @@ impl FileStore {
                      path      TEXT NOT NULL,
                      mtime_ns  INTEGER NOT NULL,
                      content   TEXT NOT NULL,
+                     -- **The one predicate besides `Text` that reaches SQL.** Every planning view
+                     -- filters `Kind(Note)`, and without this `candidates` fell back to
+                     -- `load_all()` — hydrating, for a vault of papers, the extracted full text of
+                     -- every PDF on every view switch. Denormalised from `content` on purpose: the
+                     -- index is disposable and rebuilt from the files, so it may hold whatever
+                     -- makes a query cheap.
+                     kind      TEXT NOT NULL,
                      -- **Where this note's row lives in `fts`.** See `index_object`: `fts` is
                      -- declared `id UNINDEXED`, so `DELETE FROM fts WHERE id = ?` cannot seek and
                      -- scans the whole table. `fts5` has a real implicit `rowid`, so remembering
@@ -442,9 +449,16 @@ impl FileStore {
         let fts_rowid = self.db.last_insert_rowid();
         self.db
             .execute(
-                "INSERT OR REPLACE INTO objects (id, path, mtime_ns, content, fts_rowid)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                rusqlite::params![id, path.to_string_lossy(), mtime, content, fts_rowid],
+                "INSERT OR REPLACE INTO objects (id, path, mtime_ns, content, kind, fts_rowid)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                rusqlite::params![
+                    id,
+                    path.to_string_lossy(),
+                    mtime,
+                    content,
+                    obj.kind.as_str(),
+                    fts_rowid
+                ],
             )
             .map_err(sql)?;
         Ok(())
@@ -574,12 +588,39 @@ impl FileStore {
     }
 
     fn load_all(&self) -> Result<Vec<Object>, StoreError> {
-        let mut stmt = self.db.prepare("SELECT content FROM objects").map_err(sql)?;
-        let rows = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(sql)?;
+        self.load_kinds(None)
+    }
+
+    /// Every row, or only those whose `kind` is in `kinds`.
+    ///
+    /// The narrowing is a **pre-filter, not the filter**: the `Kind` predicate stays in the
+    /// residual handed back by [`Store::candidates`], so the pure engine still applies it and
+    /// `MemoryStore` still answers identically. All this buys is not paying `hydrate` — a YAML
+    /// parse plus two copies of the body — for a row the engine is about to discard anyway.
+    fn load_kinds(&self, kinds: Option<&[Kind]>) -> Result<Vec<Object>, StoreError> {
         let mut objs = Vec::new();
-        for row in rows {
-            let content = row.map_err(sql)?;
-            objs.push(self.hydrate(&content)?);
+        match kinds {
+            None => {
+                let mut stmt = self.db.prepare("SELECT content FROM objects").map_err(sql)?;
+                let rows = stmt.query_map([], |r| r.get::<_, String>(0)).map_err(sql)?;
+                for row in rows {
+                    objs.push(self.hydrate(&row.map_err(sql)?)?);
+                }
+            }
+            Some(ks) => {
+                // `rusqlite::params_from_iter` over a generated `IN (?,?,…)` — the list is at most
+                // the number of `Kind` variants, so it is bounded and never user-sized.
+                let holes = (1..=ks.len()).map(|i| format!("?{i}")).collect::<Vec<_>>().join(",");
+                let sql_text = format!("SELECT content FROM objects WHERE kind IN ({holes})");
+                let mut stmt = self.db.prepare(&sql_text).map_err(sql)?;
+                let names: Vec<&str> = ks.iter().map(Kind::as_str).collect();
+                let rows = stmt
+                    .query_map(rusqlite::params_from_iter(names), |r| r.get::<_, String>(0))
+                    .map_err(sql)?;
+                for row in rows {
+                    objs.push(self.hydrate(&row.map_err(sql)?)?);
+                }
+            }
         }
         Ok(objs)
     }
@@ -696,7 +737,12 @@ impl Store for FileStore {
     fn candidates(&self, filter: &Filter) -> Result<(Vec<Object>, Filter), StoreError> {
         match fts_match_expr(filter) {
             Some(expr) => Ok((self.fts_load(&expr)?, strip_text(filter))),
-            None => Ok((self.load_all()?, filter.clone())),
+            // No text to accelerate. Still avoid hydrating rows a top-level `Kind` already
+            // excludes — that is every planning view, which asks for `Kind(Note)` and would
+            // otherwise parse every asset note (and, for a PDF, its whole extracted text).
+            // The predicate is **not** stripped: the engine re-applies it, so this cannot
+            // diverge from `MemoryStore`.
+            None => Ok((self.load_kinds(kind_pushdown(filter).as_deref())?, filter.clone())),
         }
     }
 
@@ -927,6 +973,25 @@ fn fts_tokens(s: &str) -> Vec<String> {
 /// Drop `Text` predicates from a query — the FTS MATCH already applied them, so
 /// the pure engine only evaluates the remaining (structured) predicates.
 /// The filter minus what FTS5 already answered — see [`Store::candidates`].
+/// The kinds a **top-level** `Predicate::Kind` restricts this query to, if any.
+///
+/// `Filter.all` is a conjunction, so a `Kind` sitting directly in it must hold for every result
+/// and is safe to push into SQL. Anything nested inside `Not`/`Any` is deliberately ignored: under
+/// a negation or a disjunction the same predicate does not narrow the result set, and pushing it
+/// down would silently drop rows the engine would have kept. Several `Kind` predicates intersect.
+fn kind_pushdown(filter: &Filter) -> Option<Vec<Kind>> {
+    let mut acc: Option<Vec<Kind>> = None;
+    for p in &filter.all {
+        if let Predicate::Kind(ks) = p {
+            acc = Some(match acc {
+                None => ks.clone(),
+                Some(prev) => prev.into_iter().filter(|k| ks.contains(k)).collect(),
+            });
+        }
+    }
+    acc
+}
+
 fn strip_text(filter: &Filter) -> Filter {
     let mut f = filter.clone();
     f.all.retain(|p| !matches!(p, Predicate::Text(_)));

@@ -10,7 +10,7 @@
 //! column clears the grouped property).
 
 use crate::StoreError;
-use fm_model::{Kind, Object, PropertyValue, Stamp};
+use fm_model::{Kind, Object, Stamp};
 use std::str::FromStr;
 
 /// Apply `raw` to property `key` on `obj`. Callers stamp `updated` and `put`.
@@ -34,6 +34,19 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
                 .map(String::from)
                 .collect()
         }
+        // **`assets` and `code` are typed `Vec<String>` fields, and until 2026-08-29 neither had
+        // an arm here.** Both fell through to the `extra` catch-all below, which writes a
+        // `PropertyValue::Text`; `to_file` then serialised a *scalar* (`assets: sha256:…`) while
+        // `from_file` reads them with `as_string_seq`, which answers `Vec::new()` for anything
+        // that is not a sequence. So the value was gone on the next load, silently, at every
+        // layer — on the one field that ties a note to its blob.
+        //
+        // **Comma only, deliberately not `tags`' `split([',', ' '])`.** A blob reference or a path
+        // may not contain a space, so splitting on one buys nothing here and costs the ability to
+        // ever express a value that has one. (That split is also why a multi-word tag is
+        // unrepresentable today; the bug should not spread to a second key by imitation.)
+        "assets" => obj.assets = split_list(raw),
+        "code" => obj.code = split_list(raw),
         "id" | "created" | "updated" | "schema" => {
             return Err(StoreError::Parse(format!("`{key}` is not editable")))
         }
@@ -53,11 +66,22 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
             if raw.is_empty() {
                 obj.extra.remove(other);
             } else {
-                obj.extra.insert(other.to_string(), PropertyValue::Text(raw.to_string()));
+                // **Typed the way the file would have typed it.** Storing every hand-entered value
+                // as `Text` meant `year: 2017` was `Text` when the app wrote it and `Int` when a
+                // text editor did — and `PropertyValue`'s derived `Ord` compares the variant first,
+                // so one vault sorted into two disjoint blocks by nothing but provenance. The
+                // inference is lossless-only: see `frontmatter::scalar_property`.
+                obj.extra.insert(other.to_string(), crate::frontmatter::scalar_property(raw));
             }
         }
     }
     Ok(())
+}
+
+/// A comma-separated list into its parts, empties dropped — so an empty value clears the list,
+/// the same way an empty value clears every other optional property.
+fn split_list(raw: &str) -> Vec<String> {
+    raw.split(',').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect()
 }
 
 fn parse_stamp(key: &str, raw: Option<String>) -> Result<Option<Stamp>, StoreError> {
