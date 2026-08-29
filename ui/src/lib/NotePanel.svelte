@@ -23,7 +23,8 @@
     proposalFor as ipcProposalFor,
     discussions as ipcDiscussions,
     backlinks as ipcBacklinks,
-  } from './ipc';
+  paperBibtex,
+} from './ipc';
   import {
     renderInto,
     type AssetFailure,
@@ -1342,6 +1343,23 @@
       error = String(e);
     }
   }
+  // **A paper's citation, back out.** Built server-side (`commands::paper_bibtex`) so the format
+  // has one implementation and its round trip with the parser is tested — a second copy in
+  // TypeScript would drift. Offered only where it means something: a note tagged `paper`.
+  let copiedBibtex = $state(false);
+  const isPaper = $derived(!!note?.tags?.includes('paper'));
+  async function copyBibtex() {
+    if (!note) return;
+    try {
+      const text = await paperBibtex(note.id);
+      await navigator.clipboard.writeText(text);
+      copiedBibtex = true;
+      setTimeout(() => (copiedBibtex = false), 1500);
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
   // Text fields debounce so a burst of typing isn't one write per keystroke.
   function setPropDebounced(key: string, value: string) {
     clearTimeout(propTimers[key]);
@@ -1931,6 +1949,11 @@
                   {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
                 </button>
               {/if}
+              {#if isPaper}
+                <button class="opt" onclick={() => { optionsOpen = false; void copyBibtex(); }}>
+                  {copiedBibtex ? 'Copied' : 'Copy as BibTeX'}
+                </button>
+              {/if}
               <!-- Hidden on a paired device: `open_external` hands the file to whatever the
                    *computer* thinks owns it, so pressing it on a tablet launches something on a
                    screen you are not looking at. The server refuses it too — this only spares
@@ -2149,7 +2172,7 @@
               aria-label="tags"
               bind:value={pTags}
               oninput={() => setPropDebounced('tags', pTags)}
-              placeholder="comma or space separated"
+              placeholder="comma separated"
               spellcheck="false"
             />
           </label>

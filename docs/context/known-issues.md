@@ -145,18 +145,6 @@ The gray-screen fix and its tests are in
 
 ## Known gaps / not fully working
 
-- **A multi-word tag is unrepresentable through the app.** `apply_property`'s `tags` arm splits on
-  `[',', ' ']` (`crates/fm-core/src/edit.rs`), so `Machine Learning` becomes two tags, `Machine` and
-  `Learning`. The *model* is fine — `tags` is a `Vec<String>` and a hand-written YAML sequence with
-  a space in an entry round-trips correctly — it is only the single write path that cannot express
-  it. Confirmed 2026-08-29 while adding the `assets`/`code` arms beside it, which deliberately split
-  on comma only (`decisions.md#data`).
-
-  **This blocks anything that maps an external hierarchy onto tags** — a Zotero collection named
-  `To Read`, a folder, an imported keyword. Fixing it means choosing a separator or a quoting rule
-  for the one string the board's drag write-back sends, and the board is the caller that makes it
-  awkward: it writes a column *name* back as a value.
-
 - **A paired device's microphone needs the certificate installed, and there is deliberately no
   way around that.** `getUserMedia` requires a secure context, so it works over the TLS listener
   and not over the plain-HTTP fallback (`--no-default-features`, or a machine where no

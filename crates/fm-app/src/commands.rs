@@ -102,6 +102,73 @@ pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError
 /// empty means the default vault, an unknown name is refused by `Store::put`'s
 /// routing (same discipline as `ingest`). Returns the new card's meta so the UI
 /// can slot it into the board without a full refetch.
+/// A note's citation as a BibTeX entry — the thing a user pastes into a manuscript.
+///
+/// Server-side so the format has **one** implementation: `paper::parse_bibtex` reads it and
+/// `paper::to_bibtex` writes it, and the round trip is tested. Computing it in the UI would put a
+/// second, drifting copy in TypeScript.
+pub fn paper_bibtex(store: &dyn Store, id: &str) -> Result<String, StoreError> {
+    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let obj = store.get(id)?.ok_or_else(|| StoreError::Parse("no such note".into()))?;
+    let props: std::collections::BTreeMap<String, String> = obj
+        .extra
+        .iter()
+        .map(|(k, v)| (k.clone(), v.display()))
+        .collect();
+    Ok(crate::paper::to_bibtex(obj.title.as_deref().unwrap_or_default(), &props))
+}
+
+/// **Create a paper from whatever the user has to hand** — a BibTeX entry, an identifier, a URL,
+/// or just a title.
+///
+/// A paper is a `Kind::Note` tagged `paper`, never a `Kind::Asset`: `views.rs`'s base query
+/// hardcodes `Kind(Note)` for board/agenda/timeline, so an asset could appear in no planning view,
+/// and the paper — not the PDF — is the thing you tag, schedule and think about. The PDF is a blob
+/// the note references, attached separately.
+///
+/// **One `put`, not a create plus a dozen `set_property` calls.** Every field is applied to the
+/// object in memory and written once, so a failure cannot leave a paper with a title, a year and
+/// nothing else — and importing a library does not become tens of thousands of round trips, each a
+/// full file rewrite plus an index update.
+///
+/// Values go through [`apply_property`], so a hand-pasted `year` is typed exactly as a
+/// hand-*edited* file would type it — the invariant that stops one vault sorting into two blocks.
+pub fn create_paper(
+    store: &mut dyn Store,
+    input: &str,
+    vault: &str,
+) -> Result<ObjectMeta, StoreError> {
+    use crate::paper::{parse_bibtex, parse_identifier, PaperFields};
+
+    let input = input.trim();
+    // BibTeX first: it is the only input that carries a whole record, so it wins where both parse.
+    let mut fields = parse_bibtex(input).unwrap_or_default();
+    if fields.is_empty() {
+        if let Some(id) = parse_identifier(input) {
+            let v = Some(id.value().to_string());
+            match id {
+                crate::paper::Identifier::Doi(_) => fields.doi = v,
+                crate::paper::Identifier::ArXiv(_) => fields.arxiv = v,
+                crate::paper::Identifier::Url(_) => fields.url = v,
+            }
+        } else if !input.is_empty() {
+            // Not a citation and not an identifier: the user typed a title, which is a perfectly
+            // good way to start a paper note and the only one that always works offline.
+            fields = PaperFields { title: Some(input.to_string()), ..Default::default() };
+        }
+    }
+
+    let mut obj = Object::new(Kind::Note, "");
+    obj.vault = vault.to_string();
+    obj.tags = vec!["paper".to_string()];
+    obj.title = fields.title.clone().map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
+    for (key, value) in fields.properties() {
+        apply_property(&mut obj, key, &value)?;
+    }
+    store.put(&obj)?;
+    Ok(ObjectMeta::from(&obj))
+}
+
 pub fn capture(store: &mut dyn Store, body: &str, vault: &str) -> Result<ObjectMeta, StoreError> {
     let mut obj = Object::new(Kind::Note, body);
     obj.vault = vault.to_string();
@@ -1293,6 +1360,19 @@ pub fn asset_note(
     obj.title = Some(ing.filename.clone());
     obj.assets = vec![format!("sha256:{}", ing.hash)];
     obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
+    // **The identifier a paper prints on itself, for free.** `pdftotext` has already run, and most
+    // modern papers put their DOI or arXiv id on page one — so the commonest way a paper enters
+    // the vault needs no typing and no network. Only the *front* of the text is scanned: a DOI in
+    // the bibliography belongs to somebody else's paper (see `paper::identifier_in_text`).
+    //
+    // Recorded on the asset note, which is what knows about this file. Attaching it to a paper
+    // note is the caller's business — this layer does not decide what the PDF is *of*.
+    if let Some(text) = ing.text.as_deref() {
+        if let Some(id) = crate::paper::identifier_in_text(text) {
+            obj.extra
+                .insert(id.key().to_string(), PropertyValue::Text(id.value().to_string()));
+        }
+    }
     obj.vault = vault_name.to_string();
     store.put(&obj)?;
     // Best-effort thumbnail: a missing vipsthumbnail (or a failure) only degrades a gallery

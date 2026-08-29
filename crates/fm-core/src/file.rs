@@ -587,11 +587,8 @@ impl FileStore {
         Ok(obj)
     }
 
-    fn load_all(&self) -> Result<Vec<Object>, StoreError> {
-        self.load_kinds(None)
-    }
-
-    /// Every row, or only those whose `kind` is in `kinds`.
+    /// Every row, or only those whose `kind` is in `kinds`. (Was `load_all`, which several doc
+    /// comments still name when describing the O(corpus) cost — this is that call.)
     ///
     /// The narrowing is a **pre-filter, not the filter**: the `Kind` predicate stays in the
     /// residual handed back by [`Store::candidates`], so the pure engine still applies it and

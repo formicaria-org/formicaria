@@ -734,6 +734,13 @@ export const restoreVault = (name: string, path: string, repo: string) =>
  *  opened freely, unlike `backupStatus` which runs `git ls-remote` per vault. */
 export const config = () => invoke<Config>('config');
 
+/** Create a paper note from whatever the user pasted — a BibTeX entry, a DOI, an arXiv id or
+ *  link, or a bare title. **Offline**: the core links no HTTP client (the owner's ruling in
+ *  `fm-agent-run`'s Cargo.toml), so an identifier is *recognised*, never resolved. */
+export const createPaper = (input: string, vault = '') =>
+  invoke<ObjectMeta>('create_paper', { input, vault });
+/** This note's citation as a BibTeX entry. Server-side so the format has one implementation. */
+export const paperBibtex = (id: string) => invoke<string>('paper_bibtex', { id });
 /** The user's saved `.view` files, aggregated across vaults. A broken one carries `error`. */
 /** Save the arrangement you are looking at as a named view, in the vault's `views/` folder.
  *  Still not a filter editor — the grammar is nine predicates and a UI for it is a query builder —

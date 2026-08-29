@@ -251,3 +251,26 @@ fn a_value_yaml_would_rewrite_keeps_its_text() {
         );
     }
 }
+
+/// **A multi-word tag was unrepresentable through the app.** `tags` split on `[',', ' ']`
+/// unconditionally, so `Machine Learning` became two unrelated tags — silently, and fatally for
+/// anything mapping an external hierarchy (a Zotero collection, a folder, an imported keyword)
+/// onto tags. A comma is now the separator when there is one; whitespace still is when there
+/// isn't, so nobody's `todo urgent` habit breaks.
+#[test]
+fn a_comma_lets_a_tag_contain_a_space() {
+    let mut o = Object::new(Kind::Note, "x");
+    fm_core::edit::apply_property(&mut o, "tags", "Machine Learning, To Read").unwrap();
+    assert_eq!(o.tags, vec!["Machine Learning".to_string(), "To Read".to_string()]);
+
+    // One separator, no heuristic: `todo urgent` is now a single tag. A "comma if present, else
+    // whitespace" rule was tried and rejected — it left a *single* multi-word tag needing a
+    // trailing comma, which is a rule nobody would guess.
+    fm_core::edit::apply_property(&mut o, "tags", "todo urgent").unwrap();
+    assert_eq!(o.tags, vec!["todo urgent".to_string()]);
+
+    // And a multi-word tag survives the file, which is the point of writing it.
+    fm_core::edit::apply_property(&mut o, "tags", "Machine Learning").unwrap();
+    let back = frontmatter::from_file(&frontmatter::to_file(&o).unwrap()).unwrap();
+    assert_eq!(back.tags, vec!["Machine Learning".to_string()]);
+}

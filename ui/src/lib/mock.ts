@@ -384,6 +384,7 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
 // The study-assistant on/off setting, mocked (the real one is a per-device launcher setting served
 // by fm-serve, not a vault command).
 let mockAgentEnabled = false;
+let mockPaperSeq = 1;
 let mockSavedViews: ViewInfo[] = [
   { name: 'Recent notes', renderer: 'timeline', group_by: null },
   { name: 'Active', renderer: 'board', group_by: 'status' },
@@ -1244,6 +1245,38 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // Writable in the mock too, so the dev loop and tests exercise the path that used to require
     // a text editor. Kept in a module-level list so save/delete actually change what list_views
     // returns — a mock that accepted a write and reported the old list would hide the bug.
+    // The paste path, mirroring the Rust closely enough for the dialog's tests to mean something:
+    // a BibTeX title wins, then an identifier, then the raw text as a title.
+    case 'create_paper': {
+      const input = String(args.input ?? '').trim();
+      const bib = /title\s*=\s*[{"]([^}"]+)[}"]/i.exec(input);
+      const doi = /\b(10\.\d{4,9}\/\S+)/.exec(input);
+      const arx = /arxiv\.org\/(?:abs|pdf)\/([\w.\/]+?)(?:\.pdf)?$|arxiv:\s*([\w.\/]+)/i.exec(input);
+      const props: Record<string, unknown> = {};
+      if (doi) props.doi = doi[1];
+      if (arx) props.arxiv = arx[1] ?? arx[2];
+      const title = bib ? bib[1] : doi || arx || !input ? null : input;
+      const meta: ObjectMeta = {
+        id: `M0CKPAPER${String(mockPaperSeq++).padStart(16, '0')}`,
+        type: 'note',
+        title,
+        preview: title ?? '',
+        status: null,
+        due: null,
+        start: null,
+        hard: false,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        tags: ['paper'],
+        assets: [],
+        props,
+        vault: String(args.vault || 'personal'),
+      };
+      return meta as T;
+    }
+    case 'paper_bibtex': {
+      return '@article{mock2026,\n  title = {A mock paper}\n}\n' as T;
+    }
     case 'save_view': {
       const name = String(args.name ?? '').trim();
       if (!name) throw new Error('a view needs a name');

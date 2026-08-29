@@ -55,7 +55,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: ***A list property is writable, and a scalar where a list belongs is read, not
+- **`#data`**: ***A paper is a note, made from the citation you already have*** (read before
+  adding a metadata field or an acquisition route) · ***A list property is writable, and a scalar where a list belongs is read, not
   dropped*** (read before adding a field to `Object` — a typed field with no `apply_property` arm is
   silently lossy) · *A count is a symptom; the kind is the diagnosis* · *The auto-commit stages what we
   wrote* (**+ the explicit catch-up**: it could
@@ -77,6 +78,50 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A paper is a note, made from the citation you already have (2026-08-29, `#data` `#ui`)
+
+**A paper is a `Kind::Note` tagged `paper`, never a `Kind::Asset`.** Forced — `views.rs`'s base
+query hardcodes `Kind(Note)` for board/agenda/timeline, so an asset appears in no planning view —
+and right anyway: the paper is what you tag, schedule and think about; the PDF is a blob it
+references. Everything the notebook already does then works on a library for free: status columns,
+`due` dates, tags, FTS, git sync, the phone, backup, the assistant.
+
+**Metadata is flat scalars, and nothing else is possible.** `PropertyValue` has no map variant, so
+`authors`/`year`/`venue`/`doi`/`arxiv`/`entry_type`/`cite_key` are strings and an `Int` where the
+value is one. Values go through `apply_property`, so a pasted `year` is typed exactly as a
+hand-*edited* file types it — the invariant *A list property is writable…* protects.
+
+**Acquisition is offline, and that is the ruling, not a shortcut.** `fm-agent-run`'s `Cargo.toml`
+records that `ureq` and its TLS stack are *"agent-only deps — the notes core links neither"*. So a
+DOI is **recognised, never resolved**. Three offline routes, in the order they cost the user
+anything:
+
+1. **The identifier the PDF prints on itself.** `pdftotext` has already run at ingest, so the
+   commonest case needs no typing at all. Only the *front* of the text is scanned — a DOI in the
+   bibliography belongs to somebody else's paper, and citing it would be worse than finding nothing.
+2. **A pasted BibTeX entry**, which every publisher page and every reference manager exports and
+   which carries a whole record with no lookup.
+3. **An identifier, a URL, or a bare title.**
+
+One box takes all of them; the backend decides what it got. Parsing is hand-rolled in
+`fm-app/src/paper.rs`, no regex and no dependency, matching `refs.rs`.
+
+**`create_paper` writes once.** Every field is applied in memory and `put` once, so a failure cannot
+leave a paper with a title and nothing else — and a future library import is not tens of thousands
+of round trips, each a full file rewrite plus an index update.
+
+**Deliberately not guessed:** a bare `2401.12345` is not an arXiv id. In running text it is as
+likely a figure number or a price, and a false citation on somebody's note is worse than an empty
+field.
+
+**BibTeX out is server-side** (`commands::paper_bibtex`) so the format has one implementation whose
+round trip with the parser is tested; a copy in TypeScript would drift. It emits the venue under the
+field the entry type actually takes — `booktitle` for a proceedings, `journal` for an article — which
+a round trip through our own parser could never catch, because both map back to `venue`.
+
+**`hayagriva` (CSL, 2,600 styles) is the obvious upgrade and is deliberately not taken**: it is a
+dependency owing its own entry, and one BibTeX entry is a `format!`.
 
 ## One tag is an arrangement, not a query builder (2026-08-29, `#ui`)
 

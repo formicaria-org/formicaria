@@ -839,6 +839,20 @@ fn dispatch_inner(
             all.sort_by(|a, b| b.time.cmp(&a.time));
             json(all)
         }
+        // A paper from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — all offline.
+        // The core links no HTTP client (`fm-agent-run`'s ruling), so nothing here resolves an
+        // identifier; it recognises one, and reads a citation the user already holds.
+        "create_paper" => {
+            let mut g = lock()?;
+            let into = g.config(scope, &s("vault"))?;
+            json(
+                commands::create_paper(&mut g.store(scope), &s("input"), &into.name)
+                    .map_err(err)?,
+            )
+        }
+        "paper_bibtex" => {
+            json(commands::paper_bibtex(&lock()?.store(scope), &s("id")).map_err(err)?)
+        }
         "capture" => {
             // Validate the target vault up front (unknown name → a loud error, never a
             // silent default), then route the note into it — the create-side twin of

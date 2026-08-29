@@ -26,14 +26,19 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
         // longer duplicated across crates — and an optional time comes for free.
         "due" => obj.due = parse_stamp("due", some(raw))?,
         "start" => obj.start = parse_stamp("start", some(raw))?,
-        "tags" => {
-            obj.tags = raw
-                .split([',', ' '])
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-                .map(String::from)
-                .collect()
-        }
+        // **Comma-separated, so a tag may contain a space.** This split on `[',', ' ']` until
+        // 2026-08-29, which made a multi-word tag unrepresentable through the only write path the
+        // app has: `Machine Learning` silently became two unrelated tags. That blocks every
+        // mapping of an external name onto a tag — a Zotero collection called `To Read`, a folder,
+        // an imported keyword — and it blocks the board's own drag write-back, which sends a
+        // column *name*.
+        //
+        // A "comma when present, else whitespace" heuristic was tried first and rejected: it left
+        // a *single* multi-word tag needing a trailing comma, which is a rule nobody would guess.
+        // One separator, the same one `assets`/`code` use, is the rule that needs no explaining.
+        // The cost is that `todo urgent` is now one tag rather than two — visible immediately as a
+        // single chip, and the field's own placeholder says "comma separated".
+        "tags" => obj.tags = split_list(raw),
         // **`assets` and `code` are typed `Vec<String>` fields, and until 2026-08-29 neither had
         // an arm here.** Both fell through to the `extra` catch-all below, which writes a
         // `PropertyValue::Text`; `to_file` then serialised a *scalar* (`assets: sha256:…`) while

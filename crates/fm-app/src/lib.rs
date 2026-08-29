@@ -22,6 +22,7 @@ pub mod ca_bundle;
 pub mod commands;
 pub mod dispatch;
 pub mod dto;
+pub mod paper;
 pub mod refs;
 pub mod scope;
 // A git token, only on platforms with no credential helper to delegate to (i.e. Android).

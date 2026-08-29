@@ -36,6 +36,7 @@
     listVaults,
     listViews,
     saveView,
+    createPaper,
     runView,
     activity as fetchActivity,
     backupStatus,
@@ -389,6 +390,7 @@
     { group: 'Create', label: 'New note', run: onNew },
     { group: 'Create', label: 'New board', run: onNewBoard },
     { group: 'Create', label: 'New discussion', run: onNewDiscussion },
+    { group: 'Create', label: 'New paper', run: onNewPaper },
     { group: 'Create', label: 'New window', run: () => addPane('board') },
   ];
 
@@ -1064,6 +1066,31 @@
   // created through `create_discussion` (not capture + setProperty, because setProperty refuses the
   // `thread_of` self-anchor), given a default title, then opened. Being self-rooted it is an
   // `is_message` note, so it never lands on the board/timeline — it lives in the Discussions view.
+  // **A paper is made from something you already have.** The one thing a researcher always has is
+  // the citation — a BibTeX entry off the publisher page, a DOI, an arXiv link — so the dialog
+  // takes any of them, or a bare title, in one box rather than asking which kind it is.
+  //
+  // Nothing here reaches the network: the core links no HTTP client (`fm-agent-run`'s ruling), so
+  // an identifier is *recognised* and recorded, never resolved. A pasted BibTeX entry is what
+  // carries a full record offline.
+  let paperOpen = $state(false);
+  let paperInput = $state('');
+
+  function onNewPaper() {
+    paperInput = '';
+    paperOpen = true;
+  }
+  async function confirmNewPaper() {
+    try {
+      const meta = await createPaper(paperInput, createTarget);
+      paperOpen = false;
+      openNoteInPane(meta.id);
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
   async function onNewDiscussion() {
     try {
       const meta = await createDiscussion('Untitled discussion', createTarget);
@@ -1847,6 +1874,42 @@
     {/await}
   {/if}
 
+  {#if paperOpen}
+    <div class="sheet-backdrop" role="presentation" onclick={() => (paperOpen = false)}></div>
+    <div
+      class="sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add a paper"
+      tabindex="-1"
+      onkeydown={(e) => e.key === 'Escape' && (paperOpen = false)}>
+      <div class="save-view">
+        <h2>Add a paper</h2>
+        <label class="sv-field">
+          <span>Paste a citation, a DOI, an arXiv link — or just type the title</span>
+          <!-- svelte-ignore a11y_autofocus -->
+          <textarea
+            aria-label="paper citation or identifier"
+            bind:value={paperInput}
+            rows="6"
+            autofocus
+            spellcheck="false"
+            placeholder={'@article{…}\n\nor  10.48550/arXiv.1706.03762\nor  https://arxiv.org/abs/1706.03762\nor  Attention Is All You Need'}
+          ></textarea>
+        </label>
+        <p class="sv-hint">
+          Read on this computer — nothing is looked up online. A pasted citation fills in the
+          author, year and journal; an identifier on its own is recorded, and you can fill in the
+          rest from the note itself.
+        </p>
+        <div class="sv-actions">
+          <button class="sv-cancel" onclick={() => (paperOpen = false)}>Cancel</button>
+          <button class="sv-save" onclick={confirmNewPaper}>Add paper</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {#if saveViewOpen}
     <div class="sheet-backdrop" role="presentation" onclick={() => (saveViewOpen = false)}></div>
     <div
@@ -1931,6 +1994,16 @@
     gap: var(--space-1);
     font-size: var(--text-xs);
     color: var(--text-muted);
+  }
+  .sv-field textarea {
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--text-xs);
+    resize: vertical;
   }
   .sv-field input {
     padding: var(--space-2);
