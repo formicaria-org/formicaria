@@ -344,18 +344,25 @@ no git binary*, so `fm-serve` pulls it through a `[target.'cfg(windows)'.depende
 Windows users get history, backup and collaboration without installing anything; machines that have
 git are unchanged, because `vcs.rs` chooses at runtime.
 
-**The deferred cost:** `crates/fm-core/Cargo.toml` pins `git2` to `vendored-openssl` for Android's
-sake — Android has no system OpenSSL — and that feature is **not split per target**, so the Windows
-build compiles OpenSSL it does not need. libgit2 on Windows can use the OS's own TLS. Splitting it
-means separate `[target.…]` blocks for `git2` **and** for `openssl-sys` (which `native-git` also
-pulls, purely for Android's in-memory trust store), so the Android path must not break.
-**Done looks like** a smaller, faster Windows build with the Android trust-store path untouched and
-`pixi run android-check` still green.
+**The deferred cost — paid 2026-08-29, and it was not what this entry predicted.** The v0.2.1
+release job failed on Windows exactly as forecast, but the cause was not vendored OpenSSL needing
+Perl and NASM. It was that `openssl-sys` **never got the `vendored` feature on Windows at all**:
+`git2`'s `vendored-openssl` propagates through `libgit2-sys`, and on Windows that edge does not
+exist, because libgit2 there speaks WinHTTP. Meanwhile `fm-core` declared `openssl-sys` and
+`libgit2-sys` **unconditionally** — purely for Android's in-memory trust store — so on Windows they
+entered the graph as *direct* dependencies with no features, and `openssl-sys`'s build script went
+hunting for a system OpenSSL: *"Could not find directory of OpenSSL installation."*
 
-**Unverified, and it is the thing most likely to bite:** no Windows build of this has been run.
-`cargo tree` resolves correctly per target from here, but compiling vendored OpenSSL on the Windows
-runner needs Perl and NASM on the image. If the release's Windows job fails, this is the first
-suspect.
+Measured, before and after: `openssl-sys v0.9.117` bare on `x86_64-pc-windows-msvc` against
+`openssl-sys v0.9.117 openssl-src,vendored` on `aarch64-linux-android`. Both raw `-sys` crates are
+now under `[target.'cfg(not(windows))'.dependencies]`, `add_certs_from_pem` is `#[cfg]`-split with a
+Windows arm that returns `Ok(0)` (WinHTTP uses the machine's own store, so there is nothing to add),
+and the differential test is gated to match. **`openssl-sys` is now absent from the Windows graph
+entirely** — so the Windows build is smaller than planned, and needs neither Perl nor NASM on the
+runner. Android's graph is byte-identical.
+
+**Still unverified:** whether the Windows job now *completes*. This fixes the failure that was
+observed; it cannot prove the next one does not exist.
 
 ### 2.9 A backup with no git reports success and records nothing
 **Closed 2026-08-29** (`decisions.md#git`). Root-caused, and it was neither half of what the report

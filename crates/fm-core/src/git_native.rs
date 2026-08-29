@@ -380,6 +380,12 @@ type libc_int = i32;
 /// Returns how many certificates the store accepted. A certificate the store rejects is skipped
 /// rather than fatal: a trust store with 144 of 145 roots is useful, and one that refused to
 /// build because a single entry was odd would be a regression on the file it replaces.
+///
+/// **Not compiled on Windows.** There, libgit2 speaks WinHTTP and trusts the system store, so the
+/// two raw `-sys` crates this needs are not dependencies for that target at all — see the
+/// `[target.'cfg(not(windows))'.dependencies]` note in `Cargo.toml`, which is what unbroke the
+/// Windows release build.
+#[cfg(not(windows))]
 pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
     if pem.is_empty() {
         return Err(StoreError::Io("the CA bundle was empty".into()));
@@ -1698,4 +1704,13 @@ pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::A
 
     let _ = delete_branch(vault, branch);
     Ok(Accepted::Merged)
+}
+
+/// Windows reaches libgit2 through WinHTTP, which uses the machine's own certificate store — so
+/// there is no in-process OpenSSL store to add to, and nothing to do. `Ok(0)` rather than an error
+/// because "no certificates were added" is the truth and is not a failure.
+#[cfg(windows)]
+pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
+    let _ = pem;
+    Ok(0)
 }

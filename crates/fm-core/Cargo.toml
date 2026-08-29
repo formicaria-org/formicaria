@@ -52,20 +52,12 @@ native-git = ["dep:git2", "dep:libgit2-sys", "dep:openssl-sys"]
 #
 # Neither adds a new C build: both resolve to the same `libgit2-sys`/`openssl-sys` that `git2`
 # already pulls in, so the versions are pinned to match rather than chosen.
-[dependencies.libgit2-sys]
-version = "0.18"
-optional = true
-default-features = false
 
 # The `-sys` crate, not the safe `openssl` wrapper: the wrapper does not re-export the
 # `ForeignType` trait needed to reach a live `X509 *`, and pulling that trait in separately
 # means pinning a transitive version by hand. The raw calls used here are three, all of them
 # memory-based, and they resolve to the very library `git2` already links — which is the
 # property that matters, since the pointer has to be one libgit2's own OpenSSL recognises.
-[dependencies.openssl-sys]
-version = "0.9"
-optional = true
-default-features = false
 
 [dependencies.git2]
 # >=0.21 is a floor, not a preference: 0.20.4 carries RUSTSEC-2026-0183 and -0184, two
@@ -86,3 +78,25 @@ features = ["vendored-libgit2", "vendored-openssl", "https"]
 [dev-dependencies]
 tempfile = "3"
 time = { workspace = true }   # macros (datetime!) for search recency-ordering tests
+
+# **Not on Windows, and that is the whole reason the Windows release could not build.**
+#
+# These two raw `-sys` crates exist for exactly one thing: `add_certs_from_pem`, the memory-only
+# trust-store path Android needs because its vendored OpenSSL is built `no-stdio`. Windows needs
+# none of it — libgit2 there speaks WinHTTP and uses the system trust store, so `libgit2-sys`
+# declares no dependency on `openssl-sys` at all for that target.
+#
+# Which is precisely what broke. Declared unconditionally, `openssl-sys` entered the Windows graph
+# as a *direct* dependency of this crate, where `git2`'s `vendored-openssl` could not reach it —
+# `vendored-openssl` propagates through `libgit2-sys`, and on Windows that edge does not exist. So
+# it resolved with **no features at all** (measured: `openssl-sys v0.9.117` bare on win-64 against
+# `openssl-src,vendored` on Android), its build script went looking for a system OpenSSL, and the
+# release job died with *"Could not find directory of OpenSSL installation"* — the failure
+# `outstanding.md` predicted as "the first suspect" the moment libgit2 shipped to Windows.
+#
+# The fix is not to vendor OpenSSL on Windows. It is to stop asking for it: nothing on that target
+# ever called into these crates. Windows now builds libgit2 with WinHTTP and no OpenSSL anywhere,
+# which is also smaller and drops the Perl + NASM requirement from the runner image.
+[target.'cfg(not(windows))'.dependencies]
+libgit2-sys = { version = "0.18", optional = true, default-features = false }
+openssl-sys = { version = "0.9", optional = true, default-features = false }

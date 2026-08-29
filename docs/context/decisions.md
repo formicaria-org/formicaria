@@ -2336,6 +2336,44 @@ costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` si
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
 
+## 2026-08-29 — Windows never needed OpenSSL; asking for it is what broke the build `#git` `#track-m`
+
+The v0.2.1 release job failed on `x86_64-pc-windows-msvc` with *"Could not find directory of OpenSSL
+installation."* `outstanding.md` had named this the first suspect and predicted the cause —
+compiling vendored OpenSSL needs Perl and NASM on the runner image. **That prediction was wrong, and
+the right diagnosis inverts the fix.**
+
+`openssl-sys` was in the Windows graph with **no features at all**. `git2`'s `vendored-openssl`
+propagates as `libgit2-sys/vendored-openssl` → `openssl-sys/vendored`, and on Windows the middle
+edge does not exist: libgit2 speaks **WinHTTP** there and `libgit2-sys` declares no `openssl-sys`
+dependency for that target. But `fm-core` declared `openssl-sys` and `libgit2-sys`
+**unconditionally** — they exist for exactly one thing, Android's `GIT_OPT_ADD_SSL_X509_CERT`
+in-memory trust store, needed because its vendored OpenSSL is built `no-stdio`. So on Windows they
+arrived as *direct* dependencies that `vendored` could not reach, and the build script went looking
+for a system library.
+
+Measured on both targets before the change: `openssl-sys v0.9.117` bare on win-64 against
+`openssl-sys v0.9.117 openssl-src,vendored` on aarch64-linux-android.
+
+**Decision: do not vendor OpenSSL on Windows — stop asking for it.** Both raw `-sys` crates move to
+`[target.'cfg(not(windows))'.dependencies]`; `git_native::add_certs_from_pem` splits, with a Windows
+arm returning `Ok(0)` because WinHTTP uses the machine's own certificate store and there is no
+in-process store to add to; the differential test is gated to match the function rather than to skip
+a platform. Verified: **`openssl-sys` is absent from the Windows dependency graph entirely**, and
+Android's is unchanged.
+
+**Why this is better than the vendoring it replaces**, and worth saying because vendoring was the
+obvious move and was already written down as the plan: the Windows binary loses a TLS stack it never
+called; the runner needs neither Perl nor NASM; and `deny.toml`'s named libgit2/OpenSSL exception
+narrows rather than widens — we now distribute vendored OpenSSL on Android only, which is the one
+platform that has no alternative. The rule the log already states — *"a bundled binary makes us the
+licence and CVE distributor of a TLS stack"* — argues for exactly this direction.
+
+**The general lesson, since this is the second time this week a `[target.…]` detail decided a
+build:** a feature enabled on a dependency does not necessarily reach a *sibling* declaration of the
+same crate. `cargo tree -f "{p} {f}" --target <triple>` answers it in one command, and would have
+answered it before the tag was cut.
+
 ## 2026-08-29 — formicaria ships no third-party tool, and here is what it cost to find out `#toolchain`
 
 Asked whether installation is simplified on all four platforms, this session proposed a "features,

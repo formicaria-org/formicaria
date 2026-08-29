@@ -413,7 +413,10 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
 ///
 /// This runs the real path against real certificates, so a regression is a failed test rather
 /// than a phone that dies on open.
-#[cfg(feature = "native-git")]
+/// Not on Windows: the memory path does not exist there, because libgit2 speaks WinHTTP and uses
+/// the machine's own certificate store. Gated to match the function, not to skip a platform we
+/// simply failed to build for — see `Cargo.toml`'s `cfg(not(windows))` dependency note.
+#[cfg(all(feature = "native-git", not(windows)))]
 #[test]
 fn adding_certificates_from_memory_initialises_libgit2_first() {
     // A tiny bundle is enough: the crash was in reaching the store at all, not in the count.

@@ -225,11 +225,24 @@ fn install(token: &str) {
 mod tests {
     use super::*;
 
+    /// **`FM_CONFIG_DIR` is process-global, and both tests below point it somewhere different.**
+    ///
+    /// Cargo runs tests in one process on many threads, so without this they raced: whichever set
+    /// the variable last decided where *both* looked, and the loser resolved its path inside a
+    /// `TempDir` the winner was about to drop — a `NotFound` on a file it had just written
+    /// successfully. Reproduced 3 times in 6 runs before this lock existed.
+    ///
+    /// Same reason and same shape as `fm-app/tests/backup_records_everything.rs`, which serialises
+    /// on `FM_VAULTS`. `unwrap_or_else(|e| e.into_inner())` because a panic in one test must not
+    /// poison the mutex and turn one failure into two.
+    static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// The file must never be group- or world-readable. Asserted on the mode rather than on the
     /// code that sets it, because the failure mode is silent and permanent.
     #[cfg(unix)]
     #[test]
     fn a_stored_token_is_only_readable_by_its_owner() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("FM_CONFIG_DIR", dir.path());
@@ -252,6 +265,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn a_stored_restic_password_is_only_readable_by_its_owner() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("FM_CONFIG_DIR", dir.path());
