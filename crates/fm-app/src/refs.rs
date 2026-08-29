@@ -109,12 +109,32 @@ fn bare_token(s: &str, keep_assets: bool) -> Option<usize> {
         return None;
     }
     if let Some(rest) = s.strip_prefix("asset:sha256-") {
-        return take_hex(rest).map(|h| "asset:sha256-".len() + h.len());
+        return take_hex(rest).map(|h| "asset:sha256-".len() + h.len() + fragment_len(&rest[h.len()..]));
     }
     if let Some(rest) = s.strip_prefix("sha256:") {
-        return take_hex(rest).map(|h| "sha256:".len() + h.len());
+        return take_hex(rest).map(|h| "sha256:".len() + h.len() + fragment_len(&rest[h.len()..]));
     }
     None
+}
+
+/// How much of a trailing `#…` fragment belongs to the token just consumed.
+///
+/// An anchored reference (`asset:sha256-<hex>#page=4`) carries the page a highlight sits on. Left
+/// behind by a redaction it becomes visible debris — `⟨removed on copy⟩#page=4` — against
+/// [`REDACTION`]'s stated contract of carrying *none* of the original. It is only a page number, so
+/// this is tidiness rather than a leak of substance, but the contract is the contract.
+///
+/// Ends at whitespace or at any Markdown/prose delimiter, so a fragment cannot swallow the rest of
+/// a sentence when someone writes `see sha256:abc#page=2, and then…`.
+fn fragment_len(after_hash: &str) -> usize {
+    if !after_hash.starts_with('#') {
+        return 0;
+    }
+    let end = after_hash[1..]
+        .find(|c: char| c.is_whitespace() || matches!(c, ')' | ']' | ',' | ';' | '"' | '\''))
+        .map(|i| i + 1)
+        .unwrap_or(after_hash.len());
+    end
 }
 
 fn is_note(u: &str) -> bool {

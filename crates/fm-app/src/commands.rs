@@ -1162,6 +1162,13 @@ fn parse_ref(reference: &str) -> Result<String, StoreError> {
     let r = reference.trim();
     let r = r.strip_prefix("asset:").unwrap_or(r);
     let r = r.strip_prefix("sha256:").or_else(|| r.strip_prefix("sha256-")).unwrap_or(r);
+    // **A fragment is a viewer's business, never the blob's.** `#page=4` is the standard PDF open
+    // parameter — a real reader honours it, which is what makes an anchored reference degrade to a
+    // working link outside this app. It says nothing about *which* bytes are wanted, so it is cut
+    // here rather than failing the all-hex check below: without this, every anchored reference is
+    // `not an asset reference`, and `asset_status`/`resolve_asset`/`GET /api/blob` all route
+    // through this one function.
+    let r = r.split('#').next().unwrap_or(r);
     let hash = r.trim();
     if hash.len() < 4 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(StoreError::Parse(format!("not an asset reference: {reference}")));

@@ -55,7 +55,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs*.
-- **`#data`**: ***A paper is a note, made from the citation you already have*** (read before
+- **`#data`**: ***An anchored asset reference points at a place, and stays an ordinary link***
+  (read before touching `parse_ref`, `assetUrl` or the resolve passes) · ***A paper is a note, made from the citation you already have*** (read before
   adding a metadata field or an acquisition route) · ***A list property is writable, and a scalar where a list belongs is read, not
   dropped*** (read before adding a field to `Object` — a typed field with no `apply_property` arm is
   silently lossy) · *A count is a symptom; the kind is the diagnosis* · *The auto-commit stages what we
@@ -78,6 +79,46 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## An anchored asset reference points at a place, and stays an ordinary link (2026-08-29, `#data`)
+
+`[p. 4](asset:sha256-<hex>#page=4)` is how a note points at a **place in a PDF** rather than at the
+file. The fragment is deliberately `#page=N` — the **standard PDF open parameter**, not an
+invention — so the reference means something outside this app: measured in a real browser against
+our own blob route, it opens the document at that page.
+
+**Three things had to be true first, and none of them was.**
+
+1. **`parse_ref` required every character after the scheme to be hex**, so an anchored reference was
+   refused outright with *"not an asset reference"* — and `asset_status`, `resolve_asset` and
+   `GET /api/blob` all route through that one function. A fragment says *where to look*, never
+   *which bytes*, so it is cut there.
+2. **Nothing resolved `<a href="asset:…">`.** `resolveAssets` walked `img` only, while
+   `URI_ALLOWED` deliberately lets the scheme through the sanitiser — so an anchored link survived
+   as a live link to a scheme nothing handles, which on Android navigates the WebView out of the
+   app. That is the trap `noteChip` documents for `note:` and solves with a `<button>`. **Here a
+   button would be wrong**: unlike `note:`, this resolves to a real same-origin URL, so an `<a
+   href>` is the honest element and the fragment does its job. A new tab, because the note is what
+   is being read.
+3. **`assetUrl` percent-encoded the whole reference into the path**, burying the `#` where no
+   browser could act on it. The blob half is encoded; the fragment is put back where a fragment
+   belongs.
+
+**Redaction consumes the fragment.** `bare_token` stopped at the hash, leaving
+`⟨removed on copy⟩#page=4` on a cross-vault copy — only a page number, but `REDACTION`'s contract
+is to carry *none* of the original, and visible debris reads as a bug.
+
+**What this format deliberately does not carry: geometry.** A highlight is `rects` — plural,
+`number[][]` — and one crossing a line break has several, which in a two-column paper is the common
+case. Ink is `paths`, an EPUB position is a CFI. None of that belongs in a URL fragment, where it
+would be a bespoke serialisation with no schema and no validation, embedded in prose across
+thousands of note bodies. The page is the *human* anchor and the degradation path; precise geometry
+belongs in a structured block in an annotation note, which is the next step and needs its own entry.
+
+**A verification trap, recorded because it cost a wrong conclusion.** Chrome's built-in PDF viewer
+applies `#page=N` only after its plugin has loaded — several seconds. A headless screenshot taken
+3 s after navigation shows page 1 and looks like proof the fragment is ignored. It is not; at 8 s it
+is page 3. Any future check of this needs a generous settle.
 
 ## A paper is a note, made from the citation you already have (2026-08-29, `#data` `#ui`)
 

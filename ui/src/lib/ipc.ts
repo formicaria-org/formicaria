@@ -454,9 +454,19 @@ function assetBase(): string {
   return blobBase(internals?.convertFileSrc);
 }
 
+/** The URL a blob is served from, with any **anchor fragment kept as a fragment**.
+ *
+ *  `asset:sha256-…#page=4` points at a place in a PDF, and `#page=N` is the standard PDF open
+ *  parameter every real viewer honours. Percent-encoding the whole reference into the path — which
+ *  is what this did — buried the `#` where no browser could act on it, so an anchored link opened
+ *  the document at page one. The reference is split, the *blob* half encoded, and the fragment put
+ *  back where a URL fragment belongs. */
 export const assetUrl = (reference: string) => {
-  if (!isPhone()) return `/api/blob/${encodeURIComponent(reference)}`;
-  return `${assetBase()}${encodeURIComponent(reference)}`;
+  const hash = reference.indexOf('#');
+  const blob = hash === -1 ? reference : reference.slice(0, hash);
+  const fragment = hash === -1 ? '' : reference.slice(hash);
+  const base = !isPhone() ? '/api/blob/' : assetBase();
+  return `${base}${encodeURIComponent(blob)}${fragment}`;
 };
 
 /// Set which attachments this vault pushes with its notes. `max` is a size a person writes

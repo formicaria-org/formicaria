@@ -316,6 +316,18 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
     const src = img.getAttribute('src') ?? '';
     return src.startsWith('asset:') || src.startsWith('sha256:');
   });
+  // **A *link* to an asset, not an embed of one** — `[p. 4](asset:sha256-…#page=4)`, how a note
+  // points at a place in a PDF rather than inlining it.
+  //
+  // This pass used to walk `img` only, and `URI_ALLOWED` deliberately lets the `asset:` scheme
+  // through the sanitiser — so the anchor survived as a live link to a scheme nothing resolves.
+  // On Android that navigates the WebView out of the app, which is the exact trap `noteChip`
+  // documents for `note:`. Here the fix is *not* a button: unlike `note:`, this resolves to a real
+  // same-origin URL, so an `<a href>` is the honest element and the fragment does its job.
+  const links = Array.from(el.querySelectorAll('a')).filter((a) => {
+    const href = a.getAttribute('href') ?? '';
+    return href.startsWith('asset:') || href.startsWith('sha256:');
+  });
   // One in-flight promise per distinct reference, shared by every element that names it.
   const inflight = new Map<string, ReturnType<AssetResolver>>();
   const ask = (src: string) => {
@@ -327,6 +339,29 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
     inflight.set(src, p);
     return p;
   };
+
+  await Promise.all(
+    links.map(async (a) => {
+      const href = a.getAttribute('href') ?? '';
+      const asset = await ask(href);
+      if (!asset || 'reason' in asset) {
+        // Same shape as a missing embed: the line still reads as the thing that is gone, and says
+        // why. A dead `asset:` href left in place would be worse than no link at all.
+        const ph = document.createElement('span');
+        ph.className = 'asset-missing-inline';
+        const why = asset && 'reason' in asset ? asset.reason : 'not available';
+        ph.textContent = `${a.textContent || 'asset'} — ${why}`;
+        a.replaceWith(ph);
+        return;
+      }
+      a.setAttribute('href', asset.url);
+      // A new tab: the note is the thing being read, and replacing it with a PDF loses the reader's
+      // place. `noopener` because the blob is served from our own origin.
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+      a.classList.add('asset-link');
+    }),
+  );
 
   await Promise.all(
     imgs.map(async (img) => {
