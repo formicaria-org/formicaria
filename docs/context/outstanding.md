@@ -298,7 +298,8 @@ each archive carries instructions for its own platform only; `Start here` is two
 ends by telling the reader they are done; `Going further`/`Reference`/`Developer guide` hold the
 depth; and the introduction routes beginners at beginners.
 
-What the 2026-08-28 audit found and this did **not** fix:
+What the 2026-08-28 audit found and this did **not** fix (three usability defects found on
+2026-08-29 *were* fixed — see the note at the end of this section):
 
 - **Zero screenshots** in a manual for a GUI. Now the largest remaining gap by some distance, and
   the slowest to close. `docs/context/shots/` proves the capture path exists.
@@ -306,12 +307,36 @@ What the 2026-08-28 audit found and this did **not** fix:
   so it is the first wall a curious beginner hits.
 - **No glossary.** *frontmatter*, *ULID*, *content-addressed*, *blob*, *merge driver*, *remote* and
   *FTS* all appear in user chapters undefined.
-- **`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
-  on the page says so.
+- ~~**`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
+  on the page says so.~~ **Said, 2026-08-29:** the page now opens with a block quote stating that
+  every step below needs the source, that the release archive carries no assistant, and that it runs
+  on Linux and Android only. The content is still checkout-only; the reader is no longer misled
+  about who it is for.
 - **`user/views.md` documents saved views only as hand-written YAML**, plus a 9-row filter DSL.
 - **The sidebar still shows every part at once.** `fold` in `book.toml` is a no-op because no
   chapter has children, so a beginner still sees `Architecture` and `Design system` in the same
   column as their own two chapters — further down now, but present.
+
+**Fixed 2026-08-29, found by an adversarial review of the packaging plan** — all three were
+actively misleading a first-time reader, and none was in the audit above:
+
+- **`README.md`'s download link pointed at `singhbal-baljinder/formicaria`** after the move to
+  `formicaria-org` — a 404 on the front page's own download button, and step one of the journey. It
+  also still told the reader to run `./fm-serve`, which moved into `program/` in August, and
+  mentioned an `xattr` command that exists nowhere else. `ci/checks.sh` now guards all three.
+- **Every shipped page told macOS users to right-click → Open.** Apple removed that in Sequoia, and
+  the dialog a blocked app now shows offers only **Done** and **Move to Trash** — so our own
+  instructions steered a first-time Mac user toward deleting the app while looking for the "Open" we
+  promised. Rewritten around System Settings → Privacy & Security → *Open Anyway*, with an explicit
+  warning, and `ci/checks.sh` fails if the old advice reappears anywhere we ship.
+- **`introduction.md` promised PDF search on page one, unconditionally** — false on any machine
+  without poppler, which is most fresh Windows and macOS installs.
+
+Also added: what to click for the Windows browser warning (*there is no visible button — click the
+grey "More info" text*), **how to start it a second time** (there was a "TO STOP IT" and no
+counterpart anywhere in the product), and a real GitHub release body — until now the first prose
+every downloader met was a list of commit titles, on the near side of the download where everything
+we had written was unreachable.
 
 ### 2.8 Windows gets libgit2 — one cost accepted and deferred
 **Taken 2026-08-28** (`decisions.md#git`): the libgit2 exception is now scoped to *any device with

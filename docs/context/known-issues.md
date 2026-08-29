@@ -692,20 +692,11 @@ The gray-screen fix and its tests are in
   `ui/dist`), `FM_ADDR` (default `127.0.0.1:8765`), `FM_OPEN` (xdg-open the
   browser), `FM_RESTIC_REPO` / `RESTIC_PASSWORD` (the **media** backup tier only —
   the notes tier needs neither).
-- **An unreadable `.md` disappears from the app with only a stderr line.** Since
-  Phase 0 the vault opens and serves the rest (`FileStore::skipped()`, warned about
-  at `fm-serve` startup), which is the right trade — but a user in the browser sees
-  the note **silently missing**, and the terminal is the only place that says why.
-  The in-app list is Phase 1's "conflict surfacing" (`plan.md`).
 - **`fm-serve` is only partly tested.** The blob route now has real response-path tests
   (a listener on port 0, a live socket: sniffed type, the `nosniff`/attachment allowlist,
   `Range`/206/416, 404) and the query-args split has unit tests. Everything else — the CSRF
   guard, the `Host` guard, static serving, the watchdog — is still exercised only by hand,
   and every UI test runs against `mock.ts`. Narrower than it was; not closed.
-- **A backgrounded tab can shut the app down.** The heartbeat is 3s
-  (`App.svelte:229`) but browsers throttle background timers to ~1/min, while the
-  watchdog idles out at 10s (`main.rs:91`). Only bites with `FM_AUTO_SHUTDOWN`
-  (i.e. the desktop launcher). Found by the 2026-07-17 audit.
 - **SQLite has no `busy_timeout`/WAL**, and every `fm` CLI command takes an
   exclusive write lock — so the CLI races a running server. Found by the
   2026-07-17 audit.

@@ -11,8 +11,9 @@ works with the internet switched off.
 
 ## What you can do with it
 
-- **Write and find notes.** Search looks inside every note, not just titles — including the text of
-  PDFs you have added.
+- **Write and find notes.** Search looks inside every note, not just titles. (Searching the text
+  *inside* PDFs needs one extra program on your computer — Settings tells you whether this one has
+  it.)
 - **Plan with them.** Give a note a status or a date and the same notes become a board or a
   calendar. Nothing is a separate kind of thing: a task is a note with a date on it.
 - **Keep pictures, PDFs and drawings** alongside the writing, including whiteboards you draw

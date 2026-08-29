@@ -520,6 +520,46 @@ for name in whisper-server ggml-base.en.bin; do
     fi
 done
 
+# ---------------------------------------------------------------------------------------------
+# The front page has to point at the app, and at the right copy of it.
+#
+# `README.md` is the first thing anyone reads and the only install sheet a *browser* can see — the
+# archive's own README is unreachable until after the download. It had drifted three ways at once:
+# a releases link to an org that no longer owns the repo (so the download button was broken), a
+# `./fm-serve` that moved into `program/` in August, and an `xattr` instruction that exists nowhere
+# else in the project. The guard above covers `README-release.txt` and stopped ten lines short of
+# the file more people read.
+echo "[check] README.md points at the app that actually ships..."
+if grep -q 'singhbal-baljinder/formicaria' README.md; then
+    echo "  FAIL: README.md links to github.com/singhbal-baljinder/formicaria."
+    echo "        The repository moved to formicaria-org; that link is a 404, and it is the"
+    echo "        download button on the front page."
+    fail=1
+fi
+if grep -qE '^\./fm-serve|`\./fm-serve`|\$ \./fm-serve' README.md; then
+    echo "  FAIL: README.md tells the reader to run ./fm-serve. Since 2026-08-28 the binaries are"
+    echo "        staged under program/ (see release.yml), so that path does not exist in an"
+    echo "        unpacked archive."
+    fail=1
+fi
+
+# ---------------------------------------------------------------------------------------------
+# No document may still teach the macOS bypass Apple removed.
+#
+# Until Sequoia, right-click -> Open let a user past Gatekeeper, and every page we ship said so.
+# Apple removed it. The dialog a blocked app now produces offers **Done** and **Move to Trash** —
+# so a reader following our instruction, hunting for the "Open" we promised, is looking at a
+# destructive button and has been told to expect a dialog and proceed. Documentation that steers a
+# first-time user into deleting the product is worse than none, and it is invisible from here
+# because nobody in this project runs macOS.
+if grep -rniE 'right.?click.{0,40}(and choose|then|->|→).{0,10}\*{0,2}open'         docs/src/user/ packaging/README-release.txt README.md 2>/dev/null         | grep -vi 'removed it\|worked on macOS versions before\|Older instructions' >/dev/null; then
+    echo "  FAIL: a shipped document still tells macOS users to right-click and choose Open."
+    echo "        Apple removed that bypass in Sequoia; the dialog now offers only Done and"
+    echo "        Move to Trash. Point at System Settings -> Privacy & Security -> Open Anyway,"
+    echo "        and say plainly not to click Move to Trash."
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

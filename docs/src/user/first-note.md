@@ -68,6 +68,12 @@ Setting up backup to another computer, and sharing a notebook with someone else,
 - **?** top right — this manual, at any time.
 - **⚙** top right — settings.
 
+## Coming back tomorrow
+
+Closing the browser tab stops formicaria — that is how you quit it. To start again, double-click the
+same file you used the first time, in the folder you unpacked. Your notes are still in `vault`,
+exactly as you left them, and they are still there whether formicaria is running or not.
+
 ## More, when you need it
 
 - Working with more than plain notes — [Creating & organizing notes](./notes.md)

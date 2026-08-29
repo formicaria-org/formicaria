@@ -24,9 +24,12 @@ scripts in a text editor instead — if that happens, open a terminal in the fol
 
 Your browser opens by itself. That is the app — you are ready to write.
 
-## 3. Stop it
+## 3. Stop it, and start it again
 
 Close the browser tab. formicaria shuts down a few seconds later.
+
+To come back — tomorrow, or in five minutes — double-click **`Start formicaria.sh`** again. Your
+notes are still in the `vault` folder, exactly as you left them.
 
 ## Where your notes are kept
 

@@ -10,6 +10,18 @@ It is a *helper*, not an oracle. A small on-device model is good at summarizing,
 fetching-and-summarizing simple facts through a search tool; it will not match a large hosted model on
 hard reasoning. That trade — small, private, local — is the point.
 
+> **This chapter needs the source code, not the download.** Every step below runs from a checked-out
+> copy of the project with its toolchain installed. **The release archive does not carry the
+> assistant**, so on a downloaded copy the switch in Settings says so and stays off — nothing here
+> will work from the folder you unpacked.
+>
+> The assistant also runs on **Linux and Android only** today: on Windows and macOS formicaria
+> refuses to start it, because the safety check that decides whether the machine has room for a model
+> has no implementation on those systems yet. Settings says which of those applies to you.
+>
+> Everything else in formicaria — notes, search, boards, backup, sharing — works normally without
+> any of this.
+
 ## Turn it on
 
 ### On the desktop

@@ -36,18 +36,24 @@ run it.
 ## Install
 
 Download the archive for your platform from
-[Releases](https://github.com/singhbal-baljinder/formicaria/releases), unpack it, and run
-`fm-serve`:
+[Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
+double-click the launcher for your system — `Start formicaria.vbs` on Windows,
+`Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
+itself; closing the tab stops the app.
+
+The archive carries a `README.txt` and the whole manual (`Manual.html`), including what to do
+about the security warning your OS shows for unsigned software — **on macOS that is now System
+Settings → Privacy & Security → Open Anyway**, not the old right-click.
+
+From a terminal, the binaries are under `program/`:
 
 ```sh
 tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
-./fm-serve                    # serves http://127.0.0.1:8765
+./program/fm-serve            # serves http://127.0.0.1:8765
 ```
 
-Each archive contains per-OS notes in its own README; macOS quarantines unsigned downloads
-and requires one `xattr` command. `fm` must stay in the same directory as `fm-serve`: it is
-the binary git invokes to merge notes, and the merge driver is not installed if it cannot
-be found.
+`fm` must stay in the same directory as `fm-serve`: it is the binary git invokes to merge
+notes, and the merge driver is not installed if it cannot be found.
 
 <details>
 <summary>Building from source</summary>

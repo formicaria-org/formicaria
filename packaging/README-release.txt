@@ -29,6 +29,9 @@ This folder contains the whole application. Nothing gets installed.
 
   TO STOP IT:  close the browser tab. It shuts down a few seconds later.
 
+  TO START IT AGAIN:  double-click the same file, any time. Your notes are
+  still in the "vault" folder, exactly as you left them.
+
 
   YOUR COMPUTER WILL WARN YOU THE FIRST TIME
   ------------------------------------------
@@ -37,12 +40,33 @@ This folder contains the whole application. Nothing gets installed.
   warn about it. The warning is about the missing signature - not about
   anything found in the files.
 
-      Windows      "Windows protected your PC"
-                   Click "More info", then "Run anyway".
+      Windows      Your browser stops you first, at the bottom of the window:
+                   "...was blocked" or "...is not commonly downloaded".
+                   Click the three dots beside it, then "Keep", then
+                   "Keep anyway".
 
-      macOS        The first time only: RIGHT-CLICK "Start formicaria.command"
-                   and choose "Open", then click "Open" in the dialog.
-                   Double-clicking works normally after that.
+                   Then Windows stops you: a blue box, "Windows protected
+                   your PC". There is no visible button. Click the small grey
+                   "More info" text, then "Run anyway".
+
+      macOS        macOS refuses to open it and offers you only "Done" and
+                   "Move to Trash".
+
+                   *** DO NOT CLICK "MOVE TO TRASH". ***
+
+                   1. Double-click "Start formicaria.command". Click Done.
+                   2. Apple menu -> System Settings -> Privacy & Security.
+                   3. Scroll to the bottom. A line says formicaria was
+                      blocked. Click "Open Anyway" beside it.
+                   4. Confirm with Touch ID or your Mac password.
+                   5. Double-click "Start formicaria.command" again, then
+                      click "Open".
+
+                   Once only. After that a double-click works.
+
+                   Step 3 only appears for a short while after step 1, so do
+                   them one after the other.
+
                    A black Terminal window stays open next to the app. That is
                    normal. Closing it quits formicaria.
 

@@ -3,7 +3,18 @@
 formicaria runs in your browser, from a folder on your own computer. Nothing is installed, there is
 no account, and nothing you write leaves this machine.
 
-## 1. Unzip it
+## 1. Two warnings, and what to click
+
+Your browser and Windows each stop you once. Both mean the same thing — formicaria carries no paid
+signature from Microsoft — and neither is a report of anything found in the file.
+
+**In the browser**, at the bottom of the window: *"… was blocked"* or *"… is not commonly
+downloaded"*. Click the **three dots** beside that message, then **Keep**, then **Keep anyway**.
+
+**When you start it**, a blue box: *"Windows protected your PC"*. There is no visible button — click
+the small grey **More info** text, then **Run anyway**.
+
+## 2. Unzip it
 
 Right-click the file you downloaded — `formicaria-…-windows-x86_64.zip` — and choose
 **Extract All…**. Put it somewhere real, such as your **Documents** folder.
@@ -11,21 +22,21 @@ Right-click the file you downloaded — `formicaria-…-windows-x86_64.zip` — 
 > **Do not skip this step.** Windows will show you what is inside a zip without extracting it, but
 > that is a temporary folder it deletes later — and it would take your notes with it.
 
-## 2. Start it
+## 3. Start it
 
 Open the folder you just extracted and double-click:
 
 **`Start formicaria.vbs`**
 
-Your browser opens by itself. That is the app — you are ready to write.
+Your browser opens by itself. That is the app — you are ready to write. (This is where the second
+warning above appears, the first time only.)
 
-**The first time, Windows will warn you.** You will see *"Windows protected your PC"*. Click
-**More info**, then **Run anyway**. The warning means the program carries no paid signature from
-Microsoft; it is not a report of anything found in the file.
-
-## 3. Stop it
+## 4. Stop it, and start it again
 
 Close the browser tab. formicaria shuts down a few seconds later.
+
+To come back — tomorrow, or in five minutes — double-click **`Start formicaria.vbs`** again. Your
+notes are still in the `vault` folder, exactly as you left them.
 
 ## Where your notes are kept
 

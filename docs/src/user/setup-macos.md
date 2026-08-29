@@ -8,24 +8,39 @@ no account, and nothing you write leaves this machine.
 Double-click the file you downloaded — `formicaria-…-macos-arm64.tar.gz` — and drag the folder it
 produces somewhere real, such as your **Documents** folder.
 
-## 2. Start it
+## 2. Let macOS know you meant it
 
-Open the folder and **right-click** (or Control-click):
+The first time, macOS refuses to open formicaria and offers you only **Done** and
+**Move to Trash**.
 
-**`Start formicaria.command`** → **Open** → **Open** again in the dialog.
+> **Do not click "Move to Trash".** Nothing is wrong with the files. macOS is saying it cannot see
+> who wrote this software, because Apple charges $99 a year to sign it and we have not paid.
 
-**The first time you must right-click and choose Open — a double-click will be refused.** macOS
-blocks software that carries no paid signature from Apple, and right-clicking is how you tell it you
-meant to. After the first time, double-click works normally.
+1. Double-click **`Start formicaria.command`**. Click **Done**.
+2. Open the **Apple menu** → **System Settings** → **Privacy & Security**.
+3. Scroll to the bottom. A line says formicaria was blocked. Click **Open Anyway** beside it.
+4. Confirm with Touch ID or your Mac password.
+5. Double-click **`Start formicaria.command`** again, then click **Open**.
+
+That is once, ever. From then on a double-click just works.
+
+Step 3 only appears for a little while after step 1, so do them one after the other.
+
+## 3. Start it
+
+Double-click **`Start formicaria.command`**.
 
 Your browser opens by itself. That is the app — you are ready to write.
 
 A black Terminal window stays open beside it. That is normal; it is how the app runs.
 
-## 3. Stop it
+## 4. Stop it, and start it again
 
 Close the browser tab. formicaria shuts down a few seconds later. (Closing the Terminal window
 also stops it.)
+
+To come back — tomorrow, or in five minutes — double-click **`Start formicaria.command`** again.
+Your notes are still in the `vault` folder, exactly as you left them.
 
 ## Where your notes are kept
 
@@ -50,8 +65,11 @@ open either.
 
 ## If something goes wrong
 
-**"cannot be opened because it is from an unidentified developer."** You double-clicked instead of
-right-clicking. Right-click the file, choose **Open**, then **Open** in the dialog.
+**"Apple could not verify … it may contain malware."** This is the block described in step 2. Click
+**Done** — never *Move to Trash* — then allow it under **System Settings → Privacy & Security**.
+
+**Older instructions say to right-click and choose Open.** That worked on macOS versions before
+Sequoia. Apple removed it; System Settings is the way now.
 
 **It says the port is already being used.** Another program is using the address formicaria wants.
 If it is another copy of formicaria, it will simply open your browser at the copy already running.

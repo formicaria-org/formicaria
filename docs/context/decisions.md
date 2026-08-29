@@ -2336,6 +2336,60 @@ costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` si
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
 
+## 2026-08-29 — formicaria ships no third-party tool, and here is what it cost to find out `#toolchain`
+
+Asked whether installation is simplified on all four platforms, this session proposed a "features,
+not tools" installer: a resolver, a fetched tools pack from `pixi.lock`, and a licence row to answer
+the objection. Three adversarial reviews took it apart. Recording the *rejections* with their
+numbers, because every one of them is the kind of thing that looks obviously right on the way in.
+
+**Bundling poppler and libvips — rejected on mechanics, not on licence.** The licence argument is
+weaker than it first appears: shipping a GPL binary beside an MIT one, invoked as a subprocess with
+its own COPYING, is aggregation, and leading with it would not survive contact with a lawyer either
+way. The blockers that actually decide it are measured: `poppler` carries **5 prefix placeholders,
+2 of them binary-mode**; `libvips` 3 and 1. Those must be substituted for the package to work — and
+substitution rewrites the Mach-O, invalidating the ad-hoc signature Apple Silicon requires. Skip it
+and `libpoppler` cannot find `share/poppler`, so PDF text extraction **degrades silently for
+non-Latin documents while reporting success** — the exact failure `#agent`'s capability ruling
+forbids. There is no naive-unpack path that is correct. (`libvips` also declares `imagemagick`,
+whose only conda-forge build is `agpl_…`, which declares `ghostscript`; that is a real complication
+but it is not what settles it.)
+
+**Bundling restic — rejected on arithmetic and on the absence of an updater.** It looked ideal:
+BSD-2-Clause, zero declared dependencies, **zero prefix placeholders**, genuinely relocatable. Two
+things killed it. First the size: 9.4 MB is the **zstd-compressed `.conda`**, and the archives are
+gzip — measured, restic gzips to **11.8 MB against an 8.8 MB payload, a 134 % increase on the
+download**, per platform, forever. (This correction was itself the second in a chain: an earlier
+review corrected an uncompressed-vs-compressed error, and the fix repeated the same mistake one
+level down. Measure the artifact, not the metadata.) Second, `pixi.toml` says `restic = "*"` — the
+lock is a *resolution*, not a pin, so any `pixi update` would silently change what ships. And
+**there is no updater anywhere in the tree**: a folder copied to a USB stick in 2026 would still run
+0.19.1 against its backups in 2028, with the launcher's `PATH` prefix shadowing any newer restic the
+user installed to escape. Track M's ruling against a bundled binary — *"we become the licence and
+CVE distributor of a TLS stack invisible to both gates"* — applies unchanged to a static Go binary
+with its own `crypto/tls` and cloud backends; "no conda dependencies" is a statement about shared
+libraries, not about vendored source.
+
+**A `fm_core::tools` resolver — rejected as a misreading of our own rule.** `merge_command()`'s
+*"never a bare relative path"* is about a path **persisted into `.git/config` and re-executed months
+later** — *"PATH at `git pull` time is not PATH now."* `Command::new("restic")` resolves in this
+process, against this process's PATH; the premise does not transfer. And preferring our copy over
+the user's contradicts the 2026-07-17 sentence *"the binary does not care how the optional tools got
+onto `PATH`."* A launcher `PATH` line would reach 3 of at least 12 entry points — omitting, among
+others, the `.bat` diagnostic launcher, so the diagnostic would report a different capability set
+from the app.
+
+**Declaring `vipsthumbnail` — rejected because it would advertise nothing.** It does run, on every
+asset ingest (`fm-app/src/commands.rs:1300`), which made a Settings row look like the cheapest win in
+the plan. But `ui/src/lib/render.ts:370` says in as many words that `has_thumb` has no consumer: no
+thumbnail is requested on any platform. Declaring it would reverse the 2026-08-28 ruling that
+*removed* the previews claim for exactly this reason. The consumer comes first, or nothing does.
+
+**Consequence:** the optional tools stay on `PATH`, acquired however the user prefers, exactly as
+the 2026-07-17 ruling designed. What ships is what shipped before. The work that survived is
+documentation — a broken download link, a macOS instruction Apple invalidated, a false promise on
+page one of the manual — plus the guards that keep those from drifting again.
+
 ## 2026-08-29 — the welcome screen asks the one question git asks at the worst moment `#ui` `#git`
 
 Git refuses to commit without a committer. The app covers for that — `ensure_repo` writes a
