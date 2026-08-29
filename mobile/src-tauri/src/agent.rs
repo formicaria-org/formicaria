@@ -333,7 +333,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         // mobile-network drops). Slow, and offline just means "not yet" — logged, not fatal. Log once
         // per MB, not per 64 KB chunk.
         let last_mb = std::cell::Cell::new(u64::MAX);
-        let model_gguf = match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &model_name, &|done, total| {
+        let progress = |done: u64, total: Option<u64>| {
             let mb = done / 1_000_000;
             if last_mb.replace(mb) != mb {
                 match total {
@@ -341,14 +341,21 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                     None => log::info!("study agent: fetching {model_name} {mb} MB"),
                 }
             }
-        }) {
-            Ok(p) => p,
-            Err(e) => {
-                log::info!("study agent: no model yet ({e})");
-                clear_running(generation);
-                return;
-            }
         };
+        // **Stop means stop, mid-download.** The generation test below already discarded a launch the
+        // user had turned off — but only *after* the fetch finished, so switching the assistant off
+        // during a 1.4 GB first-run download left it downloading anyway, on mobile data, for as long
+        // as it took. The `.part` survives, so turning it back on resumes rather than restarts.
+        let cancelled = || !current(generation);
+        let model_gguf =
+            match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &model_name, &progress, &cancelled) {
+                Ok(p) => p,
+                Err(e) => {
+                    log::info!("study agent: no model yet ({e})");
+                    clear_running(generation);
+                    return;
+                }
+            };
 
         // Reclaim space: once the current model is in place, delete any other weights left over from a
         // previous default (e.g. after an app update changed the pick). Keep only the model in use.
@@ -427,7 +434,8 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 log::info!("study agent: transcription runtime not bundled — skipping");
                 None
             } else {
-                match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &whisper_name, &|_, _| {}) {
+                match fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &whisper_name, &|_, _| {}, &cancelled)
+                {
                     Ok(wmodel) => {
                         let wport = port + 1;
                         let mut wcmd = std::process::Command::new(&whisper_bin);

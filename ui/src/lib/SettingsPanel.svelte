@@ -147,6 +147,8 @@
       agentOn = st.enabled;
       transcribeOn = st.transcribe;
       agentInstalled = st.installed;
+      agentWhy = st.why;
+      transcribeAvailable = st.transcribe_available;
     } catch {
       agentOn = null;
     }
@@ -161,9 +163,17 @@
   // `agentOn` on purpose: a stored preference cannot fail, so conflating them is how this panel came
   // to offer a switch that reported success and did nothing.
   let agentInstalled = $state(true);
+  // **Why not**, in the server's words. The causes are different — this OS has no resource monitor
+  // yet, the stack was never shipped to this machine, `bash` is missing — and each wants a different
+  // answer from the reader, so the row prints the reason rather than a bare "not available".
+  let agentWhy = $state('');
   // Audio transcription (whisper) — a sub-setting of the assistant. Persisted like the on/off above;
   // it loads a local speech-to-text runtime the assistant uses for `/transcribe`.
   let transcribeOn = $state(false);
+  // **Its own capability, not the assistant's.** Whisper is a separate runtime, so the assistant can
+  // be fully working while this has nothing behind it — which is how the toggle came to store a
+  // preference, report success, and transcribe nothing.
+  let transcribeAvailable = $state(true);
   async function toggleTranscribe(next: boolean) {
     try {
       await setTranscribe(next);
@@ -357,13 +367,12 @@
           <ul class="caps">
             {#if !agentInstalled}
               <!-- No switch at all when there is nothing to switch on. The same shape git and restic
-                   already use: name what is missing, say what it costs, say the notes are fine. -->
+                   already use: name what is missing, say what it costs, say the notes are fine.
+                   The words come from the server, which is the only thing that knows which of the
+                   several reasons applies here. -->
               <li>
-                <span class="k">not installed</span>
-                <span class="muted">
-                  The assistant is not on this machine yet, so it cannot be turned on. Everything
-                  else works normally — your notes, search, boards and backup are unaffected.
-                </span>
+                <span class="k">not available</span>
+                <span class="muted">{agentWhy}</span>
               </li>
             {:else}
             <li>
@@ -382,20 +391,33 @@
             </li>
             {/if}
             {#if agentInstalled && agentOn}
-              <li>
-                <label class="choice">
-                  <input
-                    type="checkbox"
-                    checked={transcribeOn}
-                    onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
-                  <span class="k">Audio transcription {transcribeOn ? 'on' : 'off'}</span>
+              {#if transcribeAvailable}
+                <li>
+                  <label class="choice">
+                    <input
+                      type="checkbox"
+                      checked={transcribeOn}
+                      onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
+                    <span class="k">Audio transcription {transcribeOn ? 'on' : 'off'}</span>
+                    <span class="muted">
+                      {transcribeOn
+                        ? 'The assistant transcribes audio clips you record or attach (record → /transcribe → a proposal). Applies at the next assistant start.'
+                        : 'Turn on to let the assistant transcribe audio into notes.'}
+                    </span>
+                  </label>
+                </li>
+              {:else}
+                <!-- Speech-to-text is a second runtime, downloaded separately, and the assistant
+                     starts it only when it is there. So this stops being a switch when it would be
+                     a switch onto nothing — the same rule as the section above it. -->
+                <li>
+                  <span class="k">Audio transcription unavailable</span>
                   <span class="muted">
-                    {transcribeOn
-                      ? 'The assistant transcribes audio clips you record or attach (record → /transcribe → a proposal). Applies at the next assistant start; needs the runtime installed.'
-                      : 'Turn on to let the assistant transcribe audio into notes.'}
+                    The speech-to-text runtime is not on this machine, so audio clips cannot be
+                    transcribed. The assistant works normally without it.
                   </span>
-                </label>
-              </li>
+                </li>
+              {/if}
             {/if}
           </ul>
         </section>

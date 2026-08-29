@@ -107,11 +107,13 @@ The gray-screen fix and its tests are in
   only in `fm-serve/src/blob.rs`; the handler's own doc comment claims otherwise. On a device already
   swapping 3 GB, opening a large blob is a multi-hundred-MB transient — i.e. an invitation to the
   renderer kill described below.
-- **The model fetcher verifies neither length nor hash** (`fm-agent-run/src/fetch.rs:111-149`;
-  `agents/models.toml` pins no `sha256`, so both verification branches are dead code). A body that
-  closes early is renamed as complete, and `ensure_model` then returns that file forever — nothing in
-  the tree ever deletes a bad `.gguf`. The only self-heal is uninstalling the app, which also
-  destroys the vault.
+- **The assistant runs on Linux and Android only** — `fm_agent`'s resource monitor reads `/proc` and
+  **fails closed** everywhere else, so on Windows and macOS `preflight::admit` refuses before a model
+  is spawned. Since 2026-08-29 the settings row says so instead of offering the switch, so this is a
+  stated boundary rather than a silent one; it stops being a gap when those platforms get a monitor
+  (`GlobalMemoryStatusEx` / `host_statistics64`), not by relaxing the gate. **Residual:** the
+  capability check covers the OS, the stack and the tools it shells out to, but **not the weights** —
+  a machine with `agents/` and no GGUF still turns the assistant on and fails at the model server.
 - **A poisoned vault mutex bricks every command for the life of the process**
   (`fm-app/src/dispatch.rs:186`, `lock().map_err(...)` with no recovery). The agent thread and the
   webview both `dispatch`, so a panic in either poisons for both.

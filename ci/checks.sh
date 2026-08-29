@@ -474,6 +474,52 @@ if command -v cargo >/dev/null 2>&1; then
     fi
 fi
 
+# ---------------------------------------------------------------------------------------------
+# The assistant must not be able to keep formicaria alive.
+#
+# `fm-serve` exits after 90 s with nobody in touch, so closing the tab closes the app — and it
+# learned "somebody is here" from any authenticated request. The study agent polls the vault every
+# 1–5 s for as long as it runs, so while the assistant was on that window could never close: the
+# app held itself open by asking whether it was open, and a multi-GB `llama-server` stayed resident
+# with it until the machine was rebooted.
+#
+# The fix is one header the runner sends and the server checks. It is a **cross-crate agreement
+# with no type behind it**: nothing depends on `fm-agent-run` (that is how "the core app never
+# learns the agent exists" stays true), so the constant cannot be shared and a rename on one side
+# would be silent — the runner would go back to holding the app open, and every test would pass.
+# This is that missing compiler.
+agent_header='X-Formicaria-Agent'
+for f in crates/fm-agent-run/src/fmserve.rs crates/fm-serve/src/main.rs; do
+    if ! grep -q "$agent_header" "$f"; then
+        echo "  FAIL: $f no longer spells '$agent_header'."
+        echo "        The runner sends it and fm-serve checks it; they are the same string in two"
+        echo "        crates that cannot import from each other. If it moved, move it in both —"
+        echo "        otherwise the assistant silently defeats auto-shutdown again."
+        fail=1
+    fi
+done
+
+# ---------------------------------------------------------------------------------------------
+# "Audio transcription" must mean audio gets transcribed.
+#
+# `agent-serve.sh` starts whisper only when **both** its runtime binary and its model are staged.
+# `fm-serve` predicts that in Rust so the settings row can refuse instead of storing a preference
+# and answering `{"ok":true}` — which is what it did, and why a user could tick the box, restart,
+# and find no transcription and no explanation anywhere.
+#
+# A shell script cannot export a predicate, so the condition is written twice. If the script starts
+# looking for a different file, the Rust check goes on saying yes about a machine that says no.
+for name in whisper-server ggml-base.en.bin; do
+    if ! grep -q "$name" agents/agent-serve.sh || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
+        echo "  FAIL: '$name' is named in only one of agents/agent-serve.sh and"
+        echo "        crates/fm-serve/src/agent.rs. They are the same condition in two languages:"
+        echo "        the script decides whether whisper starts, the Rust decides whether the"
+        echo "        settings row offers the switch. Out of step, the row promises what the script"
+        echo "        will not do."
+        fail=1
+    fi
+done
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

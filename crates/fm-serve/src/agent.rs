@@ -95,10 +95,11 @@ pub fn transcribe_enabled() -> bool {
 /// Returns whether it started. The agent (a separate process) then follows this server's liveness and
 /// stops itself when we stop answering, so it needs no supervision from here.
 pub fn spawn(port: u16) -> bool {
-    let Some(script) = script_path() else {
-        eprintln!("study agent: enabled, but the agent stack is not on this machine — skipping");
+    if let Some(why) = unavailable() {
+        eprintln!("study agent: enabled, but it cannot run here — {why}");
         return false;
-    };
+    }
+    let Some(script) = script_path() else { return false };
     let mut cmd = std::process::Command::new("bash");
     cmd.arg(&script).arg(port.to_string());
     // The agent stack inherits this; agent-serve.sh turns on whisper only when it is set.
@@ -136,16 +137,99 @@ pub fn script_path() -> Option<PathBuf> {
         .find(|p| p.exists())
 }
 
-/// **Can this machine actually run the assistant?** — not "is the switch on".
+/// The agent stack's directory — `runtime/`, `models/` and the scripts live under it.
+fn agents_dir() -> Option<PathBuf> {
+    script_path().and_then(|p| p.parent().map(PathBuf::from))
+}
+
+/// Is `program` an executable file on `PATH`?
 ///
-/// The distinction is the whole point. `enabled()` reads a stored flag and cannot fail, so the
-/// settings row used to offer a toggle that returned `{"ok":true}`, promised *"Starts with
-/// formicaria on the next launch"*, and did nothing at all — because the release archive ships no
-/// `agents/` directory and the only diagnostic went to a stderr the Windows launcher hides by
-/// design. That is precisely the failure `decisions.md` already ruled against: **a capability must
-/// mean "this will work", never "this is configured".**
-pub fn installed() -> bool {
-    script_path().is_some()
+/// The mode bit matters: a *readable* `bash` that cannot be executed fails at `spawn` exactly like
+/// an absent one, and a capability check that stops one step short of the thing it is predicting is
+/// how this row came to say "yes" about a machine that answers "no".
+fn on_path(program: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else { return false };
+    std::env::split_paths(&path).any(|dir| executable(&dir.join(program)))
+}
+
+#[cfg(unix)]
+fn executable(p: &std::path::Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn executable(p: &std::path::Path) -> bool {
+    p.is_file()
+}
+
+/// **Why the assistant cannot run on this machine** — or `None` when it can.
+///
+/// A *reason*, not a bool, because the settings row has to print it: "not available" with no cause
+/// is a dead end, and the three causes below want three different answers from the reader (buy
+/// nothing / install the stack / this OS is not there yet).
+///
+/// The distinction from `enabled()` is the whole point. `enabled()` reads a stored flag and cannot
+/// fail, so the settings row used to offer a toggle that returned `{"ok":true}`, promised *"Starts
+/// with formicaria on the next launch"*, and did nothing at all. That is precisely the failure
+/// `decisions.md` already ruled against: **a capability must mean "this will work", never "this is
+/// configured".**
+///
+/// **Static on purpose — this is not `preflight::admit`.** `admit` reads *instantaneous* free
+/// memory to decide whether to start the model right now, and it belongs where it is. Wiring it in
+/// here would tell a user with a few browser tabs open that the assistant "is not installed" —
+/// false, unactionable, and gone again by the time they looked. The same rule ("say what will
+/// actually happen") broken in the other direction.
+pub fn unavailable() -> Option<String> {
+    // The OS gate is first because it cannot be fixed by installing anything. `fm_agent`'s resource
+    // monitor reads `/proc`, and **fails closed everywhere else** — so on Windows and macOS
+    // `preflight::admit` refuses before a model is ever spawned. Offering a switch there is
+    // offering a switch onto a refusal. (`decisions.md#agent`, and the plan that split this out:
+    // those platforms arrive with a monitor of their own, not by relaxing this.)
+    if !cfg!(any(target_os = "linux", target_os = "android")) {
+        return Some(
+            "The study assistant runs on Linux today. Everything else in formicaria works normally \
+             here — your notes, search, boards and backup are unaffected."
+                .into(),
+        );
+    }
+    if script_path().is_none() {
+        return Some(
+            "The assistant is not on this machine yet, so it cannot be turned on. Everything else \
+             works normally — your notes, search, boards and backup are unaffected."
+                .into(),
+        );
+    }
+    // `start-agent.sh` is bash and runs `search-proxy.py`. Both are shelled out to by name, so a
+    // machine without them fails at `spawn` — into a stderr the launcher hides by design.
+    let missing: Vec<&str> = ["bash", "python3"].into_iter().filter(|p| !on_path(p)).collect();
+    if !missing.is_empty() {
+        return Some(format!(
+            "The assistant needs {} on this machine, and cannot find {}. Everything else works \
+             normally.",
+            missing.join(" and "),
+            if missing.len() == 1 { "it" } else { "them" },
+        ));
+    }
+    None
+}
+
+/// **Is the speech-to-text runtime actually here?** — the "Audio transcription" toggle's capability.
+///
+/// Without this the toggle stored a preference, answered `{"ok":true}`, and changed nothing: whisper
+/// is chosen by `agent-serve.sh`, which turns it on *only* when both these files are present, so a
+/// user could tick the box, restart, and find no transcription and no explanation anywhere.
+///
+/// **The condition is a copy of the one in `agents/agent-serve.sh`** — the same two paths — because
+/// a shell script cannot export a predicate. `ci/checks.sh` asserts the two stay in step.
+pub fn transcribe_available() -> bool {
+    agents_dir().is_some_and(|d| transcribe_staged_in(&d))
+}
+
+/// The predicate itself, against a named directory, so it can be tested without a staged runtime.
+fn transcribe_staged_in(dir: &std::path::Path) -> bool {
+    executable(&dir.join("runtime").join("whisper-server"))
+        && dir.join("models").join("ggml-base.en.bin").is_file()
 }
 
 /// `<config>/formicaria/agent.json` — the per-device on/off setting, beside `vaults.json`.
@@ -210,29 +294,37 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
         // `installed` is the capability; `enabled` is only the stored preference. The UI needs both
         // so it can offer a switch when there is something to switch on, and say what is missing
         // when there is not.
-        "/api/agent_status" => (
+        "/api/agent_status" => {
+            let why = unavailable();
+            (
             "200 OK",
             "application/json",
-            format!(
-                "{{\"enabled\": {}, \"transcribe\": {}, \"installed\": {}}}",
-                enabled(),
-                transcribe_enabled(),
-                installed()
-            )
+            serde_json::json!({
+                "enabled": enabled(),
+                "transcribe": transcribe_enabled(),
+                // `installed` is the capability; `enabled` is only the stored preference; `why`
+                // is what the row prints when the capability is absent, because "not available"
+                // with no cause is a dead end.
+                "installed": why.is_none(),
+                "why": why.unwrap_or_default(),
+                // The sub-toggle has a capability of its own — the runtime is a separate download.
+                "transcribe_available": transcribe_available(),
+            })
+            .to_string()
             .into_bytes(),
-        ),
+            )
+        }
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;
             // **Refuse rather than report success.** Turning this on when the stack is not here
             // stored the preference, answered `{"ok":true}`, and silently did nothing — the one
             // place this app told a user something worked when it had not.
-            if want && !installed() {
+            if let (true, Some(why)) = (want, unavailable()) {
                 return Some(crate::write_response(
                     stream,
                     "409 Conflict",
                     "text/plain; charset=utf-8",
-                    b"The study assistant is not installed on this machine, so it cannot be turned \
-                      on yet. Everything else works as normal.",
+                    why.as_bytes(),
                 ));
             }
             match set_enabled(want) {
@@ -252,6 +344,18 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
         // starts, exactly like turning the assistant off applies on the next app close. The UI says so.
         "/api/set_transcribe" => {
             let want = serde_json::from_slice::<TranscribeReq>(body).unwrap_or_default().transcribe;
+            // **The same refusal `set_agent` makes, for the same reason.** `agent-serve.sh` starts
+            // whisper only when its runtime and model are both staged, so without them this stored
+            // a preference, answered `{"ok":true}`, and transcription simply never happened.
+            if want && !transcribe_available() {
+                return Some(crate::write_response(
+                    stream,
+                    "409 Conflict",
+                    "text/plain; charset=utf-8",
+                    b"The speech-to-text runtime is not on this machine, so audio transcription \
+                      cannot be turned on yet. The assistant works normally without it.",
+                ));
+            }
             match set_transcribe(want) {
                 Ok(()) => ("200 OK", "application/json", b"{\"ok\":true}".to_vec()),
                 Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
@@ -295,4 +399,51 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
         _ => return None,
     };
     Some(write_response(stream, resp.0, resp.1, &resp.2))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The `PATH` scan predicts a `spawn`, so it has to agree with one. `sh` is on every machine
+    /// this crate builds for; the second name is not on any.
+    #[test]
+    fn a_program_is_on_path_only_if_it_could_actually_be_run() {
+        assert!(on_path("sh"));
+        assert!(!on_path("fm-no-such-program-anywhere"));
+    }
+
+    /// The toggle used to store a preference, answer `{"ok":true}`, and change nothing: whisper is
+    /// started by `agents/agent-serve.sh` only when **both** of these are staged. Neither file on
+    /// its own is a capability — half a runtime transcribes nothing.
+    #[test]
+    fn audio_transcription_needs_the_runtime_and_the_model_together() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("runtime")).unwrap();
+        std::fs::create_dir_all(root.join("models")).unwrap();
+        assert!(!transcribe_staged_in(root), "nothing staged");
+
+        let server = root.join("runtime").join("whisper-server");
+        std::fs::write(&server, b"#!/bin/sh\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&server, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        assert!(!transcribe_staged_in(root), "runtime but no model");
+
+        std::fs::write(root.join("models").join("ggml-base.en.bin"), b"x").unwrap();
+        assert!(transcribe_staged_in(root), "both staged");
+    }
+
+    /// A capability must mean "this will work". On a machine that can run it, `unavailable` must
+    /// not be inventing a reason; on one that cannot, the reason must be printable — an empty
+    /// string in the settings row is the dead end this replaced.
+    #[test]
+    fn the_reason_is_something_a_reader_can_act_on() {
+        if let Some(why) = unavailable() {
+            assert!(why.len() > 20, "not a reason a user could act on: {why:?}");
+        }
+    }
 }

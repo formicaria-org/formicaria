@@ -2336,6 +2336,90 @@ costs a `stat`, not a second `git status` spawn. The `git.rs`/`git_native.rs` si
 deliberately **not** changed: the distinction is only needed where a human is told about it,
 and widening the seam would have touched both backends and forty call sites for nothing.
 
+## 2026-08-29 — the assistant is not a user, and must not keep the app alive `#agent` `#ui`
+
+`fm-serve` exits when nobody has been in touch for 90 s, so **closing the tab closes the app**. It
+learned "somebody is here" from any authenticated request, refreshed above the route table. The study
+agent polls the vault every 1–5 s for as long as it runs — `alive`, `thread_roots`, `agent_present` —
+so while the assistant was on, that window **could never close**: the app held itself open by asking
+whether it was open, and `fm-serve` plus a 2.4 GB `llama-server` stayed resident until the machine was
+rebooted.
+
+Reachable only since `FM_AUTO_SHUTDOWN` was flipped **on by default** (2026-08-28, so that a person
+double-clicking a launcher is not left with a console window quietly keeping their notebook running).
+Before that only the launcher had a watchdog at all; after it, every user did, and the assistant
+silently defeated it — on a laptop, behind a launcher with no console, that is heat and a flat battery.
+
+**Decision:** the runner declares itself with `X-Formicaria-Agent: 1` on **every** request, and a
+request that says so is served exactly as before but does not count as somebody being here. Not just
+the liveness probe: fixing only `/api/alive` would have left the bug where it was, since every other
+poll refreshed the same timer.
+
+**Why a header and not a rule about routes.** The distinction is *who is asking*, not *what they
+asked for*; the same `POST /api/alive` is a browser tab saying "I am still here" and the agent saying
+"are you still there". It needs no secrecy — the only thing sending it can do is give up your own
+claim on keeping the app open, which any client can already do by staying quiet.
+
+**Consequence:** the constant is spelled in two crates that cannot import from each other (nothing
+depends on `fm-agent-run`, which is how "the core never learns the agent exists" stays true), so
+`ci/checks.sh` asserts the two spellings match. Pinned by
+`the_assistants_own_polling_does_not_keep_the_app_alive` and its positive twin.
+
+## 2026-08-29 — a capability is a *reason*, and it is not `preflight::admit` `#agent`
+
+`agent::installed()` was "does `agents/start-agent.sh` exist". On Windows that could answer **yes**
+while `spawn` then failed on a missing `bash`, into a stderr the launcher hides by design — the same
+class of failure the 2026-08-28 ruling was meant to end. And the audio-transcription toggle had no
+capability at all: it stored a preference, answered `{"ok":true}`, and transcribed nothing, because
+`agent-serve.sh` starts whisper only when its runtime **and** its model are staged.
+
+**Decision:** `unavailable() -> Option<String>` replaces the bool, and the settings row prints what it
+returns. Three causes, three different answers a reader can act on: **this OS is not there yet**
+(`fm_agent`'s monitor reads `/proc` and fails closed elsewhere, so `admit` refuses before anything
+spawns — Windows and macOS therefore offer nothing), **the stack was never shipped here**, or **`bash`
+/ `python3` is missing**. `transcribe_available()` is the same question for whisper, and
+`/api/set_transcribe` now refuses like `/api/set_agent` instead of reporting success.
+
+**Static on purpose — deliberately *not* wired to `preflight::admit`.** `admit` reads instantaneous
+free memory to decide whether to start a model *right now*, and belongs where it is. Reusing it here
+would tell a user with a few tabs open that the assistant "is not installed": false, unactionable,
+gone again by the time they looked — the same rule ("say what will actually happen") broken in the
+other direction. The bound the capability check does **not** yet cover is the weights; see
+`known-issues.md`.
+
+## 2026-08-29 — a pinned checksum needs a pinned revision, or it is a bomb on a timer `#agent`
+
+`fetch.rs` had verification branches that were dead code: `models.toml` published no `sha256`, so a
+body that closed early was renamed as complete and `ensure_model` returned that truncated file
+forever — the only self-heal was uninstalling the app, which also destroys the vault.
+
+**Decision:** every `[[models]]` entry now pins **`revision` + `sha256` together**. Alone, a checksum
+against `resolve/main` is worse than none: `main` is a moving pointer, so the day a repo re-quantises,
+every download starts failing verification — permanently, on every device already shipped, with
+nothing a user can do and no way to reach a released archive. Pinned to a commit, the URL names the
+same bytes forever and a mismatch can only mean a corrupt transfer, which is what a checksum is for.
+Provenance: the Hugging Face API's `siblings[].lfs.sha256`, cross-checked by re-hashing the three
+files in this checkout — so these pin the bytes that were actually benchmarked. `agents/fetch.sh`
+reads and enforces the same pair, so the desktop path is not the unverified one.
+
+**Also, before arming it:** a **read timeout** (there was none — a half-open connection blocks
+forever, and `MAX_STALLS` counts *failed attempts*, so an attempt that never returns is never one);
+`Accept-Encoding: identity` (a transparently-decoded gzip makes `Content-Length` describe different
+bytes than the ones written, and with a `Range` the server applies the offset to the encoded stream,
+so a resume appends garbage); a completeness check; and a **fatal / transient split** so a cancel or a
+full disk stops at once instead of spending twelve attempts and ~90 s of backoff to reach the same
+sentence.
+
+**A free-space *precheck* was considered and rejected.** `std` has no free-space API, so it would mean
+`libc` in the one crate whose whole point is being dependency-free enough to cross-compile to Android.
+`ErrorKind::StorageFull` is `std`'s portable name for `ENOSPC` and `ERROR_DISK_FULL`, costs nothing,
+and is *more* accurate — a precheck can pass and the disk still fill. Same outcome, no new dependency.
+
+**Consequence:** `ensure_model`/`fetch` take a `cancel` predicate. Android already had the predicate
+(`current(generation)`) and used it only *after* the fetch, so turning the assistant off during a
+1.4 GB first-run download left it downloading on mobile data; now it stops, keeping the `.part` so
+turning it back on resumes.
+
 ## The study agent's model warm-up is deferred a few seconds after launch (2026-07-24, `#agent`)
 **Why:** with the agent enabled, `fm-serve` auto-spawns the whole stack at launch — and the model
 server reads a **multi-GB GGUF off disk and loads it onto the GPU the instant it starts**. Since

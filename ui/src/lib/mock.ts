@@ -369,6 +369,10 @@ let mockSavedViews: ViewInfo[] = [
 // Flip this to see the not-installed row the way a released build shows it.
 let mockAgentInstalled = true;
 let mockTranscribeEnabled = false;
+// The whisper runtime is a **second** capability, and the panel branches on it separately: the
+// assistant can be perfectly installed while audio transcription still has nothing behind it.
+// Flip this to see the row that names what is missing instead of offering a switch.
+let mockTranscribeAvailable = true;
 
 /// **A backend that can misbehave, because the real one does.**
 ///
@@ -527,7 +531,15 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
   }
   switch (cmd) {
     case 'agent_status':
-      return { enabled: mockAgentEnabled, transcribe: mockTranscribeEnabled, installed: mockAgentInstalled } as T;
+      return {
+        enabled: mockAgentEnabled,
+        transcribe: mockTranscribeEnabled,
+        installed: mockAgentInstalled,
+        why: mockAgentInstalled
+          ? ''
+          : 'The study assistant runs on Linux today. Everything else in formicaria works normally here — your notes, search, boards and backup are unaffected.',
+        transcribe_available: mockTranscribeAvailable,
+      } as T;
     case 'set_agent':
       // Refuses exactly as the server does, so a test can see the refusal rather than a cheerful ok.
       if (args.enabled && !mockAgentInstalled) {
@@ -536,6 +548,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockAgentEnabled = Boolean(args.enabled);
       return { ok: true } as T;
     case 'set_transcribe':
+      // Refuses like the server: without the runtime staged, turning this on transcribes nothing.
+      if (args.transcribe && !mockTranscribeAvailable) {
+        throw new Error('The speech-to-text runtime is not on this machine.');
+      }
       mockTranscribeEnabled = Boolean(args.transcribe);
       return { ok: true } as T;
     case 'agent_activity_poll':

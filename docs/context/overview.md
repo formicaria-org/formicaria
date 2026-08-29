@@ -146,6 +146,9 @@ surface:
   with a `Vec<u8>`, which is exactly what forces a whole video into memory.
 - **`POST /api/alive`** — liveness only, for *this* server's auto-shutdown watchdog. No
   lock, no filesystem, no dispatch. A frontend without a watchdog would never call it.
+  Every authenticated request refreshes the idle timer, **except one that carries
+  `X-Formicaria-Agent: 1`** — the study agent polls every 1–5s and would otherwise hold the app
+  open forever (`decisions.md#agent`, 2026-08-29).
 
 ## Views (all generic renderers over the same query layer)
 

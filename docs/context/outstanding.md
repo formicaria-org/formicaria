@@ -280,9 +280,11 @@ Note `vaults::save` is append-only by design and never rewrites an entry — tha
 met, not worked around.
 
 **The assistant, delivered.** Fetch the model in-app with progress as Android already does on first
-enable, ship the manifest in the archive, start the runtime. **Blocker to fix in the same change:**
-`agents/models.toml` publishes **no SHA-256**, so `fetch.rs`'s verification path is inert for models
-today.
+enable, ship the manifest in the archive, start the runtime. **The blocker is cleared** (2026-08-29,
+`decisions.md#agent`): `models.toml` now pins every model to a Hugging Face **commit + SHA-256**, and
+`fetch.rs` gained the read timeout, the identity encoding, the completeness check, the fatal/transient
+split and the cancel flag it needed before being armed. What remains is the *desktop* wiring — the
+Cargo feature is still off there, and the runtime is still not in the archive.
 
 **Smaller, same theme:** the backup panel has no token field (one exists only in the clone flow), so
 a user who created a vault locally and later adds an HTTPS remote has nowhere to put a token. And the

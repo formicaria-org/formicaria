@@ -257,9 +257,22 @@ export const proposals = () => invoke<ObjectMeta[]>('proposals');
  *  in discussions) auto-starts with formicaria and stops when you close it; off is pure, super-light
  *  formicaria. Takes effect at the next launch. */
 /** `enabled` is the stored preference; **`installed` is whether it can actually run here.** The two
- *  used to be conflated, so the switch reported success on a machine with no assistant at all. */
+ *  used to be conflated, so the switch reported success on a machine with no assistant at all.
+ *
+ *  `why` is what to print when it cannot: the causes are different (this OS is not there yet / the
+ *  stack was never shipped here / `bash` is missing) and want different answers from the reader, so
+ *  a bare "not available" is a dead end. Empty when `installed`.
+ *
+ *  `transcribe_available` is the **sub**-capability: whisper is a separate runtime, and without it
+ *  the audio toggle stored a preference and transcribed nothing. */
 export const agentStatus = () =>
-  invoke<{ enabled: boolean; transcribe: boolean; installed: boolean }>('agent_status');
+  invoke<{
+    enabled: boolean;
+    transcribe: boolean;
+    installed: boolean;
+    why: string;
+    transcribe_available: boolean;
+  }>('agent_status');
 export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
 /** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
  *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the

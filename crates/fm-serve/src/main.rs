@@ -567,6 +567,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     let mut range: Option<String> = None;
     let mut host: Option<String> = None;
     let mut cookie: Option<String> = None;
+    let mut agent_client = false;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -592,6 +593,10 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
             // but reading a credential out of a string we have deliberately mangled is how that
             // stops being true the day the token format changes.
             cookie = line.split_once(':').map(|(_, v)| v.trim().to_string());
+        } else if let Some(v) = lower.strip_prefix("x-formicaria-agent:") {
+            // "I am the assistant, not a person." Read here, acted on at the liveness refresh
+            // below; it changes nothing else about how the request is treated.
+            agent_client = v.trim() == "1";
         }
     }
     // **The cap is on the declared length; the allocation must not be.**
@@ -677,10 +682,23 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     // launcher, i.e. the owner's normal way of starting it, so that failure would be the common
     // path rather than an edge case. A tablet left face-up is handled where it belongs: the UI
     // stops beating when the page is hidden.
-    if let Ok(mut t) = state.last_seen.lock() {
-        *t = Instant::now();
+    //
+    // **Any authenticated *person*, that is — and the assistant is not one.** It is a child of
+    // this process: it watches this port, and it stops itself when we stop answering. But it also
+    // polls the vault every 1–5 s for as long as it runs, and every one of those polls landed
+    // here, so the 90-second idle window could never close while it was on: the app held itself
+    // open by asking whether it was open, and `fm-serve` plus a multi-GB `llama-server` stayed
+    // resident until the machine was rebooted. So a request that says it is the assistant is
+    // served exactly as before and simply does not count as somebody being here.
+    //
+    // The header needs no secrecy, because the only thing sending it can do is give up your own
+    // claim on keeping the app open — which any client can already do by staying quiet.
+    if !agent_client {
+        if let Ok(mut t) = state.last_seen.lock() {
+            *t = Instant::now();
+        }
+        state.connected.store(true, Ordering::Relaxed);
     }
-    state.connected.store(true, Ordering::Relaxed);
     if !peer.loopback {
         if let Ok(mut t) = state.share.last_remote.lock() {
             *t = Some(Instant::now());
@@ -1361,6 +1379,72 @@ mod tests {
         let (status, _) =
             request("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 200 OK");
+    }
+
+    /// Run one request against a fresh server whose clock was wound back ten minutes, and report
+    /// whether that request counted as **somebody being here** — the only input the auto-shutdown
+    /// watchdog has.
+    fn kept_the_app_alive(raw: &str) -> bool {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            ours(),
+            0,
+        ));
+        let long_ago = Instant::now() - Duration::from_secs(600);
+        *state.last_seen.lock().unwrap() = long_ago;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = {
+            let state = Arc::clone(&state);
+            std::thread::spawn(move || {
+                let (mut sock, _) = listener.accept().unwrap();
+                let _ = handle(&mut sock, Peer { loopback: true, tls: false }, &state);
+            })
+        };
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.write_all(raw.as_bytes()).unwrap();
+        let mut sink = Vec::new();
+        let _ = _Read::read_to_end(&mut client, &mut sink);
+        server.join().unwrap();
+
+        let refreshed = *state.last_seen.lock().unwrap() != long_ago;
+        refreshed
+    }
+
+    /// A browser tab beating says a person is here, and the app must stay up.
+    #[test]
+    fn a_tabs_heartbeat_keeps_the_app_alive() {
+        assert!(kept_the_app_alive(
+            "POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n"
+        ));
+    }
+
+    /// **The assistant must not.** It polls this server every 1–5 s for as long as it runs, so
+    /// counting those polls meant the 90-second idle window could never close while it was on:
+    /// the app held itself open by asking whether it was open, and `fm-serve` plus a multi-GB
+    /// `llama-server` stayed resident until the machine was rebooted. Written against every route
+    /// the agent actually calls, not just the liveness probe, because every one of them refreshed
+    /// that timer — fixing only `/api/alive` would have left the bug exactly where it was.
+    ///
+    /// The header is written out here rather than imported: **nothing depends on `fm-agent-run`**,
+    /// which is how "the core app never learns the agent exists" is kept true, and a dev-dependency
+    /// would spend that property on a test. `ci/checks.sh` asserts the two spellings match.
+    #[test]
+    fn the_assistants_own_polling_does_not_keep_the_app_alive() {
+        for path in ["/api/alive", "/api/thread_roots", "/api/agent_present"] {
+            let raw = format!(
+                "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\
+                 X-Formicaria-Agent: 1\r\nContent-Length: 2\r\n\r\n{{}}"
+            );
+            assert!(!kept_the_app_alive(&raw), "{path} held the app open for the assistant");
+        }
     }
 
     // ---- Sharing: who may reach what --------------------------------------------------------
