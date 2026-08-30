@@ -240,8 +240,31 @@ impl VaultAccess for DispatchVault {
     fn reply_as(&self, note: &str, body: &str, name: &str, email: &str) -> Result<Value, String> {
         self.call("reply", json!({ "id": note, "body": body, "authorName": name, "authorEmail": email }))
     }
-    fn create_proposal(&self, note: &str, body: &str, name: &str, email: &str) -> Result<Value, String> {
-        self.call("create_proposal", json!({ "id": note, "body": body, "authorName": name, "authorEmail": email }))
+    /// **The phone records the same provenance the desktop does.** `Origin` carries what produced
+    /// this proposal — the tool, the verbatim question, and the sources it was given — and
+    /// `create_proposal` turns them into git trailers on the model's commit. Dropping them here
+    /// would make every proposal made on a phone unattributable in the supervision record, which is
+    /// exactly the class of gap that cannot be repaired after the fact.
+    fn create_proposal(
+        &self,
+        note: &str,
+        body: &str,
+        name: &str,
+        email: &str,
+        origin: &fm_agent_run::fmserve::Origin,
+    ) -> Result<Value, String> {
+        self.call(
+            "create_proposal",
+            json!({
+                "id": note,
+                "body": body,
+                "authorName": name,
+                "authorEmail": email,
+                "tool": origin.tool,
+                "query": origin.query,
+                "sources": origin.sources,
+            }),
+        )
     }
     fn blob_bytes(&self, reference: &str) -> Result<(Vec<u8>, String), String> {
         // In-process there is no HTTP blob route: resolve the path through the same `blob_path` fm-serve

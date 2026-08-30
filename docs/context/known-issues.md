@@ -545,6 +545,25 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **`libwhisper-server.so` is not 16 KB aligned, and every other bundled library is.** Measured on
+  the 2026-08-30 release APK: our own `libformicaria_mobile_lib.so` and all fifteen llama/ggml libs
+  report `LOAD align 0x4000`; the prebuilt whisper binary reports `0x1000`. `ci/android-release.sh`
+  warns and does not fail. Google states 16 KB page size as a *device* property, so on a device that
+  uses it the loader can refuse that library — which would take out **audio transcription only**,
+  leaving the rest of the app working, and would look like whisper silently never starting. Not
+  investigated: the fix is in how that binary is produced (`ci/android-stage-whisper.sh`), not here.
+
+- **Changing a `VaultAccess` method signature breaks the phone, and nothing local tells you.** The
+  trait lives in `crates/fm-agent-run/src/fmserve.rs` (a workspace member, so it compiles in `pixi
+  run ci`); its second implementation lives in `mobile/src-tauri/src/agent.rs`, in a crate
+  **deliberately excluded from the workspace** so a contributor with no Android toolchain still gets
+  a green gate. So `cargo test --workspace` compiles the trait and never the impl, and `pixi run ci`
+  passes while the phone will not build. Demonstrated 2026-08-30: `792d819` added `origin: &Origin`
+  to `create_proposal` and the mobile impl went unfixed for three commits, surfacing only when
+  someone actually built an APK. **After touching that trait, run `pixi run -e android
+  android-check`** (or a full `android-release`). The same hazard applies to any trait a workspace
+  crate declares and the excluded mobile crate implements.
+
 - **Excalidraw reads `--border-radius-md` / `--border-radius-lg`, which `app.css` does not define**
   (we use `--radius-*`). A user theme that sets the `--border-radius-*` spelling will silently
   restyle the whiteboard and nothing else — verified by reading
