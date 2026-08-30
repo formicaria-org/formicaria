@@ -545,6 +545,15 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **`pixi run -e android android-release` leaves `icons/icon.icns` dirty every time.** The script
+  regenerates all icons from `icon-source.svg` (`ci/android-release.sh:39`), and that generator is
+  **nondeterministic for `.icns` only**: measured 2026-08-30, the file came back the same 44312
+  bytes with 43208 of them different, while every other generated icon was byte-identical. So a
+  clean tree becomes dirty after a release build, in a macOS icon an Android build has no reason to
+  touch. Harmless — it is derived from the same unchanged SVG — but do not read it as a real change,
+  and do not sweep it into a commit with `git add -A` without looking, which is exactly how it got
+  into `9a48a1f`.
+
 - **`libwhisper-server.so` is not 16 KB aligned, and every other bundled library is.** Measured on
   the 2026-08-30 release APK: our own `libformicaria_mobile_lib.so` and all fifteen llama/ggml libs
   report `LOAD align 0x4000`; the prebuilt whisper binary reports `0x1000`. `ci/android-release.sh`
