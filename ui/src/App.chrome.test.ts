@@ -144,3 +144,34 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   await fireEvent.click(screen.getByRole('menuitem', { name: 'Agenda' }));
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
 });
+
+test('a dropdown opens at the button that opened it, not at a fixed corner', async () => {
+  // These menus are `position: fixed` because the chrome scrolls. Their coordinates used to be
+  // hardcoded to the corners of a horizontal top bar — so once the chrome became a left column,
+  // the backup menu opened in the opposite corner from its own button.
+  render(App);
+
+  const backup = await screen.findByRole('button', { name: 'other backup options' });
+  backup.getBoundingClientRect = () =>
+    ({ left: 12, top: 700, bottom: 728, right: 40, width: 28, height: 28 }) as DOMRect;
+  await fireEvent.click(backup);
+
+  const menu = await screen.findByRole('menu');
+  const style = menu.getAttribute('style') ?? '';
+  expect(style, 'the menu must carry measured coordinates').toMatch(/left:\s*12px/);
+  // Low on screen, so it opens upward — anchored by its bottom, which needs no guess at its height.
+  expect(style).toMatch(/bottom:/);
+  expect(style).toMatch(/top:\s*auto/);
+});
+
+test('a dropdown from the top of the panel opens downward', async () => {
+  render(App);
+  const plus = await screen.findByRole('button', { name: 'make something new' });
+  plus.getBoundingClientRect = () =>
+    ({ left: 12, top: 20, bottom: 48, right: 40, width: 28, height: 28 }) as DOMRect;
+  await fireEvent.click(plus);
+
+  const style = (await screen.findByRole('menu')).getAttribute('style') ?? '';
+  expect(style).toMatch(/top:\s*52px/);
+  expect(style).not.toMatch(/bottom:/);
+});

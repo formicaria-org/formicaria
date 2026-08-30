@@ -1128,6 +1128,29 @@
     }
   }
 
+  /// **Where a dropdown actually goes.**
+  ///
+  /// These menus are `position: fixed`, and they have to be: the chrome scrolls, so a child
+  /// positioned against it would be clipped. But their coordinates were *hardcoded* — `top:
+  /// header-height; left: space-2` for the create menu, `right: space-2` for backup — which were
+  /// the corners of a horizontal bar across the top of the window. The chrome is a column down the
+  /// left now, or a bar along the bottom, so the backup menu opened in the opposite corner from its
+  /// own button.
+  ///
+  /// Measured on open instead, which is what `StatusChip`'s picker already does. **Opens upward
+  /// when the button is in the lower half** — anchoring the menu's bottom to the button's top,
+  /// which needs no guess about how tall the menu is — and that is every menu opened from the foot
+  /// of the panel or from the bottom bar. Nudged inward so a menu near an edge stays on screen.
+  let menuAnchor = $state('');
+  function anchorTo(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - 11 * 16 - 8));
+    menuAnchor =
+      r.bottom > window.innerHeight / 2
+        ? `left:${Math.round(left)}px;bottom:${Math.round(window.innerHeight - r.top + 4)}px;top:auto;`
+        : `left:${Math.round(left)}px;top:${Math.round(r.bottom + 4)}px;`;
+  }
+
   let viewsOpen = $state(false);
   let helpOpen = $state(false);
   let saveViewOpen = $state(false);
@@ -1747,7 +1770,8 @@
       <button
         type="button"
         class="plus-btn"
-        onclick={() => {
+        onclick={(e) => {
+          anchorTo(e);
           createOpen = !createOpen;
           if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
         }}
@@ -1761,7 +1785,7 @@
         <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
              tap that would otherwise land on whatever is behind the menu. -->
         <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
-        <ul class="create-menu" role="menu">
+        <ul class="create-menu" role="menu" style={menuAnchor}>
           {#each createItems as item, i (item.label)}
             <!-- The rule falls where "make something" turns into "look at something", worked out
                  from the groups rather than flagged by hand — so it stays right when an item is
@@ -1850,7 +1874,7 @@
       <button
         type="button"
         class="views-btn"
-        onclick={() => (viewsOpen = !viewsOpen)}
+        onclick={(e) => (anchorTo(e), (viewsOpen = !viewsOpen))}
         aria-expanded={viewsOpen}
         aria-haspopup="menu"
         title="Open a view"
@@ -1859,7 +1883,7 @@
       </button>
       {#if viewsOpen}
         <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
-        <ul class="create-menu" role="menu">
+        <ul class="create-menu" role="menu" style={menuAnchor}>
           {#each viewTargets as t (t.key)}
             <li role="none">
               <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
@@ -1997,7 +2021,7 @@
       <button
         type="button"
         class="save-more"
-        onclick={() => (backupMenuOpen = !backupMenuOpen)}
+        onclick={(e) => (anchorTo(e), (backupMenuOpen = !backupMenuOpen))}
         aria-expanded={backupMenuOpen}
         aria-haspopup="menu"
         aria-label="other backup options"
@@ -2006,7 +2030,7 @@
       </button>
       {#if backupMenuOpen}
         <div class="menu-backdrop" role="presentation" onclick={() => (backupMenuOpen = false)}></div>
-        <ul class="create-menu right" role="menu">
+        <ul class="create-menu" role="menu" style={menuAnchor}>
           {#each BACKUP_MENU as item (item.label)}
             <li role="none">
               <button type="button" role="menuitem" onclick={() => ((backupMenuOpen = false), item.run())}>
@@ -2843,8 +2867,8 @@
   }
   .create-menu {
     position: fixed;
-    top: calc(var(--header-h) + env(safe-area-inset-top, 0px) - 2px);
-    left: var(--space-2);
+    /* No coordinates here — `anchorTo` measures the button that opened it and supplies them
+       inline. A fixed corner was only ever right while the chrome was a bar across the top. */
     z-index: 41;
     min-width: 11rem;
     max-height: 70vh;
@@ -2935,10 +2959,6 @@
   }
   /* The menu hangs off the right-hand control, so it aligns to that edge rather than the
      viewport's left the way the create menu does. */
-  .create-menu.right {
-    left: auto;
-    right: var(--space-2);
-  }
   .create-menu .mi-label {
     display: block;
   }
