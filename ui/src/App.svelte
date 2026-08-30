@@ -36,6 +36,8 @@
     listVaults,
     listViews,
     saveView,
+    deleteView,
+    readTheme,
     createPaper,
     runView,
     activity as fetchActivity,
@@ -54,6 +56,7 @@
   import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, DuplicateFamily, Unrecorded } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
   import Welcome from './lib/Welcome.svelte';
+  import * as appearance from './lib/appearance';
   import Pairing from './lib/Pairing.svelte';
   import Starting from './lib/Starting.svelte';
   import { isRemote } from './lib/remote';
@@ -225,6 +228,74 @@
     theme = theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('fm-theme', theme);
+  }
+
+  // ---- The user's own theme (`<vault>/themes/*.css`), and getting back out of one ----
+  //
+  // The file lives in the vault so it arrives on the other machine; *wearing* it is this device's
+  // business, so the selection is `localStorage` like the dark/light choice above. A collaborator
+  // who pulls your vault gets your theme and is not forced into it.
+  /// **"Something in a vault changed."** The beat's `generation` is a function-local (it is sent as
+  /// `since` and replaced by the reply), so nothing reactive can depend on it. This is bumped
+  /// beside the `refresh()` it already triggers, which is what lets a theme edited on another
+  /// machine — or in the other pane — land without a timer of its own.
+  let vaultTick = $state(0);
+  let userTheme = $state<appearance.Selection | null>(null);
+  /// Set when a stored theme was refused at boot. Deliberately plain text in the top bar rather
+  /// than a styled panel: the situation it reports is "the styling may be the problem".
+  let themeRefused = $state('');
+  /// The theme is applied but nobody has yet proved they can reach anything. While this is true the
+  /// escape control is on screen; the first click, key, wheel or touch takes it away.
+  let themeUnproven = $state(false);
+
+  // **Decided before anything is applied.** If the last run put a theme on the page and the user
+  // never managed to click or type, do not put it back — that is the one failure a person cannot
+  // style their way out of, and closing and reopening the app is the gesture that fixes it on
+  // Android, where there is no address bar, and on a phone, where there is no keyboard.
+  {
+    const stored = appearance.readSelection();
+    if (stored && appearance.wasArmed()) {
+      appearance.writeSelection(null);
+      appearance.disarm();
+      themeRefused =
+        `The appearance “${stored.name}” was switched off. Last time it was on, nothing on ` +
+        `screen was clicked or typed — which usually means it made the app unusable. ` +
+        `You can turn it back on in Settings.`;
+    } else {
+      userTheme = stored;
+    }
+  }
+
+  /// Fetch and apply whatever is selected. Re-runs when the selection changes and when the
+  /// generation moves, so an edit on another machine (or in the other pane) lands without a timer.
+  $effect(() => {
+    const sel = userTheme;
+    void vaultTick;
+    if (!sel) {
+      appearance.clear();
+      appearance.disarm();
+      themeUnproven = false;
+      return;
+    }
+    void readTheme(sel.name, sel.vault)
+      .then((css) => {
+        appearance.arm(() => (themeUnproven = false));
+        themeUnproven = true;
+        appearance.apply(css);
+      })
+      .catch(() => {
+        // The theme's vault is gone, or the file is. Say so once and fall back to the built-in
+        // look rather than leaving someone on a blank screen wondering.
+        appearance.clear();
+        appearance.writeSelection(null);
+        themeRefused = `The appearance “${sel.name}” is not in this vault any more.`;
+        userTheme = null;
+      });
+  });
+
+  function turnOffTheme() {
+    appearance.writeSelection(null);
+    userTheme = null;
   }
 
   // Which audiences to show. A **view preference**, like the column order — it lives in
@@ -820,7 +891,10 @@
           }
         }
       }
-      if (r?.changed) await refresh();
+      if (r?.changed) {
+        vaultTick++;
+        await refresh();
+      }
     };
     // One beat unconditionally, in every backend: it is what answers `gitAvailable`, which
     // the first-run screen shows. Only the repeating timer is production-only — the mock
@@ -1016,6 +1090,31 @@
         saveViewTag.trim(),
       );
       saveViewOpen = false;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /// Remove the saved view this pane is showing, and leave the pane somewhere real.
+  ///
+  /// **The vault has to come from the view, not from the default.** `list_views` spans every vault
+  /// and `delete_view` resolves the name against one — so passing the default would find nothing
+  /// for a view living elsewhere and report success having deleted nothing. `ViewInfo.vault` exists
+  /// for this call.
+  async function deleteCurrentView() {
+    const pane = workspace.panes[focused];
+    const name = pane?.viewName;
+    if (pane?.kind !== 'view' || !name) return;
+    const info = views.find((v) => v.name === name);
+    try {
+      views = await deleteView(name, info?.vault ?? '');
+      // The pane is showing a file that no longer exists. Step it back to the built-in the view
+      // shadowed, keeping any grouping — the same landing `showEverything` uses, for the same
+      // reason: never leave someone looking at a pane that cannot draw.
+      changePane(pane.id, {
+        kind: info?.renderer ? rendererKind(info.renderer) : 'timeline',
+        viewName: null,
+      });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -1780,6 +1879,28 @@
         <button class="banner-dismiss" onclick={() => (notice = null)} aria-label="dismiss">✕</button>
       </p>
     {/if}
+    {#if themeRefused}
+      <p class="banner notice">
+        {themeRefused}
+        <button class="banner-dismiss" onclick={() => (themeRefused = '')} aria-label="dismiss"
+          >✕</button>
+      </p>
+    {/if}
+
+    <!-- **The way out of a theme that hides everything.** On screen only while the theme is still
+         unproven — the first click, key, wheel or touch anywhere takes it away, because that is the
+         moment we learn the app is reachable. A permanent floating button would tax every session
+         to insure against a rare one.
+
+         `all: revert` first, then literal values with `!important`, so it does not inherit the
+         theme it exists to escape. **This is convenience, not a guarantee**: a theme carrying its
+         own `!important` at equal specificity still wins. The layer that actually rescues the app
+         is the armed-boot guard in `appearance.ts`, which is JS and cannot be styled away. -->
+    {#if userTheme && themeUnproven}
+      <button class="theme-escape" onclick={turnOffTheme}>
+        Turn off “{userTheme.name}”
+      </button>
+    {/if}
 
     <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so
@@ -1811,6 +1932,7 @@
             onreorder={movePane}
             onresize={(patch) => resizePane(pane.id, patch)}
             onsaveview={() => { focused = i; saveCurrentView(); }}
+            ondeleteview={() => { focused = i; void deleteCurrentView(); }}
             onclose={() => closePane(pane.id)}
             onfocus={() => (focused = i)}
           />
@@ -1844,6 +1966,12 @@
         oncolumns={setCols}
         {theme}
         ontheme={toggleTheme}
+        userTheme={userTheme}
+        onusertheme={(sel) => {
+          appearance.writeSelection(sel);
+          userTheme = sel;
+          themeRefused = '';
+        }}
         onbackup={() => {
           settingsOpen = false;
           backupOpen = true;
@@ -2200,6 +2328,28 @@
   /* The flexible pane grid. `--cols` is the user's column count; panes flow into it and
      each spans some columns. min-height:0 on the grid and cells lets a pane scroll
      internally instead of the page. */
+  /* See the comment at the markup. Literal values on purpose: every one of these read from a
+     custom property would be a property the theme can redefine. */
+  .theme-escape {
+    all: revert;
+    position: fixed !important;
+    right: 12px !important;
+    bottom: 12px !important;
+    z-index: 2147483647 !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    border: 2px solid #000 !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    color: #000 !important;
+    font: 500 14px/1.2 system-ui, sans-serif !important;
+    cursor: pointer !important;
+  }
   .workspace {
     flex: 1;
     min-height: 0;

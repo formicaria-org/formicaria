@@ -15,6 +15,7 @@ import type {
   PathCheck,
   PullResult,
   VaultInfo,
+  ThemeInfo,
   ViewInfo,
   ViewResult,
   ConflictInfo,
@@ -392,6 +393,10 @@ function mockVault(name: unknown): (typeof gitVaults)[number] {
 // by fm-serve, not a vault command).
 let mockAgentEnabled = false;
 let mockPaperSeq = 1;
+/** Themes the mock vault holds. Empty by default: a vault that has never been themed is the
+ *  ordinary case, and a component must render correctly with nothing here. */
+let mockThemes: ThemeInfo[] = [];
+const mockThemeCss = new Map<string, string>();
 let mockSavedViews: ViewInfo[] = [
   { name: 'Recent notes', renderer: 'timeline', group_by: null },
   { name: 'Active', renderer: 'board', group_by: 'status' },
@@ -1328,6 +1333,39 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         group_by: args.group_by ? String(args.group_by) : null,
       });
       return mockSavedViews.slice() as T;
+    }
+    // Themes. The mock keeps them in memory the same way it keeps views, so a component test can
+    // save one, list it and read it back without a server — which is the whole reason the theme
+    // surface is four commands rather than a static URL.
+    case 'list_themes':
+      return mockThemes.slice() as T;
+    case 'read_theme': {
+      const name = String(args.name ?? '');
+      const css = mockThemeCss.get(name);
+      if (css === undefined) throw new Error(`there is no theme called '${name}'`);
+      return css as T;
+    }
+    case 'save_theme': {
+      const name = String(args.name ?? '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9 _-]/g, '-')
+        .split(/\s+/)
+        .join('-');
+      const css = String(args.css ?? '');
+      if (!name) throw new Error('a theme needs a name');
+      // The same ceiling the backend enforces, so a test can exercise the refusal.
+      if (css.length > 128 * 1024) throw new Error('this theme is too big, and the limit is 128 KB');
+      mockThemes = mockThemes.filter((t) => t.name !== name);
+      mockThemes.push({ name, vault: 'personal', bytes: css.length });
+      mockThemeCss.set(name, css);
+      return mockThemes.slice() as T;
+    }
+    case 'delete_theme': {
+      const name = String(args.name ?? '');
+      mockThemes = mockThemes.filter((t) => t.name !== name);
+      mockThemeCss.delete(name);
+      return mockThemes.slice() as T;
     }
     case 'delete_view': {
       mockSavedViews = mockSavedViews.filter((v) => v.name !== String(args.name ?? ''));

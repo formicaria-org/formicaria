@@ -3071,3 +3071,136 @@ straight into a note, `Ctrl+K` is the command palette and not a create shortcut,
 would have been worst — *"Search finds the text inside PDFs"*, which needs `poppler`, a dependency
 `release.yml:298` states plainly that the archive does not ship. A welcome note that promises a
 missing feature is worse than no welcome note: the reader concludes they installed it wrong.
+
+## 2026-08-30 — a saved view was never in the commit, and a view we cannot draw now says so `#ui`
+
+Three things about `.view` files, found while planning the customization work and fixed together
+because the first one is load-bearing for anything else that writes a file into a vault.
+
+**A view the app saved was never recorded.** `views::save_view` does a bare `std::fs::write`, and
+`commit` stages *"exactly the files this app wrote or deleted — not a directory, and certainly not
+`-A`"* — the store's write list, plus files matching `<notes dir>/<ULID>.md`. A `.view` matches
+neither. So it was written to disk and committed nowhere, while the save dialog said, verbatim,
+*"Saved as a file in your vault's `views` folder, so it travels with your notes."* It did not: it
+survived on the machine that made it and existed nowhere else. Invisible in the only way that
+matters — the view *works*, right up until you pull on the other machine and it is absent, which is
+indistinguishable from the app having lost it.
+
+`save_view`/`delete_view` now return the path they touched and `dispatch` enrols it via
+`Multi::seed_written`. **This widens the write list**, whose usual safety argument is the ULID
+naming scheme. The justification is narrower rather than broader: these are paths *this process just
+wrote, this second*, which is the list's original meaning — it can never sweep up a hand-written
+file or someone's staged work. Pinned by `saved_view_travels.rs`, which asserts against **real git**
+(`ls-tree` on HEAD), not against the write list: the question is not whether we remembered to enrol
+the path, it is whether the file is in the commit. It fails against the previous code.
+
+**`renderer: gallery` drew a timeline in silence.** The gallery renderer was deliberately removed —
+assets open from the notes that reference them — but the enum arm stayed, so a view asking for it
+parsed, loaded clean, and rendered as something else with nothing anywhere saying why. This was the
+one path the *"a broken view names itself, never vanishes"* discipline had not been applied to,
+because from the loader's side nothing was broken. `list_views` now reports it as an error naming
+what to change it to, and `save_view` refuses to author one — the app must not manufacture the
+breakage it reports. `search` went the other way and now **draws**: it is the flat, un-bucketed list,
+and `Search.svelte` takes no `query` when a view supplies the rows, because a view is a filter
+someone wrote, not a search someone typed — a prompt to type would be an instruction the reader
+cannot follow. This closes an entry that had been sitting in `outstanding.md` §3 as *"accepted — do
+not fix without deciding"*.
+
+**`ViewInfo` gained `vault`.** `list_views` spans every vault; `delete_view` resolves a name against
+one. Deleting by name alone therefore resolved against the *default* vault, where a view belonging
+to another is simply not found — and `delete_view` treats missing as success. A delete that reports
+success having deleted nothing is the worst answer available. `list_views` leaves the field empty
+(it is handed a path and has no name to report) and the dispatch arm stamps it while iterating the
+configs, which is the only place both are in hand.
+
+**And "Delete view" is now a button.** `delete_view` had existed end to end — command, `ipc.ts`,
+mock — since views became saveable, with **no `.svelte` caller anywhere**: a view could be made from
+the app and then removed only with a file manager, in an app whose owner works only through the UI.
+Two clicks, not a modal: it removes a file from someone's vault so it must not ride on one stray
+click, but a modal is a whole new surface for something done twice a year — the same reasoning that
+deleted the command palette. The armed state changes the label, not only the colour.
+
+## 2026-08-30 — a theme is a file in the vault, and three questions on top of it `#ui`
+
+`MASTERPLAN.md:133` has listed `themes/*.css   # CSS themes — git-tracked` in the vault layout since
+the beginning, and `:343,478` names CSS themes as one of three sanctioned extensibility layers —
+*"extensibility comes from CSS themes and declarative `.view` files — no code execution."* Nothing
+implemented it: `grep -rn "themes/" crates/ ui/src` returned nothing at all. **So the file layer is
+the spec executed, not amended, and owes no reversal.** `app.css` was already built for it — *"three
+layers, so a theme is one file... re-skinning needs zero renderer edits"* — and both CSPs already
+carried `style-src 'self' 'unsafe-inline'`, now pinned by a test in `fm-serve` so a later tightening
+pass cannot remove it in silence. (That test reads the header, not a browser; the neighbouring
+`frame-src` test exists because jsdom applies no CSP and a green test there hid a broken feature for
+months.)
+
+**A theme is not a note.** Tempting — `NotePanel` already edits arbitrary text — but a stylesheet in
+`notes/` becomes indexed, searchable, and permanent noise on every board and timeline; it
+contradicts the vault layout collaborators reason about; and note bodies are the app's *designated
+untrusted input*, arriving from other people through the `.md` merge driver. Moving a trust boundary
+to save writing a textarea is a bad trade.
+
+**The file travels; wearing it does not.** The theme is committed like any vault file, so it arrives
+on the other machine. The selection is `localStorage`, like `fm-theme` — a collaborator who pulls
+your vault gets your theme and is not forced into it, and a phone and a monitor can differ. This
+falls out of the existing rules rather than needing a new one.
+
+**The escape hatch, and what each layer is actually worth.** A theme is arbitrary CSS and there is
+**no CSS-level guarantee** against one that hides every control — `!important` at equal specificity
+beats anything we write, and saying otherwise would be the kind of claim this file exists to stop.
+So: (1) the editor previews live and writes nothing until *Keep*, which catches almost everything;
+(2) an **armed-boot guard** that does not depend on CSS at all — a flag is set before a stored theme
+is applied and cleared on the first click, key, wheel or touch, so if the app starts with it still
+set from last time, nobody could reach anything and the theme is not put back. Recovery is *close it
+and open it again*, which works on Android with no address bar and on a phone with no keyboard;
+(3) a fixed escape control, on screen **only while the theme is unproven** — the first interaction
+takes it away, because that is the moment we learn the app is reachable, and a permanent floating
+button would tax every session to insure against a rare one. Only layer 2 is claimed as reliable,
+and it is the only one fully tested. Cascade layers were considered and rejected: unlayered styles
+outrank every layer, so `@layer` would make the user theme lose to `app.css` and defeat the feature.
+
+**The Appearance form — extends an exception, not a new one.** Three fixed questions (accent, text
+size, font) that write token declarations into that same file. **This is not the query builder
+arriving through the other door**, and the test is specific: the `.view` filter UI was refused
+because it is a *grammar* — nine predicate kinds, with composition and nesting. Three questions with
+fixed answer types have no operators, no composition and no nesting; it is the move already approved
+as *"one tag is an arrangement, not a query builder."*
+
+**The hard stop, and where the creep is:** *a token may be re-valued; a new token cannot be invented
+from Settings* — the same line `keys.ts:3-7` draws when it lets you rebind a command but not invent
+one. "Let me set `--surface` too" is still a list and is fine. "Let me write a selector or a media
+query" **is** the grammar, and is refused — the text box underneath already exists for exactly that.
+Enforced mechanically: `ci/checks.sh` fails if `Appearance.svelte` names a design token in its own
+script, so the closed list has one home (`appearance.ts`'s `SUPPORTED`, 59 tokens). Verified by
+breaking it on purpose.
+
+When the file says more than the form can, **the form goes read-only and refuses to rewrite it** —
+the rule `views::save_view` applies to a filter richer than one tag, for the same reason: silently
+flattening someone's work is worse than declining to.
+
+**Density is refused for v1.** `--space-1…8` are consumed literally in ~40 rules; a density knob
+means a multiplier token and touching all of them, for one slider. Its own change, with its own
+tests, if ever.
+
+## 2026-08-30 — named workspaces are refused, and this is the record of why `#ui`
+
+Obsidian ships saved layouts and it is the obvious next ask, so the reasoning is written down rather
+than re-litigated. Literally it adds no third arrangement — `tiled`/`single` remain the only two —
+but *"one shell, two arrangements"* recorded a **reversal condition**: *"a third arrangement is
+genuinely needed → that is the moment to check whether this has become the customisation system it
+refuses to be, not to add a fourth."* This is that moment, and the check fails.
+
+It needs a manager — save, load, rename, delete, set-default, repair a corrupt one — and a manager
+is precisely the second-Settings drift that got the command palette deleted. It turns
+`localStorage['fm-workspace']` into a keyed collection with lifecycle and migration, in a loader
+that already carries back-compat branches for two prior shapes. The research is against it: most
+people never curate configurations, and the one workspace here **already persists and restores by
+itself**. And in Obsidian this is a *plugin* — which is the company the feature keeps.
+
+**What the want actually is, and the cheap thing that serves it: "reopen the view I just closed."**
+One entry in the action list, one member on the closed `Command` union, one closed pane held in
+memory. No manager, no new persistence, no ruling touched. Not built here; recorded as the thing to
+build if the ask returns.
+
+**Reversal condition:** if a named-configuration manager is ever wanted, the dated reversal must
+answer, in its own words, *why is this not the customisation system the app refuses to be?* — and it
+supersedes the "Hard stop at two" bullet, not this entry.

@@ -29,7 +29,7 @@ use fm_core::{Store, StoreError};
 use fm_model::{Kind, PropertyValue};
 use fm_query::{Dir, Filter, Op, Predicate, Query, SortKey};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use time::{format_description::well_known::Iso8601, Date};
 
 /// The renderer a view draws through — the same set the built-in nav offers.
@@ -40,6 +40,10 @@ pub enum Renderer {
     Agenda,
     Timeline,
     Search,
+    /// **Kept so old files still parse, but it no longer draws anything.** The gallery renderer was
+    /// deliberately removed — assets open from the notes that reference them. A view asking for it
+    /// used to fall through to the timeline in silence, which is the one thing `list_views` exists
+    /// to prevent: it reports a view it cannot draw, it never quietly draws a different one.
     Gallery,
 }
 
@@ -136,6 +140,13 @@ pub struct ViewInfo {
     pub name: String,
     pub renderer: Option<Renderer>,
     pub group_by: Option<String>,
+    /// **Which vault holds this file.** `list_views` walks one vault at a time and cannot know its
+    /// name, so it leaves this empty and `dispatch` stamps it while iterating the configs. Without
+    /// it the UI has a list of views and no idea where any of them live — and "delete" resolves
+    /// against the *default* vault, where a view belonging to another one is simply not found.
+    /// A delete that silently succeeds while deleting nothing is the worst answer available.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub vault: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -459,20 +470,7 @@ fn parse_date(s: &Option<String>, which: &str) -> Result<Option<Date>, String> {
 /// bounded — otherwise a name containing `../` chooses where in the filesystem we write. The label
 /// itself is preserved verbatim inside the file, so the user still sees what they typed.
 fn view_path(vault: &Path, name: &str) -> Result<std::path::PathBuf, String> {
-    let stem: String = name
-        .trim()
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { '-' })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("-")
-        .to_lowercase();
-    let stem: String = stem.chars().take(60).collect();
-    if stem.is_empty() {
-        return Err("a view needs a name".to_string());
-    }
-    Ok(vault.join("views").join(format!("{stem}.view")))
+    crate::vaultfile::path_in(vault, "views", name, "view", "view")
 }
 
 /// Write a saved view: a renderer, for a board the property its columns group by, and optionally
@@ -496,7 +494,15 @@ pub fn save_view(
     view: Renderer,
     group_by: Option<&str>,
     tag: Option<&str>,
-) -> Result<(), String> {
+    // **Returns the path it wrote.** Not decoration: `dispatch` has to enrol this file in the
+    // store's write list or `commit` will never stage it, and the app will go on telling the user
+    // their view "travels with your notes" while it exists only on this machine.
+) -> Result<PathBuf, String> {
+    // The app must not author a view it cannot draw. `list_views` now reports a gallery view as
+    // broken, and writing a fresh one would be manufacturing that breakage from inside the app.
+    if view == Renderer::Gallery {
+        return Err(GALLERY_GONE.into());
+    }
     let path = view_path(vault, name)?;
     let mut tag_carried_over: Option<String> = None;
     if let Ok(existing) = read_view(&path) {
@@ -546,18 +552,28 @@ pub fn save_view(
     }
     let dir = path.parent().ok_or("no views directory")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
-    std::fs::write(&path, body).map_err(|e| format!("could not write {}: {e}", path.display()))
+    std::fs::write(&path, body)
+        .map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    Ok(path)
 }
 
 /// Remove a saved view. Missing is success — the user asked for it to be gone.
-pub fn delete_view(vault: &Path, name: &str) -> Result<(), String> {
+pub fn delete_view(vault: &Path, name: &str) -> Result<PathBuf, String> {
     let path = view_path(vault, name)?;
     match std::fs::remove_file(&path) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Ok(()) => Ok(path),
+        // The path comes back on the missing branch too. A file git still tracks but disk no longer
+        // has is exactly the case that must reach `commit` — otherwise the deletion is never
+        // recorded, the file returns on the next pull, and the user deletes it again.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(path),
         Err(e) => Err(format!("could not delete {}: {e}", path.display())),
     }
 }
+
+/// What a view asking for the removed gallery renderer is told — by the lister and by the writer,
+/// so the app never explains the same refusal two different ways.
+const GALLERY_GONE: &str =
+    "gallery is no longer a way of showing notes — change this view to timeline or board";
 
 pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
     let dir = vault.join("views");
@@ -574,16 +590,25 @@ pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
     for path in paths {
         let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
         match read_view(&path) {
+            Ok(file) if file.view == Renderer::Gallery => out.push(ViewInfo {
+                name: file.name,
+                renderer: None,
+                group_by: None,
+                vault: String::new(),
+                error: Some(GALLERY_GONE.into()),
+            }),
             Ok(file) => out.push(ViewInfo {
                 name: file.name,
                 renderer: Some(file.view),
                 group_by: file.group_by,
+                vault: String::new(),
                 error: None,
             }),
             Err(e) => out.push(ViewInfo {
                 name: stem,
                 renderer: None,
                 group_by: None,
+                vault: String::new(),
                 error: Some(e),
             }),
         }

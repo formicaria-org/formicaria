@@ -321,10 +321,25 @@ export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery';
 
 /** One saved `.view`, as the sidebar lists it. A view that would not parse still appears,
  *  with `error` set and `renderer` null — a broken view names itself, never vanishes. */
+/** One `themes/*.css` file in a vault. The filename stem is the name — there is no header format
+ *  inside the file to carry a prettier label, on purpose. `error` is set for a file we can see but
+ *  cannot apply: a broken theme names itself rather than silently doing nothing. */
+export interface ThemeInfo {
+  name: string;
+  /** Which vault holds it — needed to read or delete it, for the same reason as `ViewInfo.vault`. */
+  vault?: string;
+  bytes: number;
+  error?: string;
+}
+
 export interface ViewInfo {
   name: string;
   renderer: Renderer | null;
   group_by: string | null;
+  /** Which vault holds the file. Needed to delete it: without it the command resolves against the
+   *  default vault, where a view belonging to another one is simply not found — and a delete that
+   *  reports success while deleting nothing is the worst answer available. */
+  vault?: string;
   error?: string;
 }
 

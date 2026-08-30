@@ -46,6 +46,7 @@
     onfocus: () => void;
     /// Keep this arrangement as a named view. Only the kinds that *are* an arrangement offer it.
     onsaveview?: () => void;
+    ondeleteview?: () => void;
   }
   let {
     pane,
@@ -70,6 +71,7 @@
     onclose,
     onfocus,
     onsaveview,
+    ondeleteview,
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -216,6 +218,17 @@
       groupBy: shownView.group_by ?? pane.groupBy,
     });
   }
+  /// **Two steps, not a modal.** Deleting a view removes a file from someone's vault, so it must
+  /// not ride on one stray click — but a modal is a whole new surface for something done twice a
+  /// year, and this app already decided that a rare action belongs inline (the same reasoning that
+  /// removed the command palette). The second click is the confirmation.
+  let confirmDelete = $state(false);
+  /// Disarm when the pane starts showing something else, or the armed button follows you onto a
+  /// different view and the next click deletes *that* one.
+  $effect(() => {
+    void pane.viewName;
+    confirmDelete = false;
+  });
   function rotate(dir: number) {
     if (!options.length) return;
     pick(options[(currentIndex + dir + options.length) % options.length].value);
@@ -482,6 +495,29 @@
           title="Keep this arrangement as a named view"
           aria-label="save this view">Save view</button>
       {/if}
+      <!-- The other half of the same decision. `delete_view` has existed end to end — command,
+           `ipc.ts`, mock — since views became saveable, with no button anywhere calling it, so a
+           view could be made from the app and then only removed with a file manager. -->
+      {#if ondeleteview && pane.kind === 'view' && pane.viewName}
+        <button
+          type="button"
+          class="ctl save-view-btn"
+          class:armed={confirmDelete}
+          onclick={() => {
+            if (confirmDelete) {
+              confirmDelete = false;
+              ondeleteview();
+            } else {
+              confirmDelete = true;
+            }
+          }}
+          onblur={() => (confirmDelete = false)}
+          title={confirmDelete
+            ? 'Click again to delete this view. The notes it showed are not touched.'
+            : 'Delete this saved view'}
+          aria-label={confirmDelete ? 'confirm deleting this view' : 'delete this view'}
+          >{confirmDelete ? 'Delete?' : 'Delete view'}</button>
+      {/if}
     {/if}
 
     <span class="spacer"></span>
@@ -527,6 +563,13 @@
       {/if}
     {:else if pane.kind === 'search'}
       <Search {cards} query={pane.query} {onopen} />
+      <!-- A saved view asking for the flat list. Until now `renderer: search` parsed, was accepted
+           by the loader, and then drew as a Timeline — the one place the "a broken view names
+           itself, never vanishes" discipline was not applied, because nothing was broken: it just
+           silently drew something else. No `query` prop: this is a filter someone wrote, not a
+           search someone typed (see the comment in `Search.svelte`). -->
+    {:else if pane.kind === 'view' && shownView?.renderer === 'search'}
+      <Search {cards} {onopen} />
     {:else if pane.kind === 'activity'}
       <Activity {shown} {onopen} />
     {:else if pane.kind === 'discussions'}
@@ -788,6 +831,13 @@
   .save-view-btn {
     cursor: pointer;
     white-space: nowrap;
+  }
+  /* Armed for the second click. Colour alone would be the only signal for a reader who cannot see
+     it, so the label changes too ("Delete view" → "Delete?") and the accessible name with it. */
+  .save-view-btn.armed {
+    background: var(--danger-bg);
+    color: var(--danger-fg);
+    border-color: var(--danger-fg);
   }
   .ctl {
     font: inherit;

@@ -16,6 +16,7 @@ import type {
   ThreadView,
   RemoteProbe,
   VaultInfo,
+  ThemeInfo,
   ViewInfo,
   ViewResult,
   ConflictInfo,
@@ -787,5 +788,18 @@ export const saveView = (
 export const deleteView = (name: string, vault = '') =>
   invoke<ViewInfo[]>('delete_view', { name, vault });
 export const listViews = () => invoke<ViewInfo[]>('list_views');
+
+/** Every theme across every vault. Each carries the vault that holds it, which the write commands
+ *  below need — a name alone resolves against the default vault and finds nothing. */
+export const listThemes = () => invoke<ThemeInfo[]>('list_themes');
+/** The CSS of one theme, for the editor and for applying it. */
+export const readTheme = (name: string, vault = '') =>
+  invoke<string>('read_theme', { name, vault });
+/** Write a theme and get the new list back. Refused above 128 KB, before anything is written. */
+export const saveTheme = (name: string, css: string, vault = '') =>
+  invoke<ThemeInfo[]>('save_theme', { name, css, vault });
+/** Remove a theme. Missing is success — the user asked for it to be gone. */
+export const deleteTheme = (name: string, vault = '') =>
+  invoke<ThemeInfo[]>('delete_theme', { name, vault });
 /** Run one saved view by name — the query is defined server-side; we send only the name. */
 export const runView = (name: string) => invoke<ViewResult>('run_view', { name });

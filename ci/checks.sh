@@ -449,6 +449,53 @@ for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt'; do
     fi
 done
 
+# **The Appearance form is a list of tokens, never a language.**
+#
+# It re-values design tokens; it must never grow the ability to invent one, or write a selector or
+# a media query — that is the query-builder this project has refused twice, arriving through the
+# other door. The mechanical form of that rule: the token names the form can write live in
+# `appearance.ts`'s SUPPORTED, and the component never names one in its own logic. (Its `<style>`
+# block consumes tokens like any component, and its help text prints a few as examples; only the
+# script is checked, because that is where a hardcoded list would actually take effect.)
+if [ -f ui/src/lib/Appearance.svelte ]; then
+    if awk '/<script/,/<\/script>/' ui/src/lib/Appearance.svelte | grep -qE -- '--[a-z]'; then
+        echo "  FAIL: Appearance.svelte names a design token in its script. The set the form can"
+        echo "        write belongs in appearance.ts (SUPPORTED), so the closed list has one home."
+        fail=1
+    fi
+    if ! grep -q "SUPPORTED" ui/src/lib/appearance.ts; then
+        echo "  FAIL: appearance.ts no longer declares SUPPORTED — the form's closed list is gone."
+        fail=1
+    fi
+
+    # The manual promises these names will not move under a theme author. A promise the code has
+    # quietly stopped keeping is worse than no promise, so the two lists are compared rather than
+    # trusted: every token in SUPPORTED must appear in the page, and vice versa.
+    missing=$(
+        sed -n "/export const SUPPORTED/,/^];/p" ui/src/lib/appearance.ts |
+            grep -oE "'[a-z0-9-]+'" | tr -d "'" |
+            while read -r t; do
+                grep -qF -- "\`--$t\`" docs/src/user/appearance.md || echo "$t"
+            done
+    )
+    if [ -n "$missing" ]; then
+        echo "  FAIL: the manual's token list is missing: $(echo "$missing" | tr '\n' ' ')"
+        echo "        docs/src/user/appearance.md must list every name in appearance.ts SUPPORTED."
+        fail=1
+    fi
+    extra=$(
+        grep -oE '`--[a-z0-9-]+`' docs/src/user/appearance.md | tr -d '`' | sed 's/^--//' | sort -u |
+            while read -r t; do
+                sed -n "/export const SUPPORTED/,/^];/p" ui/src/lib/appearance.ts |
+                    grep -qE "'$t'" || echo "$t"
+            done
+    )
+    if [ -n "$extra" ]; then
+        echo "  FAIL: the manual promises names the app does not support: $(echo "$extra" | tr '\n' ' ')"
+        fail=1
+    fi
+fi
+
 # The first note a new user reads has to actually be in the archive. It is also the one file whose
 # failure is guaranteed to be invisible: the note loader is tolerant by design, so a note that does
 # not parse does not error — it disappears, and the newcomer opens an empty notebook. `welcome_note.rs`

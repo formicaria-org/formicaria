@@ -115,3 +115,41 @@ fn re_saving_without_a_tag_keeps_the_filter_that_is_there() {
     assert!(raw.contains("group_by: year"), "the grouping changed:\n{raw}");
     assert!(raw.contains("tag: paper"), "and the filter survived:\n{raw}");
 }
+
+/// **A view the app cannot draw must say so, not quietly draw something else.**
+///
+/// `renderer: gallery` parsed, loaded clean, and then rendered as a Timeline — so an author who
+/// asked for a gallery got a flat day-bucketed list and nothing anywhere said why. That is the one
+/// case the "a broken view names itself, never vanishes" discipline had not been applied to,
+/// because from the loader's point of view nothing was broken.
+#[test]
+fn a_gallery_view_names_itself_instead_of_impersonating_a_timeline() {
+    let dir = tempdir().unwrap();
+    fs::create_dir_all(views_dir(dir.path())).unwrap();
+    fs::write(
+        views_dir(dir.path()).join("shots.view"),
+        "name: Shots\nview: gallery\n",
+    )
+    .unwrap();
+
+    let listed = list_views(dir.path());
+    let v = listed.iter().find(|v| v.name == "Shots").expect("it must still be listed, not vanish");
+    assert!(v.renderer.is_none(), "it must not claim a renderer it cannot draw");
+    let err = v.error.as_deref().unwrap_or("");
+    assert!(err.contains("gallery"), "the error names the problem: {err:?}");
+    assert!(
+        err.contains("timeline") || err.contains("board"),
+        "and says what to do about it: {err:?}"
+    );
+}
+
+#[test]
+fn the_app_will_not_author_a_view_it_cannot_draw() {
+    let dir = tempdir().unwrap();
+    let err = save_view(dir.path(), "Shots", Renderer::Gallery, None, None).unwrap_err();
+    assert!(err.contains("gallery"), "{err}");
+    assert!(
+        !views_dir(dir.path()).join("shots.view").exists(),
+        "a refused save must leave no file behind"
+    );
+}

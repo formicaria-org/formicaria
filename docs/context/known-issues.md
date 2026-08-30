@@ -496,14 +496,15 @@ The gray-screen fix and its tests are in
   column value) — view preferences, per-browser, **not** in the vault, so they
   don't sync across machines. Intentional; the vault-side `.view` file would
   change that (still deferred). Column DnD is mouse-only (like card DnD).
-- **A `.view` file cannot be written, edited or deleted from the UI — only stepped out of.**
-  `list_views`/`run_view` are the only commands; there is no `save_view`, and no CLI subcommand
-  either, so a saved view is authored by hand in `<vault>/views/*.view`. Since 2026-08-24 a
-  filtered view at least *declares* what it leaves out and offers one click to the unfiltered
-  built-in renderer (`decisions.md#ui`) — but the owner works only through the UI, so **changing
-  what a view filters is still not something they can do**. Whoever adds view authoring: the
-  words for the filter already exist (`views::describe_pred`), which is most of an editor's
-  read side.
+- **A `.view` file cannot be *edited* from the UI — created and deleted, yes; re-filtered, no.**
+  `save_view` (2026-08-28/29) writes a renderer, a group-by and at most one tag; "Delete view" is
+  wired as of 2026-08-30. **Changing what an existing view filters is still not possible from the
+  app**, and that is deliberate — a UI over the nine-predicate grammar is a query builder, rejected
+  twice (`decisions.md#ui`). A hand-written filter richer than one tag is refused rather than
+  flattened. Whoever revisits this: the words for the filter already exist
+  (`views::describe_pred`), which is most of an editor's read side. **There is no rename yet**, and
+  it must not be built as save-then-delete — saving under a new name never trips the
+  refuse-don't-flatten guard, so it would silently destroy a hand-written filter.
 - **The caret-anchored `/` menu is unverified in headless.** `caret.ts` measures
   with a mirror div, and **jsdom has no layout** — `caretXY` returns zeros there,
   so the menu degrades to the editor's top-left and the tests can't see the real
@@ -543,6 +544,14 @@ The gray-screen fix and its tests are in
   reason behind the browser pivot ([decisions.md](./decisions.md)).
 
 ## Traps for whoever works here next
+
+- **Excalidraw reads `--border-radius-md` / `--border-radius-lg`, which `app.css` does not define**
+  (we use `--radius-*`). A user theme that sets the `--border-radius-*` spelling will silently
+  restyle the whiteboard and nothing else — verified by reading
+  `ui/node_modules/@excalidraw/excalidraw/dist/prod/index.css`, which declares no `--bg`/`--text`/
+  `--accent`/`--surface` of its own. This is the concrete reason the theme surface is a *documented
+  list of names* (`appearance.ts`'s `SUPPORTED`) rather than "any custom property you like".
+
 
 - **A jsdom test can never see a Content-Security-Policy, so a policy can forbid a shipped feature
   and every test still passes.** Found 2026-08-29: the app policy carried `frame-src 'none'` while

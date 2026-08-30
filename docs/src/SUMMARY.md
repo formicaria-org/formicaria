@@ -11,6 +11,7 @@
 
 - [Creating & organizing notes](./user/notes.md)
 - [Views](./user/views.md)
+- [Appearance](./user/appearance.md)
 - [Assets & media](./user/assets.md)
 - [Backup & versioning](./user/backup.md)
 - [Collaboration](./user/collaboration.md)

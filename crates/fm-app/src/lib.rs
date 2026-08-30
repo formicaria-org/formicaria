@@ -27,7 +27,9 @@ pub mod refs;
 pub mod scope;
 // A git token, only on platforms with no credential helper to delegate to (i.e. Android).
 pub mod secrets;
+pub mod themes;
 pub mod thread;
+pub mod vaultfile;
 pub mod vaults;
 pub mod views;
 // Encodings a shell needs on the way in — here rather than in the (workspace-excluded, untested)

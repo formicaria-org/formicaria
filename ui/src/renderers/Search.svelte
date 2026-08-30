@@ -9,18 +9,25 @@
   // hit is an ingested file (plain notes carry no redundant type label), and opens
   // the note on click. No status literal appears here (the CI grep forbids them in
   // renderers) — it only reads generic card fields.
+  // **`query` is optional, and its absence is a different thing from an empty one.** A search pane
+  // always has a query box, so `''` means "you have not typed yet" and the right answer is a
+  // prompt. A saved `.view` drawn through this renderer has no box at all — it is a filter someone
+  // wrote, already applied — so a prompt to type would be an instruction the user cannot follow.
+  // Undefined means "this is a list, not a search": no prompt, and an empty result says the filter
+  // matched nothing rather than blaming the reader for typing badly.
   let {
     cards,
     query,
     onopen,
-  }: { cards: ObjectMeta[]; query: string; onopen: (id: string) => void } = $props();
+  }: { cards: ObjectMeta[]; query?: string; onopen: (id: string) => void } = $props();
+  const searching = $derived(query !== undefined);
 </script>
 
 <div class="results">
-  {#if !query.trim()}
+  {#if searching && !query!.trim()}
     <p class="empty">Search your notes and ingested documents.</p>
   {:else if cards.length === 0}
-    <p class="empty">No matches for “{query}”.</p>
+    <p class="empty">{searching ? `No matches for “${query}”.` : 'Nothing here yet.'}</p>
   {:else}
     <div class="list">
       {#each cards as card (card.id)}

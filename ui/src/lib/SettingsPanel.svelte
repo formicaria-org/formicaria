@@ -17,6 +17,7 @@
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
   import { onMount } from 'svelte';
+  import Appearance from './Appearance.svelte';
   import {
     config as fetchConfig,
     setGitAssetsMax,
@@ -91,6 +92,8 @@
     oncolumns,
     theme,
     ontheme,
+    userTheme = null,
+    onusertheme = () => {},
     commands,
     section = '',
     onkeyschanged,
@@ -104,6 +107,9 @@
     oncolumns: (c: number | 'auto') => void;
     theme: string;
     ontheme: () => void;
+    /** The user's own theme file, or `null` for the built-in look. Owned and applied by `App`. */
+    userTheme?: import('./appearance').Selection | null;
+    onusertheme?: (sel: import('./appearance').Selection | null) => void;
     /** The actions that used to be the command palette. Grouped, and run from here. */
     commands: { label: string; run: () => void; group?: string }[];
     /** Which heading to open at — `commands` when a "+" button sent you here. */
@@ -349,6 +355,11 @@
           </li>
         </ul>
       </section>
+
+      <!-- Colours and type. Sits next to the dark/light switch because that is where a person
+           looks for "how this looks", even though this one writes a file in the vault while its
+           neighbours touch only this browser — which the section says of itself. -->
+      <Appearance selected={userTheme} onselect={onusertheme} />
 
       <section>
         <h3>Layout</h3>

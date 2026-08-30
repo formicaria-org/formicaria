@@ -1679,6 +1679,39 @@ mod tests {
         assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
     }
 
+    /// **A user theme is a `<style>` element this app writes into its own page.**
+    ///
+    /// `style-src` has always carried `'unsafe-inline'` — Mermaid and KaTeX inject their own style
+    /// — so themes cost no widening. But nothing pinned it, and the clause reads like exactly the
+    /// sort of thing a later tightening pass would remove on principle, at which point every user
+    /// theme silently stops applying with no error anywhere.
+    ///
+    /// **What this test does not prove.** It reads the header, not a browser. The neighbouring
+    /// `frame-src` test exists because a CSP clause blocked a shipped feature for months while a
+    /// jsdom test asserted the element was there — jsdom applies no CSP at all. This pins the
+    /// string against silent change; only a real browser proves the behaviour.
+    #[test]
+    fn the_policy_lets_the_app_apply_a_user_theme() {
+        let (_, headers) = request("GET / HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        let csp = headers
+            .lines()
+            .find_map(|l| l.strip_prefix("Content-Security-Policy: "))
+            .unwrap_or_else(|| panic!("no CSP on a page response:\n{headers}"));
+
+        let style = csp.split("style-src").nth(1).unwrap_or("").split(';').next().unwrap_or("");
+        assert!(
+            style.contains("'unsafe-inline'"),
+            "style-src must allow inline style or no user theme can ever apply: {csp}"
+        );
+        // The clause that must NOT follow it. Scripts are the thing worth protecting, and a theme
+        // buys no reason to relax them.
+        let script = csp.split("script-src").nth(1).unwrap_or("").split(';').next().unwrap_or("");
+        assert!(
+            !script.contains("'unsafe-inline'"),
+            "script-src must never gain 'unsafe-inline': {csp}"
+        );
+    }
+
     #[test]
     fn query_params_become_named_arguments() {
         let got: Vec<_> = query_pairs("name=my%20photo.png&vault=lab").collect();

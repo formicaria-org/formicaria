@@ -695,5 +695,8 @@ Recorded so nobody spends a session on these thinking they are bugs.
   and a CLI wants typed values to print. The duplicated *logic* was the debt, and it is shared
   now. Five of its commands are CLI-only by design, and `merge-md` runs before a store is
   opened because git invokes it as the merge driver.
-- **The `.view` renderer set is three, not five.** `search` and `gallery` still parse but fall
-  through to the timeline; said plainly in the manual rather than silently tolerated.
+- **The `.view` renderer set is four, and the fifth says so.** Decided 2026-08-30, having sat here
+  as "accepted, do not fix without deciding": `search` now draws — it is the flat, un-bucketed list,
+  and `Search.svelte` takes no `query` when a view supplies it. `gallery` is reported as an **error**
+  by `list_views` (its renderer was deliberately removed) instead of silently drawing a timeline,
+  and `save_view` refuses to author one.

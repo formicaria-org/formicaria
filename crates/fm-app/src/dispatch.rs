@@ -486,6 +486,11 @@ const READ_ONLY: &[&str] = &[
     "list_vaults",
     "list_views",
     "run_view",
+    // Reading a theme changes nothing. Writing or deleting one deliberately stays *off* this list:
+    // the generation bump is what makes another machine (or the other pane) notice a theme edit,
+    // for free, without a timer of its own.
+    "list_themes",
+    "read_theme",
     "check_path",
     "config",
     "probe_remote",
@@ -1745,8 +1750,20 @@ fn dispatch_inner(
         // for a headline feature, in an app whose owner works only through the UI. This saves the
         // arrangement (renderer, and a board's grouping); editing a filter stays a file-level job
         // and `views::save_view` refuses to silently drop one.
+        // **The write is only half the job.** `commit` stages the store's write list, not a
+        // directory scan, so a `.view` written straight to disk is never recorded — and the save
+        // dialog has always promised the opposite ("so it travels with your notes"). Enrolling the
+        // path here is what makes that sentence true.
+        //
+        // The write list's usual safety argument is the ULID naming scheme; this widens it. The
+        // justification is narrower, not broader: these are paths **this process just wrote, this
+        // second**, which is the list's original meaning. It can never sweep up a hand-written file.
         "save_view" => {
-            let path = lock()?.config(scope, &s("vault"))?.path;
+            // One guard for the whole arm. Resolving the vault and then seeding the write list
+            // through two separate locks would let a commit slip between them and miss the file.
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let renderer: crate::views::Renderer = serde_json::from_value(
                 args.get("view")
                     .cloned()
@@ -1755,7 +1772,7 @@ fn dispatch_inner(
             .map_err(|_| "that is not a view kind this app can render".to_string())?;
             let group = s("group_by");
             let tag = s("tag");
-            crate::views::save_view(
+            let written = crate::views::save_view(
                 &path,
                 &s("name"),
                 renderer,
@@ -1770,18 +1787,65 @@ fn dispatch_inner(
                     Some(tag.as_str())
                 },
             )?;
+            g.all.seed_written(&name, vec![written]);
             json(crate::views::list_views(&path))
         }
+        // Deleting has to be recorded for the same reason, and a little more urgently: an
+        // unrecorded deletion comes back on the next pull.
         "delete_view" => {
-            let path = lock()?.config(scope, &s("vault"))?.path;
-            crate::views::delete_view(&path, &s("name"))?;
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
+            let removed = crate::views::delete_view(&path, &s("name"))?;
+            g.all.seed_written(&name, vec![removed]);
             json(crate::views::list_views(&path))
+        }
+        // ---- Themes. A sibling of the view commands above, for the same reasons: a file in the
+        // vault, named by a label a person typed, recorded in git so it reaches the other machine.
+        // `MASTERPLAN.md` has specified `themes/*.css` since the start; this is that, built.
+        "list_themes" => {
+            let g = lock()?;
+            let mut all = Vec::new();
+            for v in g.configs() {
+                // Stamp the vault on the way past — `list_themes` is handed a path and has no name
+                // to report, and without it "delete" cannot find a theme outside the default vault.
+                all.extend(crate::themes::list_themes(&v.path).into_iter().map(|mut t| {
+                    t.vault = v.name.clone();
+                    t
+                }));
+            }
+            json(all)
+        }
+        "read_theme" => {
+            let path = lock()?.config(scope, &s("vault"))?.path;
+            json(crate::themes::read_theme(&path, &s("name"))?)
+        }
+        "save_theme" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
+            let written = crate::themes::save_theme(&path, &s("name"), &s("css"))?;
+            g.all.seed_written(&name, vec![written]);
+            json(crate::themes::list_themes(&path))
+        }
+        "delete_theme" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
+            let removed = crate::themes::delete_theme(&path, &s("name"))?;
+            g.all.seed_written(&name, vec![removed]);
+            json(crate::themes::list_themes(&path))
         }
         "list_views" => {
             let g = lock()?;
             let mut all = Vec::new();
             for v in g.configs() {
-                all.extend(crate::views::list_views(&v.path));
+                // Stamp the vault on the way past. `list_views` takes a path and has no name to
+                // report; this loop is the only place both are in hand.
+                all.extend(crate::views::list_views(&v.path).into_iter().map(|mut i| {
+                    i.vault = v.name.clone();
+                    i
+                }));
             }
             json(all)
         }
