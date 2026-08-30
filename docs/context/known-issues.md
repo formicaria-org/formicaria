@@ -557,12 +557,17 @@ The gray-screen fix and its tests are in
 - **The visual pass is part-done, and these are the parts that are not.** Shipped 2026-08-30:
   hue-derived status colour, `EmptyState` wired into all six renderers that had hand-rolled text
   (Board had none at all), cards showing title *and* preview with a two-line clamp, and the chrome
-  in two placements. **Still open:** `AssetMissing.svelte` remains orphaned (zero imports); no
-  thumbnail consumer exists, so a note with photos still decodes every one at full size — the
-  Android renderer-kill in `render.ts:407` is unchanged; the calendar's urgency is still a colour
-  with no second carrier; `data-type` is still inert, so a note and a discussion look identical; and
-  six of seven renderers still hand-pick spacing near the token scale without matching it.
-  **The landmine for the rest:** there is no virtualisation anywhere, so anything added per-card
+  in two placements. Then the timeline feed, which brought the **first thumbnail consumer** —
+  `?kind=thumb` now exists on both the desktop blob route and the Android `fmblob://` handler (both
+  had a parsed-and-discarded query string; the phone's was the `unused variable: query` warning our
+  release build printed) — and gave `AssetMissing.svelte` its first caller.
+  **Still open:** **the read view still points at full blobs**, so `render.ts:407`'s renderer-kill
+  is *narrowed to the feed, not closed* — converting the read view is the larger Android win and
+  wants its own measurement; the calendar's urgency is still a colour with no second carrier;
+  `data-type` is still inert, so a note and a discussion look identical; and five of seven renderers
+  still hand-pick spacing near the token scale without matching it.
+  **The landmine for the rest:** there is still no virtualisation anywhere. The feed covers itself
+  with a visible 30-post window and a button; anything else added per-card has no such cover and
   multiplies by the whole result set.
 
 - **`libwhisper-server.so` is not 16 KB aligned, and every other bundled library is.** Measured on

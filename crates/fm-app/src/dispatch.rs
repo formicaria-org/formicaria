@@ -1252,7 +1252,8 @@ fn dispatch_inner(
         }
         "open_external" => {
             // Resolve, then drop the guard: handing a path to the OS can block on anything.
-            let path = lock()?.find_blob(scope, &s("reference"))?;
+            // Never the thumbnail: "open this" means the file, not our small copy of it.
+            let path = lock()?.find_blob(scope, &s("reference"), false)?;
             host.open_external(&path)?;
             nothing()
         }
@@ -1999,7 +2000,19 @@ fn dispatch_inner(
 /// file to hand it back, which is the wrong shape for a 300 MB video. Handing back the
 /// *path* lets the shell open it and stream.
 pub fn blob_path(app: &App, scope: &Scope, reference: &str) -> Result<PathBuf, String> {
-    app.lock()?.find_blob(scope, reference)
+    app.lock()?.find_blob(scope, reference, false)
+}
+
+/// The blob route's resolver, able to ask for the derived thumbnail. Scoping is unchanged — the
+/// vault is still chosen by which one holds the blob, so a new query parameter cannot reach an
+/// audience the caller was not given.
+pub fn blob_path_of_kind(
+    app: &App,
+    scope: &Scope,
+    reference: &str,
+    thumb: bool,
+) -> Result<PathBuf, String> {
+    app.lock()?.find_blob(scope, reference, thumb)
 }
 
 impl Vaults {
@@ -2106,9 +2119,9 @@ impl Vaults {
     /// vault resolves against the *private* vault's blob store too — the same bytes, and
     /// therefore the same answer, from an audience they were never given. So the search is over
     /// the vaults this caller can see. `Scope::All` restores the original behaviour exactly.
-    fn find_blob(&self, scope: &Scope, reference: &str) -> Result<PathBuf, String> {
+    fn find_blob(&self, scope: &Scope, reference: &str, thumb: bool) -> Result<PathBuf, String> {
         for v in self.list.iter().filter(|v| scope.allows(&v.name)) {
-            if let Ok(p) = commands::blob_path(&v.path, reference) {
+            if let Ok(p) = commands::blob_path_of_kind(&v.path, reference, thumb) {
                 return Ok(p);
             }
         }

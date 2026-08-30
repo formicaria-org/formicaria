@@ -481,12 +481,16 @@ function assetBase(): string {
  *  is what this did — buried the `#` where no browser could act on it, so an anchored link opened
  *  the document at page one. The reference is split, the *blob* half encoded, and the fragment put
  *  back where a URL fragment belongs. */
-export const assetUrl = (reference: string) => {
+export const assetUrl = (reference: string, kind: 'full' | 'thumb' = 'full') => {
   const hash = reference.indexOf('#');
   const blob = hash === -1 ? reference : reference.slice(0, hash);
   const fragment = hash === -1 ? '' : reference.slice(hash);
   const base = !isPhone() ? '/api/blob/' : assetBase();
-  return `${base}${encodeURIComponent(blob)}${fragment}`;
+  // **The query goes before the fragment**, which is the whole reason this is built by hand rather
+  // than concatenated: a `#page=3` has to stay a fragment for the PDF viewer to act on it, and
+  // `?kind=thumb#page=3` is the only order a URL parser reads correctly.
+  const query = kind === 'thumb' ? '?kind=thumb' : '';
+  return `${base}${encodeURIComponent(blob)}${query}${fragment}`;
 };
 
 /// Set which attachments this vault pushes with its notes. `max` is a size a person writes

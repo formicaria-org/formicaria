@@ -754,12 +754,29 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     // `<video src>`, which range-requests as the user seeks, and buffering 300 MB per seek
     // is how the old object-URL path behaved. Streamed from disk, so it costs one buffer.
     if (method == "GET" || method == "HEAD") && path.starts_with("/api/blob/") {
-        let hash = path[10..].split('?').next().unwrap_or("");
+        // **The query string is no longer thrown away.** It was split off and discarded, which is
+        // why a thumbnail could be generated, stored and served by a command but never *linked to*
+        // — the URL had nowhere to say which one it wanted. `?kind=thumb` fills the slot that was
+        // already here. Anything else means the full blob: an unknown kind is not an error, it is
+        // just not a request for the small copy.
+        let (hash, query) = match path[10..].split_once('?') {
+            Some((h, q)) => (h, q),
+            None => (&path[10..], ""),
+        };
+        let thumb = query.split('&').any(|kv| kv == "kind=thumb");
         // **Scoped, and it has to be passed in.** This route is deliberately not a command, so
         // it never reaches `dispatch`'s enforcement. Blobs are content-addressed and
         // deduplicated, so a hash a paired device legitimately learns from its own vault would
         // otherwise resolve against a private one — same bytes, same answer, wrong audience.
-        return blob::serve(reader.get_mut(), state, &scope, hash, range.as_deref(), method == "HEAD");
+        return blob::serve(
+            reader.get_mut(),
+            state,
+            &scope,
+            hash,
+            range.as_deref(),
+            method == "HEAD",
+            thumb,
+        );
     }
 
     // Liveness, and *only* liveness — the cheapest possible "a tab is still here".

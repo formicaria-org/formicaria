@@ -25,6 +25,8 @@ export interface Pane {
   kind: PaneKind;
   groupBy: string; // board
   agendaMode: 'month' | 'week' | 'list'; // agenda
+  /** timeline — how much of each note a row shows. See `Timeline.svelte`. */
+  timelineMode: 'feed' | 'compact';
   query: string; // search
   noteId: string | null; // note / whiteboard
   viewName: string | null; // a saved .view
@@ -81,6 +83,11 @@ export function newPane(kind: PaneKind, over: Partial<Pane> = {}): Pane {
     kind,
     groupBy: 'status',
     agendaMode: 'month',
+    // **Feed by default.** A timeline of titles answers "what did I write"; a feed answers "what
+    // has been happening", which is the question a shared vault raises — every collaborator's
+    // notes in one stream, each badged with its audience and its last editor. The dense list is a
+    // click away for when you are hunting rather than catching up.
+    timelineMode: 'feed',
     query: '',
     noteId: null,
     viewName: null,

@@ -152,3 +152,16 @@ Renaming moves the file and leaves its contents alone, so anything you wrote in 
 including a filter this screen cannot describe, is kept exactly as it is. That is why it is a
 rename rather than "save it under the new name and delete the old one" — the latter would write a
 fresh file without your filter and then delete the only copy of it.
+
+## Two ways to read the timeline
+
+The timeline opens as a **feed**: each note as a post, with its picture, its first line, the
+notebook it belongs to and who last touched it. In a shared vault that is one stream of everything
+happening — your notes and your collaborators', newest first.
+
+Switch to **List** in the window's header for the original one line per note. That is the faster
+view when you are hunting for a note you half-remember rather than catching up. The choice is per
+window and is remembered, so you can keep one of each open.
+
+The feed loads thirty posts at a time; **Show more** at the bottom loads the next thirty and says
+how many are left.

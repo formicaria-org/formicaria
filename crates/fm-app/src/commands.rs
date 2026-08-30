@@ -2025,10 +2025,41 @@ pub fn uncopy_note(
 /// Errors if the reference is malformed or the blob is not present locally (it
 /// may live only in a backup/remote) — the caller surfaces that as a warning.
 pub fn blob_path(vault: &Path, reference: &str) -> Result<PathBuf, StoreError> {
+    blob_path_of_kind(vault, reference, false)
+}
+
+/// The same, but able to hand back the **derived thumbnail** instead of the full file.
+///
+/// Thumbnails have been generated on every image ingest since they were built, and served by
+/// `resolve_asset_bytes` — but nothing could ask for one *as a URL*, so every inline image in the
+/// app decoded the original. `render.ts` measures what that costs: a 12 MP JPEG is ~50 MB of
+/// decoded pixels, and a handful in one place is a renderer kill on a phone. A feed of notes makes
+/// that per-screen rather than per-note, which is why this exists.
+///
+/// **The blob is resolved first, always.** That is not incidental: `find_blob` decides which vault
+/// a reference belongs to by asking whether the blob is *there*, and that is the check keeping a
+/// paired device from reading another audience's media. Resolving a thumbnail directly would let a
+/// `derived/` file answer for a vault whose blob the caller was never entitled to. So the full
+/// blob proves the right, and only then do we swap in the smaller file.
+///
+/// **Missing thumbnail falls back to the full blob** rather than failing. A vault ingested before
+/// thumbnails existed, or one where `vipsthumbnail` was not installed, still shows its picture —
+/// slowly, which is the correct degradation for "we could not make a small copy".
+pub fn blob_path_of_kind(
+    vault: &Path,
+    reference: &str,
+    thumb: bool,
+) -> Result<PathBuf, StoreError> {
     let hash = parse_ref(reference)?;
     let store = BlobStore::new(vault);
     if !store.exists(&hash) {
         return Err(StoreError::Io(format!("blob not present locally: {hash}")));
+    }
+    if thumb {
+        let t = ingest::thumb_path(vault, &hash);
+        if t.is_file() {
+            return Ok(t);
+        }
     }
     Ok(store.path_for(&hash))
 }

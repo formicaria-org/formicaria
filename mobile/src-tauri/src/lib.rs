@@ -203,6 +203,12 @@ fn blob_response(
         return not_found();
     };
     let (path, query) = rest.split_once('?').unwrap_or((rest, ""));
+    // **The `query` above was parsed and never read** — the compiler said so on every build. It was
+    // the unfinished half of thumbnails: the desktop route discarded its query string for the same
+    // reason, so a thumbnail could be generated and served by a command but never *linked to*.
+    // `?kind=thumb` fills the slot. Anything else means the full blob; an unknown kind is not an
+    // error, just not a request for the small copy.
+    let kind = if query.split('&').any(|kv| kv == "kind=thumb") { "thumb" } else { "full" };
 
     // **The preflight is still answered, though nothing this app writes needs it now.** On
     // Android the page is served from `http://tauri.localhost` while this handler answers on
@@ -234,7 +240,7 @@ fn blob_response(
     // and `<video>` can seek without the file ever being held whole in memory.
 
     let reference = percent_decode(path);
-    let args = serde_json::json!({ "reference": reference, "kind": "full" });
+    let args = serde_json::json!({ "reference": reference, "kind": kind });
     match dispatch("resolve_asset", &args, &[], &state, &AndroidHost) {
         Ok(out) => {
             let bytes = out.into_bytes();

@@ -464,6 +464,20 @@
           <button class:on={pane.agendaMode === 'week'} onclick={() => onchange({ agendaMode: 'week' })}>W</button>
           <button class:on={pane.agendaMode === 'list'} onclick={() => onchange({ agendaMode: 'list' })}>L</button>
         </div>
+      {:else if pane.kind === 'timeline'}
+        <!-- The same control the agenda has had all along, for the same reason: one renderer, two
+             densities, chosen per window and remembered. Words rather than initials — there are
+             only two, and "Feed"/"List" say what they are without being learned. -->
+        <div class="seg">
+          <button
+            class:on={pane.timelineMode !== 'compact'}
+            onclick={() => onchange({ timelineMode: 'feed' })}
+            title="Each note as a post, with its picture">Feed</button>
+          <button
+            class:on={pane.timelineMode === 'compact'}
+            onclick={() => onchange({ timelineMode: 'compact' })}
+            title="One line per note">List</button>
+        </div>
       {:else if pane.kind === 'view' && hides.length}
         <!-- **A filtered view has to admit it.** Everything else in this chain tunes a pane; this
              one explains it. The words come from the server (`ViewInfo.filters`), so nothing here
@@ -684,7 +698,7 @@
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
-      <Timeline {cards} {onopen} {statuses} onstatus={onstatus} />
+      <Timeline {cards} {onopen} {statuses} onstatus={onstatus} mode={pane.timelineMode ?? 'feed'} />
     {/if}
   </div>
 

@@ -50,9 +50,12 @@ pub fn serve(
     reference: &str,
     range: Option<&str>,
     head: bool,
+    // Serve the derived thumbnail where one exists. Falls back to the full blob when it does not,
+    // so this can never turn a present image into a 404 — see `commands::blob_path_of_kind`.
+    thumb: bool,
 ) -> io::Result<()> {
     let reference = crate::percent_decode(reference);
-    let path = match fm_app::dispatch::blob_path(&state.app, scope, &reference) {
+    let path = match fm_app::dispatch::blob_path_of_kind(&state.app, scope, &reference, thumb) {
         Ok(p) => p,
         // Absent is a 404, not a 500: "media absence is a warning, never an error" — the
         // read view degrades to its placeholder.
@@ -260,8 +263,16 @@ mod tests {
 
         let server = std::thread::spawn(move || {
             let (mut sock, _) = listener.accept().unwrap();
-            super::serve(&mut sock as &mut dyn crate::Conn, &state, &fm_app::Scope::All, &reference, range.as_deref(), false)
-                .unwrap();
+            super::serve(
+                &mut sock as &mut dyn crate::Conn,
+                &state,
+                &fm_app::Scope::All,
+                &reference,
+                range.as_deref(),
+                false,
+                false,
+            )
+            .unwrap();
         });
 
         // Nothing is written from this end: `serve` is handed an already-parsed request, so
@@ -388,6 +399,7 @@ mod tests {
             &fm_app::Scope::All,
             &stored.hash,
             None,
+            false,
             false,
         )
         .unwrap();

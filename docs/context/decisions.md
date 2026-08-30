@@ -3328,3 +3328,66 @@ logcat). Overriding the hue needs only `hsl()`, which is everywhere.
 **Colour never carries the meaning alone** — the chip has always shown its word and still does, which
 is what keeps this out of the trap the calendar's urgency bars are still in (a 3px border hue with no
 second carrier; unfixed, recorded in `known-issues.md`).
+
+## 2026-08-30 — the timeline has two densities, and thumbnails finally have a caller `#ui`
+
+The owner asked for the timeline to show notes *"expanded as if a post in an Instagram app"*, and
+then named the reason that matters most: **a shared vault**. One stream, every collaborator's notes
+as they arrive, each post saying which audience it came from and who last touched it. `recent`
+already queries across every vault in scope and `ObjectMeta` already carries `vault`, so "all in a
+single feed" was the existing data shape — what was missing was a shape on screen that made it
+legible.
+
+**A mode, not a renderer.** `pane.timelineMode: 'feed' | 'compact'`, defaulting to feed, switched
+from a segmented control in the pane header that mirrors the agenda's month/week/list exactly. This
+adds no view kind, no `.view` renderer and no third arrangement. **It is emphatically not the
+removed gallery**: a gallery browsed *assets*, and was removed because assets open from the notes
+that reference them. This browses *notes* — nothing appears in it that the timeline did not already
+show, and a note's picture is an attribute of the note, not an entry in its own right.
+
+Both densities stay because they answer different questions, and the research says so: cards are for
+heterogeneous browsing, lists scan better for finding a known item. A feed answers "what has been
+happening"; the list answers "where is that note". Losing either would be a downgrade.
+
+**The feed was blocked on the thumbnail path, which was half-built on both platforms and finished on
+neither.** Thumbnails have been generated on every image ingest, served by `resolve_asset_bytes`,
+and reported by `AssetStatus.has_thumb` since they were built — but nothing could ask for one *as a
+URL*, so every inline image decoded the original. `render.ts` measures it: ~50 MB of decoded pixels
+for one 12 MP photo. A feed makes that per screen. The slot existed on both sides and was empty:
+`/api/blob/<hash>` split its query string off and discarded it, and the Android protocol handler
+parsed a `query` variable it never read — the `unused variable: query` warning our own release build
+printed. `?kind=thumb` fills both. **That warning disappearing is the tell the gap is closed.**
+
+**A missing thumbnail falls back to the full blob** rather than 404ing. A vault ingested before
+thumbnails existed, or one where `vipsthumbnail` was never installed, still shows its picture —
+slowly, which is the right degradation for "we could not make a small copy". Failing would make the
+feed look broken on exactly the vaults that predate it.
+
+**The blob is still resolved first, always.** `find_blob` decides which vault a reference belongs to
+by asking whether the blob is *there*, and that is the check keeping a paired device out of another
+audience's media. Resolving a `derived/` file directly would route around it, so the full blob
+proves the right and only then is the smaller file swapped in. Pinned by a test that a thumbnail
+alone, in a vault without the blob, is refused.
+
+**Bounded, because nothing else is.** `recent` returns every note with no limit and there is **no
+virtualisation anywhere in this app** — `MASTERPLAN.md` lists `@tanstack/svelte-virtual`; it is not
+installed and not used. A row per note was already the ceiling; a post carries an image as well. So
+the feed mounts thirty and offers a button for the rest. Thirty is a number to be changed after
+watching it on a real vault; what matters is that the cap is **visible and has a way past it**,
+rather than a silent truncation the reader cannot tell from a short vault. The compact list is
+deliberately left unwindowed — it behaves exactly as it always did, so this change cannot alter the
+view that already existed.
+
+**`AssetMissing.svelte` finally has a caller.** Its own comment named "gallery tile, card chip" as
+its homes and it had zero imports. A collaborator's note whose media has not synced yet is the
+ordinary case in a shared vault, and it has to read as "not here yet", never as a broken app.
+
+**Not done, and not implied:** the read view still points at full blobs. Converting it is the larger
+Android win and deserves its own measurement; this work only makes it possible.
+
+**Open question, deliberately not answered here.** The feed is sorted by `created`, so a
+collaborator's *new* notes surface but their *edits* do not resurface. Sorting by `updated` would
+fix that and introduce a worse problem — the feed would reshuffle under you as you type, since
+`updated` moves on every autosave. The post shows its last editor and when, so an edit is visible
+where it happened; if resurfacing is wanted it needs a considered activity ordering, not a swapped
+sort key.

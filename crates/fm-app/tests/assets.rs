@@ -82,3 +82,55 @@ fn ingest_creates_an_asset_note_and_status_reports_its_mime() {
     assert_eq!(meta2.assets[0], *reference, "same bytes → same blob reference");
     assert_ne!(meta2.id, meta.id, "but a distinct note");
 }
+
+/// **A thumbnail you can point a URL at.**
+///
+/// Thumbnails have been generated on every image ingest and readable through `resolve_asset_bytes`
+/// since they were built — but the *URL* form had no way to ask for one, so every inline image
+/// decoded the original. `render.ts` measures the cost: a 12 MP JPEG is ~50 MB of decoded pixels.
+/// A feed of notes makes that per-screen instead of per-note, which is what forced this.
+#[test]
+fn a_thumbnail_can_be_asked_for_by_path() {
+    let dir = tempdir().unwrap();
+    seed(dir.path());
+    let r = format!("sha256:{HASH}");
+
+    let full = commands::blob_path_of_kind(dir.path(), &r, false).unwrap();
+    let thumb = commands::blob_path_of_kind(dir.path(), &r, true).unwrap();
+    assert_ne!(full, thumb, "asking for a thumbnail must not hand back the original");
+    assert_eq!(fs::read(&thumb).unwrap(), b"thumb-bytes");
+    assert_eq!(fs::read(&full).unwrap(), b"blob-bytes");
+}
+
+/// **A missing thumbnail is not a missing image.** A vault ingested before thumbnails existed, or
+/// one where `vipsthumbnail` was never installed, still has to show its picture — slowly, which is
+/// the right degradation for "we could not make a small copy". Returning 404 here would make the
+/// feed look broken on exactly the vaults that predate it.
+#[test]
+fn a_missing_thumbnail_falls_back_to_the_full_blob() {
+    let dir = tempdir().unwrap();
+    seed(dir.path());
+    fs::remove_dir_all(dir.path().join("derived")).unwrap();
+    let r = format!("sha256:{HASH}");
+
+    let got = commands::blob_path_of_kind(dir.path(), &r, true).unwrap();
+    assert_eq!(fs::read(&got).unwrap(), b"blob-bytes", "it must fall back, not fail");
+}
+
+/// The blob still has to be *here* before a thumbnail is served from here. That check is what
+/// `find_blob` uses to decide which vault a reference belongs to, and therefore what keeps a
+/// paired device out of another audience's media — resolving a `derived/` file directly would
+/// route around it.
+#[test]
+fn a_thumbnail_is_refused_when_the_blob_itself_is_absent() {
+    let dir = tempdir().unwrap();
+    let thumb_dir = dir.path().join("derived").join(HASH);
+    fs::create_dir_all(&thumb_dir).unwrap();
+    fs::write(thumb_dir.join("thumb.webp"), b"thumb-bytes").unwrap();
+
+    let r = format!("sha256:{HASH}");
+    assert!(
+        commands::blob_path_of_kind(dir.path(), &r, true).is_err(),
+        "a thumbnail must not answer for a vault that does not hold the blob"
+    );
+}
