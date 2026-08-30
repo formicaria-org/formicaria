@@ -26,6 +26,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
 | **Papers, PDFs, annotations** (`fm-app/src/paper.rs`, the anchored `asset:` reference, the reader) | `papers-plan.md` — the direction, the four adversarial reviews it survived, and the owner's *separate app* ruling; then `decisions.md#data` |
+| **Supervision / training data** — recording what a human did with an AI proposal, the retention refs, the export | `supervision-datasheet.md` — written *before* collection and meant as a contract: what the corpus is, what it may **not** be used for, and the quality apparatus it commits us to |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 
 ## What formicaria is

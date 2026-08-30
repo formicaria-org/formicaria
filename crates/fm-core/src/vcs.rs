@@ -135,6 +135,7 @@ route!(revise_proposal_branch(vault: &Path, branch: &str, rel_path: &str, conten
 route!(proposal_load(vault: &Path) -> Result<(usize, u64), StoreError>);
 route!(push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreError>);
 route!(delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError>);
+route!(retire_proposal(vault: &Path, branch: &str) -> Result<(), StoreError>);
 route!(branch_open(vault: &Path, branch: &str) -> bool);
 route!(file_on_branch(vault: &Path, branch: &str, rel: &str) -> Option<String>);
 route!(branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, String), StoreError>);

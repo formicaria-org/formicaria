@@ -38,6 +38,7 @@ const vault = (name: string, remote: string | null) => ({
   restic_repo: null,
   restic_ready: false,
   git_assets_max: null,
+  supervision: { collect: true, publish: false },
 });
 
 const helper = { configured: 'store', plaintext: true, better: 'libsecret' };

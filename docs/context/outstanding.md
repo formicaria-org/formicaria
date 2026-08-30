@@ -181,6 +181,188 @@ Moving it to `derived/<hash>/text.txt` would fix git size, launch time, and sear
 own design and its own entry.
 
 
+### 2.0c Supervision signal — the datasheet is written; nothing is captured yet
+The corpus this app could produce — *the AI proposed X, the human made it Y* — is currently
+**destroyed on the two paths that matter**, and a datasheet now exists for the corpus that does not
+exist yet: [`supervision-datasheet.md`](./supervision-datasheet.md). Read it before adding any
+capture; it is written as a contract, including what the corpus may **not** be used for.
+
+**Done 2026-08-30:** ten model-authored `propose:`/`revise:` commits were found **unreachable and 37
+days old** against a 14-day prune window, and rescued to `refs/fm/rescue/<sha>` in the owner's vault.
+Verifying the rescue also confirmed the design's central invariant on real data: a ref outside
+`refs/heads/*` is seen by **neither** `git log HEAD` (so not by `activity` or `newest_foreign`) **nor**
+`proposal_load` — every history walk in this repo uses `push_head()` alone.
+
+**What git keeps today, and it is the wrong half:** *accept* is safe (the proposal commit survives as
+the merge's second parent, and `accept:` is a squash barrier), but **revise force-orphans the previous
+revision** (`write_proposal_branch` commits `-p HEAD` then force-moves the ref, and `commands.rs:777`
+force-pushes) and **reject deletes the branch outright**. The human's correction — the most valuable
+signal — is the one that does not survive.
+
+**Proved 2026-08-30 with a prototype exporter over the real vault** (23 records: 13 accepted, 9
+orphaned, 1 no-op): the corpus git already holds is not merely incomplete, **it is mislabelled**.
+All 13 accepts report the model's text landing *verbatim* — but that is an artifact: a human edit
+becomes a new proposal commit which becomes the merge's second parent, so a clean merge is always
+verbatim relative to the final proposal. **5 of those 13 notes also have an orphaned earlier
+proposal**, so up to ~38% of the accepted class claims "right first time" when it was the last of
+several attempts. Two exporter rules fell out and are not optional: diff each proposal against
+**its own merge-base with `main`** (otherwise unrelated notes ride along), and label a proposal
+whose tree equals its base as **`no-op`** rather than emitting it as a pair.
+
+**Also done 2026-08-30 — a live data-loss bug, fixed:** `ProposalReview.svelte`'s Accept sent only
+the proposal id, never the draft, so **accepting with unsaved edits merged the model's original and
+threw the reviewer's correction away silently.** Accept now persists the draft first and refuses to
+merge if that fails (`persistDraft`), and Save is disabled mid-accept. Pinned by a regression test
+that was *checked to fail without the fix* (`expected 'the model text' to be 'my correction'`).
+
+**Also done 2026-08-30 — retention refs, both backends:** `retain_proposal_tip` points
+`refs/fm/review/<proposal-id>/<sha>` at a proposal's outgoing commit before a revise force-moves the
+ref or a reject deletes it (`decisions.md`, *A proposal's outgoing commit is kept*). Pinned by
+`a_revised_or_rejected_proposal_keeps_its_outgoing_commit_on_both` in `git_differential.rs`, checked
+to fail without it. **`pixi run test-native-git` is the gate** — the route-parity grep cannot see
+this, because the helper is internal to each backend.
+
+**Also done 2026-08-30 — the reviewer's reason is captured (item 4):** `create_proposal` and
+`reject_proposal` take an optional `why`. On a proposal it becomes the **commit body** (never the
+subject — the prefix is the squash barrier); on a reject it lands as `declined_why` on the proposal
+note, which is the only place it can survive since reject writes no commit and the rejected text
+never reaches `main`. `commands::review_note` sanitises it: collapsed to one line, so a pasted `---`
+cannot terminate the message and a `Token: value` tail cannot masquerade as a trailer; an
+all-punctuation or empty answer is a **skip**, not a failure. The field is optional and
+always-visible rather than a confirm step — a required prompt produces satisficing, and a dismissable
+one would tax every typo fix. `ci/checks.sh` now greps labels and placeholders for git vocabulary
+(deliberately not button text: four such strings pre-date this and are a separate call).
+
+**Partly done 2026-08-30 — the machine trailers (item 5):** a proposal's commit message is now
+`subject` / reviewer's reason / **git trailers as the final paragraph** — `SchemaRev: 1` always, and
+`Assisted-by: formicaria-agent:<model>` when an agent proposed (never `Co-authored-by:`, which the
+kernel, ASF, LLVM and OpenTelemetry all rejected on the grounds that a model cannot hold
+accountability). `SchemaRev` exists because aider's convention changed seven times without recording
+its own version, leaving its history machine-uninterpretable. Trailers go last because that is the
+only paragraph git parses as trailers — which is also what keeps a reason shaped like `Foo: bar`
+prose rather than a field, asserted through git's own parser.
+
+**Item 5 finished 2026-08-30 — the input half:** `fmserve::Origin { tool, query, sources }` travels
+from the three agent call sites (`propose` / `research` / `transcribe`) through `dispatch` into
+`commands::Record`, and lands as `Tool:` / `Query:` / `Sources:` trailers. `/research` carries the
+URLs it cited — the only durable record, since it cites a live web that will not exist at training
+time — and `/transcribe` carries the `asset:` references of the audio.
+
+**Two gaps remain, stated rather than papered over.** The **fully rendered prompt** is not captured:
+it is multi-KB with newlines and a trailer is single-line by definition, so it needs a home that is
+not a commit message. And the model's **revision** is absent — `models.toml` pins every model to a
+commit + SHA-256, but only the identity reaches this layer, so a pair cannot be proven on-policy for
+the model it would train (plan T6).
+
+**Item 5b done 2026-08-30 — the unlabelled pool, and live defect #2 with it:** `vcs::retire_proposal`
+(both backends, routed, differential-tested) releases a settled proposal's guardrail slot while
+**keeping its commit** under `refs/fm/review/`. It is local-only by design — retiring is bookkeeping,
+not a statement to collaborators, and `delete_branch`'s remote delete is a network round trip that
+must not happen in a loop from a write path. `commands::create_proposal` sweeps declined-but-still-
+branched proposals at the moment the ceiling is checked, which is where the failure actually bit: a
+**peer's** reject leaves our `refs/heads/proposal/<id>` behind (fetch never prunes), so
+`proposal_load` counted it forever and a UI-only user eventually met *"the vault would have 2 open
+proposals, but it allows at most 1"* with no way out. Pinned by a test checked to fail without the
+sweep. The retired proposals become the **unlabelled pool** — the precondition for every selection
+method that works at this corpus size, since a log of only-corrections has nothing to select from.
+
+**Item 9 half-done 2026-08-30 — consent, the part that cannot be retrofitted:**
+`Descriptor::supervision` (`vault.json`) holds two separate answers — `collect` (default **on**: the
+user's own history in their own repo, nothing leaves) and `publish` (default **off**, never
+inferred, because publication cannot be recalled). It lives in the vault's file rather than
+per-device Settings for exactly `git_assets_max`'s reason: publishing relicenses **shared** content,
+so the vault decides, not the loosest machine holding a clone. Each proposal is stamped
+`Consent: local` / `Consent: local,publish` **per record** — a flag flipped next year must not
+silently relicense what came before — and `collect: false` writes no record at all, not a flag
+saying so.
+
+**Item 9 finished 2026-08-30 — the UI half:** two switches per vault in Settings, beside the
+attachment rule and for the same reason (`vault.json` decides what may leave, not whichever device
+is loosest). `set_supervision` is a `dispatch` command, **host-bound** — added to `REMOTE_DENIED`
+*and* to the paired-device test, which uses a hardcoded list rather than the constant, so a new
+entry is not covered by merely existing. A guest device does not get to grant publishing rights over
+the host's vault.
+
+Whoever builds the external export tool: it **reads** this and refuses records lacking it. It never
+grants it — a tool that could would be a route around the gate, which is the failure that stranded
+the only comparable open corpus.
+
+**Part of item 7 done 2026-08-30 — `Kind:`, the axis the corpus is split on:** three chips
+(`style` / `factual` / `reasoning`), single-select and optional, threaded through `Record` to a
+`Kind:` trailer and **validated against a closed set** — an unknown value is dropped, never stored,
+because a free-text axis is one nobody can group by and grouping is the entire point. It earns its
+UI because alignment and formatting saturate after roughly a thousand examples while factual and
+reasoning corrections keep improving with data: unlabelled, the two are indistinguishable and the
+corpus is only as useful as its weakest part.
+
+**Deliberately not done in item 7, with reasons:** `Strength` (an ordinal severity) — second-order
+next to `Kind`, and the review panel's UI budget is real; `IFD` — needs a model on the write path;
+`simhash` and the PII scan — worth doing, no blocker, just not yet.
+
+**Half of item 6 done 2026-08-30 — `shown`:** `thread::SHOWN` stamps an RFC3339 timestamp on the
+proposal note the first time the review panel actually renders the proposed text, server-side,
+**once**. It is the only thing separating *the reviewer read this and left it alone* from *nobody
+ever opened it* — two absences that are identical in the data and opposite facts about the model.
+A timestamp rather than a bool because it costs the same and the gap to the decision is how long
+someone actually spent. It lives on the note, not in a trailer, because it is a fact that arrives
+**after** the commit is written and a commit message is immutable.
+
+**The survival re-check — the other half of item 6 — is deliberately not built**, and not for want of
+time. It needs **move- and reformat-tolerant span identity**: in a Markdown note, re-wrapping a
+paragraph or moving a section is not a deletion, but a line-based differ scores it as one, and the
+one published pipeline that got this right prevented 8.3M false "deaths" across 32.5M line-birth
+events. Its censoring is also *informative*, not merely interval — someone who closes a note right
+after accepting a bad edit is censored **because** it was bad, which biases naive retention upward.
+That is an algorithm and a statistical correction, not a flag; it deserves its own design.
+
+**Item 5c will not be built, and the reason is structural, not effort.** A suppressed-suggestion
+holdout — generate 1–5% of outputs and deliberately not show them, keeping what the person wrote
+unaided — assumes the AI **offers** things unprompted. This app has none: `watch.rs:123` gates every
+turn on `convo::addressed`, so the agent speaks only when `@name`-mentioned. Suppressing an answer
+someone explicitly asked for is not a holdout, it is a broken reply. The unbiased eval set and the
+anchoring baseline it was meant to buy still need solving; they need a different mechanism here, and
+inventing one is its own design question rather than a line of code.
+
+**Composition is now asserted, not assumed (2026-08-30).** Each field was tested alone; a test now
+pins that they add up to *one* well-formed message — three paragraphs (what / why / machine fields),
+the trailer block last, every key single-line, and git's own parser agreeing. The failure it exists
+to catch is the compositional one: two correct features producing a message where the trailers are
+no longer the final paragraph, at which point git silently stops parsing them while every unit test
+still passes. The key order is fixed and **`SchemaRev` versions it** — changing the shape means
+bumping that.
+
+**Item 8 started 2026-08-30 — the pure core of the preference memory:**
+`crates/fm-agent/src/preference.rs` holds `Preference`, cosine similarity, `Memory::nearest`
+(k = 5, filtered per tool) and `Memory::prompt_block`, plus an `Embed` seam that `OpenAiStep` now
+implements against `llama-server`'s `/v1/embeddings`. Pure and model-free, like every other seam in
+that crate.
+
+**The load-bearing detail, encoded and tested:** the block emits the inferred **descriptions only,
+never the examples** — feeding back retrieved edits measured *worse than no learning at all*
+(32,405 vs 31,103 cumulative edit cost, arXiv:2404.15269). It also deduplicates, because one
+preference retrieved from five contexts is one preference and repeating it five times is how a small
+model starts obeying it instead of the request; and it returns `None` rather than an empty heading,
+which a small model will parrot.
+
+**Not yet wired, and the missing link is architectural:** the corpus lives in git, and `fm-agent`
+deliberately depends on no store and no git — that purity is what lets it target Android. So
+loading preferences belongs in `fm-agent-run` (over the HTTP surface) or `fm-app`. Still missing:
+inferring a description from a correction (an ordinary `LlmStep` call), reading the corpus, and
+injecting the block into `assemble_prompt`.
+
+**Done looks like**, in order: a **retention ref namespace** (`refs/fm/review/…`) written *before* the
+existing code moves or deletes the branch, on **both** git backends; an exporter built first, against
+the ten rescued examples, so the corpus has a consumer before it has volume; and a *"what did you
+change?"* prompt whose answer becomes the commit body — **with no git vocabulary anywhere in the UI**,
+per the owner's ruling.
+
+**Three live defects were found while designing this and are not part of it** — worth their own
+commits: `accept_proposal` never checks `declined` while `pull` fetches without `--prune`, so
+accepting a peer's *rejected* proposal **merges the rejected content into `main`**; `proposal_load`
+leaks one of 25 guardrail slots per peer-rejected proposal, with no way for a UI-only user to clear
+it; and the two backends order the squash walk differently (`git.rs` by date, `git_native.rs`
+topologically) with no test over a merge.
+
 ### 2.1 Track V4 — adoption
 Any `.md` reads for free with a **transient, index-only id**; the first time you cite or edit
 it, it is stamped with a real ULID. This is what makes "point formicaria at every repo you own"

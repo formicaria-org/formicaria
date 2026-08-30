@@ -278,6 +278,9 @@ export interface VaultInfo {
    *  Lives in the vault's own `vault.json`, not in this browser, because it decides what enters
    *  shared permanent history. */
   git_assets_max: number | null;
+  /** What may be done with this vault's review record. Two independent answers, never one flag:
+   *  agreeing to record something locally is not agreeing to publish it. */
+  supervision: { collect: boolean; publish: boolean };
   /** **What to show instead of `name`**: the repository behind this vault's remote
    *  (`…/formicarium-vault.git` → `formicarium-vault`), or `null` for a vault with no remote — or
    *  when two vaults would derive the same label. Display only; `name` stays the identity. See

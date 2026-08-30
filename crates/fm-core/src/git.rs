@@ -982,6 +982,33 @@ pub fn revise_proposal_branch(
 /// Shared build for [`create_proposal_branch`] / [`revise_proposal_branch`]. `force` skips ONLY the
 /// "branch already exists" refusal (a revise moves the ref); everything else — a pure object-DB build
 /// that never touches the working tree, real index, or `HEAD` — is identical, so a failure is inert.
+/// Keep a proposal's outgoing commit reachable **before** the ref that holds it moves or is deleted.
+///
+/// Without this, the two paths that carry the human's judgement destroy it. A *revise* force-moves
+/// `refs/heads/proposal/<id>` onto a commit re-parented on `HEAD`, orphaning the previous revision;
+/// a *reject* deletes the branch outright. Measured on the owner's own vault: ten such commits were
+/// found unreachable and 37 days old against a 14-day prune window.
+///
+/// The subtler reason, and the one that makes this not merely a nicety: a human edit becomes a *new*
+/// proposal commit, which then becomes the accept-merge's second parent. So a clean merge is **always**
+/// verbatim relative to the final proposal, and every accepted proposal looks like the model got it
+/// right first time. Retaining the outgoing tip is what makes the *accepted* label truthful.
+///
+/// **`refs/fm/review/…`, outside `refs/heads/*`, on purpose.** Every history walk in this crate pushes
+/// HEAD alone, so a retained commit is invisible to [`activity`], to `newest_foreign`'s squash window
+/// and to [`proposal_load`]'s guardrail count — it changes no existing answer, and `gc` cannot prune it.
+/// Verified empirically before this was written, not assumed.
+///
+/// **Best-effort by contract.** Losing the record must never fail the proposal the user asked for, so
+/// every failure here is swallowed. A *create* is a no-op: there is no prior tip to keep.
+fn retain_proposal_tip(vault: &Path, branch: &str) {
+    let Some(id) = branch.strip_prefix("proposal/") else { return };
+    let Ok(tip) = rev_parse(vault, &format!("refs/heads/{branch}")) else { return };
+    let _ = git(vault)
+        .args(["update-ref", &format!("refs/fm/review/{id}/{tip}"), &tip])
+        .output();
+}
+
 fn write_proposal_branch(
     vault: &Path,
     branch: &str,
@@ -1084,6 +1111,7 @@ fn write_proposal_branch(
         let commit = step("git commit-tree", commit_cmd.output().map_err(spawn)?)?;
         let commit = String::from_utf8_lossy(&commit.stdout).trim().to_string();
 
+        retain_proposal_tip(vault, branch); // no-op on a create; on a revise this is the whole point
         step(
             "git update-ref",
             git(vault).args(["update-ref", &format!("refs/heads/{branch}"), &commit]).output().map_err(spawn)?,
@@ -1168,10 +1196,34 @@ pub fn push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreE
 /// touches `main`.** This is how a proposal is REJECTED: a proposal is only ever an off-`main` branch,
 /// so declining it is just deleting that branch. Best-effort throughout: a branch that is already gone
 /// (rejected twice, or only ever existed on another clone) is success, not an error.
+/// Retire a **settled** proposal's local branch, keeping its commit.
+///
+/// Differs from [`delete_branch`] in the one way that matters here: it never touches the remote.
+/// Retiring is local bookkeeping — releasing a guardrail slot this clone is holding — not a
+/// statement to collaborators, and `delete_branch`'s remote delete is a network round trip that
+/// must not happen in a loop from a write path.
+///
+/// The commit is retained first, so a retired proposal joins the **unlabelled pool** rather than
+/// being dropped. That pool is the precondition for every selection method that works at this
+/// corpus's size: a log of only-corrections has nothing to select *from*.
+pub fn retire_proposal(vault: &Path, branch: &str) -> Result<(), StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(());
+    }
+    retain_proposal_tip(vault, branch);
+    let _ = git(vault).args(["branch", "-D", branch]).output();
+    Ok(())
+}
+
 pub fn delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
     if !vault.join(".git").exists() {
         return Ok(());
     }
+    // Deliberately here rather than at the reject call site: this function serves BOTH accept and
+    // reject, and a record that depends on the caller knowing which is which is exactly the shape
+    // this project keeps re-learning is silently forgotten. On accept it is redundant (the merge
+    // already keeps the commit) and costs one ref; on reject it is the only copy that survives.
+    retain_proposal_tip(vault, branch);
     let _ = git(vault).args(["branch", "-D", branch]).output(); // local
     if remote(vault)?.is_some() {
         let _ = git(vault).args(["push", REMOTE, "--delete", branch]).output(); // remote

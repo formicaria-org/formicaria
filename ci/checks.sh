@@ -115,6 +115,28 @@ if grep -REn '\.(inner|outer)HTML[[:space:]]*=[^=]|insertAdjacentHTML|\{@html' u
     fail=1
 fi
 
+echo "[check] the app asks its questions without git vocabulary..."
+# The owner's standing constraint on the review surface: "this has to work without the user knowing
+# what a commit is." The supervision record is only as good as the reason a person types into it, and
+# a field labelled in plumbing vocabulary is one nobody answers.
+#
+# Scoped to **labels and placeholders** — the microcopy that asks a person for something — because
+# that is where the guard can be true. It deliberately does NOT cover button text or status messages:
+# `ProposalReview.svelte` already says "Accept & merge" and "Merged into main", those pre-date this
+# rule, and cleaning them up is a separate decision. The point is to stop a *fifth* one appearing in
+# the place a user is being asked to write.
+bad_copy=$(
+    { grep -rhoE 'placeholder="[^"]*"' ui/src --include=*.svelte
+      grep -rhoE '<label[^>]*>[^<]*' ui/src --include=*.svelte | sed 's/<label[^>]*>//'; } \
+    | grep -inE 'commit|branch|merge|trailer|\bHEAD\b|repository' || true
+)
+if [ -n "$bad_copy" ]; then
+    echo "  FAIL: user-facing microcopy uses git vocabulary:"
+    printf '        %s\n' "$bad_copy"
+    echo "        Ask the question in the user's words; the plumbing stays underneath."
+    fail=1
+fi
+
 echo "[check] Mermaid must never run with securityLevel 'loose'..."
 # 'strict' strips HTML from diagram labels and disables click-bound scripts — the control that
 # holds the one untrusted innerHTML sink (the rendered SVG). 'loose' reopens CVE-2025-54881-class

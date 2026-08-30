@@ -27,18 +27,29 @@ use std::process::Command;
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
 fn have_git() -> bool {
-    Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 fn g(repo: &Path, args: &[&str]) -> std::process::Output {
-    Command::new("git").arg("-C").arg(repo).args(args).output().unwrap()
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .unwrap()
 }
 
 /// `force_native` is process-global (it stands in for a property of a *device*), so no two
 /// scenarios may be mid-flight at once. Every test takes this for its whole body.
 fn serial() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
 }
 
 /// Run a step **as the phone**: no `git` binary, so every `vcs::` call lands on libgit2.
@@ -65,15 +76,30 @@ fn identity(repo: &Path, name: &str, email: &str) {
 /// resolves merges itself.
 fn install_driver(repo: &Path) {
     let fm = Path::new(env!("CARGO_BIN_EXE_fm"));
-    g(repo, &["config", "merge.fm.driver", &format!("'{}' merge-md %O %A %B %L", fm.display())]);
     g(
         repo,
-        &["config", "merge.fm-manifest.driver", &format!("'{}' merge-manifest %O %A %B", fm.display())],
+        &[
+            "config",
+            "merge.fm.driver",
+            &format!("'{}' merge-md %O %A %B %L", fm.display()),
+        ],
+    );
+    g(
+        repo,
+        &[
+            "config",
+            "merge.fm-manifest.driver",
+            &format!("'{}' merge-manifest %O %A %B", fm.display()),
+        ],
     );
 }
 
 fn ensure_fm_beside_test_binary() {
-    let dst = std::env::current_exe().unwrap().parent().unwrap().join("fm");
+    let dst = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("fm");
     if !dst.exists() {
         let _ = std::fs::copy(env!("CARGO_BIN_EXE_fm"), &dst);
     }
@@ -83,7 +109,11 @@ fn ensure_fm_beside_test_binary() {
 fn devices() -> (tempfile::TempDir, tempfile::TempDir, tempfile::TempDir) {
     ensure_fm_beside_test_binary();
     let remote = tempfile::tempdir().unwrap();
-    Command::new("git").args(["init", "--bare", "-b", "main"]).arg(remote.path()).output().unwrap();
+    Command::new("git")
+        .args(["init", "--bare", "-b", "main"])
+        .arg(remote.path())
+        .output()
+        .unwrap();
 
     let seed = tempfile::tempdir().unwrap();
     git::ensure_repo(seed.path()).unwrap();
@@ -97,11 +127,17 @@ fn devices() -> (tempfile::TempDir, tempfile::TempDir, tempfile::TempDir) {
 
     let laptop = tempfile::tempdir().unwrap();
     let phone = tempfile::tempdir().unwrap();
-    for (dir, name, email) in
-        [(&laptop, "Ada", "ada@example.org"), (&phone, "Ravi", "ravi@example.org")]
-    {
+    for (dir, name, email) in [
+        (&laptop, "Ada", "ada@example.org"),
+        (&phone, "Ravi", "ravi@example.org"),
+    ] {
         std::fs::remove_dir_all(dir.path()).unwrap();
-        Command::new("git").arg("clone").arg(url).arg(dir.path()).output().unwrap();
+        Command::new("git")
+            .arg("clone")
+            .arg(url)
+            .arg(dir.path())
+            .output()
+            .unwrap();
         identity(dir.path(), name, email);
     }
     install_driver(laptop.path());
@@ -141,7 +177,9 @@ fn a_proposal_made_on_the_phone_is_accepted_on_the_laptop() {
     // The laptop writes the note both devices will share.
     let host = on_laptop(|| {
         let mut store = open(laptop.path());
-        let id = commands::capture(&mut store, "# Doc\n\noriginal line", "").unwrap().id;
+        let id = commands::capture(&mut store, "# Doc\n\noriginal line", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "note: doc");
         id
     });
@@ -157,6 +195,7 @@ fn a_proposal_made_on_the_phone_is_accepted_on_the_laptop() {
             "# Doc\n\noriginal line\n\nadded from the phone",
             &ProposalLimits::default(),
             Some(("Ravi", "ravi@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: proposal");
@@ -168,8 +207,15 @@ fn a_proposal_made_on_the_phone_is_accepted_on_the_laptop() {
         vcs::pull(laptop.path()).unwrap();
         let store = open(laptop.path());
         let diff = commands::proposal_diff(&store, laptop.path(), &prop.id).unwrap();
-        assert!(diff.exists, "the laptop can review a proposal the phone pushed");
-        assert!(diff.patch.contains("added from the phone"), "patch: {}", diff.patch);
+        assert!(
+            diff.exists,
+            "the laptop can review a proposal the phone pushed"
+        );
+        assert!(
+            diff.patch.contains("added from the phone"),
+            "patch: {}",
+            diff.patch
+        );
         assert_eq!(
             commands::accept_proposal(&store, laptop.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
@@ -201,7 +247,9 @@ fn a_proposal_made_on_the_laptop_is_accepted_on_the_phone() {
 
     let (host, prop) = on_laptop(|| {
         let mut store = open(laptop.path());
-        let host = commands::capture(&mut store, "# Doc\n\noriginal line", "").unwrap().id;
+        let host = commands::capture(&mut store, "# Doc\n\noriginal line", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "note: doc");
         let p = commands::create_proposal(
             &mut store,
@@ -210,6 +258,7 @@ fn a_proposal_made_on_the_laptop_is_accepted_on_the_phone() {
             "# Doc\n\noriginal line\n\nadded from the laptop",
             &ProposalLimits::default(),
             Some(("Ada", "ada@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(laptop.path(), &store, "backup: proposal");
@@ -220,8 +269,15 @@ fn a_proposal_made_on_the_laptop_is_accepted_on_the_phone() {
         vcs::pull(phone.path()).unwrap();
         let store = open(phone.path());
         let diff = commands::proposal_diff(&store, phone.path(), &prop.id).unwrap();
-        assert!(diff.exists, "the phone can review a proposal it only holds as origin/proposal/*");
-        assert!(diff.patch.contains("added from the laptop"), "patch: {}", diff.patch);
+        assert!(
+            diff.exists,
+            "the phone can review a proposal it only holds as origin/proposal/*"
+        );
+        assert!(
+            diff.patch.contains("added from the laptop"),
+            "patch: {}",
+            diff.patch
+        );
         assert_eq!(
             commands::accept_proposal(&store, phone.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
@@ -274,6 +330,7 @@ fn the_phone_accepts_cleanly_even_though_main_moved_under_it() {
             "# Doc\n\nalpha\nbravo\ncharlie\ndelta\necho revised",
             &ProposalLimits::default(),
             Some(("Ravi", "ravi@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: proposal");
@@ -286,8 +343,13 @@ fn the_phone_accepts_cleanly_even_though_main_moved_under_it() {
         vcs::pull(laptop.path()).unwrap();
         let mut store2 = open(laptop.path());
         std::mem::swap(&mut store, &mut store2);
-        commands::update_body(&mut store, &host, "# Doc\n\nalpha edited\nbravo\ncharlie\ndelta\necho", "")
-            .unwrap();
+        commands::update_body(
+            &mut store,
+            &host,
+            "# Doc\n\nalpha edited\nbravo\ncharlie\ndelta\necho",
+            "",
+        )
+        .unwrap();
         commit_push(laptop.path(), &store, "note: edit");
     });
 
@@ -305,13 +367,23 @@ fn the_phone_accepts_cleanly_even_though_main_moved_under_it() {
 
     let merged = body_of(phone.path(), &host);
     assert!(!merged.contains("<<<<<<<"), "no conflict markers: {merged}");
-    assert!(merged.contains("alpha edited"), "the laptop's edit survives: {merged}");
-    assert!(merged.contains("echo revised"), "and so does the proposal: {merged}");
+    assert!(
+        merged.contains("alpha edited"),
+        "the laptop's edit survives: {merged}"
+    );
+    assert!(
+        merged.contains("echo revised"),
+        "and so does the proposal: {merged}"
+    );
 
     on_laptop(|| {
         vcs::pull(laptop.path()).unwrap();
     });
-    assert_eq!(body_of(laptop.path(), &host), merged, "both devices converge on the same bytes");
+    assert_eq!(
+        body_of(laptop.path(), &host),
+        merged,
+        "both devices converge on the same bytes"
+    );
 }
 
 /// Rejecting on the phone reaches the proposer's laptop — **through the note, not the branch.**
@@ -335,7 +407,9 @@ fn rejecting_on_the_phone_reaches_the_proposer_as_a_declined_record() {
 
     let (host, prop) = on_laptop(|| {
         let mut store = open(laptop.path());
-        let host = commands::capture(&mut store, "# Doc\n\noriginal", "").unwrap().id;
+        let host = commands::capture(&mut store, "# Doc\n\noriginal", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "note: doc");
         let p = commands::create_proposal(
             &mut store,
@@ -344,6 +418,7 @@ fn rejecting_on_the_phone_reaches_the_proposer_as_a_declined_record() {
             "# Doc\n\nnot wanted",
             &ProposalLimits::default(),
             Some(("Ada", "ada@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(laptop.path(), &store, "backup: proposal");
@@ -353,22 +428,33 @@ fn rejecting_on_the_phone_reaches_the_proposer_as_a_declined_record() {
     on_phone(|| {
         vcs::pull(phone.path()).unwrap();
         let mut store = open(phone.path());
-        commands::reject_proposal(&mut store, phone.path(), &prop.id).unwrap();
+        commands::reject_proposal(&mut store, phone.path(), &prop.id, None).unwrap();
         // The app auto-commits every write; without this the decision never leaves the phone.
         commit_push(phone.path(), &store, "reject: declined");
     });
 
     // Gone from the shared remote — nobody else will fetch it again.
-    let refs = String::from_utf8_lossy(&g(phone.path(), &["ls-remote", "origin"]).stdout).into_owned();
-    assert!(!refs.contains("proposal/"), "the shared branch is deleted: {refs}");
+    let refs =
+        String::from_utf8_lossy(&g(phone.path(), &["ls-remote", "origin"]).stdout).into_owned();
+    assert!(
+        !refs.contains("proposal/"),
+        "the shared branch is deleted: {refs}"
+    );
 
     on_laptop(|| {
         vcs::pull(laptop.path()).unwrap();
         let store = open(laptop.path());
         let diff = commands::proposal_diff(&store, laptop.path(), &prop.id).unwrap();
-        assert!(diff.declined, "the proposer is told it was declined, via the note");
+        assert!(
+            diff.declined,
+            "the proposer is told it was declined, via the note"
+        );
     });
-    assert_eq!(body_of(laptop.path(), &host), "# Doc\n\noriginal", "and the note is untouched");
+    assert_eq!(
+        body_of(laptop.path(), &host),
+        "# Doc\n\noriginal",
+        "and the note is untouched"
+    );
 }
 
 /// A reviewer asks for changes, the proposer **revises**, and the reviewer sees the new version
@@ -383,7 +469,9 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
 
     let host = on_laptop(|| {
         let mut store = open(laptop.path());
-        let id = commands::capture(&mut store, "# Doc\n\noriginal", "").unwrap().id;
+        let id = commands::capture(&mut store, "# Doc\n\noriginal", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "note: doc");
         id
     });
@@ -398,6 +486,7 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
             "# Doc\n\nfirst attempt",
             &ProposalLimits::default(),
             Some(("Ravi", "ravi@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: proposal");
@@ -409,6 +498,7 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
             "# Doc\n\nsecond attempt",
             &ProposalLimits::default(),
             Some(("Ravi", "ravi@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: revision");
@@ -420,8 +510,16 @@ fn a_revised_proposal_replaces_what_the_reviewer_sees() {
         let store = open(laptop.path());
         let diff = commands::proposal_diff(&store, laptop.path(), &prop.id).unwrap();
         assert!(diff.exists);
-        assert!(diff.patch.contains("second attempt"), "the reviewer sees the revision: {}", diff.patch);
-        assert!(!diff.patch.contains("first attempt"), "and not the superseded one: {}", diff.patch);
+        assert!(
+            diff.patch.contains("second attempt"),
+            "the reviewer sees the revision: {}",
+            diff.patch
+        );
+        assert!(
+            !diff.patch.contains("first attempt"),
+            "and not the superseded one: {}",
+            diff.patch
+        );
         assert_eq!(
             commands::accept_proposal(&store, laptop.path(), &prop.id).unwrap(),
             git::Accepted::Merged,
@@ -444,7 +542,9 @@ fn the_phone_can_propose_and_accept_with_no_remote_at_all() {
         vcs::ensure_repo(solo.path()).unwrap();
         identity(solo.path(), "Ravi", "ravi@example.org");
         let mut store = open(solo.path());
-        let host = commands::capture(&mut store, "# Field notes\n\nseen a heron", "").unwrap().id;
+        let host = commands::capture(&mut store, "# Field notes\n\nseen a heron", "")
+            .unwrap()
+            .id;
         vcs::commit_all(solo.path(), "note", &store.written()).unwrap();
 
         let prop = commands::create_proposal(
@@ -454,6 +554,7 @@ fn the_phone_can_propose_and_accept_with_no_remote_at_all() {
             "# Field notes\n\nseen a heron\n\nand a kingfisher",
             &ProposalLimits::default(),
             Some(("agent", "agent@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         vcs::commit_all(solo.path(), "backup: proposal", &store.written()).unwrap();
@@ -482,8 +583,12 @@ fn accepting_on_the_phone_does_not_eat_an_unsaved_edit_to_another_note() {
 
     let (target, bystander) = on_laptop(|| {
         let mut store = open(laptop.path());
-        let a = commands::capture(&mut store, "# Target\n\noriginal", "").unwrap().id;
-        let b = commands::capture(&mut store, "# Bystander\n\nuntouched", "").unwrap().id;
+        let a = commands::capture(&mut store, "# Target\n\noriginal", "")
+            .unwrap()
+            .id;
+        let b = commands::capture(&mut store, "# Bystander\n\nuntouched", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "notes");
         (a, b)
     });
@@ -498,6 +603,7 @@ fn accepting_on_the_phone_does_not_eat_an_unsaved_edit_to_another_note() {
             "# Target\n\nproposed",
             &ProposalLimits::default(),
             Some(("Ravi", "ravi@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: proposal");
@@ -507,8 +613,13 @@ fn accepting_on_the_phone_does_not_eat_an_unsaved_edit_to_another_note() {
     // Mid-edit in the bystander note: written to disk by the store, not yet committed.
     on_phone(|| {
         let mut store = open(phone.path());
-        commands::update_body(&mut store, &bystander, "# Bystander\n\nhalf a thought I am still typing", "")
-            .unwrap();
+        commands::update_body(
+            &mut store,
+            &bystander,
+            "# Bystander\n\nhalf a thought I am still typing",
+            "",
+        )
+        .unwrap();
 
         let store = open(phone.path());
         assert_eq!(
@@ -517,7 +628,10 @@ fn accepting_on_the_phone_does_not_eat_an_unsaved_edit_to_another_note() {
         );
     });
 
-    assert!(body_of(phone.path(), &target).contains("proposed"), "the accept landed");
+    assert!(
+        body_of(phone.path(), &target).contains("proposed"),
+        "the accept landed"
+    );
     assert!(
         body_of(phone.path(), &bystander).contains("half a thought I am still typing"),
         "and the unsaved edit to an unrelated note survived it"
@@ -537,8 +651,12 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
 
     let (first, second) = on_laptop(|| {
         let mut store = open(laptop.path());
-        let a = commands::capture(&mut store, "# One\n\noriginal one", "").unwrap().id;
-        let b = commands::capture(&mut store, "# Two\n\noriginal two", "").unwrap().id;
+        let a = commands::capture(&mut store, "# One\n\noriginal one", "")
+            .unwrap()
+            .id;
+        let b = commands::capture(&mut store, "# Two\n\noriginal two", "")
+            .unwrap()
+            .id;
         commit_push(laptop.path(), &store, "notes");
         (a, b)
     });
@@ -553,6 +671,7 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
             "# One\n\noriginal one\n\ntranscript one",
             &ProposalLimits::default(),
             Some(("agent", "agent@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         let p2 = commands::create_proposal(
@@ -562,11 +681,16 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
             "# Two\n\noriginal two\n\ntranscript two",
             &ProposalLimits::default(),
             Some(("agent", "agent@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(phone.path(), &store, "backup: proposals");
 
-        assert_eq!(vcs::proposal_load(phone.path()).unwrap().0, 2, "two proposals are open");
+        assert_eq!(
+            vcs::proposal_load(phone.path()).unwrap().0,
+            2,
+            "two proposals are open"
+        );
 
         let store = open(phone.path());
         assert_eq!(
@@ -579,7 +703,11 @@ fn two_open_proposals_accept_one_after_the_other_on_the_phone() {
             git::Accepted::Merged,
             "the second still applies after the first moved main"
         );
-        assert_eq!(vcs::proposal_load(phone.path()).unwrap().0, 0, "and both slots are freed");
+        assert_eq!(
+            vcs::proposal_load(phone.path()).unwrap().0,
+            0,
+            "and both slots are freed"
+        );
     });
 
     assert!(body_of(phone.path(), &first).contains("transcript one"));

@@ -278,6 +278,9 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/probe_remote",
     "/api/check_path",
     "/api/git_auth",
+    // Granting permission to publish this vault's review record relicenses shared content, and
+    // publication cannot be recalled. A guest device does not get to answer that for the host.
+    "/api/set_supervision",
     // Vault lifecycle, and policy with off-machine effects. `set_git_assets_max` changes what
     // every git collaborator receives, from a device that is a guest in one vault.
     "/api/create_vault",
@@ -1542,6 +1545,9 @@ mod tests {
             "/api/create_vault",
             "/api/set_git_remote",
             "/api/backup",
+            // Granting permission to publish a vault's review record relicenses shared content and
+            // cannot be recalled — a guest device must not answer that for the host.
+            "/api/set_supervision",
         ] {
             let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
             assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");

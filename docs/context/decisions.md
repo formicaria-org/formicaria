@@ -19,7 +19,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): ***libgit2 ships on Windows too*** (the
+- **`#git` / `#sync`** (git, merge, collaboration): ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
   exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
   `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
@@ -81,6 +81,54 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A proposal's outgoing commit is kept, so the *accepted* label can be true (2026-08-30, `#git` `#agent` `#data`)
+
+**Decision.** Before the ref holding a proposal moves (revise) or disappears (reject), point
+`refs/fm/review/<proposal-id>/<sha>` at the outgoing commit. Both backends, best-effort, inside
+`write_proposal_branch` and `delete_branch`.
+
+**Why — and it is not about tidying up rejects.** A human edit becomes a *new* proposal commit,
+which then becomes the accept-merge's second parent, so a clean merge is **always** verbatim
+relative to the final proposal. Every accepted proposal therefore looks like the model got it right
+first time. Measured on the owner's vault with a prototype exporter: 13 accepts, **13 "verbatim", 0
+"accepted-then-changed"** — while **5 of those 13 notes also had an orphaned earlier proposal**. The
+corpus git already holds does not merely *lack* the human's correction, **it asserts something
+false**, in the direction that flatters the model. Retention is what makes the label truthful.
+
+Also measured, the same day: ten model-authored `propose:`/`revise:` commits were **unreachable and
+37 days old** against a 14-day `gc.pruneExpire` default. Reject had been deleting the
+highest-value signal for weeks, silently.
+
+**Why a ref namespace, and not a branch, a merge edge, or a note.**
+- Outside `refs/heads/*`, so it is invisible to every existing reader: **every history walk in this
+  crate pushes HEAD alone**, so `activity`, `newest_foreign`'s squash window and `proposal_load`'s
+  guardrail count are all unchanged. Verified empirically *before* the code was written, then
+  pinned by the test.
+- A branch under `refs/heads/proposal/*` would consume one of `DEFAULT_MAX_OPEN = 25` slots per
+  retained proposal and **brick proposals after 25 reviews**, with no UI to clear them.
+- **A merge edge was designed and rejected on reproduced evidence** (`merge -s ours` for reject): it
+  exits 2 on a *staged* index — the project-vault case this repo explicitly supports — and
+  `activity`'s `--no-merges` would then make a **rejected** proposal the note's newest touch,
+  attributed to the model, which `stale()` treats as fresh forever.
+- Gerrit's NoteDb keeps abandoned patchsets exactly this way (`refs/changes/…`), in production at
+  Android and Chromium scale.
+
+**In `delete_branch`, not at the reject call site**, deliberately: that function serves accept *and*
+reject, and a record that depends on the caller knowing which is which is precisely the shape this
+project keeps re-learning is silently forgotten (the `notes_base` exclusions, twice). On accept it
+is redundant and costs one ref.
+
+**Accepted costs.** Retained objects are never pruned, and **libgit2 exposes no gc/repack**, so a
+phone accretes loose objects. Bounding this is deprecation-and-stop-exporting, never deletion —
+deleting to save space is how Step 0 happened. Retention refs are **not pushed and not fetched** by
+default: the corpus is per-device and unioned at export, which is also why rejected text never
+reaches a collaborator.
+
+**Pinned by** `a_revised_or_rejected_proposal_keeps_its_outgoing_commit_on_both`
+(`crates/fm-core/tests/git_differential.rs`), **checked to fail** with retention neutered. The
+route-parity grep cannot see this — `retain_proposal_tip` is internal to each backend — so
+`pixi run test-native-git` is the only gate that catches divergence here.
 
 ## A PDF renders on the desktop; the phone opens it externally (2026-08-29, `#track-m`)
 

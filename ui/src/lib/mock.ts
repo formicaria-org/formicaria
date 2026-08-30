@@ -327,6 +327,7 @@ let mockVaults: Array<{
   name: string;
   path: string;
   git_assets_max: number | null;
+  supervision: { collect: boolean; publish: boolean };
   label: string | null;
   identity: { name: string; email: string } | null;
 }> = [
@@ -341,6 +342,7 @@ let mockVaults: Array<{
     name: 'personal',
     path: '/home/you/notes',
     git_assets_max: null,
+    supervision: { collect: true, publish: false },
     label: null,
     identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
   },
@@ -348,6 +350,7 @@ let mockVaults: Array<{
     name: 'lab',
     path: '/home/you/lab-notes',
     git_assets_max: 2_000_000,
+    supervision: { collect: true, publish: false },
     label: 'lab-notes',
     identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
   },
@@ -806,6 +809,15 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       acceptedProposals.add(prop.id);
       return { outcome: 'merged' } as T;
     }
+    case 'proposal_shown': {
+      const pr = notes.find((n) => n.id === String(args.id) && isProposal(n));
+      if (!pr) throw new Error('not a proposal');
+      // First sighting only — re-stamping would erase how long the reviewer actually took.
+      if (!pr.props?.shown) {
+        pr.props = { ...pr.props, shown: new Date().toISOString() };
+      }
+      return undefined as T;
+    }
     case 'reject_proposal': {
       // Reject drops the branch but KEEPS the proposal note as a declined record (a proposal is
       // immortal, like a merged one). The mock marks it `declined`; the real backend also deletes the
@@ -813,6 +825,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const p = notes.find((n) => n.id === String(args.id) && isProposal(n));
       if (!p) throw new Error('not a currently-open proposal');
       p.props = { ...p.props, declined: 'true' };
+      const rw = String(args.why ?? '').trim();
+      if (rw) p.props = { ...p.props, declined_why: rw };
       return undefined as T;
     }
     case 'create_proposal': {
@@ -830,7 +844,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       );
       if (existing) {
         // Refine: update the stored proposed body (the real backend revises the branch).
-        existing.props = { ...existing.props, proposedBody: String(args.body ?? '') };
+        const w = String(args.why ?? '').trim();
+        const kd = String(args.kind ?? '').trim();
+        existing.props = {
+          ...existing.props,
+          proposedBody: String(args.body ?? ''),
+          ...(w ? { why: w } : {}),
+          ...(kd ? { kind: kd } : {}),
+        };
         return existing as T;
       }
       const title = target.title ?? 'note';
@@ -1070,6 +1091,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const vaults: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
       return vaults as T;
     }
+    case 'set_supervision': {
+      // Two independent answers: an omitted one keeps its current value, so a UI can offer them as
+      // separate switches without either implying the other.
+      const v = mockVaults.find((x) => x.name === String(args.vault)) ?? mockVaults[0];
+      v.supervision = {
+        collect: typeof args.collect === 'boolean' ? args.collect : v.supervision.collect,
+        publish: typeof args.publish === 'boolean' ? args.publish : v.supervision.publish,
+      };
+      return mockVaults.map((x, i) => ({ ...x, default: i === 0 })) as T;
+    }
     case 'set_git_assets_max': {
       const target = String(args.vault ?? '');
       const v = mockVaults.find((x) => x.name === target) ?? mockVaults[0];
@@ -1133,6 +1164,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
+        supervision: { collect: true, publish: false },
         // A freshly created vault has no remote, so nothing to label it with — it keeps its name.
         label: null,
         // Nor a committer: git has not been told who you are, which is what the welcome screen asks.
@@ -1201,6 +1234,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
+        supervision: { collect: true, publish: false },
         // A clone *does* have a remote, so it gets the repository's name as its label.
         label: String(args.url ?? '')
           .trim()
@@ -1229,6 +1264,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         path: String(args.path ?? ''),
         // A new or acquired vault has no opinion yet, which means notes only — the real default.
         git_assets_max: null,
+        // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
+        supervision: { collect: true, publish: false },
         // A restored vault has no remote until one is set.
         label: null,
         // The restore brings back a repository whose commits already carry a committer, but this

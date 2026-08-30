@@ -48,6 +48,37 @@ pub const TARGETS: &str = "targets";
 /// a board-visible note class.
 pub const DECLINED: &str = "declined";
 
+/// Why a proposal was **rejected**, in the reviewer's own words: `declined_why: <one line>`.
+///
+/// Reject writes no commit of its own — `main` is untouched by design — and the rejected text never
+/// reaches `main` at all, so this note is the **only** place a rejection's reason can survive. It
+/// rides on the proposal note that [`DECLINED`] already rewrites, so it costs no new file.
+///
+/// A `Text` value is safe here for the same reason [`DECLINED`]'s bare bool is: proposal notes are
+/// excluded from **every** board ([`proposals_base`] / [`notes_base`]), so no board drop can write a
+/// column name into this key. Do not copy the shape onto a board-visible note class.
+///
+/// Descriptive only, and never load-bearing: it is hand-editable frontmatter, so it is a record of
+/// what someone said, never evidence that anyone approved anything.
+pub const DECLINED_WHY: &str = "declined_why";
+
+/// **When a proposal was first actually shown to a person**: `shown: <RFC3339>`.
+///
+/// The cheapest high-value discriminator in the whole record, and the only handle on the bias that
+/// otherwise makes silence unreadable. Without it, "the reviewer left this alone" and "nobody ever
+/// looked at it" are the same absence — and they mean opposite things about the model's output.
+/// Zed's edit-prediction telemetry carries the same flag for the same reason; Continue.dev, lacking
+/// it, has to guess with a ten-second timer and calls the result a rejection.
+///
+/// A **timestamp rather than a bool**, because it costs the same and answers more: the gap between
+/// this and the decision is how long someone actually spent on it.
+///
+/// Stamped **server-side**, once, and never overwritten — a second viewing is not a second first
+/// viewing, and a browser's clock is not evidence. Like [`DECLINED`], it lives on the immortal
+/// proposal note: it is a fact that arrives *after* the proposal's commit is written, and a commit
+/// message is immutable.
+pub const SHOWN: &str = "shown";
+
 /// The discussion a message belongs to: `thread_of: note:<ULID>`, always pointing at the
 /// **root note**, never at another message.
 ///
@@ -149,5 +180,7 @@ pub fn notes_base() -> Filter {
 pub fn proposals_base() -> Filter {
     Filter::new()
         .and(Predicate::Kind(vec![Kind::Note]))
-        .and(Predicate::BranchRef { key: PROPOSES.into() })
+        .and(Predicate::BranchRef {
+            key: PROPOSES.into(),
+        })
 }

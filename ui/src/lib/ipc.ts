@@ -308,8 +308,22 @@ export const onlineAgents = () =>
  *  **refused, never truncated**, when it exceeds the target vault's guardrails (`vault.json` →
  *  `proposals`: max files/size per proposal, max open count/size per vault). Returns the proposal
  *  note. This is also the single write path the study agent uses — it can only ever edit one note. */
-export const createProposal = (id: string, body: string) =>
-  invoke<ObjectMeta>('create_proposal', { id, body });
+/** Record what may be done with a vault's review record. Two independent answers — omitting one
+ *  leaves it as it was, so a UI can offer them as separate switches without either implying the
+ *  other. Host-bound: a paired device may not answer this for the machine that owns the vault. */
+export const setSupervision = (vault: string, next: { collect?: boolean; publish?: boolean }) =>
+  invoke<VaultInfo[]>('set_supervision', { vault, ...next });
+
+export const createProposal = (id: string, body: string, why?: string, kind?: string) =>
+  invoke<ObjectMeta>('create_proposal', { id, body, why, kind });
+
+/** Record that a proposal was actually put in front of a person.
+ *
+ *  Without it, "the reviewer read this and left it" and "nobody ever opened it" are the same
+ *  absence — and they mean opposite things about the model's output. Idempotent and best-effort:
+ *  the first viewing is the one that means anything, and failing to note it must never break the
+ *  screen it is reporting about. */
+export const proposalShown = (id: string) => invoke<void>('proposal_shown', { id });
 
 /** The read half of review: a proposal's change as a unified diff against `main`, plus the files it
  *  touches. `exists: false` (empty diff) is the normal answer for a proposal whose branch is merged
@@ -337,7 +351,12 @@ export const acceptProposal = (id: string) =>
 /** Reject a proposal — the GUI's "Reject" button. Deletes the proposal's branch (local + remote) and
  *  the proposal note; **main is never touched**, so the worst case of a mistaken reject is a proposal
  *  you re-run. The safe inverse of Accept. */
-export const rejectProposal = (id: string) => invoke<void>('reject_proposal', { id });
+/** `why` is the reviewer's own sentence about what they changed, and it is OPTIONAL on purpose: a
+ *  required prompt produces satisficing rather than reasons, and a skipped one is itself a signal.
+ *  It becomes the commit body on a proposal, and — since a rejection writes no commit and the
+ *  rejected text never reaches `main` — the proposal note's only record of why on a reject. */
+export const rejectProposal = (id: string, why?: string) =>
+  invoke<void>('reject_proposal', { id, why });
 
 /** Notes nothing has touched since `since` (a git `--since` value), oldest first.
  *

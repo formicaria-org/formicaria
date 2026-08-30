@@ -2,7 +2,14 @@
   // Show a proposal's change for review: the files it touches and its unified diff against `main`,
   // fetched via `proposalDiff`. A proposal whose branch is gone (merged or deleted) is reported
   // plainly — "nothing to show" — because the proposal note outlives its branch.
-  import { proposalDiff, proposalContent, acceptProposal, rejectProposal, createProposal } from './ipc';
+  import {
+    proposalDiff,
+    proposalContent,
+    acceptProposal,
+    rejectProposal,
+    createProposal,
+    proposalShown,
+  } from './ipc';
   import type { ProposalDiff, ProposalContent } from './types';
 
   // `onaccepted`/`onrejected` let the parent (the Collaboration list) refresh once a proposal is
@@ -28,19 +35,58 @@
   let saving = $state(false);
   const dirty = $derived(proposed !== null && draft !== proposed.body);
 
+  // The reviewer's own sentence about what they changed. It is the single most valuable thing this
+  // screen can collect — git records *what* changed and can never record *why*, and an edit pair
+  // stored without its reason measured BELOW the untouched model on hard prompts.
+  //
+  // OPTIONAL, and always-visible rather than a confirmation step. Both are deliberate: a required
+  // prompt produces satisficing instead of reasons, and a field you must dismiss would tax every
+  // one-word typo fix. Left blank it costs nothing and the record is simply marked lower-tier.
+  let why = $state('');
+  // A short controlled vocabulary entered as inline @tags rather than a dropdown: a sentence stays a
+  // sentence, one tap covers the common cases, and rejections still aggregate.
+  const WHY_TAGS = ['@wrong', '@incomplete', '@style'];
+  function addTag(t: string) {
+    why = why.trim() ? `${why.trim()} ${t}` : t;
+  }
+  /** Undefined rather than '' so the backend sees a genuine skip, not an empty reason. */
+  const reason = () => why.trim() || undefined;
+
+  // What KIND of correction this was. The one axis the corpus cannot be split on later, and the one
+  // that decides what it is good for: style and formatting saturate after roughly a thousand
+  // examples, while factual and reasoning corrections keep improving with more data. Unlabelled,
+  // the two are indistinguishable and the whole corpus is only as useful as its weakest part.
+  //
+  // A closed set of three, single-select, and optional — a free-text axis is one nobody can group
+  // by, and grouping by it is the entire point.
+  const KINDS = ['style', 'factual', 'reasoning'];
+  let kind = $state<string | null>(null);
+  const pickKind = (k: string) => (kind = kind === k ? null : k);
+
+  /** Push `draft` onto the proposal's branch. Returns false — with the reason already in
+   *  `acceptMsg` — so a caller that must NOT proceed on failure (Accept) can stop. */
+  async function persistDraft(): Promise<boolean> {
+    if (!proposed) return false;
+    try {
+      await createProposal(proposed.host, draft, reason(), kind ?? undefined); // revises this PR's branch from the current note
+      await refetch();
+      return true;
+    } catch (e) {
+      acceptMsg = `Couldn't save: ${e instanceof Error ? e.message : String(e)}`;
+      return false;
+    }
+  }
+
   async function save() {
     if (!proposed || !dirty || saving) return;
     saving = true;
     acceptMsg = null;
-    try {
-      await createProposal(proposed.host, draft); // revises this PR's branch from the current note
+    if (await persistDraft()) {
       acceptMsg = 'Saved — the proposal now holds your edits, rebased on the latest note.';
-      await refetch();
-    } catch (e) {
-      acceptMsg = `Couldn't save: ${e instanceof Error ? e.message : String(e)}`;
-    } finally {
-      saving = false;
+      why = '';
+      kind = null;
     }
+    saving = false;
   }
 
   // The accept (merge) round-trip — the GUI's stand-in for `git merge`, since a UI-only user has none.
@@ -61,8 +107,9 @@
     rejecting = true;
     acceptMsg = null;
     try {
-      await rejectProposal(id);
+      await rejectProposal(id, reason());
       acceptMsg = 'Rejected — the change was dropped and kept as a declined record. main is untouched.';
+      why = '';
       await refetch();
       onrejected?.();
     } catch (e) {
@@ -76,6 +123,10 @@
     accepting = true;
     acceptMsg = null;
     try {
+      // Accepting with unsaved edits used to merge the ORIGINAL and silently drop what the
+      // reviewer had typed — `acceptProposal` sends only the id, never the draft. Save first:
+      // the edited text is what "accept" means when someone has changed it.
+      if (dirty && !(await persistDraft())) return; // persistDraft set the message; `finally` clears the flag
       const { outcome } = await acceptProposal(id);
       if (outcome === 'conflicted') {
         acceptMsg = "This proposal doesn't merge cleanly onto the current note — main was left unchanged. Ask the author to redo it against the latest, or resolve it after a sync.";
@@ -121,6 +172,9 @@
         proposed = c;
         if (c) draft = c.body;
         loading = false;
+        // It is on screen now. Best-effort and idempotent: this is a note ABOUT the review, and a
+        // failure to take it must never break the review itself.
+        if (c) void proposalShown(which).catch(() => {});
       } catch (e) {
         if (!cancelled) {
           error = String(e);
@@ -159,7 +213,7 @@
       <p class="pr-edit-label">Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:</p>
       <textarea class="pr-edit" bind:value={draft} rows="12" aria-label="proposed note body"></textarea>
       <div class="pr-edit-actions">
-        <button class="pr-save" onclick={save} disabled={!dirty || saving}>
+        <button class="pr-save" onclick={save} disabled={!dirty || saving || accepting}>
           {saving ? 'Saving…' : 'Save changes'}
         </button>
         {#if dirty}<span class="pr-dirty">unsaved edits</span>{/if}
@@ -169,6 +223,35 @@
       <summary>View the diff against the current note{#if diff.files.length} · {diff.files.join(', ')}{/if}</summary>
       <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code>{/each}</pre>
     </details>
+    <div class="pr-why">
+      <label class="pr-why-label" for={`pr-why-${id}`}>
+        {confirmingReject ? 'Why are you turning this down?' : 'What did you change?'}
+        <span class="pr-optional">optional</span>
+      </label>
+      <input
+        id={`pr-why-${id}`}
+        class="pr-why-input"
+        bind:value={why}
+        placeholder="in your own words — or leave it blank"
+      />
+      <div class="pr-why-tags">
+        {#each WHY_TAGS as t}
+          <button type="button" class="pr-why-tag" onclick={() => addTag(t)}>{t}</button>
+        {/each}
+      </div>
+      <div class="pr-why-tags pr-kind">
+        <span class="pr-kind-label">What kind?</span>
+        {#each KINDS as k}
+          <button
+            type="button"
+            class="pr-why-tag"
+            class:picked={kind === k}
+            aria-pressed={kind === k}
+            onclick={() => pickKind(k)}>{k}</button
+          >
+        {/each}
+      </div>
+    </div>
     <div class="review-actions">
       <button
         class="reject"
@@ -249,6 +332,66 @@
   @media (pointer: coarse) {
     .pr-save {
       min-height: 2.75rem;
+    }
+  }
+  .pr-why {
+    margin: 0.5rem 0 0.15rem;
+  }
+  .pr-why-label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+  .pr-optional {
+    font-size: 0.9em;
+    opacity: 0.7;
+  }
+  .pr-why-input {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 0.88em;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .pr-why-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+  .pr-kind {
+    align-items: center;
+  }
+  .pr-kind-label {
+    font-size: 0.78em;
+    color: var(--muted);
+  }
+  .pr-why-tag.picked {
+    border-color: var(--accent, #6639ba);
+    color: var(--accent, #6639ba);
+  }
+  .pr-why-tag {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.78em;
+    padding: 1px 8px;
+    cursor: pointer;
+  }
+  @media (pointer: coarse) {
+    .pr-why-input {
+      min-height: 2.75rem;
+    }
+    .pr-why-tag {
+      min-height: 2.75rem;
+      padding: 0 12px;
     }
   }
   .review-actions {

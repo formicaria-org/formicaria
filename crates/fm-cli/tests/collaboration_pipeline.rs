@@ -25,11 +25,20 @@ use std::path::Path;
 use std::process::Command;
 
 fn have_git() -> bool {
-    Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+    Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 fn g(repo: &Path, args: &[&str]) -> std::process::Output {
-    Command::new("git").arg("-C").arg(repo).args(args).output().unwrap()
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .output()
+        .unwrap()
 }
 
 fn identity(repo: &Path, name: &str, email: &str) {
@@ -42,8 +51,22 @@ fn identity(repo: &Path, name: &str, email: &str) {
 /// `target/debug/deps` is not it.
 fn install_driver(repo: &Path) {
     let fm = Path::new(env!("CARGO_BIN_EXE_fm"));
-    g(repo, &["config", "merge.fm.driver", &format!("'{}' merge-md %O %A %B %L", fm.display())]);
-    g(repo, &["config", "merge.fm-manifest.driver", &format!("'{}' merge-manifest %O %A %B", fm.display())]);
+    g(
+        repo,
+        &[
+            "config",
+            "merge.fm.driver",
+            &format!("'{}' merge-md %O %A %B %L", fm.display()),
+        ],
+    );
+    g(
+        repo,
+        &[
+            "config",
+            "merge.fm-manifest.driver",
+            &format!("'{}' merge-manifest %O %A %B", fm.display()),
+        ],
+    );
 }
 
 /// The merge backends every scenario runs on: the desktop subprocess driver always, and the phone's
@@ -64,7 +87,11 @@ fn backends() -> Vec<(&'static str, Pull)> {
 /// the exact failure the driver exists to prevent. This makes the real driver path work unmodified,
 /// rather than side-stepping it with a raw `git merge`.
 fn ensure_fm_beside_test_binary() {
-    let dst = std::env::current_exe().unwrap().parent().unwrap().join("fm");
+    let dst = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("fm");
     if !dst.exists() {
         let _ = std::fs::copy(env!("CARGO_BIN_EXE_fm"), &dst);
     }
@@ -75,7 +102,11 @@ fn ensure_fm_beside_test_binary() {
 fn two_users() -> (tempfile::TempDir, tempfile::TempDir, tempfile::TempDir) {
     ensure_fm_beside_test_binary();
     let remote = tempfile::tempdir().unwrap();
-    Command::new("git").args(["init", "--bare", "-b", "main"]).arg(remote.path()).output().unwrap();
+    Command::new("git")
+        .args(["init", "--bare", "-b", "main"])
+        .arg(remote.path())
+        .output()
+        .unwrap();
 
     // Seed the remote with a base commit so both clones have `main` and the `.gitattributes` that
     // makes `*.md merge=fm` (written by ensure_repo) — without it, git's plain merge conflicts on
@@ -92,11 +123,17 @@ fn two_users() -> (tempfile::TempDir, tempfile::TempDir, tempfile::TempDir) {
 
     let ada = tempfile::tempdir().unwrap();
     let ravi = tempfile::tempdir().unwrap();
-    for (dir, name, email) in
-        [(&ada, "Ada", "ada@example.org"), (&ravi, "Ravi", "ravi@example.org")]
-    {
+    for (dir, name, email) in [
+        (&ada, "Ada", "ada@example.org"),
+        (&ravi, "Ravi", "ravi@example.org"),
+    ] {
         std::fs::remove_dir_all(dir.path()).unwrap();
-        Command::new("git").arg("clone").arg(url).arg(dir.path()).output().unwrap();
+        Command::new("git")
+            .arg("clone")
+            .arg(url)
+            .arg(dir.path())
+            .output()
+            .unwrap();
         identity(dir.path(), name, email);
         install_driver(dir.path());
     }
@@ -125,16 +162,27 @@ fn a_note_one_user_creates_reaches_the_other_after_a_sync() {
 
         // Ada writes a note and pushes it.
         let mut ada_store = open(ada.path());
-        let id = fm_app::commands::capture(&mut ada_store, "# Plan\n\nship the thing", "").unwrap().id;
+        let id = fm_app::commands::capture(&mut ada_store, "# Plan\n\nship the thing", "")
+            .unwrap()
+            .id;
         commit_push(ada.path(), &ada_store, "note: plan");
 
         // Ravi, who had nothing, pulls and now has it — byte-identical, and readable through the store.
         let outcome = pull(ravi.path()).unwrap();
-        assert!(matches!(outcome, git::Pulled::Merged(_)), "[{backend}] Ravi should merge Ada's note: {outcome:?}");
+        assert!(
+            matches!(outcome, git::Pulled::Merged(_)),
+            "[{backend}] Ravi should merge Ada's note: {outcome:?}"
+        );
         let ravi_store = open(ravi.path());
         let note = fm_app::commands::get(&ravi_store, &id).unwrap();
-        assert!(note.is_some(), "[{backend}] Ravi can read the note Ada created");
-        assert!(note.unwrap().body.contains("ship the thing"), "[{backend}] with Ada's content");
+        assert!(
+            note.is_some(),
+            "[{backend}] Ravi can read the note Ada created"
+        );
+        assert!(
+            note.unwrap().body.contains("ship the thing"),
+            "[{backend}] with Ada's content"
+        );
     }
 }
 
@@ -142,7 +190,9 @@ fn a_note_one_user_creates_reaches_the_other_after_a_sync() {
 /// scenarios, where both users already hold the same note.
 fn shared_note(ada: &Path, ravi: &Path, pull: Pull, body: &str) -> String {
     let mut ada_store = open(ada);
-    let id = fm_app::commands::capture(&mut ada_store, body, "").unwrap().id;
+    let id = fm_app::commands::capture(&mut ada_store, body, "")
+        .unwrap()
+        .id;
     commit_push(ada, &ada_store, "note: shared");
     pull(ravi).unwrap();
     id
@@ -160,22 +210,49 @@ fn concurrent_edits_to_different_lines_of_one_note_merge_cleanly() {
 
         // Ada rewrites the first paragraph and pushes.
         let mut ada_store = open(ada.path());
-        fm_app::commands::update_body(&mut ada_store, &id, "# Note\n\npara ONE (ada)\n\npara two", "").unwrap();
+        fm_app::commands::update_body(
+            &mut ada_store,
+            &id,
+            "# Note\n\npara ONE (ada)\n\npara two",
+            "",
+        )
+        .unwrap();
         commit_push(ada.path(), &ada_store, "ada: para one");
 
         // Ravi rewrites the *second* paragraph from the same base, commits (now behind), and pulls.
         let mut ravi_store = open(ravi.path());
-        fm_app::commands::update_body(&mut ravi_store, &id, "# Note\n\npara one\n\npara TWO (ravi)", "").unwrap();
+        fm_app::commands::update_body(
+            &mut ravi_store,
+            &id,
+            "# Note\n\npara one\n\npara TWO (ravi)",
+            "",
+        )
+        .unwrap();
         git::commit_all(ravi.path(), "ravi: para two", &ravi_store.written()).unwrap();
         let outcome = pull(ravi.path()).unwrap();
 
         // Different lines → the driver merges it to a non-event: both edits present, no markers, and
         // the manufactured `updated:` collision never surfaces.
-        assert!(matches!(outcome, git::Pulled::Merged(_)), "[{backend}] a different-line edit must merge clean: {outcome:?}");
-        let body = fm_app::commands::get(&open(ravi.path()), &id).unwrap().unwrap().body;
-        assert!(body.contains("ONE (ada)"), "[{backend}] Ada's edit survived: {body}");
-        assert!(body.contains("TWO (ravi)"), "[{backend}] Ravi's edit survived: {body}");
-        assert!(!body.contains("<<<<<<<"), "[{backend}] and no conflict markers: {body}");
+        assert!(
+            matches!(outcome, git::Pulled::Merged(_)),
+            "[{backend}] a different-line edit must merge clean: {outcome:?}"
+        );
+        let body = fm_app::commands::get(&open(ravi.path()), &id)
+            .unwrap()
+            .unwrap()
+            .body;
+        assert!(
+            body.contains("ONE (ada)"),
+            "[{backend}] Ada's edit survived: {body}"
+        );
+        assert!(
+            body.contains("TWO (ravi)"),
+            "[{backend}] Ravi's edit survived: {body}"
+        );
+        assert!(
+            !body.contains("<<<<<<<"),
+            "[{backend}] and no conflict markers: {body}"
+        );
     }
 }
 
@@ -215,27 +292,58 @@ fn concurrent_edits_to_the_same_line_conflict_visibly_and_can_be_resolved() {
 
         // Both rewrite the SAME line, differently.
         let mut ada_store = open(ada.path());
-        fm_app::commands::update_body(&mut ada_store, &id, "# Note\n\nthe one line — Ada's take", "").unwrap();
+        fm_app::commands::update_body(
+            &mut ada_store,
+            &id,
+            "# Note\n\nthe one line — Ada's take",
+            "",
+        )
+        .unwrap();
         commit_push(ada.path(), &ada_store, "ada: the line");
 
         let mut ravi_store = open(ravi.path());
-        fm_app::commands::update_body(&mut ravi_store, &id, "# Note\n\nthe one line — Ravi's take", "").unwrap();
+        fm_app::commands::update_body(
+            &mut ravi_store,
+            &id,
+            "# Note\n\nthe one line — Ravi's take",
+            "",
+        )
+        .unwrap();
         git::commit_all(ravi.path(), "ravi: the line", &ravi_store.written()).unwrap();
         let outcome = pull(ravi.path()).unwrap();
 
         // The intended UX (decisions.md #4 / merge.rs): a real disagreement is KEPT, in the body, not
         // resolved by fiat — and crucially the note still *parses and renders* (frontmatter stays
         // valid), so it is findable and fixable rather than vanishing.
-        assert!(matches!(outcome, git::Pulled::Conflicted(_)), "[{backend}] a same-line edit must conflict: {outcome:?}");
+        assert!(
+            matches!(outcome, git::Pulled::Conflicted(_)),
+            "[{backend}] a same-line edit must conflict: {outcome:?}"
+        );
         let ravi_store = open(ravi.path());
         let note = fm_app::commands::get(&ravi_store, &id).unwrap();
-        assert!(note.is_some(), "[{backend}] a conflicted note still parses and renders (not skipped)");
+        assert!(
+            note.is_some(),
+            "[{backend}] a conflicted note still parses and renders (not skipped)"
+        );
         let body = note.unwrap().body;
-        assert!(body.contains("<<<<<<<") && body.contains(">>>>>>>"), "[{backend}] both sides are kept in the body: {body}");
-        assert!(body.contains("Ada's take") && body.contains("Ravi's take"), "[{backend}] neither side was dropped");
+        assert!(
+            body.contains("<<<<<<<") && body.contains(">>>>>>>"),
+            "[{backend}] both sides are kept in the body: {body}"
+        );
+        assert!(
+            body.contains("Ada's take") && body.contains("Ravi's take"),
+            "[{backend}] neither side was dropped"
+        );
         // And it is surfaced as a conflict to resolve, not silently.
-        let listed: Vec<String> = fm_app::commands::conflicts(&ravi_store).unwrap().into_iter().map(|m| m.id).collect();
-        assert!(listed.contains(&id), "[{backend}] the conflict is listed for the user");
+        let listed: Vec<String> = fm_app::commands::conflicts(&ravi_store)
+            .unwrap()
+            .into_iter()
+            .map(|m| m.id)
+            .collect();
+        assert!(
+            listed.contains(&id),
+            "[{backend}] the conflict is listed for the user"
+        );
 
         // Ravi resolves it (keep his side), commits to finish the merge, pushes.
         let resolved = resolve_keep_ours(&std::fs::read_to_string(ravi.path().join(&rel)).unwrap());
@@ -245,11 +353,23 @@ fn concurrent_edits_to_the_same_line_conflict_visibly_and_can_be_resolved() {
         g(ravi.path(), &["push", "origin", "main"]);
 
         // Converged: Ravi's clean note has no markers, and Ada pulling gets exactly it.
-        let ravi_final = fm_app::commands::get(&open(ravi.path()), &id).unwrap().unwrap().body;
-        assert!(!ravi_final.contains("<<<<<<<") && ravi_final.contains("Ravi's take"), "[{backend}] resolved clean: {ravi_final}");
+        let ravi_final = fm_app::commands::get(&open(ravi.path()), &id)
+            .unwrap()
+            .unwrap()
+            .body;
+        assert!(
+            !ravi_final.contains("<<<<<<<") && ravi_final.contains("Ravi's take"),
+            "[{backend}] resolved clean: {ravi_final}"
+        );
         pull(ada.path()).unwrap();
-        let ada_final = fm_app::commands::get(&open(ada.path()), &id).unwrap().unwrap().body;
-        assert_eq!(ada_final, ravi_final, "[{backend}] both users converge on the resolution");
+        let ada_final = fm_app::commands::get(&open(ada.path()), &id)
+            .unwrap()
+            .unwrap()
+            .body;
+        assert_eq!(
+            ada_final, ravi_final,
+            "[{backend}] both users converge on the resolution"
+        );
     }
 }
 
@@ -264,7 +384,9 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
         // Ada writes a note, then proposes a change to it. `create_proposal` pushes the
         // `proposal/<id>` branch to the remote; the proposal note rides `main`.
         let mut ada_store = open(ada.path());
-        let host = commands::capture(&mut ada_store, "# Doc\n\noriginal", "").unwrap().id;
+        let host = commands::capture(&mut ada_store, "# Doc\n\noriginal", "")
+            .unwrap()
+            .id;
         commit_push(ada.path(), &ada_store, "note: doc");
         let prop = commands::create_proposal(
             &mut ada_store,
@@ -273,6 +395,7 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
             "# Doc\n\nrevised by Ada",
             &ProposalLimits::default(),
             Some(("Ada", "ada@example.org")),
+            commands::Record::default(),
         )
         .unwrap();
         commit_push(ada.path(), &ada_store, "backup: proposal");
@@ -282,8 +405,15 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
         pull(ravi.path()).unwrap();
         let ravi_store = open(ravi.path());
         let diff = commands::proposal_diff(&ravi_store, ravi.path(), &prop.id).unwrap();
-        assert!(diff.exists, "[{backend}] Ravi can review Ada's proposal across the sync");
-        assert!(diff.patch.contains("revised by Ada"), "[{backend}] the diff shows Ada's change: {}", diff.patch);
+        assert!(
+            diff.exists,
+            "[{backend}] Ravi can review Ada's proposal across the sync"
+        );
+        assert!(
+            diff.patch.contains("revised by Ada"),
+            "[{backend}] the diff shows Ada's change: {}",
+            diff.patch
+        );
 
         // Ravi ACCEPTS it — merges `origin/proposal/<id>` into main and deletes the shared branch.
         assert_eq!(
@@ -294,10 +424,22 @@ fn a_proposal_by_one_user_is_reviewed_and_accepted_by_the_other() {
         g(ravi.path(), &["push", "origin", "main"]);
 
         // Live for Ravi, and Ada converges on it after a pull.
-        let ravi_body = commands::get(&open(ravi.path()), &host).unwrap().unwrap().body;
-        assert!(ravi_body.contains("revised by Ada"), "[{backend}] the accepted change is live for Ravi: {ravi_body}");
+        let ravi_body = commands::get(&open(ravi.path()), &host)
+            .unwrap()
+            .unwrap()
+            .body;
+        assert!(
+            ravi_body.contains("revised by Ada"),
+            "[{backend}] the accepted change is live for Ravi: {ravi_body}"
+        );
         pull(ada.path()).unwrap();
-        let ada_body = commands::get(&open(ada.path()), &host).unwrap().unwrap().body;
-        assert_eq!(ada_body, ravi_body, "[{backend}] both users converge on the accepted proposal");
+        let ada_body = commands::get(&open(ada.path()), &host)
+            .unwrap()
+            .unwrap()
+            .body;
+        assert_eq!(
+            ada_body, ravi_body,
+            "[{backend}] both users converge on the accepted proposal"
+        );
     }
 }

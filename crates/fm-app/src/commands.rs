@@ -39,7 +39,10 @@ pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
             cards: g.rows.iter().map(ObjectMeta::from).collect(),
         })
         .collect();
-    Ok(Board { group_by: group_by.to_string(), columns })
+    Ok(Board {
+        group_by: group_by.to_string(),
+        columns,
+    })
 }
 
 /// The gallery: every asset, newest first. This is the S4 checkpoint — a
@@ -88,14 +91,14 @@ pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// Fetch one note with its full body — the read view's payload. The list
 /// commands return meta only; the body crosses IPC only when a note is opened.
 pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
-    Ok(store
-        .get(id)?
-        .map(|o| NoteDetail {
-            meta: ObjectMeta::from(&o),
-            version: crate::dto::version_of(&o.body),
-            body: o.body.clone(),
-        }))
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    Ok(store.get(id)?.map(|o| NoteDetail {
+        meta: ObjectMeta::from(&o),
+        version: crate::dto::version_of(&o.body),
+        body: o.body.clone(),
+    }))
 }
 
 /// A note's citation as a BibTeX entry — the thing a user pastes into a manuscript.
@@ -104,14 +107,21 @@ pub fn get(store: &dyn Store, id: &str) -> Result<Option<NoteDetail>, StoreError
 /// `paper::to_bibtex` writes it, and the round trip is tested. Computing it in the UI would put a
 /// second, drifting copy in TypeScript.
 pub fn paper_bibtex(store: &dyn Store, id: &str) -> Result<String, StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
-    let obj = store.get(id)?.ok_or_else(|| StoreError::Parse("no such note".into()))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let obj = store
+        .get(id)?
+        .ok_or_else(|| StoreError::Parse("no such note".into()))?;
     let props: std::collections::BTreeMap<String, String> = obj
         .extra
         .iter()
         .map(|(k, v)| (k.clone(), v.display()))
         .collect();
-    Ok(crate::paper::to_bibtex(obj.title.as_deref().unwrap_or_default(), &props))
+    Ok(crate::paper::to_bibtex(
+        obj.title.as_deref().unwrap_or_default(),
+        &props,
+    ))
 }
 
 /// **Create a paper from whatever the user has to hand** — a BibTeX entry, an identifier, a URL,
@@ -150,14 +160,21 @@ pub fn create_paper(
         } else if !input.is_empty() {
             // Not a citation and not an identifier: the user typed a title, which is a perfectly
             // good way to start a paper note and the only one that always works offline.
-            fields = PaperFields { title: Some(input.to_string()), ..Default::default() };
+            fields = PaperFields {
+                title: Some(input.to_string()),
+                ..Default::default()
+            };
         }
     }
 
     let mut obj = Object::new(Kind::Note, "");
     obj.vault = vault.to_string();
     obj.tags = vec!["paper".to_string()];
-    obj.title = fields.title.clone().map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
+    obj.title = fields
+        .title
+        .clone()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty());
     for (key, value) in fields.properties() {
         apply_property(&mut obj, key, &value)?;
     }
@@ -272,9 +289,12 @@ const MAX_DEPTH: u8 = 4;
 /// audience; a reply that landed elsewhere would be invisible to the discussion or visible to
 /// people the note was never shared with, and that is not a choice to leave to a UI.
 pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMeta, StoreError> {
-    let target_id: Id =
-        target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
-    let target_obj = store.get(target_id)?.ok_or(StoreError::NotFound(target_id))?;
+    let target_id: Id = target
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
+    let target_obj = store
+        .get(target_id)?
+        .ok_or(StoreError::NotFound(target_id))?;
     if target_obj.kind != Kind::Note {
         return Err(StoreError::Io("you can only reply to a note".into()));
     }
@@ -292,10 +312,14 @@ pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMe
 
     let mut obj = Object::new(Kind::Note, body);
     obj.vault = target_obj.vault.clone();
-    obj.extra
-        .insert(crate::thread::THREAD_OF.into(), PropertyValue::Text(fm_model::note_ref(root)));
-    obj.extra
-        .insert(crate::thread::REPLY_TO.into(), PropertyValue::Text(fm_model::note_ref(target_id)));
+    obj.extra.insert(
+        crate::thread::THREAD_OF.into(),
+        PropertyValue::Text(fm_model::note_ref(root)),
+    );
+    obj.extra.insert(
+        crate::thread::REPLY_TO.into(),
+        PropertyValue::Text(fm_model::note_ref(target_id)),
+    );
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
 }
@@ -315,7 +339,9 @@ pub fn reply(store: &mut dyn Store, target: &str, body: &str) -> Result<ObjectMe
 /// A deleted root yields `root: None` with the messages intact — the discussion is not
 /// swallowed by its subject's deletion.
 pub fn thread(store: &dyn Store, root: &str) -> Result<ThreadView, StoreError> {
-    let root_id: Id = root.parse().map_err(|_| StoreError::Parse(format!("invalid id: {root}")))?;
+    let root_id: Id = root
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {root}")))?;
     let q = Query {
         // No `Kind(Note)` conjunct, and that is deliberate rather than an oversight: carrying a
         // well-formed `thread_of` *is* what makes something a message, and only `reply` writes
@@ -334,7 +360,12 @@ pub fn thread(store: &dyn Store, root: &str) -> Result<ThreadView, StoreError> {
     // but a **first-class discussion** is self-anchored (`thread_of: note:<own-id>`, see
     // [`crate::thread::is_discussion_root`]), so it would otherwise appear as the first message in
     // its own thread. One line, and it leaves ordinary note-rooted threads untouched.
-    let rows: Vec<Object> = store.query(&q)?.rows.into_iter().filter(|o| o.id != root_id).collect();
+    let rows: Vec<Object> = store
+        .query(&q)?
+        .rows
+        .into_iter()
+        .filter(|o| o.id != root_id)
+        .collect();
 
     // Parent lookup over exactly the messages in this thread. A pointer to anything outside it
     // (the root itself, a deleted message, another vault) simply is not found → depth 0.
@@ -342,7 +373,9 @@ pub fn thread(store: &dyn Store, root: &str) -> Result<ThreadView, StoreError> {
         rows.iter().enumerate().map(|(i, o)| (o.id, i)).collect();
     let parent_of = |o: &Object| -> Option<usize> {
         match o.get(crate::thread::REPLY_TO) {
-            PropertyValue::Text(s) => fm_model::parse_note_ref(&s).and_then(|p| present.get(&p).copied()),
+            PropertyValue::Text(s) => {
+                fm_model::parse_note_ref(&s).and_then(|p| present.get(&p).copied())
+            }
             _ => None,
         }
     };
@@ -406,8 +439,10 @@ pub fn create_discussion(
     // Self-anchor: the discussion is the root of its own thread (see `thread::is_discussion_root`).
     // This is what makes it a discussion — and, being a well-formed `thread_of`, it is an
     // `is_message` note, so it drops out of every planning view for free.
-    obj.extra
-        .insert(crate::thread::THREAD_OF.into(), PropertyValue::Text(fm_model::note_ref(obj.id)));
+    obj.extra.insert(
+        crate::thread::THREAD_OF.into(),
+        PropertyValue::Text(fm_model::note_ref(obj.id)),
+    );
     store.put(&obj)?;
     Ok(ObjectMeta::from(&obj))
 }
@@ -446,8 +481,10 @@ pub struct DiscussionSummary {
 pub fn discussions(store: &dyn Store) -> Result<Vec<DiscussionSummary>, StoreError> {
     // Every message-class note in one pass: roots (self-anchored) and replies alike.
     let q = Query {
-        filter: Filter::new()
-            .and(Predicate::NoteRef { key: crate::thread::THREAD_OF.into(), id: None }),
+        filter: Filter::new().and(Predicate::NoteRef {
+            key: crate::thread::THREAD_OF.into(),
+            id: None,
+        }),
         ..Default::default()
     };
     let msgs = store.query(&q)?.rows;
@@ -507,7 +544,10 @@ pub struct ThreadRoot {
 /// comments as much as in a stand-alone discussion — is seen and answered. Same `{id, count}` shape.
 pub fn thread_roots(store: &dyn Store) -> Result<Vec<ThreadRoot>, StoreError> {
     let q = Query {
-        filter: Filter::new().and(Predicate::NoteRef { key: crate::thread::THREAD_OF.into(), id: None }),
+        filter: Filter::new().and(Predicate::NoteRef {
+            key: crate::thread::THREAD_OF.into(),
+            id: None,
+        }),
         ..Default::default()
     };
     let msgs = store.query(&q)?.rows;
@@ -525,7 +565,13 @@ pub fn thread_roots(store: &dyn Store) -> Result<Vec<ThreadRoot>, StoreError> {
             }
         }
     }
-    Ok(count.into_iter().map(|(id, count)| ThreadRoot { id: id.to_string(), count }).collect())
+    Ok(count
+        .into_iter()
+        .map(|(id, count)| ThreadRoot {
+            id: id.to_string(),
+            count,
+        })
+        .collect())
 }
 
 /// Who has posted in each discussion, from **one vault's git log** — `root id → participants`,
@@ -542,7 +588,8 @@ pub fn discussion_participants(
     vault_path: &Path,
     since: &str,
 ) -> Result<std::collections::HashMap<String, Vec<Participant>>, StoreError> {
-    let mut who: std::collections::HashMap<String, Vec<Participant>> = std::collections::HashMap::new();
+    let mut who: std::collections::HashMap<String, Vec<Participant>> =
+        std::collections::HashMap::new();
     for t in fm_core::vcs::activity(vault_path, since)? {
         let Ok(id) = t.id.parse::<Id>() else { continue };
         let Some(obj) = store.get(id)? else { continue };
@@ -557,7 +604,10 @@ pub fn discussion_participants(
         };
         let list = who.entry(root).or_default();
         if !list.iter().any(|p| p.email == t.email) {
-            list.push(Participant { name: t.author, email: t.email });
+            list.push(Participant {
+                name: t.author,
+                email: t.email,
+            });
         }
     }
     Ok(who)
@@ -593,7 +643,9 @@ pub fn update_body(
     body: &str,
     base: &str,
 ) -> Result<String, StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
     if !base.is_empty() && crate::dto::version_of(&obj.body) != base {
         return Err(StoreError::Conflict(id));
@@ -609,7 +661,9 @@ pub fn update_body(
 /// `.md` and both index rows, and returns `NotFound` for an unknown id, so this
 /// is a thin, id-parsing wrapper (the UI gates it behind a second confirmation).
 pub fn delete(store: &mut dyn Store, id: &str) -> Result<(), StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     store.delete(id)
 }
 
@@ -623,7 +677,9 @@ pub fn set_property(
     key: &str,
     value: &str,
 ) -> Result<(), StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
     apply_property(&mut obj, key, value)?;
     obj.updated = OffsetDateTime::now_utc();
@@ -694,6 +750,167 @@ pub fn proposals(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// proposal note is recorded only if that succeeds, so a refused or failed proposal leaves nothing
 /// dangling. `vault_path` is the target's own vault (the caller resolves it); `limits` come from that
 /// vault's `vault.json`.
+/// The reviewer's own sentence about *what they changed*, made safe to put in a commit message.
+///
+/// This is the single most valuable field in a supervision record and the one most likely to be cut
+/// as redundant — "git already shows what changed". It does not: git shows *what*, never *why*, and
+/// an edit pair stored without its stated reason measured **below the untouched model** on hard
+/// prompts (arXiv:2503.04378). So it is prose written by a person, which means it is untrusted input
+/// to a format with rules.
+///
+/// Two of those rules bite. A line that is exactly `---` at column 0 terminates a commit message for
+/// git's own patch tooling — and every note in this vault *begins* with that, as YAML frontmatter, so
+/// a pasted fragment is a live hazard. And a final paragraph shaped `Token: value` is parsed as a
+/// trailer, which would mix a human sentence into the machine fields. Collapsing to one line defuses
+/// both: there is no column-0 delimiter line left to find, and the sentence cannot become the final
+/// paragraph on its own.
+///
+/// Returns `None` for anything that would add nothing — the skip case, which is a first-class answer
+/// and not a failure.
+pub fn review_note(raw: &str) -> Option<String> {
+    let one_line = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = one_line.trim();
+    // All-punctuation leftovers (`---`, `...`) carry no meaning and are exactly the shapes that
+    // confuse the format. Drop rather than mangle.
+    if trimmed.is_empty() || !trimmed.chars().any(char::is_alphanumeric) {
+        return None;
+    }
+    Some(trimmed.chars().take(500).collect())
+}
+
+/// Schema revision of the review record carried in a proposal's commit message.
+///
+/// Bump it whenever the meaning of a trailer changes. This exists because of a specific, cheap and
+/// permanent mistake: aider's commit convention changed seven times and never recorded its own
+/// version, so its history cannot be machine-interpreted today. One line prevents that here.
+pub const REVIEW_SCHEMA_REV: u32 = 1;
+
+/// A proposal's commit message: `subject`, the reviewer's reason as the body, and the machine facts
+/// as **git trailers** in a final paragraph.
+///
+/// Three placement rules, each load-bearing:
+/// - **The subject is never touched.** Its prefix is the squash barrier — `push_squashed` collapses
+///   only `auto:`/`backup:` — so anything put there would be silently discarded by the next push.
+/// - **Trailers are the last paragraph**, because that is the only paragraph git parses as trailers.
+///   That is also what keeps a reviewer's sentence safe when it happens to look like `Foo: bar`: it
+///   sits in an earlier paragraph, so it is prose, not a field.
+/// - **`Assisted-by:`, not `Co-authored-by:`.** The kernel, Fedora, the ASF, LLVM, QEMU and
+///   OpenTelemetry all converged on the former, on the reasoning that a model cannot hold
+///   accountability. Adopting it costs nothing and makes this history readable by tools we did not
+///   write.
+///
+/// **Known gap:** the model's *revision* is not available here (`models.toml` pins it, but this
+/// layer only receives the identity), so `Assisted-by:` names the model and not the exact weights.
+/// Without it a pair cannot be proven on-policy for the model it would train — see the plan's T6.
+/// The record half of a proposal: why a person made it, and what produced it.
+///
+/// Grouped rather than passed as loose arguments because they are one thing — the supervision
+/// record — and because every field here is **impossible to reconstruct later**. `Default` is the
+/// honest empty case: a human proposing by hand supplies none of it.
+#[derive(Default, Clone, Copy)]
+pub struct Record<'a> {
+    /// The reviewer's own sentence about what they changed. Becomes the commit body.
+    pub why: Option<&'a str>,
+    /// Which deterministic tool produced the output — the task label. The app has no tool-calling
+    /// abstraction, so every AI output already belongs to exactly one named pipeline; that is a
+    /// clean label a tool-calling agent would have blurred.
+    pub tool: Option<&'a str>,
+    /// What was actually asked, verbatim. Without it a proposal is an answer with no question.
+    pub query: Option<&'a str>,
+    /// What the model was given: URLs for research, `asset:` references for a transcript.
+    /// `/research` cites a live web that will not exist at training time, so this is the only
+    /// durable record of its input.
+    pub sources: &'a [String],
+    /// What *kind* of correction this was: `style`, `factual` or `reasoning`.
+    ///
+    /// The one axis the corpus genuinely cannot be split on later, and the one that decides what it
+    /// is good for. Alignment and formatting saturate after roughly a thousand examples, while
+    /// factual and reasoning ability keep climbing with data — so a style corpus is reachable at
+    /// this vault's rate and a reasoning corpus is not. Unlabelled, the two are indistinguishable
+    /// and the corpus can only be used as its weakest part.
+    pub kind: Option<&'a str>,
+}
+
+/// The correction kinds we will record. Constrained deliberately: a free-text axis is one nobody can
+/// group by, and this exists precisely to be grouped by. Anything else is dropped rather than stored,
+/// so the field never means "some string a client sent once".
+pub const REVIEW_KINDS: [&str; 3] = ["style", "factual", "reasoning"];
+
+/// A proposal's commit message: `subject`, the reviewer's reason as the body, and the machine facts
+/// as **git trailers** in a final paragraph.
+///
+/// Three placement rules, each load-bearing:
+/// - **The subject is never touched.** Its prefix is the squash barrier — `push_squashed` collapses
+///   only `auto:`/`backup:` — so anything put there would be silently discarded by the next push.
+/// - **Trailers are the last paragraph**, because that is the only paragraph git parses as trailers.
+///   That is also what keeps a reviewer's sentence safe when it happens to look like `Foo: bar`: it
+///   sits in an earlier paragraph, so it is prose, not a field.
+/// - **`Assisted-by:`, not `Co-authored-by:`.** The kernel, Fedora, the ASF, LLVM, QEMU and
+///   OpenTelemetry all converged on the former, on the reasoning that a model cannot hold
+///   accountability. Adopting it costs nothing and makes this history readable by tools we did not
+///   write.
+///
+/// **Two known gaps, both recorded rather than papered over.** The model's *revision* is not
+/// available at this layer (`models.toml` pins it; only the identity arrives here), so a pair cannot
+/// be proven on-policy for the model it would train. And the fully rendered prompt is **not** here:
+/// it is multi-KB with newlines, which a single-line trailer cannot hold, so `Query:` records what
+/// was asked and the assembled prompt still needs a home that is not a commit message.
+fn proposal_message(
+    subject: &str,
+    rec: Record,
+    author: Option<(&str, &str)>,
+    sup: fm_core::descriptor::Supervision,
+) -> String {
+    // The vault has opted out of keeping a review record at all. Honour that literally: no body, no
+    // trailers, nothing beyond the subject the app has always written.
+    if !sup.collect {
+        return subject.to_string();
+    }
+    let mut out = subject.to_string();
+    if let Some(w) = rec.why.and_then(review_note) {
+        out.push_str("\n\n");
+        out.push_str(&w);
+    }
+    out.push_str(&format!("\n\nSchemaRev: {REVIEW_SCHEMA_REV}"));
+    // Only an agent passes an identity; a person proposing by hand is not "assisted by" anything.
+    if let Some((model, _)) = author {
+        if let Some(m) = review_note(model) {
+            out.push_str(&format!("\nAssisted-by: formicaria-agent:{m}"));
+        }
+    }
+    if let Some(t) = rec.tool.and_then(review_note) {
+        out.push_str(&format!("\nTool: {t}"));
+    }
+    if let Some(q) = rec.query.and_then(review_note) {
+        out.push_str(&format!("\nQuery: {q}"));
+    }
+    if !rec.sources.is_empty() {
+        // One line, bounded: a trailer is single-line by definition, and a research turn can cite
+        // more sources than belong in history forever.
+        let joined = rec
+            .sources
+            .iter()
+            .filter_map(|s| review_note(s))
+            .take(20)
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(v) = review_note(&joined) {
+            out.push_str(&format!("\nSources: {v}"));
+        }
+    }
+    if let Some(k) = rec.kind.and_then(review_note) {
+        if REVIEW_KINDS.contains(&k.as_str()) {
+            out.push_str(&format!("\nKind: {k}"));
+        }
+    }
+    // **Per record, not merely per vault.** A consent flag flipped next year must not silently
+    // relicense everything captured before it: data gathered under one answer cannot be published
+    // under another without going back and asking. So the answer travels with the record made under
+    // it, and an exporter reads it here rather than trusting today's setting.
+    out.push_str(if sup.publish { "\nConsent: local,publish" } else { "\nConsent: local" });
+    out
+}
+
 pub fn create_proposal(
     store: &mut dyn Store,
     vault_path: &Path,
@@ -701,11 +918,16 @@ pub fn create_proposal(
     new_body: &str,
     limits: &fm_core::proposal::ProposalLimits,
     author: Option<(&str, &str)>,
+    rec: Record,
 ) -> Result<ObjectMeta, StoreError> {
-    let id: Id = target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
+    let id: Id = target
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
     let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
     if obj.kind != Kind::Note {
-        return Err(StoreError::Io("you can only propose a change to a note".into()));
+        return Err(StoreError::Io(
+            "you can only propose a change to a note".into(),
+        ));
     }
 
     // The proposed file: the target note with its new body, serialized **exactly** as it would be
@@ -747,6 +969,8 @@ pub fn create_proposal(
     // Refused **before** any write, fail-closed, never truncated. On a revise, subtract the proposal
     // being replaced from the load — it is rewritten, not added, so it must not count against its own
     // ceiling (otherwise a busy vault could never refine its one proposal).
+    // A settled proposal must not hold a slot hostage — see `retire_settled_proposals`.
+    retire_settled_proposals(store, vault_path);
     let (mut open, mut open_bytes) = fm_core::vcs::proposal_load(vault_path)?;
     if let Some(branch) = &existing_branch {
         open = open.saturating_sub(1);
@@ -756,7 +980,10 @@ pub fn create_proposal(
     }
     limits
         .check(
-            fm_core::proposal::ProposalSize { files: 1, bytes: content.len() as u64 },
+            fm_core::proposal::ProposalSize {
+                files: 1,
+                bytes: content.len() as u64,
+            },
             fm_core::proposal::VaultLoad { open, open_bytes },
         )
         .map_err(|b| StoreError::Io(b.to_string()))?;
@@ -770,7 +997,7 @@ pub fn create_proposal(
             &branch,
             &rel,
             &content,
-            &format!("revise: change to {title}"),
+            &proposal_message(&format!("revise: change to {title}"), rec, author, desc.supervision),
             author,
         )?;
         if fm_core::vcs::remote(vault_path)?.is_some() {
@@ -786,9 +1013,14 @@ pub fn create_proposal(
     note.vault = obj.vault.clone();
     note.title = Some(format!("Proposal: {title}"));
     let branch = format!("proposal/{}", note.id);
-    note.extra
-        .insert(crate::thread::PROPOSES.into(), PropertyValue::Text(fm_model::branch_ref(&branch)));
-    note.extra.insert(crate::thread::TARGETS.into(), PropertyValue::Text(fm_model::note_ref(id)));
+    note.extra.insert(
+        crate::thread::PROPOSES.into(),
+        PropertyValue::Text(fm_model::branch_ref(&branch)),
+    );
+    note.extra.insert(
+        crate::thread::TARGETS.into(),
+        PropertyValue::Text(fm_model::note_ref(id)),
+    );
 
     // Build the branch first (additive, no `main` write); record the note only on success.
     fm_core::vcs::create_proposal_branch(
@@ -796,7 +1028,7 @@ pub fn create_proposal(
         &branch,
         &rel,
         &content,
-        &format!("propose: change to {title}"),
+        &proposal_message(&format!("propose: change to {title}"), rec, author, desc.supervision),
         author,
     )?;
     // Share the branch so *another user* can review and accept it — a push of `main` never carries
@@ -819,7 +1051,9 @@ fn open_proposal_for(
     host: Id,
 ) -> Result<Option<Object>, StoreError> {
     for meta in proposals(store)? {
-        let Ok(pid) = meta.id.parse::<Id>() else { continue };
+        let Ok(pid) = meta.id.parse::<Id>() else {
+            continue;
+        };
         let Some(p) = store.get(pid)? else { continue };
         // Cheap in-memory filters BEFORE the git spawn: only THIS note's proposal, and never a declined
         // (closed) record — so `branch_open` runs at most for this note's live candidate.
@@ -847,6 +1081,54 @@ fn proposal_branch_of(obj: &Object) -> Option<String> {
     }
 }
 
+/// Release the guardrail slots held by proposals that are already settled, keeping their text.
+///
+/// When *we* reject, the branch goes with it. When a **peer** rejects, only their copy does: `pull`
+/// fetches without `--prune`, so our `refs/heads/proposal/<id>` survives and [`proposal_load`] keeps
+/// counting it against `max_open` forever. A UI-only user has no way to clear it, so proposals
+/// eventually just start being refused with nothing on screen explaining why. That is a measured
+/// defect, not a hypothesis.
+///
+/// Swept here, at the moment the ceiling is actually checked: the work is bounded by the number of
+/// proposals a vault may hold open, it is local-only, and `retire_proposal` retains the commit
+/// first — the slot is freed, the data is not.
+fn retire_settled_proposals(store: &dyn Store, vault_path: &Path) {
+    let q = Query { filter: crate::thread::proposals_base(), ..Default::default() };
+    let Ok(found) = store.query(&q) else { return };
+    for obj in &found.rows {
+        if is_declined(obj) {
+            if let Some(branch) = proposal_branch_of(obj) {
+                let _ = fm_core::vcs::retire_proposal(vault_path, &branch);
+            }
+        }
+    }
+}
+
+/// Record that a proposal was **actually shown** to a person, the first time it happens.
+///
+/// Idempotent by design and not merely by luck: a second viewing is not a second first viewing, and
+/// re-stamping would both destroy the only measurement of how long someone took and rewrite the note
+/// on every render. Returns whether anything was written, so a caller can tell a no-op from work.
+///
+/// The value is stamped here rather than passed in: a client's clock is not evidence, and this one
+/// is the same clock every other timestamp in the vault comes from.
+pub fn mark_proposal_shown(store: &mut dyn Store, id: &str) -> Result<bool, StoreError> {
+    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let mut obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+    if !crate::thread::is_proposal(&obj) {
+        return Err(StoreError::Io(format!("{id} is not a proposal")));
+    }
+    if !matches!(obj.get(crate::thread::SHOWN), PropertyValue::Null) {
+        return Ok(false); // already seen — the first time is the one that means anything
+    }
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(|e| StoreError::Io(e.to_string()))?;
+    obj.extra.insert(crate::thread::SHOWN.into(), PropertyValue::Text(now));
+    store.put(&obj)?;
+    Ok(true)
+}
+
 /// Whether a proposal note is a rejected (declined) record. Stored as a bool so a hand-edited
 /// `declined: true` in the note's frontmatter reads correctly (a bool-shaped *string* would not); the
 /// string form is still tolerated for any older marker.
@@ -866,7 +1148,9 @@ pub fn proposal_for(
     vault_path: &Path,
     host: &str,
 ) -> Result<Option<String>, StoreError> {
-    let Ok(hid) = host.parse::<Id>() else { return Ok(None) };
+    let Ok(hid) = host.parse::<Id>() else {
+        return Ok(None);
+    };
     Ok(open_proposal_for(store, vault_path, hid)?.map(|p| p.id.to_string()))
 }
 
@@ -891,12 +1175,19 @@ pub fn proposal_diff(
     vault_path: &Path,
     id: &str,
 ) -> Result<ProposalDiff, StoreError> {
-    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let pid: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     // A gone proposal *note* (just rejected, or a stale Collaboration list) is "nothing to show", not
     // an error — the same tolerance a gone *branch* already gets below (the note outlives the branch;
     // here the note itself is gone). This is what a client sees after Reject before its list refreshes.
     let Some(obj) = store.get(pid)? else {
-        return Ok(ProposalDiff { exists: false, declined: false, files: Vec::new(), patch: String::new() });
+        return Ok(ProposalDiff {
+            exists: false,
+            declined: false,
+            files: Vec::new(),
+            patch: String::new(),
+        });
     };
     let declined = is_declined(&obj);
     let branch = match obj.get(crate::thread::PROPOSES) {
@@ -906,7 +1197,12 @@ pub fn proposal_diff(
     .ok_or_else(|| StoreError::Io(format!("{id} is not a proposal")))?;
 
     let (exists, files, patch) = fm_core::vcs::branch_diff(vault_path, &branch)?;
-    Ok(ProposalDiff { exists, declined, files, patch })
+    Ok(ProposalDiff {
+        exists,
+        declined,
+        files,
+        patch,
+    })
 }
 
 /// The PROPOSED note behind a proposal, for review: the host note it edits, its title, and the
@@ -929,30 +1225,52 @@ pub fn proposal_content(
     vault_path: &Path,
     id: &str,
 ) -> Result<Option<ProposalContent>, StoreError> {
-    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
-    let Some(obj) = store.get(pid)? else { return Ok(None) };
+    let pid: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let Some(obj) = store.get(pid)? else {
+        return Ok(None);
+    };
     let branch = match obj.get(crate::thread::PROPOSES) {
         PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
         _ => None,
     };
-    let Some(branch) = branch else { return Ok(None) };
+    let Some(branch) = branch else {
+        return Ok(None);
+    };
     let (exists, files, _) = fm_core::vcs::branch_diff(vault_path, &branch)?;
     if !exists {
         return Ok(None);
     }
-    let Some(rel) = files.first() else { return Ok(None) };
-    let Some(file) = fm_core::vcs::file_on_branch(vault_path, &branch, rel) else { return Ok(None) };
-    let proposed = fm_core::frontmatter::from_file(&file).map_err(|e| StoreError::Parse(e.to_string()))?;
+    let Some(rel) = files.first() else {
+        return Ok(None);
+    };
+    let Some(file) = fm_core::vcs::file_on_branch(vault_path, &branch, rel) else {
+        return Ok(None);
+    };
+    let proposed =
+        fm_core::frontmatter::from_file(&file).map_err(|e| StoreError::Parse(e.to_string()))?;
     // The host note id is the proposed file's stem (works whatever the vault's notes dir), and the
     // title comes from the proposed note, falling back to the live host note's.
-    let host =
-        std::path::Path::new(rel).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let host = std::path::Path::new(rel)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
     let title = proposed
         .title
         .clone()
-        .or_else(|| host.parse::<Id>().ok().and_then(|h| store.get(h).ok().flatten()).and_then(|o| o.title))
+        .or_else(|| {
+            host.parse::<Id>()
+                .ok()
+                .and_then(|h| store.get(h).ok().flatten())
+                .and_then(|o| o.title)
+        })
         .unwrap_or_else(|| "note".into());
-    Ok(Some(ProposalContent { host, title, body: proposed.body }))
+    Ok(Some(ProposalContent {
+        host,
+        title,
+        body: proposed.body,
+    }))
 }
 
 /// Accept the proposal note `id`: resolve its `proposes: branch:<name>` (exactly as [`proposal_diff`]
@@ -964,7 +1282,9 @@ pub fn accept_proposal(
     vault_path: &Path,
     id: &str,
 ) -> Result<fm_core::git::Accepted, StoreError> {
-    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let pid: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
     let branch = match obj.get(crate::thread::PROPOSES) {
         PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
@@ -980,8 +1300,15 @@ pub fn accept_proposal(
 /// accept. **`main` is never touched**: a proposal is only ever an off-`main` branch, so declining it
 /// is just deleting that branch, and the worst case of a mistaken reject is a proposal you re-run.
 /// Refuses a note that is not a proposal.
-pub fn reject_proposal(store: &mut dyn Store, vault_path: &Path, id: &str) -> Result<(), StoreError> {
-    let pid: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+pub fn reject_proposal(
+    store: &mut dyn Store,
+    vault_path: &Path,
+    id: &str,
+    why: Option<&str>,
+) -> Result<(), StoreError> {
+    let pid: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let mut obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
     let branch = match obj.get(crate::thread::PROPOSES) {
         PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
@@ -994,7 +1321,15 @@ pub fn reject_proposal(store: &mut dyn Store, vault_path: &Path, id: &str) -> Re
     // `declined` so it reads as rejected (not merged), and so a fresh `/research` on the note opens a new
     // PR rather than mistaking this closed one for the live proposal (its branch is gone anyway).
     fm_core::vcs::delete_branch(vault_path, &branch)?;
-    obj.extra.insert(crate::thread::DECLINED.into(), PropertyValue::Bool(true));
+    obj.extra
+        .insert(crate::thread::DECLINED.into(), PropertyValue::Bool(true));
+    // Reject writes no commit of its own — `main` is untouched by design — so the one place a
+    // rejection's reason can survive is the proposal note this already rewrites. No new file, and
+    // it is the *only* record of why: the rejected text never reaches `main` at all.
+    if let Some(w) = why.and_then(review_note) {
+        obj.extra
+            .insert(crate::thread::DECLINED_WHY.into(), PropertyValue::Text(w));
+    }
     store.put(&obj)?;
     Ok(())
 }
@@ -1008,7 +1343,9 @@ pub fn reject_proposal(store: &mut dyn Store, vault_path: &Path, id: &str) -> Re
 /// O(corpus) cost as `recent`/`thread`, already accepted at 10k scale, so there is **no reverse
 /// index to keep true** — the files stay the one truth. The target itself is never its own backlink.
 pub fn backlinks(store: &dyn Store, id: &str) -> Result<Vec<ObjectMeta>, StoreError> {
-    let target: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let target: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let q = Query {
         filter: crate::thread::notes_base(),
         sort: vec![SortKey::desc("updated")],
@@ -1060,7 +1397,6 @@ pub fn conflicts(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
         .collect())
 }
 
-
 /// **Notes that are byte-for-byte the same note, written more than once.**
 ///
 /// Grouped by the **body**, because copies differ in `id` and `created` — that is what makes them
@@ -1091,7 +1427,10 @@ pub fn duplicates(store: &dyn Store) -> Result<Vec<DuplicateFamily>, StoreError>
         if body.is_empty() {
             continue; // an empty note is not a copy of another empty note in any useful sense
         }
-        by_body.entry(fm_core::blob::sha256_hex(body.as_bytes())).or_default().push(o);
+        by_body
+            .entry(fm_core::blob::sha256_hex(body.as_bytes()))
+            .or_default()
+            .push(o);
     }
     let mut out: Vec<DuplicateFamily> = by_body
         .into_iter()
@@ -1161,7 +1500,10 @@ pub fn templates(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 fn parse_ref(reference: &str) -> Result<String, StoreError> {
     let r = reference.trim();
     let r = r.strip_prefix("asset:").unwrap_or(r);
-    let r = r.strip_prefix("sha256:").or_else(|| r.strip_prefix("sha256-")).unwrap_or(r);
+    let r = r
+        .strip_prefix("sha256:")
+        .or_else(|| r.strip_prefix("sha256-"))
+        .unwrap_or(r);
     // **A fragment is a viewer's business, never the blob's.** `#page=4` is the standard PDF open
     // parameter — a real reader honours it, which is what makes an anchored reference degrade to a
     // working link outside this app. It says nothing about *which* bytes are wanted, so it is cut
@@ -1171,7 +1513,9 @@ fn parse_ref(reference: &str) -> Result<String, StoreError> {
     let r = r.split('#').next().unwrap_or(r);
     let hash = r.trim();
     if hash.len() < 4 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err(StoreError::Parse(format!("not an asset reference: {reference}")));
+        return Err(StoreError::Parse(format!(
+            "not an asset reference: {reference}"
+        )));
     }
     Ok(hash.to_ascii_lowercase())
 }
@@ -1186,7 +1530,11 @@ fn parse_ref(reference: &str) -> Result<String, StoreError> {
 /// `<img>`/`<video>`/`<iframe>` point at the streaming `GET /api/blob/<reference>` route
 /// instead (`fm-serve/src/blob.rs`). What still needs this: thumbnails, and any frontend
 /// with no HTTP route to stream from — which is why it stays.
-pub fn resolve_asset_bytes(vault: &Path, reference: &str, kind: &str) -> Result<Vec<u8>, StoreError> {
+pub fn resolve_asset_bytes(
+    vault: &Path,
+    reference: &str,
+    kind: &str,
+) -> Result<Vec<u8>, StoreError> {
     let hash = parse_ref(reference)?;
     let path = match kind {
         "thumb" => ingest::thumb_path(vault, &hash),
@@ -1217,11 +1565,15 @@ pub fn asset_status(vault: &Path, reference: &str) -> Result<AssetStatus, StoreE
     // Treated as absent, the note shows the ordinary "no bytes in this vault" placeholder, which
     // is exactly what happened.
     let has_blob = store.exists(&hash)
-        && std::fs::metadata(store.path_for(&hash)).map(|m| m.len() > 0).unwrap_or(false);
+        && std::fs::metadata(store.path_for(&hash))
+            .map(|m| m.len() > 0)
+            .unwrap_or(false);
     Ok(AssetStatus {
         has_blob,
         has_thumb: ingest::thumb_path(vault, &hash).exists(),
-        mime: has_blob.then(|| ingest::sniff_mime(&store.path_for(&hash))).flatten(),
+        mime: has_blob
+            .then(|| ingest::sniff_mime(&store.path_for(&hash)))
+            .flatten(),
     })
 }
 
@@ -1263,7 +1615,9 @@ pub fn inspect_path(path: &Path) -> PathFacts {
     let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
 
     let empty = is_dir
-        && std::fs::read_dir(path).map(|mut d| d.next().is_none()).unwrap_or(false);
+        && std::fs::read_dir(path)
+            .map(|mut d| d.next().is_none())
+            .unwrap_or(false);
 
     // Only the notes directory's `*.md`, non-recursively — `FileStore::reindex` reads exactly
     // that, so counting anything else here would promise notes that never appear.
@@ -1286,7 +1640,11 @@ pub fn inspect_path(path: &Path) -> PathFacts {
 
     // The nearest existing ancestor is what we can actually probe: the path itself may
     // not exist yet, and "can I create it?" is a question about its parent.
-    let probe_at = if is_dir { Some(path.to_path_buf()) } else { nearest_existing(path) };
+    let probe_at = if is_dir {
+        Some(path.to_path_buf())
+    } else {
+        nearest_existing(path)
+    };
     let parent_missing = !exists && probe_at.as_deref() != path.parent();
 
     PathFacts {
@@ -1366,7 +1724,8 @@ pub fn asset_note(
     let mut obj = Object::new(Kind::Asset, ing.text.clone().unwrap_or_default());
     obj.title = Some(ing.filename.clone());
     obj.assets = vec![format!("sha256:{}", ing.hash)];
-    obj.extra.insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
+    obj.extra
+        .insert("mime".into(), PropertyValue::Text(ing.mime.clone()));
     // **The identifier a paper prints on itself, for free.** `pdftotext` has already run, and most
     // modern papers put their DOI or arXiv id on page one — so the commonest way a paper enters
     // the vault needs no typing and no network. Only the *front* of the text is scanned: a DOI in
@@ -1376,8 +1735,10 @@ pub fn asset_note(
     // note is the caller's business — this layer does not decide what the PDF is *of*.
     if let Some(text) = ing.text.as_deref() {
         if let Some(id) = crate::paper::identifier_in_text(text) {
-            obj.extra
-                .insert(id.key().to_string(), PropertyValue::Text(id.value().to_string()));
+            obj.extra.insert(
+                id.key().to_string(),
+                PropertyValue::Text(id.value().to_string()),
+            );
         }
     }
     obj.vault = vault_name.to_string();
@@ -1457,7 +1818,9 @@ fn provenance(source_id: Id) -> String {
 /// Does `target_vault` already hold a copy of the note `id`? The pre-check behind the
 /// "this will replace the existing copy" warning.
 pub fn copy_status(store: &dyn Store, id: &str, target_vault: &str) -> Result<bool, StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let token = provenance(id);
     let want = PropertyValue::Text(token);
     Ok(store
@@ -1482,10 +1845,14 @@ pub fn copy_note(
     vault_paths: &[(String, PathBuf)],
     with_assets: bool,
 ) -> Result<CopyResult, StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let src = store.get(id)?.ok_or(StoreError::NotFound(id))?;
     if src.vault == target_vault {
-        return Err(StoreError::Io(format!("note is already in vault '{target_vault}'")));
+        return Err(StoreError::Io(format!(
+            "note is already in vault '{target_vault}'"
+        )));
     }
     let target_path = vault_paths
         .iter()
@@ -1534,18 +1901,26 @@ pub fn copy_note(
     // `hard` (bool), `created`/`updated` (our own timestamps), `id`/`vault` (reset above).
     obj.title = obj.title.map(|t| refs::strip_cross_vault(&t, with_assets));
     obj.status = obj.status.map(|s| refs::strip_cross_vault(&s, with_assets));
-    obj.tags = obj.tags.iter().map(|t| refs::strip_cross_vault(t, with_assets)).collect();
+    obj.tags = obj
+        .tags
+        .iter()
+        .map(|t| refs::strip_cross_vault(t, with_assets))
+        .collect();
     // Keys as well as values: a property key is as user-typed as its value, and
     // `note:01ARZ…: something` is a surviving pointer however silly it looks.
     obj.extra = obj
         .extra
         .into_iter()
         .map(|(k, v)| {
-            (refs::strip_cross_vault(&k, with_assets), refs::strip_value(&v, with_assets))
+            (
+                refs::strip_cross_vault(&k, with_assets),
+                refs::strip_value(&v, with_assets),
+            )
         })
         .collect();
     obj.code.clear(); // code blobs are not carried in v1 — never leave an outward pointer
-    obj.extra.insert("copy_of".to_string(), PropertyValue::Text(token));
+    obj.extra
+        .insert("copy_of".to_string(), PropertyValue::Text(token));
 
     let mut new_blobs = Vec::new();
     if with_assets {
@@ -1562,7 +1937,10 @@ pub fn copy_note(
         for h in &hashes {
             // Find the blob wherever it physically lives, and copy it into the target
             // (content-addressed, so put_file dedups; we record only what was new).
-            if let Some((_, src_root)) = vault_paths.iter().find(|(_, p)| BlobStore::new(p).exists(h)) {
+            if let Some((_, src_root)) = vault_paths
+                .iter()
+                .find(|(_, p)| BlobStore::new(p).exists(h))
+            {
                 let src_blob = BlobStore::new(src_root).path_for(h);
                 let stored = target_blobs.put_file(&src_blob)?;
                 if !stored.deduped {
@@ -1579,7 +1957,11 @@ pub fn copy_note(
     }
 
     store.put(&obj)?;
-    Ok(CopyResult { meta: ObjectMeta::from(&obj), new_blobs, replaced })
+    Ok(CopyResult {
+        meta: ObjectMeta::from(&obj),
+        new_blobs,
+        replaced,
+    })
 }
 
 /// Recede a copy: delete the copied note from its vault, then remove the blobs this copy
@@ -1594,7 +1976,9 @@ pub fn uncopy_note(
     blobs: &[String],
     vault_paths: &[(String, PathBuf)],
 ) -> Result<(), StoreError> {
-    let id: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let id: Id = id
+        .parse()
+        .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     store.delete(id)?;
     if blobs.is_empty() {
         return Ok(());
@@ -1609,10 +1993,15 @@ pub fn uncopy_note(
     // still reference (in frontmatter `assets` or body)?
     let remaining = store.candidates(&Filter::new())?.0;
     let still_used = |hash: &str| {
-        remaining.iter().filter(|o| o.vault == target_vault).any(|o| {
-            o.assets.iter().any(|a| parse_ref(a).map(|h| h == hash).unwrap_or(false))
-                || refs::references(&o.body).0.iter().any(|h| h == hash)
-        })
+        remaining
+            .iter()
+            .filter(|o| o.vault == target_vault)
+            .any(|o| {
+                o.assets
+                    .iter()
+                    .any(|a| parse_ref(a).map(|h| h == hash).unwrap_or(false))
+                    || refs::references(&o.body).0.iter().any(|h| h == hash)
+            })
     };
 
     let target_blobs = BlobStore::new(&target_path);

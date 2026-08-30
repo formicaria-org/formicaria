@@ -15,6 +15,7 @@ const v = (name: string, label: string | null): VaultInfo => ({
   path: `/vaults/${name}`,
   default: false,
   git_assets_max: null,
+  supervision: { collect: true, publish: false },
   label,
   identity: null,
 });

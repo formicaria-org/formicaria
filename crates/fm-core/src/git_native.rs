@@ -1320,6 +1320,20 @@ pub fn revise_proposal_branch(
 /// branch still points at the previous revision, so it would be refused outright. The two-step
 /// is still a single atomic ref move, which is what the guarantee actually rests on — an
 /// interrupted revise leaves the prior revision exactly as it was.
+/// Mirrors [`crate::git::retain_proposal_tip`] — keep a proposal's outgoing commit reachable before
+/// the ref holding it moves (revise) or disappears (reject). See that function for *why*; the
+/// behaviour must be identical or the phone silently collects a different corpus from the laptop,
+/// which is the class of divergence `git_differential.rs` exists to catch.
+///
+/// Best-effort throughout: a failure here must never fail the proposal.
+fn retain_proposal_tip(vault: &Path, branch: &str) {
+    let Some(id) = branch.strip_prefix("proposal/") else { return };
+    let Ok(repo) = Repository::open(vault) else { return };
+    let Ok(r) = repo.find_reference(&format!("refs/heads/{branch}")) else { return };
+    let Some(tip) = r.target() else { return };
+    let _ = repo.reference(&format!("refs/fm/review/{id}/{tip}"), tip, true, "retain proposal tip");
+}
+
 fn write_proposal_branch(
     vault: &Path,
     branch: &str,
@@ -1358,6 +1372,7 @@ fn write_proposal_branch(
 
     let sig = signature(&repo, author)?;
     let commit = repo.commit(None, &sig, &sig, message, &tree, &[&parent]).map_err(map)?;
+    retain_proposal_tip(vault, branch); // no-op on a create; on a revise this is the whole point
     repo.reference(&refname, commit, force, "proposal").map_err(map)?;
     Ok(())
 }
@@ -1509,10 +1524,26 @@ pub fn push_branch(vault: &Path, branch: &str, force: bool) -> Result<(), StoreE
 
 /// Mirrors [`crate::git::delete_branch`] — how a proposal is REJECTED. Best-effort throughout: a
 /// branch that is already gone is success, not an error. **Never touches `main`.**
+/// Mirrors [`crate::git::retire_proposal`] — release a settled proposal's guardrail slot while
+/// keeping its commit. Local only; the remote is deliberately untouched.
+pub fn retire_proposal(vault: &Path, branch: &str) -> Result<(), StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(());
+    }
+    retain_proposal_tip(vault, branch);
+    let repo = Repository::open(vault).map_err(map)?;
+    if let Ok(mut b) = repo.find_branch(branch, git2::BranchType::Local) {
+        let _ = b.delete();
+    }
+    Ok(())
+}
+
 pub fn delete_branch(vault: &Path, branch: &str) -> Result<(), StoreError> {
     if !vault.join(".git").exists() {
         return Ok(());
     }
+    // Same placement as the subprocess backend, for the same reason: this serves accept AND reject.
+    retain_proposal_tip(vault, branch);
     let repo = Repository::open(vault).map_err(map)?;
     if let Ok(mut b) = repo.find_branch(branch, git2::BranchType::Local) {
         let _ = b.delete();

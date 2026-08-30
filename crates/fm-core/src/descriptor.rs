@@ -28,6 +28,31 @@
 use crate::StoreError;
 use std::path::{Path, PathBuf};
 
+/// **Whether this vault's review record may be collected, and whether it may be published.**
+///
+/// Two separate answers, because the first does not imply the second. That distinction is not
+/// pedantry: it is what froze the only comparable open corpus of AI corrections, whose contributors
+/// had agreed to collection and training but never to public release.
+///
+/// Here rather than in per-device Settings, for exactly the reason [`Descriptor::git_assets_max`]
+/// is: publishing relicenses the vault's **content**, which is shared and permanent, so the vault
+/// decides — not the loosest machine that happens to hold a clone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Supervision {
+    /// Record what a human did with an AI proposal. On by default: it is the user's own history in
+    /// their own repository and nothing leaves the machine — but it can be turned off.
+    pub collect: bool,
+    /// Allow that record to be exported and published under an open licence. **Off by default and
+    /// never inferred**, because publication cannot be recalled.
+    pub publish: bool,
+}
+
+impl Default for Supervision {
+    fn default() -> Self {
+        Supervision { collect: true, publish: false }
+    }
+}
+
 /// What `vault.json` can say. Absent file, absent field and empty string are all "no
 /// opinion" — the caller keeps its default.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -55,6 +80,10 @@ pub struct Descriptor {
     /// vault — not the loosest device — bounds how large a single proposal, and how many at once,
     /// it will hold. Absent config is the conservative built-in [default](crate::proposal::ProposalLimits::default).
     pub proposal_limits: crate::proposal::ProposalLimits,
+
+    /// **What may be done with this vault's review record** — see [`Supervision`]. Absent config is
+    /// the conservative default: collect locally, publish nothing.
+    pub supervision: Supervision,
 }
 
 /// Parse a size a human would write: `2MB`, `500 kb`, `1.5 GiB`, or plain bytes.
@@ -242,12 +271,44 @@ impl Descriptor {
             limits
         };
 
+        // Consent. A nested object so the two answers read as one concern, and a wrong type is an
+        // error rather than a shrug: someone who wrote `"publish": "yes"` believes they granted it.
+        let supervision = {
+            let mut sup = Supervision::default();
+            match v.get("supervision") {
+                None | Some(serde_json::Value::Null) => {}
+                Some(serde_json::Value::Object(o)) => {
+                    for (key, slot) in [("collect", &mut sup.collect), ("publish", &mut sup.publish)]
+                    {
+                        match o.get(key) {
+                            None | Some(serde_json::Value::Null) => {}
+                            Some(serde_json::Value::Bool(b)) => *slot = *b,
+                            Some(_) => {
+                                return Err(StoreError::Parse(format!(
+                                    "{}: `supervision.{key}` must be true or false",
+                                    path.display()
+                                )))
+                            }
+                        }
+                    }
+                }
+                Some(_) => {
+                    return Err(StoreError::Parse(format!(
+                        "{}: `supervision` must be an object like {{\"collect\": true}}",
+                        path.display()
+                    )))
+                }
+            }
+            sup
+        };
+
         Ok(Descriptor {
             name: field("name"),
             description: field("description"),
             notes,
             git_assets_max,
             proposal_limits,
+            supervision,
         })
     }
 
@@ -261,6 +322,39 @@ impl Descriptor {
     ///
     /// `None` removes the key rather than writing `null`, so "off" looks like a vault that never
     /// had the setting — which is what it is.
+    /// **Record this vault's supervision consent**, leaving every other byte of `vault.json` alone.
+    ///
+    /// Same narrow-rewrite discipline as [`set_git_assets_max`], and here for the same reason: this
+    /// is a *setting* on a file the user owns and may have hand-edited.
+    ///
+    /// Both answers are always written together, explicitly, even when one is the default. Consent
+    /// is the one setting where an absent key and a deliberate "no" must not look identical to the
+    /// person who has to answer for it later.
+    pub fn set_supervision(root: &Path, sup: Supervision) -> Result<(), StoreError> {
+        let path = root.join("vault.json");
+        let mut v: serde_json::Value = match std::fs::read_to_string(&path) {
+            Ok(t) => serde_json::from_str(&t).map_err(|e| {
+                StoreError::Parse(format!("{} is not valid JSON: {e}", path.display()))
+            })?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Value::Object(serde_json::Map::new())
+            }
+            Err(e) => return Err(StoreError::Io(format!("{}: {e}", path.display()))),
+        };
+        let Some(obj) = v.as_object_mut() else {
+            return Err(StoreError::Parse(format!("{}: not a JSON object", path.display())));
+        };
+        let mut m = serde_json::Map::new();
+        m.insert("collect".into(), serde_json::Value::Bool(sup.collect));
+        m.insert("publish".into(), serde_json::Value::Bool(sup.publish));
+        obj.insert("supervision".into(), serde_json::Value::Object(m));
+        let mut text =
+            serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
+        text.push('\n');
+        std::fs::write(&path, text)
+            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
+    }
+
     pub fn set_git_assets_max(root: &Path, max: Option<u64>) -> Result<(), StoreError> {
         let path = root.join("vault.json");
         let mut v: serde_json::Value = match std::fs::read_to_string(&path) {

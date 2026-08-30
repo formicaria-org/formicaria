@@ -20,6 +20,7 @@
   import {
     config as fetchConfig,
     setGitAssetsMax,
+    setSupervision,
     agentStatus,
     setAgent,
     setTranscribe,
@@ -47,6 +48,23 @@
   }
 
   let assetError = $state<string | null>(null);
+
+  let consentError = $state<string | null>(null);
+
+  /** Record what may be done with a vault's review record.
+   *
+   *  Two switches, never one, because agreeing to keep a record of your own corrections is not
+   *  agreeing to publish them — collapsing those is exactly what stranded the only comparable open
+   *  corpus of AI corrections. Each answer is written on its own; the other is left as it was. */
+  async function setConsent(vault: string, next: { collect?: boolean; publish?: boolean }) {
+    consentError = null;
+    try {
+      const vaults = await setSupervision(vault, next);
+      if (cfg) cfg = { ...cfg, vaults };
+    } catch (e) {
+      consentError = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   /** Write the vault's attachment limit and take the refreshed list back. The backend parses the
    *  size, so a typo is refused there and reported here rather than being half-applied. */
@@ -655,6 +673,42 @@
                 vault and travel only via restic.
               {/if}
             </p>
+            <!-- Two questions, deliberately not one. The record is this person's own corrections in
+                 their own vault, so keeping it needs no ceremony; publishing it relicenses content
+                 and cannot be undone, so it is asked separately and never assumed. Lives in
+                 `vault.json` beside the attachment rule, for the same reason: it decides what may
+                 leave, so the vault settles it rather than whichever device is loosest. -->
+            <label class="line consent">
+              <input
+                type="checkbox"
+                checked={v.supervision.collect}
+                onchange={(e) =>
+                  setConsent(v.name, { collect: (e.currentTarget as HTMLInputElement).checked })}
+              />
+              <span>Keep a record of what you change in AI suggestions</span>
+            </label>
+            <label class="line consent">
+              <input
+                type="checkbox"
+                checked={v.supervision.publish}
+                onchange={(e) =>
+                  setConsent(v.name, { publish: (e.currentTarget as HTMLInputElement).checked })}
+              />
+              <span>Allow that record to be shared openly</span>
+            </label>
+            <p class="muted small">
+              {#if v.supervision.collect}
+                Kept in this vault, with your notes. Nothing is sent anywhere on its own.
+                {#if v.supervision.publish}
+                  Records made from now on are marked as shareable — sharing itself is still a
+                  separate, deliberate step, and it cannot be taken back once taken.
+                {:else}
+                  Sharing is off, so nothing here can be published.
+                {/if}
+              {:else}
+                Off — nothing is recorded about what you change.
+              {/if}
+            </p>
             <p class="muted">
               restic:
               {#if resticFor(v.name)}
@@ -668,6 +722,9 @@
         {/each}
         {#if assetError}
           <p class="assets-error">{assetError}</p>
+        {/if}
+        {#if consentError}
+          <p class="assets-error">{consentError}</p>
         {/if}
         <p class="muted">
           Remotes and committer identity live in

@@ -661,6 +661,105 @@ fn rejecting_a_proposal_agrees_and_is_idempotent() {
     assert_eq!(fs::read_to_string(b.path().join("notes/n1.md")).unwrap(), NOTE);
 }
 
+/// A revise force-moves the proposal ref and a reject deletes it — the two paths that used to
+/// destroy the model's text. Both backends must keep the outgoing commit, under the same name, and
+/// the record must stay invisible to every walk that already exists.
+///
+/// This is behavioural, so the route-parity grep in `ci/checks.sh` cannot see it: `retain_proposal_tip`
+/// is internal to each backend, and two implementations that disagree here collect different corpora
+/// on the laptop and the phone.
+#[test]
+fn a_revised_or_rejected_proposal_keeps_its_outgoing_commit_on_both() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    let first = NOTE.replace("bravo", "first draft");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &first, "propose: m", None).unwrap();
+    git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &first, "propose: m", None)
+        .unwrap();
+
+    let tip = |v: &Path| g(v, &["rev-parse", &format!("refs/heads/{br}")]);
+    let (a1, b1) = (tip(a.path()), tip(b.path()));
+
+    // REVISE: the ref moves onto a commit re-parented on HEAD. Without retention the first draft
+    // is orphaned here, which is exactly how the owner's vault lost ten commits.
+    let second = NOTE.replace("bravo", "second draft");
+    git::revise_proposal_branch(a.path(), br, "notes/n1.md", &second, "revise: m", None).unwrap();
+    git_native::revise_proposal_branch(b.path(), br, "notes/n1.md", &second, "revise: m", None)
+        .unwrap();
+
+    assert_eq!(g(a.path(), &["rev-parse", &format!("refs/fm/review/p1/{a1}")]), a1);
+    assert_eq!(g(b.path(), &["rev-parse", &format!("refs/fm/review/p1/{b1}")]), b1);
+    // The point is the CONTENT, not the ref: the superseded draft is still readable.
+    assert!(g(a.path(), &["show", &format!("{a1}:notes/n1.md")]).contains("first draft"));
+    assert!(g(b.path(), &["show", &format!("{b1}:notes/n1.md")]).contains("first draft"));
+
+    // REJECT: the branch goes; its final tip is then the only surviving copy.
+    let (a2, b2) = (tip(a.path()), tip(b.path()));
+    git::delete_branch(a.path(), br).unwrap();
+    git_native::delete_branch(b.path(), br).unwrap();
+    assert_eq!(g(a.path(), &["rev-parse", &format!("refs/fm/review/p1/{a2}")]), a2);
+    assert_eq!(g(b.path(), &["rev-parse", &format!("refs/fm/review/p1/{b2}")]), b2);
+    assert!(g(a.path(), &["show", &format!("{a2}:notes/n1.md")]).contains("second draft"));
+    assert!(g(b.path(), &["show", &format!("{b2}:notes/n1.md")]).contains("second draft"));
+
+    // Invisible where it must be. A retained record that changed any of these would be a
+    // regression in the app, not a feature: no branch, nothing in HEAD's history, and — the one
+    // that would actually brick the product — no guardrail slot consumed.
+    for (v, keep) in [(a.path(), &a2), (b.path(), &b2)] {
+        assert_eq!(g(v, &["for-each-ref", "--format=%(refname)", "refs/heads/proposal/"]), "");
+        assert!(!g(v, &["log", "--format=%H"]).contains(keep.as_str()));
+    }
+    assert_eq!(git::proposal_load(a.path()).unwrap().0, 0);
+    assert_eq!(git_native::proposal_load(b.path()).unwrap().0, 0);
+}
+
+/// Retiring a settled proposal frees its guardrail slot without touching the remote, and both
+/// backends must agree — `ci/checks.sh` proves the route exists on each, never that they behave the
+/// same, and `decisions.md` records the two once having opposite bugs on one path.
+#[test]
+fn retiring_a_settled_proposal_agrees_and_keeps_the_commit() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    seed(a.path(), "notes/n1.md", NOTE);
+    seed(b.path(), "notes/n1.md", NOTE);
+    let br = "proposal/p1";
+    let proposed = NOTE.replace("bravo", "settled");
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &proposed, "propose: m", None).unwrap();
+    git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &proposed, "propose: m", None)
+        .unwrap();
+    let tip = |v: &Path| g(v, &["rev-parse", &format!("refs/heads/{br}")]);
+    let (a1, b1) = (tip(a.path()), tip(b.path()));
+    assert_eq!(git::proposal_load(a.path()).unwrap().0, 1);
+    assert_eq!(git_native::proposal_load(b.path()).unwrap().0, 1);
+
+    git::retire_proposal(a.path(), br).unwrap();
+    git_native::retire_proposal(b.path(), br).unwrap();
+
+    // The slot is released on both...
+    assert_eq!(git::proposal_load(a.path()).unwrap().0, 0);
+    assert_eq!(git_native::proposal_load(b.path()).unwrap().0, 0);
+    assert!(!git::branch_open(a.path(), br) && !git_native::branch_open(b.path(), br));
+
+    // ...and the text is kept on both — retiring joins the unlabelled pool, it does not drop it.
+    assert!(g(a.path(), &["show", &format!("{a1}:notes/n1.md")]).contains("settled"));
+    assert!(g(b.path(), &["show", &format!("{b1}:notes/n1.md")]).contains("settled"));
+    assert_eq!(g(a.path(), &["rev-parse", &format!("refs/fm/review/p1/{a1}")]), a1);
+    assert_eq!(g(b.path(), &["rev-parse", &format!("refs/fm/review/p1/{b1}")]), b1);
+
+    // Idempotent: retiring twice is success, exactly as rejecting twice is.
+    git::retire_proposal(a.path(), br).unwrap();
+    git_native::retire_proposal(b.path(), br).unwrap();
+}
+
 // ---------------------------------------------------------------------------
 // Native-only: the accept path's safety properties.
 //
