@@ -554,6 +554,17 @@ The gray-screen fix and its tests are in
   and do not sweep it into a commit with `git add -A` without looking, which is exactly how it got
   into `9a48a1f`.
 
+- **The visual pass is part-done, and these are the parts that are not.** Shipped 2026-08-30:
+  hue-derived status colour, `EmptyState` wired into all six renderers that had hand-rolled text
+  (Board had none at all), cards showing title *and* preview with a two-line clamp, and the chrome
+  in two placements. **Still open:** `AssetMissing.svelte` remains orphaned (zero imports); no
+  thumbnail consumer exists, so a note with photos still decodes every one at full size — the
+  Android renderer-kill in `render.ts:407` is unchanged; the calendar's urgency is still a colour
+  with no second carrier; `data-type` is still inert, so a note and a discussion look identical; and
+  six of seven renderers still hand-pick spacing near the token scale without matching it.
+  **The landmine for the rest:** there is no virtualisation anywhere, so anything added per-card
+  multiplies by the whole result set.
+
 - **`libwhisper-server.so` is not 16 KB aligned, and every other bundled library is.** Measured on
   the 2026-08-30 release APK: our own `libformicaria_mobile_lib.so` and all fifteen llama/ggml libs
   report `LOAD align 0x4000`; the prebuilt whisper binary reports `0x1000`. `ci/android-release.sh`

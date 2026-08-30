@@ -5,6 +5,7 @@
   import EditedBy from '../lib/EditedBy.svelte';
   import { lastEditFor } from '../lib/activity.svelte';
   import type { ObjectMeta } from '../lib/types';
+  import EmptyState from '../lib/EmptyState.svelte';
 
   // The closest-deadline view. Cards arrive already filtered (dated, open) and
   // sorted (soonest first) by the query layer; this renderer only paints the
@@ -25,7 +26,10 @@
 
 <div class="agenda">
   {#if cards.length === 0}
-    <p class="empty">Nothing on the horizon — no dated, open items.</p>
+    <EmptyState
+      icon="calendar"
+      title="Nothing on the horizon"
+      hint="Give a note a date and it appears here, sorted by how soon it is." />
   {:else}
     <div class="list">
       {#each groups as group (group.u)}
@@ -180,10 +184,5 @@
     color: var(--text-muted);
     min-width: 5.5rem;
     text-align: right;
-  }
-  .empty {
-    padding: var(--space-6);
-    color: var(--text-muted);
-    text-align: center;
   }
 </style>

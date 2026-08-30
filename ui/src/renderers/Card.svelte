@@ -81,7 +81,19 @@
   onclick={open}
   onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open())}
 >
-  <p class="preview">{card.title ?? card.preview ?? card.id}</p>
+  <!-- **Both, not one or the other.** This showed `title ?? preview`, so a card carried strictly
+       less than the same note's row in Timeline or Search — and a note whose body is not prose (a
+       whiteboard is Excalidraw JSON) put a fragment of that JSON on screen as its only line.
+       Clamped, because neither field is length-capped: the title at two lines, the preview at two,
+       so a long one cannot grow the card down the column. -->
+  {#if card.title}
+    <p class="title">{card.title}</p>
+    {#if card.preview && card.type !== 'asset'}<p class="preview">{card.preview}</p>{/if}
+  {:else if card.preview}
+    <p class="title">{card.preview}</p>
+  {:else}
+    <p class="title untitled">Untitled</p>
+  {/if}
   <footer class="meta">
     {#if onstatus}
       <StatusChip
@@ -162,12 +174,40 @@
     opacity: 0.4;
     transform: scale(0.98);
   }
+  .title {
+    margin: 0;
+    font-size: var(--text-base);
+    line-height: var(--lh-sm);
+    color: var(--text);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    /* Two lines, then an ellipsis. Nothing caps a title's length on the way in, so without this a
+       single long one sets the height of every card beside it. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .title.untitled {
+    color: var(--text-subtle);
+    font-style: italic;
+    font-weight: 400;
+  }
+  /* The second line, under the title: quieter, and clamped for the same reason. On the tokens
+     rather than the 0.9rem/1.35 that was hand-picked here — a card's text is the same role as a
+     Timeline row's and should not be a different size for having been written in another file. */
   .preview {
     margin: 0;
-    font-size: 0.9rem;
-    line-height: 1.35;
-    color: var(--text);
+    font-size: var(--text-sm);
+    line-height: var(--lh-sm);
+    color: var(--text-muted);
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
   .meta {
     display: flex;

@@ -4,6 +4,11 @@
     dropTargetForElements,
   } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import Card from './Card.svelte';
+  // A hue for the column, from the column's own value. No status is named here — the grep that
+  // forbids that is the point: the *theme* decides what a hue means (`app.css`), including the
+  // handful of words where it means something a hash cannot know.
+  import { hashHue } from '../lib/vaultColor';
+  import EmptyState from '../lib/EmptyState.svelte';
   import type { Board } from '../lib/types';
 
   let { board, onmove, onreorder, onopen, statuses = [], onstatus }: {
@@ -156,6 +161,15 @@
      2026-08-24). The rail is the map: every column by name, the one you are on marked, and a tap
      jumps to it. Generic, like the rest of this renderer — the names are `col.label`, data the
      board never inspects. -->
+{#if board.columns.length === 0}
+  <!-- Columns come from grouping live results, so no notes means no columns — and the strip then
+       rendered as a bare empty flex row: the one renderer with no empty state at all, showing
+       nothing and explaining nothing. -->
+  <EmptyState
+    icon="board"
+    title="Nothing to group yet"
+    hint="A board makes a column for each value it finds. Give a note a status and it appears here." />
+{:else}
 <div class="board-wrap" class:overflowing>
   <div class="board" bind:this={strip} onscroll={measure}>
   {#each board.columns as col (col.value)}
@@ -163,6 +177,7 @@
       <header
         class="column-head"
         data-value={col.value}
+        style="--hash-hue:{hashHue(col.value)}"
         use:columnDrag={col.value}
         title="Drag to reorder"
       >
@@ -215,6 +230,7 @@
     </nav>
   {/if}
 </div>
+{/if}
 
 <style>
   /* The wrap owns the pane's height; the strip takes what is left after the rail. `min-height: 0`

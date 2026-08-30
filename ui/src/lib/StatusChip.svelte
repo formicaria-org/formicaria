@@ -1,11 +1,23 @@
 <script lang="ts">
   import { nextStatus } from './status';
   import { clickOutside } from './clickOutside';
+  import { hashHue } from './vaultColor';
 
   // Click to rotate a note's status through the values the vault already uses,
   // and through unset. No value is named here: `statuses` is learned from data
   // and the tint comes from [data-value] in the theme, so this chip renders any
   // workflow's statuses without a code change (same rule as the renderers).
+  //
+  // **The tint is a hue derived from the word**, handed to the theme as `--hue`. For a long time
+  // the comment above was aspirational: it claimed a `[data-value]` tint that no rule provided, so
+  // every chip in the app was the same grey whatever it said. Hardcoding the colours would have
+  // capped it at a vocabulary we guessed — `blocked` and `drafting` would still be grey — so it
+  // hashes, exactly as vault and contributor colours already do. `vaultColor.ts` records that this
+  // is why hashing *replaced* a data-attribute theme there. The theme still names the few statuses
+  // where the colour carries meaning (`done` should be green, not whatever the hash says) — which
+  // is why what goes out from here is `--hash-hue`, the raw number, and the theme derives `--hue`
+  // from it. Setting `--hue` here would be inline, and inline beats every selector: the named
+  // exceptions could never fire.
   //
   // **Secondary gesture — a picker.** Rotate is the fast primary tap, but stepping to a distant
   // status is tedious with many of them, so a *secondary* gesture opens a menu to jump straight
@@ -45,6 +57,7 @@
   class="status-chip"
   class:unset={!status}
   data-value={status ?? ''}
+  style={status ? `--hash-hue:${hashHue(status)}` : undefined}
   onclick={rotate}
   oncontextmenu={openPicker}
   {title}

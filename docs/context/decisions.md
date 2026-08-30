@@ -3245,3 +3245,86 @@ beside it, the standard menu pattern — and shows **"not set"** where there is 
 `newView` stopped being a capability learnable only from a source comment. It also gained a list
 entry at all ("Keep this arrangement as a view"), having previously been reachable only from a
 pane-header button that appears on three pane kinds.
+
+## 2026-08-30 — the chrome moves to a collapsible side panel, and the top bar goes `#ui`
+
+> **This reverses the rail removal** asserted in `ui/src/App.svelte` — *"The nav is a horizontal top
+> bar now (it was a tall left rail that wasted vertical space). Everything the rail held lives here
+> in one row."* That claim was never a dated entry, only a comment on the shipping code; it is
+> superseded here, and the comment is rewritten to point at this entry.
+
+**Why the original removal was right, and why it no longer applies.** The rail that was removed was a
+tall strip holding a handful of icons **beside a top bar that still existed**. It spent a full column
+of height to show five things and bought nothing back, so folding those five things into the bar that
+was already there was strictly better. The objection was never "a vertical panel is wrong"; it was
+"a vertical strip that displaces nothing is wrong".
+
+**What changes it: the panel replaces the top bar rather than joining it.** Everything the top bar
+holds — make something, search, which vault, the vault and contributor filters, the sync and
+unreadable chips, Back up, Help, Settings — moves into the panel, together with the list of open
+views. The top bar is then deleted, not shrunk. So the workspace **gains** the bar's height at every
+width, which is the exact resource the original removal was protecting. A strip that displaces a row
+is a different proposition from one that sits beside it.
+
+**And it collapses.** The old rail could not be got out of the way; this one narrows to icons and
+then to nothing, remembered per browser like the theme. When width is scarce the reader takes it
+back — which is the answer to the one real cost, that a panel spends horizontal space on a screen
+that may not have it to spare.
+
+**Why a panel and not the view strip (D1).** The strip was the cheaper option and it is the one this
+plan recommended. The owner's reading is better: on a wide monitor **horizontal space is the abundant
+resource and vertical is the scarce one**, so spending width to buy back height is the trade that
+suits the screen. It is also the arrangement Material recommends for an expanded window, arrived at
+from the opposite direction.
+
+**This is not a third arrangement.** `decisions.md`'s "hard stop at two" governs **pane placement** —
+`tiled` and `single`, both untouched here. This moves *chrome*, which is a different axis; the panel
+holds the same controls in a different place and the grid below it is unchanged. Stating that plainly
+because the two are easy to conflate, and conflating them is how the hard stop would get worn away by
+something that never actually tested it.
+
+**The phone does not get a panel.** On a coarse pointer at narrow width the controls move to a single
+**bottom** bar and the top bar goes for a different reason: a top bar on a phone holds actions the
+thumb cannot reach, and nearly every app ships one anyway. Branching stays on space and input
+capability, never on platform — a wide touch tablet gets the panel, a narrow desktop window gets the
+bottom bar.
+
+**Reversal condition.** If the panel ends up habitually collapsed, it is not earning its width and
+the strip (D1) was the right answer after all. That is a question about use, not about pictures, so
+it is settled by living with it rather than by argument.
+
+## 2026-08-30 — a status is coloured by hashing the word, not by a list someone guessed `#ui`
+
+`StatusChip.svelte` said of itself that *"the tint comes from `[data-value]` in the theme"*. **No such
+rule existed.** The only `[data-value]` colouring in the app was three hardcoded literals on board
+column *headers*, so every status pill on every card in every view rendered the same grey whatever
+it said — an aspirational comment describing a feature that had never been built.
+
+The obvious fix — extend the hardcoded list — caps colour at a vocabulary we guessed. `blocked`,
+`drafting`, `in review` and every other word a real vault uses would still be grey, which is the
+same failure with more lines. So the hue is **derived from the word** with `hashHue()`, the function
+that already colours vaults and contributors; `vaultColor.ts` records that hashing *replaced* a
+theme keyed off a data attribute there, for this exact reason. Renderers stay literal-free because
+no renderer names a status — `Board` hashes `col.value`, whatever it happens to be.
+
+**Two custom properties, and the split is load-bearing.** The component emits the raw hash as
+`--hash-hue`, inline; the theme derives `--hue` from it and the styling reads `--hue`. Setting
+`--hue` inline instead would be shorter and would silently destroy the exceptions below — an inline
+style beats every selector, so a named colour could never win. The indirection is what leaves the
+last word with the theme. Pinned by a test asserting the component emits `--hash-hue` and never
+`--hue`, because this is invisible and would regress without a sound.
+
+**Then the named exceptions, expressed as hue overrides rather than colours.** For a handful of
+words the colour is semantic and a hash cannot know it: a finished status must read as finished, not
+as whatever 4-in-360 it lands on. `[data-value='…'] { --hue: … }` at the same specificity, declared
+after, so it wins — and because the exception moves the *hue*, the pill stays internally consistent:
+background, border and text travel together through one mechanism.
+
+**No `color-mix()`.** The first draft used it for the exception backgrounds. Nothing else in this app
+uses it and its support in the Android WebView we ship to is unverified, so relying on it would have
+been a silent visual failure on the one platform that cannot be debugged (`console.*` reaches no
+logcat). Overriding the hue needs only `hsl()`, which is everywhere.
+
+**Colour never carries the meaning alone** — the chip has always shown its word and still does, which
+is what keeps this out of the trap the calendar's urgency bars are still in (a 3px border hue with no
+second carrier; unfixed, recorded in `known-issues.md`).

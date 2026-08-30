@@ -7,6 +7,7 @@
   import VaultBadge from '../lib/VaultBadge.svelte';
   import { dayHeading } from '../lib/calendar';
   import type { DiscussionSummary } from '../lib/types';
+  import EmptyState from '../lib/EmptyState.svelte';
 
   let {
     discussions,
@@ -29,7 +30,10 @@
 
 <div class="discussions">
   {#if rows.length === 0}
-    <p class="empty">No discussions yet — start one with “New discussion”.</p>
+    <EmptyState
+      icon="chat"
+      title="No discussions yet"
+      hint="Start one from + → New discussion, or leave a comment on any note." />
   {:else}
     <div class="feed">
       {#each rows as d (d.id)}
@@ -113,10 +117,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .empty {
-    padding: 2rem;
-    color: var(--muted);
-    text-align: center;
   }
 </style>

@@ -176,16 +176,47 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Value-keyed column tints — a theme concern, keyed by the property value, so
-   renderers stay free of any status literal. */
-.column-head[data-value='doing'] .column-label {
-  color: var(--tint-a);
+/* ---- Status colour -------------------------------------------------------------------------
+   A status pill and a board column carry a hue derived from the word itself (`hashHue`, the same
+   function that colours vaults and contributors). That is what lets an unknown vocabulary —
+   `blocked`, `drafting`, `in review` — arrive coloured without anyone adding a rule, and it is why
+   `vaultColor.ts` records that hashing *replaced* a theme keyed off a data attribute.
+
+   **Two custom properties, not one, and that is load-bearing.** The component hands us the raw
+   hash as `--hash-hue`, inline. The theme then decides `--hue` from it. If the component set
+   `--hue` directly, the exceptions below could never fire: an inline style beats every selector,
+   so `done` would wear its hash colour no matter what this file said. The indirection is what
+   leaves the last word with the theme.
+
+   Saturation and lightness are fixed here, per theme, so every hue stays legible on both grounds;
+   only the hue travels. Colour never carries the meaning alone — the chip shows its word. */
+[data-value] {
+  --hue: var(--hash-hue, 220);
 }
-.column-head[data-value='done'] .column-label {
-  color: var(--tint-b);
+
+/* The named exceptions — where the colour means something a hash cannot know: `done` must read as
+   finished, not as whatever 4-in-360 it happens to hash to. Same specificity as the rule above,
+   declared after it, so these win. Hues match --tint-a/b/c. This is the theme layer, the one place
+   a status literal belongs — and the reason no renderer needs one. */
+[data-value='done'] { --hue: 140; }
+[data-value='doing'] { --hue: 210; }
+[data-value='todo'] { --hue: 38; }
+
+.status-chip[data-value]:not([data-value='']) {
+  background: hsl(var(--hue) 60% 20% / 0.55);
+  border-color: hsl(var(--hue) 55% 45% / 0.5);
+  color: hsl(var(--hue) 70% 78%);
 }
-.column-head[data-value='todo'] .column-label {
-  color: var(--tint-c);
+.column-head[data-value]:not([data-value='']) .column-label {
+  color: hsl(var(--hue) 65% 72%);
+}
+:root[data-theme='light'] .status-chip[data-value]:not([data-value='']) {
+  background: hsl(var(--hue) 70% 94%);
+  border-color: hsl(var(--hue) 45% 72%);
+  color: hsl(var(--hue) 55% 30%);
+}
+:root[data-theme='light'] .column-head[data-value]:not([data-value='']) .column-label {
+  color: hsl(var(--hue) 55% 34%);
 }
 
 /* Derived-urgency colors — keyed by the computed bucket so any renderer (the

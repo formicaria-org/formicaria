@@ -1076,6 +1076,28 @@
   /// arrange a board or an agenda and want to keep it — so that is what this saves.
   // The save dialog's state. This was a `window.prompt()` until 2026-08-29 — genuinely in-app, but
   // not an affordance this app would otherwise ship, and it could ask exactly one question.
+  /// **The chrome is a panel on a wide screen and a bottom bar on a narrow one** — the same
+  /// controls, placed where the space and the hand are. Open by default; collapsing narrows it to
+  /// its icons so the width goes back to the work. Per browser, like the theme and the layout,
+  /// because it is a view preference and touches no vault (`decisions.md`, 2026-08-30).
+  let panelOpen = $state(
+    (() => {
+      try {
+        return localStorage.getItem('fm-panel') !== 'collapsed';
+      } catch {
+        return true;
+      }
+    })(),
+  );
+  function togglePanel() {
+    panelOpen = !panelOpen;
+    try {
+      localStorage.setItem('fm-panel', panelOpen ? 'open' : 'collapsed');
+    } catch {
+      /* a private window still gets a working panel, just not a remembered one */
+    }
+  }
+
   let helpOpen = $state(false);
   let saveViewOpen = $state(false);
   let saveViewName = $state('');
@@ -1667,11 +1689,27 @@
     onretry={loadVaults}
   />
 {:else}
-<div class="app" data-layout={workspace.layout ?? 'auto'}>
-  <!-- The nav is a horizontal top bar now (it was a tall left rail that wasted vertical
-       space). Everything the rail held lives here in one row; the workspace gets the full
-       height and width below it. -->
+<div class="app" data-layout={workspace.layout ?? 'auto'} class:panel-collapsed={!panelOpen}>
+  <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
+       everything. Narrow: the same element as a bar along the bottom, where a thumb can reach it.
+       Nothing is duplicated and nothing is platform-branched — it is the container that changes,
+       which is why this is markup that does not know where it is.
+
+       This reverses the 2026-08-28 note that lived here ("it was a tall left rail that wasted
+       vertical space"). That rail sat *beside* a top bar and displaced nothing; this one replaces
+       the top bar, so the workspace gets that row's height back — and it collapses, which the old
+       one could not. Reasoning in `decisions.md`, 2026-08-30. -->
   <header class="topbar">
+    <!-- Only meaningful where the chrome is a panel; hidden by CSS where it is a bar. -->
+    <button
+      type="button"
+      class="icon-btn panel-toggle"
+      onclick={togglePanel}
+      aria-expanded={panelOpen}
+      aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
+      title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand'}>
+      <Icon name={panelOpen ? 'chevron-down' : 'chevron-down'} size={16} />
+    </button>
     <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
@@ -2422,6 +2460,101 @@
     font: 500 14px/1.2 system-ui, sans-serif !important;
     cursor: pointer !important;
   }
+  /* ================= WHERE THE CHROME SITS =====================================
+     The same `<header>` in two placements. Wide: a column down the left, so the workspace gets
+     the full height — the objection that removed the old rail was that it displaced nothing, and
+     this replaces the top bar rather than joining it. Narrow: a bar along the bottom, because a
+     top bar on a phone holds actions the thumb cannot reach.
+
+     Driven by width alone. `pointer: coarse` is *not* consulted here: a wide touch tablet has
+     room for the panel and a narrow desktop window does not, which is the same
+     branch-on-space-never-on-platform rule the layout arrangements already follow. */
+  @media (min-width: 60rem) {
+    .app {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+    }
+    .topbar {
+      grid-column: 1;
+      grid-row: 1;
+      width: 13.5rem;
+      height: 100%;
+      min-height: 0;
+      flex-direction: column;
+      align-items: stretch;
+      flex-wrap: nowrap;
+      /* The panel is the one place a scroll is right: it is a list of controls, it is obviously
+         vertical, and unlike the old top bar nothing is hidden off an edge nobody would swipe. */
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-bottom: 0;
+      border-right: 1px solid var(--border);
+      padding: max(var(--safe-top), var(--space-3)) var(--space-3) var(--space-3)
+        max(var(--safe-left), var(--space-3));
+      gap: var(--space-2);
+    }
+    /* Collapsed: down to its icons. The width goes back to the notes, and one click returns it —
+       which the rail this replaces could never do. */
+    .app.panel-collapsed .topbar {
+      width: 3.5rem;
+      padding-left: var(--space-2);
+      padding-right: var(--space-2);
+      align-items: center;
+    }
+    /* Collapsed, the things that are only meaningful with room for their words go. The icons
+       that remain are the ones that were always icons. */
+    .app.panel-collapsed .topbar .vaults,
+    .app.panel-collapsed .topbar .searchfield {
+      display: none;
+    }
+    .body {
+      grid-column: 2;
+      grid-row: 1;
+      min-height: 0;
+    }
+    /* In a column these should fill the panel's width rather than shrink to their text. */
+    .topbar .create-wrap {
+      width: 100%;
+    }
+    /* The spacer earns its keep in both placements: it pushes the trailing controls to the far
+       edge, which is the right-hand end of a bar and the bottom of a panel. */
+    .topbar .tb-spacer {
+      width: 100%;
+    }
+    .panel-toggle {
+      align-self: flex-end;
+      transform: rotate(90deg);
+    }
+    .app.panel-collapsed .panel-toggle {
+      align-self: center;
+      transform: rotate(-90deg);
+    }
+  }
+
+  /* Narrow: the same element, along the bottom. Everything the hand needs is on one edge. */
+  @media (max-width: 59.999rem) {
+    .app {
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+    .topbar {
+      grid-row: 2;
+      border-bottom: 0;
+      border-top: 1px solid var(--border);
+      /* The insets swap ends with the bar. `env()` is 0 in the Android WebView, so the floor in
+         `app.css` is what actually clears the gesture pill here. */
+      padding: var(--space-1) max(var(--safe-right), var(--space-3))
+        max(var(--safe-bottom), var(--space-2)) max(var(--safe-left), var(--space-3));
+    }
+    .body {
+      grid-row: 1;
+      min-height: 0;
+    }
+    /* Only a panel can be collapsed; a bar is already as small as it gets. */
+    .panel-toggle {
+      display: none;
+    }
+  }
+
   .workspace {
     flex: 1;
     min-height: 0;

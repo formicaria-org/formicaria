@@ -5,6 +5,7 @@
   import { lastEditFor } from '../lib/activity.svelte';
   import { dayHeading, ymd } from '../lib/calendar';
   import type { ObjectMeta } from '../lib/types';
+  import EmptyState from '../lib/EmptyState.svelte';
 
   // A Logseq-style journal: every note under the day it was created, newest day
   // first. Cards arrive already sorted newest-created-first (the `recent` query),
@@ -39,7 +40,10 @@
 
 <div class="timeline">
   {#if cards.length === 0}
-    <p class="empty">No notes yet — capture one above.</p>
+    <EmptyState
+      icon="timeline"
+      title="No notes yet"
+      hint="Press + to write your first one. Everything you write shows up here, newest day first." />
   {:else}
     <div class="feed">
       {#each days as day (day.key)}
@@ -190,10 +194,5 @@
     border-radius: 999px;
     background: var(--tag-bg);
     color: var(--tag-fg);
-  }
-  .empty {
-    padding: 2rem;
-    color: var(--muted);
-    text-align: center;
   }
 </style>

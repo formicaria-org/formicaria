@@ -9,6 +9,7 @@
   import { activityEvents } from '../lib/activity.svelte';
   import { dayHeading } from '../lib/calendar';
   import type { EditEvent } from '../lib/types';
+  import EmptyState from '../lib/EmptyState.svelte';
 
   let {
     shown,
@@ -36,7 +37,10 @@
 
 <div class="activity">
   {#if days.length === 0}
-    <p class="empty">No history yet — edits show up here once notes are committed to git.</p>
+    <EmptyState
+      icon="inbox"
+      title="No history yet"
+      hint="Edits appear here once your notes have been recorded. Press Back up to record them." />
   {:else}
     <div class="feed">
       {#each days as day (day.key)}
@@ -124,10 +128,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .empty {
-    padding: 2rem;
-    color: var(--muted);
-    text-align: center;
   }
 </style>

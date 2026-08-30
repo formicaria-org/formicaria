@@ -3,6 +3,7 @@
   import EditedBy from '../lib/EditedBy.svelte';
   import { lastEditFor } from '../lib/activity.svelte';
   import type { ObjectMeta } from '../lib/types';
+  import EmptyState from '../lib/EmptyState.svelte';
 
   // Results renderer for full-text search. The same ObjectMeta every other view
   // receives; it paints the title/preview and tags, an "asset" chip only when the
@@ -25,9 +26,16 @@
 
 <div class="results">
   {#if searching && !query!.trim()}
-    <p class="empty">Search your notes and ingested documents.</p>
+    <EmptyState
+      icon="search"
+      title="Search your notes"
+      hint="Every word of every note, and the names of the files you have added." />
   {:else if cards.length === 0}
-    <p class="empty">{searching ? `No matches for “${query}”.` : 'Nothing here yet.'}</p>
+    {#if searching}
+      <EmptyState icon="search" title="No matches for “{query}”" hint="Try fewer words, or a different spelling." />
+    {:else}
+      <EmptyState icon="search" title="Nothing here yet" hint="This view has no notes in it." />
+    {/if}
   {:else}
     <div class="list">
       {#each cards as card (card.id)}
@@ -121,10 +129,5 @@
     border-radius: 999px;
     background: var(--tag-bg);
     color: var(--tag-fg);
-  }
-  .empty {
-    padding: 2rem;
-    color: var(--muted);
-    text-align: center;
   }
 </style>
