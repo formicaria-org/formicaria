@@ -39,8 +39,8 @@ afterEach(() => {
 });
 
 /// Open the app with one pane already on the saved *filtered board* view — seeded through the
-/// app's own persistence format rather than by clicking the rotator round its ring, which would
-/// break the day someone adds a pane kind.
+/// app's own persistence format rather than by driving the UI to it — which is also the only way
+/// now that a pane header names its window instead of switching it.
 function openFilteredView() {
   store.set(
     'fm-workspace',
@@ -74,7 +74,12 @@ test('a view that hides a column says so, and one click brings the column back',
 
   // The pane is now the built-in board it was shadowing — same grouping, nothing filtered — and
   // the column is back. That is the owner's whole journey.
-  await vi.waitFor(() => expect(screen.getByLabelText('pane view').textContent).toMatch(/board/i));
+  // Read the window's name off its header. It is a label now, not a labelled control, so this
+  // asks the header for its text rather than putting an `aria-label` on a non-interactive span
+  // just to keep an old query working.
+  await vi.waitFor(() =>
+    expect(screen.getAllByRole('toolbar')[0].textContent).toMatch(/board/i),
+  );
   await vi.waitFor(() =>
     expect(screen.getAllByText(MOCK_VIEW_HIDDEN.value).length).toBeGreaterThan(0),
   );
@@ -94,6 +99,8 @@ test('an unfiltered view says nothing — the chip is about a filter, not about 
   );
   render(App);
 
-  await vi.waitFor(() => expect(screen.getByLabelText('pane view').textContent).toMatch(/Recent/i));
+  await vi.waitFor(() =>
+    expect(screen.getAllByRole('toolbar')[0].textContent).toMatch(/Recent/i),
+  );
   expect(screen.queryByRole('button', { name: /shows only notes where/i })).toBeNull();
 });

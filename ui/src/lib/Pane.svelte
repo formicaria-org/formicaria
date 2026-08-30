@@ -27,7 +27,6 @@
     index: number; // this pane's slot in the workspace (drag source/target identity)
     cols: number; // the workspace column count (clamps a resize)
     statuses: string[];
-    savedViews: ViewInfo[];
     shown: (n: { id: string; vault: string }) => boolean;
     focused: boolean;
     startEditing: boolean; // a note pane opened via "New note" starts in the editor
@@ -55,7 +54,6 @@
     index,
     cols,
     statuses,
-    savedViews,
     shown,
     focused,
     startEditing,
@@ -167,29 +165,22 @@
 
   // The picker's options: the built-in kinds (from the one registry, so a new kind appears here,
   // in the ⌘K palette, and in the bottom bar together) plus each saved `.view` (by name).
-  const KINDS: { value: string; label: string }[] = BUILTIN_PANES.map((b) => ({
-    value: b.kind,
-    label: b.label,
-  }));
-
-  function pick(value: string) {
-    if (value.startsWith('view:')) {
-      onchange({ kind: 'view', viewName: value.slice(5) });
-    } else {
-      onchange({ kind: value as PaneKind, viewName: null });
-    }
-  }
-  const pickValue = $derived(pane.kind === 'view' ? `view:${pane.viewName}` : pane.kind);
-
-  // The view picker is a *rotator*, not a dropdown: the same options in a ring the user steps
-  // through by clicking (forward) or scrolling the wheel over it (either direction). Same
-  // `pick()` write-back as the old <select>, just a different way to reach a value.
-  const options = $derived([
-    ...KINDS,
-    ...savedViews.filter((v) => !v.error).map((v) => ({ value: `view:${v.name}`, label: v.name })),
-  ]);
-  const currentIndex = $derived(Math.max(0, options.findIndex((o) => o.value === pickValue)));
-  const currentLabel = $derived(options[currentIndex]?.label ?? 'Board');
+  /// **The window's name, and nothing more.** This used to be a *rotator*: clicking the name
+  /// stepped to the next view, and the whole header rotated on a wheel or a swipe. It is gone.
+  ///
+  /// Two reasons. The panel on the left now lists every view you can open, so the header was a
+  /// second switcher for the same job — and with a window per view on screen, their names read as
+  /// a horizontal bar of views duplicating the vertical one. And it was never found: the comment
+  /// that used to sit here said so outright, and the wheel and swipe were added to compensate for
+  /// a control nobody saw. Deleting it is the honest version of that fix.
+  ///
+  /// What stays in this header is what belongs to *this window* rather than to the choice of view:
+  /// its grouping, its density, saving and renaming it, closing it, and dragging it to move.
+  const currentLabel = $derived(
+    pane.kind === 'view'
+      ? (pane.viewName ?? 'View')
+      : (BUILTIN_PANES.find((b) => b.kind === pane.kind)?.label ?? 'Board'),
+  );
 
   /// **What the saved view on show leaves out** — so the header can say so.
   ///
@@ -231,134 +222,6 @@
     void pane.viewName;
     confirmDelete = false;
   });
-  function rotate(dir: number) {
-    if (!options.length) return;
-    pick(options[(currentIndex + dir + options.length) % options.length].value);
-  }
-
-  /// **The whole header rotates the view, not just the little label.**
-  ///
-  /// The rotator button worked and nobody found it — it is one small target among the header's
-  /// controls, and nothing about it says "scroll me". The header is the biggest thing in a pane
-  /// that is not content, it is already the drag handle, and it is where you look when you are
-  /// thinking about *this window* rather than what is in it. So the wheel anywhere across it
-  /// spins the view, and a horizontal swipe does the same on a touch screen.
-  ///
-  /// **Not the pane body.** A board scrolls horizontally by design and the agenda scrolls
-  /// vertically; stealing those gestures from the content would trade one discoverable action
-  /// for two broken ones.
-  ///
-  /// A note pane has no view to rotate, so it is exempt — `options` describes ways of looking at
-  /// a *collection*, and a note is one document.
-  const rotatable = $derived(pane.kind !== 'note');
-
-  /// **One gesture is one step**, and the rule depends only on *how far* you scrolled.
-  ///
-  /// Two bugs came out of this control, both reported within minutes, and both were the same
-  /// mistake in different clothes: the amount a step cost depended on **history** rather than on
-  /// the gesture in front of it.
-  ///
-  /// 1. Rotating on every event — a wheel sends a burst per detent and a trackpad sends a stream
-  ///    plus inertia, so a light movement span several views.
-  /// 2. Then the cooldown, when it blocked a step, was *cleared by a reversal* but not by
-  ///    continuing. So after any step the direction you were already going was throttled and the
-  ///    opposite fired instantly: "rolling up seems to be sensitive differently than rolling
-  ///    down". It was, by construction.
-  ///
-  /// So there is no direction memory here at all any more, and nothing carries between gestures.
-  /// A wheel event is judged on its own size:
-  ///
-  /// - **A detent** — one click of a real wheel — turns the view once, at once, either way. You
-  ///   cannot produce these faster than your fingers move, so throttling them only ever makes a
-  ///   deliberate act feel ignored.
-  /// - **Smooth scrolling** — a trackpad, or a high-resolution wheel — accumulates, because its
-  ///   events are far smaller and far more numerous. Only there is a cooldown needed, and it
-  ///   applies the same in both directions.
-
-  /// Above this, a single event is a discrete detent. Chrome reports 100–120 for one, Firefox
-  /// three lines (120 normalised); a trackpad's individual deltas are an order of magnitude less.
-  const WHEEL_NOTCH = 50;
-  /// How much smooth scrolling makes one step. Deliberately several times a detent: these arrive
-  /// in long streams, and the original complaint was a barely-there movement spending views.
-  const WHEEL_SMOOTH_STEP = 180;
-  /// Only for smooth scrolling, and applied identically whichever way you are going — it exists
-  /// to stop inertia banking steps after your fingers have left the surface, nothing else.
-  const WHEEL_COOLDOWN = 220;
-  /// Quiet long enough to end a gesture, so nothing you scrolled a moment ago is still owed.
-  const WHEEL_GAP = 350;
-
-  let wheelAccum = 0;
-  let lastWheelAt = 0;
-  let lastRotateAt = 0;
-
-  /// A wheel delta in pixels, whichever unit the browser chose to report.
-  ///
-  /// `deltaMode` is lines on Firefox and pages in some configurations, so the raw number means
-  /// nothing on its own. A line counts as 40px rather than the ~16 it really is, because Firefox
-  /// sends **three** lines per detent — the number that matters is the one that makes a detent
-  /// weigh the same in both browsers.
-  function wheelPixels(e: WheelEvent): number {
-    const scale = e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1;
-    return e.deltaY * scale;
-  }
-
-  function headWheel(e: WheelEvent) {
-    if (!rotatable) return;
-    // Only when the wheel is actually being turned vertically: a trackpad's horizontal flick is
-    // how you scroll a board, and it reaches here when the pointer is over the header.
-    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-    e.preventDefault();
-
-    const now = performance.now();
-    const dy = wheelPixels(e);
-    const dir = dy > 0 ? 1 : -1;
-
-    // A detent: unambiguous, deliberate, and answered immediately in either direction.
-    if (Math.abs(dy) >= WHEEL_NOTCH) {
-      wheelAccum = 0;
-      lastWheelAt = now;
-      lastRotateAt = now;
-      rotate(dir);
-      return;
-    }
-
-    // Smooth scrolling: add up, and start over after a pause so nothing is carried into the
-    // next gesture.
-    if (now - lastWheelAt > WHEEL_GAP) wheelAccum = 0;
-    lastWheelAt = now;
-    wheelAccum += dy;
-    if (Math.abs(wheelAccum) < WHEEL_SMOOTH_STEP) return;
-    // Discarded rather than held: holding it at the threshold is what pre-charged one direction
-    // last time. Either way, a step always costs a whole gesture.
-    wheelAccum = 0;
-    if (now - lastRotateAt < WHEEL_COOLDOWN) return;
-    lastRotateAt = now;
-    rotate(dir);
-  }
-
-
-  // Swipe: recorded on the header only, and deliberately generous about what counts as one.
-  let touchX = 0;
-  let touchY = 0;
-  /** Below this a swipe is a tap that wandered; ~1/8 of a phone's width. */
-  const SWIPE_MIN = 48;
-  function headTouchStart(e: TouchEvent) {
-    const t = e.changedTouches[0];
-    touchX = t?.clientX ?? 0;
-    touchY = t?.clientY ?? 0;
-  }
-  function headTouchEnd(e: TouchEvent) {
-    if (!rotatable) return;
-    const t = e.changedTouches[0];
-    if (!t) return;
-    const dx = t.clientX - touchX;
-    const dy = t.clientY - touchY;
-    // Horizontal intent, not a vertical scroll that started on the header.
-    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) <= Math.abs(dy)) return;
-    // Swipe left = forward, matching every carousel: the content moves the way your finger did.
-    rotate(dx < 0 ? 1 : -1);
-  }
-
   // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
   // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
   // header did nothing while the drag still started and the cursor still said `grab`. An
@@ -420,32 +283,20 @@
     class="pane-head"
     class:grip-only={pane.kind === 'note'}
     use:gripDrag={index}
-    onwheel={headWheel}
-    ontouchstart={headTouchStart}
-    ontouchend={headTouchEnd}
     role="toolbar"
     tabindex="-1"
-    aria-label="pane controls — drag to rearrange, scroll or swipe to change the view"
-    title={rotatable
-      ? 'Drag to rearrange · scroll or swipe here to change the view'
-      : 'Drag to rearrange this pane'}
+    aria-label="pane controls — drag to rearrange"
+    title="Drag to rearrange this pane"
   >
     <span class="grip" aria-hidden="true">
       <Icon name="grip" size={13} />
     </span>
     <!-- A note pane wears NotePanel's own chrome (title, status, edit, delete, close), so the
-         pane header shrinks to just the drag grip. Every other kind gets the view picker. -->
+         pane header shrinks to just the drag grip. Every other kind names itself. -->
     {#if pane.kind !== 'note'}
-      <!-- A rotator, not a dropdown: click to advance, scroll the wheel to spin either way. -->
-      <button
-        type="button"
-        class="kind rotator"
-        onclick={() => rotate(1)}
-        title="Click, or scroll/swipe anywhere on this bar, to change the view"
-        aria-label="pane view"
-      >
-        {currentLabel}
-      </button>
+      <!-- **A label, not a control.** Picking a view is the left panel's job now; this says which
+           one you are looking at. -->
+      <span class="kind">{currentLabel}</span>
 
       <!-- Per-view controls, inline in the pane header (each pane tunes itself). -->
       {#if pane.kind === 'board'}
@@ -805,7 +656,6 @@
     cursor: grabbing;
   }
   /* The interactive controls sit above the header's grab cursor — they keep their own. */
-  .pane-head .rotator,
   .pane-head .seg button,
   .pane-head .pane-close {
     cursor: pointer;
@@ -813,18 +663,15 @@
   .pane-head .ctl {
     cursor: auto;
   }
+  /* **A name, not a button.** It carried a border and a surface because it used to be pressable;
+     dressing a label as a control is the affordance lie this file has a comment about elsewhere.
+     Quiet, and it stays out of the way of the controls that *are* pressable beside it. */
   .kind {
     font: inherit;
     font-size: 0.85rem;
-    background: var(--surface);
+    font-weight: 500;
     color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 2px 4px;
-  }
-  .rotator {
-    min-width: 5rem;
-    text-align: left;
+    padding: 2px 0;
     white-space: nowrap;
   }
   /* Sized to the header rather than to its text: the sentence can be long (several filter
@@ -847,9 +694,6 @@
   }
   .hides:hover {
     color: var(--text);
-    border-color: var(--accent);
-  }
-  .rotator:hover {
     border-color: var(--accent);
   }
   .save-view-btn {

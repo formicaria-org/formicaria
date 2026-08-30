@@ -2067,7 +2067,6 @@
             cols={workspace.cols}
             feed={feedKey(pane) ? feeds[feedKey(pane) ?? ''] : undefined}
             statuses={knownStatuses}
-            savedViews={views}
             {shown}
             focused={i === focused}
             startEditing={pane.kind === 'note' && pane.noteId === editingId}

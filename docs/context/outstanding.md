@@ -500,6 +500,26 @@ lands on exactly the create-seam above, so building that seam serves both.
 
 ---
 
+### 2.5b Aggregating notes by tag — the next real want, not started
+**Named by the owner 2026-08-30**, while looking at the finished side panel: *"I am not sure people
+will want all that level of personalization at this stage. What for sure they will want is to
+aggregate and visualize notes based on other tags or options, that's for later."*
+
+Two instructions in one sentence. **Stop deepening view personalization** — the panel, the rail and
+the saved-view surface are enough for now, and the appetite for more is unproven. And the thing that
+*is* wanted is **gathering notes by tag** (and by other properties) and seeing them that way.
+
+What already exists to build on, so this does not start from nothing: the `.view` filter grammar
+already expresses `tag`, `tags_any`, `tags_all`, `prop`, `date` and `not` (`crates/fm-app/src/views.rs`);
+`save_view` can already write exactly one bare tag from the UI and **refuses rather than flattens**
+anything richer; and `describe_pred` already turns a filter into plain English for the "filtered:"
+chip. What is missing is a way to *ask* for a grouping without writing YAML — and the standing
+ruling is that a UI over the nine-predicate grammar is a query builder, rejected twice. So the design
+question this has to answer is: what is the small, sentence-shaped question a person actually asks
+("show me everything tagged X, grouped by Y"), and can that be offered without becoming the builder?
+
+Not started. Do not treat the rejected query builder as the only shape this could take.
+
 ### 2.6 The welcome screen — done
 **Closed on 2026-08-28:** the in-app manual route this entry used to ask for is done — the book is
 baked into the binary, `/manual/` serves it under its own CSP, and a Help button sits beside the

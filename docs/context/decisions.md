@@ -3316,6 +3316,24 @@ icon **+** label, collapsed is icon **only**. "Back up" loses its word to match 
 beside it — but it comes back *while saving*, because "is anything happening?" is the one moment an
 icon cannot answer.
 
+**Amended again the same day: the pane header stopped being a second switcher.** With the panel
+listing views, every window's header still began with a *rotator* — the view's name as a button that
+cycled the view on click, and on a wheel or swipe anywhere across the header. One window per view
+made those names read as a horizontal bar of views duplicating the vertical one, which is what the
+owner saw. The name is now plain text; the header keeps what belongs to *that window* — its
+grouping, its density, saving and renaming it, closing it, dragging to move.
+
+This is the honest end of a story already in this file. The rotator's own comment read *"the rotator
+button worked and nobody found it"*, and the wheel and swipe were added to compensate for a control
+nobody saw. Deleting it is the fix those gestures were standing in for, and the eight tests that
+pinned their behaviour went with it — keeping them green would have meant keeping the feature.
+
+**The consequence, stated rather than discovered: a window can no longer be re-pointed.** You open
+the view you want from the panel and close the one you do not. That is the model the arrangement
+implies, and it is worth living with before deciding anything is missing. The label also lost its
+border and surface: it had them because it used to be pressable, and dressing a label as a control
+is the affordance lie this codebase already has a comment about elsewhere.
+
 **Reversal condition.** If the panel ends up habitually collapsed, it is not earning its width and
 the strip (D1) was the right answer after all. That is a question about use, not about pictures, so
 it is settled by living with it rather than by argument.

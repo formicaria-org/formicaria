@@ -126,15 +126,13 @@ describe('the app, driven end to end as a user', () => {
     await fireEvent.click(screen.getByLabelText('close'));
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
-    // 3. Rotate this pane's view: a click advances Board → Agenda (due items); a wheel-scroll
-    //    spins it back to Board. The picker is a rotator now, not a dropdown — but still the
-    //    workspace model: each pane chooses what it shows.
-    await fireEvent.click(screen.getByLabelText('pane view'));
+    // 3. Open another view from the panel. Views are chosen there and nowhere else now — a pane
+    //    header names its window rather than switching it, so this *opens* an Agenda beside the
+    //    board rather than turning the board into one.
+    await fireEvent.click(await screen.findByRole('button', { name: 'open Agenda' }));
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
-    // One notch. A wheel is accumulated to a threshold now — a single event of `deltaY: -1` is
-    // a nudge, not a gesture, and deliberately does nothing.
-    await fireEvent.wheel(screen.getByLabelText('pane view'), { deltaY: -120 });
-    await screen.findByText(/GAE lambda interacts badly/);
+    // The board is still there — that is the point of opening rather than switching.
+    expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);
 
     // 4. Re-group the board pane by a custom property — no backend change.
     const groupBy = screen.getByLabelText('group by');
