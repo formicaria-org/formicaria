@@ -449,6 +449,25 @@ for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt'; do
     fi
 done
 
+# **A media query adds no specificity — so a base rule can silently beat one.**
+#
+# The view rail shipped invisible at every width and nobody noticed for two commits. It had
+# `display: flex` inside `@media (min-width: 60rem)` and `display: none` in a base rule *later* in
+# the file. Equal specificity, so the later one won, everywhere. jsdom applies no CSS, so the
+# component test that finds those buttons passed the whole time; grepping the bundle for the class
+# name only proved the markup shipped.
+#
+# The rule this encodes: the rail is visible by default and hidden in exactly one place — the
+# narrow media query. A bare `display: none` on it is the bug coming back.
+if [ -f ui/src/App.svelte ]; then
+    if awk '/^  \.panel-views \{/,/^  \}/' ui/src/App.svelte | grep -q 'display: none'; then
+        echo "  FAIL: .panel-views has a bare 'display: none' outside a media query. That ties with"
+        echo "        the media rule and wins on source order — which is how the rail shipped"
+        echo "        invisible. Hide it in the narrow @media block instead."
+        fail=1
+    fi
+fi
+
 # **The Appearance form is a list of tokens, never a language.**
 #
 # It re-values design tokens; it must never grow the ability to invent one, or write a selector or

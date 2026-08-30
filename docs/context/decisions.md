@@ -3328,6 +3328,14 @@ button worked and nobody found it"*, and the wheel and swipe were added to compe
 nobody saw. Deleting it is the fix those gestures were standing in for, and the eight tests that
 pinned their behaviour went with it — keeping them green would have meant keeping the feature.
 
+**And it did not render.** For two commits the rail described above was `display: none` at every
+width: `display: flex` inside a min-width query, `display: none` in a base rule later in the file,
+equal specificity, source order deciding. So the entry above described a panel nobody could use, and
+removing the rotator on top of it left no way to choose a view at all. Visibility is now decided in
+one place — shown by default, hidden only in the narrow query — and `ci/checks.sh` fails if the bare
+rule returns. Where the chrome is a bar and there is no rail, a **Views** button opens the same
+`viewTargets` list.
+
 **The consequence, stated rather than discovered: a window can no longer be re-pointed.** You open
 the view you want from the panel and close the one you do not. That is the model the arrangement
 implies, and it is worth living with before deciding anything is missing. The label also lost its

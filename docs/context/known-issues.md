@@ -545,6 +545,18 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **A component test cannot tell you a thing is visible, and neither can grepping the bundle.**
+  Demonstrated expensively on 2026-08-30: the panel's view rail shipped `display: none` at every
+  width and survived two commits. It had `display: flex` inside `@media (min-width: 60rem)` and
+  `display: none` in a base rule *later* in the file — **a media query adds no specificity**, so the
+  two tied and source order decided. The component test found the `<nav>` and its buttons and passed
+  throughout, because **jsdom applies no CSS**; the "verification" then grepped the built bundle for
+  the class name, which proves the markup ships and says nothing about whether it renders.
+  **There is no headless browser wired into this project**, so anything whose failure mode is
+  *invisible* — a layout, a collapsed state, a media query — is eyes-on-a-browser or it is unverified.
+  Say "not verified" rather than describing a string match as one. `ci/checks.sh` now fails on a bare
+  `display: none` for `.panel-views` specifically; the general hazard has no guard.
+
 - **"Is the app I am looking at the app I just built?" — two ways it is not, and neither looks like
   it.** Cost an hour on 2026-08-30.
   1. **A release binary serves the UI compiled into it.** `FM_UI_DIST` is the dev loop only

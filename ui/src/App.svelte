@@ -1121,6 +1121,7 @@
     }
   }
 
+  let viewsOpen = $state(false);
   let helpOpen = $state(false);
   let saveViewOpen = $state(false);
   let saveViewName = $state('');
@@ -1829,6 +1830,38 @@
         </select>
       </label>
     {/if}
+
+    <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
+         a bar, so the rail is hidden and this opens the identical `viewTargets` in a menu. Without
+         it a narrow window has no way to open a view at all, now that a pane header names its
+         window instead of switching it.
+
+         Not `.icon-btn`: the twin rules hide every `.icon-btn` in the bar, because those controls
+         move to `ViewBar` there — the same trap `.search-btn` carries a comment about. This one
+         has to be visible in exactly the place that rule would hide it. -->
+    <div class="create-wrap views-wrap">
+      <button
+        type="button"
+        class="views-btn"
+        onclick={() => (viewsOpen = !viewsOpen)}
+        aria-expanded={viewsOpen}
+        aria-haspopup="menu"
+        title="Open a view"
+        aria-label="open a view">
+        <Icon name="board" size={16} />
+      </button>
+      {#if viewsOpen}
+        <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
+        <ul class="create-menu" role="menu">
+          {#each viewTargets as t (t.key)}
+            <li role="none">
+              <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
+                >{t.label}</button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
 
     <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
          order, so it can be learned: every built-in, then every saved view. It is the same set the
@@ -2610,39 +2643,6 @@
       width: 100%;
     }
 
-    /* The rail. Panel only — the bottom bar has `ViewBar`, which lists open *windows*, a
-       different question from which view to open. */
-    .panel-views {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      width: 100%;
-    }
-    .view-item {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      min-height: 2rem;
-      padding: var(--space-1) var(--space-2);
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      background: none;
-      color: var(--text-muted);
-      font: inherit;
-      font-size: var(--text-sm);
-      text-align: left;
-      white-space: nowrap;
-      cursor: pointer;
-    }
-    .view-item:hover {
-      background: var(--surface-hover);
-      color: var(--text);
-    }
-    /* A saved view is one of yours, and reads as a name rather than a fixture. */
-    .view-item.saved .lbl {
-      font-style: italic;
-    }
-
     /* The trailing controls line up with the rail above them rather than centring in a column
        that is otherwise all left-aligned — proximity is doing the grouping, so alignment should
        not fight it. */
@@ -2671,6 +2671,71 @@
   }
 
   /* Narrow: the same element, along the bottom. Everything the hand needs is on one edge. */
+  /* The bar's way into the same list. Hidden by default because the panel has the rail; shown
+     only where the chrome is a bar. Declared before its override, for the reason spelled out
+     immediately below. */
+  .views-wrap {
+    display: none;
+  }
+  .views-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .views-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* **The rail, and the bug that made it invisible.**
+     
+     This was two rules: `display: flex` inside `@media (min-width: 60rem)`, and `display: none`
+     here. **A media query adds no specificity**, so at wide widths they tied and the later one —
+     this one — won. The rail never rendered, at any width, from the day it was added; and nothing
+     caught it, because jsdom applies no CSS, so the test that finds these buttons cannot tell you
+     they are hidden.
+     
+     So visibility is decided in exactly one place now: shown by default, hidden only in the
+     narrow query, which is exclusive with the panel. Nothing to tie, and the answer no longer
+     depends on where in this file the blocks happen to sit. `ci/checks.sh` fails the build if a
+     bare `display: none` comes back. */
+  .panel-views {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    width: 100%;
+  }
+  .view-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2rem;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .view-item:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  /* A saved view is one of yours, and reads as a name rather than a fixture. */
+  .view-item.saved .lbl {
+    font-style: italic;
+  }
+
   @media (max-width: 59.999rem) {
     .app {
       grid-template-rows: minmax(0, 1fr) auto;
@@ -2692,13 +2757,15 @@
     .panel-toggle {
       display: none;
     }
+    /* No room for a rail along a bar — the Views button opens the same list instead. */
+    .panel-views {
+      display: none;
+    }
+    .views-wrap {
+      display: flex;
+    }
   }
 
-  /* Outside the panel the rail is not shown at all: the bottom bar's `ViewBar` is the switcher
-     there, and two lists of view-ish things on one screen is the drift that deleted the palette. */
-  .panel-views {
-    display: none;
-  }
   .search-slot {
     display: flex;
     align-items: center;

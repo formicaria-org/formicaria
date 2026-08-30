@@ -121,3 +121,19 @@ test('back up is an icon like the controls beside it, and says so only while it 
   expect((btn.textContent ?? '').trim()).toBe('');
   expect(btn.getAttribute('title')).toMatch(/commit and push/i);
 });
+
+test('a view can be opened when the chrome is a bar, where there is no rail', async () => {
+  // Below 60rem the rail is hidden and the pane header no longer switches views, so without this
+  // a narrow window has no way to open a view at all. jsdom applies no CSS, so this cannot check
+  // *which* of the two is visible at a given width — only that the second way in exists and works.
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
+  const menu = await screen.findByRole('menu');
+  const names = Array.from(menu.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
+  expect(names).toContain('Timeline');
+  expect(names).toContain('Active'); // a saved view, not just the built-ins
+
+  const before = document.querySelectorAll('.pane').length;
+  await fireEvent.click(screen.getByRole('menuitem', { name: 'Agenda' }));
+  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+});
