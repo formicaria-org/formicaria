@@ -19,7 +19,7 @@
   /// When the file contains more than the form can say, the form goes read-only and **refuses to
   /// rewrite it** rather than flattening it — the rule `views::save_view` already applies to a
   /// filter richer than one tag, for the same reason.
-  import { listThemes, readTheme, saveTheme, deleteTheme } from './ipc';
+  import { listThemes, readTheme, saveTheme, deleteTheme, renameTheme } from './ipc';
   import * as appearance from './appearance';
   import type { ThemeInfo } from './types';
 
@@ -156,6 +156,35 @@
     editing = null;
   }
 
+  /// Renaming happens in place in the list rather than in a dialog: it is a rare action on a thing
+  /// already on screen, and this app has decided more than once that a rare action does not earn a
+  /// new surface. Enter commits, Escape abandons.
+  let renaming = $state<string | null>(null);
+  let newName = $state('');
+
+  function startRename(t: ThemeInfo) {
+    renaming = t.name;
+    newName = t.name;
+  }
+
+  async function commitRename(t: ThemeInfo) {
+    const to = newName.trim();
+    renaming = null;
+    if (!to || to === t.name) return;
+    busy = true;
+    try {
+      themes = await renameTheme(t.name, to, t.vault ?? '');
+      problem = '';
+      // Follow it if it was the one being worn, or the selection points at a file that has moved
+      // and the next launch falls back to the built-in look for no visible reason.
+      if (selected?.name === t.name) onselect({ vault: t.vault ?? '', name: to });
+    } catch (e) {
+      problem = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function remove(t: ThemeInfo) {
     busy = true;
     try {
@@ -250,7 +279,21 @@
             disabled={!!t.error}
             checked={selected?.name === t.name && selected?.vault === (t.vault ?? '')}
             onchange={() => onselect({ vault: t.vault ?? '', name: t.name })} />
-          <span class="k">{t.name}</span>
+          {#if renaming === t.name}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="rename"
+              autofocus
+              aria-label="new name for {t.name}"
+              bind:value={newName}
+              onkeydown={(e) => {
+                if (e.key === 'Enter') commitRename(t);
+                else if (e.key === 'Escape') renaming = null;
+              }}
+              onblur={() => commitRename(t)} />
+          {:else}
+            <span class="k">{t.name}</span>
+          {/if}
           {#if t.error}
             <span class="muted">{t.error}</span>
           {:else}
@@ -259,6 +302,7 @@
         </label>
         <span class="row">
           <button class="binding" disabled={busy} onclick={() => openEditor(t)}>Edit</button>
+          <button class="binding" disabled={busy} onclick={() => startRename(t)}>Rename</button>
           <button class="binding" disabled={busy} onclick={() => remove(t)}>Delete</button>
         </span>
       </li>
@@ -312,6 +356,15 @@
   }
   .swatch[aria-pressed='true'] {
     border-color: var(--text);
+  }
+  .rename {
+    font: inherit;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+    min-width: 8rem;
   }
   .editor {
     margin-top: var(--space-3);

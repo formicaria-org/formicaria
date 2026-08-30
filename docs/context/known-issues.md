@@ -502,9 +502,9 @@ The gray-screen fix and its tests are in
   app**, and that is deliberate — a UI over the nine-predicate grammar is a query builder, rejected
   twice (`decisions.md#ui`). A hand-written filter richer than one tag is refused rather than
   flattened. Whoever revisits this: the words for the filter already exist
-  (`views::describe_pred`), which is most of an editor's read side. **There is no rename yet**, and
-  it must not be built as save-then-delete — saving under a new name never trips the
-  refuse-don't-flatten guard, so it would silently destroy a hand-written filter.
+  (`views::describe_pred`), which is most of an editor's read side. **Rename landed 2026-08-30** as
+  its own command (`views::rename_view`) precisely because save-then-delete never trips the
+  refuse-don't-flatten guard and would silently destroy a hand-written filter.
 - **The caret-anchored `/` menu is unverified in headless.** `caret.ts` measures
   with a mirror div, and **jsdom has no layout** — `caretXY` returns zeros there,
   so the menu degrades to the editor's top-left and the tests can't see the real

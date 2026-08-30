@@ -3204,3 +3204,44 @@ build if the ask returns.
 **Reversal condition:** if a named-configuration manager is ever wanted, the dated reversal must
 answer, in its own words, *why is this not the customisation system the app refuses to be?* — and it
 supersedes the "Hard stop at two" bullet, not this entry.
+
+## 2026-08-30 — rename is its own command, and Help exists on the phone `#ui`
+
+**Rename must never be save-under-the-new-name-then-delete-the-old.** The composition looks
+equivalent and is not. `save_view` guards against flattening a filter it cannot express by noticing
+that the target file *already exists* — and a brand-new name hits no existing file, so the guard
+never fires, the fresh file is written without the filter, and deleting the original destroys the
+only copy. Two safe operations, one unsafe result. Worse, it is what a user does *by hand* when the
+app offers no rename, so the absence of this command was itself the trap.
+
+`views::rename_view` moves the bytes and rewrites **only the `name:` line**, so a hand-written
+filter, the key order, the comments and the spacing all survive as their author left them; the label
+goes through the same YAML serialiser `save_view` uses, so a name containing `:` or `#` cannot make
+the file parse as something else. It refuses a name already taken rather than overwriting, and both
+paths reach the write list — a rename git only half-sees is a file that returns on the next pull.
+`rename_theme` is the same rule with less to do: the filename *is* the name, so the bytes are moved
+and never rewritten. Pinned by a test that renames a view carrying a `not:` predicate the app could
+not have written and checks every byte of it survives.
+
+The UI reuses the dialog that already names views rather than growing a second one — naming a new
+view and renaming an old one are the same interaction. **The tag question is not asked when
+renaming**, because that field belongs to the file being moved and answering it there would rewrite
+a filter the screen cannot describe. Themes rename inline in their own list, which is already on
+screen.
+
+**Help now exists on every device.** It was hidden behind `{#if !isPhone()}` because the phone's UI
+comes from the Tauri shell, where `/manual/` resolves to nothing and a Help button that 404s is
+worse than none. Correct in the small and wrong in the large: the result was a phone with no help at
+all, in an app whose first non-technical tester's verdict on Help was that it was *"difficult to
+find and click on"*. `HelpPanel.svelte` is a short page in the bundle, on every device, and it links
+to the full book only where the book is actually served. Embedding mdBook in the mobile shell is
+still worth doing — it needs its own protocol scheme and its own CSP, exactly as `MANUAL_CSP` exists
+for on the desktop — and this is what makes the gap survivable meanwhile.
+
+**And the keyboard bindings that already existed are now visible.** Per-command rebinding has
+shipped for a while and could not be seen without scrolling to the bottom of Settings, which is the
+opposite of what Nielsen's seventh heuristic asks. The action list now shows each action's shortcut
+beside it, the standard menu pattern — and shows **"not set"** where there is none, which is how
+`newView` stopped being a capability learnable only from a source comment. It also gained a list
+entry at all ("Keep this arrangement as a view"), having previously been reachable only from a
+pane-header button that appears on three pane kinds.

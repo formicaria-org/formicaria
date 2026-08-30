@@ -128,6 +128,28 @@ pub fn delete_theme(vault: &Path, name: &str) -> Result<PathBuf, String> {
     }
 }
 
+/// Rename a theme, returning `(old, new)` so both reach the write list. Simpler than the view
+/// version — there is no label inside a CSS file, the filename *is* the name — but the same rule
+/// applies: **move the bytes, never rewrite them**, so whatever the author wrote survives intact.
+pub fn rename_theme(vault: &Path, from: &str, to: &str) -> Result<(PathBuf, PathBuf), String> {
+    let src = theme_path(vault, from)?;
+    let dst = theme_path(vault, to)?;
+    if !src.exists() {
+        return Err(format!("there is no theme called '{from}'"));
+    }
+    if src == dst {
+        return Ok((src.clone(), src));
+    }
+    if dst.exists() {
+        return Err(format!(
+            "there is already a theme called '{}' — pick another name",
+            dst.file_stem().unwrap_or_default().to_string_lossy()
+        ));
+    }
+    std::fs::rename(&src, &dst).map_err(|e| format!("could not rename {}: {e}", src.display()))?;
+    Ok((src, dst))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,6 +195,34 @@ mod tests {
     fn deleting_a_theme_that_is_not_there_is_success() {
         let d = tempdir().unwrap();
         assert!(delete_theme(d.path(), "never-existed").is_ok());
+    }
+
+    #[test]
+    fn renaming_moves_the_bytes_and_changes_nothing_in_them() {
+        let d = tempdir().unwrap();
+        let css = "/* mine */\n:root { --bg: #f4f1ea; }\n";
+        save_theme(d.path(), "Writing Desk", css).unwrap();
+        rename_theme(d.path(), "Writing Desk", "Reading Room").unwrap();
+
+        assert!(read_theme(d.path(), "Writing Desk").is_err(), "the old name is gone");
+        assert_eq!(read_theme(d.path(), "Reading Room").unwrap(), css, "byte for byte");
+    }
+
+    #[test]
+    fn renaming_onto_a_name_already_taken_is_refused() {
+        let d = tempdir().unwrap();
+        save_theme(d.path(), "One", "/* one */").unwrap();
+        save_theme(d.path(), "Two", "/* two */").unwrap();
+        assert!(rename_theme(d.path(), "Two", "One").unwrap_err().contains("already"));
+        // Neither is damaged by the refusal.
+        assert_eq!(read_theme(d.path(), "One").unwrap(), "/* one */");
+        assert_eq!(read_theme(d.path(), "Two").unwrap(), "/* two */");
+    }
+
+    #[test]
+    fn renaming_something_that_is_not_there_says_so() {
+        let d = tempdir().unwrap();
+        assert!(rename_theme(d.path(), "ghost", "other").unwrap_err().contains("ghost"));
     }
 
     #[test]

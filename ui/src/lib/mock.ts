@@ -1361,11 +1361,29 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockThemeCss.set(name, css);
       return mockThemes.slice() as T;
     }
+    case 'rename_theme': {
+      const from = String(args.from ?? '');
+      const to = String(args.to ?? '');
+      const t = mockThemes.find((x) => x.name === from);
+      if (!t) throw new Error(`there is no theme called '${from}'`);
+      if (mockThemes.some((x) => x.name === to)) throw new Error('there is already a theme called ' + to);
+      mockThemeCss.set(to, mockThemeCss.get(from) ?? '');
+      mockThemeCss.delete(from);
+      mockThemes = mockThemes.map((x) => (x.name === from ? { ...x, name: to } : x));
+      return mockThemes.slice() as T;
+    }
     case 'delete_theme': {
       const name = String(args.name ?? '');
       mockThemes = mockThemes.filter((t) => t.name !== name);
       mockThemeCss.delete(name);
       return mockThemes.slice() as T;
+    }
+    case 'rename_view': {
+      const from = String(args.from ?? '');
+      const to = String(args.to ?? '');
+      if (mockSavedViews.some((v) => v.name === to)) throw new Error('there is already a view called ' + to);
+      mockSavedViews = mockSavedViews.map((v) => (v.name === from ? { ...v, name: to } : v));
+      return mockSavedViews.slice() as T;
     }
     case 'delete_view': {
       mockSavedViews = mockSavedViews.filter((v) => v.name !== String(args.name ?? ''));

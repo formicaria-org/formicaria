@@ -47,6 +47,7 @@
     /// Keep this arrangement as a named view. Only the kinds that *are* an arrangement offer it.
     onsaveview?: () => void;
     ondeleteview?: () => void;
+    onrenameview?: () => void;
   }
   let {
     pane,
@@ -72,6 +73,7 @@
     onfocus,
     onsaveview,
     ondeleteview,
+    onrenameview,
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -498,6 +500,14 @@
       <!-- The other half of the same decision. `delete_view` has existed end to end — command,
            `ipc.ts`, mock — since views became saveable, with no button anywhere calling it, so a
            view could be made from the app and then only removed with a file manager. -->
+      {#if onrenameview && pane.kind === 'view' && pane.viewName}
+        <button
+          type="button"
+          class="ctl save-view-btn"
+          onclick={onrenameview}
+          title="Give this view a different name"
+          aria-label="rename this view">Rename</button>
+      {/if}
       {#if ondeleteview && pane.kind === 'view' && pane.viewName}
         <button
           type="button"

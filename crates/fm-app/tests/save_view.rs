@@ -153,3 +153,64 @@ fn the_app_will_not_author_a_view_it_cannot_draw() {
         "a refused save must leave no file behind"
     );
 }
+
+/// **Renaming must not be save-then-delete.** That composition looks equivalent: save under the new
+/// name, delete the old file. It is not — `save_view` refuses to flatten a filter it cannot express
+/// by noticing the target *already exists*, and a brand-new name hits no existing file, so the
+/// guard never fires and the fresh file is written without the filter. Deleting the original then
+/// destroys the only copy. This is the test that a rename keeps what the author wrote.
+#[test]
+fn renaming_a_view_keeps_a_filter_the_app_could_never_have_written() {
+    use fm_app::views::rename_view;
+    let dir = tempdir().unwrap();
+    fs::create_dir_all(views_dir(dir.path())).unwrap();
+    // A filter far richer than one tag, plus a comment and a key order the app does not produce.
+    let hand = "# my own view\nname: Active\nview: board\ngroup_by: status\n\
+                filter:\n  - tag: paper\n  - not:\n      prop: status\n      eq: done\n";
+    fs::write(views_dir(dir.path()).join("active.view"), hand).unwrap();
+
+    rename_view(dir.path(), "Active", "Reading now").unwrap();
+
+    assert!(!views_dir(dir.path()).join("active.view").exists(), "the old file is gone");
+    let moved = fs::read_to_string(views_dir(dir.path()).join("reading-now.view")).unwrap();
+    assert!(moved.contains("name: Reading now"), "the label is the new one:\n{moved}");
+    // Every other byte survives — the comment, both predicates, the nesting, the order.
+    assert!(moved.contains("# my own view"), "the comment survived:\n{moved}");
+    assert!(moved.contains("- tag: paper"), "{moved}");
+    assert!(moved.contains("- not:"), "the filter the app cannot write survived:\n{moved}");
+    assert!(moved.contains("eq: done"), "{moved}");
+
+    // And it still parses as the same working view.
+    let v = list_views(dir.path()).into_iter().find(|v| v.name == "Reading now").expect("listed");
+    assert!(v.error.is_none(), "{:?}", v.error);
+}
+
+#[test]
+fn renaming_onto_a_name_already_taken_is_refused_rather_than_overwriting() {
+    use fm_app::views::rename_view;
+    let dir = tempdir().unwrap();
+    save_view(dir.path(), "Papers", Renderer::Board, None, Some("paper")).unwrap();
+    save_view(dir.path(), "Reading", Renderer::Timeline, None, None).unwrap();
+
+    let err = rename_view(dir.path(), "Reading", "Papers").unwrap_err();
+    assert!(err.contains("already"), "{err}");
+    // Both survive untouched — the refusal must not be halfway done.
+    let names: Vec<_> = list_views(dir.path()).into_iter().map(|v| v.name).collect();
+    assert!(names.contains(&"Papers".to_string()) && names.contains(&"Reading".to_string()), "{names:?}");
+    assert!(
+        fs::read_to_string(views_dir(dir.path()).join("papers.view")).unwrap().contains("tag: paper"),
+        "the view that was already there kept its filter"
+    );
+}
+
+#[test]
+fn a_name_with_yaml_syntax_in_it_still_renames_to_a_working_view() {
+    use fm_app::views::rename_view;
+    let dir = tempdir().unwrap();
+    save_view(dir.path(), "Papers", Renderer::Timeline, None, None).unwrap();
+    // `#` starts a comment and `:` splits a key — either would silently corrupt the file if the
+    // label were interpolated rather than serialised.
+    rename_view(dir.path(), "Papers", "#reading: now").unwrap();
+    let v = list_views(dir.path()).into_iter().find(|v| v.error.is_none()).expect("still parses");
+    assert_eq!(v.name, "#reading: now");
+}

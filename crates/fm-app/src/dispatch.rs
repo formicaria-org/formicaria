@@ -1836,6 +1836,26 @@ fn dispatch_inner(
             g.all.seed_written(&name, vec![removed]);
             json(crate::themes::list_themes(&path))
         }
+        // Renaming is its own command, never save-under-the-new-name plus delete: that
+        // composition slips past `save_view`'s refuse-don't-flatten guard (a new name hits no
+        // existing file) and would destroy a hand-written filter. Both paths reach the write list,
+        // or git sees half a rename and the old file returns on the next pull.
+        "rename_view" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
+            let (from, to) = crate::views::rename_view(&path, &s("from"), &s("to"))?;
+            g.all.seed_written(&name, vec![from, to]);
+            json(crate::views::list_views(&path))
+        }
+        "rename_theme" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            let (name, path) = (cfg.name.clone(), cfg.path.clone());
+            let (from, to) = crate::themes::rename_theme(&path, &s("from"), &s("to"))?;
+            g.all.seed_written(&name, vec![from, to]);
+            json(crate::themes::list_themes(&path))
+        }
         "list_views" => {
             let g = lock()?;
             let mut all = Vec::new();

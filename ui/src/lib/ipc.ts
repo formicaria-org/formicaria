@@ -784,6 +784,10 @@ export const saveView = (
   vault = '',
   tag = '',
 ) => invoke<ViewInfo[]>('save_view', { name, view, group_by, vault, tag });
+/** Rename a saved view. **Its own command on purpose** — saving under a new name and deleting the
+ *  old one slips past the refuse-don't-flatten guard and would silently drop a hand-written filter. */
+export const renameView = (from: string, to: string, vault = '') =>
+  invoke<ViewInfo[]>('rename_view', { from, to, vault });
 /** Remove a saved view. Missing is success — the user asked for it to be gone. */
 export const deleteView = (name: string, vault = '') =>
   invoke<ViewInfo[]>('delete_view', { name, vault });
@@ -798,6 +802,9 @@ export const readTheme = (name: string, vault = '') =>
 /** Write a theme and get the new list back. Refused above 128 KB, before anything is written. */
 export const saveTheme = (name: string, css: string, vault = '') =>
   invoke<ThemeInfo[]>('save_theme', { name, css, vault });
+/** Rename a theme. Moves the bytes; never rewrites them. */
+export const renameTheme = (from: string, to: string, vault = '') =>
+  invoke<ThemeInfo[]>('rename_theme', { from, to, vault });
 /** Remove a theme. Missing is success — the user asked for it to be gone. */
 export const deleteTheme = (name: string, vault = '') =>
   invoke<ThemeInfo[]>('delete_theme', { name, vault });

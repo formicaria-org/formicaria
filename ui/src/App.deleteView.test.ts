@@ -10,10 +10,14 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
 
-const { deleteView } = vi.hoisted(() => ({ deleteView: vi.fn() }));
+const { deleteView, renameView } = vi.hoisted(() => ({
+  deleteView: vi.fn(),
+  renameView: vi.fn(),
+}));
 vi.mock('./lib/ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./lib/ipc')>()),
   deleteView,
+  renameView,
 }));
 
 import App from './App.svelte';
@@ -32,6 +36,7 @@ beforeEach(() => {
   });
   clearFaults();
   deleteView.mockResolvedValue([]);
+  renameView.mockResolvedValue([]);
   // A confirm() would let this pass with no on-screen affordance at all, which is the point.
   vi.stubGlobal('confirm', () => {
     throw new Error('window.confirm must not be how a view is deleted');
@@ -74,4 +79,21 @@ test('a board is not offered a delete button — there is no file to delete', as
   openPane({ kind: 'board', groupBy: 'status' });
   await screen.findByRole('button', { name: /save this view/i });
   expect(screen.queryByRole('button', { name: 'delete this view' })).toBeNull();
+});
+
+test('renaming asks in the dialog that already names views, and never touches the filter', async () => {
+  const { renameView } = await import('./lib/ipc');
+  openPane({ kind: 'view', viewName: 'Active' });
+
+  await fireEvent.click(await screen.findByRole('button', { name: 'rename this view' }));
+  const dialog = await screen.findByRole('dialog', { name: /rename this view/i });
+  // Pre-filled with what it is called now — a rename that makes you retype the name is a trap.
+  expect((screen.getByLabelText('view name') as HTMLInputElement).value).toBe('Active');
+  // **The tag question is not asked.** It belongs to the file being moved, and answering it here
+  // would rewrite a filter this screen cannot describe.
+  expect(dialog.textContent).toMatch(/left alone/i);
+
+  await fireEvent.input(screen.getByLabelText('view name'), { target: { value: 'Reading now' } });
+  await fireEvent.click(screen.getByRole('button', { name: 'Rename' }));
+  await waitFor(() => expect(renameView).toHaveBeenCalledWith('Active', 'Reading now', expect.anything()));
 });

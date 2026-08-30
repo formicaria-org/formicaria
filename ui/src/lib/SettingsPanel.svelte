@@ -110,8 +110,11 @@
     /** The user's own theme file, or `null` for the built-in look. Owned and applied by `App`. */
     userTheme?: import('./appearance').Selection | null;
     onusertheme?: (sel: import('./appearance').Selection | null) => void;
-    /** The actions that used to be the command palette. Grouped, and run from here. */
-    commands: { label: string; run: () => void; group?: string }[];
+    /** The actions that used to be the command palette. Grouped, and run from here.
+     *  `command` names the binding this action answers to, when it has one — so the shortcut is
+     *  shown next to the thing it does, which is where a person looks for it, rather than only in
+     *  the Keyboard section at the bottom of this panel. */
+    commands: { label: string; run: () => void; group?: string; command?: keys.Command }[];
     /** Which heading to open at — `commands` when a "+" button sent you here. */
     section?: string;
     /** Told when a binding changes, so the shell re-reads it without a reload. */
@@ -330,7 +333,19 @@
                 onclick={() => {
                   c.run();
                   onclose();
-                }}>{c.label}</button>
+                }}>
+                <span>{c.label}</span>
+                <!-- The standard menu pattern: the accelerator beside the thing it triggers.
+                     Rebinding has shipped for a while and was invisible unless you scrolled to the
+                     bottom of this panel — Nielsen's seventh heuristic asks for accelerators to be
+                     *visible* to the people who would use them. An unbound command says so, which
+                     is how `newView` stops being a capability you can only find in the source. -->
+                {#if c.command}
+                  <span class="binding-chip" class:unbound={!keymap[c.command]?.key}>
+                    {keymap[c.command]?.key ? keys.describe(keymap[c.command]) : 'not set'}
+                  </span>
+                {/if}
+              </button>
             </li>
           {/each}
           {#if shown.length === 0}
@@ -979,6 +994,21 @@
   /* **Not `.actions`** — that name was already taken by the dialog's footer button row, which
      is `display: flex`, so reusing it laid this list out horizontally and overflowed it off both
      edges of a phone. Found by screenshotting the emulator; no test would have seen it. */
+  .binding-chip {
+    margin-left: auto;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+    white-space: nowrap;
+  }
+  .binding-chip.unbound {
+    border-style: dashed;
+    color: var(--text-subtle);
+    font-family: var(--font-sans);
+  }
   .action-list {
     list-style: none;
     margin: var(--space-2) 0 0;
@@ -993,7 +1023,11 @@
     color: var(--text-muted);
   }
   .action-list .action {
-    display: block;
+    /* Flex, not block: the label takes the room it needs and the binding chip is pushed to the
+       far edge, which is where every menu on every platform puts an accelerator. */
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     width: 100%;
     text-align: left;
     /* 2.75rem is the touch target both platform guidelines ask for; this list is the primary

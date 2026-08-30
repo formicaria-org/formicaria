@@ -37,6 +37,7 @@
     listViews,
     saveView,
     deleteView,
+    renameView,
     readTheme,
     createPaper,
     runView,
@@ -461,8 +462,8 @@
   ///
   /// **New vault is not here** either. You make a vault a handful of times ever; it lives in
   /// Settings, which is where rare configuration belongs.
-  const CREATE_MENU: { group: string; label: string; run: () => void }[] = [
-    { group: 'Create', label: 'New note', run: onNew },
+  const CREATE_MENU: { group: string; label: string; run: () => void; command?: keys.Command }[] = [
+    { group: 'Create', label: 'New note', run: onNew, command: 'newNote' as keys.Command },
     { group: 'Create', label: 'New board', run: onNewBoard },
     { group: 'Create', label: 'New discussion', run: onNewDiscussion },
     { group: 'Create', label: 'New paper', run: onNewPaper },
@@ -519,9 +520,25 @@
         label: `Open “${v.name}”`,
         run: () => addPane('view', { viewName: v.name }),
       })),
-    { group: 'Vault', label: 'Back up the vault', run: onBackup },
-    { group: 'This view', label: 'Close this view', run: () => run('closePane') },
-    { group: 'App', label: 'Settings', run: () => (settingsOpen = true) }
+    { group: 'Vault', label: 'Back up the vault', run: onBackup, command: 'backup' as keys.Command },
+    // **`newView` had no entry anywhere.** It is a command with an empty default binding, and the
+    // pane-header button only appears on a board, an agenda or a timeline — so "keep this
+    // arrangement" was a capability you could only learn about by reading a source comment or
+    // binding a key to a name you had never seen. Listing it here is how it becomes findable, and
+    // the binding chip beside it is how "unbound" becomes visible instead of silent.
+    {
+      group: 'This view',
+      label: 'Keep this arrangement as a view',
+      run: () => run('newView'),
+      command: 'newView' as keys.Command,
+    },
+    {
+      group: 'This view',
+      label: 'Close this view',
+      run: () => run('closePane'),
+      command: 'closePane' as keys.Command,
+    },
+    { group: 'App', label: 'Settings', run: () => (settingsOpen = true), command: 'palette' as keys.Command }
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
@@ -1059,10 +1076,43 @@
   /// arrange a board or an agenda and want to keep it — so that is what this saves.
   // The save dialog's state. This was a `window.prompt()` until 2026-08-29 — genuinely in-app, but
   // not an affordance this app would otherwise ship, and it could ask exactly one question.
+  let helpOpen = $state(false);
   let saveViewOpen = $state(false);
   let saveViewName = $state('');
   let saveViewTag = $state('');
   let saveViewKind = $state<'board' | 'agenda' | 'timeline'>('board');
+
+  /// The same dialog, asked a different question. Renaming an existing view and naming a new one
+  /// are the same interaction — a name, then confirm — and giving the rare one its own surface is
+  /// how a panel becomes two panels that disagree.
+  let renameViewFrom = $state<string | null>(null);
+
+  function renameCurrentView() {
+    const pane = workspace.panes[focused];
+    if (pane?.kind !== 'view' || !pane.viewName) return;
+    renameViewFrom = pane.viewName;
+    saveViewName = pane.viewName;
+    saveViewTag = '';
+    saveViewOpen = true;
+  }
+
+  async function confirmRenameView() {
+    const from = renameViewFrom;
+    const to = saveViewName.trim();
+    if (!from || !to) return;
+    const info = views.find((v) => v.name === from);
+    try {
+      views = await renameView(from, to, info?.vault ?? '');
+      // Every pane showing it follows, or they are pointing at a file that has moved.
+      for (const p of workspace.panes) {
+        if (p.kind === 'view' && p.viewName === from) changePane(p.id, { viewName: to });
+      }
+      saveViewOpen = false;
+      renameViewFrom = null;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
 
   function saveCurrentView() {
     const pane = workspace.panes[focused];
@@ -1074,7 +1124,12 @@
     saveViewKind = kind;
     saveViewName = '';
     saveViewTag = '';
+    renameViewFrom = null;
     saveViewOpen = true;
+  }
+
+  function submitViewDialog() {
+    return renameViewFrom ? confirmRenameView() : confirmSaveView();
   }
 
   async function confirmSaveView() {
@@ -1848,15 +1903,13 @@
 
          **Not on the phone.** There the UI is served by the Tauri shell, not `fm-serve`, so
          `/manual/` resolves to nothing; a Help button that 404s is worse than no Help button. -->
-    {#if !isPhone()}
-      <button
-        class="icon-btn"
-        onclick={() => window.open('/manual/', '_blank', 'noopener')}
-        aria-label="help"
-        title="Help — the manual, inside this app">
-        <Icon name="help" size={16} />
-      </button>
-    {/if}
+    <button
+      class="icon-btn"
+      onclick={() => (helpOpen = true)}
+      aria-label="help"
+      title="Help — how this works">
+      <Icon name="help" size={16} />
+    </button>
 
     <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
       <Icon name="gear" size={16} />
@@ -1933,6 +1986,7 @@
             onresize={(patch) => resizePane(pane.id, patch)}
             onsaveview={() => { focused = i; saveCurrentView(); }}
             ondeleteview={() => { focused = i; void deleteCurrentView(); }}
+            onrenameview={() => { focused = i; renameCurrentView(); }}
             onclose={() => closePane(pane.id)}
             onfocus={() => (focused = i)}
           />
@@ -1976,6 +2030,12 @@
           settingsOpen = false;
           backupOpen = true;
         }} />
+    {/await}
+  {/if}
+
+  {#if helpOpen}
+    {#await import('./lib/HelpPanel.svelte') then { default: HelpPanel }}
+      <HelpPanel onclose={() => (helpOpen = false)} />
     {/await}
   {/if}
 
@@ -2051,13 +2111,13 @@
       class="sheet"
       role="dialog"
       aria-modal="true"
-      aria-label="Save this view"
+      aria-label={renameViewFrom ? 'Rename this view' : 'Save this view'}
       tabindex="-1"
       onkeydown={(e) => e.key === 'Escape' && (saveViewOpen = false)}>
       <!-- One child: `.sheet` is a full-screen centring container and `.sheet > *` is what gets the
            card's background, border and shadow. Several children would each become their own card. -->
       <div class="save-view">
-        <h2>Save this view</h2>
+        <h2>{renameViewFrom ? `Rename “${renameViewFrom}”` : 'Save this view'}</h2>
         <label class="sv-field">
           <span>Name</span>
         <!-- svelte-ignore a11y_autofocus -->
@@ -2067,25 +2127,33 @@
           placeholder="e.g. Papers"
           autofocus
           spellcheck="false"
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void confirmSaveView(); } }}
+          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitViewDialog(); } }}
         />
       </label>
-        <label class="sv-field">
+        <!-- Not asked when renaming: the tag belongs to the file being moved, and offering to set
+             it here would quietly rewrite a filter the app cannot express. -->
+        <label class="sv-field" class:hidden={!!renameViewFrom}>
           <span>Only notes tagged <em>(optional)</em></span>
         <input
           aria-label="only notes tagged"
           bind:value={saveViewTag}
           placeholder="leave empty for every note"
           spellcheck="false"
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void confirmSaveView(); } }}
+          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitViewDialog(); } }}
         />
       </label>
         <p class="sv-hint">
-        Saved as a file in your vault's <code>views</code> folder, so it travels with your notes.
+        {#if renameViewFrom}
+          The file moves and its contents are left alone, so anything you wrote in it — including a
+          filter this screen cannot describe — is kept exactly as it is.
+        {:else}
+          Saved as a file in your vault's <code>views</code> folder, so it travels with your notes.
+        {/if}
       </p>
         <div class="sv-actions">
           <button class="sv-cancel" onclick={() => (saveViewOpen = false)}>Cancel</button>
-          <button class="sv-save" onclick={confirmSaveView} disabled={!saveViewName.trim()}>Save</button>
+          <button class="sv-save" onclick={submitViewDialog} disabled={!saveViewName.trim()}
+            >{renameViewFrom ? 'Rename' : 'Save'}</button>
         </div>
       </div>
     </div>
@@ -2330,6 +2398,10 @@
      internally instead of the page. */
   /* See the comment at the markup. Literal values on purpose: every one of these read from a
      custom property would be a property the theme can redefine. */
+  /* The tag field is present but not asked when renaming — see the dialog. */
+  .sv-field.hidden {
+    display: none;
+  }
   .theme-escape {
     all: revert;
     position: fixed !important;

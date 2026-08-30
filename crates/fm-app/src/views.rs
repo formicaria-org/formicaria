@@ -667,6 +667,66 @@ fn read_view(path: &Path) -> Result<ViewFile, String> {
 
 /// A view is addressed by its `name:` field first, then its filename stem — so a file whose
 /// `name:` failed to parse is still reachable by filename to see the error.
+/// Rename a saved view, returning `(old, new)` so both reach the write list — a rename git only
+/// half-sees is a file that comes back on the next pull.
+///
+/// **Deliberately not save-under-the-new-name-then-delete-the-old.** That composition looks
+/// equivalent and is not: `save_view` guards against flattening a filter it cannot express by
+/// noticing that the target file *already exists* — and a new name hits no existing file, so the
+/// guard never fires, the fresh file is written without the filter, and deleting the original
+/// destroys the only copy. Two safe operations, one unsafe result.
+///
+/// So this moves the bytes and rewrites **only the `name:` line**. A hand-written filter, the key
+/// order, the comments and the spacing all survive exactly as their author left them.
+pub fn rename_view(vault: &Path, from: &str, to: &str) -> Result<(PathBuf, PathBuf), String> {
+    let src = find_view(vault, from).ok_or_else(|| format!("there is no view named '{from}'"))?;
+    let dst = view_path(vault, to)?;
+    if src == dst {
+        // Only the label changed, not the file it lives in. Still a rename to the person.
+        rewrite_name(&src, to)?;
+        return Ok((src.clone(), src));
+    }
+    if dst.exists() {
+        return Err(format!(
+            "there is already a view whose name makes the file {} — pick another name",
+            dst.file_name().unwrap_or_default().to_string_lossy()
+        ));
+    }
+    std::fs::rename(&src, &dst)
+        .map_err(|e| format!("could not rename {}: {e}", src.display()))?;
+    rewrite_name(&dst, to)?;
+    Ok((src, dst))
+}
+
+/// Replace the `name:` line in place, touching nothing else in the file.
+fn rewrite_name(path: &Path, to: &str) -> Result<(), String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("could not read {}: {e}", path.display()))?;
+    // The label is written the way `save_view` writes it — through the YAML serialiser — so a name
+    // containing a colon, a `#`, or a leading quote cannot turn the file into something that parses
+    // differently from what the person typed.
+    let quoted = serde_yaml_ng::to_string(&serde_yaml_ng::Value::String(to.to_string()))
+        .map_err(|e| format!("could not write that name: {e}"))?;
+    let quoted = quoted.trim_end();
+    let mut done = false;
+    let mut out = String::with_capacity(text.len() + to.len());
+    for line in text.lines() {
+        if !done && line.trim_start().starts_with("name:") {
+            out.push_str(&format!("name: {quoted}"));
+            done = true;
+        } else {
+            out.push_str(line);
+        }
+        out.push('\n');
+    }
+    // A file with no `name:` at all still renames — the filename stem is what `find_view` falls
+    // back to, so the rename is real either way.
+    if !done {
+        out.insert_str(0, &format!("name: {quoted}\n"));
+    }
+    std::fs::write(path, out).map_err(|e| format!("could not write {}: {e}", path.display()))
+}
+
 fn find_view(vault: &Path, name: &str) -> Option<std::path::PathBuf> {
     let dir = vault.join("views");
     let entries = std::fs::read_dir(&dir).ok()?;

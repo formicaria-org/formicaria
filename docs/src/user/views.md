@@ -142,3 +142,13 @@ The view picker takes you back.
 
 Toggle light / dark with the sun/moon button. Your choice is remembered; the
 first launch follows your OS preference.
+
+## Renaming and deleting a view
+
+A view's header carries **Rename** and **Delete view**. Deleting asks twice — the second click is
+the confirmation — and removes only the view; the notes it was showing are untouched.
+
+Renaming moves the file and leaves its contents alone, so anything you wrote in it by hand,
+including a filter this screen cannot describe, is kept exactly as it is. That is why it is a
+rename rather than "save it under the new name and delete the old one" — the latter would write a
+fresh file without your filter and then delete the only copy of it.
