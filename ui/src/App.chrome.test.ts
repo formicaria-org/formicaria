@@ -68,3 +68,56 @@ test('storage that throws still gives a working panel', async () => {
   await fireEvent.click(btn);
   await screen.findByRole('button', { name: 'expand the panel' });
 });
+
+test('the panel offers every view you can open, and opening one adds a window', async () => {
+  render(App);
+  const rail = (await screen.findByRole('navigation', { name: 'views' })) as HTMLElement;
+  const names = Array.from(rail.querySelectorAll('button')).map((b) =>
+    (b.textContent ?? '').trim(),
+  );
+  // Every built-in, in the registry's order — the list is fixed so it can be learned.
+  for (const v of ['Board', 'Agenda', 'Timeline', 'Search', 'Activity', 'Collaboration', 'Discussions']) {
+    expect(names, `${v} missing from the rail`).toContain(v);
+  }
+  // And the saved views, which is the half a fixed list of built-ins would miss.
+  expect(names).toContain('Active');
+
+  // Clicking opens it: a second window appears alongside the one that was already there.
+  const before = document.querySelectorAll('.pane').length;
+  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
+  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+});
+
+/// **The collapsed rail hides words; it must never crop them.**
+///
+/// The first version set the rail's width with `overflow: hidden` and left every label in place, so
+/// it showed a sliver of "Back up" and a sliver of the vault name. jsdom applies no CSS, so this
+/// cannot check that a label is *invisible* — and asserting that would be a lie. What it can check
+/// is the thing that makes hiding possible at all: that no label is a bare text node the stylesheet
+/// has no handle on.
+test('every label in the chrome is wrapped in something CSS can hide', async () => {
+  render(App);
+  const header = (await waitFor(() => {
+    const h = document.querySelector('header.topbar');
+    if (!h) throw new Error('no header');
+    return h;
+  })) as HTMLElement;
+
+  for (const chip of Array.from(header.querySelectorAll('.vault-chip'))) {
+    expect(chip.querySelector('.lbl'), `a filter chip's name is not wrapped: ${chip.textContent}`)
+      .toBeTruthy();
+  }
+  for (const item of Array.from(header.querySelectorAll('.view-item'))) {
+    expect(item.querySelector('.lbl'), `a rail label is not wrapped: ${item.textContent}`)
+      .toBeTruthy();
+  }
+});
+
+test('back up is an icon like the controls beside it, and says so only while it is working', async () => {
+  render(App);
+  const btn = await screen.findByRole('button', { name: 'back up notes' });
+  // Help and Settings next to it carry no words; one labelling rule per state is what makes the
+  // column read as a column. The meaning lives in the tooltip.
+  expect((btn.textContent ?? '').trim()).toBe('');
+  expect(btn.getAttribute('title')).toMatch(/commit and push/i);
+});

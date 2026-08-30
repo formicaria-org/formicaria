@@ -3289,6 +3289,33 @@ thumb cannot reach, and nearly every app ships one anyway. Branching stays on sp
 capability, never on platform — a wide touch tablet gets the panel, a narrow desktop window gets the
 bottom bar.
 
+**Amended 2026-08-30, after using it.** The first build moved the top bar's contents into a column
+and changed nothing else — a bar standing on its end, which is not what a rail is. Three faults:
+
+- **It had no views in it**, which was the whole point of the arrangement that was chosen.
+  `ViewBar` is still pinned to the bottom of `.body` and hidden above 60rem, so the panel offered no
+  way to reach a view at all. The panel now lists **the views you can open** — every built-in plus
+  every saved view, a fixed list in a fixed order so it can be learned. That is a different question
+  from `ViewBar`'s, which is *which of my open windows to look at*, so the two do not duplicate and
+  `ViewBar` is untouched. Both are built from one `viewTargets` array, shared with the action list,
+  because two half-menus disagreeing is exactly how the palette drifted into a second Settings.
+- **Collapsed, it cropped text instead of hiding it.** `width: 3.5rem` with `overflow: hidden`
+  leaves every label laid out and merely cut, so the rail showed a sliver of "Back up" and a sliver
+  of a vault name — text severed mid-word reads as broken, not as compact. Labels now live in a
+  `.lbl` span the stylesheet can hide, and the controls that are *only* their words (the vault
+  picker, the filter chips) are hidden outright rather than reduced to empty boxes. Every one keeps
+  the `title` it already had, so a name is a hover away rather than gone.
+- **The search showed as a lone centred lens**, because `searchOpen` starts false. The collapsing
+  was justified by *"a search field is the widest thing in the bar"* — a statement about a bar. In a
+  panel of fixed width a field costs one row of height, so the field is open there and the button is
+  kept for the bar. **Both forms render and CSS chooses**: deciding in script would mean measuring
+  the viewport, which this same ruling forbids.
+
+**And the labelling has one rule per state**, which is what the owner was reacting to: expanded is
+icon **+** label, collapsed is icon **only**. "Back up" loses its word to match Help and Settings
+beside it — but it comes back *while saving*, because "is anything happening?" is the one moment an
+icon cannot answer.
+
 **Reversal condition.** If the panel ends up habitually collapsed, it is not earning its width and
 the strip (D1) was the right answer after all. That is a question about use, not about pictures, so
 it is settled by living with it rather than by argument.

@@ -484,6 +484,34 @@
   ]);
 
   // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
+  /// **Every view you can open, in one place.** The panel lists these down the left and the action
+  /// list offers the same set as "Open …" — computed once so the two cannot say different things.
+  /// Two half-menus disagreeing is exactly how the old command palette drifted into a second
+  /// Settings, which is recorded as the reason it was removed.
+  ///
+  /// A saved view borrows the icon of the renderer it draws through, so it reads as the kind of
+  /// thing it is rather than as an anonymous entry.
+  let viewTargets = $derived([
+    ...BUILTIN_PANES.map((b) => ({
+      key: b.kind as string,
+      label: b.label,
+      icon: b.icon,
+      saved: false,
+      run: () => addPane(b.kind),
+    })),
+    ...(views ?? [])
+      .filter((v) => !v.error)
+      .map((v) => ({
+        key: `view:${v.name}`,
+        label: v.name,
+        icon:
+          BUILTIN_PANES.find((b) => b.kind === rendererKind(v.renderer ?? 'timeline'))?.icon ??
+          'timeline',
+        saved: true,
+        run: () => addPane('view', { viewName: v.name }),
+      })),
+  ]);
+
   let commands = $derived([
     // **Grouped, and deliberately not a second Settings.** The palette used to carry
     // `Columns: 1..4` and a theme toggle — the same controls Settings owns — so the two drifted
@@ -508,18 +536,7 @@
     // window" because a window is rotated after it opens, but the palette is the *searchable*
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
     // thing that holds one. Opening a window already on the right view is strictly less work.
-    ...BUILTIN_PANES.map((b) => ({
-      group: 'Open',
-      label: `Open ${b.label}`,
-      run: () => addPane(b.kind),
-    })),
-    ...(views ?? [])
-      .filter((v) => !v.error)
-      .map((v) => ({
-        group: 'Open',
-        label: `Open “${v.name}”`,
-        run: () => addPane('view', { viewName: v.name }),
-      })),
+    ...viewTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
     { group: 'Vault', label: 'Back up the vault', run: onBackup, command: 'backup' as keys.Command },
     // **`newView` had no entry anywhere.** It is a command with an empty default binding, and the
     // pane-header button only appears on a board, an agenda or a timeline — so "keep this
@@ -1706,16 +1723,7 @@
        the top bar, so the workspace gets that row's height back — and it collapses, which the old
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
   <header class="topbar">
-    <!-- Only meaningful where the chrome is a panel; hidden by CSS where it is a bar. -->
-    <button
-      type="button"
-      class="icon-btn panel-toggle"
-      onclick={togglePanel}
-      aria-expanded={panelOpen}
-      aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
-      title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand'}>
-      <Icon name={panelOpen ? 'chevron-down' : 'chevron-down'} size={16} />
-    </button>
+
     <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
@@ -1768,7 +1776,7 @@
          is used a fraction as often as it occupies space; open it and it takes the room it
          needs. `searchOpen` starts false on every load, deliberately — a bar that remembers
          being open is a bar that is usually open. -->
-    {#if searchOpen}
+    <div class="search-slot" class:open={searchOpen}>
       <label class="searchfield">
         <Icon name="search" size={15} />
         <input
@@ -1783,21 +1791,25 @@
           aria-label="search notes"
         />
       </label>
-    {:else}
       <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
            bar, because those controls also live in the bottom `ViewBar` where the thumb is.
            Search does not, so reusing that class would have made the search button disappear on
-           exactly the screen this collapsing is for. -->
+           exactly the screen this collapsing is for.
+
+           **Both forms are always in the DOM now**, and CSS decides. The collapsing was justified
+           by "a search field is the widest thing in the bar" — true of a bar, and meaningless in a
+           panel of fixed width, where the field costs one row of height. Choosing between them in
+           script would mean measuring the viewport, which the layout ruling forbids outright. -->
       <button
         type="button"
         class="search-btn"
         onclick={openSearch}
         aria-label="search notes"
-        aria-expanded={false}
+        aria-expanded={searchOpen}
         title="Search">
         <Icon name="search" size={16} />
       </button>
-    {/if}
+    </div>
 
     {#if allVaults.length > 1}
       <!-- Where new notes/boards land. A destination, not a permission — it only picks the
@@ -1818,7 +1830,26 @@
       </label>
     {/if}
 
-    <span class="tb-spacer"></span>
+    <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
+         order, so it can be learned: every built-in, then every saved view. It is the same set the
+         action list offers under "Open …", computed once (`viewTargets`) so the two cannot drift.
+         Panel only: the bottom bar already has `ViewBar`, which answers a different question —
+         which of your open windows to look at, rather than which view to open. -->
+    <nav class="panel-views" aria-label="views">
+      {#each viewTargets as t (t.key)}
+        <button
+          type="button"
+          class="view-item"
+          class:saved={t.saved}
+          onclick={t.run}
+          title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
+          aria-label={`open ${t.label}`}>
+          <Icon name={t.icon} size={16} />
+          <span class="lbl">{t.label}</span>
+        </button>
+      {/each}
+    </nav>
+
 
     {#if allVaults.length > 1}
       <div class="vaults" aria-label="vault filter">
@@ -1832,7 +1863,7 @@
             onclick={() => toggleVault(v)}
             title={hiddenVaults.includes(v) ? `Show ${labelFor(v)}` : `Hide ${labelFor(v)}`}
           >
-            {labelFor(v)}
+            <span class="lbl">{labelFor(v)}</span>
           </button>
         {/each}
       </div>
@@ -1853,17 +1884,21 @@
               ? `Show ${who.label}'s notes`
               : `Hide ${who.label}'s notes`}
           >
-            <span class="contrib-dot" aria-hidden="true"></span>{who.label}
+            <span class="contrib-dot" aria-hidden="true"></span><span class="lbl">{who.label}</span>
           </button>
         {/each}
       </div>
     {/if}
 
+    <span class="tb-spacer"></span>
+
     {#if movedVaults.length}
       <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
       <button class="tb-chip moved" onclick={getTheirChanges} title="Someone pushed — get their changes">
         <Icon name="inbox" size={14} />
-        {movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get changes
+        <span class="lbl"
+        >{movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get changes</span
+      >
       </button>
     {/if}
 
@@ -1875,7 +1910,7 @@
         class="tb-chip moved"
         onclick={() => (skippedOpen = true)}
         title="Notes that could not be read — usually a conflicted merge">
-        {skippedNotes.length} unreadable
+        {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
       </button>
     {/if}
 
@@ -1893,7 +1928,7 @@
         class="tb-chip moved"
         onclick={() => (unrecordedOpen = true)}
         title="Notes on disk that git does not have yet — click to see which, and why">
-        {unrecordedTotal} not in history
+        {unrecordedTotal}{' '}<span class="lbl">not in history</span>
       </button>
     {/if}
 
@@ -1912,7 +1947,12 @@
         title="Commit and push your notes"
         aria-label="back up notes">
         <Icon name="backup" size={14} />
-        <span class="save-label">{savingLabel ?? 'Back up'}</span>
+        <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
+             state is what makes a column of controls read as a column rather than a list of
+             exceptions. The word returns while it is *working*, because "is anything happening?"
+             is the one moment an icon alone cannot answer (heuristic 1, visibility of system
+             status); the tooltip carries the meaning the rest of the time. -->
+        {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
       </button>
       <button
         type="button"
@@ -1957,6 +1997,19 @@
 
     <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
       <Icon name="gear" size={16} />
+    </button>
+
+    <!-- Last, with the other system controls, rather than above the ＋ where it started: the first
+         thing in a panel should be the thing you came to do. Hidden where the chrome is a bar,
+         because a bar is already as small as it gets. -->
+    <button
+      type="button"
+      class="icon-btn panel-toggle"
+      onclick={togglePanel}
+      aria-expanded={panelOpen}
+      aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
+      title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand the panel'}>
+      <Icon name="chevron-down" size={16} />
     </button>
   </header>
 
@@ -2500,18 +2553,37 @@
       gap: var(--space-2);
     }
     /* Collapsed: down to its icons. The width goes back to the notes, and one click returns it —
-       which the rail this replaces could never do. */
+       which the rail this replaces could never do.
+
+       **Hide the words; never crop them.** The first version set this width with
+       `overflow: hidden` and left every label laid out, so the rail showed a sliver of "Back up"
+       and a sliver of the vault name — text cut mid-word, which reads as broken rather than as
+       compact. A collapsed rail is icons and nothing else, and each one keeps the `title` it
+       already had, so the name is a hover away rather than gone. */
     .app.panel-collapsed .topbar {
       width: 3.5rem;
       padding-left: var(--space-2);
       padding-right: var(--space-2);
       align-items: center;
     }
-    /* Collapsed, the things that are only meaningful with room for their words go. The icons
-       that remain are the ones that were always icons. */
+    .app.panel-collapsed .topbar .lbl,
+    .app.panel-collapsed .topbar .save-label {
+      display: none;
+    }
+    /* These are *only* their words — a vault picker with no name, or a filter chip with nothing
+       in it, would be a control that cannot say what it does. They come back on expand. */
     .app.panel-collapsed .topbar .vaults,
+    .app.panel-collapsed .topbar .tb-create,
     .app.panel-collapsed .topbar .searchfield {
       display: none;
+    }
+    .app.panel-collapsed .topbar .create-wrap,
+    .app.panel-collapsed .topbar .view-item,
+    .app.panel-collapsed .topbar .tb-chip {
+      justify-content: center;
+    }
+    .app.panel-collapsed .topbar .view-item {
+      padding-inline: 0;
     }
     .body {
       grid-column: 2;
@@ -2521,6 +2593,68 @@
     /* In a column these should fill the panel's width rather than shrink to their text. */
     .topbar .create-wrap {
       width: 100%;
+    }
+
+    /* **The search field is open in the panel.** Its collapsing was justified by "a search field
+       is the widest thing in the bar" — a statement about a bar. Here the panel's width is fixed
+       and a field costs one row of height, so there is nothing to reclaim by hiding it. Both forms
+       are in the DOM and CSS picks, because deciding in script would mean measuring the viewport,
+       which the layout ruling forbids. */
+    .app:not(.panel-collapsed) .topbar .searchfield {
+      display: flex;
+      width: 100%;
+    }
+    .app:not(.panel-collapsed) .topbar .search-btn {
+      display: none;
+    }
+    .topbar .searchfield :global(input) {
+      width: 100%;
+    }
+
+    /* The rail. Panel only — the bottom bar has `ViewBar`, which lists open *windows*, a
+       different question from which view to open. */
+    .panel-views {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      width: 100%;
+    }
+    .view-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 2rem;
+      padding: var(--space-1) var(--space-2);
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: none;
+      color: var(--text-muted);
+      font: inherit;
+      font-size: var(--text-sm);
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .view-item:hover {
+      background: var(--surface-hover);
+      color: var(--text);
+    }
+    /* A saved view is one of yours, and reads as a name rather than a fixture. */
+    .view-item.saved .lbl {
+      font-style: italic;
+    }
+
+    /* The trailing controls line up with the rail above them rather than centring in a column
+       that is otherwise all left-aligned — proximity is doing the grouping, so alignment should
+       not fight it. */
+    .topbar .icon-btn,
+    .topbar .save-btn {
+      justify-content: flex-start;
+    }
+    .topbar .icon-btn {
+      display: flex;
+      align-items: center;
+      padding-left: var(--space-2);
     }
     /* The spacer earns its keep in both placements: it pushes the trailing controls to the far
        edge, which is the right-hand end of a bar and the bottom of a panel. */
@@ -2559,6 +2693,27 @@
     .panel-toggle {
       display: none;
     }
+  }
+
+  /* Outside the panel the rail is not shown at all: the bottom bar's `ViewBar` is the switcher
+     there, and two lists of view-ish things on one screen is the drift that deleted the palette. */
+  .panel-views {
+    display: none;
+  }
+  .search-slot {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  /* In a bar the field appears on demand, exactly as before. */
+  .search-slot .searchfield {
+    display: none;
+  }
+  .search-slot.open .searchfield {
+    display: flex;
+  }
+  .search-slot.open .search-btn {
+    display: none;
   }
 
   .workspace {
