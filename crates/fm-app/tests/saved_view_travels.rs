@@ -197,3 +197,46 @@ fn a_theme_is_listed_with_the_vault_that_holds_it() {
     assert_eq!(first["vault"], json!("personal"), "{listed}");
     assert_eq!(first["name"], json!("writing-desk"), "{listed}");
 }
+
+/// **A list that comes back from a *write* must name the vault too.**
+///
+/// Found by running the built binary and reading the JSON: only the `list_*` arms stamped the
+/// vault, so `save_theme` answered rows with no vault on them. The UI keeps whatever comes back, so
+/// the next delete or rename would send an empty vault and resolve against the default one — the
+/// same silent no-op the `vault` field was added to prevent, reintroduced through the back door.
+#[test]
+fn every_reply_that_lists_views_or_themes_names_their_vault() {
+    let (_home, _dir, app) = vault();
+
+    let after_save = call(
+        &app,
+        "save_view",
+        json!({ "vault": "personal", "name": "Papers", "view": "board" }),
+    );
+    assert_eq!(after_save.as_array().unwrap()[0]["vault"], json!("personal"), "{after_save}");
+
+    let after_rename = call(
+        &app,
+        "rename_view",
+        json!({ "vault": "personal", "from": "Papers", "to": "Reading" }),
+    );
+    assert_eq!(after_rename.as_array().unwrap()[0]["vault"], json!("personal"), "{after_rename}");
+
+    let after_theme = call(
+        &app,
+        "save_theme",
+        json!({ "vault": "personal", "name": "Desk", "css": "/* x */" }),
+    );
+    assert_eq!(after_theme.as_array().unwrap()[0]["vault"], json!("personal"), "{after_theme}");
+
+    let after_theme_rename = call(
+        &app,
+        "rename_theme",
+        json!({ "vault": "personal", "from": "desk", "to": "Room" }),
+    );
+    assert_eq!(
+        after_theme_rename.as_array().unwrap()[0]["vault"],
+        json!("personal"),
+        "{after_theme_rename}"
+    );
+}

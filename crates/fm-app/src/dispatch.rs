@@ -1788,7 +1788,7 @@ fn dispatch_inner(
                 },
             )?;
             g.all.seed_written(&name, vec![written]);
-            json(crate::views::list_views(&path))
+            json(views_of(&name, &path))
         }
         // Deleting has to be recorded for the same reason, and a little more urgently: an
         // unrecorded deletion comes back on the next pull.
@@ -1798,7 +1798,7 @@ fn dispatch_inner(
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let removed = crate::views::delete_view(&path, &s("name"))?;
             g.all.seed_written(&name, vec![removed]);
-            json(crate::views::list_views(&path))
+            json(views_of(&name, &path))
         }
         // ---- Themes. A sibling of the view commands above, for the same reasons: a file in the
         // vault, named by a label a person typed, recorded in git so it reaches the other machine.
@@ -1809,10 +1809,7 @@ fn dispatch_inner(
             for v in g.configs() {
                 // Stamp the vault on the way past — `list_themes` is handed a path and has no name
                 // to report, and without it "delete" cannot find a theme outside the default vault.
-                all.extend(crate::themes::list_themes(&v.path).into_iter().map(|mut t| {
-                    t.vault = v.name.clone();
-                    t
-                }));
+                all.extend(themes_of(&v.name, &v.path));
             }
             json(all)
         }
@@ -1826,7 +1823,7 @@ fn dispatch_inner(
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let written = crate::themes::save_theme(&path, &s("name"), &s("css"))?;
             g.all.seed_written(&name, vec![written]);
-            json(crate::themes::list_themes(&path))
+            json(themes_of(&name, &path))
         }
         "delete_theme" => {
             let mut g = lock()?;
@@ -1834,7 +1831,7 @@ fn dispatch_inner(
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let removed = crate::themes::delete_theme(&path, &s("name"))?;
             g.all.seed_written(&name, vec![removed]);
-            json(crate::themes::list_themes(&path))
+            json(themes_of(&name, &path))
         }
         // Renaming is its own command, never save-under-the-new-name plus delete: that
         // composition slips past `save_view`'s refuse-don't-flatten guard (a new name hits no
@@ -1846,7 +1843,7 @@ fn dispatch_inner(
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let (from, to) = crate::views::rename_view(&path, &s("from"), &s("to"))?;
             g.all.seed_written(&name, vec![from, to]);
-            json(crate::views::list_views(&path))
+            json(views_of(&name, &path))
         }
         "rename_theme" => {
             let mut g = lock()?;
@@ -1854,7 +1851,7 @@ fn dispatch_inner(
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let (from, to) = crate::themes::rename_theme(&path, &s("from"), &s("to"))?;
             g.all.seed_written(&name, vec![from, to]);
-            json(crate::themes::list_themes(&path))
+            json(themes_of(&name, &path))
         }
         "list_views" => {
             let g = lock()?;
@@ -1862,10 +1859,7 @@ fn dispatch_inner(
             for v in g.configs() {
                 // Stamp the vault on the way past. `list_views` takes a path and has no name to
                 // report; this loop is the only place both are in hand.
-                all.extend(crate::views::list_views(&v.path).into_iter().map(|mut i| {
-                    i.vault = v.name.clone();
-                    i
-                }));
+                all.extend(views_of(&v.name, &v.path));
             }
             json(all)
         }
@@ -2152,6 +2146,34 @@ fn skipped_path(
 
 fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
+}
+
+/// The views in one vault, each stamped with the vault that holds it.
+///
+/// **Every arm that returns a list must go through this.** The `list_*` arms stamp while iterating
+/// the configs; a write arm has only one vault in hand and it is easy to return the bare list — but
+/// the UI keeps whatever comes back, so an unstamped reply silently blanks the vault on every row
+/// and the *next* delete or rename resolves against the default vault instead. Found by running the
+/// built binary and reading the JSON, not by a test.
+fn views_of(name: &str, path: &std::path::Path) -> Vec<crate::views::ViewInfo> {
+    crate::views::list_views(path)
+        .into_iter()
+        .map(|mut v| {
+            v.vault = name.to_string();
+            v
+        })
+        .collect()
+}
+
+/// The themes in one vault, stamped. Same rule, same reason as [`views_of`].
+fn themes_of(name: &str, path: &std::path::Path) -> Vec<crate::themes::ThemeInfo> {
+    crate::themes::list_themes(path)
+        .into_iter()
+        .map(|mut t| {
+            t.vault = name.to_string();
+            t
+        })
+        .collect()
 }
 
 fn json<T: serde::Serialize>(v: T) -> Result<Output, String> {
