@@ -27,6 +27,10 @@ This folder contains the whole application. Nothing gets installed.
 
   Your web browser opens by itself. That is the app.
 
+  It opens on a note called "Start here", which explains what you are looking
+  at and where to click. It is an ordinary note - delete it when you are done
+  with it, like any other.
+
   TO STOP IT:  close the browser tab. It shuts down a few seconds later.
 
   TO START IT AGAIN:  double-click the same file, any time. Your notes are
@@ -99,6 +103,7 @@ This folder contains the whole application. Nothing gets installed.
 
   Your notes are the files in  vault\notes\  - one plain text file per note.
   You can open them in any editor. This app is not required to read them.
+  The "Start here" note you see on first run is simply the first of them.
 
 
 ------------------------------------------------------------------------------

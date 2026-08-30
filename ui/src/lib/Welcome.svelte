@@ -14,10 +14,14 @@
   ///
   /// # What this screen is not
   ///
-  /// Not a setup wizard, and deliberately not the vault form. The archive now ships a ready empty
-  /// vault, so `NewVault`'s first-run branch no longer fires for most people — this is what greets
-  /// them instead, and it must stay short enough to read in one breath. Three fields, two of them
-  /// optional, and a way past it.
+  /// Not a setup wizard, and deliberately not the vault form. The archive now ships a ready vault
+  /// with a welcome note in it, so `NewVault`'s first-run branch no longer fires for most people —
+  /// this is what greets them instead, and it must stay short enough to read in one breath. Three
+  /// fields, two of them optional, and a way past it.
+  ///
+  /// **It does not explain the app**, and must not start to: dismissing this lands the reader on a
+  /// Timeline whose one note is `packaging/welcome/`, which is where "what is this and where do I
+  /// click" is answered. Two screens, two jobs — this one asks the single question git forces.
   ///
   /// **Hidden entirely where git is absent** — see the gate in `App.svelte`. A machine with no git
   /// has no committer to name and no remote to push to, so every field here would be a control

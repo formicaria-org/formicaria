@@ -505,9 +505,17 @@ lands on exactly the create-seam above, so building that seam serves both.
 baked into the binary, `/manual/` serves it under its own CSP, and a Help button sits beside the
 gear (`decisions.md#toolchain`). What is left is the other half of that session's decision.
 
-The archive now ships a **ready empty vault**, so the app opens straight into somewhere real and
-the `vaults.length === 0` gate in `App.svelte` never fires. The owner's ruling was that a **short
+The archive now ships a **ready vault with one note in it** (`packaging/welcome/`, staged by
+`release.yml` and dated with the build), so the app opens straight into somewhere real and the
+`vaults.length === 0` gate in `App.svelte` never fires. The owner's ruling was that a **short
 welcome screen** should come first: name, email, and optionally a remote — then into the app.
+
+**The note is the other half, added 2026-08-30.** The screen answers the question git forces; the
+note answers *what is this and where do I click*, on the Timeline the screen dismisses into. It is
+~360 words and says it can be deleted. Its risk is not that it is wrong today but that it goes
+stale silently, so `crates/fm-app/tests/welcome_note.rs` parses the shipped file, opens a vault
+staged exactly as the release does (**including the date rewrite**), and fails if the note names a
+control that is gone — three of its claims were already wrong when checked against the code.
 
 **Landed already (the backend half):** `set_identity` is its own `dispatch` command, because
 `set_git_remote` sets an identity only alongside a URL and refuses an empty one — so "just my name,

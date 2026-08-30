@@ -449,6 +449,20 @@ for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt'; do
     fi
 done
 
+# The first note a new user reads has to actually be in the archive. It is also the one file whose
+# failure is guaranteed to be invisible: the note loader is tolerant by design, so a note that does
+# not parse does not error — it disappears, and the newcomer opens an empty notebook. `welcome_note.rs`
+# proves the file parses; this proves the release still puts it where the app will look.
+if ! grep -qF 'packaging/welcome/notes/.' .github/workflows/release.yml; then
+    echo "  FAIL: release.yml no longer stages the welcome note into the vault. A first-time user"
+    echo "        would open an empty notebook with nothing telling them what to do."
+    fail=1
+fi
+if ! ls packaging/welcome/notes/*.md >/dev/null 2>&1; then
+    echo "  FAIL: packaging/welcome/notes holds no note, but release.yml stages it."
+    fail=1
+fi
+
 # The top level is the whole point of the 2026-08-28 repackaging: a first-time user must meet a
 # door, not an inventory. `program/` is where the machinery went, and a binary copied back to the
 # top level would quietly undo that — with nothing failing, because the launcher would still work

@@ -1484,7 +1484,7 @@
   <Pairing />
 {:else if needsWelcome}
   <!-- Before the app, after pairing, and only when there is something to ask: the archive now
-       ships a ready empty vault, so `NewVault`'s first-run branch below no longer fires for most
+       ships a ready vault with a welcome note in it, so `NewVault`'s first-run branch below no longer fires for most
        people and this is what greets them instead. Hidden entirely where git is absent — every
        field on it would be a control that cannot do anything — and hidden the moment a committer
        exists, which is also what makes it stop appearing after it is answered. -->
