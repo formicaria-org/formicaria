@@ -78,9 +78,60 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   ***An addition is checked against the record before it is written*** (read before adding a
   dependency, an archive file, a relaxed guard or a changed default) · *The manual's CSP is a named
   exception* (`#ui`).
-- **`#agent`**: *Inline meeting actions become their own note* · *The study agent's model warm-up is
+- **`#agent`**: ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## `/transcribe` reads writing too — one verb, two specialists (2026-08-30, `#agent` `#toolchain`)
+
+**Decision.** `/transcribe` now covers **both** modalities: recordings become a transcript, and
+handwriting, boards and photographed pages become a digital one. One verb, two specialists, chosen
+by what the blob is — transcribing a recording and transcribing a page are the same request, and
+making a person pick the command is making them do the dispatch. The vision capability comes from a
+**multimodal projector** (`mmproj`) fetched beside the weights we already serve — not a second
+model and not a second server.
+
+**Why it costs almost nothing.** The laptop pick has been a vision-language model since 2026-07-24:
+`qwen3-vl-4b`, chosen on grounding and abstention, served text-only because the projector was never
+fetched. Enabling images is one file from the same pinned Hugging Face commit, under the same
+Apache-2.0 licence, loaded with `--mmproj`. No new model, no new runtime, no new port.
+
+**Four questions, answered.** This *does* widen what ships — a fetched artifact — so it earns this
+entry. It **extends** the modality-specialist exception rather than contradicting anything: the
+transcribe module's own docs already named "image→LaTeX, …" as the next rider, and the four
+properties it established are inherited unchanged (bytes by value never a path; insertion-only;
+a provenance-marked adjunct that *links* the source; idempotency on
+`(blob-hash, specialist, model)`). It is **not** the parked image→LaTeX work
+(`outstanding.md` §2.4): that one targets the phone and must therefore *bundle* a model into an MIT
+app, which is the constraint that ruled out AGPL Texo. This fetches, does not bundle, and is desktop
+only.
+
+**The substrate is now shared, not copied** (`fm_agent::adjunct`). The insertion-only splice is a
+safety invariant, and this project keeps re-learning that a rule implemented once per caller is a
+rule the next caller forgets — the same argument that produced `fm_app::thread`'s single definition
+of the hidden note-classes. Each specialist owns only a fence tag, so a transcript and a reading
+coexist in one note and neither supersedes the other.
+
+**A blind model must never be asked to read a picture.** That is the one failure mode that would be
+silent and damaging: a text-only model handed an image does not refuse, it invents a fluent reading,
+and this pipeline would file it as a provenance-marked block. So vision is a *capability with a
+reason* (`decisions.md`, 2026-08-29): `serve.rs` sets it from whether the projector actually made it
+onto the command line, and `/transcribe` says *which* capability is missing rather than producing something. Each is checked
+separately, because they fail separately — a device with only one still does the half it can.
+Truncation at the token cap is likewise a hard error, not a partial reading presented as a whole one.
+
+**The instruction is a *transcription* instruction, and that is the substance of the feature.** Math
+comes back as LaTeX, code and pseudocode as fenced blocks, tables as Markdown, and a figure's labels
+are transcribed with one line naming what it is — because a photographed equation rendered as prose
+is no more editable than the photograph was. And an unreadable symbol becomes `[?]` rather than a
+guess: in an equation a plausible wrong character is far worse than a visible gap, since the gap you
+notice and fix and the wrong subscript you carry for a year.
+
+**Accepted costs.** The projector is a further download on top of a 2.8 GB model, desktop only —
+the phone's `lfm2.5-1.2b` is not vision-capable and reports so. Images are capped at 8 MB per
+reading and **refused with a reason**, never silently downscaled. And a vision model is a *witness,
+not an oracle*: it misreads handwriting and invents plausible axis labels, which is why the reading
+is an adjunct beside the image rather than a replacement for it, and why the block names the model.
 
 ## A proposal's outgoing commit is kept, so the *accepted* label can be true (2026-08-30, `#git` `#agent` `#data`)
 

@@ -372,6 +372,22 @@ a browser `setTimeout` that dies with the tab (and with `FM_AUTO_SHUTDOWN`, clos
 the app is quit). A rejection's reason is the only record of *why*, since the rejected text never
 reaches the branch. Both arms now commit their own record, as `create_proposal` already did.
 
+**Verified against the real model, end to end, 2026-08-30.** Not simulated: the projector was
+fetched, `agent-serve` restarted with `--mmproj` (3562/4096 MiB on the RTX 3050), five typeset
+fixtures attached to a note in a scratch vault, and `@qwen3-vl-4b /transcribe` run through the
+running app. Then the human half — corrected, said why, accepted; a second accepted unchanged; a
+third rejected with a reason. **Rebuilding the dataset from `git` alone gave 3 rows across all three
+outcomes, 13/13 field checks passing**, including the pair that matters: the model's `LiFeP04` and
+the human's `LiFePO4` both recoverable, and the rejected plot transcription still readable although
+it never reached the branch. Fixtures and the measured results: `agents/bench/vision/`.
+
+**Two extraction lessons for whoever writes the external tool** — both found by running it:
+- **Strip the trailer block before reading `%b` as the reason.** With no reason given, `%b` *starts*
+  with the machine fields, so a naive read reports the record's own trailers as the human's words.
+- **A row is a join, not a read.** The input half (`Tool`, `Query`, `Sources`, `Assisted-by`) rides
+  on the **agent's** commit; the reason and `Kind` on the **human's** revision. Reading trailers from
+  one end only silently loses half the record.
+
 **Done looks like**, in order: a **retention ref namespace** (`refs/fm/review/…`) written *before* the
 existing code moves or deletes the branch, on **both** git backends; an exporter built first, against
 the ten rescued examples, so the corpus has a consumer before it has volume; and a *"what did you

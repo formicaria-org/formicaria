@@ -9,7 +9,7 @@ export const AGENT_COMMANDS = [
   { cmd: '/research', hint: 'Grounded web research → a cited proposal on this note' },
   { cmd: '/search', hint: 'Ground the reply in a web search' },
   { cmd: '/propose', hint: 'Propose an edit to this note' },
-  { cmd: '/transcribe', hint: "Transcribe this note's audio clips → a proposal" },
+  { cmd: '/transcribe', hint: "Recordings and handwriting in this note → text, as a proposal" },
 ] as const;
 
 /**

@@ -29,8 +29,16 @@ describe('withCommand — tapping a command chip', () => {
     expect(withCommand('some question', '/research', undefined)).toBe('some question /research ');
   });
 
-  it('offers /research first, and /transcribe is a normal command chip (no per-note button)', () => {
+  it('offers /research first; the modality specialists are ordinary chips, not per-note buttons', () => {
     expect(AGENT_COMMANDS[0].cmd).toBe('/research');
-    expect(AGENT_COMMANDS.map((c) => c.cmd)).toEqual(['/research', '/search', '/propose', '/transcribe']);
+    // `/transcribe` covers BOTH modality specialists — a recording and a page of handwriting are
+    // the same request, and making someone pick the command is making them do the dispatch. It gets
+    // no dedicated button either, which is what keeps the agent from acting on a note unasked.
+    expect(AGENT_COMMANDS.map((c) => c.cmd)).toEqual([
+      '/research',
+      '/search',
+      '/propose',
+      '/transcribe',
+    ]);
   });
 });

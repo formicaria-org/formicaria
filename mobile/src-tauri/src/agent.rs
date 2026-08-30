@@ -487,6 +487,7 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
             whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
             whisper_model: whisper_name.clone(),
+            vision: false,
             max_reply_chars,
             retrieve: 3,
             history_budget: 4000,

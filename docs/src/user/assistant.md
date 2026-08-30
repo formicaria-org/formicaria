@@ -74,19 +74,62 @@ picker suggests the assistant (and any collaborators in the vault). Pick it and 
 @lfm2.5-1.2b what is the difference between mRNA and DNA vaccines?
 ```
 
-It replies in the thread, attributed to the model's own name so you can see who said what. Two
+It replies in the thread, attributed to the model's own name so you can see who said what. Four
 commands refine a turn:
 
 | Command | What it does |
 |---|---|
-| `/search` | Research the web first, then answer from what it found (desktop; keyless SearXNG proxy). |
-| `/propose` | In a note's discussion, draft an **edit to that note**. The change lands on a review branch, never on `main` — you read the diff and merge or discard it. |
+| `/search` | Look the web up first, then answer from what it found (desktop; keyless SearXNG proxy). |
+| `/research` | The thorough version: search, write with quotes, and check every claim against its source. Drops the ones it cannot support. |
+| `/propose` | In a note's discussion, draft an **edit to that note** for you to review. |
+| `/transcribe` | Turn this note's **recordings and images into text** — see below. |
+
+Nothing the assistant writes lands in a note by itself. Every one of these produces a **suggestion
+you review**: you see exactly what would change, and you accept it, edit it first, or turn it down.
 
 Example:
 
 ```
 @lfm2.5-1.2b summarize the key idea of Bayesian model selection in 3 bullet points /search
 ```
+
+### Transcribing recordings and writing
+
+`/transcribe` turns the media in a note into text: a voice memo becomes a transcript, and a photo of
+a page, a whiteboard or a printout becomes something you can search and edit.
+
+```
+@qwen3-vl-4b /transcribe
+```
+
+Typed on its own it does **everything in the note that has not been done yet** — you never have to
+name a file or copy an identifier. Ask twice and it skips what it already read.
+
+For writing it aims at a *usable* transcript, not a description: mathematics comes back as LaTeX,
+code and pseudocode inside a code block with their indentation, and tables as Markdown tables. For a
+chart it transcribes the title, the axis labels, the tick values and the legend.
+
+Three things worth knowing:
+
+- **The picture stays.** The text lands *beside* the image, never instead of it, and says which model
+  read it. If the reading is wrong you can always look at the original.
+- **It will misread things** — a handwritten symbol, a subscript, an O that is really a zero. Read
+  the equations before you trust them. Where it genuinely cannot make something out it writes `[?]`
+  rather than guessing, which is the mark to look for.
+- **Reading images needs a model that can see.** Recordings need the audio runtime; images need a
+  vision model with its projector file fetched. If one of those is missing the assistant says so
+  instead of inventing an answer, and still does the half it can.
+
+### What you change is remembered
+
+When you edit or turn down a suggestion, formicaria keeps a record of it: what was suggested, what
+you made of it, and — if you tell it — why. There is an optional one-line box for that, and a few
+one-tap tags; leaving it empty is fine and costs nothing.
+
+The record stays in your vault with your notes and **is not sent anywhere**. In *Settings* each vault
+has two separate switches: whether to keep the record at all, and whether it may ever be shared
+openly. The second is off unless you turn it on, and it is asked separately for a reason — agreeing
+to keep a note of your own corrections is not agreeing to publish them, and sharing cannot be undone.
 
 ### The mention picker
 
