@@ -852,6 +852,12 @@
     // waiting a beat to notice would show a broken app for that beat.
     ipc.onNeedsPairing(() => (needsPairing = true));
 
+    // **Say goodbye on the way out**, so the server does not have to wait out its 90-second
+    // window guessing whether this tab is still here. `pagehide` rather than `beforeunload`: the
+    // latter is unreliable on mobile and blocks the bfcache. A reload fires this too, which is
+    // fine — the new page registers on its first command, long before the short grace elapses.
+    addEventListener('pagehide', () => ipc.sayGoodbye());
+
     // How far this client has caught up. Sent as `since`, replaced by whatever comes back —
     // including when nothing changed, so a client that was away does not re-run the same query
     // on every beat forever.

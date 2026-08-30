@@ -57,6 +57,13 @@ struct AppState {
     /// Set once the first request lands, so we grant a longer grace for a cold
     /// browser to make contact before the idle timeout applies.
     connected: AtomicBool,
+    /// The tabs that have identified themselves, by the id each one mints on load. A tab joins on
+    /// its first command and leaves when it says goodbye on `pagehide`.
+    tabs: Mutex<std::collections::HashSet<String>>,
+    /// When the last tab left, if none has arrived since. `Some` is the only thing that shortens
+    /// the watchdog's window — an explicit "I am closing" is evidence silence never is, so a
+    /// client that has never said hello can never trigger it by being quiet.
+    goodbye: Mutex<Option<Instant>>,
     /// All the study-agent state — registry, spawn flag, watched port — in one field behind the
     /// `agent` feature. Without the feature this field (and every route that reads it) is gone, so the
     /// core is provably agent-free. Its own module keeps the command core agnostic even *with* it.
@@ -79,6 +86,8 @@ impl AppState {
             dist,
             origins,
             last_seen: Mutex::new(Instant::now()),
+            tabs: Mutex::new(std::collections::HashSet::new()),
+            goodbye: Mutex::new(None),
             connected: AtomicBool::new(false),
             #[cfg(feature = "agent")]
             agent: agent::AgentState::new(port),
@@ -156,15 +165,36 @@ fn main() {
     let listener = match TcpListener::bind(&addr) {
         Ok(l) => l,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            if serving_formicaria(&addr) {
-                println!("formicaria is already running — open http://{addr} in your browser");
-                // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
-                // so the double-click case lands the user in the running app, which is what they
-                // were trying to do.
-                if env_flag("FM_OPEN", true) {
-                    let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+            match probe(&addr) {
+                // The same binary, already up. Hand over exactly as before — a second
+                // double-click should land in the running app, not fail.
+                Running::Ours(Some(id)) if id == build_id() => {
+                    println!("formicaria is already running — open http://{addr} in your browser");
+                    // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
+                    // so the double-click case lands the user in the running app, which is what
+                    // they were trying to do.
+                    if env_flag("FM_OPEN", true) {
+                        let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+                    }
+                    return;
                 }
-                return;
+                // **A different build of ours — say so, and do not open a browser onto it.**
+                //
+                // This is the failure that cost an hour: the server keeps the port for up to 90
+                // seconds after the last tab closes (the watchdog's throttle allowance), so
+                // rebuilding and relaunching straight away met the *previous* binary. The old
+                // code handed the browser to it and exited, and because a release binary serves
+                // the UI compiled into it, what came up was the old app — indistinguishable from
+                // a build that silently did nothing.
+                Running::Ours(_) => {
+                    eprintln!("A different build of formicaria is already running on {addr}.");
+                    eprintln!("It keeps the port for up to 90 seconds after its last tab closes.");
+                    eprintln!("Close that tab and wait a moment, or stop it now with:");
+                    eprintln!("    pkill -x fm-serve");
+                    eprintln!("then start this one again.");
+                    std::process::exit(1);
+                }
+                Running::NotOurs => {}
             }
             eprintln!("Something else on this machine is already using {addr},");
             eprintln!("so formicaria cannot start. Close it, or pick another port:");
@@ -531,9 +561,27 @@ fn spawn_watchdog(state: Arc<AppState>) {
     // this is biased toward the recoverable failure.
     const IDLE: Duration = Duration::from_secs(90);
     const STARTUP: Duration = Duration::from_secs(60);
+    // **When every tab has said it is closing, the guesswork is over.** The 90 s above exists to
+    // survive a throttled beat — silence that does not mean absence. An explicit goodbye is not
+    // silence, so it does not need that allowance. Still not instant: a reload fires `pagehide`
+    // too, and this leaves room for the new page to arrive and cancel it.
+    const GOODBYE: Duration = Duration::from_secs(8);
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
         let idle = state.last_seen.lock().map(|t| t.elapsed()).unwrap_or_default();
+        // A pending goodbye only counts while the set is still empty; a tab that arrived since
+        // has already cleared it at the liveness refresh.
+        let left = state
+            .goodbye
+            .lock()
+            .ok()
+            .and_then(|g| *g)
+            .filter(|_| state.tabs.lock().map(|t| t.is_empty()).unwrap_or(false));
+        if let Some(at) = left {
+            if at.elapsed() > GOODBYE {
+                std::process::exit(0);
+            }
+        }
         let limit = if state.connected.load(Ordering::Relaxed) { IDLE } else { STARTUP };
         if idle > limit {
             std::process::exit(0);
@@ -571,6 +619,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     let mut host: Option<String> = None;
     let mut cookie: Option<String> = None;
     let mut agent_client = false;
+    let mut tab: Option<String> = None;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line)? == 0 {
@@ -600,6 +649,18 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
             // "I am the assistant, not a person." Read here, acted on at the liveness refresh
             // below; it changes nothing else about how the request is treated.
             agent_client = v.trim() == "1";
+        } else if lower.starts_with("x-formicaria-tab:") {
+            // Which tab is asking. Only used to tell "every tab has gone" from "nobody has said
+            // anything for a while", which are very different things to a watchdog.
+            //
+            // **Read off `line`, not `lower`** — for the same reason the cookie above is: the
+            // value is an opaque id, and matching a lowercased copy of it against the one the
+            // beacon sends in the query silently never matches. Found by testing the goodbye and
+            // watching nothing happen.
+            let id = line.split_once(':').map(|(_, v)| v.trim().to_string()).unwrap_or_default();
+            if !id.is_empty() {
+                tab = Some(id);
+            }
         }
     }
     // **The cap is on the declared length; the allocation must not be.**
@@ -701,6 +762,16 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
             *t = Instant::now();
         }
         state.connected.store(true, Ordering::Relaxed);
+        // A tab announcing itself cancels any pending goodbye — which is what makes a *reload*
+        // safe: the old page's beacon and the new page's first command are a second apart.
+        if let Some(id) = tab.clone() {
+            if let Ok(mut set) = state.tabs.lock() {
+                set.insert(id);
+            }
+            if let Ok(mut g) = state.goodbye.lock() {
+                *g = None;
+            }
+        }
     }
     if !peer.loopback {
         if let Ok(mut t) = state.share.last_remote.lock() {
@@ -802,8 +873,37 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
         return manual(reader.get_mut(), &path);
     }
 
+    // **A tab saying it is closing.** Sent by `sendBeacon` on `pagehide`, so it arrives even as the
+    // page goes away — and with the id in the query, because a beacon cannot set headers.
+    if path.starts_with("/api/bye") {
+        let id = path
+            .split_once('?')
+            .map(|(_, q)| q)
+            .unwrap_or("")
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("tab="))
+            .map(crate::percent_decode)
+            .unwrap_or_default();
+        if let Ok(mut set) = state.tabs.lock() {
+            set.remove(&id);
+            if set.is_empty() {
+                if let Ok(mut g) = state.goodbye.lock() {
+                    *g = Some(Instant::now());
+                }
+            }
+        }
+        return write_response(reader.get_mut(), "204 No Content", "text/plain", b"");
+    }
+
     if path == "/api/alive" {
-        let body = share::status_json(state).to_string();
+        // Carries the build id as well, so a launcher can tell *which* formicaria is here. Added
+        // to the object rather than to `status_json`, which has a branch per sharing state — one
+        // place, every branch.
+        let mut payload = share::status_json(state);
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("build".into(), serde_json::Value::String(build_id()));
+        }
+        let body = payload.to_string();
         return write_response(reader.get_mut(), "200 OK", "application/json", body.as_bytes());
     }
 
@@ -902,19 +1002,65 @@ fn env_flag(key: &str, default: bool) -> bool {
 /// does not care about the method, while anything that is not us refuses, times out, or answers
 /// differently. Short timeouts throughout: this runs on the startup path of every launch that
 /// finds a busy port, and a hung probe would be indistinguishable from a hung app.
-fn serving_formicaria(addr: &str) -> bool {
-    let Ok(mut sock) = TcpStream::connect(addr) else { return false };
+/// **Which build this process is**, so a launcher can tell whether the server already holding the
+/// port is the binary it just built.
+///
+/// The executable's own length and mtime, which needs no build script and answers exactly the
+/// question being asked — "is the thing running the same file as me?". Not a version string: the
+/// crate version is `0.0.0` and never moves, so it would call every build identical, which is the
+/// bug this exists to stop.
+fn build_id() -> String {
+    std::env::current_exe()
+        .and_then(std::fs::metadata)
+        .map(|m| {
+            let secs = m
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            format!("{}-{}", m.len(), secs)
+        })
+        .unwrap_or_else(|_| "unknown".into())
+}
+
+/// What, if anything, is already on this address.
+enum Running {
+    /// Something answered, but not us. Nothing a launcher does can help.
+    NotOurs,
+    /// One of ours. `Some(id)` is its build; `None` is a server old enough not to report one,
+    /// which by definition is not this build.
+    Ours(Option<String>),
+}
+
+fn probe(addr: &str) -> Running {
+    let Ok(mut sock) = TcpStream::connect(addr) else { return Running::NotOurs };
     let timeout = Some(Duration::from_millis(500));
     if sock.set_read_timeout(timeout).is_err() || sock.set_write_timeout(timeout).is_err() {
-        return false;
+        return Running::NotOurs;
     }
     let req = format!("GET /api/alive HTTP/1.1\r\nHost: {addr}\r\nConnection: close\r\n\r\n");
     if sock.write_all(req.as_bytes()).is_err() {
-        return false;
+        return Running::NotOurs;
     }
-    let mut head = [0u8; 32];
-    let read = sock.read(&mut head).unwrap_or(0);
-    head[..read].starts_with(b"HTTP/1.1 200")
+    // The whole reply now, not the first 32 bytes: the build id is in the body. Bounded, because
+    // what is on the other end has not been established yet.
+    let mut buf = Vec::new();
+    if std::io::Read::by_ref(&mut sock).take(64 * 1024).read_to_end(&mut buf).is_err() {
+        return Running::NotOurs;
+    }
+    if !buf.starts_with(b"HTTP/1.1 200") {
+        return Running::NotOurs;
+    }
+    let body = buf
+        .windows(4)
+        .position(|w| w == b"\r\n\r\n")
+        .map(|i| &buf[i + 4..])
+        .unwrap_or(&[]);
+    let id = serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| v.get("build").and_then(|b| b.as_str()).map(str::to_string));
+    Running::Ours(id)
 }
 
 /// Hand a file or URL to the OS to open with whatever it thinks owns it — the one place
@@ -1318,6 +1464,94 @@ mod tests {
         let _ = reader.read_to_end(&mut body);
         server.join().unwrap();
         (status.trim().to_string(), headers)
+    }
+
+    /// The existing helper answers `(status, headers)` and drops the state into its thread. These
+    /// tests need the **body** (the build id is in it) and the **state** (to see which tabs
+    /// registered), so this is the same shape with both kept.
+    fn request_keeping_state(raw: &str) -> (String, String, std::sync::Arc<AppState>) {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = std::sync::Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            ours(),
+            0,
+        ));
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let for_thread = std::sync::Arc::clone(&state);
+        let server = std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = handle(&mut sock, Peer { loopback: true, tls: false }, &for_thread);
+        });
+
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.write_all(raw.as_bytes()).unwrap();
+        let mut reader = _BufReader::new(&mut client);
+        let mut status = String::new();
+        reader.read_line(&mut status).unwrap();
+        loop {
+            let mut line = String::new();
+            if reader.read_line(&mut line).unwrap() == 0 || line.trim().is_empty() {
+                break;
+            }
+        }
+        let mut body = Vec::new();
+        let _ = reader.read_to_end(&mut body);
+        server.join().unwrap();
+        (status.trim().to_string(), String::from_utf8_lossy(&body).to_string(), state)
+    }
+
+    /// **A launcher has to be able to tell which build is holding the port.**
+    ///
+    /// Without this, relaunching after a rebuild met the *previous* server — which still owns the
+    /// port for up to 90 s after its last tab closes — and was quietly handed a browser pointed at
+    /// it. Because a release binary serves the UI compiled into it, what came up was the old app,
+    /// indistinguishable from a build that had silently done nothing.
+    #[test]
+    fn alive_says_which_build_is_answering() {
+        let raw = "GET /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n";
+        let (status, body, _state) = request_keeping_state(raw);
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        let v: serde_json::Value = serde_json::from_str(body.trim()).expect("json");
+        let id = v.get("build").and_then(|b| b.as_str()).unwrap_or_default();
+        assert!(!id.is_empty(), "a build id has to be there to compare: {body}");
+        assert_eq!(id, build_id(), "and it has to be *this* process's");
+    }
+
+    /// A closing tab can say so, and a beacon cannot set headers — so the id rides in the query.
+    /// The reply is deliberately empty: nothing is listening for it, the page is going away.
+    #[test]
+    fn a_tab_can_say_it_is_closing() {
+        let raw = "POST /api/bye?tab=abc HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n";
+        let (status, _) = request(raw, ours());
+        assert_eq!(status, "HTTP/1.1 204 No Content");
+    }
+
+    /// **The id must survive the header parser intact.** It is read off the raw line rather than
+    /// the lowercased copy used for matching — exactly as the cookie beside it is, and for the
+    /// same reason. Read from the lowercased copy, `tab-A` registers as `tab-a`, the goodbye never
+    /// matches, and the shutdown silently stops working. That is not hypothetical: it is what the
+    /// first version of this did, and it took a live test to see it.
+    #[test]
+    fn a_tab_id_is_not_mangled_on_the_way_in() {
+        let id = "Tab-AbC123";
+        let raw = format!(
+            "POST /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nX-Formicaria-Tab: {id}\r\n\
+             Content-Length: 2\r\n\r\n{{}}"
+        );
+        let (status, _body, state) = request_keeping_state(&raw);
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        assert!(
+            state.tabs.lock().unwrap().contains(id),
+            "the tab registered under a different spelling: {:?}",
+            state.tabs.lock().unwrap()
+        );
     }
 
     fn ours() -> Vec<String> {

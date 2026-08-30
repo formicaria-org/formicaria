@@ -545,6 +545,23 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **"Is the app I am looking at the app I just built?" — two ways it is not, and neither looks like
+  it.** Cost an hour on 2026-08-30.
+  1. **A release binary serves the UI compiled into it.** `FM_UI_DIST` is the dev loop only
+     (`main.rs:103`); every release launch serves `UI_ASSETS`. So **`pnpm -C ui build` alone can
+     never change what a release binary shows** — only `pixi run build`, and the order matters
+     because the embed reads `ui/dist` at compile time. The misleading part is that the process
+     start time is *later* than the `ui/dist` build, which makes it look current.
+  2. **Relaunching within ~90 s of closing the tab used to hand you back the previous binary.** The
+     server keeps the port for up to 90 s after its last tab goes (the watchdog's allowance for a
+     throttled beat), and the `AddrInUse` arm handed the browser to whatever was already there.
+     Fixed 2026-08-30: `/api/alive` reports the running server's build and a different one is
+     refused with instructions rather than silently served.
+  **The honest check**, which a timestamp cannot give you: fetch the served asset and grep it for a
+  string only the new build contains — `curl -s localhost:8765/` for the hashed `index-*.js` name,
+  then `curl` that and look for e.g. `timelineMode` or `kind=thumb`. A timestamp says when a file
+  was written; a string says what is inside it.
+
 - **`pixi run -e android android-release` leaves `icons/icon.icns` dirty every time.** The script
   regenerates all icons from `icon-source.svg` (`ci/android-release.sh:39`), and that generator is
   **nondeterministic for `.icns` only**: measured 2026-08-30, the file came back the same 44312

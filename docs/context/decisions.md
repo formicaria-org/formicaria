@@ -3391,3 +3391,41 @@ fix that and introduce a worse problem — the feed would reshuffle under you as
 `updated` moves on every autosave. The post shows its last editor and when, so an edit is visible
 where it happened; if resurfacing is wanted it needs a considered activity ordering, not a swapped
 sort key.
+
+## 2026-08-30 — a launcher must not hand you a different build, and a closing tab can say so `#ui`
+
+Two changes to how the server starts and stops, both from one report: *"the current one seems still
+the old one."*
+
+**The launcher now knows which build is already running.** On `AddrInUse`, if the port was held by
+our own formicaria, a new launch printed "already running", opened the browser at it, and exited.
+That courtesy is right for a second double-click and wrong for a rebuild: `serving_formicaria` only
+checked that `/api/alive` returned 200, so it could not tell an *older binary* from itself. Combined
+with a release binary serving the UI compiled into it, the result was that rebuilding and
+relaunching showed the old app — indistinguishable from a build that had done nothing.
+
+`/api/alive` now reports a **build id**: the executable's own length and mtime, via `current_exe()`.
+Not a version string — the crate version is `0.0.0` and never moves, so it would call every build
+identical, which is the bug. Same id, hand over exactly as before; different id, refuse with what to
+do about it. The failure goes from silent and wrong to legible.
+
+**A closing tab says so, instead of being waited out.** The 90-second idle window exists to survive
+a *throttled* beat — a backgrounded tab's timers drop to about once a minute, and killing the app
+under someone still using it is the worse failure. That reasoning is untouched. But silence is only
+weak evidence of absence, and a tab that is closing has strong evidence: `pagehide` sends a beacon
+to `/api/bye`, and when the last registered tab leaves, the window drops to 8 seconds.
+
+**Why tab *ids* and not a flag.** A reload fires `pagehide` too, and with two tabs open one closing
+must not take the server with it. The server keeps a set: a tab joins on its first command and
+leaves on its goodbye, the short window applies only when the set empties, and any arrival cancels a
+pending goodbye — so a reload's new page (about a second later) is already registered. **A client
+that never identifies itself can never trigger the short window**, which is what keeps an old cached
+page or an unfamiliar client from being killed after 8 seconds of quiet.
+
+**The id is read off the raw header line, not the lowercased copy** used for matching — the same
+thing the cookie beside it does, and for the same reason. The first version read `lower`, so `tab-A`
+registered as `tab-a`, the goodbye never matched, and the shutdown silently did nothing. Found by
+running it, not by a test; there is a test now.
+
+`sendBeacon` rather than `fetch` because it survives the page going away, and the id travels in the
+query because a beacon cannot set headers.

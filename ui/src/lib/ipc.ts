@@ -106,10 +106,38 @@ export function clearPairingFlag(): void {
 // POST /api/<cmd> with camelCase args (fm-serve maps them to the Rust snake_case
 // params). resolve_asset returns raw bytes (an ArrayBuffer); void commands return
 // an empty body.
+/// **This tab's identity, for the shutdown watchdog.** In memory only, never stored: a persisted id
+/// would make two tabs of the same browser one tab, and closing either would read as closing both.
+const TAB_ID = (() => {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    // Older WebViews, and any context without a secure origin.
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+})();
+
+/// **Tell the server this tab is going.** The watchdog otherwise waits 90 seconds before giving up
+/// on a tab it can no longer hear — long on purpose, because a backgrounded tab's timers are
+/// throttled to about once a minute and killing the app under someone still using it is the worse
+/// failure. A tab that is *closing* can simply say so, which is better evidence than silence.
+///
+/// `sendBeacon` because it survives the page going away, where `fetch` is cancelled. It cannot set
+/// headers, so the id travels in the query.
+export function sayGoodbye(): void {
+  try {
+    navigator.sendBeacon(`/api/bye?tab=${encodeURIComponent(TAB_ID)}`);
+  } catch {
+    /* best effort: the 90-second window is still there behind this */
+  }
+}
+
 async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   const res = await fetch(`/api/${cmd}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    // The tab id rides every command, which is how the server learns this tab exists at all — and
+    // how a reload re-registers before the goodbye it just sent can matter.
+    headers: { 'content-type': 'application/json', 'x-formicaria-tab': TAB_ID },
     body: JSON.stringify(args),
   });
   // **401 is the one status with a meaning rather than a message**: this device has not paired,
