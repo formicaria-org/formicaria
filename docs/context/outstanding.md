@@ -350,6 +350,28 @@ loading preferences belongs in `fm-agent-run` (over the HTTP surface) or `fm-app
 inferring a description from a correction (an ordinary `LlmStep` call), reading the corpus, and
 injecting the block into `assemble_prompt`.
 
+**Verified end to end 2026-08-30 — `crates/fm-app/tests/supervision_roundtrip.rs`.** Five tests that
+write through the **real command door** (`fm_app::dispatch`, exactly as `fm-serve` frames it) and
+read back with the **`git` binary alone**, never through the app — because the consumer is a separate
+program that will not link `fm-app`, and asking an implementation to grade itself proves nothing:
+
+- a whole review event round-trips: model text, human correction, reason, labels, provenance;
+- a **rejected** proposal keeps both its text and the reason it was refused;
+- `git gc --prune=now` takes **nothing** — the durability claim, which is exactly what Step 0 had to
+  rescue by hand because nothing referenced those commits;
+- **a push does not collapse the record**: `push_squashed` rewrites local history with `reset
+  --soft`, and this proves the accept survives as a squash barrier and the retention refs are
+  untouched;
+- **a complete dataset row is derivable from git alone** — the executable contract for the external
+  exporter. If that test changes, the tool changes, and `SchemaRev` is what says so.
+
+**It found a real bug, which is what it was for.** `reject_proposal` and `proposal_shown` wrote
+`declined` / `declined_why` / `shown` to the working tree and **never committed them** — so an
+outside tool reading history saw none of it, and the record depended on the debounced auto-commit,
+a browser `setTimeout` that dies with the tab (and with `FM_AUTO_SHUTDOWN`, closing the tab *is* how
+the app is quit). A rejection's reason is the only record of *why*, since the rejected text never
+reaches the branch. Both arms now commit their own record, as `create_proposal` already did.
+
 **Done looks like**, in order: a **retention ref namespace** (`refs/fm/review/…`) written *before* the
 existing code moves or deletes the branch, on **both** git backends; an exporter built first, against
 the ten rescued examples, so the corpus has a consumer before it has volume; and a *"what did you

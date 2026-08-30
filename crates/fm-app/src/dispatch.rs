@@ -1104,6 +1104,23 @@ fn dispatch_inner(
             let wrote = commands::mark_proposal_shown(&mut g.store(scope), &id).map_err(err)?;
             if wrote {
                 g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
+                // Only on the first sighting, so this is one commit per proposal and not one per
+                // render — and, like the reject record, it must not depend on the tab outliving it.
+                let vault_name = g
+                    .store(scope)
+                    .get(id.parse().map_err(|_| format!("invalid id: {id}"))?)
+                    .map_err(err)?
+                    .map(|o| o.vault)
+                    .unwrap_or_default();
+                if vcs::available() {
+                    if let Ok(cfg) = g.config(scope, &vault_name) {
+                        let path = cfg.path.clone();
+                        let paths = g.all.written(&vault_name);
+                        if vcs::commit_all(&path, "backup: proposal", &paths).unwrap_or(false) {
+                            g.all.clear_written(&vault_name);
+                        }
+                    }
+                }
             }
             nothing()
         }
@@ -1121,6 +1138,17 @@ fn dispatch_inner(
             let why = args.get("why").and_then(Value::as_str);
             commands::reject_proposal(&mut g.store(scope), &path, &id, why).map_err(err)?;
             g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
+            // Commit the record, exactly as `create_proposal` commits the note it writes. Left to
+            // the debounced auto-commit this could be lost outright: that timer is a browser
+            // `setTimeout` that dies with the tab, and with `FM_AUTO_SHUTDOWN` closing the tab *is*
+            // how the app is quit. A rejection's reason is the only record of *why* — the rejected
+            // text never reaches the branch — so it must not depend on the user staying around.
+            if vcs::available() {
+                let paths = g.all.written(&vault_name);
+                if vcs::commit_all(&path, "backup: proposal", &paths).unwrap_or(false) {
+                    g.all.clear_written(&vault_name);
+                }
+            }
             nothing()
         }
         // Every first-class discussion, newest-active first, enriched with who has posted in it.
