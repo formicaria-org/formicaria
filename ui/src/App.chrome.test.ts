@@ -75,10 +75,16 @@ test('the panel offers every view you can open, and opening one adds a window', 
   const names = Array.from(rail.querySelectorAll('button')).map((b) =>
     (b.textContent ?? '').trim(),
   );
-  // Every built-in, in the registry's order — the list is fixed so it can be learned.
-  for (const v of ['Board', 'Agenda', 'Timeline', 'Search', 'Activity', 'Collaboration', 'Discussions']) {
+  // The list is fixed so it can be learned.
+  for (const v of ['Board', 'Agenda', 'Timeline', 'Collaboration', 'Discussions']) {
     expect(names, `${v} missing from the rail`).toContain(v);
   }
+  // **And two absences that are decisions, not omissions.** `Search` is offered nowhere: an empty
+  // search pane does nothing, and the search box makes one when you type. `Activity` is off the
+  // rail — a column costs attention per entry — and stays in the palette, which is filterable and
+  // can afford it.
+  expect(names).not.toContain('Search');
+  expect(names).not.toContain('Activity');
   // And the saved views, which is the half a fixed list of built-ins would miss.
   expect(names).toContain('Active');
 
@@ -132,6 +138,7 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   const names = Array.from(menu.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
   expect(names).toContain('Timeline');
   expect(names).toContain('Active'); // a saved view, not just the built-ins
+  expect(names).not.toContain('Search'); // nowhere offers an empty search pane
 
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('menuitem', { name: 'Agenda' }));

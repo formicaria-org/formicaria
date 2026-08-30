@@ -3336,6 +3336,16 @@ one place — shown by default, hidden only in the narrow query — and `ci/chec
 rule returns. Where the chrome is a bar and there is no rail, a **Views** button opens the same
 `viewTargets` list.
 
+**What the rail offers is now separate from what exists.** `BUILTIN_PANES` stays the registry —
+every kind still renders, still has an icon, and a workspace saved earlier still opens. Two lists sit
+on top of it. **`search` is offered nowhere**: an empty search pane does nothing, because the search
+box makes one when you type, so listing it invited a click that produced a blank pane. **`activity`
+is off the rail and stays in the palette** — the rail is a column you look at, where every entry is
+paid for in attention, while a filterable list can afford a rare one. It is *not* the same view as
+the timeline (notes by the day you wrote them, versus every edit including other people's), so
+removing it outright would have cost a capability on a premise that does not hold; keeping it one
+search away is progressive disclosure rather than deletion.
+
 **The consequence, stated rather than discovered: a window can no longer be re-pointed.** You open
 the view you want from the panel and close the one you do not. That is the model the arrangement
 implies, and it is worth living with before deciding anything is missing. The label also lost its

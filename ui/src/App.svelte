@@ -10,6 +10,8 @@
     reorder,
     rendererKind,
     BUILTIN_PANES,
+    OPENABLE_PANES,
+    RAIL_PANES,
     MAX_PANES,
     type Workspace,
     type Layout,
@@ -491,8 +493,8 @@
   ///
   /// A saved view borrows the icon of the renderer it draws through, so it reads as the kind of
   /// thing it is rather than as an anonymous entry.
-  let viewTargets = $derived([
-    ...BUILTIN_PANES.map((b) => ({
+  const targetsFrom = (kinds: typeof BUILTIN_PANES) => [
+    ...kinds.map((b) => ({
       key: b.kind as string,
       label: b.label,
       icon: b.icon,
@@ -510,7 +512,12 @@
         saved: true,
         run: () => addPane('view', { viewName: v.name }),
       })),
-  ]);
+  ];
+
+  /// The rail: what you are invited to open, minus the rare one.
+  let viewTargets = $derived(targetsFrom(RAIL_PANES));
+  /// The palette: the same, plus the rare one. A filterable list can afford it; a column cannot.
+  let paletteTargets = $derived(targetsFrom(OPENABLE_PANES));
 
   let commands = $derived([
     // **Grouped, and deliberately not a second Settings.** The palette used to carry
@@ -536,7 +543,7 @@
     // window" because a window is rotated after it opens, but the palette is the *searchable*
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
     // thing that holds one. Opening a window already on the right view is strictly less work.
-    ...viewTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
+    ...paletteTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
     { group: 'Vault', label: 'Back up the vault', run: onBackup, command: 'backup' as keys.Command },
     // **`newView` had no entry anywhere.** It is a command with an empty default binding, and the
     // pane-header button only appears on a board, an agenda or a timeline — so "keep this

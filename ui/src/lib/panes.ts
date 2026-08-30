@@ -227,6 +227,24 @@ export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'discussions', label: 'Discussions', icon: 'chat' },
 ];
 
+/// **What is offered, as distinct from what exists.** `BUILTIN_PANES` above stays the full
+/// registry — kind to label and icon — because a pane of *any* kind still has to render, still
+/// needs its icon in the bottom bar, and a workspace saved before today may hold one. These two
+/// lists are only about what the app *invites* you to open.
+///
+/// **`search` is offered nowhere.** Opening an empty search pane does nothing: the search box makes
+/// one when you type into it (`onSearchInput`), which is the only way in that has ever made sense.
+/// Listing it invited a click that produces a blank pane.
+export const OPENABLE_PANES: BuiltinPane[] = BUILTIN_PANES.filter((b) => b.kind !== 'search');
+
+/// **What the rail shows.** The palette is filterable, so a long list there costs nothing; the rail
+/// is a column you look at, where every entry is paid for in attention. `activity` comes off it —
+/// it is the git edit history, genuinely useful and genuinely rare — and stays in the palette,
+/// which is progressive disclosure rather than removal. It is *not* the same view as the timeline:
+/// the timeline is your notes by the day you wrote them, activity is every edit including other
+/// people's. If it should go entirely, deleting it from `OPENABLE_PANES` is the one-line version.
+export const RAIL_PANES: BuiltinPane[] = OPENABLE_PANES.filter((b) => b.kind !== 'activity');
+
 /** Map a saved-`.view` renderer onto the pane kind that draws it (they share renderers). */
 export function rendererKind(r: Renderer): PaneKind {
   return r === 'board' ? 'board' : r === 'agenda' ? 'agenda' : 'timeline';
