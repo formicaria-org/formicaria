@@ -216,6 +216,23 @@ The gray-screen fix and its tests are in
   class it cannot, and the honest answer is to say so rather than ship a green tick that means
   nothing.
 
+- **A `.view` file can no longer be removed from inside the app, on any device.** Save, Rename and
+  Delete view were withdrawn on 2026-08-31 (*"views are basically fixed for now and view
+  customization will need its own design plan"*). The commands and their tests survive; only the
+  buttons went. So a stale view — one a collaborator pushed, or one made before the withdrawal —
+  is removed by deleting `<vault>/views/<name>.view` and letting git carry it. **Accepted
+  knowingly**, when the first instance came up the same day; the design plan is where it gets a
+  real answer.
+
+- **Each device has its own vault clone, so deleting a file on the laptop changes nothing on the
+  phone until it is pushed *and* pulled.** Obvious once stated, and stated because it was not:
+  "Active" was deleted from the laptop's vault, reported as done, and was still on the phone —
+  the two are separate clones synced by git, exactly as designed. The tell is
+  `git -C vault rev-list --count origin/main..HEAD`. On 2026-08-31 that was **144 commits, three
+  days**, because Back up had not been pressed since 2026-08-28 — so the phone was missing far
+  more than the one file anybody was looking at. **Check that number before concluding a vault
+  change did not work.**
+
 - **A UI change is not on the owner's screen until `pixi run build` — `ui/dist` freshness proves
   nothing.** `fm-serve` serves the copy of the UI **baked into the binary** unless `FM_UI_DIST` is
   set (`crates/fm-serve/src/main.rs:1109-1111`), and the desktop icon — which is how the owner
