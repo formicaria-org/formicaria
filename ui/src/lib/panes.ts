@@ -34,21 +34,33 @@ export interface Pane {
   rowSpan: number; // grid rows occupied (>=1)
 }
 
-/** How the panes are arranged. **Two named layouts, and deliberately only two.**
+/** How the panes are arranged. **Two named layouts, and now actually only two.**
  *
- *  - `auto`   — the arrangement follows the available space (the default).
- *  - `tiled`  — the pane grid, always. What the desktop has always done.
- *  - `single` — one view at a time with a switcher, always.
+ *  - `single` — one view at a time, on every screen. **The default.**
+ *  - `tiled`  — the pane grid. What the desktop used to do by default.
  *
  *  This is a *layout*, not a platform. `single` is reachable on a desktop and `tiled` on a
  *  tablet, which is the point: if the narrow arrangement only worked on a phone it would be a
  *  fork with extra steps, and nothing would exercise it during ordinary desktop work.
  *
- *  Two and no more. A general "customisable frontend" is unbounded and lands on the plugin API
- *  `docs/context/plan.md` already rejects. */
-export type Layout = 'auto' | 'tiled' | 'single';
+ *  **`auto` was removed on 2026-08-31.** It followed the available space, which sounded free and
+ *  was not: because it was the *default*, a phone never matched a `[data-layout='single']` rule,
+ *  so every narrow CSS fact had to be written twice — silently, and it shipped half-written
+ *  twice. It also synced nothing (the preference is per-browser `localStorage`), so its pitch —
+ *  tile on the laptop, one view on the phone — is what two per-device settings already do. See
+ *  `decisions.md`, 2026-08-31. */
+export type Layout = 'single' | 'tiled';
+
+/** Schema version stamped into a persisted workspace. Bumped when a stored record needs
+ *  interpreting differently — the point being to tell "the user chose this" apart from "this was
+ *  the default at the time", which is exactly what the `auto` removal turned on. */
+export const SCHEMA = 2;
 
 export interface Workspace {
+  /** Schema version (`SCHEMA`). Absent on anything written before 2026-08-31, which is precisely
+   *  what `migrateWorkspace` needs to know: an unstamped record's `layout` may be a default
+   *  rather than a choice. */
+  v?: number;
   cols: number; // grid column count (>=1) — tiled only
   /** How `cols` is decided. `auto` tracks the pane count so opening a view widens the grid and
    *  closing one lets the rest reclaim the space; a number pins it. Absent means `auto`, so a
@@ -97,9 +109,33 @@ export function newPane(kind: PaneKind, over: Partial<Pane> = {}): Pane {
   };
 }
 
-/** The default workspace: one board, two columns to arrange into. */
+/** How many columns the grid should have for `n` panes. `fixed` pins it to whatever the user
+ *  chose; `auto` tracks the pane count, so opening a view widens the grid and closing one lets
+ *  the rest reclaim the space. Capped at 4 — past that a column is too narrow to read.
+ *
+ *  **This lives here, not in `App.svelte`, because `defaultWorkspace` and `migrateWorkspace`
+ *  both need it** and because `panes.test.ts` used to re-implement it by hand with a comment
+ *  admitting it was a mirror. A mirror is a second definition that can drift. */
+export function autoCols(n: number, w: Pick<Workspace, 'colMode' | 'cols'>): number {
+  if (w.colMode === 'fixed') return w.cols;
+  return Math.max(1, Math.min(n, 4));
+}
+
+/** The default workspace: one board, one view at a time.
+ *
+ *  **`cols` is derived, never stated.** Both copies of this default used to say `cols: 2` while
+ *  starting with a single pane, and `cols` was only ever recomputed inside `addPane`/`closePane`
+ *  — so a fresh session on a wide screen laid one pane into a two-column grid and left the second
+ *  column blank. `panes.test.ts` pinned that as a feature. */
 export function defaultWorkspace(): Workspace {
-  return { cols: 2, panes: [newPane('board')] };
+  const panes = [newPane('board')];
+  return {
+    v: SCHEMA,
+    cols: autoCols(panes.length, { colMode: 'auto', cols: 1 }),
+    layout: 'single',
+    panes,
+    active: 0,
+  };
 }
 
 /** Give every pane a fresh, unique id. The id counter (`paneId`) resets on each page load, so
@@ -109,6 +145,75 @@ export function defaultWorkspace(): Workspace {
  *  unique. Call this on whatever comes back from storage. */
 export function reidentify(panes: Pane[]): Pane[] {
   return panes.map((p) => ({ ...p, id: paneId() }));
+}
+
+/** Does this pane already show what is being asked for?
+ *
+ *  The question behind "open the Board": with one view at a time, tapping a name means *show me
+ *  that*, so a pane already showing it should be brought forward rather than duplicated. What
+ *  makes two panes of a kind different *things* is one parameter, and only one:
+ *
+ *  - `view` — its name. Two saved views are two views.
+ *  - `note` — its id. This one predates the rule (`openNoteInPane` never opened a note twice) and
+ *    it is load-bearing: two editors open on one note race each other through `update_body`.
+ *  - everything else — nothing. **A board grouped differently is deliberately the same pane**:
+ *    group-by is a control *inside* the window, not another view. Likewise a search: matching any
+ *    search regardless of query is what lets a second query re-point the one results pane, which
+ *    is what `onSearchInput` already did by hand. */
+export function matchesTarget(p: Pane, kind: PaneKind, over: Partial<Pane> = {}): boolean {
+  if (p.kind !== kind) return false;
+  if (kind === 'view') return p.viewName === (over.viewName ?? null);
+  if (kind === 'note') return p.noteId === (over.noteId ?? null);
+  return true;
+}
+
+/** Read whatever is in storage and return a workspace that is safe to render.
+ *
+ *  **Pure, so it can be unit-tested.** This used to be inline in `App.svelte`'s `loadWorkspace`,
+ *  where the only way to exercise it was to render the whole app.
+ *
+ *  It does four jobs beyond parsing:
+ *
+ *  1. **Clamps `active`.** `closePane` clamped it and load did not. Under `single` an out-of-range
+ *     active pane means no `.cell.active` at all, and `.cell:not(.active)` hides the rest — a
+ *     blank app, from a stored number. Under the old tiled default every cell was visible, so the
+ *     same bad record was survivable and nobody saw it.
+ *  2. **Recomputes `cols`**, which was only ever recomputed on add/close (see `defaultWorkspace`).
+ *  3. **Migrates the layout, once.** Missing or `auto` becomes `single`; `tiled` is left alone.
+ *  4. **Stamps `SCHEMA`**, so step 3 cannot run twice and undo a later choice.
+ *
+ *  `migrated` means *"this differs from what was stored — write it back"*, which includes the
+ *  first run, where nothing was stored at all.
+ *
+ *  **Why an unstamped `auto` is treated as "never chose".** `layout` is written into storage by
+ *  the very first `persistWorkspace()`, so a stored `auto` is overwhelmingly the old default
+ *  rather than a decision — and `auto` no longer exists to honour. `tiled` was never a default,
+ *  so it is always a real choice and survives. */
+export function migrateWorkspace(raw: unknown): { workspace: Workspace; migrated: boolean } {
+  const w = raw as Partial<Workspace> | null | undefined;
+  if (!w || !Array.isArray(w.panes) || !w.panes.length || typeof w.cols !== 'number') {
+    // `migrated` means "this differs from what was stored, write it back" — and nothing stored
+    // differs from the default. Stamping a first run makes the arrangement explicit in storage
+    // rather than implicit in whatever this version happens to default to.
+    return { workspace: defaultWorkspace(), migrated: true };
+  }
+  const panes = reidentify(w.panes as Pane[]);
+  // `as string` because a pre-migration record can legitimately hold 'auto', which `Layout` no
+  // longer admits — reading it is the whole point of this function.
+  const stored = w.layout as string | undefined;
+  const layout: Layout = stored === 'tiled' ? 'tiled' : 'single';
+  const migrated = w.v !== SCHEMA;
+  return {
+    workspace: {
+      ...w,
+      v: SCHEMA,
+      layout,
+      panes,
+      cols: autoCols(panes.length, { colMode: w.colMode, cols: w.cols }),
+      active: Math.min(Math.max(w.active ?? 0, 0), panes.length - 1),
+    } as Workspace,
+    migrated,
+  };
 }
 
 /** The data source a pane draws from. Two panes with the *same* key share one fetch — so a

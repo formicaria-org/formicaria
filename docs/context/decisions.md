@@ -41,8 +41,18 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#ui`** (workspace/views/render): ***One tag is an arrangement, not a query builder***
   (read with the 2026-08-28 saved-view ruling — they are a pair) · ***The read view may frame its own blob*** (read before
   touching `frame-src` or assuming a jsdom test covers a policy) · ***A saved view is an arrangement
-  you keep, not a query you write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · *One shell, two
-  arrangements* · *`.view` files parsed
+  you keep, not a query you write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · ***One view at a time is
+  the default, `auto` is gone, and the shell reads its own insets*** (read before touching `Layout`,
+  a `data-layout` rule, or a `--safe-*` inset — it supersedes the layout half of *One shell, two
+  arrangements*) · ***The chrome is one row at the top, and the pane header belongs to `tiled`
+  alone*** (read before touching `Pane.svelte`'s header, `ViewControls`, `ViewBar`'s placement, or
+  the board rail's visibility) · ***View customization is withdrawn, the board rail goes, and a
+  stale binary wasted a review round*** (read before adding a view-authoring control, before
+  touching the board rail, and — always — before telling anyone to reload to see a UI change) ·
+  ***The feed gains an excerpt and a thread, and three tempting halves of it are refused*** (read
+  before putting an editor, a rendered body, or a double-tap in any list row) ·
+  *One shell, two
+  arrangements* (partly superseded) · *`.view` files parsed
   server-side* · ***A view says what it leaves out, and a board admits it scrolls*** (read before
   changing what a pane shows about its own filtering) · *The read view sanitizes* · *The note trail is a peer column* · *Browser is the
   product* · *Whiteboard = embedded Excalidraw* · *Board images strip to the blob store* · *Assets
@@ -491,6 +501,12 @@ demoted to a parenthetical.
 
 ## A saved view is an arrangement you keep, not a query you write (2026-08-28, `#ui`)
 
+> **SUPERSEDED 2026-08-31** (*view customization is withdrawn…*). The reasoning below stands; what
+> is withdrawn is the **surface** — there is no longer a Save view button or palette entry. The
+> command, its `ipc.ts` wrapper and every Rust test remain, and a `.view` file still lists and opens.
+> The owner's ruling: *"views are basically fixed for now and view customization will need its own
+> design plan."* Read that entry before adding any view-authoring control back.
+
 `.view` files could be **neither written nor deleted from the app** — the documented way to have one
 was to author YAML plus a nine-row filter grammar in a text editor, for a headline feature, in an app
 whose owner works only through the UI. A keyboard command *labelled* "New view" opened the Settings
@@ -873,9 +889,15 @@ holding — and it fails quietly, in the artifact's name, long after the change 
    change and has failed outright on the phone before — an explanation that can arrive late, or
    never, is the bug over again.
 2. **The board carries a rail** naming every column with its card count, marking the one at the
-   edge and jumping to any of them. It is always in the DOM and shown by CSS — measured overflow on
-   a wide pane, unconditional in the narrow container query — because *whether it is needed* is a
-   layout question and layout is the one thing jsdom cannot answer.
+   edge and jumping to any of them. It is always in the DOM and shown by CSS — because *whether it
+   is needed* is a layout question and layout is the one thing jsdom cannot answer.
+
+   > **AMENDED, then REVERSED, 2026-08-31.** First the unconditional half was dropped (a phone
+   > showed the rail even when every column fit). Then the rail was **removed entirely**, at the
+   > owner's instruction and against advice — see *view customization is withdrawn, the board rail
+   > goes*. Clause 1 (a filtered view says what it leaves out) **stands and is now load-bearing on
+   > its own**; clause 2 is gone, and with it the answer to "my done column is not showing up" on a
+   > narrow screen.
 
 **Why.** The owner: *"My done column in the board is not showing up, even though I have done
 notes."* The notes were there and the built-in board had the column. Two mechanisms can take a
@@ -1478,6 +1500,12 @@ text merge and conflicts — so the comparison would grade two broken things aga
 signal that a phone and a desktop have started disagreeing about what a merged note is.
 
 ## One shell, two arrangements — layout adapts by space, never by platform (2026-07-19)
+
+> **SUPERSEDED in part, 2026-08-31** (*one view at a time is the default, `auto` is gone*). This
+> entry's **"hard stop at two" survives and is what finally shipped**; everything below about
+> *space* deciding the arrangement, and about `auto` being the default, is reversed. `auto` turned
+> out to cost a duplicated CSS rule for every narrow fact — and to sync nothing, the preference
+> being per-browser. Read that entry before touching `Layout`.
 
 **Decision.** The UI has **exactly two named layouts**, `tiled` and `single`, chosen by a
 `layout: 'auto' | 'tiled' | 'single'` preference on the workspace. `auto` is the default and
@@ -3207,6 +3235,10 @@ supersedes the "Hard stop at two" bullet, not this entry.
 
 ## 2026-08-30 — rename is its own command, and Help exists on the phone `#ui`
 
+> **SUPERSEDED in part, 2026-08-31** (*view customization is withdrawn…*). *Rename is its own
+> command* is still true of the backend and is why the command survives; what went is the **button**,
+> along with Delete view. The Help half of this entry is untouched.
+
 **Rename must never be save-under-the-new-name-then-delete-the-old.** The composition looks
 equivalent and is not. `save_view` guards against flattening a filter it cannot express by noticing
 that the target file *already exists* — and a brand-new name hits no existing file, so the guard
@@ -3285,7 +3317,12 @@ something that never actually tested it.
 
 **The phone does not get a panel.** On a coarse pointer at narrow width the controls move to a single
 **bottom** bar and the top bar goes for a different reason: a top bar on a phone holds actions the
-thumb cannot reach, and nearly every app ships one anyway. Branching stays on space and input
+thumb cannot reach, and nearly every app ships one anyway.
+
+> **SUPERSEDED in part, 2026-08-31** (*the chrome is one row at the top*). The **actions** bar stays
+> at the bottom exactly as argued here; what moved to the top is the row of **view tabs**, replacing
+> the pane header rather than joining anything. The thumb-reach argument is not refuted, it is
+> outweighed — see that entry. Branching stays on space and input
 capability, never on platform — a wide touch tablet gets the panel, a narrow desktop window gets the
 bottom bar.
 
@@ -3492,3 +3529,314 @@ running it, not by a test; there is a test now.
 
 `sendBeacon` rather than `fetch` because it survives the page going away, and the id travels in the
 query because a beacon cannot set headers.
+
+## 2026-08-31 — one view at a time is the default, `auto` is gone, and the shell reads its own insets `#ui` `#track-m`
+
+> **This supersedes the layout half of *One shell, two arrangements* (2026-07-19).** That entry's
+> **"hard stop at two" is upheld** — it is what this one finally delivers. What is reversed is the
+> existence of a *third* value, `auto`, and its status as the default.
+
+**Three faults, one shape.** Using the 2026-08-30 chrome on a phone and a desktop, the owner
+reported six things. Five were the same complaint: the shell shows everything it knows — every open
+window as a tab, a count of them, a plus carrying every name, the whole contributor chrome — instead
+of the one thing you are looking at. On a phone that was about a third of the screen.
+
+**`auto` is removed, and `single` is the default.** `Layout` is now `'single' | 'tiled'`, exactly
+the two the 2026-07-19 entry said it should be. `auto` was the default and meant "follow the
+available space", which sounds free and was not:
+
+- **It made every narrow rule a pair.** `known-issues.md` carried an entry saying each one had to be
+  written twice — once for `[data-layout='single']`, once inside `@media (max-width: 60rem)` for
+  `[data-layout='auto']` — because `auto` was the default and a phone therefore never matched a
+  `single` rule. Writing one half was silent, and it shipped that way twice. Removing `auto` deletes
+  seven such pairs and the known-issues entry with them.
+- **It synced nothing.** The layout preference is `localStorage`, per browser. `auto`'s pitch — tile
+  on the laptop, one view on the phone — is what two per-device settings already do.
+- **It hid a live bug.** `[data-layout='single'] .topbar .icon-btn { display: none }` outranked the
+  rule that shows Help, Settings and the panel toggle in the wide panel. Only a user who
+  deliberately chose `single` was bitten, so nobody was. Flipping the default would have deleted
+  those three controls from every desktop rail on first launch, and no test could see it: jsdom
+  applies no CSS.
+
+**Existing `auto` records are migrated, not grandfathered.** `layout` is written by the first
+`persistWorkspace()`, so "they chose `auto`" is false for essentially everyone. And 2026-07-19 set
+the test itself — *"if `single` ever stops working in a desktop browser, the design has failed"* —
+which a default nobody runs cannot meet. A stored `tiled` is a real choice and is left alone; the
+record is stamped with a schema version so the migration runs once.
+
+**Opening a view re-points the window instead of adding one.** This reverses the 2026-08-30 chrome
+entry's *"The consequence, stated rather than discovered: a window can no longer be re-pointed. You
+open the view you want from the panel and close the one you do not."* That consequence was accepted
+on the strength of living with it. Lived with, it is wrong: with one view at a time, tapping a name
+means *show me that*, and appending a window answers a question nobody asked — on a phone it also
+spends a feed and a scroll position. `focusOrOpen` reuses a pane that already shows the target and
+falls back to opening one, which is the generalisation of two retargets the code had already grown
+by hand (`openNoteInPane` never opened a note twice; `onSearchInput` re-pointed the one search pane).
+**"New window" stays unconditional** — the one place the user is explicitly asking for another, and
+the way into `tiled`.
+
+That last retarget was also **silently broken** under `single`: it re-pointed the search pane but
+never made it the visible one, so a second query did nothing. One helper fixes the class.
+
+**The shell now reads its own window insets, and the guessed floors stay as a fallback.**
+`known-issues.md` had named this fix and recorded it unbuilt: `env(safe-area-inset-*)` is 0 in the
+Android WebView because wry never forwards `WindowInsetsCompat` into the page, so `app.css` floored
+the insets by hand — `1.75rem` at the top, which is *less than this phone's camera cutout*, and
+`0.5rem` at the bottom, which clears a gesture pill but not a three-button navigation bar. Both
+guesses were visible on the owner's device and neither was visible to any test.
+
+`MainActivity` now sets `LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES` and pushes the real
+`systemBars() | displayCutout()` insets into the page as the `--safe-*` custom properties the
+stylesheet already consumes. It lives in `ci/android-inject-service.sh`, which owns that file
+wholesale, because `gen/` is gitignored and regenerated — the same reason the foreground service
+lives there.
+
+**The floor is kept, against `app.css`'s own instruction to delete it when this landed.** The bridge
+fires on an event; a reload before it fires would paint under the camera again, which is the exact
+bug being closed. A stale floor costs nothing once a real value arrives, because an inline property
+on `documentElement` outranks the `:root` rule. Stating this rather than quietly leaving the comment
+wrong.
+
+**Three surfaces bypassed the token layer entirely** and no bridge would have reached them:
+`.board-exit` used raw `env()`, `.theme-escape` had a literal `bottom: 12px`, and `UnrecordedPanel`
+carried its own `3.25rem` guess. The first two now read the tokens; the third drops its guess for the
+real number.
+
+**Arrangement is now a set of inherited custom properties**, not a selector each rule must remember
+to match twice. `.app` defines the single-view values and `[data-layout='tiled']` overrides them;
+components read `var(--cell)`, `var(--viewbar)`, `var(--view-name)`. This deletes every
+`[data-layout=…] :global(…)` rule — including one that **tied on specificity** with `ViewBar`'s own
+scoped `.viewbar` and was decided by bundle order, which is the same defect `ci/checks.sh` already
+polices for `.panel-views`, sitting unnoticed in a second component.
+
+**Reversal condition.** If `tiled` goes unused now that it must be chosen, it is not earning the
+grid, the drag-resize and `MAX_PANES`. That is a question about use, settled by living with it.
+
+## 2026-08-31 — the chrome is one row at the top, and the pane header belongs to `tiled` alone `#ui` `#track-m`
+
+> **This reverses one paragraph of *the chrome moves to a collapsible side panel* (2026-08-30)** —
+> *"a top bar on a phone holds actions the thumb cannot reach"*. It also **amends** *A view says
+> what it leaves out, and a board admits it scrolls* (2026-08-24); both are bannered below.
+
+**The complaint, and it is one complaint.** Using round 1's shell, the owner asked for eight
+subtractions in one breath — the view name row, Save view, the contributor chips, the board's
+status labels, the vault chip row — and closed with *"these modifications should go towards a more
+lean UI"*. The single shape underneath: **the chrome should be one row, naming the view you are in
+and carrying that view's own controls, and nothing else.** Two rows of chrome on a phone is one row
+too many, and every control that is not about the view in front of you is noise.
+
+**The view tabs move to the top, and the actions bar stays at the bottom.** The superseded
+paragraph is right that a phone's top edge is out of thumb reach, and switching views *is* a
+frequent action — that argument is not wrong, it is outweighed. What carries it: only the **tabs**
+move. The bar holding *make something*, search, backup and settings stays at the bottom where the
+thumb is, which makes this the ordinary tabs-above/actions-below split rather than the top-bar
+this project removed. It is also what makes the row affordable: it replaces the pane header rather
+than joining it, the same trade that justified the side panel in the first place.
+
+**The pane header becomes an arrangement value, not a deletion.** Asked to remove it outright, the
+honest answer was that it is the *only* route to board group-by, agenda month/week/list, timeline
+feed/list, the "filtered:" chip, Rename, Delete view, and drag-to-reorder — none of which has a
+keyboard command. So the controls are extracted into `ViewControls.svelte` and rendered **twice
+from one definition**: in the top bar in `single`, in the pane header in `tiled`. `--pane-head`
+joins `--pane-grip`/`--pane-resize` in the block round 1 built.
+
+Keeping the header in `tiled` is not a hedge. With four panes on screen you need names to tell them
+apart, a handle to reorder them, and controls that say which pane they belong to; `single` needs
+none of that because there is one pane and the bar above it is already talking about that pane.
+**Round 1's un-hiding of `.pane-close` is superseded** — it was un-hidden because `ViewBar` had left
+the phone, and `ViewBar` is coming back.
+
+**Save view moves to the palette; Rename and Delete do not.** Save already had a palette entry, so
+dropping the button costs nothing and the 2026-08-28 ruling (*a saved view is an arrangement you
+keep*) stands. Rename and Delete have **no** palette entry, and `Pane.svelte` carries the note that
+`delete_view` once shipped end to end *"with no button anywhere calling it, so a view could be made
+from the app and then only removed with a file manager"*. They travel with the controls.
+
+**The contributor filter is removed, not relocated.** Both filters funnelled through one `shown()`;
+the author half is deleted along with `contributors()`. The *identity* ruling is untouched — every
+"edited by" label, its colour hash and the Activity stream stay, and the `activity` fetch keeps two
+of its three consumers. What goes is a row of names in the chrome that the owner never filtered by.
+
+**The vault filter becomes a dropdown, and gains something the chip row had.** A chip per vault
+does not survive a long list. The menu is the existing `anchorTo`/backdrop skeleton with one
+deliberate divergence: every menu in this app is single-shot, and a filter is many-of-many, so its
+rows are `menuitemcheckbox` and a click does not close it — which also means **Escape-to-close is
+new code here**, since none of the three existing menus handle Escape. The trigger names the state
+("All vaults" / "2 of 5"), so a filter that is hiding something says so on its face, which the chip
+row only did by colour.
+
+**The board's rail is measured at every width instead of unconditional below 40rem.** The 2026-08-24
+principle is upheld and is why the rail is not simply deleted: the owner asked to remove it because
+*"we can see them on the title of the columns already"*, which is true only of the columns on
+screen — and a board that snaps one column at a time is exactly where it is false. That entry's own
+bug report was *"my done column is not showing up"*. What was actually wrong is that the phone
+showed the rail **always**, including when every column fit, so it read as clutter rather than as a
+map. It now appears when the strip genuinely overflows, which is the only moment it was ever saying
+anything.
+
+**And the destination moved into the ＋ menu.** *"The place where a note goes maybe can be selected
+when pressing Plus, without having a dedicated scroll down menu that takes all that place."* It was
+a permanent `in <select>` in the chrome — a control on screen at all times for a choice you make
+only while creating something, and on a narrow bar a whole row of it. It is now a `Create in`
+section of the ＋ menu: `menuitemradio` rows, one-of-many, and like the vault filter **the click
+does not close the menu**, because you pick where and then pick what, and closing would mean
+opening ＋ twice for one note. `fm-create-vault` and `setCreateVault` are untouched; only the
+surface moved. It had **no test at all** before — which is part of how a control comes to sit in
+the chrome unexamined — and has one now.
+
+**Reversal condition.** If the top row plus the bottom bar still reads as two rows of chrome on the
+phone, the next cut is the bottom bar's contents, not the tabs — the tabs are the thing the owner
+asked to see.
+
+## 2026-08-31 — view customization is withdrawn, the board rail goes, and a stale binary wasted a review round `#ui` `#toolchain`
+
+> **Reverses** the board-rail half of *A view says what it leaves out, and a board admits it scrolls*
+> (2026-08-24) — amended earlier the same day, now removed. **Supersedes** *A saved view is an
+> arrangement you keep, not a query you write* (2026-08-28) and the rename/delete half of *rename is
+> its own command, and Help exists on the phone* (2026-08-30). All three are bannered.
+
+**The trap first, because it cost a whole review round and was nobody's UI problem.** The owner
+reviewed the desktop and reported four faults. Three of them had already been fixed hours earlier —
+they were looking at a build from before the work. `fm-serve` serves **the copy of the UI baked into
+the binary** unless `FM_UI_DIST` is set (`main.rs:1109-1111`), and the desktop icon
+(`packaging/formicaria.sh`) sets only `FM_OPEN`/`FM_AUTO_SHUTDOWN`. So `ui/dist` can be perfectly
+fresh, the page can be reloaded any number of times, and the screen still shows the last
+`pixi run build`. The assistant checked `ui/dist`'s mtime, declared it current, and told the owner to
+reload. **A UI change is not on the owner's screen until `cargo build` re-embeds it**; `ui/dist`
+freshness is evidence about the dev server only. Recorded in `known-issues.md` too, because the
+failure is silent in both directions — nothing warns, and the UI looks merely wrong rather than old.
+
+**View customization is withdrawn, not deleted.** The owner, looking at a pane headed *Board ·
+status* with a group-by box and a Save view button: *"how is the user expected to know what to do
+with it? I would remove that entirely: views are basically fixed for now and view customization will
+need its own design plan."* That is the right reading of what shipped. Saving a view was reachable
+before anyone understood what a view *was*; the group-by box accepted free text against properties
+nobody had been shown; and none of it had a story for how a person discovers any of it.
+
+So the **surface** goes — group-by, Save view, Rename, Delete view — and the **capability stays**:
+`save_view`/`rename_view`/`delete_view` remain in `fm-app`, their wrappers remain in `ipc.ts`, and
+every Rust test remains green. `list_views` and `run_view` are untouched, so a `.view` file written
+by hand, or arriving from a collaborator over git, still lists in the rail and still opens. That is
+the difference between withdrawing a surface and removing a feature, and it is what makes the
+promised design plan cheap to land.
+
+**Which is exactly why the "filtered: …" chip stays.** 2026-08-24 exists because the owner reported
+*"my done column is not showing up"* and the cause was a `.view` whose filter removed a column
+silently. That entry's own reasoning was about a file that could be *"neither authored nor deleted
+from the UI"* — which is precisely the state this ruling returns to. The chip is now the **only**
+thing standing between an inherited `.view` and a repeat of that report, so it is more load-bearing
+after this change, not less.
+
+**`groupBy` becomes the constant it already defaulted to.** `newPane` sets `status`, and `views.rs`
+defaults an unspecified `group_by` to `status`, so nothing structurally changes: one board feed key,
+`fm-board-order` always keyed under `status`, and dragging a card between columns doing what
+`onSetStatus` already hardcoded. The real loss — grouping by `project` or `tags` from the UI — is
+the point, not a side effect.
+
+**The board's column rail is removed, and this one is against advice.** The owner was shown that it
+had already been made conditional that morning (gone on a wide desktop, present on a phone only
+because a phone genuinely snaps one column at a time), was told in as many words that removing it
+re-opens their own 2026-08-24 report, and chose removal anyway. Recording the failure mode rather
+than softening it: **on a phone, columns two and beyond are now invisible with nothing on screen
+saying they exist.** The reversal condition is a repeat of *"my column is not showing up"* — if that
+comes back, this is the entry that predicted it, and the fix is the rail, not something new.
+
+**The theme escape stopped re-arming.** *"I continuously see the Turn off my-appearance in the
+bottom right, what for?"* — a fair question about a control that was never meant to persist. It is
+the way out of a theme that hides every other control, and it is supposed to vanish on the first
+click. The `$effect` that applies a theme also reads `vaultTick` so an edit on another machine lands
+without a timer; `vaultTick` bumps whenever `ping` sees the vault move, **including the user's own
+writes**. So every edit re-ran the effect, re-armed the guard, and put the button back — and each
+re-arm added five more capture-phase listeners without removing the last set. Arming is now gated on
+the applied selection actually changing. Re-applying the CSS on a tick stays; that was the feature.
+The JS boot guard in `appearance.ts` is untouched — it is the layer that actually rescues the app,
+and a theme cannot style it away.
+
+## 2026-08-31 — the feed gains an excerpt and a thread, and three tempting halves of it are refused `#ui` `#data` `#track-m`
+
+**The ask.** *"Improve the feed… visualize the notes more than the first row but fading towards half
+of the note. Also, when tapping a note, continue discussions in it, like in instagram comments,
+without opening a new window… give an instagram or mastodon like access and visualization to notes,
+modify them and access them and discuss them all in the view."* Reviewed by five agents (the standing
+cap): two research, three adversarial — scale/phone, principles, interaction.
+
+**The headline: the comment half was already built.** `thread.rs` holds the note-classes, `reply`
+writes one file, `thread` reads one discussion, `thread_roots` counts every discussion in one pass,
+and the resident agent already watches note comment threads. **A reply is a note** — the *safe* side
+of the fork `MASTERPLAN.md:110` names, where "a message is a bullet inside a note" would specify
+block granularity and *"voids this plan"*. So this ruling adds a **surface**, and touches no atom.
+
+**Measured, on the owner's own vault: 225 notes, of which 176 are messages and 31 are feed-eligible.**
+`recent()` hydrates 207 to return 31, because a message *is* a `Kind::Note` and `notes_base()`'s
+exclusions cannot push down. **Making replies frictionless makes the feed's own query worse, forever,
+and the ratio only grows.** That is the fact this design is built around, and the reason the perf
+budget comes before the composer rather than after it.
+
+### Three refusals, each with the reason, so they are not re-proposed
+
+**1. No editing a note from a feed row.** The single-editor rule — *"two editors open on one note race
+each other through `update_body`"* — is implemented as `matchesTarget` over **panes**. A row is not a
+pane, so a row editor bypasses it *silently*; and under `single` every pane stays **mounted and
+merely `display:none`**, so the second editor is not just open, it is invisible. Worse, a row holds
+`preview` (140 chars of line one), not `body` — so it has no honest `base`, and `update_body`'s own
+contract says **an empty `base` opts out** of the lost-update guard. An inline editor built from what
+a row already has would ship with that guard disarmed by construction.
+
+**The rule instead, which costs no new invariant: _a note has at most one editor, and the editor is a
+pane._** A row's *Edit* calls `openNoteInPane`. **Posting a message stays inline, because an insert
+races nothing** — the same structural argument the agent seam already makes by exposing `reply` and
+deliberately not `update_body`.
+
+**2. No Markdown-rendered bodies in the feed.** `upgradeAsset` sets `img.src` from `assetUrl(ref)`,
+whose `kind` **defaults to `'full'`** — the full-blob path the 2026-08-30 feed decision stepped off
+by adding `?kind=thumb`. Rendering bodies per row hands it straight back, at N images per screen,
+against an unhandled and un-injectable `onRenderProcessGone`; `loading="lazy"` does not save it,
+because everything scrolled *past* is fetched and decoded at camera resolution. `renderInto` also
+fires a lock-taking `asset_status` per reference and recurses into embeds three deep.
+
+**3. No double-tap.** It collides with `StatusChip`'s tap-to-rotate (the smallest target in the card,
+and a mis-hit writes a file and commits) and with its long-press picker; it contradicts the app's one
+written gesture rule — **double-click means edit**, in the manual, in Help, and pinned by a test; and
+it taxes the now-primary tap by the ~300 ms discrimination window on the most-scrolled surface of the
+battery device. The argument that ends it: **the keyboard has no double-anything.** Two destinations
+need two focusable targets regardless, and once those exist the gesture is a hidden second way to
+reach what a button already does.
+
+**So the post is restructured instead:** an `<article>`, with **image and title as one button that
+opens the note** and the body toggling the thread. This also fixes a live defect — today's
+`role="button"` makes a post a *leaf* in the accessibility tree, so the `StatusChip` inside it is
+already unreachable to assistive technology.
+
+### What is built
+
+**An `excerpt`, char-capped, beside `preview` — never a fraction.** "Half the note" as a *fraction*
+removes the only bound on an unbounded field inside the app's one unbounded payload: a whiteboard
+body is Excalidraw JSON up to ~2.8 MB, so half of one is a 1.4 MB array element. A char cap keeps the
+safety property, and behind a gradient a reader cannot tell 600 characters from "half" anyway. It is
+filled **only in `recent()`**, where the body is already in memory — no extra I/O, no new query — and
+`preview` is left alone, because ~10 other consumers clamp it to one or two lines.
+
+**Counts from `thread_roots`, threads on tap, one at a time.** `thread()` has no `Kind` conjunct —
+deliberately, and correctly — so it cannot push down and reads every row, including a PDF's extracted
+text. Thirty of those is ~5 s frozen behind one mutex. `thread_roots` already returns every count in
+one pass, so a post says "3 replies" for **one query per refresh**, and the expensive call happens
+once, when you tap.
+
+**The feed sorts by `created`, and edits are shown rather than reordered** — closing the open question
+the 2026-08-30 timeline entry left. `updated` moves on every 500 ms autosave, so a feed you can type
+into would reshuffle the row under your cursor. The byline already carries `EditedBy` from `activity`,
+a git read-model immune to a collaborator's clock, so resurfacing is a *label*, not a sort key.
+
+**Vocabulary: `comment` is the English, `message` is the type.** There is currently zero `comment`
+noun in the code; adding one would be a fourth name for one object (`Kind::Note` the file, *message*
+the class, *thread* the relation). A button may say "Comment".
+
+**Stated rather than discovered:** the feed as primary surface discloses **none** of `notes_base()`'s
+three exclusions — assets, messages, proposals — one day after *"a view says what it leaves out"* was
+re-affirmed as more load-bearing than before. And cheap comments feed **search**, which deliberately
+sees messages: the volume disease this project diagnoses in its competitors. Neither is fixed here;
+both are now on the record rather than in nobody's head.
+
+**Reversal condition.** If the excerpt ships and the feed's payload measurably degrades the phone
+(the gate: peak-PSS delta under 150 MB for one refresh at 10k notes), the cap comes down before
+anything else is added.

@@ -76,11 +76,26 @@ describe('a post', () => {
     cleanup();
   });
 
-  it('opens the note when the post is clicked', async () => {
+  // **One control opens the note, and it is a real button.** The post used to be a `div` with
+  // `role="button"`, which made it a leaf in the accessibility tree — everything inside flattened
+  // into one name and the status chip within was not separately reachable. A post that holds a
+  // discussion and a composer would have been a form inside a button.
+  it('opens the note from the title, which is a real button', async () => {
     const onopen = vi.fn();
     const el = render(Timeline, { cards: [note()], onopen } as never);
-    await fireEvent.click(el.container.querySelector('.post') as HTMLElement);
+    const open = el.container.querySelector('.post .open') as HTMLElement;
+    expect(open.tagName, 'a real button, not a div wearing a role').toBe('BUTTON');
+    await fireEvent.click(open);
     expect(onopen).toHaveBeenCalledWith('01AAA');
+    cleanup();
+  });
+
+  it('is not itself a button, so what it contains stays reachable', () => {
+    const el = render(Timeline, { cards: [note()], onopen: () => {} } as never);
+    const post = el.container.querySelector('.post') as HTMLElement;
+    expect(post.tagName).toBe('ARTICLE');
+    expect(post.getAttribute('role')).toBeNull();
+    expect(post.getAttribute('tabindex')).toBeNull();
     cleanup();
   });
 });
@@ -123,6 +138,120 @@ describe('the compact list is untouched', () => {
   it('is not windowed — it does what it always did', () => {
     const el = render(Timeline, { cards: many(75), onopen: () => {}, mode: 'compact' } as never);
     expect(el.container.querySelectorAll('.row').length).toBe(75);
+    cleanup();
+  });
+});
+
+describe('how much of the note a post shows', () => {
+  it('prefers the feed excerpt over the one-line preview', () => {
+    // `excerpt` is the feed's own field — several lines, char-capped server-side. Only `recent()`
+    // sends it, which is why a post has to fall back rather than assume it.
+    const el = render(Timeline, {
+      props: {
+        cards: [note({ excerpt: 'first line\nsecond line\nthird line' })],
+        onopen: () => {},
+        mode: 'feed',
+      },
+    });
+    const shown = el.container.querySelector('.post .preview')?.textContent ?? '';
+    expect(shown).toContain('third line');
+    expect(shown, 'the one-line preview is not what a post reads').not.toContain(
+      'rough notes on LiFePO4',
+    );
+    cleanup();
+  });
+
+  it('falls back to the preview when no excerpt was sent', () => {
+    const el = render(Timeline, {
+      props: { cards: [note()], onopen: () => {}, mode: 'feed' },
+    });
+    expect(el.container.querySelector('.post .preview')?.textContent).toContain(
+      'rough notes on LiFePO4',
+    );
+    cleanup();
+  });
+
+  // jsdom applies no CSS, so this cannot say the fade is *visible* — only that the excerpt reached
+  // the DOM to be faded. The clamp and the gradient are eyes-on-a-device or they are unverified.
+});
+
+describe('the window', () => {
+  it('survives the feed being refetched, so a poll beat does not collapse it', async () => {
+    // `refresh()` replaces the whole `cards` array on every `changed` beat, and this effect used to
+    // key on `cards.length` — so any vault change reset the window to 30. Once you can post a reply
+    // from the feed, your own reply would collapse your own window on the next beat.
+    const el = render(Timeline, { props: { cards: many(75), onopen: () => {}, mode: 'feed' } });
+    // One click opens one more page: 30 → 60.
+    await fireEvent.click(screen.getByRole('button', { name: /45 older/ }));
+    expect(el.container.querySelectorAll('.post').length).toBe(60);
+
+    // Same notes, a new array — exactly what a refresh hands over.
+    await el.rerender({ cards: many(75).map((c) => ({ ...c })), onopen: () => {}, mode: 'feed' });
+    expect(
+      el.container.querySelectorAll('.post').length,
+      'the reader opened this window; a refetch must not close it',
+    ).toBe(60);
+    cleanup();
+  });
+
+  it('still resets when the underlying set changes, so switching vault lands you at the top', async () => {
+    const el = render(Timeline, { props: { cards: many(75), onopen: () => {}, mode: 'feed' } });
+    await fireEvent.click(screen.getByRole('button', { name: /45 older/ }));
+    expect(el.container.querySelectorAll('.post').length).toBe(60);
+
+    const other = many(75).map((c, i) => ({ ...c, id: `other-${i}` }));
+    await el.rerender({ cards: other, onopen: () => {}, mode: 'feed' });
+    expect(el.container.querySelectorAll('.post').length).toBe(30);
+    cleanup();
+  });
+});
+
+describe('the reply count', () => {
+  // The count comes from one `thread_roots` call for the whole feed. `thread()` — the call that
+  // reads an actual conversation — is a whole-corpus read, so one per row would be thirty corpus
+  // scans behind a single mutex. Knowing a conversation exists is most of the value; opening it is
+  // the expensive half, and happens on demand.
+  it('shows how many messages a post has, and nothing when it has none', () => {
+    const el = render(Timeline, {
+      props: {
+        cards: [note({ id: 'a' }), note({ id: 'b' })],
+        onopen: () => {},
+        counts: { a: 3 },
+        ontoggle: () => {},
+        mode: 'feed',
+      },
+    });
+    const badges = el.container.querySelectorAll('.post .comments');
+    expect(badges.length, 'every post can start one').toBe(2);
+    expect(badges[0].textContent?.trim()).toBe('3');
+    expect(badges[1].textContent?.trim(), 'no conversation, no number').toBe('');
+    cleanup();
+  });
+
+  it('asks to open one thread, and says which is open', async () => {
+    const ontoggle = vi.fn();
+    const el = render(Timeline, {
+      props: {
+        cards: [note({ id: 'a' })],
+        onopen: () => {},
+        counts: { a: 2 },
+        expandedId: 'a',
+        ontoggle,
+        mode: 'feed',
+      },
+    });
+    const badge = el.container.querySelector('.post .comments') as HTMLElement;
+    expect(badge.getAttribute('aria-expanded')).toBe('true');
+    await fireEvent.click(badge);
+    expect(ontoggle).toHaveBeenCalledWith('a');
+    cleanup();
+  });
+
+  it('offers no discussion at all in the compact list', () => {
+    const el = render(Timeline, {
+      props: { cards: [note({ id: 'a' })], onopen: () => {}, counts: { a: 3 }, ontoggle: () => {}, mode: 'compact' },
+    });
+    expect(el.container.querySelector('.comments')).toBeNull();
     cleanup();
   });
 });

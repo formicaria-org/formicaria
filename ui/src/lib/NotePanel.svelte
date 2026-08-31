@@ -2601,8 +2601,12 @@
   }
   .board-exit {
     position: fixed;
-    top: max(env(safe-area-inset-top, 0px), var(--space-2));
-    right: max(env(safe-area-inset-right, 0px), var(--space-2));
+    /* **The tokens, not raw `env()`.** This read `env(safe-area-inset-*)` directly, which is the
+       one thing on the page that gets no correction at all: the shell now writes the real insets
+       into `--safe-*`, and a fallback floor lives on those too. Reading `env()` here meant this
+       button alone kept believing the inset was 0. */
+    top: max(var(--safe-top), var(--space-2));
+    right: max(var(--safe-right), var(--space-2));
     z-index: 210;
     display: grid;
     place-items: center;

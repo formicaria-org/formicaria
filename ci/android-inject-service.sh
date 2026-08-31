@@ -81,15 +81,63 @@ package dev.formicaria.notes
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
+import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
+  private var wv: WebView? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    // Extend into the cutout on both short edges, so the inset the window reports is the real
+    // one rather than a letterboxed zero. Without this the page can be told there is nothing
+    // there while the camera is sitting on top of it.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      window.attributes.layoutInDisplayCutoutMode =
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    }
     super.onCreate(savedInstanceState)
     // Keep the app + its network alive for the study assistant's download and inference.
     val svc = Intent(this, AgentService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
+  }
+
+  // **Hand the window insets to the page — a platform fact only the platform has.**
+  //
+  // `env(safe-area-inset-*)` is 0 in wry's WebView: `viewport-fit=cover` is set, Android 15
+  // forces edge-to-edge, and wry never forwards `WindowInsetsCompat` into the page. So the
+  // stylesheet had been guessing — 1.75rem at the top, which is *less than this phone's camera
+  // cutout*, and 0.5rem at the bottom, which clears a gesture pill but not a three-button
+  // navigation bar. Both were visible on the owner's device and invisible to every test.
+  //
+  // We set the same custom properties `app.css` defines, as an inline style on the root element,
+  // which outranks the `:root` rule. The floors stay there as a fallback: this fires on an event,
+  // and a reload before it fires would paint under the camera again.
+  override fun onWebViewCreate(webView: WebView) {
+    wv = webView
+    ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
+      val i = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
+      )
+      val d = v.resources.displayMetrics.density
+      val js = "(function(){var s=document.documentElement.style;" +
+        "s.setProperty('--safe-top','" + (i.top / d) + "px');" +
+        "s.setProperty('--safe-right','" + (i.right / d) + "px');" +
+        "s.setProperty('--safe-bottom','" + (i.bottom / d) + "px');" +
+        "s.setProperty('--safe-left','" + (i.left / d) + "px');})()"
+      v.post { (v as WebView).evaluateJavascript(js, null) }
+      insets
+    }
+  }
+
+  // A rotation, a keyboard, or coming back to the app can all change the insets; asking for them
+  // again is cheap and re-runs the listener above.
+  override fun onResume() {
+    super.onResume()
+    wv?.let { ViewCompat.requestApplyInsets(it) }
   }
 }
 KT

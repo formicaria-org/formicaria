@@ -5,28 +5,33 @@
   // are hidden rather than unmounted — so switching is instant and this bar is pure navigation,
   // never a fetch trigger.
   //
-  // **At the bottom on purpose.** On a 2712px-tall phone the top of the screen is not reachable
-  // one-handed, which is why every mobile platform put primary navigation at the bottom and left
-  // it there. It is also where a rail or drawer grows from if this ever needs a tablet layout.
+  // **It is no longer on the phone** (2026-08-31). It was a tab per open window plus a count plus
+  // a dead spacer, stacked above the bottom bar — about a third of a phone screen spent on what
+  // you are *not* looking at. On a small screen the answer is the active view and its name; the
+  // list of everything open is a desktop affordance, where there is width to spare and a pointer
+  // to use it.
   //
-  // Rendered always and hidden by CSS in `tiled`, so there is no conditional component tree —
-  // the same discipline the rest of the layout follows.
+  // Rendered always and shown by CSS (`--viewbar`, set by the arrangement in `App.svelte`), so
+  // there is no conditional component tree — the same discipline the rest of the layout follows.
   import Icon from './Icon.svelte';
-  import { paneTitle, BUILTIN_PANES, type Pane } from './panes';
+  import ViewControls from './ViewControls.svelte';
+  import { paneTitle, BUILTIN_PANES, type Pane, type Feed } from './panes';
 
   let {
     panes,
     active,
+    feed,
     onselect,
+    onchange,
     onclose,
-    onsettings,
   }: {
     panes: Pane[];
     active: number;
+    /// The active pane's fetched data — `ViewControls` needs it to say what a saved view hides.
+    feed: Feed | undefined;
     onselect: (i: number) => void;
+    onchange: (patch: Partial<Pane>) => void;
     onclose: (id: string) => void;
-    /** Settings — the one utility, and on a phone the way into everything that is not a view. */
-    onsettings: () => void;
   } = $props();
 
   // The pane kinds map onto icons we already ship; anything without one (a saved view) falls back
@@ -55,20 +60,22 @@
     </button>
   {/each}
 
-  <!-- **The palette and Settings live down here, not in the top bar.**
-       Wrapping the top bar stopped it hiding it, but on a phone it bought that with a second
-       cramped row above the content. This bar is already the navigation, already thumb-reachable,
-       and has room — so the one control that is not *navigation* sits at its end, pushed right so
-       it never moves as views are opened and closed. -->
-  <div class="spacer" aria-hidden="true"></div>
-  <button class="tab util" onclick={onsettings} aria-label="settings" title="Settings">
-    <Icon name="gear" size={18} />
-    <span class="label">Settings</span>
-  </button>
+  <!-- **The active view's own controls**, at the far end of the row that names it. This is the
+       whole reason the pane header could go: grouping, density, a search pane's query box and a
+       saved view's rename/delete are about the view in front of you, and this row is already
+       about the view in front of you. One row instead of two. -->
+  {#if panes[active]}
+    <div class="controls">
+      <ViewControls pane={panes[active]} {feed} {onchange} />
+    </div>
+  {/if}
 
-  <!-- Closing lives here because in `single` the pane's own header chrome is hidden: with one
-       view filling the screen there is no room for a title bar, and no ambiguity about which
-       pane a close button means. -->
+  <!-- **No Settings gear here.** It lived in this bar back when the bar was the phone's only way
+       into anything that is not a view. The chrome bar carries it now on every screen, and two
+       buttons with one name is something two test files had to work around. -->
+
+  <!-- Closing is offered here as well as in the pane header: this strip is where you can see
+       *which* window you are closing, next to the others. -->
   {#if panes.length > 1}
     <button
       class="tab close"
@@ -82,16 +89,22 @@
 
 <style>
   .viewbar {
-    display: none; /* shown only by the single-pane rules in App.svelte */
+    /* Mounted only when one view fills the window (`App.svelte` branches on the layout
+       preference), so there is nothing left for CSS to decide here. */
+    display: flex;
+    /* `.body` is a column flex container and `.workspace` takes the rest — without this the bar
+       would shrink under a tall board instead of the board scrolling. */
+    flex: 0 0 auto;
     align-items: stretch;
     gap: 2px;
     overflow-x: auto;
     scrollbar-width: none;
     background: var(--surface);
-    border-top: 1px solid var(--border);
-    /* Clear the gesture pill / home indicator. Zero where there is none, so a desktop window
-       showing this layout is unaffected. */
-    padding-bottom: var(--safe-bottom);
+    /* **A top bar since 2026-08-31.** The border and the inset swap ends with it: `--safe-top` is
+       what puts this below a camera cutout, and on the owner's phone that is 52px — the shell
+       reports the real number now rather than the 28px the stylesheet used to guess. */
+    border-bottom: 1px solid var(--border);
+    padding-top: var(--safe-top);
     padding-left: max(var(--safe-left), 0px);
     padding-right: max(var(--safe-right), 0px);
   }
@@ -102,9 +115,10 @@
   .tab {
     flex: 1 0 auto;
     min-width: 4.5rem;
-    /* 2.75rem is the ~44px both platform guidelines ask for; this row is the one place a
-       mis-tap costs you the view you were reading. */
-    min-height: 3rem;
+    /* Sized for the pointer that is actually on it. This strip is desktop-only by width now, so
+       a thumb target is wasted height — but a wide touch tablet still shows it, and that is a
+       fact about input, not about platform. The coarse-pointer rule below restores 3rem. */
+    min-height: 2.25rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -124,20 +138,17 @@
     border-top-color: var(--accent);
     background: var(--surface-hover);
   }
-  /* Pushes the utilities to the far end, so they hold one position while the view tabs to
-     their left come and go. */
-  .spacer {
-    flex: 1 0 auto;
-    min-width: var(--space-2);
-  }
-  .tab.util {
-    flex: 0 0 auto;
-    min-width: 3.5rem;
-    border-top-color: transparent;
-  }
+  /* **The spacer is gone.** It was there to push the utilities to the far end, but `.tab`'s own
+     `flex: 1 0 auto` already does that — so with one or two windows open it was simply a wide
+     band of empty grey, which is what it looked like. */
   .tab.close {
     flex: 0 0 auto;
     min-width: 3rem;
+  }
+  /* The window you are in is named in full; the others are just enough to recognise. */
+  .tab.active .label {
+    max-width: 12rem;
+    font-weight: 600;
   }
   .label {
     max-width: 6rem;
@@ -148,5 +159,23 @@
   .dot {
     font-size: 1rem;
     line-height: 1;
+  }
+  /* Pushed to the far end and allowed to shrink before the tabs do — the tabs are how you get
+     anywhere, the controls only tune where you already are. */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-inline-start: auto;
+    padding-inline: var(--space-2);
+  }
+  /* A wide touch tablet shows this strip and has no mouse — the honest test is the pointer, not
+     the width. 2.75rem is the ~44px both platform guidelines ask for. */
+  @media (pointer: coarse) {
+    .tab {
+      min-height: 3rem;
+    }
   }
 </style>

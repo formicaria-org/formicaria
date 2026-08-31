@@ -254,22 +254,17 @@ describe('v2: property editing, timeline, delete', () => {
     expect([...labels].some((l) => /Ada|Ravi/.test(l.textContent ?? ''))).toBe(true);
   });
 
-  it('opens a git activity pane and filters it by contributor', async () => {
+  // **The contributor half of this test went with the filter** (2026-08-31): the chrome no longer
+  // carries a row of collaborator chips, so there is nothing to click. What is still worth pinning
+  // is that Activity is reachable — it is deliberately off the rail and only in the action list,
+  // which is exactly the arrangement that makes it easy to lose by accident.
+  it('opens the git activity stream from the action list', async () => {
     const { container } = render(App);
     await screen.findByText(/GAE lambda interacts badly/);
 
-    // Open the Activity stream from the top bar.
     await runCommand('Open Activity', 'settings');
-    const before = await waitFor(() => {
-      const rows = container.querySelectorAll('.activity .row');
-      expect(rows.length).toBeGreaterThan(1);
-      return rows.length;
-    });
-
-    // Hiding a contributor drops their rows from the stream (and from every other view).
-    await fireEvent.click(screen.getByTitle(/Hide Ada Lovelace/));
     await waitFor(() => {
-      expect(container.querySelectorAll('.activity .row').length).toBeLessThan(before);
+      expect(container.querySelectorAll('.activity .row').length).toBeGreaterThan(1);
     });
   });
 

@@ -7,6 +7,7 @@
   import type { ObjectMeta } from '../lib/types';
   import EmptyState from '../lib/EmptyState.svelte';
   import AssetMissing from '../lib/AssetMissing.svelte';
+  import Icon from '../lib/Icon.svelte';
   import { assetUrl } from '../lib/ipc';
   import { relativeTime } from '../lib/stamp';
 
@@ -14,14 +15,35 @@
   // first. Cards arrive already sorted newest-created-first (the `recent` query),
   // so same-day notes are contiguous and we just partition them into day buckets
   // in order. No status literal here — renderer-safe.
-  let { cards, onopen, statuses = [], onstatus, mode = 'feed' }: {
+  let {
+    cards,
+    onopen,
+    statuses = [],
+    onstatus,
+    mode = 'feed',
+    counts = {},
+    expandedId = null,
+    ontoggle,
+    thread,
+  }: {
     cards: ObjectMeta[];
     onopen: (id: string) => void;
     statuses?: string[];
     onstatus?: (id: string, value: string | null) => void;
-    /// `feed` shows each note as a post — its picture, its first line, who touched it last.
+    /// `feed` shows each note as a post — its picture, its excerpt, who touched it last.
     /// `compact` is the original one-line row. A pane preference, like the agenda's month/week/list.
     mode?: 'feed' | 'compact';
+    /// How many messages each note's discussion holds, by note id — from **one** `thread_roots`
+    /// call for the whole feed. Absent means none; a post with no conversation costs nothing.
+    counts?: Record<string, number>;
+    /// **One thread open at a time.** Not a per-row flag: reading a discussion is a whole-corpus
+    /// query (`fm-app/tests/perf.rs`), and N open threads would also be N polls. One at a time
+    /// keeps the marginal cost of the whole feature at one of each.
+    expandedId?: string | null;
+    ontoggle?: (id: string) => void;
+    /// What to draw inside the expanded post. A snippet rather than an import, so this renderer
+    /// stays a renderer — it knows nothing about how a discussion is fetched or posted.
+    thread?: import('svelte').Snippet<[string]>;
   } = $props();
 
   /// **A window, because there is no virtualisation anywhere in this app and `recent` is
@@ -31,10 +53,16 @@
   /// what matters is that the cap is visible and has a button, rather than silently truncating.
   const PAGE = 30;
   let shown = $state(PAGE);
-  /// Reset when the underlying set changes — switching vault or filter otherwise leaves the window
-  /// opened onto a list that is no longer there.
+  /// **Reset when the underlying set changes — not when it merely moves.** This read
+  /// `void cards.length`, which `refresh()` re-triggers on every `changed` poll beat because it
+  /// replaces the whole array wholesale. So any vault change collapsed the window, and once you
+  /// can post a reply from the feed, *your own reply* would collapse your window and scroll
+  /// position on the next beat. Keying on the first row's identity keeps the intent (switching
+  /// vault or filter lands you at the top) while an edit, a new note or a reply leaves the window
+  /// where the reader put it.
+  let anchor = $derived(cards[0]?.id ?? '');
   $effect(() => {
-    void cards.length;
+    void anchor;
     shown = PAGE;
   });
 
@@ -89,64 +117,101 @@
               <!-- A div, not a button: the status chip nested here is itself a
                    button, and a button inside a button is invalid HTML. Same
                    role/tabindex pattern the board's Card already uses. -->
-              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-              <div
-                class="row"
-                class:post={mode === 'feed'}
-                data-type={card.type}
-                role="button"
-                tabindex="0"
-                onclick={() => onopen(card.id)}
-                onkeydown={(e) =>
-                  (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onopen(card.id))}
-              >
-                {#if mode === 'feed'}
+              {#if mode === 'feed'}
+                <!-- **A post is an article, not a button.** It used to be a `div` with
+                     `role="button"`, which makes it a *leaf* in the accessibility tree: everything
+                     inside flattens into one accessible name and the `StatusChip` within it is not
+                     separately reachable. That was survivable while a post held only a chip; it is
+                     not once it holds a thread and a composer, which would be a form inside a
+                     button. So the post is plain content and the interactive parts are real
+                     controls. See `decisions.md`, 2026-08-31. -->
+                <article class="row post" data-type={card.type}>
                   <!-- **Who, and how long ago — at the top, like any feed.** This is the half that
                        makes a shared vault legible: one stream across every vault you are an
                        audience for, each post saying which one it came from and who last touched
-                       it. Both components already existed and are already used on the row below;
-                       here they lead rather than trail. -->
+                       it. -->
                   <header class="byline">
                     <EditedBy edit={lastEditFor(card.id)} />
                     <VaultBadge vault={card.vault} />
                     <span class="when">{relativeTime(card.created)}</span>
                   </header>
 
-                  {#if pictureOf(card)}
-                    {@const ref = pictureOf(card)!}
-                    <div class="shot">
-                      {#if broken.has(ref)}
-                        <!-- The placeholder that was built for exactly this and never called from
-                             anywhere: its own comment names "gallery tile, card chip" as its homes.
-                             A note whose media has not synced yet is the ordinary case in a shared
-                             vault, so it must read as "not here yet", never as a broken app. -->
-                        <AssetMissing />
-                      {:else}
-                        <img
-                          src={assetUrl(ref, 'thumb')}
-                          alt={card.title ? `Picture in “${card.title}”` : 'Picture in this note'}
-                          loading="lazy"
-                          decoding="async"
-                          onerror={() => (broken = new Set(broken).add(ref))} />
-                      {/if}
-                    </div>
+                  <!-- **The one control that opens the note**, and it wraps the picture as well as
+                       the title so most of the post is still a target — which is what a card
+                       clicked anywhere used to buy, recovered without an ambiguous handler. There
+                       is deliberately no double-tap: it would collide with the chip's tap and
+                       long-press, contradict "double-click means edit", and have no keyboard
+                       form. -->
+                  <button class="open" onclick={() => onopen(card.id)}>
+                    {#if pictureOf(card)}
+                      {@const ref = pictureOf(card)!}
+                      <span class="shot">
+                        {#if broken.has(ref)}
+                          <!-- A note whose media has not synced yet is the ordinary case in a
+                               shared vault, so it must read as "not here yet", never as broken. -->
+                          <AssetMissing />
+                        {:else}
+                          <img
+                            src={assetUrl(ref, 'thumb')}
+                            alt={card.title ? `Picture in “${card.title}”` : 'Picture in this note'}
+                            loading="lazy"
+                            decoding="async"
+                            onerror={() => (broken = new Set(broken).add(ref))} />
+                        {/if}
+                      </span>
+                    {/if}
+                    <span class="title">{card.title ?? card.preview ?? 'Untitled'}</span>
+                  </button>
+
+                  <!-- `excerpt` is the feed's own field (several lines, char-capped server-side);
+                       `preview` is the one line every other list gets. Falling back keeps this
+                       honest against a payload that predates the field, and against the compact
+                       list below, which is deliberately never sent one. -->
+                  {#if card.title && (card.excerpt ?? card.preview)}
+                    <p class="preview">{card.excerpt ?? card.preview}</p>
                   {/if}
 
-                  <span class="what">
-                    <span class="title">{card.title ?? card.preview ?? 'Untitled'}</span>
-                    {#if card.title && card.preview}<span class="preview">{card.preview}</span>{/if}
-                    <span class="tags">
-                      {#if onstatus}
-                        <StatusChip
-                          status={card.status}
-                          {statuses}
-                          onchange={(next) => onstatus?.(card.id, next)}
-                        />
-                      {/if}
-                      {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
-                    </span>
-                  </span>
-                {:else}
+                  <footer class="tags">
+                    {#if onstatus}
+                      <StatusChip
+                        status={card.status}
+                        {statuses}
+                        onchange={(next) => onstatus?.(card.id, next)}
+                      />
+                    {/if}
+                    {#each card.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
+                    {#if ontoggle}
+                      <!-- The count comes from one `thread_roots` call for the whole feed, never a
+                           `thread()` per row — that one is a whole-corpus read (see
+                           `fm-app/tests/perf.rs`), so thirty of them would be thirty corpus scans
+                           behind one mutex. Most of the value is simply knowing a conversation
+                           exists; opening one is the expensive half and happens on demand. -->
+                      <button
+                        class="comments"
+                        aria-expanded={expandedId === card.id}
+                        onclick={() => ontoggle?.(card.id)}
+                        title={counts[card.id] ? 'Show the discussion' : 'Start a discussion'}>
+                        <Icon name="chat" size={14} />
+                        {#if counts[card.id]}<span class="n">{counts[card.id]}</span>{/if}
+                      </button>
+                    {/if}
+                  </footer>
+
+                  {#if expandedId === card.id && thread}
+                    {@render thread(card.id)}
+                  {/if}
+                </article>
+              {:else}
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                <div
+                  class="row"
+                  data-type={card.type}
+                  role="button"
+                  tabindex="0"
+                  onclick={() => onopen(card.id)}
+                  onkeydown={(e) =>
+                    (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onopen(card.id))}
+                >
                   {#if onstatus}
                     <StatusChip
                       status={card.status}
@@ -167,8 +232,8 @@
                       </span>
                     {/if}
                   </span>
-                {/if}
-              </div>
+                </div>
+              {/if}
             {/each}
           </div>
         </section>
@@ -226,7 +291,11 @@
   /* ---- A post ------------------------------------------------------------------------------
      Stacked rather than the row's left-to-right: byline, picture, words, tags. The picture is the
      widest thing in it, which is what makes this read as a feed rather than a taller list. */
-  .post {
+  /* **`.row.post`, not `.post`.** A post carries both classes, and `.row` is declared further
+     down this file — equal specificity, so source order decided and `.row` silently overrode
+     `display`, `padding`, `gap`, `background` and `border`. The stacked post described above was
+     not what rendered. Same class of defect `ci/checks.sh` already polices for `.panel-views`. */
+  .row.post {
     display: flex;
     flex-direction: column;
     gap: var(--space-2);
@@ -235,6 +304,53 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface-elevated);
+  }
+  /* The one control that opens the note. Full width and holding the picture as well as the title,
+     so most of the post is still a target — what clicking anywhere used to buy, without the
+     ambiguous handler. */
+  .post .open {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .post .open:hover .title {
+    text-decoration: underline;
+  }
+  .post footer.tags {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .post .comments {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .post .comments:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .post .comments[aria-expanded='true'] {
+    border-color: var(--accent);
+    color: var(--text);
   }
   .byline {
     display: flex;
@@ -262,11 +378,8 @@
     object-fit: cover;
     display: block;
   }
-  .post .what {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    min-width: 0;
+  .post .preview {
+    margin: 0;
   }
   .post .title {
     font-size: var(--text-md);
@@ -275,8 +388,23 @@
   }
   .post .preview {
     color: var(--text-muted);
-    /* Two lines of caption. The first line of the note is all that is sent, and clamping keeps a
-       long one from setting the height of every post below it. */
+    /* **Several lines, fading out.** The server sends a char-capped excerpt rather than a fraction
+       of the body (the cap is what keeps `recent()` bounded — see `dto.rs`), so the clamp decides
+       how much of it a post spends, and the mask says "there is more" without a control that
+       claims to know how much more. Six lines is a post you can read; the note is one tap away.
+
+       `white-space: pre-line` because the excerpt keeps its line breaks — a heading and its first
+       paragraph read as two lines, which is the shape people recognise. */
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: pre-line;
+    mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+  }
+  /* The compact list is a line per note and is never sent an excerpt; keep its old clamp. */
+  .row:not(.post) .preview {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;

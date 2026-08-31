@@ -886,6 +886,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       );
       return (p ? p.id : null) as T;
     }
+    // Every root any message points at, with its count — one pass, mirroring `thread_roots`. The
+    // self-message of a first-class discussion is not a reply, so it registers the root at zero.
+    case 'thread_roots': {
+      const counts = new Map<string, number>();
+      for (const n of notes) {
+        const ref = typeof n.props?.thread_of === 'string' ? n.props.thread_of : '';
+        const root = ref.startsWith('note:') ? ref.slice('note:'.length) : '';
+        if (!root) continue;
+        counts.set(root, (counts.get(root) ?? 0) + (n.id === root ? 0 : 1));
+      }
+      return [...counts].map(([id, count]) => ({ id, count })) as T;
+    }
     case 'thread': {
       const rootId = String(args.id);
       const ref = `note:${rootId}`;
@@ -1012,9 +1024,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         .sort((a, b) => b.updated.localeCompare(a.updated)) as T;
     }
     case 'recent': {
+      // **`excerpt` is filled here and nowhere else**, mirroring `commands::recent` — the feed is
+      // the only surface that reads past the first line. The mock has no bodies, so it echoes the
+      // preview; what the mirror has to preserve is *which command carries the field*, because a
+      // renderer that finds it on a board card would be reading a payload the server never sends.
       const recent: ObjectMeta[] = notes
         .filter(isNote)
-        .sort((a, b) => b.created.localeCompare(a.created));
+        .sort((a, b) => b.created.localeCompare(a.created))
+        .map((n) => ({ ...n, excerpt: n.preview }));
       return recent as T;
     }
     // The Collaboration surface's feed: proposals only — the complement of the exclusion above,

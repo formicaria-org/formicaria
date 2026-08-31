@@ -468,6 +468,28 @@ if [ -f ui/src/App.svelte ]; then
     fi
 fi
 
+# **The chrome's placement is a fact about the window, not about the arrangement.**
+#
+# The sibling of the check above, and the same lesson from the other side. `[data-layout='single']
+# .topbar .icon-btn { display: none }` outranked the rule that shows Help, Settings and the panel
+# toggle in the wide panel — so choosing one-view-at-a-time on a desktop silently deleted three
+# controls from the rail. Nobody hit it while `auto` was the default and almost nobody picked
+# `single`; making `single` the default would have shipped it to everyone on first launch. jsdom
+# applies no CSS, so no component test can see this.
+#
+# The rule: which panes are *visible* is the arrangement's business (`--cell`, `--viewbar`, set in
+# one block). Where the chrome *sits*, and what it can afford to show, is the window's — say it in
+# the width media query, where it applies whatever the user chose.
+echo "[check] the chrome is placed by window width, never by the chosen arrangement..."
+if [ -f ui/src/App.svelte ]; then
+    if grep -nE "\[data-layout='(single|tiled)'\] \.(topbar|icon-btn|save-label|panel-views)" ui/src/App.svelte; then
+        echo "  FAIL: a chrome rule above is keyed on the arrangement instead of the window width."
+        echo "        That is how the desktop rail lost Help, Settings and its collapse toggle."
+        echo "        Put it in the @media (max-width: 59.999rem) block instead."
+        fail=1
+    fi
+fi
+
 # **The Appearance form is a list of tokens, never a language.**
 #
 # It re-values design tokens; it must never grow the ability to invent one, or write a selector or

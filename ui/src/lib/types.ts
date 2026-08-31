@@ -5,6 +5,10 @@ export interface ObjectMeta {
   type: string;
   title: string | null;
   preview: string;
+  /** Several lines of the body, **feed only** — `recent()` fills it and nothing else does. Absent
+   *  on every other list, so treat it as optional at every call site. Char-capped server-side;
+   *  see `dto.rs`'s `excerpt`. */
+  excerpt?: string;
   status: string | null;
   due: string | null;
   start: string | null;

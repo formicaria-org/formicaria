@@ -9,6 +9,10 @@ import {
   clampSpan,
   paneTitle,
   rendererKind,
+  autoCols,
+  matchesTarget,
+  migrateWorkspace,
+  SCHEMA,
   type Pane,
 } from './panes';
 
@@ -112,11 +116,103 @@ describe('reidentify', () => {
 });
 
 describe('defaultWorkspace', () => {
-  it('is one board in a two-column grid', () => {
+  // **It used to say two columns for one pane**, and this test pinned that as a feature. `cols`
+  // was only ever recomputed inside `addPane`/`closePane`, never on load, so a fresh session on
+  // a wide screen laid the single board into a two-column grid and left the second one blank.
+  it('is one board, in exactly as many columns as it needs', () => {
     const w = defaultWorkspace();
-    expect(w.cols).toBe(2);
+    expect(w.cols).toBe(1);
     expect(w.panes).toHaveLength(1);
     expect(w.panes[0].kind).toBe('board');
+  });
+
+  it('opens one view at a time, and says which schema wrote it', () => {
+    const w = defaultWorkspace();
+    expect(w.layout).toBe('single');
+    expect(w.active).toBe(0);
+    expect(w.v).toBe(SCHEMA);
+  });
+});
+
+describe('matchesTarget — what counts as the same thing', () => {
+  // The rule behind `focusOrOpen`: tapping a view's name shows that view rather than stacking
+  // another window beside it.
+  it('treats a board as a board however it is grouped', () => {
+    // group-by is a control *inside* the window, not a different view.
+    expect(matchesTarget({ ...newPane('board'), groupBy: 'tag' }, 'board')).toBe(true);
+    expect(matchesTarget(newPane('board'), 'agenda')).toBe(false);
+  });
+
+  it('separates saved views by name and notes by id', () => {
+    const v = newPane('view', { viewName: 'Papers' });
+    expect(matchesTarget(v, 'view', { viewName: 'Papers' })).toBe(true);
+    expect(matchesTarget(v, 'view', { viewName: 'Reading' })).toBe(false);
+    const n = newPane('note', { noteId: 'abc' });
+    expect(matchesTarget(n, 'note', { noteId: 'abc' })).toBe(true);
+    // Load-bearing: two editors on one note race each other through `update_body`.
+    expect(matchesTarget(n, 'note', { noteId: 'xyz' })).toBe(false);
+  });
+
+  it('matches any search regardless of query, so a second query re-points one pane', () => {
+    expect(matchesTarget(newPane('search', { query: 'alpha' }), 'search', { query: 'beta' })).toBe(
+      true,
+    );
+  });
+});
+
+describe('migrateWorkspace', () => {
+  it('falls back to the default for anything unusable', () => {
+    for (const bad of [null, undefined, {}, { panes: [] }, { panes: [newPane('board')] }]) {
+      expect(migrateWorkspace(bad).workspace.layout).toBe('single');
+    }
+  });
+
+  it('reads an unstamped `auto` as the old default, not as a choice', () => {
+    // `layout` was written by the very first persist, so a stored `auto` is overwhelmingly the
+    // default of the day rather than a decision — and `auto` no longer exists to honour.
+    const { workspace, migrated } = migrateWorkspace({
+      cols: 2,
+      layout: 'auto',
+      panes: [newPane('board')],
+    });
+    expect(workspace.layout).toBe('single');
+    expect(migrated).toBe(true);
+    expect(workspace.v).toBe(SCHEMA);
+  });
+
+  it('leaves a deliberate `tiled` alone, and does not re-migrate a stamped record', () => {
+    const tiled = migrateWorkspace({ cols: 2, layout: 'tiled', panes: [newPane('board')] });
+    expect(tiled.workspace.layout).toBe('tiled');
+    const stamped = migrateWorkspace({
+      v: SCHEMA,
+      cols: 1,
+      layout: 'tiled',
+      panes: [newPane('board')],
+    });
+    expect(stamped.workspace.layout).toBe('tiled');
+    expect(stamped.migrated).toBe(false);
+  });
+
+  it('clamps an active pane that is past the end', () => {
+    // Under one-view-at-a-time an out-of-range active pane means no `.cell.active` at all, and
+    // every other cell is hidden — a blank app, from a stored number. `closePane` clamped; load
+    // did not, and the old tiled default hid the consequence because every cell was visible.
+    const { workspace } = migrateWorkspace({
+      cols: 2,
+      layout: 'single',
+      panes: [newPane('board'), newPane('agenda')],
+      active: 5,
+    });
+    expect(workspace.active).toBe(1);
+    expect(migrateWorkspace({ cols: 1, panes: [newPane('board')], active: -3 }).workspace.active).toBe(0);
+  });
+
+  it('recomputes the column count, which load never used to do', () => {
+    expect(migrateWorkspace({ cols: 2, panes: [newPane('board')] }).workspace.cols).toBe(1);
+    // A pinned width is the user's, and survives.
+    expect(
+      migrateWorkspace({ cols: 3, colMode: 'fixed', panes: [newPane('board')] }).workspace.cols,
+    ).toBe(3);
   });
 });
 
@@ -124,24 +220,25 @@ describe('defaultWorkspace', () => {
 import * as k from './keys';
 
 describe('columns follow the pane count', () => {
-  // Mirrors App.svelte's `autoCols`. Kept here because the property is the point: opening a
-  // view widened the grid and closing one did NOT narrow it, so closing two of three notes
-  // left one note sitting in a third of the screen.
-  const autoCols = (n: number, mode: 'auto' | 'fixed', cols: number) =>
-    mode === 'fixed' ? cols : Math.max(1, Math.min(n, 4));
+  // **The real function, imported.** This used to be a hand-written mirror of `App.svelte`'s
+  // copy, with a comment saying so — which is a second definition that can drift from the one
+  // that ships. The property is still the point: opening a view widened the grid and closing
+  // one did NOT narrow it, so closing two of three notes left one in a third of the screen.
+  const cols = (n: number, mode: 'auto' | 'fixed', cols: number) =>
+    autoCols(n, { colMode: mode, cols });
 
   it('grows as views open and shrinks as they close', () => {
-    expect(autoCols(1, 'auto', 2)).toBe(1);
-    expect(autoCols(3, 'auto', 2)).toBe(3);
-    expect(autoCols(1, 'auto', 3)).toBe(1); // the reclaim
+    expect(cols(1, 'auto', 2)).toBe(1);
+    expect(cols(3, 'auto', 2)).toBe(3);
+    expect(cols(1, 'auto', 3)).toBe(1); // the reclaim
   });
 
   it('never exceeds four, because a fifth pane is a sliver', () => {
-    expect(autoCols(8, 'auto', 2)).toBe(4);
+    expect(cols(8, 'auto', 2)).toBe(4);
   });
 
   it('leaves a pinned width alone', () => {
-    expect(autoCols(4, 'fixed', 2)).toBe(2);
+    expect(cols(4, 'fixed', 2)).toBe(2);
   });
 });
 

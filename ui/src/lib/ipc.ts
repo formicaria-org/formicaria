@@ -198,6 +198,13 @@ export const reply = (id: string, body: string) =>
   invoke<ObjectMeta>('reply', { id, body });
 export const thread = (id: string) => invoke<ThreadView>('thread', { id });
 
+// **Every thread's message count, in one pass.** The feed needs to say "3 replies" per post, and
+// `thread()` is a whole-corpus read (`fm-app/tests/perf.rs`) — so one per row would be thirty
+// corpus scans behind one mutex, each parking the phone's JS thread. This returns `{id, count}`
+// for every root at once, which is why a count is affordable and opening one is the thing that
+// costs. Already what the study agent watches, so it covers note comment threads too.
+export const threadRoots = () => invoke<{ id: string; count: number }[]>('thread_roots');
+
 // A first-class discussion: a note that is the root of its own thread (`thread_of` points at
 // itself). Created explicitly — `create_discussion` writes the self-anchor, which `set_property`
 // refuses, the same way `reply` (not `set_property`) writes a message's pointers. `vault` is the

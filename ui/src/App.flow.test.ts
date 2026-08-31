@@ -110,7 +110,7 @@ describe('the app, driven end to end as a user', () => {
     expect(container.querySelectorAll('.pane')).toHaveLength(2);
   });
 
-  it('walks board → capture → views → group-by → open → edit → close', async () => {
+  it('walks board → capture → views → back → open → edit → close', async () => {
     const { container } = render(App);
 
     // 1. The board renders cards on load.
@@ -134,10 +134,12 @@ describe('the app, driven end to end as a user', () => {
     // The board is still there — that is the point of opening rather than switching.
     expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);
 
-    // 4. Re-group the board pane by a custom property — no backend change.
-    const groupBy = screen.getByLabelText('group by');
-    await fireEvent.input(groupBy, { target: { value: 'project' } });
-    expect(await screen.findByText('alpha')).toBeTruthy(); // a project column label
+    // 4. Go back to the board. **Re-grouping left the UI on 2026-08-31** — a board is always
+    //    grouped by status now, so this step used to type `project` into a control that no longer
+    //    exists. What is still worth walking is the return trip: the tab row is how you get back to
+    //    a view you left, and the board is still there with its cards.
+    await fireEvent.click(screen.getByRole('button', { name: /^Board/ }));
+    expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);
 
     // 5. Open a card → the read view renders the note's markdown, upgrades math +
     //    mermaid (mocked), and degrades the missing asset to a placeholder. This is

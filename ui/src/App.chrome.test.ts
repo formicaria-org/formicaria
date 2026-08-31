@@ -69,7 +69,7 @@ test('storage that throws still gives a working panel', async () => {
   await screen.findByRole('button', { name: 'expand the panel' });
 });
 
-test('the panel offers every view you can open, and opening one adds a window', async () => {
+test('the panel offers every view you can open, and opening one shows it', async () => {
   render(App);
   const rail = (await screen.findByRole('navigation', { name: 'views' })) as HTMLElement;
   const names = Array.from(rail.querySelectorAll('button')).map((b) =>
@@ -88,10 +88,23 @@ test('the panel offers every view you can open, and opening one adds a window', 
   // And the saved views, which is the half a fixed list of built-ins would miss.
   expect(names).toContain('Active');
 
-  // Clicking opens it: a second window appears alongside the one that was already there.
+  // Clicking opens it: there was no agenda, so a window appears.
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+
+  // **And clicking it again shows that one rather than stacking another.** With one view at a
+  // time, tapping a name means "show me that"; appending a second agenda answers a question
+  // nobody asked and, on a phone, spends a feed and a scroll position. jsdom applies no CSS, so
+  // "showing" is asserted structurally — which cell carries `.active` — not by visibility.
+  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
+  expect(document.querySelectorAll('.pane').length).toBe(before + 1);
+  expect(document.querySelectorAll('.cell.active').length, 'one active window').toBe(1);
+  // The name is read off the bar that names it — a pane has no header of its own when one view
+  // fills the window, which is the row this arrangement exists to reclaim.
+  const bar = screen.getByRole('navigation', { name: 'open views' });
+  expect(bar.querySelector('[aria-current="page"]')?.textContent).toMatch(/Agenda/);
 });
 
 /// **The collapsed rail hides words; it must never crop them.**
@@ -143,6 +156,74 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   const before = document.querySelectorAll('.pane').length;
   await fireEvent.click(screen.getByRole('menuitem', { name: 'Agenda' }));
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+
+  // The bar's menu is the other consumer of the same list, so it re-points too — one edit
+  // covers both, and this is what proves they did not drift.
+  await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Agenda' }));
+  expect(document.querySelectorAll('.pane').length).toBe(before + 1);
+});
+
+/// **A second search must change what you are looking at.**
+///
+/// `onSearchInput` re-pointed the existing search pane but never made it the active one. While
+/// every pane was on screen that was invisible; the moment one view at a time became the default
+/// it meant a second query did nothing you could see.
+test('typing a second query re-points the one search window, and shows it', async () => {
+  vi.useFakeTimers();
+  try {
+    render(App);
+    const box = await screen.findByRole('searchbox', { name: 'search notes' });
+
+    await fireEvent.input(box, { target: { value: 'alpha' } });
+    await vi.advanceTimersByTimeAsync(300);
+    expect(document.querySelectorAll('.pane').length).toBeGreaterThan(1);
+
+    const panes = document.querySelectorAll('.pane').length;
+    await fireEvent.input(box, { target: { value: 'beta' } });
+    await vi.advanceTimersByTimeAsync(300);
+    // Still one search window...
+    expect(document.querySelectorAll('.pane').length).toBe(panes);
+    expect(document.querySelectorAll('.cell.active').length).toBe(1);
+    // ...and it is the one being described: the bar carries the active view's own controls, so
+    // the query box up there showing `beta` *is* the assertion that the search became visible.
+    // It also pins the thing the chrome's field cannot do — show you what you are searching for.
+    expect((screen.getByLabelText('search') as HTMLInputElement).value).toBe('beta');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+/// **The lens must not make search disappear.**
+///
+/// In a collapsed rail the field is hidden by `.app.panel-collapsed .topbar .searchfield` (four
+/// classes), which outranks `.search-slot.open .searchfield` (three) — while `.search-slot.open
+/// .search-btn` hides the lens that was just pressed. So opening search on a collapsed panel hid
+/// both halves and the chrome had no search in it at all. jsdom applies no CSS, so what is pinned
+/// here is the state that CSS reads: the panel ends up expanded, which is where the field is
+/// visible.
+test('searching from a collapsed rail expands it instead of hiding the field', async () => {
+  store.set('fm-panel', 'collapsed');
+  render(App);
+  const toggle = await screen.findByRole('button', { name: 'expand the panel' });
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+  await fireEvent.click(screen.getByRole('button', { name: 'search notes' }));
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: 'collapse the panel' }).getAttribute('aria-expanded'),
+    ).toBe('true'),
+  );
+  expect(store.get('fm-panel')).toBe('open');
+});
+
+/// The open-windows strip used to carry its own gear, because it was the phone's only way into
+/// anything that was not a view. It is not on the phone any more, and two buttons with one name
+/// were something two other test files had to work around.
+test('there is exactly one way into Settings from the chrome', async () => {
+  render(App);
+  await screen.findByRole('button', { name: 'settings' });
+  expect(screen.getAllByRole('button', { name: 'settings' })).toHaveLength(1);
 });
 
 test('a dropdown opens at the button that opened it, not at a fixed corner', async () => {
@@ -174,4 +255,59 @@ test('a dropdown from the top of the panel opens downward', async () => {
   const style = (await screen.findByRole('menu')).getAttribute('style') ?? '';
   expect(style).toMatch(/top:\s*52px/);
   expect(style).not.toMatch(/bottom:/);
+});
+
+/// **Where a new note lands is asked where you decide it.**
+///
+/// This was a permanent `in <select>` in the chrome — a control on screen at all times for a
+/// choice made only while creating something, and a whole row of a narrow bar. It moved into the
+/// ＋ menu on 2026-08-31. It had no test at all before, which is part of why it was easy to leave
+/// sitting there: nothing said what it was for.
+test('the ＋ menu chooses where a new note lands, and stays open while you choose', async () => {
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: 'make something new' }));
+
+  // The things you can make are still the first thing in the menu.
+  expect(await screen.findByRole('menuitem', { name: 'New note' })).toBeTruthy();
+
+  const targets = await screen.findAllByRole('menuitemradio');
+  expect(targets.length, 'one row per vault').toBeGreaterThan(1);
+  expect(targets.filter((t) => t.getAttribute('aria-checked') === 'true')).toHaveLength(1);
+
+  // Picking a destination does NOT close the menu: you almost always pick where, then pick what,
+  // and closing here would mean opening the ＋ twice for one note.
+  const other = targets.find((t) => t.getAttribute('aria-checked') === 'false')!;
+  await fireEvent.click(other);
+  await waitFor(() => expect(other.getAttribute('aria-checked')).toBe('true'));
+  expect(screen.queryByRole('menuitem', { name: 'New note' }), 'menu still open').not.toBeNull();
+  // Exactly one destination at a time — it is a radio, unlike the vault *filter* beside it.
+  expect(
+    screen.getAllByRole('menuitemradio').filter((t) => t.getAttribute('aria-checked') === 'true'),
+  ).toHaveLength(1);
+  // And it is remembered, the way it always was.
+  expect(store.get('fm-create-vault')).toBeTruthy();
+});
+
+/// **A withdrawn surface, not a deleted feature.**
+///
+/// Save/Rename/Delete view left the UI on 2026-08-31 — *"views are basically fixed for now and view
+/// customization will need its own design plan"*. The commands, their `ipc.ts` wrappers and every
+/// Rust test stayed, and this is the guard that the *reading* half survived the cut: a `.view` file
+/// that arrives by hand or over git must still list in the rail and still open. If this ever fails,
+/// the withdrawal has quietly become a removal.
+test('a saved view still lists and opens, with no way to author one anywhere', async () => {
+  render(App);
+  const rail = (await screen.findByRole('navigation', { name: 'views' })) as HTMLElement;
+  const names = Array.from(rail.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
+  expect(names, 'a .view in the vault is still offered').toContain('Active');
+
+  const before = document.querySelectorAll('.pane').length;
+  await fireEvent.click(screen.getByRole('button', { name: 'open Active' }));
+  await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
+
+  // And nothing anywhere in the chrome offers to make, rename or remove one.
+  for (const gone of [/save this view/i, /rename this view/i, /delete this view/i, /keep this arrangement/i]) {
+    expect(screen.queryByRole('button', { name: gone }), `${gone} should be gone`).toBeNull();
+  }
+  expect(screen.queryByLabelText('group by'), 'grouping is no longer editable').toBeNull();
 });

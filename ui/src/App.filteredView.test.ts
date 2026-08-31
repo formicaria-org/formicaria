@@ -74,11 +74,11 @@ test('a view that hides a column says so, and one click brings the column back',
 
   // The pane is now the built-in board it was shadowing — same grouping, nothing filtered — and
   // the column is back. That is the owner's whole journey.
-  // Read the window's name off its header. It is a label now, not a labelled control, so this
-  // asks the header for its text rather than putting an `aria-label` on a non-interactive span
-  // just to keep an old query working.
+  // Read the view's name off the bar that names it. There is no pane header when one view fills
+  // the window — the bar is the chrome, and it is a label rather than a labelled control, so this
+  // asks it for its text rather than inventing an `aria-label` to keep an old query working.
   await vi.waitFor(() =>
-    expect(screen.getAllByRole('toolbar')[0].textContent).toMatch(/board/i),
+    expect(screen.getByRole('navigation', { name: 'open views' }).textContent).toMatch(/board/i),
   );
   await vi.waitFor(() =>
     expect(screen.getAllByText(MOCK_VIEW_HIDDEN.value).length).toBeGreaterThan(0),
@@ -100,7 +100,7 @@ test('an unfiltered view says nothing — the chip is about a filter, not about 
   render(App);
 
   await vi.waitFor(() =>
-    expect(screen.getAllByRole('toolbar')[0].textContent).toMatch(/Recent/i),
+    expect(screen.getByRole('navigation', { name: 'open views' }).textContent).toMatch(/Recent/i),
   );
   expect(screen.queryByRole('button', { name: /shows only notes where/i })).toBeNull();
 });

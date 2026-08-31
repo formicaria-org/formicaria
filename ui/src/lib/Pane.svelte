@@ -14,6 +14,8 @@
   import Activity from '../renderers/Activity.svelte';
   import Discussions from '../renderers/Discussions.svelte';
   import Icon from './Icon.svelte';
+  import ViewControls from './ViewControls.svelte';
+  import FeedThread from './FeedThread.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
@@ -36,6 +38,8 @@
     onresolve: (c: ConflictInfo, keep: 'theirs' | 'mine' | 'edited') => Promise<void>;
     onmove: (groupBy: string, id: string, value: string, beforeId: string | null) => void;
     onstatus: (id: string, value: string | null) => void;
+    /// Message counts by note id — one `thread_roots` call for the whole app, not one per row.
+    counts?: Record<string, number>;
     onnavigate: (id: string) => void; // a note pane's chip was followed → open that note
     onsaved: () => void; // a note pane wrote → schedule the git commit
     onchange: (patch: Partial<Pane>) => void;
@@ -43,10 +47,13 @@
     onresize: (patch: { colSpan?: number; rowSpan?: number }) => void;
     onclose: () => void;
     onfocus: () => void;
-    /// Keep this arrangement as a named view. Only the kinds that *are* an arrangement offer it.
-    onsaveview?: () => void;
-    ondeleteview?: () => void;
-    onrenameview?: () => void;
+    /// **Does this pane wear its own header?** Only when several are tiled: then you need names to
+    /// tell them apart, a handle to reorder them, and controls that say which pane they belong to.
+    /// With one view filling the window the top bar is already doing all three, and a second row
+    /// saying the same thing is the row the owner asked to reclaim (`decisions.md`, 2026-08-31).
+    /// A prop rather than CSS because two rendered copies of `ViewControls` means two elements
+    /// labelled `group by` — ambiguous to assistive tech and to `getByLabelText` alike.
+    headed: boolean;
   }
   let {
     pane,
@@ -62,6 +69,7 @@
     onresolve,
     onmove,
     onstatus,
+    counts = {},
     onnavigate,
     onsaved,
     onchange,
@@ -69,9 +77,7 @@
     onresize,
     onclose,
     onfocus,
-    onsaveview,
-    ondeleteview,
-    onrenameview,
+    headed,
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -80,6 +86,18 @@
   function toggleMax() {
     onresize(maximized ? { colSpan: 1, rowSpan: 1 } : { colSpan: cols, rowSpan: 2 });
   }
+
+  /// **One thread open at a time, per pane.** Reading a discussion is a whole-corpus query
+  /// (`fm-app/tests/perf.rs`), so N open threads would be N of those plus N polls; one keeps the
+  /// marginal cost of the whole feature at one of each. Pane-local because it is a place you are
+  /// looking, not something a vault knows — it is not persisted, like a scroll position.
+  let expandedId = $state<string | null>(null);
+  /// Message counts by note id, from the one `thread_roots` call `App` makes per refresh. Copied
+  /// into local state so posting a message can bump one badge without a re-read.
+  let threadCounts = $state<Record<string, number>>({});
+  $effect(() => {
+    threadCounts = counts;
+  });
 
   let dragover = $state(false);
 
@@ -182,46 +200,11 @@
       : (BUILTIN_PANES.find((b) => b.kind === pane.kind)?.label ?? 'Board'),
   );
 
-  /// **What the saved view on show leaves out** — so the header can say so.
-  ///
-  /// A `view: board` draws through the very same `Board.svelte` as the Board pane, so a view whose
-  /// filter removes a column removes it with nothing on screen to explain the gap. That is not
-  /// hypothetical: the owner's only `.view` hides one status, and the missing column read as
-  /// missing notes (2026-08-24).
-  ///
-  /// **Read from the feed, not from `savedViews`.** The words belong to the payload they describe:
-  /// they arrive with the board itself, from the same parse that produced it. Looking them up in
-  /// the view *list* would make the explanation depend on a second fetch that happens once per
-  /// vault change and has failed outright on the phone — and a filtered board with no explanation
-  /// is precisely the bug. `undefined` until the feed lands, which is also when the board lands.
+  /// Which renderer a saved view draws through — read from the *feed*, so it arrives with the
+  /// payload it describes rather than depending on a second `list_views` fetch. The words about
+  /// what it *hides* moved to `ViewControls`; this is only about which component to mount.
   const shownView = $derived(pane.kind === 'view' ? feed?.view : undefined);
-  const hides = $derived(shownView?.filters ?? []);
-  /// The whole sentence, including the way out — the visible chip is one line and gets clipped in a
-  /// narrow pane, so the accessible name has to be the complete thought on its own.
-  const hidesTitle = $derived(
-    `“${pane.viewName}” shows only notes where ${hides.join(', and ')}. Click to see everything.`,
-  );
-  /// Leave the view for the built-in renderer it shadows, unfiltered, keeping its grouping — the
-  /// one click that answers "where did my column go". The rotator walks back to the view.
-  function showEverything() {
-    if (!shownView) return;
-    onchange({
-      kind: rendererKind(shownView.renderer),
-      viewName: null,
-      groupBy: shownView.group_by ?? pane.groupBy,
-    });
-  }
-  /// **Two steps, not a modal.** Deleting a view removes a file from someone's vault, so it must
-  /// not ride on one stray click — but a modal is a whole new surface for something done twice a
-  /// year, and this app already decided that a rare action belongs inline (the same reasoning that
-  /// removed the command palette). The second click is the confirmation.
-  let confirmDelete = $state(false);
-  /// Disarm when the pane starts showing something else, or the armed button follows you onto a
-  /// different view and the next click deletes *that* one.
-  $effect(() => {
-    void pane.viewName;
-    confirmDelete = false;
-  });
+
   // **Column order, reconnected.** `boardOrder.ts` is a pure, tested core — and after the
   // pane rewrite nothing imported it: `onreorder` was `() => {}`, so dragging a column
   // header did nothing while the drag still started and the cursor still said `grab`. An
@@ -278,130 +261,38 @@
   aria-label={paneTitle(pane)}
 >
   <!-- The whole header is the drag handle (not just the grip) — grab anywhere on the top bar to
-       move the pane. Clicks on the controls inside still register (a click is not a drag). -->
-  <header
-    class="pane-head"
-    class:grip-only={pane.kind === 'note'}
-    use:gripDrag={index}
-    role="toolbar"
-    tabindex="-1"
-    aria-label="pane controls — drag to rearrange"
-    title="Drag to rearrange this pane"
-  >
-    <span class="grip" aria-hidden="true">
-      <Icon name="grip" size={13} />
-    </span>
-    <!-- A note pane wears NotePanel's own chrome (title, status, edit, delete, close), so the
-         pane header shrinks to just the drag grip. Every other kind names itself. -->
-    {#if pane.kind !== 'note'}
-      <!-- **A label, not a control.** Picking a view is the left panel's job now; this says which
-           one you are looking at. -->
-      <span class="kind">{currentLabel}</span>
+       move the pane. Clicks on the controls inside still register (a click is not a drag).
+       Rendered only when panes are tiled: see the `headed` prop. -->
+  {#if headed}
+    <header
+      class="pane-head"
+      class:grip-only={pane.kind === 'note'}
+      use:gripDrag={index}
+      role="toolbar"
+      tabindex="-1"
+      aria-label="pane controls — drag to rearrange"
+      title="Drag to rearrange this pane"
+    >
+      <span class="grip" aria-hidden="true">
+        <Icon name="grip" size={13} />
+      </span>
+      <!-- A note pane wears NotePanel's own chrome (title, status, edit, delete, close), so the
+           pane header shrinks to just the drag grip. Every other kind names itself. -->
+      {#if pane.kind !== 'note'}
+        <!-- **A label, not a control.** Picking a view is the bar's job; this says which one this
+             window is showing. -->
+        <span class="kind">{currentLabel}</span>
+        <ViewControls {pane} {feed} {onchange} />
+      {/if}
 
-      <!-- Per-view controls, inline in the pane header (each pane tunes itself). -->
-      {#if pane.kind === 'board'}
-        <input
-          class="ctl group"
-          list="pane-props"
-          value={pane.groupBy}
-          oninput={(e) => onchange({ groupBy: (e.currentTarget as HTMLInputElement).value })}
-          spellcheck="false"
-          title="group by"
-          aria-label="group by"
-        />
-      {:else if pane.kind === 'agenda'}
-        <div class="seg">
-          <button class:on={pane.agendaMode === 'month'} onclick={() => onchange({ agendaMode: 'month' })}>M</button>
-          <button class:on={pane.agendaMode === 'week'} onclick={() => onchange({ agendaMode: 'week' })}>W</button>
-          <button class:on={pane.agendaMode === 'list'} onclick={() => onchange({ agendaMode: 'list' })}>L</button>
-        </div>
-      {:else if pane.kind === 'timeline'}
-        <!-- The same control the agenda has had all along, for the same reason: one renderer, two
-             densities, chosen per window and remembered. Words rather than initials — there are
-             only two, and "Feed"/"List" say what they are without being learned. -->
-        <div class="seg">
-          <button
-            class:on={pane.timelineMode !== 'compact'}
-            onclick={() => onchange({ timelineMode: 'feed' })}
-            title="Each note as a post, with its picture">Feed</button>
-          <button
-            class:on={pane.timelineMode === 'compact'}
-            onclick={() => onchange({ timelineMode: 'compact' })}
-            title="One line per note">List</button>
-        </div>
-      {:else if pane.kind === 'view' && hides.length}
-        <!-- **A filtered view has to admit it.** Everything else in this chain tunes a pane; this
-             one explains it. The words come from the server (`ViewInfo.filters`), so nothing here
-             knows what a status is and a view that narrows by tag or date reads just as well.
-             The text is *visible*, not tucked into `title`: a phone has no hover, and the whole
-             point is to be legible at the moment the column looks missing. -->
-        <button type="button" class="hides" onclick={showEverything} title={hidesTitle} aria-label={hidesTitle}>
-          filtered: {hides.join(' · ')}
+      <span class="spacer"></span>
+      {#if pane.kind !== 'note'}
+        <button class="pane-close" onclick={onclose} aria-label="close pane" title="Close pane">
+          <Icon name="close" size={14} />
         </button>
-      {:else if pane.kind === 'search'}
-        <input
-          class="ctl"
-          type="search"
-          placeholder="Search…"
-          value={pane.query}
-          oninput={(e) => onchange({ query: (e.currentTarget as HTMLInputElement).value })}
-          spellcheck="false"
-          aria-label="search"
-        />
       {/if}
-      <!-- **Keeping an arrangement had no button at all.** `newView` is a command with an empty
-           default key and the palette that used to carry it is gone, so "New view" was reachable
-           only by binding a key to it in Settings — a labelled capability with no way in, which is
-           the failure `outstanding.md` §2.6b is about. Offered on the three kinds that *are* an
-           arrangement; a note, a search or an existing view is not one. -->
-      {#if onsaveview && (pane.kind === 'board' || pane.kind === 'agenda' || pane.kind === 'timeline')}
-        <button
-          type="button"
-          class="ctl save-view-btn"
-          onclick={onsaveview}
-          title="Keep this arrangement as a named view"
-          aria-label="save this view">Save view</button>
-      {/if}
-      <!-- The other half of the same decision. `delete_view` has existed end to end — command,
-           `ipc.ts`, mock — since views became saveable, with no button anywhere calling it, so a
-           view could be made from the app and then only removed with a file manager. -->
-      {#if onrenameview && pane.kind === 'view' && pane.viewName}
-        <button
-          type="button"
-          class="ctl save-view-btn"
-          onclick={onrenameview}
-          title="Give this view a different name"
-          aria-label="rename this view">Rename</button>
-      {/if}
-      {#if ondeleteview && pane.kind === 'view' && pane.viewName}
-        <button
-          type="button"
-          class="ctl save-view-btn"
-          class:armed={confirmDelete}
-          onclick={() => {
-            if (confirmDelete) {
-              confirmDelete = false;
-              ondeleteview();
-            } else {
-              confirmDelete = true;
-            }
-          }}
-          onblur={() => (confirmDelete = false)}
-          title={confirmDelete
-            ? 'Click again to delete this view. The notes it showed are not touched.'
-            : 'Delete this saved view'}
-          aria-label={confirmDelete ? 'confirm deleting this view' : 'delete this view'}
-          >{confirmDelete ? 'Delete?' : 'Delete view'}</button>
-      {/if}
-    {/if}
-
-    <span class="spacer"></span>
-    {#if pane.kind !== 'note'}
-      <button class="pane-close" onclick={onclose} aria-label="close pane" title="Close pane">
-        <Icon name="close" size={14} />
-      </button>
-    {/if}
-  </header>
+    </header>
+  {/if}
 
   <div class="pane-body" class:note-body={pane.kind === 'note'}>
     {#if pane.kind === 'note'}
@@ -549,7 +440,16 @@
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
-      <Timeline {cards} {onopen} {statuses} onstatus={onstatus} mode={pane.timelineMode ?? 'feed'} />
+      <Timeline
+        {cards}
+        {onopen}
+        {statuses}
+        onstatus={onstatus}
+        mode={pane.timelineMode ?? 'feed'}
+        counts={threadCounts}
+        {expandedId}
+        ontoggle={(id) => (expandedId = expandedId === id ? null : id)}
+        {thread} />
     {/if}
   </div>
 
@@ -565,11 +465,14 @@
   ></span>
 </section>
 
-<datalist id="pane-props">
-  <option value="status"></option>
-  <option value="project"></option>
-  <option value="tags"></option>
-</datalist>
+
+{#snippet thread(id: string)}
+  <FeedThread
+    noteId={id}
+    onposted={(n) => (threadCounts = { ...threadCounts, [id]: n })}
+    {onsaved}
+    {onopen} />
+{/snippet}
 
 <style>
   .pane {
@@ -601,7 +504,10 @@
     box-shadow: inset 0 0 0 2px var(--accent);
   }
   .grip {
-    display: inline-flex;
+    /* `none` when one view fills the screen — there is nothing to drag it against. The value is
+       set once by the arrangement (`--pane-grip` in `App.svelte`); the fallback keeps this
+       component sane if it is ever mounted outside the app shell, as the tests do. */
+    display: var(--pane-grip, inline-flex);
     align-items: center;
     flex: none;
     color: var(--text-muted);
@@ -613,6 +519,8 @@
   }
   /* A small triangular handle in the bottom-right corner; drag it to resize. */
   .resize-grip {
+    /* Likewise: nothing to resize a lone pane relative to. */
+    display: var(--pane-resize, block);
     position: absolute;
     right: 0;
     bottom: 0;
@@ -655,87 +563,24 @@
   .pane-head:active {
     cursor: grabbing;
   }
-  /* The interactive controls sit above the header's grab cursor — they keep their own. */
-  .pane-head .seg button,
+  /* The close button sits above the header's grab cursor and keeps its own. The controls in
+     `ViewControls` set theirs there — Svelte scoping stops this file reaching into a child. */
   .pane-head .pane-close {
     cursor: pointer;
-  }
-  .pane-head .ctl {
-    cursor: auto;
   }
   /* **A name, not a button.** It carried a border and a surface because it used to be pressable;
      dressing a label as a control is the affordance lie this file has a comment about elsewhere.
      Quiet, and it stays out of the way of the controls that *are* pressable beside it. */
   .kind {
     font: inherit;
-    font-size: 0.85rem;
+    /* **With one view on screen, this name is the chrome.** The arrangement sets the size:
+       larger when the pane fills the window, back to a label when it is one tile among several
+       and the grid is doing the explaining. */
+    font-size: var(--view-name, 0.85rem);
     font-weight: 500;
     color: var(--text);
     padding: 2px 0;
     white-space: nowrap;
-  }
-  /* Sized to the header rather than to its text: the sentence can be long (several filter
-     entries), and a chip that pushed the close button off the end would trade one lost control
-     for another. It clips, and `title`/`aria-label` carry the whole thing. */
-  .hides {
-    font: inherit;
-    font-size: 0.85rem;
-    min-width: 0;
-    max-width: 14rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    background: var(--surface);
-    color: var(--muted);
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-sm);
-    padding: 2px 6px;
-    cursor: pointer;
-  }
-  .hides:hover {
-    color: var(--text);
-    border-color: var(--accent);
-  }
-  .save-view-btn {
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  /* Armed for the second click. Colour alone would be the only signal for a reader who cannot see
-     it, so the label changes too ("Delete view" → "Delete?") and the accessible name with it. */
-  .save-view-btn.armed {
-    background: var(--danger-bg);
-    color: var(--danger-fg);
-    border-color: var(--danger-fg);
-  }
-  .ctl {
-    font: inherit;
-    font-size: 0.85rem;
-    min-width: 0;
-    width: 8rem;
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 2px 6px;
-  }
-  .seg {
-    display: inline-flex;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-  }
-  .seg button {
-    font: inherit;
-    font-size: 0.8rem;
-    padding: 2px 7px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-  }
-  .seg button.on {
-    background: var(--accent);
-    color: var(--accent-contrast);
   }
   .spacer {
     flex: 1;

@@ -715,7 +715,16 @@ pub fn recent(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
         sort: vec![SortKey::desc("created")],
         ..Default::default()
     };
-    Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
+    // **The one caller that fills `excerpt`.** The feed is the only surface that reads more than a
+    // line, and the body is already in memory here — `ObjectMeta::from` reads it to build
+    // `preview` — so this costs no extra I/O, no second query and no index change. Every other
+    // list keeps the one-line `preview` it clamps anyway.
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .map(|o| ObjectMeta { excerpt: crate::dto::excerpt_of(&o.body), ..ObjectMeta::from(o) })
+        .collect())
 }
 
 /// Every open proposal in one vault — the notes carrying a well-formed `proposes: branch:<name>`,

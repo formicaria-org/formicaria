@@ -208,6 +208,25 @@ The gray-screen fix and its tests are in
   `decoding="async"` in `render.ts`, so off-screen images cost nothing; the on-screen ones still
   decode at full camera resolution.
 
+- **Anything that only happens on the vault heartbeat is untestable in jsdom.** The repeating
+  `ping` interval is behind `if (!import.meta.env.PROD) return` (`App.svelte`, deliberately — a
+  repeating interval under Vitest is its own bug), so exactly one beat runs at mount and `vaultTick`
+  never bumps. Found 2026-08-31 while trying to pin the theme-escape re-arm bug: the test passed
+  identically with and without the fix. **Check that a new test fails without its fix**; for this
+  class it cannot, and the honest answer is to say so rather than ship a green tick that means
+  nothing.
+
+- **A UI change is not on the owner's screen until `pixi run build` — `ui/dist` freshness proves
+  nothing.** `fm-serve` serves the copy of the UI **baked into the binary** unless `FM_UI_DIST` is
+  set (`crates/fm-serve/src/main.rs:1109-1111`), and the desktop icon — which is how the owner
+  actually launches it — sets only `FM_OPEN`/`FM_AUTO_SHUTDOWN` (`packaging/formicaria.sh`).
+  `FM_UI_DIST` is the **dev** path (`pixi run serve`), and only there does a rebuilt `ui/dist` plus
+  a reload show new work. On 2026-08-31 this cost a full review round: two rounds of UI work were
+  finished, `ui/dist` was verified fresh, the owner was told to reload, and they reported three
+  already-fixed faults because the binary was four hours old. **Check `target/release/fm-serve`'s
+  mtime against `ui/src`, never `ui/dist`'s.** The failure is silent in both directions — nothing
+  warns, and the result looks like a broken change rather than an old one.
+
 - **The owner's phone has no diagnostic channel except the app's own UI.** `eprintln!`/stdout
   never reaches logcat from a Tauri Android shell, and — found the hard way on 2026-07-20 — the
   WebView routes **no `console.*` output there either**: a signed, installed, MD5-verified build
@@ -220,22 +239,13 @@ The gray-screen fix and its tests are in
   binary Android does not have. Losing notes is bad; losing the only copy of a photo is worse, and
   capture makes that materially more likely. No answer yet.
 
-- **`env(safe-area-inset-*)` is 0 in the Android WebView, so every full-screen surface needs a floor.**
-  wry does not forward the window insets into the page, and Android 15 forces edge-to-edge — so a
-  full-screen panel paints *under* the status bar and the navigation bar. `app.css` floors the top inset
-  on coarse pointers; the bottom floor is 0.5rem, which clears a gesture pill but **not a 3-button
-  navigation bar**. Found on the owner's phone 2026-07-31: `UnrecordedPanel`'s primary button was half
-  under the system bar and the line below it invisible, which one screenshot showed and no test could.
-  Each full-screen surface therefore floors its own bottom padding (see that panel) rather than raising
-  the global and shifting every other surface sight-unseen. **The real fix is named and unbuilt**: the
-  shell should read `WindowInsetsCompat` and hand the values to the page, the way it hands over
-  `FM_CONFIG_DIR` — a platform fact only the platform has.
-- **Every narrow-layout CSS rule in `App.svelte` must be written twice.** Once for
-  `[data-layout='single']` and once inside `@media (max-width: 60rem)` for `[data-layout='auto']`,
-  because `auto` is the default and a phone therefore never matches a `single` rule. Writing only
-  one half is **silent** — it shipped twice on 2026-07-19. There is no way to express "narrow
-  right now" in one place without viewport-tracking TypeScript, which the layout design
-  deliberately avoids.
+- **A phone surface must not invent its own inset number.** The shell reads `WindowInsetsCompat`
+  and writes the real values into `--safe-*` (2026-08-31), and `app.css` keeps a floor beneath them
+  for the moment before that fires. Both of those are *shared*. What still bites is a surface that
+  reads raw `env(safe-area-inset-*)` or hard-codes a pixel offset: it gets neither the real value
+  nor the fallback. Three did — `.board-exit`, `.theme-escape`, and `UnrecordedPanel`'s local
+  `3.25rem` guess — and each was found on the owner's device, by a screenshot, never by a test.
+  **Read the tokens.**
 
 - **The Android git token is app-private storage, not the Keystore.** The owner chose
   hardware-backed; what shipped is a 0600 file in the app's private directory. The kernel

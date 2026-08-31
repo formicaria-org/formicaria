@@ -491,8 +491,12 @@ ship-with-UI — are addressed.
   *exposed*", `decisions.md:460`).
 - **Merge/delete** — corruption-path writes; their own decision and **both** backends (`git.rs` *and*
   `git_native.rs`, or the phone regresses to the bug that seam exists to prevent).
-- **Minor:** a `perf.rs` budget for `thread()` (measured ~170 ms at 30k notes) — the one 7-item finding
-  not yet covered by a test; add it before a comments panel makes it hot.
+- ~~**Minor:** a `perf.rs` budget for `thread()`~~ — **done 2026-08-31**, and the comments panel it
+  was meant to precede landed with it (`crates/fm-app/tests/perf.rs`). Measured: 56.7 µs/note at
+  2k, 51.5 µs/note at 8k — **linear in the corpus, growth 0.91x**. The budget asserts that shape
+  rather than a duration, because the honest finding is that `thread()` is corpus-linear *by
+  design* (a bare `NoteRef` with no `Kind` conjunct cannot push down), which is precisely why the
+  feed reads counts from `thread_roots` and calls `thread()` only when a reader opens one.
 
 **Not doing (v1):** cloud LLM agents reviewing notes — `MASTERPLAN.md:63`. A *local, contained*
 study-assistant agent is planned but **gated** (`ai-agents-plan.md` Part III); its `propose_branch`

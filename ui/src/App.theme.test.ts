@@ -13,10 +13,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, afterEach, expect, test, vi } from 'vitest';
 
-const { readTheme } = vi.hoisted(() => ({ readTheme: vi.fn() }));
+const { readTheme, ping } = vi.hoisted(() => ({ readTheme: vi.fn(), ping: vi.fn() }));
 vi.mock('./lib/ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./lib/ipc')>()),
   readTheme,
+  ping,
 }));
 
 import App from './App.svelte';
@@ -35,6 +36,11 @@ beforeEach(() => {
   });
   clearFaults();
   readTheme.mockResolvedValue(':root { --bg: #f4f1ea; }');
+  // The mock vault never moves (`changed: false`), so the heartbeat is stubbed per-test where a
+  // test needs it to report one.
+  ping.mockResolvedValue({
+    changed: false, generation: 0, git: true, restic: false, skipped: [], unopened_vaults: [],
+  });
   document.getElementById('fm-theme')?.remove();
 });
 afterEach(() => {
@@ -108,3 +114,11 @@ test('no stored theme means nothing is fetched and nothing is injected', async (
   expect(readTheme).not.toHaveBeenCalled();
   expect(document.getElementById('fm-theme')).toBeNull();
 });
+
+/// **Not tested here, and that is a statement rather than an omission.** The bug this file would
+/// most like to pin — the escape control coming back after every edit — travels through the vault
+/// heartbeat, and the repeating heartbeat is production-only (`App.svelte`: "a repeating interval
+/// under Vitest is its own bug"). Under jsdom exactly one beat runs, at mount, so there is no way
+/// to make the theme effect re-run for an already-proven theme. A test written against it passes
+/// whether the fix is present or not, which is worse than no test. The guard is `armedFor` in
+/// `App.svelte`; verify it by using the app, not by reading a green tick here.

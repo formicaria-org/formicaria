@@ -569,6 +569,8 @@ fn dispatch_inner(
                             kind: "note".into(),
                             title: Some("a note deleted here and edited elsewhere".into()),
                             preview: format!("Unmerged in \u{201c}{}\u{201d}.", cfg.name),
+                            // Only the feed carries one, and a conflict placeholder never reaches it.
+                            excerpt: None,
                             status: None,
                             due: None,
                             start: None,

@@ -100,8 +100,8 @@
   }: {
     onclose: () => void;
     onbackup: () => void;
-    layout: 'auto' | 'tiled' | 'single';
-    onlayout: (l: 'auto' | 'tiled' | 'single') => void;
+    layout: 'single' | 'tiled';
+    onlayout: (l: 'single' | 'tiled') => void;
     /** `auto` tracks the number of open views; a number pins the grid width. */
     columns: number | 'auto';
     oncolumns: (c: number | 'auto') => void;
@@ -379,19 +379,19 @@
       <section>
         <h3>Layout</h3>
         <p class="muted">
-          How views are arranged. <strong>Single</strong> is reachable here on any machine on
-          purpose — a narrow layout only a phone could run would be a second frontend wearing a
-          setting, and nothing would exercise it during ordinary desktop work.
+          How views are arranged. <strong>One view</strong> is the default everywhere, including
+          this machine — a narrow layout only a phone could run would be a second frontend wearing
+          a setting, and nothing would exercise it during ordinary desktop work.
         </p>
         <ul class="caps">
-          {#each [['auto', 'Automatic', 'Tiled when there is room, single when there is not.'], ['tiled', 'Tiled', 'The pane grid, always.'], ['single', 'Single', 'One view at a time, with a switcher.']] as [value, label, why] (value)}
+          {#each [['single', 'One view', 'The default. One at a time; the strip along the bottom moves between the ones you have open.'], ['tiled', 'Tiled', 'The pane grid — several views side by side.']] as [value, label, why] (value)}
             <li>
               <label class="choice">
                 <input
                   type="radio"
                   name="layout"
                   checked={layout === value}
-                  onchange={() => onlayout(value as 'auto' | 'tiled' | 'single')} />
+                  onchange={() => onlayout(value as 'single' | 'tiled')} />
                 <span class="k">{label}</span>
                 <span class="muted">{why}</span>
               </label>

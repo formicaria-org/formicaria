@@ -4,11 +4,13 @@
   import Pane from './lib/Pane.svelte';
   import {
     newPane,
-    reidentify,
     distinctFeeds,
     feedKey,
     reorder,
     rendererKind,
+    autoCols,
+    matchesTarget,
+    migrateWorkspace,
     BUILTIN_PANES,
     OPENABLE_PANES,
     RAIL_PANES,
@@ -37,13 +39,11 @@
     alive,
     listVaults,
     listViews,
-    saveView,
-    deleteView,
-    renameView,
     readTheme,
     createPaper,
     runView,
     activity as fetchActivity,
+    threadRoots,
     backupStatus,
     duplicates,
     pruneDuplicates,
@@ -51,7 +51,7 @@
     unrecorded,
     recordUnrecorded,
   } from './lib/ipc';
-  import { setActivity, lastEditFor, contributors, authorKey } from './lib/activity.svelte';
+  import { setActivity, lastEditFor } from './lib/activity.svelte';
   import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
@@ -72,24 +72,31 @@
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
   // fetched data keyed by feed (panes sharing a feed share one fetch). `focused` is the pane
   // keyboard/new-pane actions target.
-  function loadWorkspace(): Workspace {
+  /// Read the persisted workspace **once**. The parsing, the id re-minting, the clamping and the
+  /// layout migration all live in `migrateWorkspace` (pure, and therefore testable without
+  /// rendering the whole app); this only supplies the string and reports whether anything moved.
+  ///
+  /// It used to be called *twice* — once for `workspace` and again for `focused` — which parsed
+  /// `localStorage` twice and, worse, re-minted two independent sets of pane ids.
+  function loadWorkspace(): { workspace: Workspace; migrated: boolean } {
+    let raw: unknown = null;
     try {
-      const w = JSON.parse(localStorage.getItem('fm-workspace') ?? 'null');
-      if (w && Array.isArray(w.panes) && w.panes.length && typeof w.cols === 'number') {
-        // Re-mint pane ids: the counter resets each load, so ids persisted by an older session
-        // can collide and crash the keyed {#each}. Fresh ids are always unique.
-        return { ...w, panes: reidentify(w.panes) };
-      }
+      raw = JSON.parse(localStorage.getItem('fm-workspace') ?? 'null');
     } catch {
-      /* fall through to default */
+      /* fall through to the default */
     }
-    return { cols: 2, layout: 'auto', panes: [newPane('board')] };
+    return migrateWorkspace(raw);
   }
-  let workspace = $state<Workspace>(loadWorkspace());
+  const loaded = loadWorkspace();
+  let workspace = $state<Workspace>(loaded.workspace);
   let feeds = $state<Record<string, Feed>>({});
+  /// How many messages each note's discussion holds — the feed's reply badges. Read like
+  /// `lastEditFor`: one fetch, a map, every row a lookup.
+  let threadCounts = $state<Record<string, number>>({});
   // Which pane is showing in `single`, and the focus ring in `tiled`. Seeded from the
-  // persisted workspace so reopening the app lands where you left it.
-  let focused = $state(loadWorkspace().active ?? 0);
+  // persisted workspace so reopening the app lands where you left it — already clamped into
+  // range by `migrateWorkspace`, because an out-of-range active pane renders a blank app.
+  let focused = $state(loaded.workspace.active ?? 0);
   let searchQuery = $state(''); // the top-bar global search box
   let error = $state<string | null>(null);
   // Whether the current `error` is one `refresh()` raised (a feed that failed to load, which
@@ -108,6 +115,9 @@
       /* private mode — the workspace just won't persist this session */
     }
   }
+  // **Stamp a migrated record straight away.** Otherwise the one-time layout move re-runs on
+  // every load, and a `tiled` chosen *after* the migration would be undone by the next one.
+  if (loaded.migrated) persistWorkspace();
   function addPane(kind: PaneKind, over: Partial<PaneT> = {}) {
     if (workspace.panes.length >= MAX_PANES) {
       notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
@@ -118,6 +128,30 @@
     focused = workspace.panes.length - 1;
     persistWorkspace();
     void refresh();
+  }
+  /** **Reuse before you add.** With one view at a time as the default, tapping a view's name
+   *  means "show me that" — appending a window answers a question nobody asked, and on a phone
+   *  it also spends a feed and whatever scroll position the old one had.
+   *
+   *  This generalises two retargets the code had already grown by hand for exactly this reason:
+   *  `openNoteInPane` never opened a note twice, and `onSearchInput` re-pointed the single search
+   *  pane. `matchesTarget` owns what counts as "the same thing". See `decisions.md`, 2026-08-31 —
+   *  it reverses the previous entry's "a window can no longer be re-pointed".
+   *
+   *  The `changed` guard is not an optimisation detail: `changePane` calls `refresh()`, so
+   *  re-focusing an already-correct board would otherwise cost a fetch every time you tapped its
+   *  name. `App.phone.test.ts` budgets exactly that. */
+  function focusOrOpen(kind: PaneKind, over: Partial<PaneT> = {}) {
+    const at = workspace.panes.findIndex((p) => matchesTarget(p, kind, over));
+    if (at === -1) {
+      addPane(kind, over);
+      return;
+    }
+    const pane = workspace.panes[at];
+    const changed = Object.entries(over).filter(([k, v]) => pane[k as keyof PaneT] !== v);
+    focused = at;
+    if (changed.length) changePane(pane.id, Object.fromEntries(changed));
+    else persistWorkspace(); // mounted and already fetched — nothing to refresh
   }
   function closePane(id: string) {
     const filtered = workspace.panes.filter((p) => p.id !== id);
@@ -142,15 +176,6 @@
   function setLayout(layout: Layout) {
     workspace = { ...workspace, layout };
     persistWorkspace();
-  }
-
-  /** The column count for `n` panes: tracks the pane count unless it has been pinned.
-   *
-   *  Capped at 4 — beyond that a pane is too narrow to read, and wrapping to a second row is
-   *  the honest answer rather than eight slivers. */
-  function autoCols(n: number, w: Workspace): number {
-    if (w.colMode === 'fixed') return w.cols;
-    return Math.max(1, Math.min(n, 4));
   }
 
   /** Pin the column count, or hand it back to `auto`. A view preference, like the layout. */
@@ -269,8 +294,17 @@
     }
   }
 
+  /// Which selection the boot guard is currently armed for. **Arming is once per theme, not once
+  /// per run of the effect below** — the effect re-runs on every `vaultTick`, and `vaultTick` bumps
+  /// whenever `ping` sees the vault move, *including the user's own writes*. So every edit used to
+  /// re-arm the guard and put the escape button back on screen seconds after it was dismissed:
+  /// "I continuously see the Turn off … in the bottom right", reported 2026-08-31. Each re-arm also
+  /// added five more capture-phase document listeners without removing the previous set.
+  let armedFor = $state<string | null>(null);
+
   /// Fetch and apply whatever is selected. Re-runs when the selection changes and when the
   /// generation moves, so an edit on another machine (or in the other pane) lands without a timer.
+  /// **Re-applying the CSS on a tick is the feature; re-arming was the bug.**
   $effect(() => {
     const sel = userTheme;
     void vaultTick;
@@ -278,12 +312,19 @@
       appearance.clear();
       appearance.disarm();
       themeUnproven = false;
+      armedFor = null;
       return;
     }
+    const key = `${sel.vault}\u0000${sel.name}`;
     void readTheme(sel.name, sel.vault)
       .then((css) => {
-        appearance.arm(() => (themeUnproven = false));
-        themeUnproven = true;
+        // A theme that is already proven stays proven: the question the guard asks is "can anyone
+        // reach anything with this theme on", and that was answered the first time.
+        if (armedFor !== key) {
+          armedFor = key;
+          appearance.arm(() => (themeUnproven = false));
+          themeUnproven = true;
+        }
         appearance.apply(css);
       })
       .catch(() => {
@@ -363,32 +404,17 @@
       .catch(() => (templates = []));
   }
 
-  // Contributor filter — the git-authorship twin of the vault filter. `contributors()` (reactive,
-  // from the activity module) drives the chips; `hiddenAuthors` is a HIDE list like `hiddenVaults`,
-  // persisted the same way. A note whose last editor is hidden is filtered out; a note git knows
-  // nothing about (no author) is always shown, so the filter never hides un-attributed notes.
-  let hiddenAuthors = $state<string[]>(
-    (() => {
-      try {
-        return JSON.parse(localStorage.getItem('fm-hidden-authors') ?? '[]');
-      } catch {
-        return [];
-      }
-    })(),
-  );
-  const allContributors = $derived(contributors());
-  // Reads `hiddenVaults`, `hiddenAuthors` and `lastEditFor` — all reactive — so a pane's
-  // `.filter(shown)` re-runs when any of them change (the reads happen inside the derived).
-  const shown = (n: { id: string; vault: string }) => {
-    if (n.vault && hiddenVaults.includes(n.vault)) return false;
-    // **Keyed by identity, not by name spelling.** The chips deduplicate one person by email; this
-    // used to compare the author *name*, so hiding a chip hid only the spelling it was labelled
-    // with — notes last edited under another spelling of the same person stayed visible while the
-    // chip read "hidden". One vault here had 534 commits as `singhbal-baljinder` and 77 as
-    // `Baljinder`, one email (2026-07-31).
-    const last = lastEditFor(n.id);
-    return !last || !hiddenAuthors.includes(authorKey(last));
-  };
+  /// **The contributor filter was removed on 2026-08-31.** It was a row of collaborator names in
+  /// the chrome, the twin of the vault filter, and the owner asked for it gone from the desktop
+  /// and the phone alike: it filtered something nobody filtered by, and on a small screen it was
+  /// a third of the chrome. Nothing about *identity* changed — every "edited by" label, its
+  /// colour hash, and the Activity stream are untouched, and the single `activity` fetch that fed
+  /// all three keeps its other two consumers. `fm-hidden-authors` is simply no longer read, so a
+  /// stale entry in someone's storage is inert. See `decisions.md`, 2026-08-31.
+  ///
+  /// Reads `hiddenVaults`, and is called from inside a `$derived`, so a pane's `.filter(shown)`
+  /// re-runs when the filter changes.
+  const shown = (n: { id: string; vault: string }) => !(n.vault && hiddenVaults.includes(n.vault));
 
   function toggleVault(name: string) {
     hiddenVaults = hiddenVaults.includes(name)
@@ -398,17 +424,6 @@
       localStorage.setItem('fm-hidden-vaults', JSON.stringify(hiddenVaults));
     } catch {
       // A browser that won't remember the preference still honours it this session.
-    }
-  }
-  /// Takes the contributor **key** (email-based), not a display name — see `shown` above.
-  function toggleAuthor(key: string) {
-    hiddenAuthors = hiddenAuthors.includes(key)
-      ? hiddenAuthors.filter((a) => a !== key)
-      : [...hiddenAuthors, key];
-    try {
-      localStorage.setItem('fm-hidden-authors', JSON.stringify(hiddenAuthors));
-    } catch {
-      // Honoured this session even if it can't be remembered.
     }
   }
   // What the palette should be pre-filtered to when it opens. The toolbar's two "+" buttons
@@ -442,9 +457,26 @@
   let searchEl = $state<HTMLInputElement | undefined>(undefined);
   let createOpen = $state(false);
   let searchOpen = $state(false);
+  let vaultMenuOpen = $state(false);
+  /// **The filter states itself.** A row of chips said "something is hidden" only in colour, which
+  /// is how a vault hidden weeks ago comes to read as notes that have gone missing. The trigger
+  /// says how many of how many, so the answer to "where is that note?" is on the button.
+  const vaultFilterLabel = $derived(
+    hiddenVaults.length === 0
+      ? 'All vaults'
+      : `${allVaults.length - hiddenVaults.length} of ${allVaults.length} vaults`,
+  );
 
-  /** Open the collapsed search and put the caret in it. */
+  /** Open the collapsed search and put the caret in it.
+   *
+   *  **It expands the panel first, because otherwise this button makes search disappear.** In a
+   *  collapsed rail `.app.panel-collapsed .topbar .searchfield` (four classes) hides the field,
+   *  outranking `.search-slot.open .searchfield` (three) — while `.search-slot.open .search-btn`
+   *  hides the lens you just pressed. So `searchOpen = true` on a collapsed panel hid *both*
+   *  halves and the search was simply gone from the chrome. Widening the rail is also the honest
+   *  answer to the gesture: you asked for a field, so give it somewhere to be. */
   async function openSearch() {
+    if (!panelOpen) togglePanel();
     searchOpen = true;
     await tick(); // the input does not exist until the branch renders
     searchEl?.focus();
@@ -469,6 +501,8 @@
     { group: 'Create', label: 'New board', run: onNewBoard },
     { group: 'Create', label: 'New discussion', run: onNewDiscussion },
     { group: 'Create', label: 'New paper', run: onNewPaper },
+    // **The one deliberate `addPane`.** Everything else re-points an existing window; this is
+    // where someone explicitly asks for another, and the way into a `tiled` arrangement.
     { group: 'Create', label: 'New window', run: () => addPane('board') },
   ];
 
@@ -485,7 +519,7 @@
     })),
   ]);
 
-  // Commands surfaced in the ⌘K palette (label + action). "Open …" adds a pane.
+  // Commands surfaced in the ⌘K palette (label + action). "Open …" shows that view.
   /// **Every view you can open, in one place.** The panel lists these down the left and the action
   /// list offers the same set as "Open …" — computed once so the two cannot say different things.
   /// Two half-menus disagreeing is exactly how the old command palette drifted into a second
@@ -499,7 +533,9 @@
       label: b.label,
       icon: b.icon,
       saved: false,
-      run: () => addPane(b.kind),
+      // **Show it, do not stack it.** One edit covers the rail, the bar's Views menu and the
+      // palette, because all three are built from this one list.
+      run: () => focusOrOpen(b.kind),
     })),
     ...(views ?? [])
       .filter((v) => !v.error)
@@ -510,7 +546,7 @@
           BUILTIN_PANES.find((b) => b.kind === rendererKind(v.renderer ?? 'timeline'))?.icon ??
           'timeline',
         saved: true,
-        run: () => addPane('view', { viewName: v.name }),
+        run: () => focusOrOpen('view', { viewName: v.name }),
       })),
   ];
 
@@ -545,17 +581,6 @@
     // thing that holds one. Opening a window already on the right view is strictly less work.
     ...paletteTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
     { group: 'Vault', label: 'Back up the vault', run: onBackup, command: 'backup' as keys.Command },
-    // **`newView` had no entry anywhere.** It is a command with an empty default binding, and the
-    // pane-header button only appears on a board, an agenda or a timeline — so "keep this
-    // arrangement" was a capability you could only learn about by reading a source comment or
-    // binding a key to a name you had never seen. Listing it here is how it becomes findable, and
-    // the binding chip beside it is how "unbound" becomes visible instead of silent.
-    {
-      group: 'This view',
-      label: 'Keep this arrangement as a view',
-      run: () => run('newView'),
-      command: 'newView' as keys.Command,
-    },
     {
       group: 'This view',
       label: 'Close this view',
@@ -595,9 +620,6 @@
       case 'newNote':
         void onNew();
         break;
-      case 'newView':
-        void saveCurrentView();
-        break;
       case 'focusSearch':
         searchEl?.focus();
         break;
@@ -611,6 +633,13 @@
   }
 
   function onGlobalKey(e: KeyboardEvent) {
+    // **The one menu that needs Escape.** The others close on their next click, because a click is
+    // the only thing you do in them. This one stays open across clicks by design, so without this
+    // the only way out is a click on the backdrop — and a keyboard user has none.
+    if (e.key === 'Escape' && vaultMenuOpen) {
+      vaultMenuOpen = false;
+      return;
+    }
     // **Typing wins, except for the commands that are not text.** A bare `c` must type a `c`,
     // so the editor is protected — but protecting it wholesale is why a note, once open, could
     // not be left without closing it: no navigation reached the handler at all. `WHILE_TYPING`
@@ -699,6 +728,13 @@
     // an old/absent git is not an error here.
     void fetchActivity()
       .then(setActivity)
+      .catch(() => {});
+    // **One call for every post's reply count.** `thread()` is a whole-corpus read, so a count per
+    // row would be thirty of those behind one mutex; `thread_roots` returns every root's count in
+    // one pass and is already what the study agent watches. Fired here, beside `activity`, and for
+    // the same reasons: it enriches the feed and must never hold up the notes.
+    void threadRoots()
+      .then((rs) => (threadCounts = Object.fromEntries(rs.map((r) => [r.id, r.count]))))
       .catch(() => {});
     const keys = distinctFeeds(workspace.panes);
     try {
@@ -1153,103 +1189,11 @@
 
   let viewsOpen = $state(false);
   let helpOpen = $state(false);
-  let saveViewOpen = $state(false);
-  let saveViewName = $state('');
-  let saveViewTag = $state('');
-  let saveViewKind = $state<'board' | 'agenda' | 'timeline'>('board');
-
-  /// The same dialog, asked a different question. Renaming an existing view and naming a new one
-  /// are the same interaction — a name, then confirm — and giving the rare one its own surface is
-  /// how a panel becomes two panels that disagree.
-  let renameViewFrom = $state<string | null>(null);
-
-  function renameCurrentView() {
-    const pane = workspace.panes[focused];
-    if (pane?.kind !== 'view' || !pane.viewName) return;
-    renameViewFrom = pane.viewName;
-    saveViewName = pane.viewName;
-    saveViewTag = '';
-    saveViewOpen = true;
-  }
-
-  async function confirmRenameView() {
-    const from = renameViewFrom;
-    const to = saveViewName.trim();
-    if (!from || !to) return;
-    const info = views.find((v) => v.name === from);
-    try {
-      views = await renameView(from, to, info?.vault ?? '');
-      // Every pane showing it follows, or they are pointing at a file that has moved.
-      for (const p of workspace.panes) {
-        if (p.kind === 'view' && p.viewName === from) changePane(p.id, { viewName: to });
-      }
-      saveViewOpen = false;
-      renameViewFrom = null;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  function saveCurrentView() {
-    const pane = workspace.panes[focused];
-    const kind = pane?.kind;
-    if (kind !== 'board' && kind !== 'agenda' && kind !== 'timeline') {
-      error = 'Open a board, agenda or timeline first — that is the arrangement a view saves.';
-      return;
-    }
-    saveViewKind = kind;
-    saveViewName = '';
-    saveViewTag = '';
-    renameViewFrom = null;
-    saveViewOpen = true;
-  }
-
-  function submitViewDialog() {
-    return renameViewFrom ? confirmRenameView() : confirmSaveView();
-  }
-
-  async function confirmSaveView() {
-    const name = saveViewName.trim();
-    if (!name) return;
-    const pane = workspace.panes[focused];
-    try {
-      views = await saveView(
-        name,
-        saveViewKind,
-        saveViewKind === 'board' ? pane.groupBy : '',
-        '',
-        saveViewTag.trim(),
-      );
-      saveViewOpen = false;
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  /// Remove the saved view this pane is showing, and leave the pane somewhere real.
-  ///
-  /// **The vault has to come from the view, not from the default.** `list_views` spans every vault
-  /// and `delete_view` resolves the name against one — so passing the default would find nothing
-  /// for a view living elsewhere and report success having deleted nothing. `ViewInfo.vault` exists
-  /// for this call.
-  async function deleteCurrentView() {
-    const pane = workspace.panes[focused];
-    const name = pane?.viewName;
-    if (pane?.kind !== 'view' || !name) return;
-    const info = views.find((v) => v.name === name);
-    try {
-      views = await deleteView(name, info?.vault ?? '');
-      // The pane is showing a file that no longer exists. Step it back to the built-in the view
-      // shadowed, keeping any grouping — the same landing `showEverything` uses, for the same
-      // reason: never leave someone looking at a pane that cannot draw.
-      changePane(pane.id, {
-        kind: info?.renderer ? rendererKind(info.renderer) : 'timeline',
-        viewName: null,
-      });
-    } catch (e) {
-      error = e instanceof Error ? e.message : String(e);
-    }
-  }
+  /// **Saving, renaming and deleting a view left the UI on 2026-08-31.** The dialog, its state and
+  /// the three functions that drove it are gone: *"views are basically fixed for now and view
+  /// customization will need its own design plan."* `saveView`/`renameView`/`deleteView` remain in
+  /// `ipc.ts` and in `fm-app`, and `listViews`/`runView` below are untouched — a `.view` file still
+  /// lists in the rail and still opens. See `decisions.md`, 2026-08-31.
 
   $effect(reloadTemplates);
 
@@ -1259,12 +1203,10 @@
   // way a note reaches the screen now: a card click, a followed `note:` chip, or a fresh note.
   function openNoteInPane(id: string, opts: { editing?: boolean } = {}) {
     if (opts.editing) editingId = id;
-    const at = workspace.panes.findIndex((p) => p.kind === 'note' && p.noteId === id);
-    if (at !== -1) {
-      focused = at;
-      return;
-    }
-    addPane('note', { noteId: id });
+    // The hand-written version of `focusOrOpen`, which is now the shared one. Still load-bearing
+    // rather than merely tidy: two editors open on one note race each other through
+    // `update_body`, so a note must never be opened twice.
+    focusOrOpen('note', { noteId: id });
   }
 
   // "New note": create a blank note and open it straight in the editor (property
@@ -1390,9 +1332,13 @@
   function onSearchInput() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
-      const existing = workspace.panes.find((p) => p.kind === 'search');
-      if (existing) changePane(existing.id, { query: searchQuery });
-      else if (searchQuery.trim()) addPane('search', { query: searchQuery });
+      // **And it becomes the visible one.** The old version re-pointed the search pane but never
+      // moved `focused`, which was invisible while every pane was on screen and a dead keypress
+      // the moment one view at a time became the default: a second query changed nothing you
+      // could see. `focusOrOpen` cannot express that bug — focusing is what it does.
+      if (searchQuery.trim() || workspace.panes.some((p) => p.kind === 'search')) {
+        focusOrOpen('search', { query: searchQuery });
+      }
     }, 250);
   }
 
@@ -1743,7 +1689,7 @@
     onretry={loadVaults}
   />
 {:else}
-<div class="app" data-layout={workspace.layout ?? 'auto'} class:panel-collapsed={!panelOpen}>
+<div class="app" data-layout={workspace.layout ?? 'single'} class:panel-collapsed={!panelOpen}>
   <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
        everything. Narrow: the same element as a bar along the bottom, where a thumb can reach it.
        Nothing is duplicated and nothing is platform-branched — it is the container that changes,
@@ -1800,6 +1746,32 @@
                 onclick={() => ((createOpen = false), item.run())}>{item.label}</button>
             </li>
           {/each}
+          <!-- **Where it lands, asked where you decide it** (2026-08-31). This was a permanent
+               `in <select>` in the chrome: a control on screen at all times for a choice you make
+               only while creating something, and on a narrow bar it cost a whole row. It belongs
+               to the ＋ menu, so it lives in the ＋ menu.
+
+               **`menuitemradio`, and the click does not close.** One-of-many, unlike the vault
+               *filter* beside it — and you almost always pick the destination and then pick what
+               to make, so closing here would mean opening the menu twice for one note. -->
+          {#if allVaults.length > 1}
+            <li class="menu-sep" role="separator"></li>
+            <li class="menu-head" role="presentation">Create in</li>
+            {#each allVaults as v (v)}
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={(createTarget || defaultVault) === v}
+                  onclick={() => setCreateVault(v)}>
+                  <span class="tick" aria-hidden="true"
+                    >{(createTarget || defaultVault) === v ? '✓' : ''}</span
+                  >
+                  {labelFor(v)}
+                </button>
+              </li>
+            {/each}
+          {/if}
         </ul>
       {/if}
     </div>
@@ -1843,24 +1815,6 @@
       </button>
     </div>
 
-    {#if allVaults.length > 1}
-      <!-- Where new notes/boards land. A destination, not a permission — it only picks the
-           folder the file is written to. -->
-      <label class="tb-cols tb-create" title="Create new notes in this vault">
-        in
-        <select
-          value={createTarget || defaultVault}
-          onchange={(e) => setCreateVault((e.currentTarget as HTMLSelectElement).value)}
-          aria-label="create in vault"
-        >
-          <!-- Value is the vault **name** (the identity every command takes); text is its label.
-               This selector still showed the raw name while the filter chips beside it showed the
-               repository name, so one vault appeared under two names on one screen — which is exactly
-               the confusion the labels exist to remove. Caught on the phone, 2026-07-31. -->
-          {#each allVaults as v (v)}<option value={v}>{labelFor(v)}</option>{/each}
-        </select>
-      </label>
-    {/if}
 
     <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
          a bar, so the rail is hidden and this opens the identical `viewTargets` in a menu. Without
@@ -1916,41 +1870,51 @@
 
 
     {#if allVaults.length > 1}
-      <div class="vaults" aria-label="vault filter">
-        <!-- Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults` persists),
-             labelled with what the repository is called — see `vaultLabels.svelte.ts`. -->
-        {#each allVaults as v (v)}
-          <button
-            class="vault-chip"
-            class:off={hiddenVaults.includes(v)}
-            aria-pressed={!hiddenVaults.includes(v)}
-            onclick={() => toggleVault(v)}
-            title={hiddenVaults.includes(v) ? `Show ${labelFor(v)}` : `Hide ${labelFor(v)}`}
-          >
-            <span class="lbl">{labelFor(v)}</span>
-          </button>
-        {/each}
-      </div>
-    {/if}
+      <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
+           list: it wrapped the bar onto extra rows and, collapsed, showed slivers of names. A menu
+           costs one control whatever the list does.
 
-    {#if allContributors.length > 1}
-      <!-- Contributor filter — the git-authorship twin of the vault filter. One click hides a
-           person's notes everywhere; the coloured dot matches their "edited by" label. -->
-      <div class="vaults" aria-label="contributor filter">
-        {#each allContributors as who (who.key)}
-          <button
-            class="vault-chip contrib"
-            class:off={hiddenAuthors.includes(who.key)}
-            style="--ch:{hashHue(who.key)}"
-            aria-pressed={!hiddenAuthors.includes(who.key)}
-            onclick={() => toggleAuthor(who.key)}
-            title={hiddenAuthors.includes(who.key)
-              ? `Show ${who.label}'s notes`
-              : `Hide ${who.label}'s notes`}
-          >
-            <span class="contrib-dot" aria-hidden="true"></span><span class="lbl">{who.label}</span>
-          </button>
-        {/each}
+           **The trigger says what the filter is doing.** The chip row only said it in colour, so a
+           vault hidden weeks ago read as notes that were missing — the same class of silence
+           `decisions.md` rules against for a filtered view. "All vaults" or "2 of 5" is the state
+           on its face.
+
+           Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults`
+           persists), labelled with what the repository is called — see `vaultLabels.svelte.ts`. -->
+      <div class="create-wrap vaults-wrap">
+        <button
+          type="button"
+          class="tb-chip vaults-btn"
+          class:filtering={hiddenVaults.length > 0}
+          onclick={(e) => (anchorTo(e), (vaultMenuOpen = !vaultMenuOpen))}
+          aria-expanded={vaultMenuOpen}
+          aria-haspopup="menu"
+          title="Which vaults to show"
+          aria-label="which vaults to show">
+          <span class="lbl">{vaultFilterLabel}</span>
+          <Icon name="chevron-down" size={12} />
+        </button>
+        {#if vaultMenuOpen}
+          <div class="menu-backdrop" role="presentation" onclick={() => (vaultMenuOpen = false)}></div>
+          <ul class="create-menu" role="menu" style={menuAnchor}>
+            {#each allVaults as v (v)}
+              <li role="none">
+                <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
+                     app is single-shot because it runs one action; a filter is many-of-many and
+                     closing after each vault would make setting two of them a chore. That is the
+                     one place this diverges from the shared skeleton, so it is stated here. -->
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={!hiddenVaults.includes(v)}
+                  onclick={() => toggleVault(v)}>
+                  <span class="tick" aria-hidden="true">{hiddenVaults.includes(v) ? '' : '✓'}</span>
+                  {labelFor(v)}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
       </div>
     {/if}
 
@@ -2052,7 +2016,7 @@
          **Not on the phone.** There the UI is served by the Tauri shell, not `fm-serve`, so
          `/manual/` resolves to nothing; a Help button that 404s is worse than no Help button. -->
     <button
-      class="icon-btn"
+      class="icon-btn help"
       onclick={() => (helpOpen = true)}
       aria-label="help"
       title="Help — how this works">
@@ -2116,6 +2080,30 @@
       </button>
     {/if}
 
+    <!-- **The chrome, when one view fills the window**: which views are open, and the controls
+         belonging to the one you are looking at. At the *top*, which reverses a 2026-08-30 ruling
+         about a phone's thumb reach — see `decisions.md` 2026-08-31: only the tabs moved, the
+         actions bar stays at the bottom, and this row replaces the pane header rather than
+         joining it.
+
+         **Rendered, not merely hidden, on a layout branch.** Everywhere else the arrangement is
+         pure CSS; here it cannot be. `ViewControls` inside this bar and the copy inside a tiled
+         pane header would both be in the DOM, giving two elements labelled `group by` — ambiguous
+         to a screen reader and to `getByLabelText`. This branches on the layout *preference*, not
+         on the viewport, so the rule it has to respect is untouched. -->
+    {#if (workspace.layout ?? 'single') === 'single'}
+      <ViewBar
+        panes={workspace.panes}
+        active={focused}
+        feed={feedKey(workspace.panes[focused]) ? feeds[feedKey(workspace.panes[focused]) ?? ''] : undefined}
+        onselect={(i) => {
+          focused = i;
+          persistWorkspace();
+        }}
+        onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
+        onclose={closePane} />
+    {/if}
+
     <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so
          each drops into its cell unchanged. -->
@@ -2139,38 +2127,26 @@
             onresolve={onResolveConflict}
             onmove={onMove}
             onstatus={onSetStatus}
+            counts={threadCounts}
             onnavigate={openNoteInPane}
             onsaved={scheduleCommit}
             onchange={(patch) => changePane(pane.id, patch)}
             onreorder={movePane}
             onresize={(patch) => resizePane(pane.id, patch)}
-            onsaveview={() => { focused = i; saveCurrentView(); }}
-            ondeleteview={() => { focused = i; void deleteCurrentView(); }}
-            onrenameview={() => { focused = i; renameCurrentView(); }}
             onclose={() => closePane(pane.id)}
             onfocus={() => (focused = i)}
+            headed={workspace.layout === 'tiled'}
           />
         </div>
       {/each}
     </div>
 
-    <!-- Navigation for the single-pane arrangement. Always rendered, shown by CSS only when
-         one pane is visible — the same no-conditional-component-tree discipline as the rest. -->
-    <ViewBar
-      onsettings={() => openSettings()}
-      panes={workspace.panes}
-      active={focused}
-      onselect={(i) => {
-        focused = i;
-        persistWorkspace();
-      }}
-      onclose={closePane} />
   </div>
 
   {#if settingsOpen}
     {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
       <SettingsPanel
-        layout={workspace.layout ?? 'auto'}
+        layout={workspace.layout ?? 'single'}
         onlayout={setLayout}
         onclose={() => (settingsOpen = false)}
         onkeyschanged={reloadKeys}
@@ -2265,60 +2241,6 @@
     </div>
   {/if}
 
-  {#if saveViewOpen}
-    <div class="sheet-backdrop" role="presentation" onclick={() => (saveViewOpen = false)}></div>
-    <div
-      class="sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-label={renameViewFrom ? 'Rename this view' : 'Save this view'}
-      tabindex="-1"
-      onkeydown={(e) => e.key === 'Escape' && (saveViewOpen = false)}>
-      <!-- One child: `.sheet` is a full-screen centring container and `.sheet > *` is what gets the
-           card's background, border and shadow. Several children would each become their own card. -->
-      <div class="save-view">
-        <h2>{renameViewFrom ? `Rename “${renameViewFrom}”` : 'Save this view'}</h2>
-        <label class="sv-field">
-          <span>Name</span>
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          aria-label="view name"
-          bind:value={saveViewName}
-          placeholder="e.g. Papers"
-          autofocus
-          spellcheck="false"
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitViewDialog(); } }}
-        />
-      </label>
-        <!-- Not asked when renaming: the tag belongs to the file being moved, and offering to set
-             it here would quietly rewrite a filter the app cannot express. -->
-        <label class="sv-field" class:hidden={!!renameViewFrom}>
-          <span>Only notes tagged <em>(optional)</em></span>
-        <input
-          aria-label="only notes tagged"
-          bind:value={saveViewTag}
-          placeholder="leave empty for every note"
-          spellcheck="false"
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void submitViewDialog(); } }}
-        />
-      </label>
-        <p class="sv-hint">
-        {#if renameViewFrom}
-          The file moves and its contents are left alone, so anything you wrote in it — including a
-          filter this screen cannot describe — is kept exactly as it is.
-        {:else}
-          Saved as a file in your vault's <code>views</code> folder, so it travels with your notes.
-        {/if}
-      </p>
-        <div class="sv-actions">
-          <button class="sv-cancel" onclick={() => (saveViewOpen = false)}>Cancel</button>
-          <button class="sv-save" onclick={submitViewDialog} disabled={!saveViewName.trim()}
-            >{renameViewFrom ? 'Rename' : 'Save'}</button>
-        </div>
-      </div>
-    </div>
-  {/if}
-
   {#if newVaultOpen}
     <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
     <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
@@ -2351,13 +2273,6 @@
     margin: 0;
     font-size: var(--text-md);
   }
-  .sv-field {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-  }
   .sv-field textarea {
     padding: var(--space-2);
     border-radius: var(--radius-sm);
@@ -2367,14 +2282,6 @@
     font-family: var(--font-mono, ui-monospace, monospace);
     font-size: var(--text-xs);
     resize: vertical;
-  }
-  .sv-field input {
-    padding: var(--space-2);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: var(--text-sm);
   }
   .sv-hint {
     margin: 0;
@@ -2467,82 +2374,57 @@
     min-width: 0;
   }
   /* ---------------------------------------------------------------------------------------
-     Two arrangements, one shell.
+     Two arrangements, one shell — and now actually two.
 
-     `single` shows one pane and lets a switcher move between them; `tiled` is the grid.
-     `auto` asks the space. All of it is CSS keyed off `data-layout`, so there is **no
-     viewport-tracking TypeScript** — the only new state is a preference string, exactly like
-     the theme. That keeps the promise made when the phone CSS first landed: no new stateful
-     layout, no phone-only component tree.
+     `single` shows one pane; `tiled` is the grid. **`auto` is gone** (`decisions.md`,
+     2026-08-31): it was the *default*, so a phone never matched a `[data-layout='single']`
+     rule and every narrow fact had to be written twice. Writing one half was silent, and it
+     shipped half-written twice.
 
-     Every pane stays mounted and fetched, so switching is instant and the feed layer is
-     untouched. `display: none` rather than unmounting is the point.
+     **The arrangement is decided here and nowhere else.** Everything downstream reads a
+     *value*, never a selector, so an arrangement-dependent rule can no longer be half-written
+     — there is one place to change it and the components inherit. That also retires every
+     `[data-layout=…] :global(…)` rule, one of which tied on specificity with `ViewBar`'s own
+     scoped `.viewbar` and was decided by bundle order: the same defect `ci/checks.sh` polices
+     for `.panel-views`, sitting unnoticed in a second component.
+
+     Still pure CSS keyed off `data-layout` — **no viewport-tracking TypeScript**, exactly as
+     promised when the phone CSS first landed. Every pane stays mounted and fetched, so
+     switching is instant and the feed layer is untouched: `display: none`, never unmounting.
      --------------------------------------------------------------------------------------- */
-  [data-layout='single'] .cell:not(.active) {
-    display: none;
+  .app {
+    --cell: none; /* a pane that is not the active one */
+    --ws-cols: minmax(0, 1fr);
+    --ws-rows: minmax(0, 1fr);
+    /* With one pane filling the screen there is nothing to drag it against and nothing to
+       resize it relative to. The pane's own *content* controls stay — those configure what you
+       are looking at, not where it sits. */
+    --pane-grip: none;
+    --pane-resize: none;
+    --view-name: 1.05rem; /* one view on screen: its name *is* the chrome */
   }
-  /* **The inset floor, hung off a condition proven to match on the device.**
-     `env(safe-area-inset-top)` is 0 in wry's Android WebView (Android 15 forces edge-to-edge
-     for targetSdk 35, but the insets are never handed to the page), and a `pointer: coarse`
-     floor did not take either — measured on the owner's phone: the CSS shipped, compiled
-     correctly, and the toolbar still landed on the clock. The narrow-layout query *is*
-     matching, because the single-pane bar appears. So the floor rides that instead of a
-     capability query nothing here can confirm.
-     `max()` so a platform that does report a real inset still wins. */
-  [data-layout='single'] .topbar {
-    padding-top: max(var(--safe-top), 1.75rem);
+  .app[data-layout='tiled'] {
+    --cell: flex;
+    /* `var(--cols)` resolves at the *use* site — `.workspace`, which carries the inline
+       `style="--cols:…"`. Substitution is lazy, which is what lets a value defined up here
+       read one that is only set further down the tree. */
+    --ws-cols: repeat(var(--cols, 1), minmax(0, 1fr));
+    --ws-rows: minmax(8rem, 1fr);
+    --pane-grip: inline-flex;
+    --pane-resize: block;
+    --view-name: 0.85rem;
   }
-  [data-layout='single'] :global(.viewbar) {
-    display: flex;
-  }
-  /* Their home in `single` is the bottom bar, which has the room and the thumb reach. Leaving
-     them here too would wrap the top bar onto a second row for controls that are already on
-     screen — which is the cramping this replaced the `overflow-x` hiding with. */
-  [data-layout='single'] .topbar .icon-btn {
-    display: none;
-  }
-  [data-layout='single'] .topbar .save-label {
-    display: none;
-  }
-  /* With one pane filling the screen there is nothing to drag it against, nothing to resize it
-     relative to, and no ambiguity about which pane a close button means — so the container
-     chrome goes and the content gets the room. Closing moved to the view bar. The pane's own
-     *content* controls (the view rotator, group-by, search box) stay: those configure what you
-     are looking at, not where it sits. */
-  [data-layout='single'] :global(.grip),
-  [data-layout='single'] :global(.pane-close),
-  [data-layout='single'] :global(.resize-grip) {
-    display: none;
-  }
-  [data-layout='single'] .workspace {
-    grid-template-columns: 1fr;
-    grid-auto-rows: 1fr;
-  }
-  /* The narrow default. 60rem, not the 40rem used elsewhere: two panes side by side need room
-     for two *readable* columns, which runs out well before a phone's width. */
-  @media (max-width: 60rem) {
-    [data-layout='auto'] .cell:not(.active) {
-      display: none;
+  /* `tiled` on a phone still stacks and scrolls — the pre-existing behaviour, expressed as a
+     value. Must sit *after* the `[data-layout='tiled']` rule above: equal specificity, so
+     source order decides. */
+  @media (max-width: 40rem) {
+    .app[data-layout='tiled'] {
+      --ws-cols: 1fr;
+      --ws-rows: minmax(60vh, auto);
     }
-    /* Same floor, same reason — see the note on the `single` rule above. */
-    [data-layout='auto'] .topbar {
-      padding-top: max(var(--safe-top), 1.75rem);
-    }
-    [data-layout='auto'] :global(.viewbar) {
-      display: flex;
-    }
-    [data-layout='auto'] .workspace {
-      grid-template-columns: 1fr;
-      grid-auto-rows: 1fr;
-    }
-    /* **The `single` twins of these live above, and both halves are required.**
-       `auto` is the default, so a phone never matches a `[data-layout='single']` rule — writing
-       only that half means the rule silently does nothing on the device it was written for.
-       Caught by screenshotting the emulator: "＋ New" and "＋ View" still had their labels and
-       the top bar still carried the utility buttons, because both hides were single-only. */
-    [data-layout='auto'] .topbar .icon-btn {
-      display: none;
-    }
+  }
+  .cell:not(.active) {
+    display: var(--cell);
   }
 
   .body {
@@ -2558,15 +2440,14 @@
      internally instead of the page. */
   /* See the comment at the markup. Literal values on purpose: every one of these read from a
      custom property would be a property the theme can redefine. */
-  /* The tag field is present but not asked when renaming — see the dialog. */
-  .sv-field.hidden {
-    display: none;
-  }
   .theme-escape {
     all: revert;
     position: fixed !important;
-    right: 12px !important;
-    bottom: 12px !important;
+    /* Clear of the navigation bar and any cutout. `calc` rather than a bare literal because this
+       is the escape hatch: a button you cannot reach is the same as no escape hatch, and it sits
+       at the one screen edge the system chrome always occupies. */
+    right: calc(12px + var(--safe-right, 0px)) !important;
+    bottom: calc(12px + var(--safe-bottom, 0px)) !important;
     z-index: 2147483647 !important;
     display: block !important;
     visibility: visible !important;
@@ -2635,8 +2516,7 @@
     }
     /* These are *only* their words — a vault picker with no name, or a filter chip with nothing
        in it, would be a control that cannot say what it does. They come back on expand. */
-    .app.panel-collapsed .topbar .vaults,
-    .app.panel-collapsed .topbar .tb-create,
+    .app.panel-collapsed .topbar .vaults-wrap,
     .app.panel-collapsed .topbar .searchfield {
       display: none;
     }
@@ -2792,6 +2672,15 @@
     .panel-views {
       display: none;
     }
+    /* **Help goes, Settings stays.** This used to hide every `.icon-btn`, which was survivable
+       only because `ViewBar` carried a second gear on the phone; that gear is gone (the strip
+       is desktop-only now), so hiding the class outright would leave a phone with no way into
+       Settings at all — and on a device with no logcat that is the only diagnostic surface
+       there is. Help is the one that can afford to go: it opens a manual that 404s on the
+       phone anyway. */
+    .topbar .help {
+      display: none;
+    }
     .views-wrap {
       display: flex;
     }
@@ -2817,8 +2706,8 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-    grid-auto-rows: minmax(8rem, 1fr);
+    grid-template-columns: var(--ws-cols);
+    grid-auto-rows: var(--ws-rows);
     gap: var(--space-2);
     padding: var(--space-2);
     overflow: auto;
@@ -2897,6 +2786,29 @@
   }
   .create-menu button:hover {
     background: var(--surface-hover);
+  }
+  /* The vault filter's trigger. A `tb-chip` like the alert chips beside it, plus a state it is
+     allowed to shout about: a filter that is hiding something should not look idle. */
+  .vaults-btn {
+    gap: var(--space-1);
+  }
+  .vaults-btn.filtering {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  /* A fixed-width tick column, so the names line up whether or not they are checked — a list that
+     shifts sideways as you toggle it is hard to aim at. */
+  .create-menu button .tick {
+    display: inline-block;
+    width: 1rem;
+    color: var(--accent);
+  }
+  /* Names the group below it. Not a `menuitem` — it is a label, and making it focusable would
+     put a dead stop in the keyboard walk through the menu. */
+  .menu-head {
+    padding: 4px var(--space-2) 2px;
+    color: var(--text-muted);
+    font-size: var(--text-xs);
   }
   .menu-sep {
     height: 1px;
@@ -3013,78 +2925,10 @@
     color: var(--accent-contrast);
     font-weight: 600;
   }
-  .tb-cols {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
-  .tb-cols select {
-    font: inherit;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 2px 4px;
-  }
-  /* The create destination reads at a glance: a touch larger, full-contrast text, and an
-     accent-tinted box so it stands out as *where new things land* rather than a quiet setting. */
-  .tb-create {
-    font-size: var(--text-sm);
-    color: var(--text);
-  }
-  .tb-create select {
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text);
-    background: var(--accent-subtle);
-    border-color: var(--accent);
-    padding: 2px 6px;
-  }
   .tb-spacer {
     flex: 1;
   }
 
-  /* Hiding a vault is a view preference and nothing more — it changes what is on
-     screen, never who can see a note. The chips are quiet on purpose: they must not
-     read like a permission control. */
-  .vaults {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    padding: 0 var(--space-3) var(--space-3);
-    align-items: center;
-  }
-  .vault-chip {
-    font-size: 0.68rem;
-    padding: 0.1rem 0.45rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text);
-    cursor: pointer;
-    letter-spacing: 0.02em;
-  }
-  .vault-chip.off {
-    color: var(--text-muted);
-    opacity: 0.5;
-    text-decoration: line-through;
-  }
-  /* Contributor chips carry the person's colour (a dot), matching their "edited by" labels. */
-  .vault-chip.contrib {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-  }
-  .contrib-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    background: hsl(var(--ch) 55% 48%);
-    box-shadow: 0 0 0 1px hsl(var(--ch) 55% 32%);
-  }
   .icon-btn {
     display: grid;
     place-items: center;
@@ -3150,8 +2994,8 @@
      than something only a phone can exercise. */
   @media (max-width: 40rem) {
     .workspace {
-      grid-template-columns: 1fr;
-      grid-auto-rows: minmax(60vh, auto);
+      /* The columns and rows are the arrangement's to decide (`--ws-cols`/`--ws-rows`, set
+         once at the top); this rule keeps only what is genuinely about a narrow screen. */
       padding: var(--space-1);
       gap: var(--space-1);
       /* Panes stack, so the page scrolls vertically and never sideways. */
@@ -3172,14 +3016,6 @@
       flex: 0 0 auto;
     }
 
-    /* The workspace-columns control is **ignored** at this width — `.workspace` above is
-       forced to `1fr`. It was still rendered, still said "2", and still did nothing: a
-       control that lies about the state is worse than one that is absent. `:not(.tb-create)`
-       because the vault selector shares the class and is genuinely useful here. */
-    .tb-cols:not(.tb-create) {
-      display: none;
-    }
-
     /* The row that used to overflow — wordmark, search field, "＋ New", "＋ View" — is now a
        plus, a lens and a gear, so nothing here needs hiding to make it fit. What remains is the
        search field *once opened*: it is the only elastic thing in the bar, and 6rem still shows
@@ -3188,8 +3024,9 @@
       width: 6rem;
     }
     /* The icon says "back up" well enough at this width, and the word is the widest thing left
-       in the bar. Written here *and* under `[data-layout='single']` below, because `auto` is the
-       default and a phone matches only the media query — writing one half is silent. */
+       in the bar. **Written once now.** It used to need a `[data-layout='single']` twin, because
+       `auto` was the default and a phone matched only the media query; with `auto` gone this is
+       a fact about the window and one rule states it. */
     .save-label {
       display: none;
     }
