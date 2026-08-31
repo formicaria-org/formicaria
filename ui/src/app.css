@@ -28,14 +28,18 @@
      forwards them) wins over the floor rather than being clamped by it. Desktop is untouched —
      `pointer: coarse` is the gate, and a mouse-driven window has no system bar over it.
 
-     **The real fix landed on 2026-08-31 and the floor stays anyway.** `MainActivity` now reads
-     `WindowInsetsCompat` and writes the true values into these same properties as an inline
-     style on the root element, which outranks this rule — so wherever the bridge has fired, the
-     device's own numbers win and the floor is inert. It is kept, against the instruction this
-     comment used to carry, because the bridge fires on an *event*: a reload before it lands
-     would otherwise paint under the camera again, which is the bug it exists to close. A floor
-     that is overridden the moment a real value arrives costs nothing to keep and is the
-     difference between a wrong inset and no inset at all. See `decisions.md`, 2026-08-31. */
+     **The shell hands the real values over — and the floor stays, permanently.** `MainActivity`
+     exposes the window insets on a JavaScript interface and applies them at document start, so
+     the page *pulls* them and they survive every reload. Where that has run, the device's own
+     numbers win and this floor is inert.
+
+     Kept anyway, and the reason is a scar rather than caution. The first version of that bridge
+     *pushed* the values from an inset listener registered before wry issues its first `loadUrl` —
+     so the write landed on `about:blank` and died at the navigation commit. Nothing failed
+     loudly; the floors silently carried the whole app, at 28px against a 52px cutout and 8px
+     against a 47px navigation bar, and a panel that had *deleted* its own local floor in favour
+     of the bridge lost its primary button. A floor is only ever wrong by being generous. See
+     `decisions.md`, 2026-08-31. */
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);

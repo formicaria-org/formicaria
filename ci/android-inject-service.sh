@@ -82,10 +82,13 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 
 class MainActivity : TauriActivity() {
   private var wv: WebView? = null
@@ -105,39 +108,82 @@ class MainActivity : TauriActivity() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc) else startService(svc)
   }
 
-  // **Hand the window insets to the page — a platform fact only the platform has.**
-  //
-  // `env(safe-area-inset-*)` is 0 in wry's WebView: `viewport-fit=cover` is set, Android 15
-  // forces edge-to-edge, and wry never forwards `WindowInsetsCompat` into the page. So the
-  // stylesheet had been guessing — 1.75rem at the top, which is *less than this phone's camera
-  // cutout*, and 0.5rem at the bottom, which clears a gesture pill but not a three-button
-  // navigation bar. Both were visible on the owner's device and invisible to every test.
-  //
-  // We set the same custom properties `app.css` defines, as an inline style on the root element,
-  // which outranks the `:root` rule. The floors stay there as a fallback: this fires on an event,
-  // and a reload before it fires would paint under the camera again.
+  /// The insets the window last reported, in CSS pixels. Held so the page can **ask** for them.
+  // `Float`, because `displayMetrics.density` is one and the division follows it.
+  private var top = 0f
+  private var right = 0f
+  private var bottom = 0f
+  private var left = 0f
+
+  /// **The page asks; the shell does not tell.**
+  ///
+  /// `env(safe-area-inset-*)` is 0 in wry's WebView — it never forwards the window insets — so the
+  /// stylesheet was guessing: 1.75rem against a camera cutout that is really 52px, and 0.5rem
+  /// against a navigation bar that is really 47px.
+  ///
+  /// The first attempt at this pushed the values in with `evaluateJavascript` from the inset
+  /// listener, and it never landed. `onWebViewCreate` runs *before* wry issues the first
+  /// `loadUrl` and before `setContentView`, so the first inset dispatch — and the `post` after it
+  /// — happen against `about:blank`, and the inline properties die when the real document commits.
+  /// It looked intermittent because it was a race.
+  ///
+  /// So this copies the shape `FM_CONFIG_DIR` already uses: **put the platform fact where the
+  /// consumer already looks, and let the consumer read it when it is ready.** A registered
+  /// JavaScript interface is re-injected into every document Android loads, so it is present for
+  /// the first page and survives every reload — and wry uses exactly this mechanism for its own
+  /// IPC bridge, so it is native to this stack rather than a new idea.
+  inner class Insets {
+    @JavascriptInterface
+    fun json(): String = "{\"top\":$top,\"right\":$right,\"bottom\":$bottom,\"left\":$left}"
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     wv = webView
+    webView.addJavascriptInterface(Insets(), "__fmInsets")
+
+    // **Applied before the page's own CSS**, on every navigation, so there is no frame in which
+    // the app is laid out against a zero inset. Feature-gated exactly as `RustWebView.kt` gates
+    // its own init scripts; without it the interface alone would still leave a flash.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+      WebViewCompat.addDocumentStartJavaScript(webView, APPLY_INSETS, setOf("*"))
+    }
+
     ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
       val i = insets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
       )
       val d = v.resources.displayMetrics.density
-      val js = "(function(){var s=document.documentElement.style;" +
-        "s.setProperty('--safe-top','" + (i.top / d) + "px');" +
-        "s.setProperty('--safe-right','" + (i.right / d) + "px');" +
-        "s.setProperty('--safe-bottom','" + (i.bottom / d) + "px');" +
-        "s.setProperty('--safe-left','" + (i.left / d) + "px');})()"
-      v.post { (v as WebView).evaluateJavascript(js, null) }
+      top = i.top / d; right = i.right / d; bottom = i.bottom / d; left = i.left / d
+      // Now only the *update* channel — a rotation, the keyboard, a returned-to app. By the time
+      // any of those happen the page exists, which is the one job this call can actually do.
+      v.post { (v as WebView).evaluateJavascript(APPLY_INSETS, null) }
       insets
     }
   }
 
-  // A rotation, a keyboard, or coming back to the app can all change the insets; asking for them
-  // again is cheap and re-runs the listener above.
+  // A rotation or coming back to the app can change the insets; asking again is cheap. At launch
+  // `wv` is still null here — the webview arrives on wry's main-pipe message, after onResume has
+  // returned — which is precisely why this cannot be the mechanism that gets the first values in.
   override fun onResume() {
     super.onResume()
     wv?.let { ViewCompat.requestApplyInsets(it) }
+  }
+
+  companion object {
+    /// Reads the interface and writes the four properties `app.css` consumes. Defensive because it
+    /// also runs at document start, where a hostile-looking absence is simply "not injected yet".
+    private const val APPLY_INSETS = """
+      (function () {
+        try {
+          var i = JSON.parse(window.__fmInsets.json());
+          var s = document.documentElement.style;
+          s.setProperty('--safe-top', i.top + 'px');
+          s.setProperty('--safe-right', i.right + 'px');
+          s.setProperty('--safe-bottom', i.bottom + 'px');
+          s.setProperty('--safe-left', i.left + 'px');
+        } catch (e) {}
+      })();
+    """
   }
 }
 KT

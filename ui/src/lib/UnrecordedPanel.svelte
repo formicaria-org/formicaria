@@ -188,15 +188,23 @@
     background: var(--bg);
     color: var(--text);
   }
-  /* **The navigation bar ate the button**, and this panel used to carry its own guess about how
-     tall that bar was: a local `3.25rem` floor, because the global `--safe-bottom` floor of
-     0.5rem cleared a gesture pill but not a 3-button navigation bar. Observed on the owner's
-     phone — "Record all 147 in history" half under the system bar, the line below it invisible.
+  /* **The navigation bar ate the button**, twice — and the second time was self-inflicted.
+     0.5rem (the global floor) clears a gesture pill but not a 3-button navigation bar, so this
+     panel carried a local `3.25rem`. Observed on the owner's phone: "Record all 147 in history"
+     half under the system bar, the line below it invisible.
 
-     **The guess is gone (2026-08-31).** The shell now reads `WindowInsetsCompat` and writes the
-     real inset into `--safe-bottom`, so this surface gets the actual height of whatever bar is
-     there rather than one panel's estimate of it. The padding above already reads the token; the
-     only thing that had to go was the number. */
+     It was deleted on 2026-08-31 on the grounds that the shell now reports the real inset — and
+     the shell's first attempt at that never reached the page, so the deletion swapped a working
+     52px guess for a 28px one and the owner lost the button again the same day.
+
+     **It stays now, bridge or no bridge.** A floor is only ever wrong by being generous; its
+     absence is a control nobody can press. `max()` means the device's real number still wins the
+     moment it arrives. */
+  @media (pointer: coarse) {
+    .panel {
+      padding-bottom: calc(1.25rem + max(var(--safe-bottom), 3.25rem));
+    }
+  }
   header {
     display: flex;
     align-items: center;

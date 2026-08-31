@@ -490,6 +490,32 @@ if [ -f ui/src/App.svelte ]; then
     fi
 fi
 
+# **A later same-specificity rule must not reset the safe area with a shorthand.**
+#
+# The third arrival of one lesson. Twice it came through `display` — the view rail that shipped
+# invisible, and the chrome rule that would have deleted Help and Settings from the desktop — and
+# both have guards above. This time it came through `padding`: `.topbar` had
+# `padding: … max(var(--safe-bottom), …) …` in the 59.999rem block and a bare
+# `padding: 0.4rem 0.5rem` in the 40rem block. A phone matches both, media queries add no
+# specificity, so the shorthand won and reset all four sides — leaving 6.4px of clearance under a
+# 47px navigation bar. Back up, "get their changes" and Settings could not be tapped at all, and
+# the rule that broke it had been correct for six weeks before the bar moved to the bottom.
+#
+# The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
+# one rule that knows about the inset.
+echo "[check] a narrow .topbar rule must not reset the safe area with a padding shorthand..."
+if [ -f ui/src/App.svelte ]; then
+    if awk '/@media \(max-width: 40rem\)/,/^  \}$/' ui/src/App.svelte \
+        | awk '/^    \.topbar \{/,/^    \}/' \
+        | grep -qE '^\s*padding:'; then
+        echo "  FAIL: a .topbar rule in the 40rem block uses the 'padding' shorthand. It ties with"
+        echo "        the safe-area rule above and wins on source order, resetting the bottom inset"
+        echo "        — which is how the bottom bar ended up under the navigation buttons."
+        echo "        Use padding-top / padding-inline and leave the bottom to the inset rule."
+        fail=1
+    fi
+fi
+
 # **The Appearance form is a list of tokens, never a language.**
 #
 # It re-values design tokens; it must never grow the ability to invent one, or write a selector or

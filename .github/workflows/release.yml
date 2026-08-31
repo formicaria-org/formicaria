@@ -225,6 +225,26 @@ jobs:
     permissions:
       contents: write
     steps:
+      # **The tag carries this release's own words.** `body:` below is the same every time — it has
+      # to be, because it is the install instructions — and `generate_release_notes` is a list of
+      # commit titles. Neither says what *this* version is. The annotation of an annotated tag is
+      # where that belongs: authored per release, versioned in git, and impossible to forget,
+      # because writing it is part of cutting the tag.
+      #
+      # `fetch-depth: 0` because a shallow checkout has no tag objects, and `%(contents)` reads the
+      # annotation. A lightweight tag has none, and then this is empty and the body is what it
+      # always was — so an unannotated tag degrades to the old behaviour rather than failing.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: notes
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          {
+            echo 'text<<RELEASE_NOTES_EOF'
+            git tag -l --format='%(contents)' "$TAG"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -245,6 +265,8 @@ jobs:
             **formicaria** is a notebook for research and writing. Your notes are ordinary Markdown
             files on your own computer — no account, no cloud, nothing sent anywhere. Nothing is
             installed: you unpack a folder and double-click.
+
+            ${{ steps.notes.outputs.text }}
 
             ### Get started
 

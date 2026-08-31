@@ -2655,8 +2655,11 @@
       grid-row: 2;
       border-bottom: 0;
       border-top: 1px solid var(--border);
-      /* The insets swap ends with the bar. `env()` is 0 in the Android WebView, so the floor in
-         `app.css` is what actually clears the gesture pill here. */
+      /* **The insets swap ends with the bar, and this is the only rule that says so.** `env()` is
+         0 in the Android WebView until the shell hands the real values over, so the floor in
+         `app.css` is the fallback that clears the navigation bar. Any narrower rule that touches
+         padding must use longhands and leave the bottom alone — a shorthand here is how this bar
+         became untappable for a day. `ci/checks.sh` guards it. */
       padding: var(--space-1) max(var(--safe-right), var(--space-3))
         max(var(--safe-bottom), var(--space-2)) max(var(--safe-left), var(--space-3));
     }
@@ -3001,10 +3004,22 @@
       /* Panes stack, so the page scrolls vertically and never sideways. */
       overflow-x: hidden;
     }
+    /* **Longhands, never the `padding` shorthand.** This rule and the safe-area one in the
+       59.999rem block above both match a phone, media queries add no specificity, and Svelte
+       scopes both the same — so source order decides and this one wins. As a shorthand it reset
+       all four sides, discarding `max(var(--safe-bottom), …)` and leaving the bar's content
+       6.4px above the screen edge. On a device with a 47px navigation bar and 44px controls,
+       that put Back up, "get their changes" and Settings *inside* the system strip, where the
+       taps never reached the app (reported 2026-08-31).
+
+       It was written on 2026-07-18, when `.topbar` was a **top** bar and a symmetric 0.4rem was
+       harmless; the bar moved to the bottom on 2026-08-30 and nobody re-read this. The bottom is
+       deliberately not set here at all — it belongs to the rule that knows about the inset. */
     .topbar {
       flex-wrap: wrap;
       row-gap: 0.4rem;
-      padding: 0.4rem 0.5rem;
+      padding-top: 0.4rem;
+      padding-inline: 0.5rem;
     }
 
     /* Measured on a device (2026-07-19, `sessions/2026-07-19-the-ui-on-android.md`): the

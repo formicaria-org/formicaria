@@ -264,9 +264,14 @@
     flex-direction: column;
     gap: 1.1rem;
   }
+  /* **Not sticky.** It was pinned to the top of the scroller, which is fine over one-line rows and
+     wrong over a feed of tall cards: the pinned date is an opaque band that slides across whatever
+     post is passing under it, so the note you are actually reading is the one it covers. Reported
+     2026-08-31 — *"the date of the previous blocks appear over text on top notes, making it
+     unreadable"*. The date now scrolls away with the day it belongs to, which is the only moment
+     it can never intersect anything. Every post also carries its own relative time in the byline,
+     so nothing is lost while the heading is off screen. */
   .heading {
-    position: sticky;
-    top: 0;
     display: flex;
     align-items: baseline;
     gap: 0.5rem;
@@ -275,7 +280,6 @@
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--accent);
-    background: var(--bg);
     border-bottom: 1px solid var(--column-border);
   }
   .count {
