@@ -10,6 +10,7 @@
 # Going further
 
 - [Creating & organizing notes](./user/notes.md)
+- [Importing from Logseq or Obsidian](./user/import.md)
 - [Views](./user/views.md)
 - [Appearance](./user/appearance.md)
 - [Assets & media](./user/assets.md)

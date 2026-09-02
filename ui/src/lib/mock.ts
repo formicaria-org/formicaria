@@ -13,6 +13,8 @@ import type {
   Column,
   NoteDetail,
   ObjectMeta,
+  ImportCheck,
+  ImportReport,
   PathCheck,
   PullResult,
   VaultInfo,
@@ -1167,6 +1169,59 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         ok: name_ok && !name_taken && !path_taken && path.trim().length > 0,
       };
       return check satisfies PathCheck as T;
+    }
+    case 'check_import': {
+      // Same rule as `check_path` above: mirrors the real policy closely enough to develop the
+      // form against, and no further. The server owns `ok`; this must never become a second
+      // opinion. A path containing "logseq" or "obsidian" stands in for detection.
+      const source = String(args.source ?? '');
+      const vault = String(args.vault ?? '');
+      const format = /logseq/i.test(source)
+        ? 'logseq'
+        : /obsidian/i.test(source)
+          ? 'obsidian'
+          : null;
+      const destination_ok = vault ? mockVaults.some((v) => v.name === vault) : true;
+      const problem = !source.trim()
+        ? 'there is no folder at that path'
+        : !format
+          ? 'that folder does not look like a Logseq graph or an Obsidian vault'
+          : !destination_ok
+            ? `no vault named '${vault}'`
+            : null;
+      const check: ImportCheck = {
+        format,
+        label: format === 'logseq' ? 'Logseq' : format === 'obsidian' ? 'Obsidian' : null,
+        pages: format ? 12 : 0,
+        journals: format === 'logseq' ? 4 : 0,
+        attachments: format ? 3 : 0,
+        attachmentBytes: format ? 2_400_000 : 0,
+        leftBehind: format === 'obsidian' ? [{ kind: 'canvas', count: 1 }] : [],
+        problem,
+        ok: problem === null,
+      };
+      return check satisfies ImportCheck as T;
+    }
+    case 'run_import': {
+      const report: ImportReport = {
+        format: /obsidian/i.test(String(args.source ?? '')) ? 'obsidian' : 'logseq',
+        notes: 16,
+        stubs: args.stubs ? 2 : 0,
+        alreadyImported: 0,
+        attachments: 3,
+        deduped: 0,
+        links: 21,
+        dangling: 2,
+        danglingNames: ['Someday', 'Reading List'],
+        blocks: 4,
+        blocksUnresolved: 0,
+        renamedProperties: 1,
+        leftBehind: [],
+        warnings: [],
+        recorded: true,
+        vault: String(args.vault || args.name || 'notes'),
+      };
+      return report satisfies ImportReport as T;
     }
     case 'config':
       // Shaped like the real thing, including the awkward parts — a null vault_list and an

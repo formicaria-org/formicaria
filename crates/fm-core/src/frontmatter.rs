@@ -104,7 +104,7 @@ pub fn to_file(obj: &Object) -> Result<String, ParseError> {
 ///
 /// The body is sliced, never rewritten: byte-for-byte round-tripping is the invariant
 /// files-as-truth rests on, so a CRLF body stays a CRLF body until its author changes it.
-fn split_fence(text: &str) -> Option<(&str, &str)> {
+pub(crate) fn split_fence(text: &str) -> Option<(&str, &str)> {
     let rest = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n"))?;
     let mut offset = 0usize;
     for line in rest.split_inclusive('\n') {
@@ -320,7 +320,7 @@ pub fn scalar_property(raw: &str) -> PropertyValue {
 /// YAML -> PropertyValue for a custom key. Integers become `Int`; anything the
 /// model can't type precisely (floats, nested maps) is kept as `Text` so the
 /// value round-trips rather than being lost.
-fn yaml_to_prop(v: &Value) -> PropertyValue {
+pub(crate) fn yaml_to_prop(v: &Value) -> PropertyValue {
     match v {
         Value::Null => PropertyValue::Null,
         Value::Bool(b) => PropertyValue::Bool(*b),

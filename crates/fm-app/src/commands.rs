@@ -4,10 +4,11 @@
 
 use crate::dto::{value_string, Board, Column, NoteDetail, ObjectMeta};
 use crate::refs;
-use fm_core::{apply_property, ingest, BlobStore, Manifest, Store, StoreError};
+use fm_core::{apply_property, import, ingest, BlobStore, Manifest, Store, StoreError};
 use fm_model::{Id, Kind, Object, PropertyValue};
 use fm_query::{Filter, Op, Predicate, Query, SortKey};
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -1756,6 +1757,139 @@ pub fn asset_note(
     // tile, never the ingest.
     let _ = ingest::thumbnail(vault, &ing.hash);
     Ok(ObjectMeta::from(&obj))
+}
+
+// ── importing from another app ──────────────────────────────────────────────────
+
+/// Which notes in this vault came from a previous import, by their [`import::SOURCE_KEY`].
+///
+/// **One pass, not one lookup per page.** `FileStore::candidates` pushes only `Text` (FTS5) and a
+/// top-level `Kind` down to SQL — a `Predicate::Prop` on `source_key` falls through to loading and
+/// parsing every note. Asking that once per imported page is quadratic, and a graph has thousands
+/// of pages; asking it once is a single scan the vault already does for every board.
+pub fn existing_sources(store: &dyn Store) -> Result<HashMap<String, Id>, StoreError> {
+    let q = Query {
+        filter: crate::thread::notes_base(),
+        ..Default::default()
+    };
+    Ok(store
+        .query(&q)?
+        .rows
+        .iter()
+        .filter_map(|o| match o.get(import::SOURCE_KEY) {
+            PropertyValue::Text(key) if !key.is_empty() => Some((key, o.id)),
+            _ => None,
+        })
+        .collect())
+}
+
+/// Write a converted graph into a vault.
+///
+/// Split from [`fm_core::import::convert`] on purpose, and the split is the whole performance
+/// story: converting walks a directory, hashes every attachment and runs `pdftotext` over every
+/// PDF, and it needs **no** store and no lock — so the caller does it with the app's mutex
+/// released. Only this half, which is file writes and index updates, needs the guard.
+///
+/// Every note is stamped with the destination vault before it is written. That is not a detail:
+/// `MultiStore::put` routes on `Object::vault`, and an empty one silently resolves to the
+/// *default* vault — which would file someone's whole graph into an audience they did not choose,
+/// and then into its git history.
+pub fn write_import(
+    store: &mut dyn Store,
+    vault: &Path,
+    vault_name: &str,
+    converted: import::Converted,
+) -> Result<ImportReport, StoreError> {
+    let mut report = converted.report;
+
+    // Attachments first, so a note that references one is never written before the asset note it
+    // points at exists. `asset_note` is reused rather than reimplemented: it is what gives an
+    // attachment its MIME, its extracted text, its thumbnail and — for a PDF — the DOI printed on
+    // its first page. A second copy of that would drift.
+    for ing in &converted.attachments {
+        if let Err(e) = asset_note(store, vault, vault_name, ing) {
+            report
+                .warnings
+                .push(format!("{} was stored but its note could not be written ({e})", ing.filename));
+        }
+    }
+
+    for mut note in converted.notes {
+        note.vault = vault_name.to_string();
+        if let Err(e) = store.put(&note) {
+            // One unwritable note must not abandon the other four thousand half-written. Collect
+            // it and keep going; the report is what tells the truth about the total.
+            report.warnings.push(format!(
+                "{} could not be written ({e})",
+                note.title.as_deref().unwrap_or("a note")
+            ));
+            report.notes_added = report.notes_added.saturating_sub(1);
+        }
+    }
+    let mut out = ImportReport::from(report);
+    out.vault = vault_name.to_string();
+    Ok(out)
+}
+
+/// What an import did, in the words the surface repeats back.
+#[derive(Serialize)]
+pub struct ImportReport {
+    pub format: String,
+    pub notes: usize,
+    pub stubs: usize,
+    #[serde(rename = "alreadyImported")]
+    pub already_imported: usize,
+    pub attachments: usize,
+    pub deduped: usize,
+    pub links: usize,
+    pub dangling: usize,
+    #[serde(rename = "danglingNames")]
+    pub dangling_names: Vec<String>,
+    pub blocks: usize,
+    #[serde(rename = "blocksUnresolved")]
+    pub blocks_unresolved: usize,
+    #[serde(rename = "renamedProperties")]
+    pub renamed_properties: usize,
+    #[serde(rename = "leftBehind")]
+    pub left_behind: Vec<LeftBehind>,
+    pub warnings: Vec<String>,
+    /// Whether the whole import went into history as **one** entry — which is what makes it
+    /// undoable as one. False is not a failure of the import: the notes are on disk either way.
+    pub recorded: bool,
+    pub vault: String,
+}
+
+#[derive(Serialize)]
+pub struct LeftBehind {
+    pub kind: String,
+    pub count: usize,
+}
+
+impl From<import::Report> for ImportReport {
+    fn from(r: import::Report) -> Self {
+        ImportReport {
+            format: r.format,
+            notes: r.notes_added,
+            stubs: r.stubs_created,
+            already_imported: r.notes_already_imported,
+            attachments: r.attachments_added,
+            deduped: r.attachments_deduped,
+            links: r.links_resolved,
+            dangling: r.dangling,
+            dangling_names: r.dangling_names,
+            blocks: r.blocks_inlined,
+            blocks_unresolved: r.blocks_unresolved,
+            renamed_properties: r.renamed_properties,
+            left_behind: r
+                .left_behind
+                .into_iter()
+                .map(|(kind, count)| LeftBehind { kind, count })
+                .collect(),
+            warnings: r.warnings,
+            recorded: r.committed,
+            vault: String::new(),
+        }
+    }
 }
 
 /// A recent note edit, as the collaboration views show it: git says who last touched a note and

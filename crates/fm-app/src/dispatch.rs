@@ -22,6 +22,7 @@ use crate::scope::Scope;
 use crate::vaults::{self, VaultConfig};
 use fm_core::{backup, git, vcs, ColdStart, MultiStore, Reindex, Scoped, Store};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -492,6 +493,10 @@ const READ_ONLY: &[&str] = &[
     "list_themes",
     "read_theme",
     "check_path",
+    // Asked on every keystroke while someone types a folder, exactly like `check_path`. Off this
+    // list it would bump the generation each time and tell every connected client the vault had
+    // changed — the `paper_bibtex` lesson, on a faster trigger.
+    "check_import",
     "config",
     "probe_remote",
     "git_auth",
@@ -1588,6 +1593,29 @@ fn dispatch_inner(
             app,
             &s("name"),
             &resolve_path(&s("name"), &s("path"))?,
+        )?),
+        // What importing this folder would involve — asked on every keystroke, like `check_path`.
+        // The guard is taken only for the destination question; the directory walk runs with it
+        // released, because a source path is whatever a person typed and may be enormous.
+        "check_import" => {
+            let (vault, name) = (s("vault"), s("name"));
+            let path = resolve_path(&name, &s("path"))?;
+            let problem = {
+                let g = lock()?;
+                destination_problem(&g, app, scope, &vault, &name, &path)
+            };
+            json(import_check(&s("source"), problem))
+        }
+        // **A fourth way a vault gets filled**, beside create/clone/restore — and the only one
+        // that *converts* rather than moving bytes. See `run_import` for where the lock is.
+        "run_import" => json(run_import(
+            app,
+            scope,
+            &s("source"),
+            &s("vault"),
+            &s("name"),
+            &resolve_path(&s("name"), &s("path"))?,
+            args.get("stubs").and_then(Value::as_bool).unwrap_or(false),
         )?),
         // **Stop showing me this vault.** The fourth verb the vault list needed: three commands
         // brought a vault into being (`create_vault`, `clone_vault`, `restore_vault`) and none took
@@ -2691,6 +2719,224 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     g.add(cfg, store);
     let names = g.all.names();
     Ok(infos(&g.configs(), &names))
+}
+
+// ── importing another app's notes ───────────────────────────────────────────────
+
+/// The preview, and **the whole verdict** — source *and* destination in one `ok`.
+///
+/// Both halves are here for the reason `check_path`'s own comment gives: "duplicating the policy
+/// in the browser is how you get a button that enables and then fails". Answering only "is this a
+/// Logseq graph?" and leaving the panel to AND that with a separate `check_path` would be exactly
+/// the second opinion that rule forbids — so this asks both questions and returns one answer.
+#[derive(serde::Serialize)]
+struct ImportCheck {
+    /// `logseq` / `obsidian`, or absent when the folder is neither.
+    format: Option<String>,
+    label: Option<String>,
+    pages: usize,
+    journals: usize,
+    attachments: usize,
+    #[serde(rename = "attachmentBytes")]
+    attachment_bytes: u64,
+    #[serde(rename = "leftBehind")]
+    left_behind: Vec<commands::LeftBehind>,
+    /// One sentence, the most disqualifying first — a list of every complaint at once is how a
+    /// user fixes one thing and gets a different refusal. `None` means it can be imported.
+    problem: Option<String>,
+    ok: bool,
+}
+
+/// Why the destination cannot receive an import, if it cannot.
+fn destination_problem(
+    g: &Vaults,
+    app: &App,
+    scope: &Scope,
+    vault: &str,
+    name: &str,
+    path: &str,
+) -> Option<String> {
+    if !vault.is_empty() {
+        // An existing vault: it has to be one this caller can actually see.
+        return g.config(scope, vault).err();
+    }
+    let check = check_path(g, app.config.as_deref(), app.config_writable, name, path);
+    (!check.ok).then(|| refusal(&check, name))
+}
+
+fn import_check(source: &str, destination: Option<String>) -> ImportCheck {
+    // The walk happens with the guard released — see the arm. A source path can be anything a
+    // person typed, including `/`, so this must never run while holding the vault mutex.
+    let scan = fm_core::import::scan(&PathBuf::from(vaults::expand_home(source)));
+    let problem = scan.problems.first().cloned().or(destination);
+    let ok = problem.is_none() && scan.ok();
+    ImportCheck {
+        format: scan.format.map(|f| f.as_str().to_string()),
+        label: scan.format.map(|f| f.label().to_string()),
+        pages: scan.pages,
+        journals: scan.journals,
+        attachments: scan.attachments,
+        attachment_bytes: scan.attachment_bytes,
+        left_behind: scan
+            .left_behind
+            .into_iter()
+            .map(|(kind, count)| commands::LeftBehind { kind, count })
+            .collect(),
+        problem,
+        ok,
+    }
+}
+
+/// Convert a Logseq graph or an Obsidian vault into notes.
+///
+/// # Where the lock is, and why it is there and not elsewhere
+///
+/// Converting walks a directory, hashes every attachment and runs `pdftotext` over every PDF.
+/// `papers-plan.md` B5 records what happens when that kind of work runs under the app's mutex:
+/// *"Bulk ingest holds the global app lock across two subprocess spawns per file … A 5,000-PDF
+/// import freezes every tab for 25–40 minutes."* So the guard is taken three times, briefly, and
+/// **released across the conversion** — the pattern `adding-features.md` states: "clone what you
+/// need out and drop the guard first".
+///
+/// The window that buys is real, so the destination is **re-resolved** after it. In between,
+/// another client can forget the vault or a second import can take the name.
+fn run_import(
+    app: &App,
+    scope: &Scope,
+    source: &str,
+    vault: &str,
+    name: &str,
+    path: &str,
+    stubs: bool,
+) -> Result<commands::ImportReport, String> {
+    let source = PathBuf::from(vaults::expand_home(source));
+    let opts = fm_core::import::Options { create_stubs: stubs };
+
+    if vault.is_empty() {
+        return import_into_new_vault(app, &source, name, path, opts);
+    }
+
+    // ── an existing vault ──────────────────────────────────────────────────────
+    // What has already been imported here, in one pass. Under the guard because it reads the
+    // store; it is a single scan, which is the point (see `existing_sources`).
+    let (cfg, existing) = {
+        let mut g = app.lock()?;
+        let cfg = g.config(scope, vault)?;
+        let st = g.store(scope);
+        let existing = commands::existing_sources(&st).map_err(err)?;
+        (cfg, existing)
+    };
+
+    let converted =
+        fm_core::import::convert(&source, &cfg.path, &existing, opts).map_err(err)?;
+
+    let mut g = app.lock()?;
+    // **Re-resolved, not reused.** The conversion above can take minutes; if the vault was
+    // forgotten or moved in that time, writing to the path we remember would put notes somewhere
+    // nothing is watching. The blobs are already in the old path either way — say so.
+    let now = g.config(scope, vault)?;
+    if now.path != cfg.path {
+        return Err(format!(
+            "'{vault}' moved while the import was running, so nothing was written to it. Any              attachments already copied are in {}.",
+            cfg.path.display()
+        ));
+    }
+    let mut report = {
+        let mut st = g.store(scope);
+        commands::write_import(&mut st, &now.path, &now.name, converted).map_err(err)?
+    };
+    record(&mut g, &now.name, &now.path, &mut report);
+    Ok(report)
+}
+
+/// Import into a vault that does not exist yet — a fourth way one comes into being, beside
+/// create, clone and restore. Same ordering as [`create_vault`], with the conversion moved
+/// outside the guard.
+fn import_into_new_vault(
+    app: &App,
+    source: &Path,
+    name: &str,
+    path: &str,
+    opts: fm_core::import::Options,
+) -> Result<commands::ImportReport, String> {
+    // 1. Validate and make the directory, under the guard.
+    let (mut store, path, config) = {
+        let g = app.lock()?;
+        let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+        if !check.ok {
+            return Err(refusal(&check, name));
+        }
+        let config = app.config.clone().ok_or(
+            "there is nowhere to save the vault list on this machine — set FM_VAULTS".to_string(),
+        )?;
+        let path = PathBuf::from(vaults::expand_home(path));
+        for d in [&path, &path.join("blobs"), &path.join("derived")] {
+            std::fs::create_dir_all(d)
+                .map_err(|e| format!("could not create {}: {e}", d.display()))?;
+        }
+        // Deliberately no `acquire::naturalise`: nothing *arrived* here. Its own contract is
+        // "only ever call this on something that just arrived", and `create_vault` does not call
+        // it either — the directory we just made has no foreign index and no sender's identity.
+        let store = fm_core::FileStore::named(&path, name).map_err(|e| {
+            format!(
+                "created the directory at {}, but could not open it as a vault: {e}                  — nothing was configured",
+                path.display()
+            )
+        })?;
+        (store, path, config)
+    };
+
+    // 2. The long part, with the guard released and into a store nobody else can see yet.
+    let converted = fm_core::import::convert(source, &path, &HashMap::new(), opts).map_err(err)?;
+    let mut report = commands::write_import(&mut store, &path, name, converted).map_err(err)?;
+
+    // 3. Register it. The name may have been taken while we were converting, so the check is
+    //    re-run rather than assumed — and `vaults::save` is still the commit point: JSON before
+    //    memory, so a failed write never leaves a vault that vanishes on restart.
+    let mut g = app.lock()?;
+    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, &path.to_string_lossy());
+    if !check.ok {
+        return Err(format!(
+            "the notes were imported into {}, but the vault could not be registered: {}.              Nothing was lost — the folder is there; add it with New vault once that is fixed.",
+            path.display(),
+            refusal(&check, name)
+        ));
+    }
+    let cfg = VaultConfig { name: name.to_string(), path: path.clone(), restic: None };
+    let mut list = g.configs();
+    list.push(cfg.clone());
+    vaults::save(&list, &config).map_err(|e| {
+        format!(
+            "the notes were imported into {}, but the vault list could not be saved: {e}              — it is not configured. Nothing was lost; fix that and add it with New vault.",
+            path.display()
+        )
+    })?;
+    g.add(cfg, store);
+    record(&mut g, name, &path, &mut report);
+    Ok(report)
+}
+
+/// Put the whole import into history as **one** entry, which is what makes it undoable as one.
+///
+/// Failure here is not failure of the import: the notes are on disk and readable either way, so
+/// this reports rather than returns an error. That matters at size — `commit_all` hands every
+/// path to `git` in one argv, and a very large graph can exceed what the OS will accept.
+fn record(g: &mut Vaults, name: &str, path: &Path, report: &mut commands::ImportReport) {
+    if !vcs::available() {
+        return;
+    }
+    let paths = g.all.written(name);
+    let message = format!("import: {} notes from {}", report.notes, report.format);
+    match vcs::commit_all(path, &message, &paths) {
+        Ok(true) => {
+            g.all.clear_written(name);
+            report.recorded = true;
+        }
+        Ok(false) => {}
+        Err(e) => report.warnings.push(format!(
+            "the notes are all in the vault, but they could not be recorded in one step ({e}) —              open Back up and record them there"
+        )),
+    }
 }
 
 /// Unregister a vault: drop it from the live set and from `vaults.json`.

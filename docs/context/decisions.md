@@ -76,7 +76,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***A tag may contain a space, and both doors must agree what that means*** ·
+- **`#data`**: ***An import converts; adoption renders*** (read before touching `import.rs`, before
+  adding a `source_key` convention, and before assuming Track V4 covers this) ·
+  ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
   (read before touching `parse_ref`, `assetUrl` or the resolve passes) · ***A paper is a note, made from the citation you already have*** (read before
   adding a metadata field or an acquisition route) · ***A list property is writable, and a scalar where a list belongs is read, not
@@ -125,6 +127,78 @@ send, and it fails against the old code.
 **The general form, worth more than the fix:** a gate that inspects a *different* string from the
 one the router acts on has a hole in it by construction. `agent::route` and `share::route` match the
 same `path`; they are exact-match and therefore fail closed, but they are the same shape of risk.
+
+## An import converts; adoption renders (2026-09-02, `#data` `#vault` `#seams`)
+
+**Decision.** formicaria imports a **Logseq graph or an Obsidian vault**: `check_import` previews a
+folder, `run_import` converts it into notes, either into a new vault or one that already exists.
+`fm-core/src/import.rs` owns the walk; `import/logseq.rs` and `import/obsidian.rs` are **pure**
+(one file's text → a `Page`), and the resolution pass that turns `[[Name]]` into
+`[Name](note:<ULID>)` is pure too — attachments are hashed before it runs and handed to it as a map.
+
+**Why it is not Track V4 adoption, which it superficially resembles.** V4 is *"a doc reads for
+free"*: any `.md` renders with a transient, index-only id and **nothing is written into the user's
+repo**, because "ten commits putting ULIDs into READMEs your collaborators read is a bad trade".
+That is a **rendering** of files you keep owning elsewhere. This is a **conversion** of files you
+are migrating away from — `[[Page]]` must become a real reference, `key::` must become queryable
+frontmatter, `assets/` must enter the blob store — and none of that is possible in place. V4 remains
+unbuilt and unchanged. **The invariant that keeps the two apart: the source folder is opened
+read-only and is never written to**, asserted by a test that fingerprints it before and after.
+
+**What a Logseq block becomes, and why nothing is lifted.** A page is **one note whose body is the
+outline, verbatim, as nested Markdown lists**. `id::` is dropped and `((ref))` is replaced by the
+referenced block's *text* — which is what Logseq itself renders, so nothing visible is lost. This is
+forced, not chosen: *Files-as-truth; the atom is the file* and *Inline meeting actions become their
+own note* both refuse per-block identity ("Rejected: per-block ids/timestamps — voids the plan").
+For the same reason a `TODO` becomes a plain `- [ ]` checkbox that appears in **no** planning view,
+and a block's `SCHEDULED:`/`DEADLINE:` stays text. Only a **page-level** property becomes a note
+field. Lifting one bullet's date to the note would manufacture exactly the second-class item that
+ruling rejects.
+
+**Add-only, and that is a safety decision rather than a limitation.** Each note carries
+`source_key` (its path in the source) and `source_library`, so a re-import recognises what it
+already did — and **skips it**, never rewrites it. `refuse_if_stale` compares the *indexed* mtime,
+which `put` refreshes on every in-app save, so an "update in place" would silently overwrite an edit
+the user made here and raise no conflict at all. The lookup is **one** pass into a `HashMap` because
+`FileStore::candidates` pushes only `Text` and `Kind` down to SQL: a `Prop` lookup per page is
+quadratic on a vault of any size.
+
+**Four traps this had to dodge, each of which was a silent failure.** (1) `to_file` writes `extra`
+into the same YAML mapping as the well-known keys and `Mapping::insert` overwrites — so an imported
+`type::`/`updated::` would replace ours and the note would stop parsing and vanish from every view;
+`base::` is quieter still, because `thread::notes_base` *hides* a note carrying one. Reserved names
+are therefore prefixed and counted. (2) `#[[two words]]` shares Logseq's link syntax but is a tag —
+counted as a link it reported every multi-word tag as dangling, and would have rewritten one into
+`#[label](note:…)` the moment a page shared its name. (3) Obsidian resolves `[[Roadmap]]` **and**
+`[[Projects/Roadmap]]`, so a page registers under its path as well as its name or every
+folder-qualified link dangles. (4) One `git log` for the whole source, never one per file — a spawn
+per page is precisely the `papers-plan.md` B5 mistake.
+
+**Dangling links stay as text.** A page that exists only as a reference is normal in Logseq. A stub
+note is a `Kind::Note`, so hundreds of empty ones would appear in every board, agenda, timeline and
+feed — in an app with no virtualisation anywhere. Stubs are an explicit opt-in that states how many
+notes it will add.
+
+**Where the lock is.** The conversion — a directory walk, a hash per attachment, `pdftotext` per PDF
+— runs with the guard **released**; only the `put` loop takes it. The destination is *re-resolved*
+after that window, because a vault can be forgotten or a name taken while a large graph converts.
+The whole import lands as **one** commit, which is what makes it undoable as one; a failure to
+record says so rather than pretending, since the notes are on disk either way.
+
+**Host-bound.** Both commands take a server-side filesystem path, so both join `REMOTE_DENIED` for
+the reason already written there for `check_path` — `check_import` is a filesystem oracle over the
+whole machine. There is no folder picker, for the reason *A vault is created, not invented* already
+records; the source is a typed path validated server-side per keystroke, and **one** `ok` answers
+for the source and the destination together so the browser never holds a second opinion.
+
+**Rejected:** a plain "folder of Markdown" mode (with no graph there is nothing to resolve links
+against, and a silent half-import is worse than a refusal that names what it looked for); org-mode
+graphs; Obsidian plugin formats (Canvas, Dataview), which are counted and named as left behind; and
+any two-way sync back — *"`sync` requires git, `copy` works with anything"*, and this is a copy.
+
+**Note on layout:** `import.rs` + `import/` is the first nested module in `crates/`; every other
+crate is flat. Three cohesive files earned a directory, and `mod.rs` was avoided so the flat-file
+reading order still holds.
 
 ## `/transcribe` reads writing too — one verb, two specialists (2026-08-30, `#agent` `#toolchain`)
 

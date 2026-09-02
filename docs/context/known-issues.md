@@ -145,6 +145,19 @@ The gray-screen fix and its tests are in
 
 ## Known gaps / not fully working
 
+- **A very large import may not land as one commit.** `vcs::commit_all` hands every path to `git`
+  in a single argv, three times (`ls-files`, `add -A`, `commit --only`). Every other caller commits
+  a handful; an import commits thousands, and somewhere past roughly fifty thousand paths that
+  exceeds `ARG_MAX` and the commit fails. **The notes are on disk and in the index either way** —
+  only the "undo it in one step" property is lost — and the import report says so in those words
+  rather than claiming success. Fixing it means batching the staging while keeping one commit,
+  which changes a function every write path shares; not worth doing until someone actually has a
+  graph that size.
+- **An import runs `vipsthumbnail` once per attachment, under the vault lock.** The genuinely heavy
+  parts (hashing, `pdftotext`) already happen with the guard released, but `commands::asset_note`
+  thumbnails inside the write loop and is reused deliberately rather than reimplemented. A few
+  hundred images is seconds; a few thousand is not. See `papers-plan.md` B5 for the shape.
+
 - **A paired device's microphone needs the certificate installed, and there is deliberately no
   way around that.** `getUserMedia` requires a secure context, so it works over the TLS listener
   and not over the plain-HTTP fallback (`--no-default-features`, or a machine where no

@@ -325,6 +325,52 @@ export interface PathCheck {
   ok: boolean;
 }
 
+/** A kind of file an import has no landing site for, and how many there were. */
+export interface LeftBehind {
+  kind: string;
+  count: number;
+}
+
+/** What importing a folder would involve — **and whether it can be**. The server owns `ok`
+ *  and answers for the source *and* the destination together: two verdicts ANDed in the
+ *  browser is the second opinion that makes a button enable and then fail. */
+export interface ImportCheck {
+  /** `logseq` | `obsidian`, or null when the folder is neither. */
+  format: string | null;
+  label: string | null;
+  pages: number;
+  journals: number;
+  attachments: number;
+  attachmentBytes: number;
+  leftBehind: LeftBehind[];
+  /** One sentence, the most disqualifying first. Null means it can be imported. */
+  problem: string | null;
+  ok: boolean;
+}
+
+/** What an import actually did. Every number is reported, including the ones that are not
+ *  good news — a dangling link or a renamed property is something the user should learn now
+ *  rather than discover in a month. */
+export interface ImportReport {
+  format: string;
+  notes: number;
+  stubs: number;
+  alreadyImported: number;
+  attachments: number;
+  deduped: number;
+  links: number;
+  dangling: number;
+  danglingNames: string[];
+  blocks: number;
+  blocksUnresolved: number;
+  renamedProperties: number;
+  leftBehind: LeftBehind[];
+  warnings: string[];
+  /** Whether it all went into history as one entry — which is what makes it undoable as one. */
+  recorded: boolean;
+  vault: string;
+}
+
 /** The renderer a `.view` draws through — the same set the built-in nav offers. */
 export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery';
 

@@ -159,9 +159,14 @@ figure, a formula, and have the note be anchored to that place:
 - **The Zotero port**, which the owner made a hard requirement. Local API only: **every export
   route drops annotations** (`case 'annotation': return false`, upstream of every translator), and
   area-annotation images often do not exist on disk until the PDF has been opened in Zotero's own
-  reader — so the importer must render crops itself and therefore *depends on* the reader. Needs an
-  atomic idempotent `import_item`, a reserved `source_key`, and an import path allowed to set
-  `created`/`updated`. PDF-only: EPUB and snapshot annotations have no landing site.
+  reader — so the importer must render crops itself and therefore *depends on* the reader. PDF-only:
+  EPUB and snapshot annotations have no landing site.
+  **Two of its three prerequisites landed on 2026-09-02** with the Logseq/Obsidian importer
+  (`decisions.md`, *An import converts; adoption renders*): `source_key`/`source_library` are
+  reserved and in use, and an import path that sets `created`/`updated` exists — it builds the
+  `Object` whole and `put`s once, so it never meets `apply_property`'s refusal. Still owed: the
+  atomic `import_item` **command** itself (title + body + tags-as-list + properties + asset hashes
+  in one call), which Zotero needs and a folder-walking importer did not.
 
 **Three obligations the owner's *separate app* ruling incurs, none started, all cheaper now than
 later** (`papers-plan.md` Part 5): a dated reversal of `MASTERPLAN.md:341` with a `> SUPERSEDED`
@@ -413,6 +418,14 @@ The trap it must solve, from `plan.md`: `path_for(id) = notes.join("{id}.md")` �
 `docs/01KX….md`, orphaning the original. The index has to record the real path.
 
 **The largest unbuilt item in the plan**, and the natural next feature now V1–V3 are in.
+
+**The Logseq/Obsidian importer (2026-09-02) did *not* do this**, and the distinction is the whole
+point of both: an import *converts* files you are leaving behind and writes fresh `<ULID>.md` into a
+vault; V4 *renders* files you keep owning elsewhere, in place, with a transient id and nothing
+written to your repo. The importer does reuse V4's one durable insight — "use git for what only git
+knows" — to date an imported note from the source repo's history rather than from the day it ran.
+The recursive walk it needed lives in `import.rs` and is **not** the one V4 wants; V4's has to be
+inside `FileStore::reindex`, with the path recorded in the index, which is still unbuilt.
 
 ### 2.2 The whiteboard image-strip
 Decided and deferred, both on purpose — see `decisions.md`. Storage is settled (git-track the

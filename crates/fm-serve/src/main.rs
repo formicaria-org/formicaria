@@ -325,6 +325,13 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/clear_restic_password",
     // Vault lifecycle, and policy with off-machine effects. `set_git_assets_max` changes what
     // every git collaborator receives, from a device that is a guest in one vault.
+    //
+    // The two import commands are here for the `check_path` reason as much as this one: both take
+    // a **host filesystem path**, so `check_import` reports the existence, readability and shape
+    // of any directory on the machine — a filesystem oracle — and `run_import` then reads that
+    // directory's contents into a vault. Neither question is "which audience am I in".
+    "/api/check_import",
+    "/api/run_import",
     "/api/create_vault",
     "/api/clone_vault",
     "/api/restore_vault",

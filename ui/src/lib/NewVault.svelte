@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Creating a vault: a name, a folder, and an honest account of what will happen.
+  // Bringing notes into formicaria: a name, a folder, and an honest account of what will happen.
   //
   // ONE component, TWO mounts. As the first-run screen it is the whole app, because
   // without a vault there is nothing else to show. As a dialog from the backup panel it
@@ -12,15 +12,25 @@
   // and the server answers what is really there on every keystroke.
   import { onMount } from 'svelte';
   import {
+    checkImport,
     checkPath,
     cloneVault,
     config as fetchConfig,
     createVault,
+    listVaults,
     probeRemote,
     restoreVault,
+    runImport,
     setGitCredential,
   } from './ipc';
-  import type { GitAuth, PathCheck, RemoteProbe, VaultInfo } from './types';
+  import type {
+    GitAuth,
+    ImportCheck,
+    ImportReport,
+    PathCheck,
+    RemoteProbe,
+    VaultInfo,
+  } from './types';
   import { describe, historyNote } from './vaultCheck';
 
   interface Props {
@@ -52,6 +62,7 @@
   onMount(async () => {
     const cfg = await fetchConfig().catch(() => null);
     if (cfg) {
+      existing = cfg.vaults;
       vaultRoot = cfg.vault_root;
       // Nothing sensible to prefill on a phone, and the field is not shown there anyway.
       if (cfg.vault_root !== null) path = '';
@@ -73,12 +84,26 @@
   // The distinction that matters is not the tool, it is **whether what arrives can sync**.
   // Only git carries history, so only git can be a two-way relationship; everything else
   // hands you a copy. Saying that plainly is better than a form that implies otherwise.
-  type Mode = 'create' | 'clone' | 'restore';
+  //   import  — another app fills it: a Logseq graph or an Obsidian vault, converted
+  //
+  // Import is the only one that **converts** rather than moving bytes, and the only one that can
+  // also target a vault you already have — so it is the only mode with a destination question.
+  type Mode = 'create' | 'clone' | 'restore' | 'import';
   let mode = $state<Mode>('create');
   let url = $state('');
   let gitName = $state('');
   let gitEmail = $state('');
   let repo = $state('');
+
+  // ── import ────────────────────────────────────────────────────────────────────
+  let source = $state('');
+  /** An existing vault's name, or '' for the new one this form describes. */
+  let intoVault = $state('');
+  let stubs = $state(false);
+  let importCheck = $state<ImportCheck | null>(null);
+  let scanning = $state(false);
+  let report = $state<ImportReport | null>(null);
+  let existing = $state<VaultInfo[]>([]);
 
   // **Asked before the clone, not after it fails.** A typo, a private repo, and being offline
   // all come out of `git clone` as the same unusable sentence about usernames; these are three
@@ -131,6 +156,29 @@
     if ((mode === 'clone' && !canClone) || (mode === 'restore' && !canRestore)) mode = 'create';
   });
 
+  // A directory walk, not a stat — so it is debounced longer than the path check, the same way
+  // `probeRemote` is because it touches the network. A source path can be anything a person typed,
+  // including one with a great many files under it.
+  let scanTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    const [src, into, n, p] = [source, intoVault, name, path];
+    clearTimeout(scanTimer);
+    if (mode !== 'import' || !src.trim()) {
+      importCheck = null;
+      return;
+    }
+    scanning = true;
+    scanTimer = setTimeout(async () => {
+      importCheck = await checkImport(src, into, n, p).catch(() => null);
+      scanning = false;
+    }, 600);
+    return () => clearTimeout(scanTimer);
+  });
+
+  // Importing into a vault that already exists asks no folder question at all — the folder is
+  // already decided. Only the *new vault* destination needs a name and a path.
+  const importingIntoNew = $derived(mode === 'import' && intoVault === '');
+
   const described = $derived(describe(check));
   // The SERVER owns this. Never `described.blocking.length === 0` — that would be the
   // browser holding a second opinion, which is how a button enables and then fails.
@@ -146,7 +194,14 @@
   const modeReady = $derived(
     mode === 'clone' ? cloneReady : mode === 'restore' ? restoreReady : true,
   );
-  const canCreate = $derived(!!check?.ok && !busy && modeReady);
+  // In import mode the server answers for the source **and** the destination in one `ok`, so this
+  // reads that single verdict rather than ANDing it with a second one of its own — the same rule
+  // the other three modes follow with `check.ok`.
+  const canCreate = $derived(
+    mode === 'import'
+      ? !!importCheck?.ok && !busy
+      : !!check?.ok && !busy && modeReady,
+  );
 
   // Debounced like the sidebar's search: a keystroke should not be a round trip, but the
   // answer must feel immediate once you stop.
@@ -156,7 +211,8 @@
     clearTimeout(timer);
     // On a managed install the *name* is the whole input — an empty path is what asks the
     // server to place it — so only a desktop treats a blank folder as nothing to check.
-    if (!m && !p.trim()) {
+    // Importing into an existing vault creates nothing, so there is no path to check either.
+    if ((mode === 'import' && intoVault !== '') || (!m && !p.trim())) {
       check = null;
       return;
     }
@@ -171,6 +227,13 @@
     busy = true;
     error = null;
     try {
+      if (mode === 'import') {
+        // The report is the point of the whole exercise — what arrived, what did not, and what
+        // was renamed — so it is shown rather than swallowed by the dialog closing. `oncreated`
+        // fires when the user dismisses it.
+        report = await runImport(source, intoVault, name, path, stubs);
+        return;
+      }
       oncreated(
         mode === 'clone'
           ? await cloneVault(name, path, url, gitName, gitEmail)
@@ -187,9 +250,77 @@
       busy = false;
     }
   }
+
+  /** Dismiss the summary. The vault list is re-read rather than assumed: an import into a *new*
+   *  vault registered one, and an import into an existing vault changed none. */
+  async function finishImport() {
+    oncreated(await listVaults().catch(() => existing));
+  }
+
+  /** Bytes as something a person reads, for the "and N attachments" line. */
+  function mb(bytes: number): string {
+    if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
+    return `${(bytes / 1_000_000).toFixed(bytes < 10_000_000 ? 1 : 0)} MB`;
+  }
 </script>
 
 <div class="wrap" class:first={firstRun}>
+  {#if report}
+    <!-- What actually happened. Shown instead of the form, because every number here is
+         something the user would otherwise have to go looking for — and two of them (dangling
+         links, renamed properties) are things they can only act on if they are told. -->
+    <div class="card" role="status">
+      <h1>Imported from {report.format === 'logseq' ? 'Logseq' : 'Obsidian'}</h1>
+      <p class="lede">
+        <strong>{report.notes}</strong>
+        {report.notes === 1 ? 'note' : 'notes'} in <strong>{report.vault}</strong>{#if report.attachments}, with
+          <strong>{report.attachments}</strong>
+          {report.attachments === 1 ? 'attachment' : 'attachments'}{/if}.
+      </p>
+      <ul class="says">
+        {#if report.links}
+          <li class="good">{report.links} links between notes now work.</li>
+        {/if}
+        {#if report.blocks}
+          <li class="good">{report.blocks} block references were replaced by what they said.</li>
+        {/if}
+        {#if report.alreadyImported}
+          <li class="note">
+            {report.alreadyImported} were imported before and were left untouched — nothing you
+            have edited here was overwritten.
+          </li>
+        {/if}
+        {#if report.dangling}
+          <li class="warn">
+            {report.dangling} links point at pages that had no file, so they were left as plain
+            text{#if report.danglingNames.length}: {report.danglingNames.join(', ')}{/if}.
+          </li>
+        {/if}
+        {#if report.stubs}
+          <li class="note">{report.stubs} empty notes were created for those pages.</li>
+        {/if}
+        {#if report.renamedProperties}
+          <li class="note">
+            {report.renamedProperties}
+            {report.renamedProperties === 1 ? 'property was' : 'properties were'} renamed because the
+            name is one a note already uses.
+          </li>
+        {/if}
+        {#each report.leftBehind as l (l.kind)}
+          <li class="warn">{l.count} .{l.kind} files were left behind — there is nowhere to put them here.</li>
+        {/each}
+        {#if report.recorded}
+          <li class="good">All of it was saved in one step, so it can be undone in one step.</li>
+        {/if}
+        {#each report.warnings as w (w)}
+          <li class="warn">{w}</li>
+        {/each}
+      </ul>
+      <div class="actions">
+        <button type="button" onclick={() => void finishImport()}>Done</button>
+      </div>
+    </div>
+  {:else}
   <form
     class="card"
     onsubmit={(e) => {
@@ -233,13 +364,68 @@
           onclick={() => (mode = 'restore')}
           disabled={busy}>Restore a backup</button>
       {/if}
+      <!-- Absent where there is no folder for the user to point at. On a phone there is no
+           $HOME, no shell and no path anyone could type — the same reason the folder field
+           disappears there — so offering this would be offering a refusal. -->
+      {#if !managed}
+        <button
+          type="button"
+          class:active={mode === 'import'}
+          onclick={() => (mode = 'import')}
+          disabled={busy}>Import from another app</button>
+      {/if}
     </div>
 
-    <label>
-      <span>Name</span>
-      <input bind:value={name} placeholder="notes" autocomplete="off" spellcheck="false" />
-      <small>What you'll call it here. Anything you like.</small>
-    </label>
+    {#if mode === 'import'}
+      <label>
+        <span>Source folder</span>
+        <input
+          bind:value={source}
+          placeholder="~/Documents/my-logseq-graph"
+          autocomplete="off"
+          spellcheck="false"
+          autocapitalize="off"
+        />
+        <small>
+          Your Logseq graph or Obsidian vault. It is only ever <strong>read</strong> — nothing is
+          changed, moved or deleted there.
+        </small>
+      </label>
+
+      {#if existing.length}
+        <label>
+          <span>Put the notes in</span>
+          <select bind:value={intoVault} disabled={busy}>
+            <option value="">a new vault</option>
+            {#each existing as v (v.name)}
+              <option value={v.name}>{v.name}</option>
+            {/each}
+          </select>
+          <small>
+            A new vault keeps the imported notes separate, which is the easy thing to undo — you
+            can forget it again and nothing else changes.
+          </small>
+        </label>
+      {/if}
+
+      <label class="check">
+        <input type="checkbox" bind:checked={stubs} disabled={busy} />
+        <span>Make a note for pages that are only linked to</span>
+        <small>
+          Off by default. In Logseq a page exists as soon as something links to it, so a graph
+          usually has many with no content — and every one would appear in your board, calendar
+          and timeline. Left off, those links stay as plain text.
+        </small>
+      </label>
+    {/if}
+
+    {#if !(mode === 'import' && intoVault !== '')}
+      <label>
+        <span>Name</span>
+        <input bind:value={name} placeholder="notes" autocomplete="off" spellcheck="false" />
+        <small>What you'll call it here. Anything you like.</small>
+      </label>
+    {/if}
 
     {#if mode === 'clone'}
       <label>
@@ -357,7 +543,9 @@
       </p>
     {/if}
 
-    {#if managed}
+    {#if mode === 'import' && intoVault !== ''}
+      <!-- No folder question: the destination already has one. -->
+    {:else if managed}
       <!-- No folder question, because there is no folder to choose. The location is stated
            rather than hidden: files-as-truth means "where is my file" must always have an
            answer, even when the answer is somewhere you cannot browse to. -->
@@ -383,6 +571,39 @@
     <!-- Everything below is a promise about someone's filesystem. Each line is a fact the
          server reported, never an inference we made. -->
     <ul class="says" aria-live="polite">
+      {#if mode === 'import'}
+        <!-- The size of the import, stated **before** the button is pressed. That is what makes
+             one blocking call acceptable for a job this long: nobody is surprised by how much
+             they asked for. Every number is the server's, not a guess made here. -->
+        {#if scanning}
+          <li class="note">Looking at that folder…</li>
+        {:else if importCheck?.problem}
+          <li class="bad">{importCheck.problem}</li>
+        {:else if importCheck?.ok}
+          <li class="good">
+            {importCheck.label}: {importCheck.pages + importCheck.journals} pages{#if importCheck.journals}
+              (including {importCheck.journals} daily {importCheck.journals === 1 ? 'note' : 'notes'}){/if}{#if importCheck.attachments},
+              and {importCheck.attachments} attachments — {mb(importCheck.attachmentBytes)}{/if}.
+          </li>
+          {#if importCheck.pages + importCheck.journals > 2000}
+            <li class="warn">
+              That is a lot of notes. The app will be busy while it works, and lists this long are
+              slower to draw than the ones it was built for.
+            </li>
+          {/if}
+          {#each importCheck.leftBehind as l (l.kind)}
+            <li class="warn">
+              {l.count} .{l.kind}
+              {l.count === 1 ? 'file' : 'files'} will be left behind — there is nowhere to put
+              {l.count === 1 ? 'it' : 'them'} here.
+            </li>
+          {/each}
+          <li class="note">
+            Your notes stay exactly as they are in {importCheck.label}. This makes a copy; the two
+            do not stay in step afterwards.
+          </li>
+        {/if}
+      {:else}
       {#each described.blocking as msg (msg)}
         <li class="bad">{msg}</li>
       {/each}
@@ -404,6 +625,7 @@
       {#if git !== null && mode !== 'restore'}
         <li class="note">{historyNote(git)}</li>
       {/if}
+      {/if}
     </ul>
 
     {#if error}
@@ -415,7 +637,9 @@
         <button type="button" class="ghost" onclick={oncancel}>Cancel</button>
       {/if}
       <button type="submit" disabled={!canCreate}>
-        {#if mode === 'clone'}
+        {#if mode === 'import'}
+          {busy ? 'Importing…' : 'Import notes'}
+        {:else if mode === 'clone'}
           {busy ? 'Joining…' : 'Join vault'}
         {:else if mode === 'restore'}
           {busy ? 'Restoring…' : 'Restore vault'}
@@ -425,6 +649,7 @@
       </button>
     </div>
   </form>
+  {/if}
 </div>
 
 <style>
@@ -591,5 +816,28 @@
     background: transparent;
     border-color: var(--border);
     color: var(--fg);
+  }
+  /* A checkbox reads as "box, then what it does" — not as a stacked field like the text
+     inputs above it, where the label sits over the control. */
+  .check {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 4px 8px;
+  }
+  .check input {
+    width: auto;
+    justify-self: start;
+  }
+  .check small {
+    grid-column: 2;
+  }
+  select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2, 6px);
+    background: var(--bg);
+    color: var(--fg);
+    font: inherit;
   }
 </style>

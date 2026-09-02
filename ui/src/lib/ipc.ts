@@ -6,6 +6,8 @@ import type {
   CommitResult,
   EditEvent,
   GitAuth,
+  ImportCheck,
+  ImportReport,
   DiscussionSummary,
   NoteDetail,
   ObjectMeta,
@@ -750,6 +752,23 @@ export const checkPath = (name: string, path: string) =>
 /** Create, register and open a vault — live, with no restart. Returns the new list. */
 export const createVault = (name: string, path: string) =>
   invoke<VaultInfo[]>('create_vault', { name, path });
+
+/** What importing this folder would involve, and whether it can be. Called per keystroke like
+ *  `checkPath`, and it answers for the destination too — so the panel never has to combine two
+ *  verdicts of its own. `vault` names an existing vault; empty means the new one in `name`/`path`. */
+export const checkImport = (source: string, vault = '', name = '', path = '') =>
+  invoke<ImportCheck>('check_import', { source, vault, name, path });
+
+/** Convert a Logseq graph or an Obsidian vault into notes. Host-only (it reads a folder on this
+ *  machine), and a single blocking call — the preview above is what makes that acceptable, since
+ *  it states the size before the button is pressed. */
+export const runImport = (
+  source: string,
+  vault: string,
+  name: string,
+  path: string,
+  stubs: boolean,
+) => invoke<ImportReport>('run_import', { source, vault, name, path, stubs });
 
 /** Clone a collaborator's vault and register it. The identity is **required**, not a
  *  courtesy: a shared vault is exactly where committing as the placeholder would attribute
