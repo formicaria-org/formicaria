@@ -97,6 +97,28 @@ time = { workspace = true }   # macros (datetime!) for search recency-ordering t
 # The fix is not to vendor OpenSSL on Windows. It is to stop asking for it: nothing on that target
 # ever called into these crates. Windows now builds libgit2 with WinHTTP and no OpenSSL anywhere,
 # which is also smaller and drops the Perl + NASM requirement from the runner image.
-[target.'cfg(not(windows))'.dependencies]
+#
+# **And not on iOS, for the same reason one step removed.** `libgit2-sys/build.rs` picks its TLS
+# backend by target string: WinHTTP on Windows, **SecureTransport on every `apple` target**, OpenSSL
+# elsewhere. So on iOS libgit2 never calls OpenSSL either — yet `git2`'s own manifest gates its
+# openssl deps on `all(unix, not(target_os = "macos"))`, and iOS *is* unix and is *not* macOS, so
+# `vendored-openssl` reached it and built a complete OpenSSL from source for a backend that cannot
+# use it (measured with `cargo tree --target aarch64-apple-ios`: `openssl-src v300.6.1` present).
+# `add_certs_from_pem` is gated to match. Nothing is lost: it is Android's memory-only trust path,
+# it is exercised on Linux by `tests/git_differential.rs`, and SecureTransport uses the iOS system
+# trust store with no plumbing at all. macOS is deliberately left alone — it carries the same dead
+# OpenSSL, but changing it would alter a target that ships today for no gain that ships today.
+#
+# **What this does NOT remove, and why it must not be tried.** `git2`'s `https` feature — which we
+# require — lists `openssl-sys` directly, and `libgit2-sys` declares it under `cfg(unix)`; iOS is
+# unix, so the crate stays in the graph no matter what this section says. Dropping `vendored-openssl`
+# to shed it was measured and reverted: it leaves a **bare** `openssl-sys` whose build script goes
+# looking for a system OpenSSL, which on iOS does not exist — *"Could not find directory of OpenSSL
+# installation"*, the identical failure that broke the Windows release. So iOS still compiles a
+# vendored OpenSSL that SecureTransport never calls. That is waste, not a bug, and shedding it needs
+# an upstream change rather than a manifest trick. Verified with
+# `cargo tree -p fm-core --features native-git --target aarch64-apple-ios`.
+[target.'cfg(not(any(windows, target_os = "ios")))'.dependencies]
 libgit2-sys = { version = "0.18", optional = true, default-features = false }
 openssl-sys = { version = "0.9", optional = true, default-features = false }
+

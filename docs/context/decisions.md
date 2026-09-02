@@ -19,7 +19,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
   library; does not route through `dispatch`* · *Vaults are audiences* (the `candidates` seam).
-- **`#git` / `#sync`** (git, merge, collaboration): ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
+- **`#git` / `#sync`** (git, merge, collaboration): ***The body merge stops shelling out where there is no shell*** (read before touching `merge::text_3way`, `vcs`'s hand-written arms, or either backend's `commit_all*` — it is a shipped vault-freezing bug and its two guards) · ***A proposal's outgoing commit is kept, so the accepted label can be true*** (read before touching `write_proposal_branch`, `delete_branch` or `refs/fm/*`) · ***libgit2 ships on Windows too*** (the
   exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
   `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4474,3 +4474,113 @@ in the Settings panel's own explanation — the first thing anyone reads about t
 third in `agents/README.md`. A reader compared the table to the picker and found no overlap. The
 catalogue is now the single source: every example names something `agent_models` will actually
 offer.
+
+## 2026-09-02 — the body merge stops shelling out where there is no shell, and the engine is libgit2's `#git` `#track-m`
+
+> **SUPERSEDES** the body-engine half of *`git2` is rejected; git stays a subprocess capability*
+> (2026-07-18) and `mobile-design.md`'s ruling 3, which is marked **⛔ refuted** at its own heading:
+> it named `git2::merge_file`, which does not exist. The rejection of `diffy` still stands, and so
+> does *the desktop keeps shelling out*.
+
+**Decision:** `merge::text_3way` becomes two engines behind one selection rule — the subprocess
+where a `git` binary exists, and **libgit2's `git_merge_file` through `libgit2-sys`** where one does
+not. The rule is `vcs::native()`, made `pub(crate)` so there is exactly one definition of "this
+device has no git". `vcs::commit_all_as` gains the libgit2 arm it never had.
+
+**Why now, and why this was not a feature request.** It was a **shipped bug that froze vaults.**
+`text_3way` shelled out unconditionally — no `cfg`, no routing — while `git_native::pull` called it
+with `?` for every path libgit2 left conflicted. The phone has no `git` (verified on device,
+`known-issues.md` external fact #0). So any pull that had to merge prose died with `could not run
+git merge-file`, **mid-merge**, leaving a `MERGE_HEAD` that `commit_all` then refuses to commit past
+— and this file already says such a standing `MERGE_HEAD` *"freezes the vault permanently"*. The
+2026-07-19 entry recorded the *gap*; what changed is that the native pull shipped on 2026-07-24, so
+it stopped being a missing feature and became an erroring pull. **Every concurrent edit to one
+note's prose, from two devices, is the trigger** — the ordinary case the feature exists for.
+
+**Why nothing caught it.** Every native-backend test runs where `git` *is* on PATH, so `text_3way`
+quietly succeeded through the very binary the phone lacks. `force_native(true)` did not help: it
+routes `vcs::` calls, and the body engine was not routed at all. The reproduction had to be a
+process where `git` genuinely cannot be found — `crates/fm-core/tests/merge_on_a_device_without_git.rs`,
+its own test binary, PATH cleared before `git::available()`'s `OnceLock` can fill.
+
+**Why `libgit2-sys` and not a Rust crate.** It is libgit2's own port of the *same* algorithm, and
+`libgit2-sys` is **already an optional `fm-core` dependency** (for the CA-store option), so this
+adds no dependency — only a second use of one. That is what makes it cheap now and expensive in
+July, when the proposal assumed a wrapper that does not exist. `git2` wraps only
+`merge_file_from_index`, which wants index entries and would write into the ODB.
+
+**Consequence** — the swap is gated on bytes, not on reading:
+- `tests/merge_differential.rs` gained `the_native_engine_is_byte_identical_to_git_merge_file`:
+  400 generated triples, marker sizes 7/12/32, both line endings, graded against **real
+  `git merge-file`** rather than against our own wrapper. Proven by deliberate breakage — changing
+  one label failed the native gate alone and left the subprocess gate green.
+- Both merge suites are wired into `pixi run test-native-git`, because `pixi run ci` builds without
+  the feature and would cover the phone's engine with **nothing at all**. That is how the shell-out
+  survived: green everywhere, on a path the phone could not take.
+- The desktop is unchanged by construction: a `git` binary still wins, so the `fm merge-md` driver
+  and the app's own merge stay the same engine, and a collaborator's terminal `git pull` cannot
+  disagree with ours.
+- `ci/checks.sh` gained *"every hand-written vcs arm reaches both backends"*. The existing routing
+  guard walks `route!(…)` entries only, and both `commit_all` and `commit_all_as` are hand-written
+  because the macro cannot express a `&[PathBuf]` — so `commit_all_as` was routed nowhere and
+  grepped by nothing. Proven by reverting it: the guard names it.
+- **The agent's authorship was the second casualty.** `commit_all_as` reached
+  `Command::new("git")` on the phone and ENOENTed, swallowed by a `let _ =` in `dispatch.rs`. The
+  reply still landed — committed later by the debounced batch, **under the vault's default identity
+  instead of the model's**. The premise in `vcs.rs` (*"`native-git` is a differential-test
+  feature"*) had simply gone stale: it is the phone's shipped backend.
+
+## 2026-09-02 — iOS: the subprocess consequence is reversed for Android and held for iOS, which ships agent-free `#track-m` `#agent`
+
+> **SUPERSEDES** the consequence clause of *iOS eventually; Android now* (2026-07-19) — *"no design
+> may assume an executable subprocess on device, on either platform."* Shipped Android code has
+> contradicted that since the on-device agent landed, and **no reversal was ever written**. This is
+> that reversal, written late and said plainly rather than left as a silent contradiction.
+
+**Decision:** Android **does** assume an executable subprocess, deliberately — `llama-server` and
+`whisper-server` ride in `jniLibs` and are `exec`ed from `nativeLibraryDir`, which is the only
+place Android's W^X permits. The 2026-07-19 clause was written to forbid exactly this and was
+overtaken without a note. **For iOS the clause stands and is absolute**, so if iOS is ever built it
+ships **agent-free (Route C)**: `--no-default-features` already compiles the whole stack out.
+
+**Why not the two alternatives.** *Route A* — link `llama.cpp` in-process via `llama-cpp-2` — keeps
+one shared Rust core, which is the property the one-command-surface ruling exists to protect; but
+`llama-cpp-sys-2`'s build script has no iOS branch, and the work cannot be done or verified from
+this machine. *Route B* — Apple's Foundation Models framework — ships nothing and costs nothing to
+download, but is a **second inference backend behind `OpenAiStep`**, iPhone 15 Pro or later, with no
+control over the model: two paths to keep answering alike, which is the fork the one-command-surface
+ruling forbids. **Neither can be *evaluated* in a Simulator** — no jetsam pressure, no on-device
+Metal, no honest tokens/sec — and a Simulator is the only device available (no Mac, no iPhone). A
+choice between two engines you cannot measure is a guess.
+
+**Consequence:** iOS is a notebook — notes, git sync, whiteboard — or it is nothing. The assistant
+stays desktop + Android, said out loud rather than discovered. Audio would not port whisper.cpp
+either: `whisper-rs` is archived with its iOS build issue unresolved, and iOS 26's `SpeechAnalyzer`
+is a fourth seam question, not a free win. Full survey: `ios-plan-2026-09-02.md`.
+
+## 2026-09-02 — an iOS build would contradict the project-local-toolchain ruling, and that is the price `#toolchain` `#track-m`
+
+> **Scopes** *Non-pixi dependencies are accepted — but they are project-local, never a system
+> requirement* (2026-07-19). Not superseded: Android still honours it exactly. This records what
+> iOS would cost against it, **before** anyone spends a CI minute.
+
+**Decision:** iOS work, if it happens, is a **stated exception** to the project-local rule, not a
+quiet extension of it. Android works because every piece Google ships is a standalone zip that
+`ci/android-init.sh` fetches and verifies against a SHA-256 in `android/toolchain.lock` — *"the
+checksum, not the URL, is the assertion"*. Apple ships the iOS SDK only inside Xcode, and the Xcode
+and Apple SDKs Agreement forbids running it on a non-Apple computer. **There is nothing legal to
+pin into a `.ios/`**, and there never will be. The un-pinnable surface moves from a hashed NDK to a
+GitHub runner image nobody pins or controls — strictly worse than the position the ruling protects.
+
+**Why this is not a veto.** The owner has ruled: no Mac, no iPhone, repo stays private, a bounded
+macOS CI allocation spent strategically. Under that, iOS is a **Simulator-only proof** — no signing,
+no provisioning profile, no $99/yr, no App Store review, no annual certificate renewal, because all
+of those attach to *shipping* and shipping is not on the table. What is bought is an answer to *"is
+the port real and what would it cost"*, with a kill criterion written before the money is spent.
+
+**Consequence:** any iOS CI job is `workflow_dispatch`-only and **must not** be added to
+`release.yml`, which is the single named exception to the no-remote-CI standing order (2026-07-18)
+and fires unattended on every `v*` tag. `gen/apple` is regenerated per run and never committed —
+`.gitignore` already forbids the Android equivalent in terms, *"it embeds absolute paths, so
+committing it would be committing this machine"* — with an idempotent `ci/ios-inject-*.sh`
+re-applying our edits, exactly as `ci/android-inject-service.sh` does.

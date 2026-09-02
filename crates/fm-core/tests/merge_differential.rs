@@ -7,11 +7,12 @@
 //! `git2` function that does not exist. So: nothing swaps until a candidate is graded against
 //! the implementation we have, over inputs nobody hand-picked.
 //!
-//! **Run against today's engine first, deliberately.** With one engine the comparison is close
-//! to a tautology, and that is the point of doing it now: it proves the *harness* — that the
-//! generator reaches conflicts as well as clean merges, that the comparison is exact, that the
-//! verdict mapping is pinned — while there is still a known-good answer to check it against.
-//! A harness first exercised on the day it is needed is a harness nobody trusts.
+//! **Built against one engine, and now doing the job it was built for.** The candidate landed
+//! on 2026-09-02: `merge::text_3way_native`, libgit2's own `git_merge_file` reached through
+//! `libgit2-sys`. The harness was written a month earlier deliberately — proving the
+//! *generator* reaches conflicts as well as clean merges, and that the comparison is exact,
+//! while there was still only a known-good answer to check it against. A harness first
+//! exercised on the day it is needed is a harness nobody trusts.
 //!
 //! **What a future engine must satisfy** is the `reference_*` comparisons below: identical
 //! verdict, and identical bytes. Marker-byte divergence is the one thing that may end up
@@ -28,6 +29,24 @@ use fm_core::merge::{merge_texts, Merged};
 
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
+}
+
+/// `force_native` is process-global (it stands in for a property of a *device*), so no two
+/// tests here may be mid-flight at once. Every test takes this for its whole body — including
+/// the ones that only want the subprocess engine, because a neighbour flipping the switch
+/// underneath them would silently change which engine they were grading.
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
+/// Pin the subprocess engine — what a desktop always resolves to anyway, stated rather than
+/// assumed. A no-op without the feature, where there is only one engine to pick.
+fn use_subprocess_engine() {
+    #[cfg(feature = "native-git")]
+    fm_core::vcs::force_native(false);
 }
 
 /// xorshift64*. Deterministic, so a failure reproduces exactly from the printed seed.
@@ -129,6 +148,8 @@ fn reference(base: &str, ours: &str, theirs: &str, marker: usize) -> (String, Me
 /// frontmatter rules, no scene merge, no fast paths.
 #[test]
 fn the_text_engine_agrees_with_git_merge_file_over_generated_triples() {
+    let _serial = serial();
+    use_subprocess_engine();
     if !have_git() {
         eprintln!("skipping differential test: git not on PATH");
         return;
@@ -176,6 +197,8 @@ fn the_text_engine_agrees_with_git_merge_file_over_generated_triples() {
 /// `decisions.md` (a divergent frontmatter field returns `Conflicted`, never a broken `Clean`).
 #[test]
 fn a_clean_note_merge_always_produces_a_note_that_parses() {
+    let _serial = serial();
+    use_subprocess_engine();
     if !have_git() {
         eprintln!("skipping differential test: git not on PATH");
         return;
@@ -214,4 +237,64 @@ fn a_clean_note_merge_always_produces_a_note_that_parses() {
 
     assert!(checked > 40, "too few clean note merges to be meaningful ({checked}/300)");
     eprintln!("note invariant: {checked} clean merges, all parsed");
+}
+
+/// **The swap gate.** The two engines must be byte-identical and verdict-identical over the
+/// same generated triples — that is the entire justification for a second implementation of
+/// the one path that must never corrupt.
+///
+/// Why this matters more than a normal differential test: a desktop shells out and a phone
+/// calls libgit2, so the two run *against the same vault*. An engine that merges the same
+/// prose differently would give two devices two different histories and call both of them
+/// clean — silent divergence, on the operation the whole collaboration design rests on.
+///
+/// Grading is against `reference()`, real `git merge-file`, not against our subprocess
+/// wrapper — so a bug in the wrapper cannot make a bug in the engine agree with it.
+#[cfg(feature = "native-git")]
+#[test]
+fn the_native_engine_is_byte_identical_to_git_merge_file() {
+    let _serial = serial();
+    if !have_git() {
+        eprintln!("skipping differential test: git not on PATH");
+        return;
+    }
+    const SEED: u64 = 0x5EED_1234_ABCD_0003;
+    let mut rng = Rng(SEED);
+    let (mut clean, mut conflicted) = (0, 0);
+
+    for case in 0..400 {
+        let eol = if case % 4 == 3 { "\r\n" } else { "\n" };
+        let marker = [7, 7, 12, 32][case % 4];
+        let (base, ours, theirs) = triple(&mut rng, eol);
+
+        // The oracle first, while the switch is off, then the candidate.
+        let (want, want_verdict) = reference(&base, &ours, &theirs, marker);
+
+        fm_core::vcs::force_native(true);
+        let got = merge_texts(&base, &ours, &theirs, marker);
+        fm_core::vcs::force_native(false);
+        let (got, verdict) = got.expect("merge_texts on the native engine");
+
+        assert_eq!(
+            verdict, want_verdict,
+            "seed {SEED:#x} case {case}: native verdict differs from git merge-file\n\
+             base:\n{base}\nours:\n{ours}\ntheirs:\n{theirs}"
+        );
+        assert_eq!(
+            got, want,
+            "seed {SEED:#x} case {case}: native bytes differ from git merge-file\n\
+             base:\n{base}\nours:\n{ours}\ntheirs:\n{theirs}"
+        );
+
+        match verdict {
+            Merged::Clean => clean += 1,
+            Merged::Conflicted => conflicted += 1,
+        }
+    }
+
+    // Same guard as the subprocess gate: without both outcomes the assertions above are
+    // vacuous, and a conflict is precisely where two engines are most likely to diverge.
+    assert!(clean > 100, "generator produced too few clean merges ({clean}/400)");
+    assert!(conflicted > 100, "generator produced too few conflicts ({conflicted}/400)");
+    eprintln!("native differential: {clean} clean, {conflicted} conflicted");
 }

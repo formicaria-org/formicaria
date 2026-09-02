@@ -163,6 +163,35 @@ pub fn commit_all(
     message: &str,
     paths: &[std::path::PathBuf],
 ) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, None)
+}
+
+/// Mirrors [`crate::git::commit_all_as`]: the same commit, attributed to `(name, email)` — the
+/// study agent's **model** identity, so its own messages are authored by it rather than by
+/// whoever owns the vault (Ruling 14's provenance label, not a trust boundary).
+///
+/// **Why this exists at all, given `vcs::commit_all_as` used to call the subprocess
+/// unconditionally.** That choice was made on the premise that `native-git` was "a
+/// differential-test feature". It is not: it is the phone's shipped backend. So on a phone the
+/// call reached `Command::new("git")` and ENOENTed — swallowed by a `let _ =` at the call site,
+/// which is why nobody saw it. The reply still landed, committed by the later debounced batch,
+/// but **under the vault's default identity** — the one thing this function exists to prevent.
+pub fn commit_all_as(
+    vault: &Path,
+    message: &str,
+    paths: &[std::path::PathBuf],
+    name: &str,
+    email: &str,
+) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, Some((name, email)))
+}
+
+fn commit_all_inner(
+    vault: &Path,
+    message: &str,
+    paths: &[std::path::PathBuf],
+    author: Option<(&str, &str)>,
+) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     // **Never commit while anything is unmerged**, mirroring the subprocess backend's early return.
     //
@@ -218,7 +247,10 @@ pub fn commit_all(
         }
     }
 
-    let sig = repo.signature().map_err(map)?;
+    // The same helper the proposal path uses, so an authored commit and an authored proposal
+    // cannot disagree about what attribution means. Author and committer are both set, matching
+    // the four `GIT_*` environment variables the subprocess backend exports.
+    let sig = signature(&repo, author)?;
     // **A merge in flight is committed as a merge**, with `MERGE_HEAD` as the second parent, and the
     // state cleared afterwards. A single-parent commit here would silently drop the incoming side
     // from history, and a `MERGE_HEAD` left standing freezes the vault permanently: `push_squashed`
@@ -385,7 +417,7 @@ type libc_int = i32;
 /// two raw `-sys` crates this needs are not dependencies for that target at all — see the
 /// `[target.'cfg(not(windows))'.dependencies]` note in `Cargo.toml`, which is what unbroke the
 /// Windows release build.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "ios")))]
 pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
     if pem.is_empty() {
         return Err(StoreError::Io("the CA bundle was empty".into()));

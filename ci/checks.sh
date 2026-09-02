@@ -89,6 +89,32 @@ if [ -n "$missing_backend" ]; then
     fail=1
 fi
 
+echo "[check] every hand-written vcs arm reaches both backends..."
+# The guard above walks `route!(…)` entries only — so a **hand-written** arm is invisible to it,
+# and two of them exist because the macro's by-value arm cannot express a `&[PathBuf]`. That is
+# exactly how `commit_all_as` shipped calling the subprocess unconditionally: routed nowhere,
+# grepped by nothing, and reached on the one device with no `git` binary. It failed silently
+# (`dispatch.rs` discards the result) and the agent's commits landed under the vault's default
+# identity instead of the model's, for six weeks.
+#
+# Note the earlier `fm_core::git::` guard cannot see this either: it excludes `crates/fm-core/src/`,
+# because that is where both backends legitimately live. This check is that hole.
+#
+# The exception is genuine: `available()` asks "is there a git BINARY", which is the one question
+# libgit2 has no answer to — it is how `native()` decides in the first place.
+unrouted=""
+for fn in $(grep -oE '^[^/]*crate::git::[a-z_]+' crates/fm-core/src/vcs.rs \
+    | grep -oE 'crate::git::[a-z_]+' | sed 's/^crate::git:://' | sort -u); do
+    [ "$fn" = "available" ] && continue
+    grep -q "crate::git_native::${fn}\b" crates/fm-core/src/vcs.rs || unrouted="$unrouted $fn"
+done
+if [ -n "$unrouted" ]; then
+    echo "  FAIL: vcs.rs calls these on the subprocess backend with no libgit2 arm:$unrouted"
+    echo "        Every operation vcs.rs exposes must reach BOTH backends, or it is an operation"
+    echo "        the phone cannot perform — and the phone is the device nobody can debug."
+    fail=1
+fi
+
 echo "[check] renderers must not hardcode status values..."
 if [ -d ui/src/renderers ]; then
     if grep -REniw 'todo|doing|done' ui/src/renderers; then

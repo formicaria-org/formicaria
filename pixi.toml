@@ -154,6 +154,13 @@ android-emu = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID
 [feature.cross.dependencies]
 rust-std-x86_64-pc-windows-msvc = "*"
 rust-std-aarch64-apple-darwin = "*"
+# iOS, added 2026-09-02. Both triples, because they are not interchangeable and the difference is
+# the one a Linux developer gets wrong: `-ios` is the device, `-ios-sim` is what a Simulator on an
+# Apple-silicon runner actually runs — and a Simulator is the only iOS device this project has
+# (no Mac, no iPhone; `ios-plan-2026-09-02.md`). conda-forge builds these `noarch`, so they install
+# here. This buys the type-check and nothing more: anything with a C build script still needs Xcode.
+rust-std-aarch64-apple-ios = "*"
+rust-std-aarch64-apple-ios-sim = "*"
 
 [feature.cross.tasks]
 # **`fm-agent` only, and that is the whole of the per-OS code.** Its `watchdog.rs` holds the Windows
@@ -171,7 +178,9 @@ rust-std-aarch64-apple-darwin = "*"
 # compiled for either target.
 check-cross = """
 cargo check --target x86_64-pc-windows-msvc -p fm-agent &&
-cargo check --target aarch64-apple-darwin -p fm-agent
+cargo check --target aarch64-apple-darwin -p fm-agent &&
+cargo check --target aarch64-apple-ios -p fm-agent &&
+cargo check --target aarch64-apple-ios-sim -p fm-agent
 """
 
 [environments]
@@ -312,7 +321,13 @@ docs = "sh ci/docs.sh"
 # Grade the in-process git backend against the subprocess one. Not in `pixi run ci`: the
 # feature builds libgit2 + OpenSSL from source, which a contributor with no interest in mobile
 # must not pay for. Run it whenever `git_native.rs` or the rules it shares change.
-test-native-git = { cmd = "cargo test -p fm-core --features native-git --test git_differential && cargo test -p fm-cli --features native-git --test git_native_merge && cargo test -p fm-cli --features native-git --test collaboration_pipeline && cargo test -p fm-cli --features native-git --test mixed_device_collaboration && cargo test -p fm-cli --features native-git --test conflict_resolution_both_devices && cargo test -p fm-app --features native-git --test backup_records_everything -- --test-threads=1" }
+#
+# **The two merge suites are here because `pixi run ci` cannot reach them.** `cargo test
+# --workspace` builds without the feature, so `merge_differential`'s native gate is `cfg`-ed out
+# and `merge_on_a_device_without_git` vanishes entirely — the body engine the phone actually uses
+# would be covered by nothing at all. That is how the shell-out survived: green everywhere, on a
+# path the phone could not take.
+test-native-git = { cmd = "cargo test -p fm-core --features native-git --test git_differential && cargo test -p fm-core --features native-git --test merge_differential && cargo test -p fm-core --features native-git --test merge_on_a_device_without_git && cargo test -p fm-cli --features native-git --test git_native_merge && cargo test -p fm-cli --features native-git --test collaboration_pipeline && cargo test -p fm-cli --features native-git --test mixed_device_collaboration && cargo test -p fm-cli --features native-git --test conflict_resolution_both_devices && cargo test -p fm-app --features native-git --test backup_records_everything -- --test-threads=1" }
 android-init = "sh ci/android-init.sh"
 
 [tasks.ci]

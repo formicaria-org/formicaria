@@ -12,8 +12,10 @@
 //! So: resolve structurally what is mechanically resolvable — `updated` is the later of
 //! the two, `id`/`created` never move, `tags` unite, a field only one side touched takes
 //! that side's value — and hand the body to git, which has done 3-way text merges
-//! properly for twenty years. Shelling out is the whole point: there is no diff3 here to
-//! get wrong.
+//! properly for twenty years. Not writing a diff3 ourselves is the whole point: where there
+//! is a `git` binary we shell out to it, and where there is not — a phone — we call libgit2's
+//! own port of the same algorithm. Two engines, held byte-identical by
+//! `tests/merge_differential.rs`; never a third implementation of our own.
 //!
 //! **One body is not prose, and gets the same treatment one level down.** A `view: board`
 //! note's body is an Excalidraw scene — a single pretty-printed JSON array that the app
@@ -229,18 +231,135 @@ fn merge_body(
     text_3way(base, ours, theirs, marker_size)
 }
 
-/// The 3-way text merge itself — `git merge-file`, which everyone already has and nobody
-/// should write twice.
+/// The 3-way text merge itself, in whichever engine this device can actually run.
 ///
 /// Serves two callers: [`merge_body`] for a note's prose, and [`merge_texts`] for the
 /// whole-file fallback when a note cannot be read as a note. One engine for both, so the
 /// fallback cannot drift away from the ordinary path.
 ///
-/// **This is the seam the mobile port turns on.** It is the last thing in the merge that
-/// shells out, so it is exactly what a platform with no `git` binary has to replace — and
-/// replacing it is gated on a differential harness against this implementation, which stays
-/// as the permanent oracle (`docs/context/decisions.md`, the body-engine ruling).
+/// **The selection rule is [`crate::vcs`]'s, for [`crate::vcs`]'s reasons.** A real `git`
+/// binary wins; libgit2 is the fallback. The desktop therefore keeps shelling out — which is
+/// what keeps the `fm merge-md` driver and the app's own merge the *same* engine, so a
+/// collaborator's terminal `git pull` cannot disagree with ours — and a device with no binary
+/// gets the same merge out of the library it already links.
+///
+/// **This was the last thing in the merge that shelled out, and the phone had no answer for
+/// it.** Until 2026-09-02 `git_native::pull` reached here on any note whose prose had diverged
+/// and failed with `could not run git merge-file` — mid-merge, leaving a `MERGE_HEAD` that
+/// freezes the vault (`git_native::commit_all` refuses while one stands). The two engines are
+/// held byte-identical by `tests/merge_differential.rs`, which is the entire reason a second
+/// one is allowed to exist.
 fn text_3way(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    marker_size: usize,
+) -> Result<(String, Merged), StoreError> {
+    #[cfg(feature = "native-git")]
+    if crate::vcs::native() {
+        return text_3way_native(base, ours, theirs, marker_size);
+    }
+    text_3way_git(base, ours, theirs, marker_size)
+}
+
+/// One `git_merge_file_input`, borrowing `text` for the duration of the call.
+///
+/// # Safety
+/// The returned struct holds a raw pointer into `text`; it must not outlive it, and
+/// `git_merge_file` must be the only thing that reads it.
+#[cfg(feature = "native-git")]
+unsafe fn merge_input(text: &str) -> libgit2_sys::git_merge_file_input {
+    let mut input: libgit2_sys::git_merge_file_input = std::mem::zeroed();
+    libgit2_sys::git_merge_file_input_init(&mut input, 1);
+    input.ptr = text.as_ptr() as *const std::os::raw::c_char;
+    input.size = text.len();
+    input
+}
+
+/// The same 3-way merge from libgit2's own port of it — `git_merge_file`, the buffer-shaped
+/// API that takes three texts and hands back one.
+///
+/// **Why the raw `-sys` crate and not `git2`.** `git2` 0.21 wraps only
+/// `Repository::merge_file_from_index`, which wants `IndexEntry`s and would write into the
+/// ODB — the opposite of what a merge driver needs — and it imports `libgit2-sys` privately,
+/// so the buffer API is unreachable through it. `libgit2-sys` is already an optional
+/// dependency of this crate (for the CA-store option), so this adds no dependency, only a
+/// second use of one. That is what makes this cheap now and expensive in July, when the
+/// rejected proposal assumed a `git2::merge_file` that does not exist
+/// (`mobile-design.md`, ruling 3, marked refuted).
+///
+/// **The options mirror the subprocess call exactly, because the harness compares bytes:**
+/// the same three labels in the same order, the same marker size, `favor = NORMAL` (never
+/// resolve by fiat — that is the data loss this module exists to stop) and default flags,
+/// which is git's own two-sided marker style rather than diff3.
+#[cfg(feature = "native-git")]
+fn text_3way_native(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    marker_size: usize,
+) -> Result<(String, Merged), StoreError> {
+    use std::os::raw::{c_char, c_ushort};
+
+    // These are raw `libgit2-sys` calls, which skip the `git2` wrappers' own `init()`.
+    // Opening a path that cannot exist is the cheapest way to run it — the same idiom, and
+    // the same reason, as `git_native::add_certs_from_pem`.
+    let _ = git2::Repository::open(Path::new("/nonexistent/formicaria-libgit2-init"));
+
+    // The labels a human reads inside the markers, so they are part of the output and part of
+    // what the differential test compares. NUL-terminated in place: the call only borrows them.
+    const ANCESTOR: &[u8] = b"base\0";
+    const OURS: &[u8] = b"ours\0";
+    const THEIRS: &[u8] = b"theirs\0";
+
+    // Safety: every pointer handed to libgit2 is either a NUL-terminated literal above or a
+    // borrow of one of the three `&str` parameters, all of which outlive this block. The one
+    // allocation libgit2 hands back is read and freed before returning. Note the merged bytes
+    // are *not* required to be valid UTF-8 — `result.len` carries the length, and the lossy
+    // conversion mirrors what the subprocess arm does with its stdout.
+    unsafe {
+        let ancestor = merge_input(base);
+        let our = merge_input(ours);
+        let their = merge_input(theirs);
+
+        let mut opts: libgit2_sys::git_merge_file_options = std::mem::zeroed();
+        if libgit2_sys::git_merge_file_options_init(&mut opts, 1) < 0 {
+            return Err(StoreError::Io("could not initialise a libgit2 merge".into()));
+        }
+        opts.ancestor_label = ANCESTOR.as_ptr() as *const c_char;
+        opts.our_label = OURS.as_ptr() as *const c_char;
+        opts.their_label = THEIRS.as_ptr() as *const c_char;
+        opts.marker_size = marker_size as c_ushort;
+
+        let mut result: libgit2_sys::git_merge_file_result = std::mem::zeroed();
+        let code = libgit2_sys::git_merge_file(&mut result, &ancestor, &our, &their, &opts);
+        if code < 0 {
+            return Err(StoreError::Io(format!(
+                "libgit2 could not merge the body: {}",
+                git2::Error::last_error(code).message()
+            )));
+        }
+
+        // A merge whose result is empty legitimately hands back a null pointer, and
+        // `from_raw_parts` on null is undefined behaviour even for a zero length.
+        let merged = if result.ptr.is_null() || result.len == 0 {
+            String::new()
+        } else {
+            let bytes = std::slice::from_raw_parts(result.ptr as *const u8, result.len);
+            String::from_utf8_lossy(bytes).into_owned()
+        };
+        // `automergeable` is libgit2's word for the exit code the subprocess arm reads: zero
+        // means it left markers behind.
+        let verdict =
+            if result.automergeable != 0 { Merged::Clean } else { Merged::Conflicted };
+        libgit2_sys::git_merge_file_result_free(&mut result);
+        Ok((merged, verdict))
+    }
+}
+
+/// The 3-way text merge as a subprocess — `git merge-file`, which every desktop already has.
+///
+fn text_3way_git(
     base: &str,
     ours: &str,
     theirs: &str,

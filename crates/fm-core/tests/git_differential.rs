@@ -218,6 +218,61 @@ fn commit_all_agrees_on_what_is_committed_and_what_is_left_alone() {
     }
 }
 
+/// **The agent's own identity survives on both backends.**
+///
+/// `commit_all_as` is how a study-assistant reply is attributed to the *model* rather than to
+/// whoever owns the vault — the provenance label the collaboration design promises. Until
+/// 2026-09-02 `vcs::commit_all_as` called the subprocess unconditionally, so on the one device
+/// with no `git` binary the one call carrying that identity was the one call that could not
+/// run. It failed silently — `fm_app::dispatch` discards the result — and the message was
+/// picked up later by the ordinary debounced commit, under the vault's default identity.
+///
+/// Read back with real `git`, like every comparison in this file: `%an`/`%ae` *and* `%cn`/`%ce`,
+/// because the subprocess backend sets all four `GIT_*` variables and a native path that set
+/// only the author would diverge on the committer.
+#[test]
+fn commit_all_as_attributes_the_commit_identically_on_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    for v in [a.path(), b.path()] {
+        fs::create_dir_all(v.join("notes")).unwrap();
+        fs::write(v.join("notes/01.md"), "a reply the model wrote\n").unwrap();
+    }
+    let ours = |v: &Path| vec![v.join("notes/01.md")];
+    let (name, email) = ("lfm2.5-1.2b", "model@formicaria.local");
+
+    assert_eq!(
+        git::commit_all_as(a.path(), "message from lfm2.5-1.2b", &ours(a.path()), name, email)
+            .unwrap(),
+        git_native::commit_all_as(
+            b.path(),
+            "message from lfm2.5-1.2b",
+            &ours(b.path()),
+            name,
+            email
+        )
+        .unwrap(),
+        "both report having committed"
+    );
+
+    for v in [a.path(), b.path()] {
+        assert_eq!(g(v, &["log", "-1", "--format=%an"]), name, "author name");
+        assert_eq!(g(v, &["log", "-1", "--format=%ae"]), email, "author email");
+        assert_eq!(g(v, &["log", "-1", "--format=%cn"]), name, "committer name");
+        assert_eq!(g(v, &["log", "-1", "--format=%ce"]), email, "committer email");
+    }
+
+    // And the identity must be the *given* one, not the vault's — otherwise this test would
+    // pass on a machine whose git config happened to match.
+    for v in [a.path(), b.path()] {
+        let configured = g(v, &["config", "user.name"]);
+        assert_ne!(configured, name, "the vault's own identity must differ, or this proves nothing");
+    }
+}
+
 /// Cloning, offline, over `file://` — and both must make the clone a *vault*, not just a repo.
 #[test]
 fn clone_agrees_and_both_make_the_result_a_vault() {

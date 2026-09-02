@@ -1,0 +1,116 @@
+# iOS rung 1: **does it compile, and does a project generate at all?**
+#
+# Read `docs/context/ios-plan-2026-09-02.md` before firing this. The short version: there is no Mac
+# and no iPhone, so a GitHub macOS runner is the only Mac this project has and the Simulator is the
+# only device it will ever have. That makes every iOS question cost a job, and this is rung 1 of a
+# ladder whose later rungs are not written yet — deliberately, because rung 1 may end the question.
+#
+# **Manual-only, and never on a tag.** `release.yml` is the single named exception to the
+# no-remote-CI standing order (`decisions.md`, 2026-07-18) and fires unattended on every `v*`; an
+# iOS leg there would widen that exception permanently, for a platform that cannot ship. See
+# `decisions.md#track-m`, *an iOS build would contradict the project-local-toolchain ruling*.
+#
+# **Cost, stated before it is spent:** one `macos-latest` job, billed at 10x Linux — roughly
+# $1.50-$3.00 and 25-45 minutes cold. Both steps run even if the first fails (`if: always()`),
+# because the whole point is to learn as much as possible per job rather than to go green.
+#
+# **Kill criterion, written before the money is spent:** if two runs cannot produce a compile, and
+# neither documented workaround for tauri#15066 takes, stop. Record "not until upstream moves" in
+# `decisions.md` and close the question. Do not iterate this into a budget.
+name: ios
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rung1:
+    name: does it compile, and does a project generate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          # Both: `cross` carries the iOS rust-std targets (noarch, and the lock already solves them
+          # for osx-arm64, which is what `macos-latest` is); `default` carries pnpm and the Tauri
+          # CLI. A bare `pixi run --` uses `default`, so installing only `cross` would fail at the
+          # first pnpm line.
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      # ---- Question 1: the C wall. ----------------------------------------------------------
+      # This is the one thing no amount of Linux work can answer. `fm-core --features native-git`
+      # compiles vendored libgit2, vendored OpenSSL and SQLite from source for an Apple target, and
+      # `openssl-src`'s iOS configuration is literally `xcrun -sdk iphoneos cc` — so it needs a real
+      # Xcode and has never been attempted here.
+      #
+      # **`-ios-sim`, not `-ios`.** `macos-latest` is Apple silicon, so the Simulator runs the
+      # `aarch64-apple-ios-sim` triple; the device triple is built too because it is nearly free
+      # once the first one has warmed the cache, and because it is the one a real device would need.
+      # Nothing in this repo can launch either — that is rung 2, and it does not exist yet.
+      - name: fm-core for the Simulator triple
+        id: sim
+        run: pixi run -e cross cargo build --target aarch64-apple-ios-sim -p fm-core --features native-git
+
+      - name: fm-core for the device triple
+        if: always()
+        run: pixi run -e cross cargo build --target aarch64-apple-ios -p fm-core --features native-git
+
+      # `check-cross` already type-checks fm-agent for both iOS triples on Linux, for free. Repeat it
+      # here so a divergence between "type-checks on Linux" and "compiles on a Mac" shows up in the
+      # log rather than being assumed away.
+      - name: the per-OS agent code, on a real Mac
+        if: always()
+        run: pixi run -e cross check-cross
+
+      # ---- Question 2: does Tauri generate an iOS project at all? -----------------------------
+      # `tauri ios init` writes `gen/apple/` — an XcodeGen project.yml, an .xcodeproj, a Podfile.
+      # It has never run for this repo. The known hazard is tauri#15066: under Xcode 26 the link
+      # step fails with `ld: library not found for -lswiftCompatibility56`. That bites `ios build`,
+      # not necessarily `ios init`, and this rung deliberately stops at init — a build is rung 2.
+      #
+      # **`gen/apple` is never committed.** `.gitignore` already forbids the Android equivalent in
+      # terms: it embeds absolute paths, so committing it would be committing this machine. It is
+      # uploaded as an artifact instead, to be read rather than merged.
+      # **Expected hazard, so the log is readable when it happens.** `tauri ios init` runs through
+      # `cargo-mobile2`, which may try `rustup target add` — and this project has no rustup: rust
+      # comes from pixi/conda, which is why the iOS targets are conda packages in `[feature.cross]`.
+      # If it fails there, that is a *toolchain-shape* answer, not a "the port is impossible" answer,
+      # and the fix is to point it at the already-installed targets rather than to install rustup.
+      - name: tauri ios init
+        if: always()
+        working-directory: mobile
+        run: |
+          pixi run -- pnpm -C ../ui install --frozen-lockfile
+          pixi run -- pnpm -C ../ui build
+          pixi run -- pnpm install --frozen-lockfile
+          pixi run -- pnpm exec tauri ios init --verbose
+
+      - name: what was generated
+        if: always()
+        run: |
+          echo "--- mobile/src-tauri/gen ---"
+          ls -la mobile/src-tauri/gen 2>&1 || echo "(no gen/ at all)"
+          echo "--- gen/apple ---"
+          find mobile/src-tauri/gen/apple -maxdepth 2 2>&1 | head -50 || echo "(no gen/apple)"
+          echo "--- toolchain ---"
+          xcodebuild -version 2>&1 || true
+          xcrun --sdk iphonesimulator --show-sdk-version 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-rung1
+          path: |
+            mobile/src-tauri/gen/apple
+          if-no-files-found: warn
+          retention-days: 7

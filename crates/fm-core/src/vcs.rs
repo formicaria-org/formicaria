@@ -86,8 +86,13 @@ pub fn force_native(on: bool) {
 
 /// True when this call should go to libgit2: when there is no `git` binary to prefer, or when a
 /// test has asked to stand in for a device that has none.
+///
+/// `pub(crate)` because [`crate::merge`] asks the same question for the body engine, and the
+/// answer must be **one** definition: a device that routes its `pull` to libgit2 and its body
+/// merge to a subprocess is a device whose pull dies half-way through, which is exactly the bug
+/// this became.
 #[cfg(feature = "native-git")]
-fn native() -> bool {
+pub(crate) fn native() -> bool {
     FORCE_NATIVE.load(std::sync::atomic::Ordering::SeqCst) || !crate::git::available()
 }
 
@@ -147,7 +152,10 @@ route!(merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::A
 /// file can be opened by it at all — see [`crate::git_native::add_certs_from_pem`]. A no-op
 /// where a `git` binary does the talking: that uses the system's own trust store.
 pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
-    #[cfg(feature = "native-git")]
+    // Not on Windows or iOS: libgit2 speaks WinHTTP and SecureTransport there, both of which use
+    // the system trust store, and neither links the OpenSSL this reaches into. See the target
+    // sections in `Cargo.toml`.
+    #[cfg(all(feature = "native-git", not(any(windows, target_os = "ios"))))]
     if native() {
         return crate::git_native::add_certs_from_pem(pem);
     }
@@ -180,8 +188,17 @@ pub fn commit_all(
 }
 
 /// Like [`commit_all`] but attributed to a specific collaborator `(name, email)` — the study agent's
-/// model identity, so its own messages are authored by it, not the vault default. Always the git-CLI
-/// path: authored commits are an occasional agent op, and `native-git` is a differential-test feature.
+/// model identity, so its own messages are authored by it, not the vault default.
+///
+/// Hand-written for the same reason [`commit_all`] is: the `route!` macro's by-value arm cannot
+/// express a `&[PathBuf]`.
+///
+/// **This was routed to the git CLI unconditionally until 2026-09-02**, on the stated premise that
+/// *"authored commits are an occasional agent op, and `native-git` is a differential-test feature."*
+/// The second half of that stopped being true when the phone shipped on libgit2 — so on the one
+/// device with no `git` binary, the one call that carries the agent's identity was the one call
+/// that could not run. It failed silently (`dispatch.rs` discards the result), and the message
+/// committed under the vault's default identity instead.
 pub fn commit_all_as(
     vault: &Path,
     message: &str,
@@ -189,6 +206,10 @@ pub fn commit_all_as(
     name: &str,
     email: &str,
 ) -> Result<bool, StoreError> {
+    #[cfg(feature = "native-git")]
+    if native() {
+        return crate::git_native::commit_all_as(vault, message, paths, name, email);
+    }
     crate::git::commit_all_as(vault, message, paths, name, email)
 }
 
