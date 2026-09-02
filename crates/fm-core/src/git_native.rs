@@ -382,9 +382,14 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
 /// `GIT_OPT_SET_SSL_CERT_LOCATIONS`. Counted from `include/git2/common.h` in the vendored
 /// source: it is the 46th entry, so 45 zero-indexed. Asserted at runtime by checking the call's
 /// return rather than trusted — a wrong constant would silently configure something else.
+///
+/// Gated to match [`add_certs_from_pem`], its only user: on Windows and iOS libgit2 speaks WinHTTP
+/// and SecureTransport, so neither this constant nor the call it names exists there.
+#[cfg(not(any(windows, target_os = "ios")))]
 const GIT_OPT_ADD_SSL_X509_CERT: libc_int = 45;
 
 #[allow(non_camel_case_types)]
+#[cfg(not(any(windows, target_os = "ios")))]
 type libc_int = i32;
 
 /// Load CA certificates into libgit2's trust store **from memory**, never from a file.
