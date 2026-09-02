@@ -1491,6 +1491,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           // The real rule: restic installed, this vault has a repo, and a password is set. All
           // three, because "ready" must mean the backup would actually run.
           restic_ready: !!mockRestic[v.name] && mockResticPassword,
+          // Read from `mockVaults`, never a second literal: Settings writes the limit there and
+          // the backup panel reads it here, so the two surfaces must not be able to disagree
+          // under `pnpm dev` — which is the whole defect this field exists to fix. `personal`
+          // starts off and `lab` starts on, so both sentences are on screen.
+          git_assets_max: mockVaults.find((m) => m.name === v.name)?.git_assets_max ?? null,
         })),
         git: true,
         restic: true,

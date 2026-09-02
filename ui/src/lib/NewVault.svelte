@@ -340,9 +340,9 @@
           autocapitalize="off"
         />
         <small>
-          The restic repository your vault was backed up to. Unlocked with
-          <code>RESTIC_PASSWORD</code> from the environment — this app stores no password of
-          its own.
+          The restic repository your vault was backed up to. Unlocked with the backup password
+          this machine holds — set it under <strong>Back up</strong>, or set
+          <code>RESTIC_PASSWORD</code> in the environment, which wins where both exist.
         </small>
       </label>
 

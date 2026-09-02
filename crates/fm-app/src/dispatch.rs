@@ -2464,6 +2464,13 @@ struct VaultStatus {
     /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
     /// and then fails on a machine with no restic.
     restic_ready: bool,
+    /// The largest attachment this vault sends with its notes, or null for the default —
+    /// notes only. **Here because the git tier cannot otherwise state its own scope.** The
+    /// panel's promise line said "media is not included" unconditionally, which is false for
+    /// any vault with a limit set: `commit_all` `git add -f`s every blob at or under it. The
+    /// value is set in Settings and read here; a surface that says what a tier carries has to
+    /// be told what the tier carries.
+    git_assets_max: Option<u64>,
 }
 
 /// What each backup tier can do right now, per vault. fm-core stays free of environment
@@ -2522,6 +2529,13 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
             conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
             restic_ready: has_restic && v.restic.is_some() && has_password,
             restic_repo: v.restic.clone(),
+            // Best-effort, exactly as the vault list treats it (`VaultInfo::git_assets_max`): a
+            // descriptor that will not parse reports "off", the same as having no opinion. One
+            // small JSON read per vault, beside the network `ls-remote` two lines up that
+            // dominates this whole call.
+            git_assets_max: fm_core::descriptor::Descriptor::read(&v.path)
+                .ok()
+                .and_then(|d| d.git_assets_max),
         })
         .collect();
     Ok(BackupStatus {

@@ -691,6 +691,41 @@ The *other* claim did not reproduce and was measured rather than argued: on a Li
 git binary, `ping.git` is `false`, `backup_status.git` is `false`, and `commit` returns
 `io error: could not run git (is it installed?)`. Those surfaces were honest already.
 
+### 2.10 Backup says the right things now; three of them it still cannot say
+Opened 2026-09-02 out of the review that produced `decisions.md`'s *A backup surface names what its
+tier carries*. The wording is fixed; these are the gaps behind it, in the order they are worth
+doing.
+
+**A "last backed up at", per vault.** `fm_core::backup::latest()` already returns the newest
+`fm`-tagged `Snapshot { id, time, paths }` and **no dispatch command exposes it**, so the one fact a
+person actually wants from a backup panel — *when did this last work* — cannot be shown at any
+price. The same shape of blindness one level down: `run_backup` returns unit, so even a snapshot
+taken thirty seconds ago tells the app nothing about what it contained. A `backup_latest` read
+command beside `backup_status` is the small version; folding the timestamp into `VaultStatus` costs
+a restic spawn per vault on a call that already polls every 45 s, so it should not go there.
+
+**A restic-only vault cannot run a backup.** `canRun` requires `vaults.some(v => !!v.remote)`, so a
+machine with restic, a repo and a password but no git remote has an enabled tick box and a Back up
+button that never enables. The panel now says why instead of sitting mute, which is honesty, not a
+fix. The fix is to let the snapshot tier run alone — worth doing, and it needs the verdict
+sentences to stop assuming a git tier ran at all.
+
+**The dispatch layer for both tiers is untested.** `crates/fm-app/src/dispatch.rs` contains **zero**
+`#[test]`, and specifically: nothing asserts `backup_status`'s shape (not `restic_ready`'s three
+conditions, not that the password is only ever a bool), nothing drives the `backup` arm's two error
+paths (*no repo configured*, *no password*), and nothing covers `set_restic_repo` /
+`set_restic_password` / `clear_restic_password` / `restore_vault`. The `fm-core` layer beneath them
+is well covered by six real-`restic` tests, and the UI above them by mocks — the seam between is
+where nothing looks. `fm backup` / `fm restore` / `fm check` have no CLI test either. Related and
+cheaper: **no UI test has ever pressed the Back up button**, so not one step line or verdict
+sentence in `BackupPanel.run()` is asserted anywhere.
+
+**And the MASTERPLAN's own acceptance for S6 is not met.** `:429` asks for `restic backup` →
+`restic restore` to a scratch dir → **diff against the vault** → `fm verify --scrub` clean.
+`fm-core/tests/backup.rs` restores and compares one note's bytes and runs `check --read-data`;
+there is no whole-vault diff and no `--scrub` in the restore path. *"Test the restore in month
+one"* is the plan's own rule and the suite does not keep it.
+
 ### 2.8 The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched
 from an unrelated working directory, from a path containing a space, and the note landed beside the

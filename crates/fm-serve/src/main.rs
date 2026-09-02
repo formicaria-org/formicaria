@@ -311,6 +311,18 @@ const REMOTE_DENIED: &[&str] = &[
     // Granting permission to publish this vault's review record relicenses shared content, and
     // publication cannot be recalled. A guest device does not get to answer that for the host.
     "/api/set_supervision",
+    // The media tier's configuration, which is host state with off-machine effect. Denied for
+    // the same reasons the two lines above and below it are: `set_restic_repo` decides *where a
+    // vault's notes and attachments are sent* and takes an arbitrary `s3:`/`sftp:` string to
+    // send them to, so a guest device could quietly redirect the host's backups to a repository
+    // of its own. `set_restic_password` writes a `0600` file into the host's config directory —
+    // one password for every repository on this machine — and `clear_restic_password` deletes
+    // it, which is the one irreversible half: restic cannot open a repository whose password is
+    // gone. `/api/backup` was already denied; configuring it while being unable to run it is not
+    // a coherent capability to leave a guest.
+    "/api/set_restic_repo",
+    "/api/set_restic_password",
+    "/api/clear_restic_password",
     // Vault lifecycle, and policy with off-machine effects. `set_git_assets_max` changes what
     // every git collaborator receives, from a device that is a guest in one vault.
     "/api/create_vault",

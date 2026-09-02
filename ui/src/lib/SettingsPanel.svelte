@@ -33,20 +33,7 @@
   import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
   import * as keys from './keys';
-
-  /** A byte count as the shortest string a person would write — the same grammar the backend
-   *  parses, so what the field shows is what you could type back into it. */
-  function humanSize(bytes: number): string {
-    for (const [unit, mult] of [
-      ['GB', 1e9],
-      ['MB', 1e6],
-      ['kB', 1e3],
-    ] as const) {
-      const v = bytes / mult;
-      if (v >= 1) return Math.abs(v % 1) < 0.05 ? `${Math.round(v)}${unit}` : `${v.toFixed(1)}${unit}`;
-    }
-    return `${bytes}B`;
-  }
+  import { humanSize } from './size';
 
   let assetError = $state<string | null>(null);
 

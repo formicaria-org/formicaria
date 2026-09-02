@@ -529,6 +529,27 @@ The gray-screen fix and its tests are in
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never
   report a local destination as "off this machine".
+- **Backup gaps left standing on 2026-09-02** (the truth pass fixed the wording, not these;
+  `decisions.md#vault`). **There is no "last backed up at" anywhere** — `fm-core::backup::latest()`
+  returns a tagged `Snapshot` and *no dispatch command exposes it*, so the most useful fact about a
+  backup cannot reach the UI; and `backup` itself returns unit, so the app never learns what a
+  snapshot contained. **A restic-only vault cannot back up**: `canRun` requires a git remote, so a
+  machine with restic, a repo and a password but no remote has a tickable box and a dead button —
+  the panel now explains that rather than fixing it. **`unpushed: 0` and `null` render
+  identically**, as do `remote_moved: false` and `null`, so "fully pushed" and "never pushed" look
+  the same on screen.
+- **`mock.ts`'s `config` arm contradicts its own `backup_status`.** It hardcodes
+  `restic: [{repo: null}]` and `restic_password_set: false` (`mock.ts:1167,1173`) while
+  `set_restic_repo`/`set_restic_password` mutate `mockRestic`/`mockResticPassword` — so under
+  `pnpm dev` you can save a repo in the backup panel and have Settings still report none. It is a
+  bare `as T`, which is exactly the drift the entry above describes; `backup_status` and
+  `git_assets_max` are read from the shared `mockVaults`/`mockRestic` state and do not have it.
+- **The restic tier's coverage is narrower than "the vault", and nothing in the code says it
+  twice.** `backup()` takes the notes dir + `blobs/` only, so `views/`, `themes/`, `manifest.json`
+  and `vault.json` — all vault-root files — are in **git only**. A user restoring from restic alone
+  gets notes and attachments with no saved views, no theme and no history. Stated in
+  `docs/src/user/backup.md` as of 2026-09-02; if the snapshot's path list ever changes, that page
+  is the thing that goes stale.
 - **Board column *and card* order are client-side, and column reorder is currently inert
   in the pane workspace** (`localStorage['fm-board-order']`
   and `['fm-card-order']`, both keyed by group-by; card order additionally by

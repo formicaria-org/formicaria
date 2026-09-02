@@ -1,10 +1,12 @@
 <script lang="ts">
   // Backing up in two tiers, and saying which one you actually got.
   //
-  // Light (the default): commit + push the notes. Text only — small, plain, and
-  // authenticated by whatever ssh-agent or credential helper the user already
-  // has, so this app stores no secret.
-  // Heavy (tick to include): restic, blobs and all.
+  // Light (the default): commit + push the notes. Text — plus, where the vault sets a
+  // `git_assets_max`, attachments at or under it, which is why the promise line reads the
+  // limit instead of claiming "notes only" for every vault.
+  // Heavy (tick to include): an encrypted restic snapshot of this vault's *data* — the notes
+  // directory and `blobs/`. Not "media", which is what this panel used to call it: the
+  // snapshot carries the notes too, and never the vault root's own files or `.git`.
   //
   // The panel's whole job is to never overstate. It says what each tier will and
   // will not carry *before* you act, and afterwards reports each tier's real
@@ -35,6 +37,7 @@
   import { syncVault, syncFor } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
+  import { humanSize } from './size';
   import { labelFor } from './vaultLabels.svelte';
   import type { BackupStatus, GitAuth, VaultStatus } from './types';
 
@@ -119,6 +122,19 @@
   const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
   const leaves = (r: string) => (r === 'remote' ? 'leaves this machine' : 'stays on this machine');
   const left = (r: string) => (r === 'remote' ? 'off this machine' : 'still on this machine');
+  // **What the git tier actually carries, per vault.** Not a decoration: this panel used to say
+  // "media is not included" flatly, which is false for any vault with a `git_assets_max` — its
+  // blobs at or under the limit are `git add -f`'d into the same commit and pushed with the
+  // notes. The limit is set in Settings ("Send attachments under"); saying so here is what stops
+  // the two panels contradicting each other.
+  const carries = (v: VaultStatus) =>
+    v.git_assets_max
+      ? `notes, and attachments up to ${humanSize(v.git_assets_max)}`
+      : 'notes only';
+  // The password is the app's now, and the environment variable is the override rather than the
+  // mechanism. Naming `RESTIC_PASSWORD` as *the* thing that is missing sent people to a launcher
+  // script to fix something the field above this line fixes.
+  const noPassword = 'no backup password is set on this machine';
   // A single vault has no boundary to talk about, so don't name it at every turn.
   const plural = $derived(vaults.length > 1);
   const of = (v: VaultStatus) => (plural ? ` (${v.name})` : '');
@@ -340,8 +356,8 @@
           noMedia.push(v.name);
           steps.push({
             text: v.restic_repo
-              ? `Media${of(v)} NOT backed up: RESTIC_PASSWORD isn't set.`
-              : `Media${of(v)} NOT backed up — no restic repo configured for it.`,
+              ? `Snapshot${of(v)} NOT taken — ${noPassword}.`
+              : `Snapshot${of(v)} NOT taken — no backup repo configured for it.`,
             ok: false,
           });
           continue;
@@ -350,21 +366,22 @@
         try {
           await backup(v.name);
           steps.push({
-            text: `Media${of(v)} → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
+            text: `Snapshot${of(v)} — notes and attachments → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
             ok: true,
           });
           if (reach === 'remote') mediaOff.push(v.name);
         } catch (e) {
-          steps.push({ text: `Media${of(v)} backup failed: ${msg(e)}`, ok: false });
+          steps.push({ text: `Snapshot${of(v)} failed: ${msg(e)}`, ok: false });
           noMedia.push(v.name);
         }
       }
     }
 
-    // Name the vaults that did not make it. "Your notes are backed up" while the lab
-    // vault sat still is the one sentence this panel must never say.
     // Name the vaults that did not make it, on both tiers. "Your notes are backed up"
-    // while one vault sat still is the one sentence this panel must never say.
+    // while one vault sat still is the one sentence this panel must never say. And the
+    // failures are not all one cause — a vault reaches `noMedia` from a missing repo, a
+    // missing password *or* a restic error, so the verdict names the outcome and lets the
+    // step above it give the reason.
     verdict =
       (stuck.length === 0
         ? 'Your notes are off this machine.'
@@ -373,14 +390,14 @@
           : `Notes off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
       ' ' +
       (!heavy
-        ? 'Your media was not included.'
+        ? 'No snapshot was taken.'
         : noMedia.length === 0
           ? mediaOff.length
-            ? 'Your media is off this machine.'
-            : 'Your media is backed up, but still on this machine.'
+            ? 'Your snapshot is off this machine.'
+            : 'Your snapshot was taken, but is still on this machine.'
           : mediaOff.length === 0
-            ? `No media was backed up (${noMedia.join(', ')} ${noMedia.length === 1 ? 'has' : 'have'} no restic repo).`
-            : `Media off this machine: ${mediaOff.join(', ')}. Not backed up: ${noMedia.join(', ')}.`);
+            ? `No snapshot was taken (${noMedia.join(', ')}).`
+            : `Snapshot off this machine: ${mediaOff.join(', ')}. Not taken: ${noMedia.join(', ')}.`);
     await load();
     busy = false;
   }
@@ -421,8 +438,8 @@
       <div class="vault">
         <div class="identity">
           <p class="why">
-            Your attachment backups are encrypted, and they need a password. Choose one now — it is
-            kept on this machine only, readable by nobody else, and never written into the vault
+            Your snapshots are encrypted, and they need a password. Choose one now — it is kept in
+            a file on this machine only, readable by nobody else, and never written into the vault
             list.
           </p>
           <div class="row">
@@ -566,13 +583,14 @@
         {/if}
 
         {#if !noRestic}
-          <!-- Where this vault's *media* goes. Separate field from the git remote because they are
-               separate destinations with separate reasons: notes are text and travel in history,
-               attachments are large and do not. Hidden entirely where restic is not installed —
-               the capability line below already says why, and a field that configures a tool the
-               machine does not have is a form that cannot be completed. -->
+          <!-- Where this vault's *snapshot* goes. Separate field from the git remote because they
+               are separate destinations with separate reasons: git carries text and keeps history,
+               restic carries the whole of this vault's data and keeps none. Hidden entirely where
+               restic is not installed — the capability line below already says why, and a field
+               that configures a tool the machine does not have is a form that cannot be
+               completed. -->
           <label class="remote">
-            <span>{plural ? `The ${v.name} vault's` : "Your attachments'"} backup repo</span>
+            <span>{plural ? `The ${v.name} vault's` : "Your vault's"} backup repo</span>
             <div class="row">
               <input
                 bind:value={resticDrafts[v.name]}
@@ -592,8 +610,9 @@
             <!-- Say what clearing does, since an empty field is how you say "nowhere". -->
             <small class="why">
               {#if v.restic_repo}
-                Images, PDFs and recordings in this vault are snapshotted here, encrypted. Clear the
-                field and save to stop — nothing already backed up is removed.
+                This vault's notes and attachments are snapshotted here, encrypted — not the other
+                files at the vault root, and not its git history. Clear the field and save to stop
+                — nothing already backed up is removed.
               {:else}
                 Empty means this vault's attachments stay on this machine. Notes are unaffected:
                 they travel with git.
@@ -609,6 +628,7 @@
                 <strong>No remote set</strong> — these notes cannot leave this machine yet.
               {:else}
                 Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
+                <span class="muted">Carries {carries(v)}.</span>
                 {#if v.unpushed}
                   <span class="muted">{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span>
                 {/if}
@@ -674,18 +694,33 @@
       <ul class="promise">
         <li>
           {#if !heavy}
-            Media in <code>blobs/</code> (images, PDFs, video) is <strong>not included</strong>.
+            <!-- Per vault, because what git carries is per vault. A flat "media is not
+                 included" was wrong for any vault with an attachment limit — and wrong in the
+                 dangerous direction, telling someone their attachments stayed home while they
+                 were being pushed into permanent shared history. -->
+            {#each vaults as v (v.name)}
+              <div>
+                {#if v.git_assets_max}
+                  Attachments{of(v)} over {humanSize(v.git_assets_max)} are
+                  <strong>not included</strong> — smaller ones travel with the notes.
+                {:else}
+                  Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are
+                  <strong>not included</strong>.
+                {/if}
+              </div>
+            {/each}
           {:else}
             {#each vaults as v (v.name)}
               {#if v.restic_ready}
                 <div>
-                  Media{of(v)} → <strong>{shortDest(v.restic_repo ?? '')}</strong> —
+                  Snapshot{of(v)} — this vault's notes and attachments →
+                  <strong>{shortDest(v.restic_repo ?? '')}</strong> —
                   {leaves(reachOf(v.restic_repo))}.
                 </div>
               {:else}
                 <div>
-                  Media{of(v)} <strong>will not be backed up</strong> —
-                  {v.restic_repo ? 'RESTIC_PASSWORD isn\'t set' : 'no restic repo for it'}.
+                  Snapshot{of(v)} <strong>will not run</strong> —
+                  {v.restic_repo ? noPassword : 'no backup repo for it'}.
                 </div>
               {/if}
             {/each}
@@ -704,16 +739,24 @@
     <label class="heavy" class:disabled={!anyRestic}>
       <input type="checkbox" bind:checked={heavy} disabled={busy || !anyRestic} />
       <span>
-        Include media — restic backup
+        <!-- **"Media" was never what this tier does.** The snapshot is the notes directory
+             *and* `blobs/`, which is why a restore returns a working vault and not a pile of
+             images — and why calling it "media" left people believing their notes were in git
+             alone. It is still opt-in and still the heavy half; it is just not media-only. -->
+        Include an encrypted snapshot — notes and attachments, via restic
         {#if noRestic}
           <span class="muted">
-            (unavailable: restic isn't installed on this machine — media backup is an
+            (unavailable: restic isn't installed on this machine — the snapshot is an
             optional feature, and your notes don't need it)
           </span>
         {:else if status && !anyRestic}
+          <!-- Both halves of what this used to say were stale: it sent people to edit the vault
+               list for a repo the field above sets, and to restart for a password that takes
+               effect the moment it is saved. Name the field, not the file. -->
           <span class="muted">
-            (unavailable: no vault has a <code>restic</code> repo in your vault list, or
-            <code>RESTIC_PASSWORD</code> isn't set — then restart)
+            (unavailable: {vaults.some((v) => !!v.restic_repo)
+              ? 'set a backup password above'
+              : 'give a vault a backup repo above, and set a password'})
           </span>
         {:else if plural && vaults.some((v) => !v.restic_ready)}
           <span class="muted">
@@ -728,12 +771,27 @@
 
     {#if error}<p class="error">{error}</p>{/if}
 
+    <!-- **A disabled button has to say why it is disabled.** `canRun` needs a git remote, so a
+         machine set up for snapshots alone — restic installed, a repo, a password — offered a
+         tick box that ticked and a Back up button that never enabled, with nothing on screen
+         explaining it. Saying so is not the fix; running the snapshot tier on its own is, and
+         that is queued rather than smuggled in here. Until then the panel is at least honest
+         about its own refusal. -->
+    {#if status && !noGit && !vaults.some((v) => !!v.remote)}
+      <p class="why">
+        Back up needs a git remote to send notes to, and no vault has one yet — set one above.
+        {#if anyRestic}
+          A snapshot cannot run on its own yet, even though this machine is set up for one.
+        {/if}
+      </p>
+    {/if}
+
     <div class="actions">
       <button onclick={onclose} disabled={busy}>Close</button>
       <button class="primary" onclick={run} disabled={!canRun}>
         {busy
           ? 'Backing up…'
-          : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + media' : ''}`}
+          : `Back up ${plural ? 'every vault' : 'notes'}${heavy ? ' + snapshot' : ''}`}
       </button>
     </div>
   </div>

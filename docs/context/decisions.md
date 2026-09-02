@@ -28,7 +28,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
   *Collaboration is git, exposed* · *Squash-on-push — a deliberate reversal* · *A commit that
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
-  tiers*. **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
+  tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
+  what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
 - **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -68,7 +69,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   — read before adding a read path or touching `find_blob`/`Vaults::config`) · *Vaults are audiences* · *Every entity shows its vault badge* ·
   *Cross-vault copy is restrictive* · *A vault is created, not invented* · *A vault gains identity
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
-  attachments travel: per-vault size limit* · *Content-addressed blobs*.
+  attachments travel: per-vault size limit* · *Content-addressed blobs* ·
+  ***A backup surface names what its tier carries*** (read before wording anything about backup, or
+  before proposing that restic snapshot the vault root — it also holds the git-lfs argument).
 - **`#data`**: ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
   (read before touching `parse_ref`, `assetUrl` or the resolve passes) · ***A paper is a note, made from the citation you already have*** (read before
@@ -3921,3 +3924,69 @@ session does not have to rediscover the argument.
 **Reversal condition.** If a sixth overlay ships with its own hand-written copy of this block — the
 guards will let it, since they check units and scrollports, not duplication — the class consolidation
 has earned itself and should be done then.
+
+## 2026-09-02 — a backup surface names what its tier carries, and the restic tier carries the notes too `#vault` `#git` `#ui`
+
+**The mechanism was right; every description of it had drifted.** Nothing here changes what backup
+*does* — the review that produced this entry found the two tiers well shaped and, unusually for
+this repo, genuinely covered: six tests drive a **real** `restic` binary
+(`fm-core/tests/backup.rs`, skipped outside pixi, which is why they only truly run under
+`pixi run ci`), and `push_squashed` is pinned on both backends by a differential test asserting
+byte-identical remote logs. What was wrong was the sentences. Three of them were false.
+
+**1. The restic tier is not "media".** `backup()` snapshots the notes directory **and** `blobs/`
+(`fm-core/src/backup.rs:74-104`) — so a snapshot contains the notes, and a restore returns a
+working vault rather than a pile of images. The panel called it "media" in every string, and the
+manual said it took *"the whole vault — blobs and all"*. Both wrong, in opposite directions: one
+understated the coverage, the other overstated it. **The fix is to say so, not to widen the
+snapshot.** The narrow scope is deliberate and tested — `a_projects_own_files_are_not_snapshotted`
+exists because a vault may also be a project directory, and sweeping in `.env` and `src/` would
+make the app a backup tool for files nobody offered it. Recorded here because the tempting fix is
+the wrong one and will be proposed again.
+
+**What that scope excludes is larger than it looks, and the manual now says it.** `views/`,
+`themes/` and `manifest.json` all live at the **vault root** (`fm-app/src/views.rs:579`,
+`themes.rs:28`, `fm-core/src/manifest.rs:46`), so **none of them is in a snapshot**. The two tiers
+are not each other's copy and do not between them cover the vault folder. That is defensible — git
+carries exactly the things git should carry — but it was nowhere stated, and a user restoring from
+restic alone would silently lose every saved view and their theme.
+
+**2. The git tier's scope is per vault, and the panel could not read it.** `git_assets_max`
+(2026-07-20, above) lets blobs at or under a limit ride with the notes. The backup panel said
+*"Media in `blobs/` is not included"* flatly — false for any vault with a limit, and false in the
+dangerous direction: it told someone their attachments stayed home while they were entering
+permanent shared history. `VaultStatus` gains `git_assets_max` so the promise line can state what
+the tier carries. One descriptor read per vault, beside a network `ls-remote` that already
+dominates `backup_status`.
+
+**3. The panel named a mechanism it had itself replaced.** Two strings still said
+`RESTIC_PASSWORD isn't set`, and the disabled-checkbox line still sent people to *"your vault
+list"* and told them to *restart* — for a repo the field directly above it sets, and a password
+that takes effect the moment it is saved (both since 2026-08-29). A surface that tells you to go
+and edit a file the surface exists to replace is worse than one that says nothing.
+
+**The deny list gains the restic writers.** `set_restic_repo`, `set_restic_password` and
+`clear_restic_password` were reachable from a paired device while `/api/backup` and `/api/config`
+were already denied. `set_restic_repo` decides *where a vault's notes and attachments are sent*
+and takes an arbitrary `s3:`/`sftp:` string; `clear_restic_password` deletes the only key to every
+repository on the machine, which restic cannot recover. Configuring a tier you are not allowed to
+run was never a coherent capability to leave a guest.
+
+**git-lfs: asked, and not taken — the arithmetic, so it is not re-derived.** The owner asked
+whether full backups through git might want LFS. There is none in the tree: no `filter=lfs` in
+`.gitattributes`, nothing in `pixi.toml`, and the only mention anywhere is the two-tier decision
+above citing git-annex/git-LFS as prior art it *declined*. Three things stand against adopting it
+now, and none is about effort. LFS needs **server-side support**, so it would make "your notes
+repo is an ordinary git repo you own" conditional on the host — the property the two-tier split
+exists to protect. It is **another binary on PATH**, which the toolchain rule
+(`Command::new` with no indirection, `#toolchain`) already names as the unsolved half of the
+installer. And it does not remove the permanence problem it appears to solve: an LFS pointer is
+still a commit, and the bytes still live somewhere forever. `git_assets_max` already delivers what
+the question was really after — attachments travelling with notes — bounded by a size the vault
+chooses. **Reversal condition:** if someone needs full-fidelity media *history* (not a current
+copy), restic cannot give it and this argument should be reopened.
+
+**Deliberately not done here.** A "last backed up at" line — `backup::latest()` exists in core and
+no dispatch command exposes it, so the single most useful fact about a backup is unavailable to
+the UI. Letting a restic-only vault run without a git remote; the panel now at least explains why
+its own button is disabled instead of leaving it silently dead. Both are in `outstanding.md`.

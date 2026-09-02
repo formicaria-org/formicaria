@@ -155,6 +155,11 @@ export interface VaultStatus {
    *  vault has a repo, and the password is set. All three — "ready" has to mean
    *  "will work", not "is configured". */
   restic_ready: boolean;
+  /** The largest attachment this vault sends with its notes; null is the default, notes
+   *  only. Here so the git tier can state its own scope: "media is not included" is false
+   *  for any vault with a limit, whose blobs at or under it are committed and pushed. Set
+   *  in Settings ("Send attachments under"), read here. */
+  git_assets_max: number | null;
 }
 
 /** What each backup tier could do right now (`backup_status`).
