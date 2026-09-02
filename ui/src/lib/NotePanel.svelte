@@ -19,6 +19,7 @@
     reply as ipcReply,
     thread as ipcThread,
     agentActivity as ipcAgentActivity,
+    agentStatus,
     onlineAgents as ipcOnlineAgents,
     proposalFor as ipcProposalFor,
     discussions as ipcDiscussions,
@@ -1209,9 +1210,20 @@
       await ipcReply(replyTo || note.id, body);
       replyDraft = '';
       replyTo = note.id;
-      agentNotice = offline.length
-        ? `“@${offline[0]}” isn’t running, so it won’t answer. Turn the assistant on in Settings, then ask again.`
-        : null;
+      // **"Turn it on in Settings" is wrong advice when it is already on.** The model can be
+      // refused *after* the switch — `preflight::admit` will not start one this machine has no
+      // room for — so the row reads On while nothing answers, and telling the user to turn on a
+      // thing that is on is a loop they cannot leave. Ask which case this is, once, and only when
+      // a mention actually went unanswered.
+      agentNotice = null;
+      if (offline.length) {
+        const enabled = await agentStatus()
+          .then((st) => st.enabled)
+          .catch(() => false); // unknown → the older, safer sentence
+        agentNotice = enabled
+          ? `“@${offline[0]}” is switched on but did not start — most often there is not enough free memory for it right now. Close a few applications and ask again, or choose the smaller model in Settings.`
+          : `“@${offline[0]}” isn’t running, so it won’t answer. Turn the assistant on in Settings, then ask again.`;
+      }
       await loadThread();
       // Addressed a running assistant → show the working wheel at once, no dead pause before the
       // agent picks it up (poll takes over with the real stages, and the reply clears it).

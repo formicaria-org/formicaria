@@ -290,6 +290,49 @@ fn provisioned_in(dir: &std::path::Path) -> bool {
     })
 }
 
+/// How much disk the downloaded model and runtime are using, in bytes.
+///
+/// Reported so the removal control can say what it will free — "delete 2.5 GB" is a decision
+/// someone can make, "delete the model" is a leap of faith.
+fn provisioned_bytes_in(dir: &std::path::Path) -> u64 {
+    ["models", "runtime"]
+        .iter()
+        .filter_map(|sub| std::fs::read_dir(dir.join(sub)).ok())
+        .flatten()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum()
+}
+
+/// Delete the downloaded model and runtime, and nothing else.
+///
+/// **Only inside the tools directory, and only its two subdirectories.** A checkout's `agents/` is
+/// the same shape and holds files a developer put there by hand, so this refuses to run against one
+/// — `looks_like_a_checkout` is the same tell `agents_dir` uses to prefer it.
+///
+/// Notes are never touched: they are not in this directory and this function names the only two
+/// subdirectories it will remove.
+fn remove_provisioned() -> Result<u64, String> {
+    let dir = agents_dir().ok_or("no tools directory on this machine")?;
+    if looks_like_a_checkout(&dir) {
+        return Err(
+            "this installation runs from a source checkout, so the model in `agents/` is yours to \
+             manage — formicaria will not delete it for you"
+                .into(),
+        );
+    }
+    let freed = provisioned_bytes_in(&dir);
+    for sub in ["models", "runtime"] {
+        let p = dir.join(sub);
+        if p.exists() {
+            std::fs::remove_dir_all(&p).map_err(|e| format!("could not remove {}: {e}", p.display()))?;
+        }
+    }
+    Ok(freed)
+}
+
 /// Is this directory a **checkout's** `agents/` rather than the per-user tools directory?
 ///
 /// The catalogue is the tell: a checkout carries `models.toml` in git, and an empty `agents/`
@@ -603,6 +646,8 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
                 // on" and "download 2.5 GB and then turn it on", which a person deserves to know
                 // before clicking rather than after.
                 "provisioned": provisioned(),
+                // What removing it would free, so the control can say so rather than ask for faith.
+                "provisioned_bytes": agents_dir().map(|d| provisioned_bytes_in(&d)).unwrap_or(0),
                 // A download in flight, or how the last one ended. Null when nothing is happening.
                 "provisioning": *state.agent.provisioning.lock().unwrap(),
             })
@@ -642,6 +687,21 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
                 })
                 .unwrap_or_default();
             ("200 OK", "application/json", serde_json::json!(models).to_string().into_bytes())
+        }
+        // Free the disk the model and runtime are using. Off first: deleting the files under a
+        // running model would leave it serving from unlinked inodes and fail confusingly later.
+        "/api/remove_agent_model" => {
+            let _ = set_enabled(false);
+            state.agent.generation.fetch_add(1, Ordering::SeqCst);
+            *state.agent.provisioning.lock().unwrap() = None;
+            match remove_provisioned() {
+                Ok(freed) => (
+                    "200 OK",
+                    "application/json",
+                    serde_json::json!({ "freed": freed }).to_string().into_bytes(),
+                ),
+                Err(e) => ("409 Conflict", "text/plain; charset=utf-8", e.into_bytes()),
+            }
         }
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;

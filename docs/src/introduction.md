@@ -23,6 +23,10 @@ works with the internet switched off.
 - **Work with someone else.** Two people can keep the same notebook in step, each on their own
   machine. If you both edit the same note, formicaria merges the changes rather than making you
   choose between them.
+- **Ask a local assistant.** Optionally, a small AI model that lives **on your own computer** can
+  answer questions in a note's discussion, look something up on the web, read a photographed page,
+  and draft edits for you to approve. It is off until you turn it on, and your notes never leave
+  the machine. See [the study assistant](./user/assistant.md).
 
 ## How your notes are organised
 

@@ -614,8 +614,18 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           : 'The study assistant runs on Linux today. Everything else in formicaria works normally here — your notes, search, boards and backup are unaffected.',
         transcribe_available: mockTranscribeAvailable,
         provisioned: mockProvisioned,
+        provisioned_bytes: mockProvisioned ? 2_497_281_664 : 0,
         provisioning: mockProvisioning,
       } as T;
+    case 'remove_agent_model': {
+      // The real thing turns the assistant off first, then deletes; the mock does the same so the
+      // panel's state after removal is developable.
+      const freed = mockProvisioned ? 2_497_281_664 : 0;
+      mockAgentEnabled = false;
+      mockProvisioned = false;
+      mockProvisioning = null;
+      return { freed } as T;
+    }
     case 'agent_models':
       // The real catalogue's shape, sizes included — the numbers are what `agents/models.toml`
       // records, so the dev build shows the same figures a user would be asked to accept.
@@ -669,7 +679,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { active: false } as T;
     case 'agents':
       // In the mock, the "enabled" toggle stands in for a live agent, so the @-picker is demoable.
-      return { agents: mockAgentEnabled ? ['lfm2.5-230m'] : [] } as T;
+      return { agents: mockAgentEnabled ? ['qwen3-vl-4b'] : [] } as T;
     case 'board': {
       const board: Board = buildBoard(String(args.groupBy));
       return board as T;

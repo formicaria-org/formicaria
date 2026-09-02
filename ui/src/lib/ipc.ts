@@ -313,6 +313,8 @@ export const agentStatus = () =>
     /** Whether the model and runtime are already here — the difference between "turn it on" and
      *  "download a few gigabytes, then turn it on". */
     provisioned: boolean;
+    /** What removing the model would free, in bytes — so the control can name the figure. */
+    provisioned_bytes: number;
     /** A first-enable download in flight, or how the last one ended; null when idle. `total` is
      *  null where the server sends no length, and the line must then say bytes rather than invent
      *  a percentage. */
@@ -330,6 +332,12 @@ export const agentStatus = () =>
  *  images. Both are ignored once the stack is on the machine. */
 export const setAgent = (enabled: boolean, model?: string, vision = false) =>
   invoke<{ ok: boolean }>('set_agent', { enabled, model, vision });
+
+/** Delete the downloaded model and runtime, freeing the disk they use. Turns the assistant off
+ *  first — deleting files under a running model leaves it serving from unlinked inodes. Answers how
+ *  many bytes it freed; refuses (409) on a source checkout, where those files are the developer's. */
+export const removeAgentModel = () =>
+  invoke<{ freed: number }>('remove_agent_model');
 
 /** What the first-enable screen offers: every catalogued model, its download size and licence. */
 export const agentModels = () =>

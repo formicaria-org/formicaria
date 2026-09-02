@@ -37,13 +37,6 @@ Reading images *is* offered in the app, as a choice at first enable.
 > not run a model it cannot watch. That check is what made those platforms wait, and it is still
 > what protects them.
 
-**Why macOS and Windows refuse.** Before starting a model, formicaria checks whether the machine
-has room for it and keeps watching while it runs. That check reads Linux kernel counters and has no
-macOS or Windows implementation yet, so on those systems the app **refuses rather than running a
-model it cannot watch**. It is not a licence, a download or a setting: nothing you install will
-change it, and the right fix is a monitor for those systems rather than a relaxed check. Settings
-tells you which case you are in, and shows no switch instead of one that would fail.
-
 Everything else in formicaria — notes, search, boards, backup, sharing — works normally without any
 of this.
 
@@ -63,9 +56,34 @@ There is nothing to install first, and no terminal involved.
 That is the whole of it. Afterwards the assistant starts with formicaria and stops when you close
 it: nothing runs in the background, and nothing is downloaded twice.
 
-The model lives outside the app folder, in this computer's configuration directory, so updating
-formicaria does not fetch it again — and copying the app folder to a USB stick does **not** take the
-model with it, only your notes.
+### What it costs, and where it goes
+
+| | |
+|---|---|
+| **Download** | 0.73 GB to 2.5 GB depending on the model, plus 0.84 GB if you want it to read images. The picker shows the total before it starts. |
+| **Disk, afterwards** | The same again — the download *is* the model. Allow a little more while it unpacks the runtime (about 30 MB). |
+| **Connection** | Needed once, for that download. Everything after it works offline. |
+| **Time** | However long that many gigabytes takes on your connection. You can keep working, and stopping is safe. |
+
+The files live **outside the app folder**, in this computer's configuration directory:
+
+| | |
+|---|---|
+| Linux | `~/.config/formicaria/tools/` |
+| macOS | `~/Library/Application Support/formicaria/tools/` |
+| Windows | `%APPDATA%\formicaria\tools\` |
+
+Two consequences worth knowing. Updating formicaria does **not** download it again — the new version
+finds it where the old one left it. And copying the app folder to a USB stick takes your notes but
+**not** the model, which will be downloaded again on the other machine.
+
+### Getting the space back
+
+Turn the assistant off and delete the model in **Settings → Study assistant → Remove the model**. It
+tells you how much it will free, asks once, and deletes only the downloaded files — never your
+notes. Turning the assistant on afterwards simply asks which model you want again.
+
+Deleting the folder above by hand does the same thing.
 
 ### From a checkout, for developers
 
@@ -130,30 +148,38 @@ weights on first enable.
 
 ## Use it
 
-In **any discussion** — a note's discussion thread, or a first-class discussion — type `@` and the
+In a discussion — a note's own discussion thread, or a first-class discussion — type `@` and the
 picker suggests the assistant (and any collaborators in the vault). Pick it and ask:
 
 ```
-@lfm2.5-1.2b what is the difference between mRNA and DNA vaccines?
+@qwen3-vl-4b what is the difference between mRNA and DNA vaccines?
 ```
 
-It replies in the thread, attributed to the model's own name so you can see who said what. Four
-commands refine a turn:
+It replies in the thread, attributed to the model's own name, so you can always see who said what.
 
-| Command | What it does |
-|---|---|
-| `/search` | Look the web up first, then answer from what it found (desktop; keyless SearXNG proxy). |
-| `/research` | The thorough version: search, write with quotes, and check every claim against its source. Drops the ones it cannot support. |
-| `/propose` | In a note's discussion, draft an **edit to that note** for you to review. |
-| `/transcribe` | Turn this note's **recordings and images into text** — see below. |
+**You do not have to remember the commands.** The composer shows them as buttons you can tap, each
+with a line saying what it does — which is the easier route on a phone.
 
-Nothing the assistant writes lands in a note by itself. Every one of these produces a **suggestion
-you review**: you see exactly what would change, and you accept it, edit it first, or turn it down.
+| Command | What it does | Where |
+|---|---|---|
+| `/search` | Look the web up first, then answer from what it found. | Anywhere |
+| `/research` | The thorough version: search, write with quotes, and check every claim against its source. Drops the ones it cannot support. | **A note's discussion** |
+| `/propose` | Draft an **edit to that note** for you to review. | **A note's discussion** |
+| `/transcribe` | Turn this note's **recordings and images into text** — see below. | **A note's discussion** |
+
+Three of the four need a note to work on, so in a *first-class* discussion — one that belongs to no
+particular note — only `/search` applies; the rest quietly become an ordinary question. A command
+can go anywhere in the sentence, beginning or end.
+
+Nothing the assistant writes lands in a note by itself. `/propose`, `/research` and `/transcribe`
+each produce a **proposal**: it appears on the note it belongs to, and in the **Collaboration**
+view, where you see exactly what would change and then accept it, edit it first, or turn it down.
+See [Collaboration](./collaboration.md).
 
 Example:
 
 ```
-@lfm2.5-1.2b summarize the key idea of Bayesian model selection in 3 bullet points /search
+@qwen3-vl-4b summarize the key idea of Bayesian model selection in 3 bullet points /search
 ```
 
 ### Transcribing recordings and writing
@@ -206,14 +232,47 @@ the AI or a person you share the vault with.
 Each device has a sweet spot — small enough to stay responsive and not slow the rest of the system
 down, large enough to answer well. Measured on real hardware:
 
-| Device | Recommended | Why |
-|---|---|---|
-| **Phone** (mid-range, ~8 GB RAM) | `lfm2.5-1.2b` | Best instruction-following + tool-use in its size; ~16 tokens/s, ~1.4 GB — smooth, leaves the UI responsive. |
-| **Laptop** (8-core, ≥8 GB RAM) | `qwen3-4b-2507` | A larger, stronger model the laptop can hold; the best small-model tool-caller. |
-| **Any low-end device** | `lfm2.5-350m` | The fast, tiny floor — instant, ~0.45 GB — when responsiveness matters most. |
+These are the three the picker offers, with the download sizes it will show you:
+
+| Device | Recommended | Download | Why |
+|---|---|---|---|
+| **Laptop or desktop** | `qwen3-vl-4b` | 2.5 GB (+0.84 GB to read images) | The default. Grounds its answers best of the ones measured, and the only one that can read a photographed page. |
+| **A lighter machine, or a slow connection** | `lfm2.5-1.2b` | 0.73 GB | Best instruction-following and tool-use in its size; also the phone's pick. Text only. |
+| **If the default disappoints** | `qwen3-4b-2507` | 2.5 GB | The validated fallback, text-only — the laptop pick until 2026-07-24. |
 
 The assistant caps its own thread use so inference never starves the interface — on a phone this is
 also, conveniently, the *fastest* setting.
+
+## If something goes wrong
+
+**"Download failed."** The reason is printed beside it. A dropped connection is the common one and
+costs nothing: turn the assistant on again and it continues from where it stopped — what already
+arrived is kept.
+
+**"There is not enough free space for this download."** Exactly what it says. Free some space, or
+choose the smaller model: `lfm2.5-1.2b` is 0.73 GB against the default's 2.5 GB, and works well.
+
+**The assistant is On, but it never answers.** Almost always memory. The app refuses to start a
+model it does not have room for — it will not push your machine into swapping — and the refusal
+happens after the switch is already on. Close some applications and browser tabs and try again, or
+switch to the smaller model. It needs roughly the model's own size, plus 1 GB, free at the moment
+it starts.
+
+**"…cannot read this machine's memory."** formicaria will not run a model it cannot watch, so it
+stops rather than guessing. This is unusual; it is worth reporting.
+
+**"No model runtime has been published for this kind of computer yet."** The assistant runs on
+64-bit Linux, macOS on Apple silicon, Windows on x86-64, and Android. Other combinations have no
+build yet.
+
+**"This copy of formicaria did not come with the assistant."** Some builds are made without it. A
+release download from the project's own releases page includes it.
+
+**The transcription switch is missing.** Expected: turning speech into text needs a piece the app
+cannot fetch for itself yet. See "The two extras" above.
+
+**Starting over.** Turning the assistant off stops a download in progress and keeps what arrived.
+To discard it entirely, use **Remove the model** — see "Getting the space back".
 
 ## Privacy and control
 

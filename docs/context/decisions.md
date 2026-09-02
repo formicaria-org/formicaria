@@ -103,7 +103,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   ***An addition is checked against the record before it is written*** (read before adding a
   dependency, an archive file, a relaxed guard or a changed default) · *The manual's CSP is a named
   exception* (`#ui`).
-- **`#agent`**: ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
+- **`#agent`**: ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
 
@@ -4424,3 +4424,46 @@ prose about the thing reports on its own documentation. It now strips comments b
 was re-proved in both directions. `pixi run check-pins` (ignored by default, ~110 MB) re-fetches
 every pinned runtime and confirms it still hashes to what the catalogue records — an upstream
 re-upload would otherwise reach a user as an unexplained checksum failure on first enable.
+
+## 2026-09-02 — advice that cannot succeed is worse than none, and a feature that takes 3 GB can give it back `#agent` `#ui`
+
+**Why:** an audit of the manual against what shipped found the docs describing a different product —
+including two paragraphs that were **false in the built HTML users have**, one of them written by
+this session hours earlier. The audit's own finding is the durable lesson: *the same day's work
+falsified the same day's documentation twice*, because the docs were corrected before the feature
+landed rather than with it.
+
+**The dead end, which is the part worth keeping.** `preflight::admit` refuses a model the machine
+has no room for — correctly — but it refuses **after** the switch is on, in a separate process,
+into stderr. So Settings read "On" while the discussion said *"isn't running… Turn the assistant on
+in Settings"*: advice the user has already taken, and cannot take again. The fix is not to surface
+the refusal (the capability row deliberately does not consult `admit`, `decisions.md`'s 2026-08-29
+ruling, because a few browser tabs would then report the assistant "not installed"); it is to
+**stop giving the wrong advice**. When a mention goes unanswered the panel now asks whether the
+assistant is enabled, once, and says either "turn it on" or "it is on but did not start — most often
+memory, close some applications or choose the smaller model". Same two states, two different
+sentences, and neither is a loop.
+
+**Removal, because a feature that spends 3.3 GB of someone's disk must be able to hand it back.**
+There was no way to reclaim it in the app and no document naming where the files were. The control
+states the figure before asking — *"delete 2.5GB"* is a decision a person can make, *"delete the
+model"* is a leap of faith — and is two-step, like forgetting a vault, for the same reason: large
+and irreversible.
+
+Two refusals are load-bearing. It **will not run against a source checkout**: `agents/` there holds
+files a developer put in by hand, and the same `looks_like_a_checkout` tell that makes the dev loop
+win also makes this decline. And it is in `REMOTE_DENIED`, beside `set_agent` — a paired tablet is a
+guest, and a guest does not free the host's storage.
+
+**Documentation is part of the feature, not after it.** The chapter now leads with the three steps a
+downloader takes, prices the download and the image reader separately, names the per-OS path the
+files land in, and carries a failure section covering the eight strings the code can actually emit —
+written from the code, not from imagination. The assistant is now reachable from `introduction.md`,
+`first-note.md` and the in-app Help panel, which on **Android is the only help there is**: the phone
+bundles the whole stack and had no text about it outside one Settings row.
+
+**And the docs named three models that do not exist.** `lfm2.5-350m` in the manual, `@lfm2.5-230m`
+in the Settings panel's own explanation — the first thing anyone reads about the assistant — and a
+third in `agents/README.md`. A reader compared the table to the picker and found no overlap. The
+catalogue is now the single source: every example names something `agent_models` will actually
+offer.

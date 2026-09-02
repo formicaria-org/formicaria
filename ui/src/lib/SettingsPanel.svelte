@@ -24,6 +24,7 @@
     setSupervision,
     agentStatus,
     agentModels,
+    removeAgentModel,
     setAgent,
     setTranscribe,
     alive,
@@ -165,6 +166,7 @@
       transcribeOn = st.transcribe;
       agentInstalled = st.installed;
       provisioned = st.provisioned;
+      provisionedBytes = st.provisioned_bytes;
       provisioning = st.provisioning;
       if (st.provisioning && st.provisioning.stage !== 'ready' && st.provisioning.stage !== 'failed') {
         watchProvisioning();
@@ -213,6 +215,11 @@
   let pickedModel = $state<string | null>(null);
   let pickVision = $state(false);
   let provisioned = $state(true);
+  let provisionedBytes = $state(0);
+  /// Armed by the first click, acted on by the second — the two-step `BackupPanel` already uses for
+  /// "forget this vault", and for the same reason: this frees gigabytes and cannot be undone.
+  let removingModel = $state(false);
+  let removedNote = $state<string | null>(null);
   let provisioning = $state<Awaited<ReturnType<typeof agentStatus>>['provisioning']>(null);
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -278,6 +285,22 @@
       provisioning = { stage: 'model', done: 0, total: null, error: null };
       watchProvisioning();
     } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Delete the downloaded model and reclaim the disk. Turns the assistant off as a side effect,
+   *  which the server does too — a model cannot be removed while it is running. */
+  async function removeModel() {
+    try {
+      const { freed } = await removeAgentModel();
+      removingModel = false;
+      provisioned = false;
+      provisionedBytes = 0;
+      agentOn = false;
+      removedNote = `Removed. ${humanSize(freed)} is free again.`;
+    } catch (e) {
+      removingModel = false;
       error = e instanceof Error ? e.message : String(e);
     }
   }
@@ -480,7 +503,7 @@
           <h3>Study assistant</h3>
           <p class="muted">
             A small local model that reads your notes and answers in discussions — mention it by name
-            (e.g. <code>@lfm2.5-230m</code>) and it replies; it can propose edits you review, and never
+            (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review, and never
             touches your notes on its own. It runs entirely on this device, starts and stops
             <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change takes
             effect at the next launch.
@@ -567,6 +590,34 @@
                   <button onclick={() => (choosing = false)}>Cancel</button>
                 </div>
               </li>
+            {/if}
+
+            <!-- **Getting the space back.** Nothing in the app could reclaim 2.5-3.3 GB until now,
+                 and no document said where the files were. Two steps, like forgetting a vault: this
+                 is irreversible and large. It names the figure, because "delete 2.5 GB" is a
+                 decision someone can make and "delete the model" is a leap of faith. -->
+            {#if provisioned && provisionedBytes > 0 && !provisioning}
+              <li>
+                {#if removingModel}
+                  <span class="k">remove the model?</span>
+                  <span class="muted">
+                    Frees {humanSize(provisionedBytes)}. Your notes are untouched — this deletes only
+                    the downloaded model and its runtime. Turning the assistant on again asks which
+                    model you want and downloads it afresh.
+                  </span>
+                  <button class="primary" onclick={removeModel}>Yes, remove it</button>
+                  <button onclick={() => (removingModel = false)}>Cancel</button>
+                {:else}
+                  <span class="k">disk</span>
+                  <span class="muted">
+                    The model and its runtime use {humanSize(provisionedBytes)}.
+                  </span>
+                  <button onclick={() => (removingModel = true)}>Remove the model…</button>
+                {/if}
+              </li>
+            {/if}
+            {#if removedNote}
+              <li><span class="muted">{removedNote}</span></li>
             {/if}
 
             <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —

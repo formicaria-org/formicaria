@@ -43,10 +43,13 @@ not only in a toast: an unresolved conflict blocks every commit, so it must stay
 Proposals are kept out of the Board, Agenda and Timeline — like a discussion message, a proposal
 is not something you *plan* — but they remain fully searchable.
 
-> **What is here today.** You can **view and discuss** proposals, and **find and open** conflicts.
-> Creating a proposal from a note or whiteboard, seeing its diff, and accepting (merging) it are
-> being built next; a proposal is created today by putting a note carrying `proposes: branch:<name>`
-> in the vault (by hand, or by an agent).
+> **What is here today.** The whole review round trip: a proposal is **created** — by the study
+> assistant, or by hand with a note carrying `proposes: branch:<name>` — and you **see its diff**,
+> **discuss** it, then **accept** it, **edit it first**, or **turn it down**. Accepting merges the
+> branch into `main`. Conflicts are found and opened here too.
+>
+> What is not here yet: creating a proposal from a note or whiteboard with a button, rather than
+> asking the assistant or writing the frontmatter yourself.
 
 ### How a proposal ages
 

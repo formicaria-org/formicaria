@@ -81,3 +81,4 @@ exactly as you left them, and they are still there whether formicaria is running
 - Images, PDFs, whiteboards — [Assets & media](./assets.md)
 - History, backup, another machine — [Backup & versioning](./backup.md)
 - Writing with someone else — [Collaboration](./collaboration.md)
+- A local AI assistant that answers in your notes — [The study assistant](./assistant.md)

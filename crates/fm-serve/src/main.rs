@@ -294,6 +294,9 @@ fn main() {
 const REMOTE_DENIED: &[&str] = &[
     // Spawns a process, or writes host-level state.
     "/api/set_agent",
+    // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
+    // above: a paired tablet is a guest, and a guest does not free the host's storage.
+    "/api/remove_agent_model",
     "/api/set_transcribe",
     "/api/agent_activity",
     "/api/agent_present",

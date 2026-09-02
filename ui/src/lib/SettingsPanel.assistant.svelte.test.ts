@@ -15,16 +15,18 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
 
-const { agentStatus, agentModels, setAgent } = vi.hoisted(() => ({
+const { agentStatus, agentModels, setAgent, removeAgentModel } = vi.hoisted(() => ({
   agentStatus: vi.fn(),
   agentModels: vi.fn(),
   setAgent: vi.fn(),
+  removeAgentModel: vi.fn(),
 }));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   agentStatus,
   agentModels,
   setAgent,
+  removeAgentModel,
 }));
 
 function panel() {
@@ -48,6 +50,7 @@ const status = (over: Record<string, unknown> = {}) => ({
   why: '',
   transcribe_available: false,
   provisioned: false,
+  provisioned_bytes: 0,
   provisioning: null,
   ...over,
 });
@@ -145,6 +148,48 @@ describe('turning the study assistant on for the first time', () => {
 
     expect(await screen.findByText(/download failed/i)).toBeTruthy();
     expect(await screen.findByText(/no space left on device/)).toBeTruthy();
+  });
+
+  it('offers to reclaim the disk, names the figure, and asks first', async () => {
+    agentStatus.mockResolvedValue(
+      status({ enabled: true, provisioned: true, provisioned_bytes: 2_497_281_664 }),
+    );
+    agentModels.mockResolvedValue(catalogue);
+    removeAgentModel.mockResolvedValue({ freed: 2_497_281_664 });
+    panel();
+
+    // The size is on screen before anything is clicked — "delete 2.5GB" is a decision someone can
+    // make; "delete the model" is a leap of faith.
+    expect(await screen.findByText(/2\.5GB/)).toBeTruthy();
+    await fireEvent.click(await screen.findByRole('button', { name: /Remove the model/i }));
+
+    // Armed, not done: one click must not delete gigabytes.
+    expect(removeAgentModel).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Your notes are untouched/i)).toBeTruthy();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Yes, remove it/i }));
+    expect(removeAgentModel).toHaveBeenCalled();
+    expect(await screen.findByText(/2\.5GB is free again/i)).toBeTruthy();
+  });
+
+  it('can be backed out of without deleting anything', async () => {
+    agentStatus.mockResolvedValue(
+      status({ enabled: true, provisioned: true, provisioned_bytes: 2_497_281_664 }),
+    );
+    agentModels.mockResolvedValue(catalogue);
+    panel();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Remove the model/i }));
+    await fireEvent.click(await screen.findByRole('button', { name: /Cancel/i }));
+    expect(removeAgentModel).not.toHaveBeenCalled();
+  });
+
+  it('offers nothing to remove when there is nothing downloaded', async () => {
+    agentStatus.mockResolvedValue(status({ provisioned: false, provisioned_bytes: 0 }));
+    agentModels.mockResolvedValue(catalogue);
+    panel();
+    await screen.findByRole('checkbox', { name: /study assistant/i });
+    expect(screen.queryByRole('button', { name: /Remove the model/i })).toBeNull();
   });
 
   it('is an ordinary switch once the model is already here', async () => {

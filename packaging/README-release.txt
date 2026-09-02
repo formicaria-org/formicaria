@@ -166,7 +166,8 @@ This folder contains the whole application. Nothing gets installed.
     - Linux (Ubuntu 22.04 or newer, or anything of similar age)
 
   Nothing is installed to run it, and it needs no account and no network. Three
-  optional extras use programs your computer may already have - see section 6.
+  optional extras use programs your computer may already have, and an optional
+  AI assistant installs itself - see section 6.
 
 
 ------------------------------------------------------------------------------
@@ -176,9 +177,10 @@ This folder contains the whole application. Nothing gets installed.
   Writing notes, tasks, dates, the board and search all work with nothing
   else installed at all.
 
-  Three further things are possible if your computer has the right program for
-  them. Settings -> "This machine" always tells you which of these this
-  computer can currently do.
+  Four further things are possible. Three of them need a program your computer
+  may already have; the fourth, the assistant, installs itself. Settings ->
+  "This machine" always tells you which of these this computer can currently
+  do.
 
     KEEPING A HISTORY, AND BACKING UP
       Go back to how a note was last week, back your notes up, or share a
@@ -196,26 +198,24 @@ This folder contains the whole application. Nothing gets installed.
       An encrypted, space-efficient backup of the heavy files, separate from
       the notes themselves. Needs "restic", and a place to put the backup.
 
+    A LOCAL AI ASSISTANT - AND THIS ONE INSTALLS ITSELF
+      A small AI model that runs ON THIS COMPUTER: ask it questions in a
+      note's discussion, have it look something up, read a photographed page,
+      or draft an edit for you to approve. Your notes never leave the machine
+      and there is no account.
+
+      Nothing to install first. Turn it on in Settings -> Study assistant; it
+      asks which model, says how big it is and under what licence, and
+      downloads it - between 0.7 and 3.3 GB depending on what you pick, once,
+      over your internet connection. You can stop part-way and what arrived is
+      kept. Works on Linux, macOS and Windows.
+
+      Turning speech recordings into text needs a further piece this download
+      cannot fetch yet, so that switch does not appear.
+
   Without any of them your notes are still perfectly safe - they are ordinary
   files on your disk - you just do not get that particular extra.
 
-    THE STUDY ASSISTANT - IT DOWNLOADS ITSELF
-      formicaria has an optional local AI assistant that reads and drafts
-      inside your notes. This folder can run it: turn it on in
-      Settings, and the first time it asks which model you want, says how big
-      it is and under what licence, and downloads it. A few gigabytes, once.
-      You can stop it part-way; what arrived is kept.
-
-      This works on Linux, macOS and Windows. Before starting a model the app
-      checks that it can read how much memory your machine has free, and
-      refuses if it cannot - it will not run a model it cannot watch. Settings
-      says so plainly if that ever happens.
-
-      Turning speech recordings into text needs a further piece that this
-      download cannot fetch for you yet, so that switch does not appear. The
-      assistant itself, and reading a photographed page, both work from here.
-
-      The manual's "The study assistant" chapter explains what it does.
 
 
 ------------------------------------------------------------------------------
