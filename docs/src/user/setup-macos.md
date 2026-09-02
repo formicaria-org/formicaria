@@ -84,6 +84,8 @@ is and under what licence, and downloads it — between 0.7 and 2.5 GB depending
 once, kept on this computer and used offline afterwards. Letting it read photographed pages adds a
 further 0.84 GB, and is offered as its own choice. You can stop part-way; what has arrived is kept.
 
+Turning recordings into text is the one part that does not work here: the speech-to-text project publishes no macOS build at the version formicaria pins, so that switch says so instead of appearing.
+
 It is off by default and costs nothing while off. Everything else — your notes, search, boards,
 backup and sharing — works normally whether or not you ever turn it on.
 

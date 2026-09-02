@@ -613,6 +613,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           ? ''
           : 'The study assistant runs on Linux today. Everything else in formicaria works normally here — your notes, search, boards and backup are unaffected.',
         transcribe_available: mockTranscribeAvailable,
+        transcribe_fetchable: !mockTranscribeAvailable,
         provisioned: mockProvisioned,
         provisioned_bytes: mockProvisioned ? 2_497_281_664 : 0,
         provisioning: mockProvisioning,

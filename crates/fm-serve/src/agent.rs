@@ -342,6 +342,99 @@ fn looks_like_a_checkout(dir: &std::path::Path) -> bool {
     dir.join("models.toml").exists()
 }
 
+/// Fetch the speech-to-text runtime and its weights, then remember that transcription is wanted.
+///
+/// **The same shape as [`provision_and_spawn`]**, deliberately: one generation counter, one
+/// progress field, one cancel story. A second download mechanism beside the first is how the two
+/// drift into disagreeing about what "cancelled" means.
+///
+/// It does **not** restart the assistant. Whisper is a launch flag on a separate process, so it
+/// applies the next time the assistant starts — which is what `agents/agent-serve.sh` did too, and
+/// what the settings row has always said.
+pub fn provision_transcribe(state: &Arc<AgentState>) {
+    let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let st = Arc::clone(state);
+    std::thread::spawn(move || {
+        let live = || st.generation.load(Ordering::SeqCst) == gen;
+        let cancelled = || !live();
+        let set = |stage: &str, done: u64, total: Option<u64>, error: Option<String>| {
+            if live() {
+                *st.provisioning.lock().unwrap() =
+                    Some(Provision { stage: stage.into(), done, total, error });
+            }
+        };
+        let progress = {
+            let st = Arc::clone(&st);
+            move |done: u64, total: Option<u64>| {
+                if st.generation.load(Ordering::SeqCst) == gen {
+                    *st.provisioning.lock().unwrap() = Some(Provision {
+                        stage: "transcribe".into(),
+                        done,
+                        total,
+                        error: None,
+                    });
+                }
+            }
+        };
+
+        let Some(dir) = agents_dir() else {
+            set("failed", 0, None, Some("no place to keep the assistant on this machine".into()));
+            return;
+        };
+        let Some(mpath) = manifest_path() else {
+            set("failed", 0, None, Some("the assistant has no model catalogue here".into()));
+            return;
+        };
+        let manifest = match fm_agent_run::manifest::Manifest::read(&mpath) {
+            Ok(m) => m,
+            Err(e) => {
+                set("failed", 0, None, Some(e));
+                return;
+            }
+        };
+        let Some(rt) = whisper_runtime_key().and_then(|k| manifest.runtime(k)) else {
+            set("failed", 0, None, Some(
+                "no speech-to-text runtime has been published for this kind of computer yet"
+                    .into(),
+            ));
+            return;
+        };
+
+        set("transcribe", 0, None, None);
+        if let Err(e) = fm_agent_run::fetch::ensure_runtime(
+            &dir.join("runtime"),
+            rt,
+            whisper_bin(),
+            &progress,
+            &cancelled,
+        ) {
+            if live() {
+                set("failed", 0, None, Some(e));
+            }
+            return;
+        }
+        // The weights are an ordinary catalogued model, fetched exactly as the phone fetches them.
+        let name = manifest.whisper_desktop().unwrap_or_else(|| "ggml-base.en".to_string());
+        if let Err(e) = fm_agent_run::fetch::ensure_model(
+            &dir.join("models"),
+            &manifest,
+            &name,
+            &progress,
+            &cancelled,
+        ) {
+            if live() {
+                set("failed", 0, None, Some(e));
+            }
+            return;
+        }
+        if !live() {
+            return;
+        }
+        let _ = set_transcribe(true);
+        set("ready", 0, None, None);
+    });
+}
+
 /// The model server's filename on this platform.
 fn server_bin() -> &'static str {
     if cfg!(windows) {
@@ -537,6 +630,40 @@ pub fn transcribe_available() -> bool {
 /// The port the audio runtime listens on, as `agents/agent-serve.sh` chose it.
 const WHISPER_PORT: u16 = 8082;
 
+/// The speech-to-text server's filename on this platform.
+fn whisper_bin() -> &'static str {
+    if cfg!(windows) {
+        "whisper-server.exe"
+    } else {
+        "whisper-server"
+    }
+}
+
+/// The catalogue key for this platform's whisper archive, or `None` where upstream publishes none.
+///
+/// **macOS has no build at whisper.cpp v1.9.1**, which is a different fact from "this machine is
+/// missing a file" and has to be reported differently — a user cannot fix an archive that does not
+/// exist, and telling them to try would waste their time.
+fn whisper_runtime_key() -> Option<&'static str> {
+    match fm_agent_run::manifest::Manifest::platform_key()? {
+        "linux_x64" => Some("whisper_linux_x64"),
+        "windows_x64" => Some("whisper_windows_x64"),
+        _ => None,
+    }
+}
+
+/// Could audio transcription be provisioned here, if the user asked for it?
+///
+/// Distinct from [`transcribe_available`], which asks whether it is already here. The switch needs
+/// both: *here* means turn it on, *fetchable* means offer to fetch it, and neither means say why.
+pub fn transcribe_fetchable() -> bool {
+    whisper_runtime_key().is_some_and(|k| {
+        manifest_path()
+            .and_then(|p| fm_agent_run::manifest::Manifest::read(&p).ok())
+            .is_some_and(|m| m.runtime(k).is_some())
+    })
+}
+
 /// `agent-serve` beside the running binary — the same idiom as `fm_core::git::merge_command`, and
 /// for the same reason: never a bare name hoping `PATH` will answer.
 pub fn agent_serve_path() -> Option<PathBuf> {
@@ -560,7 +687,7 @@ fn log_file(dir: &std::path::Path) -> Option<std::fs::File> {
 
 /// The predicate itself, against a named directory, so it can be tested without a staged runtime.
 fn transcribe_staged_in(dir: &std::path::Path) -> bool {
-    executable(&dir.join("runtime").join("whisper-server"))
+    executable(&dir.join("runtime").join(whisper_bin()))
         && dir.join("models").join("ggml-base.en.bin").is_file()
 }
 
@@ -641,6 +768,10 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
                 "why": why.unwrap_or_default(),
                 // The sub-toggle has a capability of its own — the runtime is a separate download.
                 "transcribe_available": transcribe_available(),
+                // Not here yet, but downloadable — the row offers instead of hiding. Where this is
+                // false *and* `transcribe_available` is false, upstream has no build and the user
+                // has nothing to do about it.
+                "transcribe_fetchable": transcribe_fetchable(),
                 // Whether the model and runtime are already here. `installed` says the app *can*
                 // provision; this says whether it still has to — the difference between "turn it
                 // on" and "download 2.5 GB and then turn it on", which a person deserves to know
@@ -747,16 +878,29 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
         // starts, exactly like turning the assistant off applies on the next app close. The UI says so.
         "/api/set_transcribe" => {
             let want = serde_json::from_slice::<TranscribeReq>(body).unwrap_or_default().transcribe;
-            // **The same refusal `set_agent` makes, for the same reason.** `agent-serve.sh` starts
-            // whisper only when its runtime and model are both staged, so without them this stored
-            // a preference, answered `{"ok":true}`, and transcription simply never happened.
+            // **Turning it on fetches it, if it can be fetched here.** This used to refuse
+            // whenever the runtime was absent, which was honest but left the user with a switch
+            // they could never use unless they had a checkout. Now: already here → just record the
+            // preference; fetchable → download it the way the model is downloaded, with the same
+            // progress and cancel; and only where upstream publishes no build at all does it still
+            // refuse — because that is the one case the user cannot resolve.
             if want && !transcribe_available() {
+                if transcribe_fetchable() {
+                    provision_transcribe(&state.agent);
+                    return Some(crate::write_response(
+                        stream,
+                        "200 OK",
+                        "application/json",
+                        b"{\"ok\":true}",
+                    ));
+                }
                 return Some(crate::write_response(
                     stream,
                     "409 Conflict",
                     "text/plain; charset=utf-8",
-                    b"The speech-to-text runtime is not on this machine, so audio transcription \
-                      cannot be turned on yet. The assistant works normally without it.",
+                    b"There is no speech-to-text runtime published for this kind of computer yet, \
+                      so audio transcription cannot be turned on here. The assistant works \
+                      normally without it.",
                 ));
             }
             match set_transcribe(want) {

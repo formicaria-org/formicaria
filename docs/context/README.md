@@ -29,7 +29,7 @@ Codex / Cline actually manage agent memory) is **two layers**:
 | [decisions.md](./decisions.md) | on-demand | you are about to change something — grep its **subject index** for the `#tag` the router gave you. Append-only, dated; reversals are chains, never edits. |
 | [known-issues.md](./known-issues.md) | on-demand | before assuming something works — durable traps + open gaps. |
 | [outstanding.md](./outstanding.md) | on-demand | picking up work — the ranked queue, each naming the file and what "done" means. |
-| topic docs (`mobile-design.md`, `ai-agents-plan.md`, `*-research-*.md`) | on-demand | the router sends you there for a specific area's receipts. |
+| topic docs (`mobile-design.md`, `*-research-*.md`) | on-demand | the router sends you there for a specific area's receipts. |
 | [sessions/](./sessions/) | log | the dated narrative — how we got here. Not always-read; distil durable facts up. |
 | [archive/](./archive/) | cold | retired docs kept one `ls` away rather than only in `git log`. |
 

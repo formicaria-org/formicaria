@@ -100,7 +100,7 @@ manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria on
 | **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
 | **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable, on Linux, macOS and Windows | Settings shows the reason instead of a switch |
 | **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable | The assistant says it cannot see pictures rather than guessing at one |
-| **Transcribing recordings** — `/transcribe` on audio | `pixi run fetch-whisper`, **from a checkout, Linux only for now** | The switch does not appear |
+| **Transcribing recordings** — `/transcribe` on audio | nothing on Linux or Windows: a further ~170 MB it fetches when you turn the switch on. **No macOS build exists upstream** | The switch says no runtime is published for this platform |
 
 <details>
 <summary>Installing the optional tools</summary>
@@ -134,7 +134,7 @@ which the app prefers when it is there, so the dev loop needs no download.
 
 ```sh
 pixi run fetch-model lfm2.5-1.2b   # download a local model into agents/ (gitignored)
-pixi run fetch-whisper             # the audio runtime for /transcribe — Linux only, checkout only
+pixi run fetch-whisper             # the audio runtime, staged by hand; the app fetches it itself
 pixi run search-proxy              # optional: a local proxy; the app itself searches in-process
 # then turn it on in Settings → Study assistant, and in any discussion:
 #   @lfm2.5-1.2b summarize this in 3 bullets /search

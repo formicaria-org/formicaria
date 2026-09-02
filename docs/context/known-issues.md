@@ -11,8 +11,10 @@ trap, add one. Newest concerns first within each section.
   desktop's `search-proxy.py`, so it does the HTTPS in-process (`ureq`/rustls) over three stable
   keyless APIs — **Wikipedia · arXiv · GitHub** — text-only, fail-soft per source. `agent.rs` sets
   `web_direct: true`. **Deliberately omitted: DuckDuckGo (general web)** — it needs brittle HTML
-  scraping and blocks scrapers; adding it is the remaining step. (Desktop still uses the local proxy:
-  `pixi run search-proxy` + `agent-serve --searxng-port 8888`, which does include DDG.)
+  scraping and blocks scrapers; adding it is the remaining step. (**The desktop searches in-process too**
+  since 2026-09-02, when the launch path dropped its shell — so DuckDuckGo is a loss on *both*
+  now, not a desktop advantage. `pixi run search-proxy` + `--searxng-port 8888` remains as an
+  explicit override that restores it.)
 - **No stop button.** A thinking turn can't be cancelled from the UI (discussions or note threads) —
   deferred; needs a cancel signal threaded to the in-flight model call.
 - **RAG is one hop only** (host note + its `note:`-linked notes, text only). Deliberate: vault-wide
@@ -36,8 +38,8 @@ trap, add one. Newest concerns first within each section.
     matters most on the phone's tighter budget.
 - **Deleting a first-class discussion root orphans its replies** (they keep a `thread_of` to a gone
   note). Pre-existing; per-message Delete now exists but there's no "delete the whole thread".
-- **`pixi run build` does NOT rebuild `agent-serve`** (only fm-serve + UI). After changing the agent,
-  `cargo build --release -p fm-agent-run`, or the desktop keeps running the old agent binary.
+- **`pixi run build` rebuilds `agent-serve`** as of 2026-09-02 — it ships in the archive, so it has
+  to. Before that it built only fm-serve + UI, and a changed agent kept running the old binary.
 - **Math normalisation is a blunt delimiter replace** (`\[`→`$$` etc.) on the agent's reply — fine for
   model output, but would mis-convert a literal escaped `\[` if a model ever emitted prose brackets.
 - **Mobile foreground-service / jniLibs / manifest edits live in generated `gen/android/`** (gitignored);
@@ -107,48 +109,21 @@ The gray-screen fix and its tests are in
   only in `fm-serve/src/blob.rs`; the handler's own doc comment claims otherwise. On a device already
   swapping 3 GB, opening a large blob is a multi-hundred-MB transient — i.e. an invitation to the
   renderer kill described below.
-- **Fixed 2026-09-02 for Linux** (`decisions.md#agent`): `fm-serve` now depends on
-  `fm-agent-run/download`, `pixi run build` builds that crate, and the archive carries `agent-serve`
-  + `models.toml`, so a downloaded copy provisions itself. What follows described the state before
-  that, and still holds for **macOS and Windows**, which the OS gate refuses for a separate reason.
-- **What the desktop was missing is `fm-agent-run/download`, not `fm-serve/agent`** (corrected
-  2026-09-02, `decisions.md#agent`). The `agent` feature is **on** in the shipped desktop binary —
-  `/api/agent_status`, `/api/set_agent` and the auto-spawn all exist and answer. What the desktop
-  lacks is the in-app fetch (`fetch.rs`, compiled only under `download`, which nothing enables
-  there) and an agent stack in the archive: `pixi run build` builds only `fm-serve` + `fm-cli`, so
-  `fm-agent-run`'s binaries are never built, and `release.yml` stages nothing AI-related on any
-  platform. So a downloaded copy reports "the assistant is not on this machine yet" **even on
-  Linux**. Anywhere that says "the Cargo feature is off on desktop" means this one.
-- **The audio runtime has no in-app acquisition on desktop** (the vision projector does, as of
-  2026-09-02: `fetch::ensure_mmproj`, offered as a separate choice at first enable because it is a
-  separate download buying exactly one capability). Whisper still arrives only through
-  `pixi run fetch-whisper`. Both are
-  prerequisites of documented features and both arrive only through bash: `pixi run fetch-whisper`
-  stages `whisper-server` + weights, and `agents/fetch.sh` pulls a model's `mmproj` when it has one.
-  Documented in `assistant.md` as of 2026-09-02 — before that they were required and unwritten. The
-  scripts are bash with process substitution and Linux-x86-64 runtime URLs (`models.toml:28,68`), so
-  they are not a path for any other OS.
-- **The assistant now runs on macOS and Windows too, and neither has been *run* there**
-  (2026-09-02, `decisions.md#agent`). Both now **type-check** — `pixi run -e cross check-cross`
-  arrived the same day and caught two defects in this very code — but a type-check is not an
-  execution, and no Mac or Windows machine has started a model. `cross.yml` compiles and tests
-  these crates on real runners and is the next step before anyone relies on it. Previously this
-  checkout had no Windows or macOS `rust-std`, so
-  `SystemMonitor::sample`'s two new arms — `GlobalMemoryStatusEx`, and mach VM statistics through
-  `libc` — were shipped **without a type-check**, as was the Windows Job Object teardown. The design
-  makes a mistake *safe*: the gate is a live `sample()` probe and `plausible()` refuses a zero or
-  absurd reading, so a wrong field yields "cannot run here, and why" rather than a model on a
-  machine with no room. It does not make a mistake *unlikely* — "refuses on every launch" is the
-  most probable failure. **First real run on either platform is the outstanding verification**, like
-  `formicaria.vbs` before it.
-- **macOS has no orphan guarantee for the model process.** `PDEATHSIG` is Linux-only and macOS has
-  no equivalent; Windows gets a Job Object that is stronger than both. Every ordinary path — `stop`,
-  the watchdog's thresholds, closing the app — still kills the child. What is missing is only the
-  case where the supervisor is itself `SIGKILL`ed or crashes, and then a `llama-server` can outlive
-  it holding gigabytes. A `kqueue`/`EVFILT_PROC` watcher is the fix when it is worth the machinery.
-- **Audio transcription is still Linux-only**, and by omission rather than refusal: only the Linux
-  whisper runtime is pinned in `models.toml`, so on macOS and Windows `transcribe_available()` is
-  false and the switch does not render. Adding the other two is data — a URL and a hash — not code.
+- **The assistant installs itself, and the desktop gaps this section described are closed**
+  (2026-09-02, `decisions.md#agent`). `fm-serve` depends on `fm-agent-run/download`, `pixi run
+  build` builds that crate, and the archive carries `agent-serve` + `models.toml`; support is
+  decided by a live memory reading rather than an OS list. Audio transcription self-installs on
+  Linux and Windows. What follows is the record of the state before that, kept because the *chain*
+  is the value — not because any of it still holds.
+- **What was missing on the desktop was `fm-agent-run/download`, not `fm-serve/agent`** (corrected
+  2026-09-02). The `agent` feature was always on in the shipped binary; the `download` feature was
+  not, `pixi run build` did not build `fm-agent-run`, and `release.yml` staged nothing AI-related —
+  so a downloaded copy reported "the assistant is not on this machine yet" **even on Linux**. All
+  four are now false.
+- **macOS still has no upstream speech-to-text build.** whisper.cpp v1.9.1 publishes Linux and
+  Windows binaries and none for macOS, so transcription is unavailable there — a missing *artifact*,
+  not a missing implementation, and the app says so in those words. Adding it is a URL and a hash on
+  the day upstream publishes one.
 - **Superseded 2026-09-02, kept for the chain:** *The assistant runs on Linux and Android only* — `fm_agent`'s resource monitor reads `/proc` and
   **fails closed** everywhere else, so on Windows and macOS `preflight::admit` refuses before a model
   is spawned. Since 2026-08-29 the settings row says so instead of offering the switch, so this is a

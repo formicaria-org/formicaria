@@ -173,6 +173,7 @@
       }
       agentWhy = st.why;
       transcribeAvailable = st.transcribe_available;
+      transcribeFetchable = st.transcribe_fetchable;
     } catch {
       agentOn = null;
     }
@@ -198,6 +199,7 @@
   // be fully working while this has nothing behind it — which is how the toggle came to store a
   // preference, report success, and transcribe nothing.
   let transcribeAvailable = $state(true);
+  let transcribeFetchable = $state(false);
   async function toggleTranscribe(next: boolean) {
     try {
       await setTranscribe(next);
@@ -666,11 +668,31 @@
                      starts it only when it is there. So this stops being a switch when it would be
                      a switch onto nothing — the same rule as the section above it. -->
                 <li>
-                  <span class="k">Audio transcription unavailable</span>
-                  <span class="muted">
-                    The speech-to-text runtime is not on this machine, so audio clips cannot be
-                    transcribed. The assistant works normally without it.
-                  </span>
+                  <!-- **Two different "no", and only one of them is the user's problem.** Not
+                       downloaded yet is an offer; no build published for this kind of computer is
+                       a fact they cannot act on, and saying "not on this machine" for that would
+                       send someone hunting for a file that does not exist. -->
+                  {#if transcribeFetchable}
+                    <label class="choice">
+                      <input
+                        type="checkbox"
+                        aria-label="audio transcription"
+                        checked={transcribeOn}
+                        onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
+                      <span class="k">Audio transcription</span>
+                      <span class="muted">
+                        Turns recordings into text. Needs a further download of about 170 MB, which
+                        it fetches when you turn this on; it starts with the assistant next time.
+                      </span>
+                    </label>
+                  {:else}
+                    <span class="k">Audio transcription unavailable</span>
+                    <span class="muted">
+                      No speech-to-text runtime has been published for this kind of computer yet,
+                      so recordings cannot be transcribed here. The assistant works normally
+                      without it.
+                    </span>
+                  {/if}
                 </li>
               {/if}
             {/if}

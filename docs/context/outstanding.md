@@ -595,14 +595,15 @@ password per machine. `vaults::save`'s append-only rule was *met, not worked aro
 so a hand-edited list is still safe. The password is `0600` beside the vault list and never in it;
 `RESTIC_PASSWORD` still wins, so an edited launcher keeps working.
 
-**The assistant, delivered.** Fetch the model in-app with progress as Android already does on first
-enable, ship the manifest in the archive, start the runtime. **The blocker is cleared** (2026-08-29,
-`decisions.md#agent`): `models.toml` now pins every model to a Hugging Face **commit + SHA-256**, and
-`fetch.rs` gained the read timeout, the identity encoding, the completeness check, the fatal/transient
-split and the cancel flag it needed before being armed. What remains is the *desktop* wiring — the
-`download` feature is still off there, `fm-agent-run` is not built by `pixi run build`, and the
-runtime is still not in the archive. **Consequence, stated plainly since 2026-09-02:** a downloaded
-copy cannot run the assistant on *any* OS, Linux included.
+**The assistant, delivered — closed 2026-09-02** (`decisions.md#agent`). It fetches its own
+runtime and model on first enable, on Linux, macOS and Windows, having asked which model and stated
+the size and licence; audio transcription does the same on Linux and Windows. The installer this
+section wanted therefore exists for one feature — and **not** at `<app>/program/tools/` as proposed
+above: that folder is unwritable under `/opt` or `C:\Program Files`, and every update would
+re-download gigabytes, so tools live in `<config>/formicaria/tools`. The accepted cost is that a
+model does not travel on a USB stick with the app folder. **What remains of this section** is the
+other half: `pdftotext`, `vipsthumbnail` and `restic` are still bare `Command::new` lookups with no
+installer behind them.
 
 **Smaller, same theme — closed 2026-08-29** (`decisions.md#ui`, *One tag is an arrangement*): the
 "save this view" naming step is a real dialog now, not a `window.prompt()`, and it asks the two

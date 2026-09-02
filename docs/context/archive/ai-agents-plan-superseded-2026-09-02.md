@@ -1,3 +1,34 @@
+# Archived — the agent plan, superseded by its own delivery (2026-09-02)
+
+**Do not read this as current.** It was the planning document for a study assistant, written
+2026-07-22, and the assistant it planned shipped that same week and then outgrew it. Kept verbatim
+rather than deleted, like `overview.md`'s old narrative beside it: the reasoning is worth having,
+the instructions are not.
+
+**What it says that is now false**, so nobody has to discover it by trying:
+
+- *"No in-app toggle"* — there is one (Settings → Study assistant), and since 2026-09-02 a full
+  first-enable flow with a model chooser, sizes, licences, progress and cancel.
+- *"`crates/fm-agent-mcp/` … behind an `agent` pixi env"* — that crate never existed (the crates are
+  `fm-agent` and `fm-agent-run`), and there is no `agent` environment.
+- *"The core app never knows the agent exists"* — `fm-serve` depends on `fm-agent-run`, spawns
+  `agent-serve`, and serves `/api/agent_status`, `/api/agent_models`, `/api/set_agent`.
+- *"The full staged plan lives in `staged-drifting-shamir.md`"* — that file is not in this repo and
+  never was.
+- *"Precondition unmet for shipping"* / MASTERPLAN's *"no AI until the core is boring and stable"* —
+  the gate was lifted; the dated reversal is in `MASTERPLAN.md` and `decisions.md#agent`.
+- The default-model rulings (Lucy 1.7B on both devices) — superseded by `agents/models.toml`, and
+  by `transcription-specialists-grounded-2026-08-31.md` for the model-choice question.
+- §15's `systemd-run --scope` governance recipe, and its assumption that `PR_SET_PDEATHSIG` is a
+  portable teardown — what shipped is `preflight::admit` + `SupervisedModel` + `watchdog.rs`, and
+  `prctl` turned out to be **Linux-only**, which broke the macOS build on first contact.
+
+**What survives, and where it lives now:** the prompt-injection framing, the human-merge gate, and
+the containment stance (*tool-calling only, propose-only, no code execution*) are all still the
+project's position — folded into `decisions.md#agent`, which is where the router now points.
+
+---
+
 # Remote & on-chip LLM-agent collaboration — research + plan (the plan; SINCE SHIPPED)
 
 > **STATUS (2026-07-22): SHIPPED and running on both devices.** This document is the original

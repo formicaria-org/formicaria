@@ -210,8 +210,10 @@ This folder contains the whole application. Nothing gets installed.
       over your internet connection. You can stop part-way and what arrived is
       kept. Works on Linux, macOS and Windows.
 
-      Turning speech recordings into text needs a further piece this download
-      cannot fetch yet, so that switch does not appear.
+      Turning speech recordings into text is a further switch and a further
+      ~170 MB, fetched the same way. On macOS that one is unavailable - the
+      speech-to-text project publishes no build for it - and the app says so
+      rather than offering a switch that would fail.
 
   Without any of them your notes are still perfectly safe - they are ordinary
   files on your disk - you just do not get that particular extra.

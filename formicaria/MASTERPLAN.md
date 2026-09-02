@@ -60,8 +60,22 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 - **No live-preview editing surface in v1.** You edit raw Markdown in a textarea; the read view renders it beautifully. Live-preview (CM6 decorations) is a v2 upgrade — deferred because it is the single biggest build risk and adds nothing to *capture* or *retrieval*.
 - **No structural query over note *body*.** Only frontmatter is structured-queryable; the body is full-text only (the same constraint Obsidian Bases shipped deliberately). If you want to filter on something, it goes in frontmatter.
 - **No third-party plugin API — ever.** You have no strangers; you have git and an editor. Obsidian's unsandboxed plugin model is exactly the attack surface a single-user tool never has to open.
-- **No telemetry, ever** — not even opt-in. No accounts, no hosted anything, no AI features in v1 (revisit once the core is boring and stable).
+- **No telemetry, ever** — not even opt-in. No accounts, no hosted anything, ~~no AI features in v1 (revisit once the core is boring and stable)~~.
+  > **SUPERSEDED for the AI clause, 2026-09-02** (`docs/context/decisions.md#agent`). The condition
+  > this line set — *revisit once the core is boring and stable* — was met and the revisit happened:
+  > a study assistant shipped on 2026-07-22 and, as of 2026-09-02, installs itself on Linux, macOS
+  > and Windows. **What the reversal keeps** is every other word of this bullet: the model runs
+  > **on the user's own device**, there is no account and no API key, notes never leave the machine,
+  > it is **off by default**, and it can only reply or propose a change a human accepts — never
+  > write to a note itself. *No hosted anything* stands unchanged.
 - **No app-level encryption.** Full-disk encryption is the OS's job (LUKS); the app does it worse. And **vendor every asset locally — no CDN calls, ever** (a CDN seeing what you load is the exact lock-in failure that broke Notion's images).
+  > **One exception, 2026-09-02** (`decisions.md#agent`): the optional assistant's runtime and model
+  > weights are **fetched on demand**, from GitHub releases and Hugging Face, into the user's own
+  > configuration directory. Never at load time, never on a page, and never for anything that
+  > ships: each archive is pinned by URL **and SHA-256**, a URL whose checksum is missing is
+  > dropped rather than fetched, and nothing is downloaded until the user turns the feature on and
+  > accepts the size. The rule this protects — *no third party learns what you load* — is intact,
+  > because the fetch happens once and names only which model was chosen.
 
 ---
 
@@ -76,6 +90,10 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
       └─ FileStore    markdown files (truth) + SQLite index (disposable, per-machine)
    ── Blob seam ──────────────────────────────────────   ← SEAM 2: content-addressed, own volume, git-ignored
    ── OS seam ────────────────────────────────────────   ← SEAM 3: shell out — pdftotext · vipsthumbnail · git · restic · xdg-open
+                                                          …and, for the optional assistant, agent-serve → llama-server / whisper-server.
+                                                          Different in kind: those three are FETCHED at runtime (pinned URL + SHA-256,
+                                                          `agents/models.toml`), not pinned by pixi — so their provenance is checked by
+                                                          us rather than by the package manager. See `decisions.md#agent`.
 ```
 
 **Seam 1 is made structural, not conventional:** the pure crates (`fm-model`, `fm-query`) do not depend on `rusqlite`, `std::fs`, or any path type, so the query engine *cannot* do I/O — it fails to compile if it tries. CI adds belt-and-suspenders greps. This is the insurance policy that turns a future storage swap into a backend change instead of Logseq's three-year rewrite.
@@ -275,7 +293,8 @@ Three crates so seam 1 is a compile-time guarantee:
 - **`fm-model`** — pure: `Object`, `Kind`, `PropertyValue`, `schema.rs` (SCHEMA_VERSION + `migrate()`). No fs, no db.
 - **`fm-query`** — pure query engine: `Query`/`Filter`/`Predicate`/`SortKey`, `engine::run`, generic `group()`. No fs, no db.
 - **`fm-core`** — everything with I/O: `Store` trait, `MemoryStore`, `FileStore` (frontmatter + atomic write + SQLite/FTS5 index + reindex), `ingest`, `blob`, `verify` + manifest, `history` (git), `backup` (restic), `view`, `script` (mlua, `#[cfg(feature="lua")]`).
-- Plus **`fm-cli`** (`fm add|reindex|verify|manifest|backup`), **`fm-app`** (the command *library* — `commands` + DTOs), and **`fm-serve`** (the std-only HTTP server that fronts those commands to the browser).
+- Plus **`fm-cli`** (`fm add|reindex|verify|manifest|backup|restore|check`), **`fm-app`** (the command *library* — `commands` + DTOs), and **`fm-serve`** (the HTTP server that fronts those commands to the browser: std-only in its own right, and since 2026-09-02 linking `fm-agent-run` for the optional assistant, which brings a TLS client and archive readers with it — `--no-default-features` is the std-only build the rest of this paragraph describes).
+- And the **optional assistant**, off by default and excluded by one cargo feature: **`fm-agent`** — pure orchestration (the model and the web sit behind traits), plus the resource watchdog and admission gate that are the **only per-OS `cfg` arms in the workspace**; and **`fm-agent-run`** — the concrete runtime: the `agent-serve` supervisor, the model catalogue (`agents/models.toml`), the checksum-verified downloader and the in-process web search. Neither is on the note path: build without `agent` and the core is byte-identical.
 
 **The seam:**
 ```rust
@@ -427,6 +446,14 @@ The whole build order **S0–S6 is implemented and committed on `main`**. What i
 - **Seam:** `cargo test -p fm-query` passes with zero filesystem access; reindex-idempotence test (index → snapshot queries → `--full` rebuild → identical results).
 - **S5:** paste an image twice → one blob (dedup); reference a blob, delete it → "asset not found" placeholder renders and the app keeps working; `fm verify` reports it; a math+image+mermaid note renders correctly in the read view.
 - **S6:** `restic backup` → `restic restore` to a scratch dir → diff against the vault → `fm verify --scrub` clean. Run `/verify` (project verify skill) on each slice.
+- **S7 — the assistant, delivered (added 2026-09-02, because the largest subsystem here had no
+  criterion at all).** From an **unpacked release archive with no checkout on the machine**: turn
+  the assistant on, be asked which model with its size and licence, watch it fetch and unpack a
+  runtime and weights, stop it and confirm the part-file resumes, then ask it something in a
+  discussion and get a reply. Then `Remove the model` and confirm the disk comes back. **Passes on
+  Linux as of 2026-09-02** (and the audio half with it); **unrun on macOS and Windows**, where only
+  compilation and the memory reading are verified — which is exactly the gap this criterion exists
+  to make visible rather than comfortable.
 
 ## Deferred (v2+)
 

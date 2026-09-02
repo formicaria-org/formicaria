@@ -105,7 +105,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   exception* (`#ui`).
 - **`#agent`**: ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
-  `ai-agents-plan.md`.)
+  `archive/ai-agents-plan-superseded-2026-09-02.md`, which is history rather than instruction.)
 
 ## A gate must inspect the same string the router acts on (2026-09-02, `#vault`)
 
@@ -4288,6 +4288,13 @@ missing** — absent is a capability the caller reports, unverified is a binary 
 three Linux archives were downloaded and hashed to pin them; **macOS and Windows have no entry yet**,
 deliberately, because the gate still refuses those platforms and an unverified entry parked here
 would be a promise the file cannot keep.
+
+> **SUPERSEDED IN PART, THE SAME DAY**, by *The assistant asks the machine, not a list of operating
+> systems* below: macOS and Windows archives are pinned and hashed, `zip` became a dependency when a
+> Windows archive existed to need it, and the whisper runtime followed on 2026-09-02. What stands,
+> and is the reason this paragraph is kept rather than rewritten, is the **rule**: a URL whose
+> checksum is missing is dropped, never fetched. What changed is only which platforms had passed
+> it yet.
 
 **Flat suffixed keys, not a `[runtime.…]` table.** The hand parser has no concept of a named table:
 a `[…]` line that is not `[[models]]` is skipped and its keys are then read as *top-level* ones,

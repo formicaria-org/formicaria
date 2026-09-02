@@ -310,6 +310,9 @@ export const agentStatus = () =>
     installed: boolean;
     why: string;
     transcribe_available: boolean;
+    /** Not here yet, but downloadable on this platform. False alongside `transcribe_available`
+     *  means upstream publishes no build — nothing the user can do. */
+    transcribe_fetchable: boolean;
     /** Whether the model and runtime are already here — the difference between "turn it on" and
      *  "download a few gigabytes, then turn it on". */
     provisioned: boolean;

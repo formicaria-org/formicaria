@@ -16,10 +16,10 @@ Before anything else, the honest matrix.
 
 | | Assistant | Audio → transcript | Reading images |
 |---|---|---|---|
-| **Linux**, from the download | **yes** — it fetches what it needs on first enable | no | yes |
-| **macOS**, from the download | **yes** | no | yes |
-| **Windows**, from the download | **yes** | no | yes |
-| **Linux**, from a checkout | yes | yes (`fetch-whisper`) | yes |
+| **Linux**, from the download | **yes** — it fetches what it needs on first enable | **yes** | yes |
+| **Windows**, from the download | **yes** | **yes** | yes |
+| **macOS**, from the download | **yes** | no — see below | yes |
+| **Linux**, from a checkout | yes | yes | yes |
 | **Android** | yes, bundled in the app | yes, bundled | no — the phone's model cannot see |
 
 **You no longer need the source code.** Turning the assistant on downloads the model and the runtime
@@ -27,10 +27,14 @@ it needs, having first told you how large they are and under what licence. The c
 on" below are the checkout route, which still works and is what a developer wants; a downloaded copy
 needs none of them.
 
-**Audio transcription is the one piece that does not install itself.** Its runtime is a separate
-download that only a checkout can fetch (`pixi run fetch-whisper`), and only the Linux build is
-published so far — so on a downloaded copy, on any system, the transcription switch does not appear.
-Reading images *is* offered in the app, as a choice at first enable.
+**Everything here installs itself**, each as its own choice: the assistant, reading images, and —
+on Linux and Windows — turning recordings into text.
+
+**Except transcription on macOS**, where the switch says so rather than appearing and failing. The
+speech-to-text runtime is a published build from the whisper.cpp project, and there is no macOS one
+at the version formicaria pins. That is not something an installation can fix, which is why the app
+says the runtime does not exist for this kind of computer rather than that something is missing from
+your machine.
 
 > **macOS and Windows are new here.** Before starting a model, formicaria checks it can read how
 > much memory the machine has free, and refuses if that reading fails or looks implausible — it will
@@ -98,15 +102,12 @@ Then enable it in Settings as above.
 
 ### The two extras
 
-**Transcribing recordings** needs an audio runtime, and unlike the model **the app does not fetch
-it for you**: it is a checkout step, and only the Linux runtime is published so far.
+**Transcribing recordings.** Turn on *Audio transcription* under the assistant's own switch. It
+downloads about 170 MB — a speech-to-text runtime and its weights — and applies the next time the
+assistant starts. On macOS the switch is replaced by a line saying no such runtime is published for
+that platform yet; that is the whisper.cpp project's build list, not something on your machine.
 
-```sh
-pixi run fetch-whisper
-```
-
-Until it is there the transcription switch does not appear at all — it is a capability of its own,
-and the app will not offer a switch it cannot honour.
+From a checkout, `pixi run fetch-whisper` still stages the same pieces by hand.
 
 **Reading images.** `/transcribe` can read a photo of a page — handwriting, printed
    text, mathematics as LaTeX — but only with a model that can see. That needs a *projector* file
@@ -268,8 +269,9 @@ build yet.
 **"This copy of formicaria did not come with the assistant."** Some builds are made without it. A
 release download from the project's own releases page includes it.
 
-**The transcription switch is missing.** Expected: turning speech into text needs a piece the app
-cannot fetch for itself yet. See "The two extras" above.
+**The transcription switch is missing.** On macOS, expected — no speech-to-text runtime is
+published for it. Elsewhere the switch should be there and offer the download; if it is not, the
+assistant itself has not been turned on yet.
 
 **Starting over.** Turning the assistant off stops a download in progress and keeps what arrived.
 To discard it entirely, use **Remove the model** — see "Getting the space back".
