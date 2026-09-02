@@ -22,6 +22,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | The **phone / Android** build (mobile shell, jniLibs, foreground service) | `mobile-design.md`; `decisions.md#track-m` |
 | The **study assistant / agent** (`fm-agent*`, models, RAG) | `ai-agents-plan.md`; **`model-selection-research-2026-07-24-grounded.md`** (grounding-first, current) |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
+| **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
