@@ -264,6 +264,18 @@ The gray-screen fix and its tests are in
   `3.25rem` guess — and each was found on the owner's device, by a screenshot, never by a test.
   **Read the tokens.**
 
+- **A surface that covers the screen must not size itself in `vh`, and must say what scrolls.**
+  The sibling of the rule above, and it bit harder. Every dialog is `position: fixed` inside
+  `.app`, which is `height: 100dvh; overflow: hidden` — **the document never scrolls**, so an
+  overlay that outgrows the screen has no fallback at all. `BackupPanel` shipped with no
+  `max-height` and no `overflow` and lost its own primary button; three siblings capped in `vh`,
+  which is *the tallest the viewport ever gets*, so a retracting URL bar or the keyboard made them
+  taller than the screen; and `HelpPanel` had **no overlay CSS whatever**, because its markup
+  copied `class="sheet"` from `App.svelte` and Svelte scopes that rule to App's own elements.
+  Fixed 2026-09-01 (`decisions.md#ui`) and now CI-guarded — but the guard checks units and
+  scrollports, not duplication, so a sixth hand-written copy of the block would still pass.
+  The nav-bar floor is `--bar-floor`; do not retype `3.25rem`.
+
 - **The Android git token is app-private storage, not the Keystore.** The owner chose
   hardware-backed; what shipped is a 0600 file in the app's private directory. The kernel
   isolates it per-UID so no other app can read it — genuinely stronger than the plaintext
@@ -868,6 +880,14 @@ The gray-screen fix and its tests are in
   counter are module-scope, and vitest isolates per *file*, not per test — so
   `App.flow.test.ts`'s edit walk rewrites the GAE note's body for every test
   after it. Anchor a later test to a note the walk doesn't touch, or add a reset.
+- **A NUL byte makes a source file binary, and `grep` skips a binary file in silence.**
+  `SkippedPanel.svelte` carried a literal NUL inside a template literal, so `file(1)` called it
+  `data` and **every `ci/checks.sh` sweep over `ui/src` passed over it without a word** — hiding a
+  `76vh` from the guard written specifically to catch it. Escaped to `\0` on 2026-09-01 (same
+  value), and every sweep in that section now passes `-a`. The general rule: a repo-wide `grep`
+  guard that omits `-a` is making a claim it has not checked, and it fails *open*. Same class as
+  the `fm-query` filter that a trailing comment used to disarm.
+
 - **jsdom has no layout.** `scrollTo`/`getBoundingClientRect`/`IntersectionObserver`
   are absent or stubs, so guard them (`el?.scrollTo?.(…)`) the way the
   `localStorage` reads are guarded — an unguarded call is an unhandled rejection

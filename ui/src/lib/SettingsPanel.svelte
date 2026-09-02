@@ -848,8 +848,23 @@
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding-top: 8vh;
+    /* `border-box` + an explicit `100dvh`, so the panel below can simply say
+       `max-height: 100%` and inherit the arithmetic instead of restating it.
+       Longhands, never the `padding` shorthand: a narrower rule added later would reset all
+       four sides and silently discard the insets, which is the mistake `ci/checks.sh`
+       already guards against on `.topbar`. */
+    box-sizing: border-box;
+    height: 100dvh;
+    padding-top: calc(var(--overlay-inset) + var(--safe-top));
+    padding-bottom: var(--safe-bottom);
     z-index: 80;
+  }
+  /* The navigation-bar floor, on the overlay so the panel's *box* clears the bar and not just
+     its last row. `--bar-floor` rather than a fourth hand-copied `3.25rem`. */
+  @media (pointer: coarse) {
+    .settings-overlay {
+      padding-bottom: max(var(--safe-bottom), var(--bar-floor));
+    }
   }
   .settings-backdrop {
     position: fixed;
@@ -862,8 +877,14 @@
   .panel {
     position: relative;
     width: min(38rem, 94vw);
-    max-height: 82vh;
+    /* Was `82vh`, which is the *tallest* the viewport ever gets — so on a phone with the URL
+       bar out, or with the keyboard up over a token field, the panel was taller than the
+       screen and the rows past the fold were unreachable. */
+    /* `100%` of the overlay's content box, which is already the visible viewport less the
+       top offset and both window insets. */
+    max-height: 100%;
     overflow-y: auto;
+    overscroll-behavior: contain;
     box-sizing: border-box;
     padding: var(--space-5);
     display: flex;

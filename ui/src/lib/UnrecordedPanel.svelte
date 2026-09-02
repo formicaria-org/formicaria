@@ -202,7 +202,7 @@
      moment it arrives. */
   @media (pointer: coarse) {
     .panel {
-      padding-bottom: calc(1.25rem + max(var(--safe-bottom), 3.25rem));
+      padding-bottom: calc(1.25rem + max(var(--safe-bottom), var(--bar-floor)));
     }
   }
   header {

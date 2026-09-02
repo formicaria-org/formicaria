@@ -122,7 +122,8 @@
     list-style: none;
     min-width: 7rem;
     max-width: min(14rem, 90vw);
-    max-height: 60vh;
+    /* `dvh`, not `vh` — see the overlay note in app.css. */
+    max-height: 60dvh;
     overflow-y: auto;
     background: var(--surface-elevated);
     border: 1px solid var(--border);

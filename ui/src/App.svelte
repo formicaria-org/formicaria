@@ -2317,8 +2317,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* Centre inside the safe area, not inside the raw window: `viewport-fit=cover` means
+       `inset: 0` reaches under the status bar and the navigation bar. `border-box` + an
+       explicit `100dvh` so the child can say `max-height: 100%` rather than restate this
+       padding in a calc that can fall out of step with it. */
+    box-sizing: border-box;
+    height: 100dvh;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
     z-index: 41;
     pointer-events: none;
+  }
+  /* The navigation-bar floor — `--bar-floor`, never a hand-copied number. */
+  @media (pointer: coarse) {
+    .sheet {
+      padding-bottom: max(var(--safe-bottom), var(--bar-floor));
+    }
   }
   .sheet > :global(*) {
     pointer-events: auto;
@@ -2326,8 +2339,12 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-3, 10px);
     box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
-    max-height: 90vh;
+    /* `100%` of `.sheet`'s content box — the visible viewport less both insets. Never
+       `90vh`: `100vh` is the tallest the viewport ever gets, so with the URL bar out or the
+       keyboard up a `vh` cap is taller than what you can see. */
+    max-height: 100%;
     overflow: auto;
+    overscroll-behavior: contain;
   }
 
   /* ── Shell: a horizontal top bar over the workspace. ──
@@ -2763,7 +2780,8 @@
        inline. A fixed corner was only ever right while the chrome was a bar across the top. */
     z-index: 41;
     min-width: 11rem;
-    max-height: 70vh;
+    /* `dvh`, not `vh` — see the overlay note in app.css. */
+    max-height: 70dvh;
     overflow-y: auto;
     margin: 0;
     padding: 4px;

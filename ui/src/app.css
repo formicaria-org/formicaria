@@ -45,6 +45,36 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 
+  /* ---- Overlay panel geometry ----
+     Every dialog in this app is a `position: fixed` box inside `.app`, which is
+     `height: 100dvh; overflow: hidden` — the document itself never scrolls. So an overlay
+     that outgrows the screen has **no** fallback: its bottom rows are simply unreachable,
+     on a phone and on a short desktop window alike. That is a bug we shipped
+     (`BackupPanel` had neither a `max-height` nor an `overflow`, and its primary button was
+     the thing you could not reach).
+
+     Two rules, both of which the panels have to consume rather than re-derive:
+
+     - `dvh`, never `vh`. `100vh` is the *tallest* the viewport ever gets, so with a
+       retracting URL bar or an on-screen keyboard a `90vh` panel is taller than what you
+       can see. Same reasoning as `.app`'s own height in `App.svelte`.
+     - The window insets come out of the budget. `index.html` asks for `viewport-fit=cover`,
+       so without this the last row parks under the navigation bar — which is exactly the
+       regression 2026-08-31 was written to close.
+
+     `--overlay-inset` is what the overlay spends *above* the panel. There is deliberately no
+     `--overlay-max-h` calc: the overlay is a `border-box` `100dvh` layer that eats the insets
+     as padding, and the panel just says `max-height: 100%`. A calc restating the padding is a
+     calc that can fall out of step with it — the first draft of this did exactly that, capping
+     the panel a further ~99px short of its own room on the phone. Let layout do the sum. */
+  --overlay-inset: 8dvh;
+
+  /* The Android three-button navigation bar, named once. `--safe-bottom`'s floor is 0.5rem —
+     enough for a gesture pill, not for this — and the number had started to be copied by hand
+     into every panel, which is precisely what `known-issues.md` says not to do. The device's
+     real inset still wins through `max()`. */
+  --bar-floor: 3.25rem;
+
   /* spacing, 4px base */
   --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
@@ -78,6 +108,9 @@
   :root {
     --safe-top: max(env(safe-area-inset-top, 0px), 1.75rem);
     --safe-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
+    /* A phone has no height to spare on a decorative gap above a dialog. The desktop keeps
+       8dvh because a dialog pinned to the top edge of a big monitor reads as a mistake. */
+    --overlay-inset: 4dvh;
   }
 }
 

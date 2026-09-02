@@ -516,6 +516,51 @@ if [ -f ui/src/App.svelte ]; then
     fi
 fi
 
+# **An overlay panel is bounded by the visible viewport, and it scrolls.**
+#
+# Every dialog in this app is `position: fixed` inside `.app`, which is `height: 100dvh;
+# overflow: hidden` — the document itself never scrolls. So an overlay that outgrows the screen
+# has no fallback whatsoever: its bottom rows are unreachable, on a phone and on a short desktop
+# window alike. `BackupPanel` shipped with neither a `max-height` nor an `overflow` and the thing
+# you could not reach was its primary button. `SettingsPanel` and the shared `.sheet` had the cap
+# but wrote it in `vh`, which is the *tallest* the viewport ever gets — so with the URL bar out or
+# the keyboard up they were still taller than the screen.
+#
+# Two rules, one grep each. Both are invisible to the test suite: jsdom computes no layout, so
+# nothing in `ui/src` can assert a height or an overflow.
+#
+# Scope, stated rather than implied. The first sweeps `*.svelte` only — `app.css`'s
+# `.read .asset-pdf { height: 70vh }` is a deliberate exception: it sizes an iframe *inside* an
+# already-scrolling pane, not a surface bounded by the viewport. The second is a file-level
+# grep, so it proves a panel component declares a scrollport *somewhere*, not that the right
+# element carries it; it catches the defect that shipped (none at all), not a misplaced one.
+# `-a` on every sweep below, and it is not decoration: `SkippedPanel.svelte` carried a literal
+# NUL byte in a template literal, which made it `data` to `file(1)` — and **grep skips a binary
+# file in silence**. This guard passed over it clean while it held a `76vh`. Any grep over
+# `ui/src` that omits `-a` is making a claim it has not checked.
+echo "[check] an overlay panel caps its height in dvh, not vh..."
+if grep -ranE '^\s*(max-)?height:[^;]*[0-9]vh' ui/src --include='*.svelte' >/dev/null; then
+    echo "  FAIL: an overlay caps its height in 'vh'. '100vh' is the tallest the viewport ever"
+    echo "        gets, so with a retracting URL bar or an on-screen keyboard the panel is taller"
+    echo "        than what you can see and its last rows are unreachable. Use the shared"
+    echo "        overlay pattern in app.css ('max-height: 100%' inside a 100dvh layer), or 'dvh'."
+    grep -ranE '^\s*(max-)?height:[^;]*[0-9]vh' ui/src --include='*.svelte'
+    fail=1
+fi
+
+echo "[check] every overlay panel has somewhere to scroll..."
+for f in ui/src/lib/BackupPanel.svelte ui/src/lib/SettingsPanel.svelte \
+         ui/src/lib/HelpPanel.svelte ui/src/lib/SkippedPanel.svelte; do
+    [ -f "$f" ] || continue
+    if ! grep -qaE '^\s*overflow(-y)?:\s*(auto|scroll)' "$f"; then
+        echo "  FAIL: $f is a fixed overlay with no 'overflow: auto' anywhere. Inside"
+        echo "        '.app' (overflow: hidden) that means its content past the fold cannot be"
+        echo "        reached by any gesture. Give the panel 'max-height: 100%' inside the"
+        echo "        overlay's 100dvh box, and 'overflow-y: auto' — one scroll surface, on the panel."
+        fail=1
+    fi
+done
+
 # **The Appearance form is a list of tokens, never a language.**
 #
 # It re-values design tokens; it must never grow the ability to invent one, or write a selector or

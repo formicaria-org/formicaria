@@ -3141,6 +3141,11 @@
   .slash-menu.fixed-pos {
     position: fixed;
     max-width: min(20rem, 92vw);
+    /* Anchored to the viewport, so nothing above it can scroll it into view — a long `/` list
+       needs its own cap and its own scrollport, in `dvh`. */
+    max-height: 60dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   /* The formatting toolbar. Two presentations share this base: a discrete float on desktop, a
      persistent row on touch. Kept small — a discrete presence, never a big band across the editor. */

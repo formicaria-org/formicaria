@@ -90,11 +90,55 @@
 </div>
 
 <style>
+  /* **These two rules were missing entirely, and Help did not work.** The markup below was
+     copied from `App.svelte`'s `.sheet` dialogs when Help was extracted into its own
+     component, but the CSS was not: Svelte scopes `.sheet` to App's own elements, and
+     `.sheet > :global(*)` globalises the *child* selector, not `.sheet` itself. So these
+     divs got no `position: fixed`, no backdrop and no centring, and Help rendered as an
+     in-flow block inside `.app` — which is `overflow: hidden`. Verified in the built CSS:
+     `.sheet` was emitted only as `.sheet.svelte-<App's hash>`.
+
+     Copying the block, rather than reaching for `:global(.sheet)`, is deliberate — a global
+     rule here would tie on specificity with App's scoped one and be decided by bundle
+     order, which is the defect `ci/checks.sh` already polices for `.panel-views`. */
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(0 0 0 / 0.45);
+    z-index: 40;
+  }
+  .sheet {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 100dvh;
+    padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+    z-index: 41;
+    pointer-events: none;
+  }
+  /* The navigation-bar floor — `--bar-floor`, never a hand-copied number. */
+  @media (pointer: coarse) {
+    .sheet {
+      padding-bottom: max(var(--safe-bottom), var(--bar-floor));
+    }
+  }
   .help {
+    pointer-events: auto;
+    box-sizing: border-box;
+    width: min(34rem, 92vw);
     max-width: 34rem;
-    max-height: 80vh;
+    /* `100%` of `.sheet`'s content box — never `80vh`; see `--overlay-inset` in `app.css`. */
+    max-height: 100%;
     overflow-y: auto;
+    overscroll-behavior: contain;
     padding: var(--space-4);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-3, 10px);
+    box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
   }
   h2 {
     margin: 0 0 var(--space-3);

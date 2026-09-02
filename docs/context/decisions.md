@@ -38,7 +38,10 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***One tag is an arrangement, not a query builder***
+- **`#ui`** (workspace/views/render): ***An overlay is bounded by the visible viewport, and it
+  has exactly one scroll surface*** (read before writing any dialog, or before capping any
+  covering surface in `vh` — it is also where the NUL-byte-hides-a-file-from-grep trap is
+  recorded) · ***One tag is an arrangement, not a query builder***
   (read with the 2026-08-28 saved-view ruling — they are a pair) · ***The read view may frame its own blob*** (read before
   touching `frame-src` or assuming a jsdom test covers a policy) · ***A saved view is an arrangement
   you keep, not a query you write*** (read before adding a filter editor) · *A contributor is an email, everywhere* · ***One view at a time is
@@ -3840,3 +3843,81 @@ both are now on the record rather than in nobody's head.
 **Reversal condition.** If the excerpt ships and the feed's payload measurably degrades the phone
 (the gate: peak-PSS delta under 150 MB for one refresh at 10k notes), the cap comes down before
 anything else is added.
+
+## 2026-09-01 — an overlay is bounded by the *visible* viewport, and it has exactly one scroll surface `#ui` `#track-m`
+
+**The report was one panel; the defect was a class.** *"When I press backup options I cannot scroll
+and see all the options, in both android and linux (probably valid for all os)."* The owner's own
+reading — *probably valid for all os* — is the right one, and it is not a phone quirk. Every dialog
+in this app is `position: fixed` inside `.app`, which is `height: 100dvh; overflow: hidden`. **The
+document never scrolls.** So an overlay that outgrows the screen has no fallback whatsoever: no page
+scroll, no ancestor scrollport, nothing. `BackupPanel`'s `.panel` had **no `max-height` and no
+`overflow` at all**, and what fell off the bottom was its Close button and the primary *Back up*
+button — the whole point of the panel.
+
+**Four more copies of the same shape, and each was wrong in its own way.** The overlay had been
+written five times by hand, and the copies had drifted to `12vh / 8vh / 12vh / 90vh / 80vh`:
+
+- `SettingsPanel` and `SkippedPanel` capped in **`vh`**, which is *the tallest the viewport ever
+  gets*. With the URL bar out or the keyboard up over a token field, an `82vh` panel is taller than
+  what you can see. `App.svelte`'s `.app` has carried a comment saying exactly this since the
+  arrangement work; the panels never read it.
+- The shared `.sheet` (Add a paper, New vault) capped at `90vh` and accounted for no inset.
+- **`HelpPanel` had no overlay CSS whatever.** Its markup says `class="sheet"` /
+  `class="sheet-backdrop"`, copied from `App.svelte` when Help was extracted into its own component
+  — but Svelte *scopes* those rules to App's elements, and `.sheet > :global(*)` globalises the
+  *child* selector, not `.sheet`. Confirmed in the built bundle: `.sheet` is emitted only as
+  `.sheet.svelte-1n46o8q` (App's hash) while `HelpPanel-*.css` carries `.svelte-k1g25y` and no
+  `.sheet` at all. So Help had no backdrop, no `position: fixed`, and rendered as an in-flow block
+  inside an `overflow: hidden` grid. **Nothing reported this** — not `svelte-check`, which warns
+  about an unused selector and has no opinion about a class with no rule; not any test.
+
+**The geometry: the overlay owns the arithmetic, the panel says `100%`.** The overlay is a
+`border-box`, `height: 100dvh` layer that spends the insets as padding; the panel is
+`max-height: 100%; overflow-y: auto`. The rejected alternative — a `--overlay-max-h` calc
+subtracting the insets — was written first and was already wrong at one call site: `.sheet` padded
+by `--safe-top`/`--safe-bottom` *and* capped with a token that subtracted them again, costing the
+paper dialog ~99 px of its own room on the phone. **A calc that restates a padding is a calc that
+can fall out of step with it.** Let layout do the sum.
+
+**One scroll surface, on the panel — not a pinned head over a scrolling body.** `UnrecordedPanel`
+already settled this from a device observation on 2026-07-31: an inner `max-height: 40vh;
+overflow: auto` meant a finger landing on the inner region scrolled the inner region while the panel
+stayed put, and *"the owner scrolled twice and saw the same header both times"*. Two scroll surfaces
+on a touch screen is how content becomes unreachable in a second way. If a long panel's head
+scrolling away is ever the complaint, the answer is `position: sticky` on `.panel-head` — still one
+surface — and never a second scrollport.
+
+**`--bar-floor: 3.25rem`, because the number was being copied by hand.** `known-issues.md` says a
+phone surface must not invent its own inset number, and the first draft of *this* fix invented it
+four more times. It is now one token in `app.css`; `UnrecordedPanel` reads it instead of its local
+copy, and the device's real inset still wins through `max()`. The floor stays for the reason it
+always has: `env(safe-area-inset-*)` is 0 in the WebView until `MainActivity`'s bridge fires, and a
+floor is only ever wrong by being generous.
+
+**Two CI greps, because no test can see any of this.** jsdom computes no layout, and component tests
+never load `app.css` — nothing in `ui/src` can assert a height, an overflow, or that a pixel is on
+screen. So the invariant is a `ci/checks.sh` guard in the house style: *no covering surface sizes
+itself in `vh`* (with `.read .asset-pdf` named as the one exception — an iframe inside an
+already-scrolling pane), and *every overlay panel declares a scrollport*. Both were proved to fail
+against the pre-fix CSS before being trusted. The second is a file-level grep and says so in its own
+comment: it catches the defect that shipped (none at all), not a misplaced one.
+
+**The guards were nearly born blind, and the cause is worth more than the fix.**
+`SkippedPanel.svelte` held a **literal NUL byte** in a template literal (`` `${s.vault}\x00${s.name}` ``).
+That made the file `data` rather than text — and **grep skips a binary file in silence.** The new
+guard passed over it clean while it carried a `76vh`, and so, for as long as it has existed, has
+every other `ci/checks.sh` sweep over `ui/src`. It is now `\0`, the escape, with the same value; and
+every sweep here passes `-a`. A guard that is disarmed by a byte nobody can see is worse than no
+guard, for the same reason the `fm-query` comment-filter bug was.
+
+**Deliberately not done: consolidating the five copies into one global `.overlay` class.** It is the
+right end state — the duplication *is* the root cause, and a token fixes today's five values without
+stopping a sixth panel from copying the block wrong. But it means renaming classes and rewriting
+markup in six components to fix a CSS bug the owner reported as "I cannot scroll", and that trade is
+the owner's to make, not one to take while they are waiting on the fix. Recorded here so the next
+session does not have to rediscover the argument.
+
+**Reversal condition.** If a sixth overlay ships with its own hand-written copy of this block — the
+guards will let it, since they check units and scrollports, not duplication — the class consolidation
+has earned itself and should be done then.

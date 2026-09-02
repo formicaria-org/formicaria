@@ -11,7 +11,7 @@
   // list of everything open is a desktop affordance, where there is width to spare and a pointer
   // to use it.
   //
-  // Rendered always and shown by CSS (`--viewbar`, set by the arrangement in `App.svelte`), so
+  // Rendered always and shown by CSS (the arrangement's own tokens in `App.svelte`), so
   // there is no conditional component tree — the same discipline the rest of the layout follows.
   import Icon from './Icon.svelte';
   import ViewControls from './ViewControls.svelte';

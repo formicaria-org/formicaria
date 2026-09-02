@@ -799,8 +799,23 @@
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    padding-top: 12vh;
+    /* `border-box` + an explicit `100dvh`, so the panel below can simply say
+       `max-height: 100%` and inherit the arithmetic instead of restating it.
+       Longhands, never the `padding` shorthand: a narrower rule added later would reset all
+       four sides and silently discard the insets, which is the mistake `ci/checks.sh`
+       already guards against on `.topbar`. */
+    box-sizing: border-box;
+    height: 100dvh;
+    padding-top: calc(var(--overlay-inset) + var(--safe-top));
+    padding-bottom: var(--safe-bottom);
     z-index: 80;
+  }
+  /* The navigation-bar floor, on the overlay so the panel's *box* clears the bar and not just
+     its last row. `--bar-floor` rather than a fourth hand-copied `3.25rem`. */
+  @media (pointer: coarse) {
+    .backup-overlay {
+      padding-bottom: max(var(--safe-bottom), var(--bar-floor));
+    }
   }
   .backup-backdrop {
     position: fixed;
@@ -809,9 +824,22 @@
     background: rgb(0 0 0 / 0.45);
     cursor: default;
   }
+  /* **One scroll surface, and it is this one.** With two vaults registered, or with the
+     restic-password block open, this panel is taller than a phone screen — and it used to
+     have no `max-height` and no `overflow` at all, so Close and the Back up button simply
+     fell off the bottom with nothing to scroll them into view. Resist the temptation to
+     scroll an inner body under a pinned head instead: `UnrecordedPanel` shipped that shape
+     and a finger landing on the inner region moved the inner region while the panel stayed
+     put, which made everything below it unreachable in a different way. */
   .panel {
     position: relative;
     width: min(34rem, 92vw);
+    /* `100%` of the overlay's content box, which is already the visible viewport less the
+       top offset and both window insets. */
+    max-height: 100%;
+    overflow-y: auto;
+    /* Don't chain the drag to the shell when this hits its end. */
+    overscroll-behavior: contain;
     box-sizing: border-box;
     padding: var(--space-5);
     display: flex;
