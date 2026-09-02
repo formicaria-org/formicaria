@@ -365,15 +365,30 @@ fn authorize(
     if !state.share.enabled() {
         return Err(Refused("403 Forbidden", b"this vault is not shared"));
     }
+
+    // **Compare the route, never the raw target.** `path` is the request line verbatim, so it
+    // still carries any `?query` — while `api()` below deliberately reads a command's arguments
+    // *from* that query (`/api/ingest?name=…`). Matching the two against each other exactly meant
+    // one `?` walked straight through this gate: `POST /api/delete?id=<ulid>` is not the string
+    // `"/api/delete"`, so the denial never fired, and `api()` then split the `?` off and
+    // dispatched `delete` with the query as its arguments. Every entry in `REMOTE_DENIED` was
+    // reachable that way — including `check_path`, which is a filesystem oracle over the whole
+    // machine, and `set_git_credential`.
+    //
+    // The lesson generalises, and is why this is computed once at the top rather than fixed at
+    // the one call site that was broken: a gate that inspects a *different* string from the one
+    // the router acts on is a gate with a hole in it by construction.
+    let route = path.split('?').next().unwrap_or(path);
+
     // The one unauthenticated API route — it is how a device gets a token in the first place.
     // Rate-limited inside `share::pair` by cancelling the code after a few wrong guesses.
-    if path == "/api/pair" {
+    if route == "/api/pair" {
         return Ok(Scope::Only(Vec::new()));
     }
     // Static assets are served unauthenticated, or the tablet could never load the very page
     // that contains the pairing screen. What that discloses is the UI bundle, which is public
     // source — no vault content is reachable without a token.
-    if !path.starts_with("/api/") {
+    if !route.starts_with("/api/") {
         return Ok(Scope::Only(Vec::new()));
     }
 
@@ -384,7 +399,7 @@ fn authorize(
         .ok_or(Refused("401 Unauthorized", b"pair this device first"))?;
 
     // Authorization, at the same point as authentication and above every route.
-    if REMOTE_DENIED.contains(&path) {
+    if REMOTE_DENIED.contains(&route) {
         return Err(Refused("403 Forbidden", b"that action can only be done on the computer"));
     }
     Ok(scope)
@@ -1792,6 +1807,32 @@ mod tests {
         for path in ["/api/set_agent", "/api/set_transcribe", "/api/agent_activity"] {
             let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
             assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");
+        }
+    }
+
+    /// **One `?` used to walk through the whole denylist.** `path` is the request line verbatim,
+    /// query string and all, and the gate compared it to `REMOTE_DENIED` exactly — while `api()`
+    /// reads a command's arguments *from* that query. So `/api/delete?id=<ulid>` matched no entry,
+    /// passed, and was then split and dispatched with the query as its arguments. Every host-bound
+    /// command was reachable this way, `check_path` (a filesystem oracle over the whole machine)
+    /// and `set_git_credential` included.
+    ///
+    /// The query here is the real shape an attacker would send, not a bare `?`, so a fix that only
+    /// trimmed a trailing character would not pass.
+    #[test]
+    fn a_query_string_does_not_smuggle_a_denied_command_past_the_gate() {
+        for path in [
+            "/api/delete?id=01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "/api/check_path?name=x&path=/",
+            "/api/create_vault?name=x&path=/tmp/x",
+            "/api/set_git_credential?url=https://example.com&token=hunter2",
+            "/api/config?",
+        ] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(
+                status, "HTTP/1.1 403 Forbidden",
+                "{path} slipped past the denylist by carrying a query string"
+            );
         }
     }
 

@@ -63,7 +63,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): *A vault is labelled by its remote, identified by its local
+- **`#vault`** (audience/cross-vault): ***A gate must inspect the same string the router acts on***
+  (read before adding to `REMOTE_DENIED`, or before comparing a request path anywhere) ·
+  *A vault is labelled by its remote, identified by its local
   name* · *A vault can be forgotten, and forgetting never deletes* ·
   *A caller is a member of some audiences, not all* (`Scope`
   — read before adding a read path or touching `find_blob`/`Vaults::config`) · *Vaults are audiences* · *Every entity shows its vault badge* ·
@@ -99,6 +101,30 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 - **`#agent`**: ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
+
+## A gate must inspect the same string the router acts on (2026-09-02, `#vault`)
+
+**Decision.** `authorize` now matches `REMOTE_DENIED` against the **route** — `path` with any query
+string cut off — instead of against the raw request target.
+
+**Why.** They were different strings, and one `?` was the whole gap. `path` is the request line
+verbatim, so it carries `?a=b`; the denial was an exact `REMOTE_DENIED.contains(&path)`; and `api()`
+*deliberately* reads a command's arguments from that same query string (`/api/ingest?name=…`). So
+`POST /api/delete?id=<ulid>` matched no entry, sailed through, and was then split and dispatched
+with the query as its arguments. **Every** host-bound command was reachable from a paired tablet
+that way — `check_path`, which reports the existence and writability of any path on the machine;
+`set_git_credential`; `create_vault`; `delete`. Found while adding two commands to that list, which
+is the only reason it was found at all: the list *looked* like it worked.
+
+**Consequence.** The route is computed once at the top of `authorize` and used for all three
+comparisons (`/api/pair`, the `/api/` prefix, the denial), not fixed at the one call site that was
+broken — a second string derived a second time is how this comes back. `a_query_string_does_not_
+smuggle_a_denied_command_past_the_gate` pins it with the query shapes an attacker would actually
+send, and it fails against the old code.
+
+**The general form, worth more than the fix:** a gate that inspects a *different* string from the
+one the router acts on has a hole in it by construction. `agent::route` and `share::route` match the
+same `path`; they are exact-match and therefore fail closed, but they are the same shape of risk.
 
 ## `/transcribe` reads writing too — one verb, two specialists (2026-08-30, `#agent` `#toolchain`)
 
