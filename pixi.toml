@@ -329,6 +329,10 @@ docs = "sh ci/docs.sh"
 # path the phone could not take.
 test-native-git = { cmd = "cargo test -p fm-core --features native-git --test git_differential && cargo test -p fm-core --features native-git --test merge_differential && cargo test -p fm-core --features native-git --test merge_on_a_device_without_git && cargo test -p fm-cli --features native-git --test git_native_merge && cargo test -p fm-cli --features native-git --test collaboration_pipeline && cargo test -p fm-cli --features native-git --test mixed_device_collaboration && cargo test -p fm-cli --features native-git --test conflict_resolution_both_devices && cargo test -p fm-app --features native-git --test backup_records_everything -- --test-threads=1" }
 android-init = "sh ci/android-init.sh"
+# Pull a workflow run's logs + artifacts into `.ci-logs/` so they can be read locally. Written for
+# `ios.yml`, the one workflow this project has no other way to observe — no Mac, no iPhone, so the
+# run's log is the whole experiment. Takes any workflow: `pixi run ci-logs cross.yml`.
+ci-logs = "sh ci/ios-logs.sh"
 
 [tasks.ci]
 depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "docs"]

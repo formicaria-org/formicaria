@@ -64,3 +64,8 @@ __pycache__/
 
 # The manual's setup chapter is assembled per-OS by ci/docs.sh from user/setup-<os>.md.
 docs/src/user/setup.md
+
+# Workflow logs and artifacts pulled down by `ci/ios-logs.sh`. Read locally, never committed:
+# they are large, they are reproducible from the run, and an artifact like `gen/apple/` embeds
+# absolute paths from the runner — the same reason `mobile/src-tauri/gen/` is ignored above.
+.ci-logs/

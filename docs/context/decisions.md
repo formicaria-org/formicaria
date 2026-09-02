@@ -4584,3 +4584,30 @@ and fires unattended on every `v*` tag. `gen/apple` is regenerated per run and n
 `.gitignore` already forbids the Android equivalent in terms, *"it embeds absolute paths, so
 committing it would be committing this machine"* — with an idempotent `ci/ios-inject-*.sh`
 re-applying our edits, exactly as `ci/android-inject-service.sh` does.
+
+## 2026-09-02 — `libgit2-sys` is an unconditional dependency, because the merge engine names it `#git` `#toolchain`
+
+> **Amends** *the body merge stops shelling out where there is no shell* (same day, above): the
+> engine shipped correct and its dependency declaration did not.
+
+**Decision:** `fm-core` declares `libgit2-sys` in `[dependencies]`, never under a `[target...]`
+header, and `ci/checks.sh` fails if that is undone. `openssl-sys` stays target-gated (not Windows,
+not iOS) because `add_certs_from_pem` is its only consumer and is gated to match.
+
+**Why:** a crate can only be *named* in Rust if it is a **direct** dependency — reaching it
+transitively through `git2` does not make `libgit2_sys::git_merge_file` resolve. `libgit2-sys` had
+been target-gated when its only consumer was Android's CA workaround; the new body engine gave it a
+consumer on every platform that compiles `native-git`, and the declaration was not moved.
+
+**How it was found, and what that says about the gates.** `ios.yml` rung 1 — the first billed macOS
+job — failed with eight `cannot find module or crate libgit2_sys` errors before reaching any C. The
+same defect was live on **Windows**, where `fm-serve` enables `native-git`, and it had already been
+pushed to `main`. Neither `pixi run ci` nor `cargo check` on Linux can see it: `ci` never builds the
+feature, and the excluded targets cannot be type-checked here because their build scripts need MSVC
+or Xcode. **Two shipping platforms were broken by a manifest line, and the only thing that could
+have caught it was a job that costs money.** Hence the grep, which is free and runs on every push.
+
+**Consequence:** iOS ships libgit2 like every other platform — which is right on its own terms, not
+merely convenient: iOS forbids `exec` outright, so the in-process engine is the *only* body merge it
+can ever have. The vendored OpenSSL it also drags in stays unused there (SecureTransport), and
+shedding it needs an upstream change rather than a manifest trick — see the entry above.

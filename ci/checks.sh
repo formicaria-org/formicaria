@@ -115,6 +115,30 @@ if [ -n "$unrouted" ]; then
     fail=1
 fi
 
+echo "[check] libgit2-sys stays nameable on every target that builds native-git..."
+# `merge.rs`'s native body engine calls `libgit2_sys::git_merge_file`, and Rust can only *name* a
+# crate that is a **direct** dependency — reaching it transitively through `git2` does not count.
+# So the moment this declaration sits under a `[target.'cfg(...)']` header, every excluded target
+# that compiles `native-git` fails with `cannot find module or crate libgit2_sys`.
+#
+# That is not hypothetical: on 2026-09-02 it was target-gated while the engine was added, which
+# broke the iOS build (found by `ios.yml` rung 1, at the cost of a billed macOS job) and would have
+# broken **Windows**, where `fm-serve` enables `native-git`. Neither is visible to `pixi run ci`,
+# which never builds the feature — so this grep is the only thing standing between that mistake and
+# a red release job.
+guard_toml=crates/fm-core/Cargo.toml
+if awk '
+    /^\[/ { section = $0 }
+    /^\[dependencies\.libgit2-sys\]/ { found = 1 }
+    /^[[:space:]]*libgit2-sys[[:space:]]*=/ { if (section ~ /^\[target/) { bad = 1 } else { found = 1 } }
+    END { exit (bad || !found) ? 0 : 1 }
+' "$guard_toml"; then
+    echo "  FAIL: libgit2-sys must be an unconditional dependency of fm-core, not target-gated."
+    echo "        merge.rs names \`libgit2_sys::\` directly, so every target building native-git"
+    echo "        needs the direct edge — Windows and iOS included."
+    fail=1
+fi
+
 echo "[check] renderers must not hardcode status values..."
 if [ -d ui/src/renderers ]; then
     if grep -REniw 'todo|doing|done' ui/src/renderers; then

@@ -75,6 +75,23 @@ default-features = false
 # both.
 features = ["vendored-libgit2", "vendored-openssl", "https"]
 
+# **Unconditional, and it must stay that way.** `merge.rs`'s native body engine calls
+# `libgit2_sys::git_merge_file` directly, and a crate can only be *named* in Rust if it is a
+# **direct** dependency — being in the graph via `git2` is not enough. So every target that
+# compiles `native-git` needs this edge declared here.
+#
+# It lived in the `cfg(not(windows))` block below until 2026-09-02, when its only consumer was
+# Android's `add_certs_from_pem`. Adding the merge engine gave it a second consumer on every
+# platform and I did not move it — which broke the iOS build (caught by `ios.yml` rung 1) and
+# would have broken the **Windows** build, where `fm-serve` enables `native-git` and which
+# `pixi run ci` cannot see because it does not build the feature at all. `openssl-sys` stays
+# target-gated below because its only consumer, `add_certs_from_pem`, is gated to match.
+# `ci/checks.sh` now fails if this is moved back under a `[target...]` header.
+[dependencies.libgit2-sys]
+version = "0.18"
+optional = true
+default-features = false
+
 [dev-dependencies]
 tempfile = "3"
 time = { workspace = true }   # macros (datetime!) for search recency-ordering tests
@@ -119,6 +136,5 @@ time = { workspace = true }   # macros (datetime!) for search recency-ordering t
 # an upstream change rather than a manifest trick. Verified with
 # `cargo tree -p fm-core --features native-git --target aarch64-apple-ios`.
 [target.'cfg(not(any(windows, target_os = "ios")))'.dependencies]
-libgit2-sys = { version = "0.18", optional = true, default-features = false }
 openssl-sys = { version = "0.9", optional = true, default-features = false }
 
