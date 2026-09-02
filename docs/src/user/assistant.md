@@ -16,10 +16,10 @@ Before anything else, the honest matrix.
 
 | | Assistant | Audio → transcript | Reading images |
 |---|---|---|---|
-| **Linux**, from the download | **yes** — it fetches what it needs on first enable | yes | yes |
-| **macOS**, from the download | **yes** | not yet | yes |
-| **Windows**, from the download | **yes** | not yet | yes |
-| **Linux**, from a checkout | yes | yes | yes |
+| **Linux**, from the download | **yes** — it fetches what it needs on first enable | no | yes |
+| **macOS**, from the download | **yes** | no | yes |
+| **Windows**, from the download | **yes** | no | yes |
+| **Linux**, from a checkout | yes | yes (`fetch-whisper`) | yes |
 | **Android** | yes, bundled in the app | yes, bundled | no — the phone's model cannot see |
 
 **You no longer need the source code.** Turning the assistant on downloads the model and the runtime
@@ -27,9 +27,10 @@ it needs, having first told you how large they are and under what licence. The c
 on" below are the checkout route, which still works and is what a developer wants; a downloaded copy
 needs none of them.
 
-**Audio transcription is Linux-only for now.** Its runtime is a second, separate download and only
-the Linux build of it has been verified; on macOS and Windows the switch simply does not appear
-rather than offering something that would not work.
+**Audio transcription is the one piece that does not install itself.** Its runtime is a separate
+download that only a checkout can fetch (`pixi run fetch-whisper`), and only the Linux build is
+published so far — so on a downloaded copy, on any system, the transcription switch does not appear.
+Reading images *is* offered in the app, as a choice at first enable.
 
 > **macOS and Windows are new here.** Before starting a model, formicaria checks it can read how
 > much memory the machine has free, and refuses if that reading fails or looks implausible — it will
@@ -48,32 +49,48 @@ of this.
 
 ## Turn it on
 
-### On the desktop
+### In the app — Linux, macOS or Windows
 
-1. **Get a model.** From the project directory:
+There is nothing to install first, and no terminal involved.
 
-   ```sh
-   pixi run fetch-model              # the lightest default from agents/models.toml
-   pixi run fetch-model lfm2.5-1.2b  # a specific, better one (recommended for research)
-   ```
+1. **Settings → Study assistant → on.**
+2. **It asks which model**, and shows what each one costs: the download size, the licence, and
+   whether it can read images. The image reader is a further download and is offered as its own
+   choice, because it buys exactly one capability.
+3. **It downloads**, showing how far along it is. You can keep working. **Stop** halts it, and what
+   already arrived is kept — turning it on again continues rather than starting over.
 
-   This downloads a local model runtime and the model weights into `agents/` (both gitignored). It
-   is the only setup step, and nothing is written outside that folder.
+That is the whole of it. Afterwards the assistant starts with formicaria and stops when you close
+it: nothing runs in the background, and nothing is downloaded twice.
 
-2. **Enable it in Settings** → *Study assistant* → on. It then starts automatically whenever you run
-   formicaria, and stops when you close it — zero cost while off, no background process, no orphan.
+The model lives outside the app folder, in this computer's configuration directory, so updating
+formicaria does not fetch it again — and copying the app folder to a USB stick does **not** take the
+model with it, only your notes.
 
-3. **(Optional) transcribing recordings.** `/transcribe` needs an audio runtime, which is a
-   separate download from the model above:
+### From a checkout, for developers
 
-   ```sh
-   pixi run fetch-whisper
-   ```
+The app prefers a checkout's `agents/` when it is there, so a working copy needs no download:
 
-   Until it is there the transcription switch does not appear — it is a capability of its own, not
-   part of the assistant, and the app will not offer a switch it cannot honour.
+```sh
+pixi run fetch-model              # the lightest default from agents/models.toml
+pixi run fetch-model lfm2.5-1.2b  # a specific, better one (recommended for research)
+```
 
-4. **(Optional) reading images.** `/transcribe` can read a photo of a page — handwriting, printed
+Then enable it in Settings as above.
+
+### The two extras
+
+**Transcribing recordings** needs an audio runtime, and unlike the model **the app does not fetch
+it for you**: it is a checkout step, and only the Linux runtime is published so far.
+
+```sh
+pixi run fetch-whisper
+```
+
+Until it is there the transcription switch does not appear at all — it is a capability of its own,
+and the app will not offer a switch it cannot honour.
+
+**Reading images.** `/transcribe` can read a photo of a page — handwriting, printed
    text, mathematics as LaTeX — but only with a model that can see. That needs a *projector* file
    beside the weights, and `fetch-model` collects it automatically for any model that has one:
 
@@ -84,7 +101,8 @@ of this.
    A text-only model is not an error — the assistant says images are unavailable rather than asking
    a blind model to guess at a picture.
 
-5. **(Optional) web search.** For `/search`, run the keyless proxy in another terminal:
+**Web search** works in the app with nothing to set up. From a checkout you can instead run the
+keyless local proxy, which reaches one more engine:
 
    ```sh
    pixi run search-proxy

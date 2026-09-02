@@ -211,9 +211,9 @@ This folder contains the whole application. Nothing gets installed.
       refuses if it cannot - it will not run a model it cannot watch. Settings
       says so plainly if that ever happens.
 
-      Turning speech recordings into text is a further, separate download, and
-      for now only the Linux version of it has been tested. On macOS and
-      Windows that switch simply does not appear.
+      Turning speech recordings into text needs a further piece that this
+      download cannot fetch for you yet, so that switch does not appear. The
+      assistant itself, and reading a photographed page, both work from here.
 
       The manual's "The study assistant" chapter explains what it does.
 

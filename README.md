@@ -98,8 +98,9 @@ manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria on
 | **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder is shown instead of a preview |
 | **Media backup** — encrypted, deduplicated snapshots of blobs | `restic`, a repository per vault, and `RESTIC_PASSWORD` | Notes still back up via git; media remains local |
 | **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
-| **Study assistant** — a local model answering and drafting in your notes | **Linux or Android only**, and a checkout: the release archive carries no assistant | Settings shows the reason instead of a switch |
-| **Transcription / reading images** — `/transcribe` | the assistant above, plus `pixi run fetch-whisper` for audio, or a model with a projector for images | The switch does not appear; the assistant says which piece is missing |
+| **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable, on Linux, macOS and Windows | Settings shows the reason instead of a switch |
+| **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable | The assistant says it cannot see pictures rather than guessing at one |
+| **Transcribing recordings** — `/transcribe` on audio | `pixi run fetch-whisper`, **from a checkout, Linux only for now** | The switch does not appear |
 
 <details>
 <summary>Installing the optional tools</summary>
@@ -122,16 +123,19 @@ formicaria can run a small **local AI assistant** that answers in a note's discu
 web, and drafts note edits you review. It is **off by default**, runs **entirely on your device** (no
 account, no API key, no cloud — your notes never leave the machine), and is fully removable.
 
-> **Linux and Android only, and never from the release archive.** Before starting a model the app
-> checks whether the machine has room for it and keeps watching while it runs; that check reads
-> `/proc` and has no macOS or Windows implementation, so those systems **refuse rather than run a
-> model unmonitored** — installing anything will not change it. The archive ships no agent stack on
-> any platform, so the commands below need this checkout. Settings states which case a machine is in.
+**Users do not need any of this.** Since 2026-09-02 the app installs the assistant itself: turn it
+on in Settings, it asks which model and states the size and licence, and downloads the runtime and
+weights with progress and a cancel. That works on Linux, macOS and Windows, from the ordinary
+download. Before starting a model it checks it can read how much memory the machine has free and
+refuses if it cannot — it will not run a model it cannot watch.
+
+The commands below are the **developer** route: they put the same pieces in a checkout's `agents/`,
+which the app prefers when it is there, so the dev loop needs no download.
 
 ```sh
 pixi run fetch-model lfm2.5-1.2b   # download a local model into agents/ (gitignored)
-pixi run fetch-whisper             # optional: the audio runtime, for /transcribe
-pixi run search-proxy              # optional: keyless web search for /search
+pixi run fetch-whisper             # the audio runtime for /transcribe — Linux only, checkout only
+pixi run search-proxy              # optional: a local proxy; the app itself searches in-process
 # then turn it on in Settings → Study assistant, and in any discussion:
 #   @lfm2.5-1.2b summarize this in 3 bullets /search
 ```
