@@ -520,6 +520,51 @@ if [ -f ui/src/App.svelte ]; then
     fi
 fi
 
+# **What `fm-serve` looks for beside itself, the release must stage.**
+#
+# The assistant resolves `agent-serve` and `models.toml` from `current_exe().parent()` — never from
+# `PATH`, never from the cwd. So the archive is the *only* place they can come from, and a release
+# that stops staging either one produces an app that reports "this copy did not come with the
+# assistant" with nothing wrong in any test. The same shape as the release-sheet check above, and
+# the same stake: promised in the code, absent from the archive.
+#
+# **Comments are stripped before the workflow is searched**, and that is not fussiness: the first
+# version of this check passed while the staging was deleted, because the *explanation* above the
+# staging line still said "agent-serve". A guard satisfied by prose about the thing is a guard that
+# reports on its own documentation.
+echo "[check] the release stages what the assistant looks for beside the binary..."
+release_code=$(grep -av '^[[:space:]]*#' .github/workflows/release.yml)
+for p in agent-serve models.toml; do
+    if grep -aq "$p" crates/fm-serve/src/agent.rs && ! printf '%s' "$release_code" | grep -aq "$p"; then
+        echo "  FAIL: crates/fm-serve/src/agent.rs looks for '$p' beside the running binary, but"
+        echo "        .github/workflows/release.yml never stages it. A downloaded copy would then"
+        echo "        have no assistant at all, and nothing here would fail. Stage it, or stop"
+        echo "        looking for it."
+        fail=1
+    fi
+done
+
+# **The phone answers the same status shape as the desktop.**
+#
+# `SettingsPanel.svelte` is rendered by BOTH shells — the mobile app points its webview at the same
+# `ui/dist` — and it reads `st.installed` to decide between a switch and a reason. The phone once
+# answered `{enabled, transcribe}` only, so `installed` was `undefined`, `undefined` is falsy, and
+# the assistant row printed "not available" with an empty reason **on the one platform where the
+# whole stack ships inside the APK**. One component reading two divergent shapes is a defect that
+# compiles, ships and shows nothing in any test: jsdom sees neither shell.
+echo "[check] the phone's agent_status answers every key the desktop's does..."
+if [ -f mobile/src-tauri/src/lib.rs ] && [ -f crates/fm-serve/src/agent.rs ]; then
+    for k in installed why transcribe_available enabled transcribe; do
+        if ! grep -aq "\"$k\"" mobile/src-tauri/src/lib.rs; then
+            echo "  FAIL: mobile/src-tauri/src/lib.rs never names \"$k\", which fm-serve's"
+            echo "        /api/agent_status answers and SettingsPanel.svelte reads. The phone and"
+            echo "        the desktop render the same component, so a key missing on one side is a"
+            echo "        row that renders wrong on that platform only. Add it to agent_status."
+            fail=1
+        fi
+    done
+fi
+
 # **The attachment ceiling is one number, written twice.**
 #
 # `GIT_ASSETS_CEILING` is the largest attachment this app will put into git. Rust is the
@@ -734,6 +779,11 @@ done
 #
 # A shell script cannot export a predicate, so the condition is written twice. If the script starts
 # looking for a different file, the Rust check goes on saying yes about a machine that says no.
+#
+# **Still two deciders after the app stopped using the shell (2026-09-02).** `fm-serve` now spawns
+# `agent-serve` directly and decides whisper itself, but `agents/agent-serve.sh` is still what
+# `pixi run agent-serve` runs, so the dev loop has its own copy of the same condition. The guard
+# narrowed; it did not go away.
 for name in whisper-server ggml-base.en.bin; do
     if ! grep -q "$name" agents/agent-serve.sh || ! grep -q "$name" crates/fm-serve/src/agent.rs; then
         echo "  FAIL: '$name' is named in only one of agents/agent-serve.sh and"

@@ -6,6 +6,11 @@
 # the working memory) costs 12x for a change that cannot break a compile. So: only when
 # something that could actually differ per-platform moves.
 #
+# **A second reason to fire it, since 2026-09-02.** The study assistant now runs on macOS and
+# Windows, and its per-OS memory readings were written on a Linux machine that cannot compile them.
+# `pixi run -e cross check-cross` type-checks them locally and for free; only this workflow *runs*
+# them. Until it has, "the assistant works on macOS" is an inference, not an observation.
+#
 # Not a soft target, and it has already paid for itself: the first Windows run found that
 # `from_file` was LF-only, so on a CRLF checkout every note failed to parse — and because
 # the loader is deliberately tolerant they didn't error, they vanished, and the vault came
@@ -29,6 +34,13 @@ name: cross
 #     paths: ['crates/**', 'ui/**', 'ci/**', 'Cargo.*', 'pixi.*']
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: 'full = the whole gate; agent = only the assistant''s per-OS code'
+        type: choice
+        default: agent
+        options: [agent, full]
+        required: false
 
 concurrency:
   group: cross-${{ github.ref }}
@@ -62,11 +74,33 @@ jobs:
       # fetches what's missing and links the rest.
       - name: pnpm store path
         id: pnpm
+        if: inputs.scope == 'full'
         shell: bash
         run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v4
+        if: inputs.scope == 'full'
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
-      - run: pixi run ci
+      # **`full` is the historic behaviour; `agent` is the cheap question.**
+      #
+      # The whole gate installs pnpm, builds the UI, renders the docs and runs 500 UI tests — none
+      # of which can differ per platform in the way the assistant's memory readings can. At 10x for
+      # macOS that is a large bill for one answer. So the default scope compiles and tests only the
+      # crates that carry per-OS code, which is minutes rather than tens of minutes, and `full`
+      # stays available for a pre-release sweep where the CRLF class of bug matters.
+      - name: full gate
+        if: inputs.scope == 'full'
+        run: pixi run ci
+      - name: the assistant's per-OS code
+        if: inputs.scope != 'full'
+        run: pixi run -- cargo test -p fm-agent -p fm-serve
+      # **The point of firing this since 2026-09-02.** The study assistant's per-OS memory readings
+      # — `GlobalMemoryStatusEx` on Windows, mach VM statistics on macOS — were written on a Linux
+      # machine that cannot compile them, let alone run them. `pixi run ci` above already executes
+      # the test; this repeats it with output so the run *shows the number this platform reported*
+      # rather than a green tick. A misread struct field is a refusal or an absurd value here, on
+      # the platform itself, in the log.
+      - name: the assistant's memory reading, on this platform
+        run: pixi run -- cargo test -p fm-serve the_memory_reading -- --nocapture

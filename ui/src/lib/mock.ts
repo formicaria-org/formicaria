@@ -425,6 +425,16 @@ let mockTranscribeEnabled = false;
 // assistant can be perfectly installed while audio transcription still has nothing behind it.
 // Flip this to see the row that names what is missing instead of offering a switch.
 let mockTranscribeAvailable = true;
+// **Not provisioned by default**, so `pnpm dev` opens on the state a new user actually meets: the
+// assistant is available but its model has not been downloaded, which is the screen that asks
+// before spending gigabytes. A mock that starts fully provisioned would hide the whole flow.
+let mockProvisioned = false;
+let mockProvisioning: {
+  stage: 'runtime' | 'model' | 'projector' | 'ready' | 'failed';
+  done: number;
+  total: number | null;
+  error: string | null;
+} | null = null;
 
 /// **A backend that can misbehave, because the real one does.**
 ///
@@ -603,13 +613,50 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           ? ''
           : 'The study assistant runs on Linux today. Everything else in formicaria works normally here — your notes, search, boards and backup are unaffected.',
         transcribe_available: mockTranscribeAvailable,
+        provisioned: mockProvisioned,
+        provisioning: mockProvisioning,
       } as T;
+    case 'agent_models':
+      // The real catalogue's shape, sizes included — the numbers are what `agents/models.toml`
+      // records, so the dev build shows the same figures a user would be asked to accept.
+      return [
+        {
+          name: 'qwen3-vl-4b',
+          bytes: 2_497_281_664,
+          license: 'Apache-2.0',
+          vision: true,
+          mmproj_bytes: 836_180_256,
+          default: true,
+        },
+        {
+          name: 'lfm2.5-1.2b',
+          bytes: 1_400_000_000,
+          license: 'LFM Open License v1.0',
+          vision: false,
+          mmproj_bytes: null,
+          default: false,
+        },
+      ] as T;
     case 'set_agent':
       // Refuses exactly as the server does, so a test can see the refusal rather than a cheerful ok.
       if (args.enabled && !mockAgentInstalled) {
         throw new Error('The study assistant is not installed on this machine.');
       }
       mockAgentEnabled = Boolean(args.enabled);
+      // Model the first enable: turning it on when nothing is provisioned starts a download rather
+      // than simply flipping to on. Two ticks of `agent_status` later it is ready — enough for the
+      // panel's polling to be developed against something that moves.
+      if (mockAgentEnabled && !mockProvisioned) {
+        mockProvisioning = { stage: 'model', done: 0, total: 2_497_281_664, error: null };
+        setTimeout(() => {
+          mockProvisioning = { stage: 'model', done: 1_200_000_000, total: 2_497_281_664, error: null };
+        }, 400);
+        setTimeout(() => {
+          mockProvisioned = true;
+          mockProvisioning = { stage: 'ready', done: 0, total: null, error: null };
+        }, 1200);
+      }
+      if (!mockAgentEnabled) mockProvisioning = null;
       return { ok: true } as T;
     case 'set_transcribe':
       // Refuses like the server: without the runtime staged, turning this on transcribes nothing.

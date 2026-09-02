@@ -76,6 +76,23 @@ If it is another copy of formicaria, it will simply open your browser at the cop
 
 **A blank page.** Close the tab and start it again.
 
+## The study assistant
+
+formicaria has an optional local AI assistant, and **this download can run it**. Turn it on in
+**Settings → Study assistant**. The first time, it asks which model you want, tells you how large it
+is and under what licence, and downloads it — a few gigabytes, once, kept on this computer and used
+offline afterwards. You can stop it part-way; what has arrived is kept.
+
+It is off by default and costs nothing while off. Everything else — your notes, search, boards,
+backup and sharing — works normally whether or not you ever turn it on.
+
+> **New on macOS, and new means less proven.** The assistant ran on Linux and Android for months
+> before it ran here. Before it starts a model, formicaria checks that it can read how much memory
+> this machine has free; if that reading fails or looks wrong it refuses and says so, rather than
+> starting a model it cannot watch. If you see that message, that is what happened.
+
+The [study assistant](./assistant.md) chapter explains what it can do.
+
 ---
 
 Next: [Your first ten minutes](./first-note.md).

@@ -94,13 +94,25 @@ jobs:
           # click. The machinery now lives in `program/`; the top level is a door, a manual, a
           # readme and your notes.
           mkdir -p "stage/${DIR}/program"
-          for b in fm-serve fm; do
+          # `agent-serve` rides along: it is the assistant's supervisor, spawned by `fm-serve` from
+          # beside its own binary. Without it in the archive a downloaded copy has no assistant on
+          # any platform — which is exactly what was true until 2026-09-02. The model and the model
+          # runtime are NOT staged: they are per-platform and gigabytes, and are fetched on first
+          # enable after the app has asked.
+          for b in fm-serve fm agent-serve; do
             if [ -f "target/release/${b}.exe" ]; then
               cp "target/release/${b}.exe" "stage/${DIR}/program/"
             else
               cp "target/release/${b}" "stage/${DIR}/program/"
             fi
           done
+          # The model catalogue, beside the binaries: `fm-serve` reads it to know what it *could*
+          # download and what each one costs, and copies it into the tools directory on first use —
+          # the same shape as the phone writing its embedded copy on every start.
+          cp agents/models.toml "stage/${DIR}/program/models.toml"
+          [ -s "stage/${DIR}/program/models.toml" ] \
+            || { echo "stage: the model catalogue did not land" >&2; exit 1; }
+
           # `fm` moves WITH `fm-serve` and that is not incidental: `ensure_repo` installs the
           # `.md` merge driver by pointing git at the `fm` beside the running binary, and
           # installs nothing when it cannot find one. They stay in the same directory forever.

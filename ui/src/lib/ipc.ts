@@ -310,8 +310,39 @@ export const agentStatus = () =>
     installed: boolean;
     why: string;
     transcribe_available: boolean;
+    /** Whether the model and runtime are already here — the difference between "turn it on" and
+     *  "download a few gigabytes, then turn it on". */
+    provisioned: boolean;
+    /** A first-enable download in flight, or how the last one ended; null when idle. `total` is
+     *  null where the server sends no length, and the line must then say bytes rather than invent
+     *  a percentage. */
+    provisioning: {
+      stage: 'runtime' | 'model' | 'projector' | 'ready' | 'failed';
+      done: number;
+      total: number | null;
+      error: string | null;
+    } | null;
   }>('agent_status');
-export const setAgent = (enabled: boolean) => invoke<{ ok: boolean }>('set_agent', { enabled });
+/** Turn the assistant on or off.
+ *
+ *  `model` and `vision` matter only on a first enable, when nothing is provisioned yet: they say
+ *  which catalogued model to fetch and whether to also fetch the projector that lets it read
+ *  images. Both are ignored once the stack is on the machine. */
+export const setAgent = (enabled: boolean, model?: string, vision = false) =>
+  invoke<{ ok: boolean }>('set_agent', { enabled, model, vision });
+
+/** What the first-enable screen offers: every catalogued model, its download size and licence. */
+export const agentModels = () =>
+  invoke<
+    {
+      name: string;
+      bytes: number | null;
+      license: string | null;
+      vision: boolean;
+      mmproj_bytes: number | null;
+      default: boolean;
+    }[]
+  >('agent_models');
 /** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
  *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the
  *  next assistant start, and needs the runtime staged (`pixi run fetch-whisper`). */

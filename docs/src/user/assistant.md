@@ -10,17 +10,41 @@ It is a *helper*, not an oracle. A small on-device model is good at summarizing,
 fetching-and-summarizing simple facts through a search tool; it will not match a large hosted model on
 hard reasoning. That trade — small, private, local — is the point.
 
-> **This chapter needs the source code, not the download.** Every step below runs from a checked-out
-> copy of the project with its toolchain installed. **The release archive does not carry the
-> assistant**, so on a downloaded copy the switch in Settings says so and stays off — nothing here
-> will work from the folder you unpacked.
->
-> The assistant also runs on **Linux and Android only** today: on Windows and macOS formicaria
-> refuses to start it, because the safety check that decides whether the machine has room for a model
-> has no implementation on those systems yet. Settings says which of those applies to you.
->
-> Everything else in formicaria — notes, search, boards, backup, sharing — works normally without
-> any of this.
+## Where it runs
+
+Before anything else, the honest matrix.
+
+| | Assistant | Audio → transcript | Reading images |
+|---|---|---|---|
+| **Linux**, from the download | **yes** — it fetches what it needs on first enable | yes | yes |
+| **macOS**, from the download | **yes** | not yet | yes |
+| **Windows**, from the download | **yes** | not yet | yes |
+| **Linux**, from a checkout | yes | yes | yes |
+| **Android** | yes, bundled in the app | yes, bundled | no — the phone's model cannot see |
+
+**You no longer need the source code.** Turning the assistant on downloads the model and the runtime
+it needs, having first told you how large they are and under what licence. The commands in "Turn it
+on" below are the checkout route, which still works and is what a developer wants; a downloaded copy
+needs none of them.
+
+**Audio transcription is Linux-only for now.** Its runtime is a second, separate download and only
+the Linux build of it has been verified; on macOS and Windows the switch simply does not appear
+rather than offering something that would not work.
+
+> **macOS and Windows are new here.** Before starting a model, formicaria checks it can read how
+> much memory the machine has free, and refuses if that reading fails or looks implausible — it will
+> not run a model it cannot watch. That check is what made those platforms wait, and it is still
+> what protects them.
+
+**Why macOS and Windows refuse.** Before starting a model, formicaria checks whether the machine
+has room for it and keeps watching while it runs. That check reads Linux kernel counters and has no
+macOS or Windows implementation yet, so on those systems the app **refuses rather than running a
+model it cannot watch**. It is not a licence, a download or a setting: nothing you install will
+change it, and the right fix is a monitor for those systems rather than a relaxed check. Settings
+tells you which case you are in, and shows no switch instead of one that would fail.
+
+Everything else in formicaria — notes, search, boards, backup, sharing — works normally without any
+of this.
 
 ## Turn it on
 
@@ -39,7 +63,28 @@ hard reasoning. That trade — small, private, local — is the point.
 2. **Enable it in Settings** → *Study assistant* → on. It then starts automatically whenever you run
    formicaria, and stops when you close it — zero cost while off, no background process, no orphan.
 
-3. **(Optional) web search.** For `/search`, run the keyless proxy in another terminal:
+3. **(Optional) transcribing recordings.** `/transcribe` needs an audio runtime, which is a
+   separate download from the model above:
+
+   ```sh
+   pixi run fetch-whisper
+   ```
+
+   Until it is there the transcription switch does not appear — it is a capability of its own, not
+   part of the assistant, and the app will not offer a switch it cannot honour.
+
+4. **(Optional) reading images.** `/transcribe` can read a photo of a page — handwriting, printed
+   text, mathematics as LaTeX — but only with a model that can see. That needs a *projector* file
+   beside the weights, and `fetch-model` collects it automatically for any model that has one:
+
+   ```sh
+   pixi run fetch-model qwen3-vl-4b   # weights + projector; the laptop pick for reading images
+   ```
+
+   A text-only model is not an error — the assistant says images are unavailable rather than asking
+   a blind model to guess at a picture.
+
+5. **(Optional) web search.** For `/search`, run the keyless proxy in another terminal:
 
    ```sh
    pixi run search-proxy
@@ -105,7 +150,8 @@ a page, a whiteboard or a printout becomes something you can search and edit.
 Typed on its own it does **everything in the note that has not been done yet** — you never have to
 name a file or copy an identifier. Ask twice and it skips what it already read.
 
-For writing it aims at a *usable* transcript, not a description: mathematics comes back as LaTeX,
+For writing it aims at a *usable* transcript, not a description: mathematics comes back as LaTeX
+(from the vision model itself — good for ordinary notation, and not a specialised formula reader),
 code and pseudocode inside a code block with their indentation, and tables as Markdown tables. For a
 chart it transcribes the title, the axis labels, the tick values and the legend.
 

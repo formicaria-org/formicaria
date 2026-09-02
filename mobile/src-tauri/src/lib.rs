@@ -395,14 +395,27 @@ fn fm(
             agent::set_transcribe(&dir, on);
             return Ok("{\"ok\":true}".to_string());
         }
+        // Every key fm-serve's `/api/agent_status` answers, because the same Settings panel reads
+        // both — see `agent::availability`.
+        let (installed, why, transcribe_available) = agent::availability();
         return Ok(serde_json::json!({
             "enabled": agent::is_enabled(&dir), "transcribe": agent::is_transcribe_enabled(&dir),
+            "installed": installed, "why": why, "transcribe_available": transcribe_available,
         })
         .to_string());
     }
     #[cfg(not(feature = "agent"))]
     if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
-        return Ok("{\"enabled\":false,\"transcribe\":false,\"ok\":true}".to_string());
+        // A notes-only build: same shape again, and `why` says which kind of build this is rather
+        // than leaving the row blank.
+        return Ok(serde_json::json!({
+            "enabled": false, "transcribe": false, "ok": true,
+            "installed": false,
+            "why": "This build of the app was made without the study assistant. Everything else in \
+                    formicaria works normally.",
+            "transcribe_available": false,
+        })
+        .to_string());
     }
     // Resolved here rather than in the signature, so the arms above answer while the vaults are
     // still opening (the `@`-picker and the Settings toggles need no store) and this one reports

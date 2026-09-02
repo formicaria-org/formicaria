@@ -56,6 +56,28 @@ OUT="${1:-THIRD-PARTY.md}"
         }' \
       | sort -u
     echo
+    # **What `cargo tree` cannot see.** The study assistant's model runtime is not linked into any
+    # binary here — it is downloaded onto the user's machine on first enable and executed as a
+    # separate process. `cargo tree` therefore knows nothing about it, and this notice would be
+    # silently incomplete about software this project chose, pinned and put on their disk.
+    #
+    # `ensure_runtime` also extracts each archive's own LICENSE next to the binary, so the notice
+    # travels with the bytes as well as appearing here. Both, deliberately: this file is what a
+    # reader checks before downloading, and the extracted copy is what survives the app.
+    echo "## Downloaded at runtime (the optional study assistant)"
+    echo
+    echo "Not part of these binaries and not present unless the assistant is turned on. Pinned by"
+    echo "URL **and SHA-256** in \`models.toml\`, fetched once, and kept under this machine's"
+    echo "configuration directory."
+    echo
+    echo "| Component | Licence | Source |"
+    echo "|---|---|---|"
+    echo "| llama.cpp (\`llama-server\` + \`ggml\`) | MIT | <https://github.com/ggml-org/llama.cpp> |"
+    echo "| whisper.cpp (\`whisper-server\`) | MIT | <https://github.com/ggml-org/whisper.cpp> |"
+    echo
+    echo "Model **weights** are downloaded from Hugging Face and carry their own terms, stated in"
+    echo "the app before anything is fetched and recorded per model in \`models.toml\`."
+    echo
     echo "Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,"
     echo "in \`LICENSE\`."
 } > "$OUT"

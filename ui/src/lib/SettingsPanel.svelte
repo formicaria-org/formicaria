@@ -23,6 +23,7 @@
     setGitAssetsMax,
     setSupervision,
     agentStatus,
+    agentModels,
     setAgent,
     setTranscribe,
     alive,
@@ -163,6 +164,11 @@
       agentOn = st.enabled;
       transcribeOn = st.transcribe;
       agentInstalled = st.installed;
+      provisioned = st.provisioned;
+      provisioning = st.provisioning;
+      if (st.provisioning && st.provisioning.stage !== 'ready' && st.provisioning.stage !== 'failed') {
+        watchProvisioning();
+      }
       agentWhy = st.why;
       transcribeAvailable = st.transcribe_available;
     } catch {
@@ -198,10 +204,92 @@
       error = e instanceof Error ? e.message : String(e);
     }
   }
-  async function toggleAgent(next: boolean) {
+  // **The first enable is a question, not a switch.** Turning the assistant on for the first time
+  // downloads a model measured in gigabytes; a toggle that starts that silently is the failure the
+  // phone already has, where the switch flips and nothing visibly happens for minutes. So: offer
+  // the catalogue with sizes and licences, then download with a progress line and a cancel.
+  let choosing = $state(false);
+  let catalogue = $state<Awaited<ReturnType<typeof agentModels>>>([]);
+  let pickedModel = $state<string | null>(null);
+  let pickVision = $state(false);
+  let provisioned = $state(true);
+  let provisioning = $state<Awaited<ReturnType<typeof agentStatus>>['provisioning']>(null);
+  let pollTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const picked = $derived(catalogue.find((m) => m.name === pickedModel) ?? null);
+  /** What this choice will actually download, projector included when it is wanted. */
+  const pickedBytes = $derived(
+    (picked?.bytes ?? 0) + (pickVision && picked?.vision ? (picked?.mmproj_bytes ?? 0) : 0),
+  );
+
+  async function openChooser() {
+    error = null;
     try {
-      await setAgent(next);
-      agentOn = next;
+      catalogue = await agentModels();
+      pickedModel = catalogue.find((m) => m.default)?.name ?? catalogue[0]?.name ?? null;
+      pickVision = false;
+      choosing = true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Poll while a download runs. The app has no streaming anywhere; this is the cadence the
+   *  agent's own working-wheel already uses, for the same reason. */
+  function watchProvisioning() {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      try {
+        const st = await agentStatus();
+        provisioning = st.provisioning;
+        provisioned = st.provisioned;
+        if (st.provisioning && st.provisioning.stage !== 'ready' && st.provisioning.stage !== 'failed') {
+          watchProvisioning();
+        }
+      } catch {
+        // A failed poll is not a failed download — keep watching rather than reporting a fault
+        // that may not exist.
+        watchProvisioning();
+      }
+    }, 1500);
+  }
+
+  async function toggleAgent(next: boolean) {
+    // Off, or already provisioned: the switch it always was.
+    if (!next || provisioned) {
+      try {
+        await setAgent(next);
+        agentOn = next;
+        if (!next) provisioning = null;
+      } catch (e) {
+        error = e instanceof Error ? e.message : String(e);
+      }
+      return;
+    }
+    await openChooser();
+  }
+
+  /** Start the download the chooser described. */
+  async function startProvisioning() {
+    choosing = false;
+    try {
+      await setAgent(true, pickedModel ?? undefined, pickVision);
+      agentOn = true;
+      provisioning = { stage: 'model', done: 0, total: null, error: null };
+      watchProvisioning();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Stop a download in flight. The server bumps its generation, so the worker abandons the work;
+   *  what it already fetched stays, and enabling again resumes rather than restarts. */
+  async function cancelProvisioning() {
+    clearTimeout(pollTimer);
+    try {
+      await setAgent(false);
+      agentOn = false;
+      provisioning = null;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -410,18 +498,101 @@
             {:else}
             <li>
               <label class="choice">
+                <!-- Named explicitly: this and the sharing switch both read "Off" from their
+                     first span, so without a label a screen reader announces two identical
+                     checkboxes on one screen. -->
                 <input
                   type="checkbox"
+                  aria-label="study assistant"
                   checked={agentOn}
                   onchange={(e) => toggleAgent(e.currentTarget.checked)} />
                 <span class="k">{agentOn ? 'On' : 'Off'}</span>
                 <span class="muted">
                   {agentOn
                     ? 'Starts with formicaria on the next launch.'
-                    : 'Formicaria runs pure and super-light.'}
+                    : provisioned
+                      ? 'Formicaria runs pure and super-light.'
+                      : 'Turning it on downloads a model first — it will ask before it does.'}
                 </span>
               </label>
             </li>
+
+            <!-- **Ask, with the numbers, before spending anything.** The size and the licence are
+                 read from the catalogue rather than written here, so the figures cannot drift from
+                 what is actually fetched. -->
+            {#if choosing}
+              <li class="vault">
+                <p class="why">
+                  The assistant needs a model on this computer. It is downloaded once, kept on this
+                  machine, and used offline afterwards. Pick one:
+                </p>
+                {#each catalogue as m (m.name)}
+                  <label class="choice">
+                    <input
+                      type="radio"
+                      name="fm-agent-model"
+                      value={m.name}
+                      checked={pickedModel === m.name}
+                      onchange={() => (pickedModel = m.name)} />
+                    <span class="k">{m.name}</span>
+                    <span class="muted">
+                      {m.bytes ? humanSize(m.bytes) : 'size unknown'}{m.license
+                        ? ` · ${m.license}`
+                        : ''}{m.vision ? ' · can read images' : ''}
+                    </span>
+                  </label>
+                {/each}
+                {#if picked?.vision}
+                  <label class="choice">
+                    <input
+                      type="checkbox"
+                      checked={pickVision}
+                      onchange={(e) => (pickVision = e.currentTarget.checked)} />
+                    <span class="k">Read images too</span>
+                    <span class="muted">
+                      A further {picked.mmproj_bytes ? humanSize(picked.mmproj_bytes) : 'download'}
+                      — needed to turn a photographed page into text. Without it the model works
+                      normally and says it cannot see pictures.
+                    </span>
+                  </label>
+                {/if}
+                <p class="why">
+                  <strong>Total: {humanSize(pickedBytes)}.</strong> You can stop it at any time; what
+                  has already arrived is kept, and starting again continues where it left off.
+                </p>
+                <div class="row">
+                  <button class="primary" onclick={startProvisioning} disabled={!pickedModel}>
+                    Download and turn on
+                  </button>
+                  <button onclick={() => (choosing = false)}>Cancel</button>
+                </div>
+              </li>
+            {/if}
+
+            <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
+                 a made-up percentage is worse than an honest number. -->
+            {#if provisioning && provisioning.stage !== 'ready'}
+              <li>
+                {#if provisioning.stage === 'failed'}
+                  <span class="k">download failed</span>
+                  <span class="muted">{provisioning.error ?? 'no reason given'}</span>
+                {:else}
+                  <span class="k">
+                    {provisioning.stage === 'runtime'
+                      ? 'getting the runtime'
+                      : provisioning.stage === 'projector'
+                        ? 'getting the image reader'
+                        : 'downloading the model'}
+                  </span>
+                  <span class="muted">
+                    {humanSize(provisioning.done)}{provisioning.total
+                      ? ` of ${humanSize(provisioning.total)}`
+                      : ''} — you can keep working; it continues in the background.
+                  </span>
+                  <button onclick={cancelProvisioning}>Stop</button>
+                {/if}
+              </li>
+            {/if}
             {/if}
             {#if agentInstalled && agentOn}
               {#if transcribeAvailable}

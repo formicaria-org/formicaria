@@ -41,6 +41,43 @@ const SERVER_LIB: &str = "libllama-server.so";
 /// for the same exec-from-jniLibs reason as [`SERVER_LIB`]. Absent ⇒ transcription simply stays off.
 const WHISPER_SERVER_LIB: &str = "libwhisper-server.so";
 
+/// What Settings needs to know about this phone, **in the same shape fm-serve answers**.
+///
+/// `(installed, why, transcribe_available)`, mirroring `/api/agent_status`
+/// (`crates/fm-serve/src/agent.rs`). The shape is not a detail: the phone renders the *same*
+/// `SettingsPanel.svelte` as the desktop, which reads `st.installed` — and `undefined` is falsy.
+/// Answering only `{enabled, transcribe}` therefore made the row print "not available" with an
+/// empty reason and no switch, on the one platform where the whole stack is bundled in the APK.
+///
+/// Checked, not assumed. `ci/android-stage-runtime.sh` is what puts the runtime in `jniLibs`, and a
+/// build made without it should say so rather than offer a switch onto a missing binary — the same
+/// stance the desktop takes when `agents/` is absent.
+pub fn availability() -> (bool, String, bool) {
+    // Our own cdylib is always mapped, so its directory is where Android extracted every packaged
+    // `lib*.so` — the one place an app may exec from.
+    let Some(dir) = native_lib_dir("libformicaria_mobile_lib.so") else {
+        return (
+            false,
+            "The assistant cannot locate this app's own library directory, so it cannot start a \
+             model. Everything else in formicaria works normally."
+                .into(),
+            false,
+        );
+    };
+    let installed = dir.join(SERVER_LIB).exists();
+    let why = if installed {
+        String::new()
+    } else {
+        "This build of the app does not carry the model runtime, so the assistant cannot be turned \
+         on. Everything else in formicaria works normally."
+            .to_string()
+    };
+    // The weights are fetched on first enable, so what is asked here is whether the *runtime* is
+    // aboard — the honest capability on a phone, where the download is part of turning it on.
+    let transcribe_available = installed && dir.join(WHISPER_SERVER_LIB).exists();
+    (installed, why, transcribe_available)
+}
+
 /// The in-process presence board — the mobile mirror of fm-serve's `AgentRegistry`. A phone has no
 /// server to hold "who is online", so the shell holds it here: the runner marks its model present once
 /// it is serving and absent when it stops, and the `agents` transport call ([`crate::fm`]) reads it to

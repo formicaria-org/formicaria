@@ -135,10 +135,50 @@ android-avd = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID
 # is what makes the UI inspectable from a terminal at all.
 android-emu = { cmd = "ANDROID_AVD_HOME=$PIXI_PROJECT_ROOT/.android/avd $ANDROID_HOME/emulator/emulator -avd formicaria -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect" }
 
+# **Type-checking the platforms this machine cannot run.**
+#
+# `SystemMonitor::sample` has a Windows arm (`GlobalMemoryStatusEx`) and a macOS arm (mach VM
+# statistics), and `launch.rs` has a Windows Job Object teardown. None of it compiles here, and on
+# 2026-09-02 all of it shipped never having been through a compiler at all. The class of error that
+# costs is a `cfg` arm naming a symbol the target does not have — which is exactly how
+# `die_with_supervisor` came to call Linux's `prctl` under `#[cfg(unix)]`, a macOS build error that
+# went unnoticed for months because nothing on macOS built that crate.
+#
+# `cargo check` does not link, so a target's `rust-std` is all it needs — no MSVC, no Xcode.
+#
+# **Its own environment, exactly like `android` above and for the reason stated there**: `pixi run
+# ci` must stay green for someone who has downloaded none of this. It matters more here than it
+# looks: `pixi.lock` shows the android environment already resolving a *different* rustc (1.97.1)
+# from the default (1.97.0), so cross-target std packages in the default environment could quietly
+# move the compiler the release is built with.
+[feature.cross.dependencies]
+rust-std-x86_64-pc-windows-msvc = "*"
+rust-std-aarch64-apple-darwin = "*"
+
+[feature.cross.tasks]
+# **`fm-agent` only, and that is the whole of the per-OS code.** Its `watchdog.rs` holds the Windows
+# and macOS memory readings and its `launch.rs` the Job Object teardown; everything else that
+# differs per platform is a `cfg!(windows)` filename suffix that cannot fail to compile.
+#
+# The wider crates are deliberately *not* checked here: `fm-agent-run --features download` pulls
+# `ureq` -> `rustls` -> `ring`, whose build script compiles C and needs a real MSVC toolchain
+# (`failed to find tool "lib.exe"`). That is a full cross-*build* environment, not a type-check, and
+# `cross.yml` already compiles those crates on real macOS and Windows runners. This task buys the
+# fast half: the errors a compiler finds by reading, in seconds, on this machine.
+#
+# It earned itself immediately — the first run found a `std::mem::forget` on a raw pointer that did
+# nothing, and a deprecated `libc::mach_host_self`, in code that had shipped without ever being
+# compiled for either target.
+check-cross = """
+cargo check --target x86_64-pc-windows-msvc -p fm-agent &&
+cargo check --target aarch64-apple-darwin -p fm-agent
+"""
+
 [environments]
 default = { features = [] }
 media = { features = ["media"] }
 android = { features = ["android"] }
+cross = { features = ["cross"] }
 
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
@@ -147,6 +187,10 @@ test = "cargo test --workspace"
 # the in-app model fetcher. Exercise its hermetic (localhost) tests explicitly, so the single gate
 # still covers it.
 test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
+# **Are the pinned model runtimes still the bytes we recorded?** Downloads ~110 MB, so it is not in
+# the routine gate — run it before cutting a release. An upstream asset that was re-uploaded would
+# otherwise reach a user as an unexplained checksum failure on their first enable.
+check-pins = "cargo test -p fm-agent-run --features download -- --ignored --nocapture every_pinned_runtime"
 # Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
 # `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
 fetch-model = "bash agents/fetch.sh"
@@ -215,7 +259,11 @@ serve-release = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo run --r
 # release workflow's order — `pixi run build`, and only later `pixi run docs` — compiles against a
 # `docs/book` that does not exist yet, and ships a binary whose in-app Help is empty while the
 # `manual/` folder beside it is perfectly correct. Nothing fails; the button just does nothing.
-build = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli", depends-on = ["docs"] }
+# `agent-serve` is built here too since 2026-09-02: it is the assistant's supervisor, and the
+# release archive now carries it so a *downloaded* copy can run the assistant without a checkout.
+# Before that this line built only fm-serve + fm-cli, which is why `fm-agent-run` never reached a
+# release and the archive could carry no assistant at all.
+build = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build --release -p fm-serve -p fm-cli -p fm-agent-run --features fm-agent-run/download", depends-on = ["docs"] }
 # The debug counterpart: unoptimized binaries with full debuginfo at
 # `target/debug/{fm-serve,fm}` (fast to compile, large + slow) for stepping through
 # the server. Pairs with the same `ui/dist`. `fm` for the same reason as above.

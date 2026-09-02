@@ -30,7 +30,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): *The owner's five Track M rulings* · *The Track M record drifted* ·
+- **`#track-m`** (mobile/phone): ***The phone answers the same status shape as the desktop*** (read
+  before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
   `tauri.conf.json` carries the same clause — **but see *A PDF renders on the desktop; the phone
@@ -89,7 +90,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: *The core ships as one file; pixi is the only package manager* · *The TLS
+- **`#toolchain`**: ***A platform arm nobody can compile gets a tested core and a cross-check*** (read before adding per-OS code, or before trusting a grep-shaped guard) · *The core ships as one file; pixi is the only package manager* · *The TLS
   exception: a self-signed leaf, share-only* (read before touching `rustls`/`rcgen` — the `ring`
   pin is a licence gate) · *Every external
   tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
@@ -102,7 +103,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   ***An addition is checked against the record before it is written*** (read before adding a
   dependency, an archive file, a relaxed guard or a changed default) · *The manual's CSP is a named
   exception* (`#ui`).
-- **`#agent`**: ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
+- **`#agent`**: ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `ai-agents-plan.md`.)
 
@@ -4204,3 +4205,222 @@ are gone.
 already records for `formicaria.vbs`. The `.sh` and `.command` were rehearsed end to end against a
 real git-backed vault, including paths containing spaces, an unrelated working directory, two
 candidate folders, a bad argument, and a second run.
+
+## 2026-09-02 — the phone answers the same status shape as the desktop, and AI availability is stated per OS `#agent` `#track-m`
+
+**Why:** asked whether using the AI tools is straightforward and well documented on every supported
+OS. It is not, and the audit turned up a defect the docs had hidden from themselves.
+
+**The bug, and the seam it came through.** `agent_status` on Android answered `{enabled,
+transcribe}` while fm-serve answers `{enabled, transcribe, installed, why, transcribe_available}`.
+`SettingsPanel.svelte` reads `st.installed` — and the phone renders **the same component**, because
+the mobile shell points its webview at the same `ui/dist`. `undefined` is falsy, so the assistant
+row printed *"not available"* with an empty reason and no switch **on the one platform where the
+entire stack ships inside the APK**. The rule this earns: *a shell that renders the shared panel
+answers the shared shape*. Not a comment — a `ci/checks.sh` grep, because this class of defect
+compiles, ships, and is invisible to every test we have (jsdom renders neither shell), and it was
+found by reading rather than by anything failing.
+
+**Verified on the device, which is the only place it could be.** Installed as v0.3.1 (versionCode
+3001) on the owner's phone: the Settings row renders the assistant toggle *and* the audio
+transcription sub-row, which only appears when `installed` **and** `enabled` are both true — the
+exact pair the short shape made unreadable. jsdom renders neither shell, so no test in this repo
+could have shown this.
+
+**Answered by checking, not by asserting.** `installed` asks whether `libllama-server.so` is
+actually in the extracted native-library directory, and `transcribe_available` whether
+`libwhisper-server.so` is. `ci/android-stage-runtime.sh` is what puts them there, so a build made
+without it now says so, exactly as the desktop does when `agents/` is absent. The weights are
+deliberately *not* part of the question: the phone fetches them on first enable, so runtime
+presence is the honest capability there.
+
+**Availability is now stated where the reader already is.** `assistant.md` was candid and alone —
+the three per-OS setup chapters said nothing about AI, `README-release.txt`'s capability list
+omitted it while claiming *"There is nothing else to install. No runtime"*, and `README.md`'s
+recipe carried no platform caveat at all. Each per-OS setup chapter now states that OS's answer,
+which is what `ci/docs.sh`'s per-OS assembly exists for; `assistant.md` opens with the whole matrix
+rather than two paragraphs of disclaimer.
+
+**Stated as a fact with its cause, and no date.** macOS and Windows refuse because the preflight
+that decides whether a machine has room for a model reads `/proc` and fails closed elsewhere — so
+the app declines to run a model it cannot watch. The docs say that, and say nothing about when it
+might change: the honest fix is a monitor for those systems (`GlobalMemoryStatusEx` /
+`host_statistics64`), never a relaxed gate, and promising a date for work nobody has scheduled is
+how a manual starts lying slowly.
+
+**A correction to our own record.** `outstanding.md` §2.6b said the assistant is *"desktop-excluded
+by one Cargo feature"* and that "the Cargo feature is still off there". The `agent` feature is **on**
+in the shipped desktop binary — the API routes exist and answer. What is off is
+`fm-agent-run/download`, and `pixi run build` never builds that crate at all, so the desktop has no
+in-app model fetch and the archive carries no agent stack. Same conclusion, different cause, and the
+difference matters to whoever picks the work up.
+
+**Not done, deliberately:** delivering the assistant to the desktop archive, and macOS/Windows
+support. Both are real and both stay in `outstanding.md` §2.6b rather than being half-started here.
+
+## 2026-09-02 — the assistant provisions itself, so a downloaded copy can run it `#agent` `#toolchain`
+
+**Why:** the owner asked that *all* users be able to use the AI features. Nobody who downloaded
+formicaria could, on any OS — the archive carried no agent stack, `pixi run build` never built
+`fm-agent-run`, and the launch path shelled out to `bash agents/start-agent.sh` plus a Python search
+proxy. Two independent blockers; this entry is the first, **delivery**. The second, macOS and
+Windows, is untouched here and stays gated.
+
+**The archive gains a supervisor, not a runtime.** `agent-serve` and `models.toml` ship beside
+`fm-serve`; the model and the model runtime are **fetched on first enable**. Shipping them was never
+an option — they are per-platform and gigabytes, and one archive cannot carry four platforms' worth
+of binary. This extends the fetched-artifact exception the 2026-08-30 `/transcribe` ruling already
+established rather than opening a new one.
+
+**No shell anywhere in the launch.** `fm-serve` spawns `agent-serve` from beside its own binary —
+`merge_command`'s idiom, never a bare name hoping `PATH` will answer — and makes the whisper
+decision itself from the predicate it already had. `search-proxy.py` is replaced by `--web-direct`,
+the in-process HTTPS search the phone has always used: **DuckDuckGo goes** (it needs HTML scraping),
+wikipedia, GitHub and arXiv remain, and that loss is stated in the manual rather than discovered.
+The `bash`/`python3` capability checks are deleted, not fixed: they described a launch that no
+longer happens, and `on_path`'s Windows arm could not check `.exe`/`PATHEXT` anyway.
+
+**Every runtime archive carries a checksum, and one without is dropped.** A model is pinned by a
+Hugging Face commit *and* a hash; a runtime is a URL to an executable, so the hash is the only thing
+between a redirect and running a stranger's binary. `Manifest::parse` therefore pairs
+`runtime_url_<platform>` with `runtime_sha256_<platform>` and **discards a URL whose checksum is
+missing** — absent is a capability the caller reports, unverified is a binary already running. The
+three Linux archives were downloaded and hashed to pin them; **macOS and Windows have no entry yet**,
+deliberately, because the gate still refuses those platforms and an unverified entry parked here
+would be a promise the file cannot keep.
+
+**Flat suffixed keys, not a `[runtime.…]` table.** The hand parser has no concept of a named table:
+a `[…]` line that is not `[[models]]` is skipped and its keys are then read as *top-level* ones,
+silently. A shape the parser cannot see is worse than an ugly one it can.
+
+**Verified before it is unpacked, and the notice comes with it.** Unpacking an unverified archive
+has already written attacker-chosen paths by the time you notice, so the checksum is checked first.
+Extraction keeps the binary, the libraries beside it, and anything named `LICENSE` — llama.cpp and
+whisper.cpp are MIT and the notice must travel; today it does so only by the accident of
+`agents/fetch.sh` copying a whole tarball. `ci/third-party.sh` gains a section for them too, because
+`cargo tree` cannot see software we put on a user's disk but do not link.
+
+**Tools live in `<config>/formicaria/tools`, not in the app folder.** `vaults::config_dir` already
+resolves it correctly on all three OSs and already holds `vaults.json` and `agent.json`. The
+portable alternative (`outstanding.md` §2.6b's `program/tools/`) loses on two counts: the folder is
+not writable when someone unpacks to `/opt` or `C:\Program Files`, and every update would
+re-download gigabytes into the new folder. **Accepted cost:** a model does not travel on a USB stick
+with the app folder. The vault still does, which is the promise that was actually made.
+
+**The first enable is a question, not a switch.** It offers the catalogue with each model's size and
+licence — both now machine-readable fields, where they were prose in a `note` no parser could read —
+then downloads with progress in **bytes** and a cancel. A percentage would have to be invented when
+the server sends no length. This is deliberately *unlike* the phone, whose toggle starts a 1.4 GB
+download in silence; that is the failure being avoided, not the model being copied. What **is**
+copied from the phone is the generation counter: a worker re-reads it before every step and abandons
+the work when it no longer matches, which is how a cancel lands mid-download before any stop flag
+exists.
+
+**Deferred, and specified rather than half-started:** macOS and Windows need
+`GlobalMemoryStatusEx` / `host_statistics64` behind the existing `ResourceMonitor` trait, and
+`die_with_supervisor` is a `#[cfg(not(unix))]` **no-op** — the "model dies with its supervisor"
+guarantee is silently absent off Unix, which is an orphaned `llama-server` holding gigabytes.
+Note also that `sample()` returning `Err` inside the live watchdog loop *kills a running model*, so
+a monitor that works intermittently is worse than none. `zip` is not a dependency yet for the same
+reason: no Windows archive is pinned, and an extractor for a format nothing fetches would be an
+unused dependency in a shipped binary.
+
+## 2026-09-02 — the assistant asks the machine, not a list of operating systems `#agent` `#toolchain`
+
+**Decision.** macOS and Windows can run the study assistant. The OS allow-list in `unavailable()`
+is replaced by **a real reading**: take one `SystemMonitor::sample()`, and the platform is supported
+exactly when the answer is usable.
+
+**Why a probe and not a longer list.** A hardcoded list is a claim about our code; a sample is a
+fact about the machine in front of the user. It is also the only honest way to ship platform code
+from a machine that cannot compile it — this repo has no Windows or macOS `rust-std`, so the two new
+arms were written, reviewed and shipped **without ever being type-checked**. A probe degrades
+correctly if either is wrong: the sample fails, and the row prints a reason.
+
+**The dangerous failure is not a crash, it is a believable wrong number.** A misread struct field
+does not usually error — it returns `0` or something astronomical. Zero refuses every launch (safe);
+a huge value **admits a model onto a machine with no room**, which is the exact harm preflight
+exists to prevent. So the arithmetic and the bounds live in `plausible()`, which is `cfg`-free,
+compiled everywhere and unit-tested here: anything at or above 1 PiB, or exactly zero, is refused
+with the number named. The unverifiable syscall arms do one call each and hand their result to
+tested code.
+
+**What each platform reads.** Windows: `GlobalMemoryStatusEx`, hand-declared rather than pulling in
+`windows-sys` for one call — the same stance that keeps a hand-rolled HTTP client in `fm_agent`.
+macOS: the mach kernel's VM statistics **through `libc`**, not hand-written bindings, because the
+struct is large and a wrong offset is precisely the silent-wrong-number failure above.
+`free + inactive + purgeable`, because macOS keeps almost nothing strictly "free" and counting only
+`free_count` would refuse launches that are perfectly fine; speculative pages are excluded, since
+counting them tips the estimate optimistic and optimism is the direction that hurts. Neither
+reports a load average — Windows has none — which costs nothing: `Limits::resident()` already sets
+the load ceiling to infinity, and Android has been memory-only since it shipped.
+
+**A build break found on the way, and worth more than the feature.** `die_with_supervisor` was
+`#[cfg(unix)]` and calls `libc::prctl` — which is **Linux-only**; `libc` does not define it on
+macOS. Nothing on macOS had ever compiled `fm-agent`, because `fm-serve` did not depend on it until
+the assistant shipped. **The change that lets a downloaded copy run the assistant is the same change
+that would have broken the macOS release build.** Now `linux`/`android`.
+
+**Windows gains a stronger guarantee than Linux has; macOS gains none.** A Job Object with
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` kills the model whenever the last handle closes, however this
+process dies — better than `PDEATHSIG`, which only fires for a direct parent. It is best-effort and
+silent by construction: every failure path leaves exactly the behaviour that shipped before, so a
+wrong guess about those APIs cannot stop the assistant starting. **macOS has no equivalent** and
+gets none here: there is no `PDEATHSIG`, and a `kqueue`/`EVFILT_PROC` watcher is more machinery than
+this has earned on a platform that is one day old to us. Every ordinary path still kills the child;
+what is lost is the case where the supervisor is itself killed. Recorded in `known-issues.md` rather
+than hidden behind a no-op that reads like it does something.
+
+**Every runtime is pinned and hashed.** macOS ships a `.tar.gz` (the existing extractor), Windows a
+`.zip` — which is what finally justified the `zip` dependency, declined a few hours earlier when no
+Windows archive was pinned. All five archives were downloaded and hashed here; the zip extractor is
+a deliberate mirror of the tar one, same keep-list and same escape refusal, because two formats with
+one policy is the only version of this that stays safe.
+
+**Accepted, and the thing to fix next: none of this has run on a real macOS or Windows machine.**
+It is not compiled here either. The design makes a mistake *safe* — a bad reading refuses — but it
+does not make it *unlikely*, and "refuses on every launch" is a plausible outcome of a wrong
+`libc::vm_statistics64` field on an OS nobody has tried. This is the same standing gap
+`outstanding.md` records for the Windows launcher, and it is why the setup chapters say the platform
+is new rather than implying it is proven.
+
+## 2026-09-02 — a platform arm nobody can compile gets a tested core and a cross-check `#toolchain` `#agent`
+
+**Why:** the macOS and Windows monitors shipped hours earlier having never been through a compiler,
+because this checkout has no `rust-std` for either target. That is not a state to leave standing.
+
+**A `cross` pixi environment, isolated exactly as `android` is.** `rust-std-x86_64-pc-windows-msvc`
+and `rust-std-aarch64-apple-darwin` at 1.97.x, and `pixi run -e cross check-cross`. Out of the
+default environment for the reason the android block already states — `pixi run ci` must stay green
+for someone who has downloaded none of it — and here for a sharper one as well: `pixi.lock` shows
+the android environment resolving a *different* rustc (1.97.1) from the default (1.97.0), so
+cross-target packages in the default environment could quietly move the compiler that builds
+releases.
+
+**It checks `fm-agent` only, and that is the whole of the per-OS code.** The wider crates cannot be
+type-checked here at all: `fm-agent-run --features download` pulls `ureq` → `rustls` → `ring`, whose
+build script compiles C and wants a real MSVC toolchain (`failed to find tool "lib.exe"`). That is a
+cross-*build* environment, which `cross.yml` already provides on real runners. This task buys the
+fast half — the errors a compiler finds by reading — and says so rather than implying more.
+
+**It paid for itself on the first run**, which is the argument for it: a `std::mem::forget` on a raw
+pointer that did nothing (a pointer is `Copy` and has no destructor — it read like a safeguard and
+was noise), and a deprecated `libc::mach_host_self`. Kept the deprecated call deliberately — taking
+the `mach2` crate for one function is the trade this project declines elsewhere, and if `libc` ever
+removes it the cross-check fails on the spot, which is what makes keeping it defensible. Then
+proved the check catches the real thing: reintroducing `#[cfg(unix)]` on the `prctl` arm fails the
+macOS check with `cannot find function prctl in crate libc` — the exact break that would have taken
+down the macOS release build.
+
+**The standing rule this generalises.** A platform arm that cannot be compiled here is written as a
+thin syscall wrapper over a `cfg`-free core that *is* compiled and tested — `plausible()` under the
+monitors, `parse_proc` before it, `lib_dir_from_maps` before that. The unverifiable part stays small
+enough to read; the part that decides anything is tested.
+
+**Two guards that had to be proved, and one that failed the proof.** The archive-staging check —
+"what `fm-serve` looks for beside its binary, the release must stage" — passed while the staging was
+deleted, because the *comment above the staging line* still said `agent-serve`. A guard satisfied by
+prose about the thing reports on its own documentation. It now strips comments before searching, and
+was re-proved in both directions. `pixi run check-pins` (ignored by default, ~110 MB) re-fetches
+every pinned runtime and confirms it still hashes to what the catalogue records — an upstream
+re-upload would otherwise reach a user as an unexplained checksum failure on first enable.

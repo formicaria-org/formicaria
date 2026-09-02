@@ -68,7 +68,10 @@ struct AppState {
     /// `agent` feature. Without the feature this field (and every route that reads it) is gone, so the
     /// core is provably agent-free. Its own module keeps the command core agnostic even *with* it.
     #[cfg(feature = "agent")]
-    agent: agent::AgentState,
+    // **`Arc`, because provisioning outlives the request.** Turning the assistant on can start a
+    // multi-gigabyte download that runs on its own thread and reports progress back into this
+    // state long after the response was written.
+    agent: std::sync::Arc<agent::AgentState>,
     /// Pairing codes, device tokens, and what the listener actually managed to do. See
     /// [`share`] — in particular why the *setting* and the *capability* are separate fields.
     share: share::ShareState,
@@ -90,7 +93,7 @@ impl AppState {
             goodbye: Mutex::new(None),
             connected: AtomicBool::new(false),
             #[cfg(feature = "agent")]
-            agent: agent::AgentState::new(port),
+            agent: std::sync::Arc::new(agent::AgentState::new(port)),
             share: share::ShareState::load(),
         }
     }

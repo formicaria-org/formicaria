@@ -19,11 +19,40 @@ pub struct AgentState {
     pub registry: AgentRegistry,
     pub running: AtomicBool,
     pub port: u16,
+    /// What the first-enable download is doing, for the Settings row to poll. **In memory and
+    /// transport-only**, like the registry beside it: a download is a fact about this run, and
+    /// writing it to disk would leave a stale "downloading" behind a crash.
+    pub provisioning: std::sync::Mutex<Option<Provision>>,
+    /// Bumped every time provisioning is started or stopped. A worker compares it before each step
+    /// and abandons the work when it no longer matches — **the phone's protocol, ported unchanged**
+    /// (`mobile/src-tauri/src/agent.rs`), and the reason a cancel lands even while a 2.5 GB
+    /// download is mid-flight, before any stopper exists to trip.
+    pub generation: std::sync::atomic::AtomicU64,
+}
+
+/// A first-enable download in flight, or how the last one ended.
+#[derive(Clone, serde::Serialize)]
+pub struct Provision {
+    /// What is being fetched right now, in words the row can print: `model`, `projector`,
+    /// `runtime`, `ready`, or `failed`.
+    pub stage: String,
+    pub done: u64,
+    /// `None` while a server sends no length — a progress line must then say bytes, not a lie
+    /// about a percentage.
+    pub total: Option<u64>,
+    /// Set when `stage` is `failed`. Printed verbatim, as every other capability reason here is.
+    pub error: Option<String>,
 }
 
 impl AgentState {
     pub fn new(port: u16) -> Self {
-        Self { registry: AgentRegistry::new(), running: AtomicBool::new(false), port }
+        Self {
+            registry: AgentRegistry::new(),
+            running: AtomicBool::new(false),
+            port,
+            provisioning: std::sync::Mutex::new(None),
+            generation: std::sync::atomic::AtomicU64::new(0),
+        }
     }
 }
 
@@ -57,6 +86,14 @@ struct PresentReq {
 struct EnabledReq {
     #[serde(default)]
     enabled: bool,
+    /// Which catalogued model to provision, when the caller chose one. `None` takes the
+    /// catalogue's default — the first-enable screen names it either way.
+    #[serde(default)]
+    model: Option<String>,
+    /// Fetch the projector too, so the assistant can read images. A separate, larger download and
+    /// therefore a separate answer, never inferred from the model having one.
+    #[serde(default)]
+    vision: bool,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -91,6 +128,186 @@ pub fn transcribe_enabled() -> bool {
         .unwrap_or(false)
 }
 
+/// Provision the assistant — fetch the runtime, the model, and the projector if one is wanted —
+/// then start it. Runs on its own thread; the caller returns immediately.
+///
+/// **The generation counter is the whole cancellation story**, taken from the phone. A 2.5 GB
+/// download cannot be interrupted by a stop flag that does not exist until the model is running, so
+/// the worker re-reads the generation before and during every step and abandons the work the moment
+/// it no longer matches. Turning the assistant off bumps it; so does turning it on again.
+///
+/// Nothing here is fatal to the app: a failure sets `stage: "failed"` with the reason, which the
+/// Settings row prints, and leaves the `.part` files where a retry resumes them.
+pub fn provision_and_spawn(state: &Arc<AgentState>, model: Option<String>, want_vision: bool) {
+    let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let st = Arc::clone(state);
+    std::thread::spawn(move || {
+        let set = |stage: &str, done: u64, total: Option<u64>, error: Option<String>| {
+            if st.generation.load(Ordering::SeqCst) != gen {
+                return false; // retired: stop touching shared state
+            }
+            *st.provisioning.lock().unwrap() =
+                Some(Provision { stage: stage.into(), done, total, error });
+            true
+        };
+        let live = || st.generation.load(Ordering::SeqCst) == gen;
+        let cancelled = || !live();
+
+        let Some(dir) = agents_dir() else {
+            set("failed", 0, None, Some("no place to keep the assistant on this machine".into()));
+            return;
+        };
+        if let Err(e) = std::fs::create_dir_all(dir.join("models")) {
+            set("failed", 0, None, Some(format!("cannot create {}: {e}", dir.display())));
+            return;
+        }
+        // The catalogue: whatever is already in the tools directory, else the copy shipped beside
+        // the binary — copied in on first use, exactly as the phone writes its embedded one.
+        let Some(mpath) = manifest_path() else {
+            set("failed", 0, None, Some("the assistant has no model catalogue here".into()));
+            return;
+        };
+        if mpath != dir.join("models.toml") {
+            let _ = std::fs::copy(&mpath, dir.join("models.toml"));
+        }
+        let manifest = match fm_agent_run::manifest::Manifest::read(&mpath) {
+            Ok(m) => m,
+            Err(e) => {
+                set("failed", 0, None, Some(e));
+                return;
+            }
+        };
+        let name = model.unwrap_or_else(|| manifest.default.clone());
+
+        // 1. The runtime. Skipped where a platform has no verified archive pinned — which is a
+        //    capability to report, never a reason to fetch something unverified.
+        let progress = |stage: &'static str| {
+            let st = Arc::clone(&st);
+            move |done: u64, total: Option<u64>| {
+                if st.generation.load(Ordering::SeqCst) == gen {
+                    *st.provisioning.lock().unwrap() =
+                        Some(Provision { stage: stage.into(), done, total, error: None });
+                }
+            }
+        };
+        if !dir.join("runtime").join(server_bin()).exists() {
+            let Some(key) = fm_agent_run::manifest::Manifest::platform_key() else {
+                set("failed", 0, None, Some(
+                    "no model runtime has been published for this kind of computer yet".into(),
+                ));
+                return;
+            };
+            let Some(rt) = manifest.runtime(key) else {
+                set("failed", 0, None, Some(format!(
+                    "no verified model runtime is pinned for {key} yet"
+                )));
+                return;
+            };
+            if !set("runtime", 0, None, None) {
+                return;
+            }
+            if let Err(e) = fm_agent_run::fetch::ensure_runtime(
+                &dir.join("runtime"),
+                rt,
+                server_bin(),
+                &progress("runtime"),
+                &cancelled,
+            ) {
+                if live() {
+                    set("failed", 0, None, Some(e));
+                }
+                return;
+            }
+        }
+
+        // 2. The weights.
+        if !set("model", 0, None, None) {
+            return;
+        }
+        if let Err(e) = fm_agent_run::fetch::ensure_model(
+            &dir.join("models"),
+            &manifest,
+            &name,
+            &progress("model"),
+            &cancelled,
+        ) {
+            if live() {
+                set("failed", 0, None, Some(e));
+            }
+            return;
+        }
+
+        // 3. The projector, only when asked for: it is another download and buys exactly one
+        //    capability. Its absence disables image reading and nothing else.
+        if want_vision {
+            if !set("projector", 0, None, None) {
+                return;
+            }
+            if let Err(e) = fm_agent_run::fetch::ensure_mmproj(
+                &dir.join("models"),
+                &manifest,
+                &name,
+                &progress("projector"),
+                &cancelled,
+            ) {
+                if live() {
+                    set("failed", 0, None, Some(e));
+                }
+                return;
+            }
+        }
+
+        if !live() {
+            return;
+        }
+        set("ready", 0, None, None);
+        spawn(st.port);
+    });
+}
+
+/// Is the assistant's stack already on this machine — runtime **and** weights?
+///
+/// Distinct from `unavailable()`, which asks whether this copy could ever run it. This asks whether
+/// turning it on costs a download, which is the difference between a switch and a question.
+///
+/// The weights are checked by "any `.gguf` in `models/`" rather than by name: the catalogue's
+/// default can change under an installation that already has a perfectly good model, and
+/// re-downloading 2.5 GB because a default moved would be the wrong answer.
+pub fn provisioned() -> bool {
+    agents_dir().is_some_and(|d| provisioned_in(&d))
+}
+
+/// The predicate itself, against a named directory, so it is tested without a 2.5 GB download —
+/// the same shape as [`transcribe_staged_in`] below and for the same reason.
+fn provisioned_in(dir: &std::path::Path) -> bool {
+    if !dir.join("runtime").join(server_bin()).exists() {
+        return false;
+    }
+    std::fs::read_dir(dir.join("models")).is_ok_and(|mut d| {
+        d.any(|e| {
+            e.is_ok_and(|e| e.path().extension().is_some_and(|x| x.eq_ignore_ascii_case("gguf")))
+        })
+    })
+}
+
+/// Is this directory a **checkout's** `agents/` rather than the per-user tools directory?
+///
+/// The catalogue is the tell: a checkout carries `models.toml` in git, and an empty `agents/`
+/// sitting beside a released binary must not shadow the real tools directory — which is exactly
+/// what "does this path exist" would have done.
+fn looks_like_a_checkout(dir: &std::path::Path) -> bool {
+    dir.join("models.toml").exists()
+}
+
+/// The model server's filename on this platform.
+fn server_bin() -> &'static str {
+    if cfg!(windows) {
+        "llama-server.exe"
+    } else {
+        "llama-server"
+    }
+}
+
 /// Spawn the local study agent — the opt-in script in `agents/`, told which fm-serve port to watch.
 /// Returns whether it started. The agent (a separate process) then follows this server's liveness and
 /// stops itself when we stop answering, so it needs no supervision from here.
@@ -99,13 +316,35 @@ pub fn spawn(port: u16) -> bool {
         eprintln!("study agent: enabled, but it cannot run here — {why}");
         return false;
     }
-    let Some(script) = script_path() else { return false };
-    let mut cmd = std::process::Command::new("bash");
-    cmd.arg(&script).arg(port.to_string());
-    // The agent stack inherits this; agent-serve.sh turns on whisper only when it is set.
-    if transcribe_enabled() {
-        cmd.env("FM_TRANSCRIBE", "1");
+    let Some(dir) = agents_dir() else { return false };
+    let Some(exe) = agent_serve_path() else { return false };
+
+    // **No shell.** This ran `bash agents/start-agent.sh`, which started `search-proxy.py`, trapped
+    // it on exit and `tee`d a log — about ten lines of real work between two scripts, wrapping a
+    // supervisor that was already Rust. The phone has run this same stack with no shell since it
+    // shipped; the desktop now does too, which is what lets it run where `bash` and `python3` are
+    // not a given, and what lets it run at all from an unpacked archive.
+    let mut cmd = std::process::Command::new(&exe);
+    cmd.arg("--agents-dir").arg(&dir).arg("--serve-port").arg(port.to_string());
+    // In-process HTTPS search, since there is no proxy to start without a shell.
+    cmd.arg("--web-direct");
+
+    // The whisper decision `agents/agent-serve.sh` used to make, from the predicate that already
+    // existed here for the settings row — so the duplication `ci/checks.sh` polices goes away.
+    if transcribe_enabled() && transcribe_staged_in(&dir) {
+        cmd.arg("--whisper-port").arg((WHISPER_PORT).to_string());
     }
+
+    // The rolling log `start-agent.sh` kept, minus `tee`: a released app has no terminal to read.
+    match log_file(&dir) {
+        Some(f) => {
+            let Ok(err) = f.try_clone() else { return false };
+            cmd.stdout(std::process::Stdio::from(f)).stderr(std::process::Stdio::from(err));
+        }
+        // No log is not a reason to refuse to start; it is a reason to say so.
+        None => eprintln!("study agent: could not open its log — running without one"),
+    }
+
     match cmd.spawn() {
         Ok(_) => {
             println!("study agent: starting — it comes up in a few seconds");
@@ -118,38 +357,50 @@ pub fn spawn(port: u16) -> bool {
     }
 }
 
-/// Where the agent stack is, if it is on this machine at all.
+/// The agent stack's directory — `runtime/` and `models/` live under it.
 ///
-/// **Resolved beside the running binary first, not against the working directory.** This was a bare
-/// relative `agents/start-agent.sh`, which resolves against whatever cwd the process was handed —
-/// `$HOME` for a double-clicked launcher — so a released build could never find the stack even if it
-/// had been shipped. Same reasoning, and the same fix, as `fm_core::git`'s merge-driver lookup:
-/// *never a bare relative path hoping the cwd will answer.*
+/// **Two places, and the order is the decision.** A checkout's `agents/` wins when it is there, so
+/// the dev loop is untouched by any of this. Otherwise it is `<config>/formicaria/tools`, the
+/// per-user directory `vaults::config_dir` already resolves correctly on Linux, macOS and Windows —
+/// and already holds `vaults.json` and `agent.json`, so this adds a directory rather than a
+/// concept.
 ///
-/// The checkout root stays a fallback, because that is where the dev loop runs from.
-pub fn script_path() -> Option<PathBuf> {
+/// **Not inside the unpacked app folder**, which was the other candidate (`outstanding.md` §2.6b)
+/// and would have travelled when the folder is copied. It loses on two counts: the folder is not
+/// writable when someone unpacks to `/opt` or `C:\Program Files`, and every update would re-download
+/// gigabytes into the new folder. The vault stays portable; a model is a per-machine cache and is
+/// treated as one. Accepted and recorded in `decisions.md`.
+pub fn agents_dir() -> Option<PathBuf> {
+    // The checkout, when this is a dev run: `agents/` beside the binary, or at the repo root.
     let beside = std::env::current_exe()
         .ok()
-        .and_then(|e| e.parent().map(|p| p.join("agents").join("start-agent.sh")));
-    beside
+        .and_then(|e| e.parent().map(|p| p.join("agents")));
+    if let Some(dir) = beside
         .into_iter()
-        .chain(std::iter::once(PathBuf::from("agents/start-agent.sh")))
-        .find(|p| p.exists())
+        .chain(std::iter::once(PathBuf::from("agents")))
+        .find(|p| looks_like_a_checkout(p))
+    {
+        return Some(dir);
+    }
+    fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("tools"))
 }
 
-/// The agent stack's directory — `runtime/`, `models/` and the scripts live under it.
-fn agents_dir() -> Option<PathBuf> {
-    script_path().and_then(|p| p.parent().map(PathBuf::from))
-}
-
-/// Is `program` an executable file on `PATH`?
+/// The model catalogue this installation reads.
 ///
-/// The mode bit matters: a *readable* `bash` that cannot be executed fails at `spawn` exactly like
-/// an absent one, and a capability check that stops one step short of the thing it is predicting is
-/// how this row came to say "yes" about a machine that answers "no".
-fn on_path(program: &str) -> bool {
-    let Some(path) = std::env::var_os("PATH") else { return false };
-    std::env::split_paths(&path).any(|dir| executable(&dir.join(program)))
+/// Shipped in the archive beside the binary and copied into the tools directory on first use, the
+/// way the phone writes its embedded copy on every start — so a release has a catalogue without a
+/// checkout, and a hand-edited one is still honoured.
+pub fn manifest_path() -> Option<PathBuf> {
+    let dir = agents_dir()?;
+    let in_tools = dir.join("models.toml");
+    if in_tools.exists() {
+        return Some(in_tools);
+    }
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|p| p.join("models.toml")))
+        .filter(|p| p.exists())?;
+    Some(beside)
 }
 
 #[cfg(unix)]
@@ -186,31 +437,45 @@ pub fn unavailable() -> Option<String> {
     // `preflight::admit` refuses before a model is ever spawned. Offering a switch there is
     // offering a switch onto a refusal. (`decisions.md#agent`, and the plan that split this out:
     // those platforms arrive with a monitor of their own, not by relaxing this.)
-    if !cfg!(any(target_os = "linux", target_os = "android")) {
-        return Some(
-            "The study assistant runs on Linux today. Everything else in formicaria works normally \
-             here — your notes, search, boards and backup are unaffected."
-                .into(),
-        );
-    }
-    if script_path().is_none() {
-        return Some(
-            "The assistant is not on this machine yet, so it cannot be turned on. Everything else \
-             works normally — your notes, search, boards and backup are unaffected."
-                .into(),
-        );
-    }
-    // `start-agent.sh` is bash and runs `search-proxy.py`. Both are shelled out to by name, so a
-    // machine without them fails at `spawn` — into a stderr the launcher hides by design.
-    let missing: Vec<&str> = ["bash", "python3"].into_iter().filter(|p| !on_path(p)).collect();
-    if !missing.is_empty() {
+    //
+    // **Replaced by an actual reading (2026-09-02).** It used to be a hardcoded OS list, which is a
+    // claim about the code rather than about the machine. Now it *asks*: take one sample, and the
+    // platform is supported exactly when the answer is usable. That is the same "a capability with
+    // a reason" stance the rest of this file already takes — and it is what makes the Windows and
+    // macOS arms safe to ship from a machine that cannot compile them. If either is wrong, the
+    // sample fails or returns something implausible, and this refuses with a reason. The bad
+    // outcome — a believable-but-wrong number letting a model onto a machine with no room — is
+    // caught by `plausible()` inside the monitor, which *is* compiled and tested here.
+    if let Err(e) = fm_agent_run::fm_agent::watchdog::ResourceMonitor::sample(
+        &fm_agent_run::fm_agent::watchdog::SystemMonitor,
+    ) {
         return Some(format!(
-            "The assistant needs {} on this machine, and cannot find {}. Everything else works \
-             normally.",
-            missing.join(" and "),
-            if missing.len() == 1 { "it" } else { "them" },
+            "The study assistant cannot run on this computer: {e} Everything else in formicaria \
+             works normally — your notes, search, boards and backup are unaffected."
         ));
     }
+    // The supervisor itself, which ships in the archive beside `fm-serve`. Everything else — the
+    // model, the runtime — is fetched on first enable, so its absence is not a reason to refuse.
+    if agent_serve_path().is_none() {
+        return Some(
+            "This copy of formicaria did not come with the assistant, so it cannot be turned on. \
+             Everything else works normally — your notes, search, boards and backup are unaffected."
+                .into(),
+        );
+    }
+    // A catalogue is needed to know *what* to fetch. Beside the binary in a release, in `agents/`
+    // in a checkout.
+    if manifest_path().is_none() {
+        return Some(
+            "The assistant cannot find its list of models on this machine, so it does not know \
+             what to download. Everything else works normally."
+                .into(),
+        );
+    }
+    // **No `bash` or `python3` check any more.** They were here because the launch shelled out to
+    // two scripts; it no longer does, and a capability check for a tool nothing runs is a refusal
+    // with no cause. `on_path`'s Windows arm could not check `.exe`/`PATHEXT` anyway, so deleting
+    // the check is better than fixing it.
     None
 }
 
@@ -224,6 +489,30 @@ pub fn unavailable() -> Option<String> {
 /// a shell script cannot export a predicate. `ci/checks.sh` asserts the two stay in step.
 pub fn transcribe_available() -> bool {
     agents_dir().is_some_and(|d| transcribe_staged_in(&d))
+}
+
+/// The port the audio runtime listens on, as `agents/agent-serve.sh` chose it.
+const WHISPER_PORT: u16 = 8082;
+
+/// `agent-serve` beside the running binary — the same idiom as `fm_core::git::merge_command`, and
+/// for the same reason: never a bare name hoping `PATH` will answer.
+pub fn agent_serve_path() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let bin = exe.parent()?.join(if cfg!(windows) { "agent-serve.exe" } else { "agent-serve" });
+    bin.exists().then_some(bin)
+}
+
+/// The agent's rolling log, `<agents-dir>/runtime/agent.log`, rolled at 5 MB exactly as
+/// `start-agent.sh` did — an assistant that has been enabled for months should not have written an
+/// unbounded file into a user's config directory.
+fn log_file(dir: &std::path::Path) -> Option<std::fs::File> {
+    let runtime = dir.join("runtime");
+    std::fs::create_dir_all(&runtime).ok()?;
+    let log = runtime.join("agent.log");
+    if std::fs::metadata(&log).is_ok_and(|m| m.len() > 5_000_000) {
+        let _ = std::fs::rename(&log, runtime.join("agent.log.1"));
+    }
+    std::fs::OpenOptions::new().create(true).append(true).open(&log).ok()
 }
 
 /// The predicate itself, against a named directory, so it can be tested without a staged runtime.
@@ -309,10 +598,50 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
                 "why": why.unwrap_or_default(),
                 // The sub-toggle has a capability of its own — the runtime is a separate download.
                 "transcribe_available": transcribe_available(),
+                // Whether the model and runtime are already here. `installed` says the app *can*
+                // provision; this says whether it still has to — the difference between "turn it
+                // on" and "download 2.5 GB and then turn it on", which a person deserves to know
+                // before clicking rather than after.
+                "provisioned": provisioned(),
+                // A download in flight, or how the last one ended. Null when nothing is happening.
+                "provisioning": *state.agent.provisioning.lock().unwrap(),
             })
             .to_string()
             .into_bytes(),
             )
+        }
+        // What the first-enable screen offers: every catalogued model, what it costs, and under
+        // what licence — so the question can be asked *before* the download rather than explained
+        // after it. Read-only and cheap: one small file, no network.
+        "/api/agent_models" => {
+            let models = manifest_path()
+                .and_then(|p| fm_agent_run::manifest::Manifest::read(&p).ok())
+                .map(|m| {
+                    let default = m.default.clone();
+                    let list: Vec<_> = m
+                        .names()
+                        .into_iter()
+                        .filter_map(|n| {
+                            let model = m.model(&n)?;
+                            // Whisper weights are catalogued here too, and are not something to
+                            // offer as "the assistant" — they arrive with audio transcription.
+                            if model.repo.contains("whisper") {
+                                return None;
+                            }
+                            Some(serde_json::json!({
+                                "name": n,
+                                "bytes": model.bytes,
+                                "license": model.license,
+                                "vision": model.mmproj.is_some(),
+                                "mmproj_bytes": model.mmproj_bytes,
+                                "default": n == default,
+                            }))
+                        })
+                        .collect();
+                    list
+                })
+                .unwrap_or_default();
+            ("200 OK", "application/json", serde_json::json!(models).to_string().into_bytes())
         }
         "/api/set_agent" => {
             let want = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default().enabled;
@@ -327,12 +656,26 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
                     why.as_bytes(),
                 ));
             }
+            let req = serde_json::from_slice::<EnabledReq>(body).unwrap_or_default();
             match set_enabled(want) {
-                // Turning it ON starts it immediately (the atomic guard makes sure only one spawns);
-                // OFF just persists the setting — the running agent stops when the app closes.
+                // Turning it ON provisions first when anything is missing — the model and the
+                // runtime are downloads, and this is the only place that knows they are wanted.
+                // Already provisioned? Start immediately, as before. OFF bumps the generation, so a
+                // download in flight is abandoned rather than left running invisibly.
                 Ok(()) => {
-                    if want && !state.agent.running.swap(true, Ordering::Relaxed) && !spawn(state.agent.port) {
-                        state.agent.running.store(false, Ordering::Relaxed);
+                    if want {
+                        if provisioned() {
+                            if !state.agent.running.swap(true, Ordering::Relaxed)
+                                && !spawn(state.agent.port)
+                            {
+                                state.agent.running.store(false, Ordering::Relaxed);
+                            }
+                        } else {
+                            provision_and_spawn(&state.agent, req.model.clone(), req.vision);
+                        }
+                    } else {
+                        state.agent.generation.fetch_add(1, Ordering::SeqCst);
+                        *state.agent.provisioning.lock().unwrap() = None;
                     }
                     ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
                 }
@@ -405,12 +748,100 @@ pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppS
 mod tests {
     use super::*;
 
-    /// The `PATH` scan predicts a `spawn`, so it has to agree with one. `sh` is on every machine
-    /// this crate builds for; the second name is not on any.
+    /// A throwaway directory, matching the style of the other file-touching tests here.
+    fn scratch(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("fm-agent-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// **The difference between "turn it on" and "download a few gigabytes".** Half a stack is not
+    /// a stack: a runtime with no weights, or weights with no runtime, must both read as not
+    /// provisioned, or the first enable would skip the question and start a model that is not there.
     #[test]
-    fn a_program_is_on_path_only_if_it_could_actually_be_run() {
-        assert!(on_path("sh"));
-        assert!(!on_path("fm-no-such-program-anywhere"));
+    fn a_half_provisioned_directory_is_not_provisioned() {
+        let dir = scratch("provisioned");
+        std::fs::create_dir_all(dir.join("runtime")).unwrap();
+        std::fs::create_dir_all(dir.join("models")).unwrap();
+        assert!(!provisioned_in(&dir), "an empty pair of directories is nothing at all");
+
+        std::fs::write(dir.join("runtime").join(server_bin()), b"#!/bin/true").unwrap();
+        assert!(!provisioned_in(&dir), "a runtime with no weights cannot answer anything");
+
+        std::fs::write(dir.join("models").join("some-model.gguf"), b"weights").unwrap();
+        assert!(provisioned_in(&dir), "runtime + weights is the whole condition");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The weights are matched by **extension, not by name**, on purpose: the catalogue's default
+    /// can move under an installation that already holds a perfectly good model, and re-downloading
+    /// gigabytes because a default changed would be the wrong answer.
+    #[test]
+    fn any_gguf_counts_as_weights_whatever_the_catalogue_now_prefers() {
+        let dir = scratch("provisioned-any");
+        std::fs::create_dir_all(dir.join("runtime")).unwrap();
+        std::fs::create_dir_all(dir.join("models")).unwrap();
+        std::fs::write(dir.join("runtime").join(server_bin()), b"x").unwrap();
+        std::fs::write(dir.join("models").join("a-model-nobody-ships-today.GGUF"), b"w").unwrap();
+        assert!(provisioned_in(&dir), "case-insensitive, and not tied to a filename we chose");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A directory is a checkout's `agents/` because it carries the catalogue — never merely
+    /// because something of that name exists. An empty `agents/` beside a released binary would
+    /// otherwise shadow the real tools directory and the assistant would look uninstalled.
+    #[test]
+    fn an_empty_agents_directory_does_not_masquerade_as_a_checkout() {
+        let dir = scratch("checkout");
+        assert!(!looks_like_a_checkout(&dir), "an empty directory is not a checkout");
+        std::fs::write(dir.join("models.toml"), b"default = \"x\"").unwrap();
+        assert!(looks_like_a_checkout(&dir), "the catalogue is the tell");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The gate is a **reading of this machine**, not a list of operating systems.
+    ///
+    /// **This is the cross-platform test.** On Linux it guards a regression. Run on macOS or
+    /// Windows — which is what `cross.yml` does on real runners — it is the first and only thing
+    /// that actually *executes* `GlobalMemoryStatusEx` and the mach VM statistics: the arms that
+    /// were written on a machine that cannot compile them. A wrong struct layout shows up here as
+    /// a refusal or an absurd number, on the platform itself, in CI output.
+    ///
+    /// So it asserts the **value**, not merely that the call returned. `plausible()`'s own bounds
+    /// are deliberately wide (anything under 1 PiB), because its job is to catch nonsense without
+    /// second-guessing a machine's size. A test knows more: any computer running this suite has
+    /// more than 128 MB free and less than 1 TB, and a reading outside that is a misread field
+    /// however plausible it looked to the guard.
+    #[test]
+    fn the_memory_reading_this_platform_gives_is_usable() {
+        let sample = fm_agent_run::fm_agent::watchdog::ResourceMonitor::sample(
+            &fm_agent_run::fm_agent::watchdog::SystemMonitor,
+        )
+        .expect("this machine's memory must be readable — that is the whole platform gate");
+
+        let mb = sample.mem_available_bytes / 1_000_000;
+        // Printed so a CI run on macOS or Windows *shows the number*, not just a green tick: the
+        // first evidence anyone will have that those arms read the right field.
+        println!("available memory as this platform reports it: {mb} MB");
+        assert!(
+            (128..1_000_000).contains(&mb),
+            "{mb} MB is not a believable amount of free memory — the field is probably misread"
+        );
+    }
+
+    /// The supervisor is looked for **beside the running binary**, never on `PATH` — the
+    /// `merge_command` idiom. Under `cargo test` the running binary is a test harness in
+    /// `target/debug/deps`, so there is no `agent-serve` beside it and this must answer `None`
+    /// rather than finding some other copy.
+    #[test]
+    fn the_supervisor_is_resolved_beside_the_binary_or_not_at_all() {
+        if let Some(p) = agent_serve_path() {
+            let exe = std::env::current_exe().unwrap();
+            assert_eq!(p.parent(), exe.parent(), "only ever beside the running binary");
+        }
     }
 
     /// The toggle used to store a preference, answer `{"ok":true}`, and change nothing: whisper is

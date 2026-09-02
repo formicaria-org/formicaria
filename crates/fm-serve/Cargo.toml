@@ -20,7 +20,7 @@ path = "src/main.rs"
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
 default = ["agent", "tls"]
-agent = []
+agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
 # Sharing itself is dep-free and always compiled. `tls` adds `rustls` + `rcgen`, and exists so
@@ -36,6 +36,11 @@ fm-model = { workspace = true }
 fm-query = { workspace = true }
 fm-core = { workspace = true }
 fm-app = { path = "../fm-app" }
+# The in-app provisioner. `download` is what compiles `fetch.rs` (resumable, checksum-verified) and
+# `DirectSearch` (in-process HTTPS search) — the two things that let a *downloaded* copy run the
+# assistant with no checkout, no `bash` and no `python3`. Until 2026-09-02 this feature existed and
+# nothing on the desktop turned it on, which is why the archive could carry no assistant at all.
+fm-agent-run = { path = "../fm-agent-run", features = ["download"], optional = true }
 serde = { workspace = true }
 serde_json = "1"
 # The one thing in the sharing path that must not be hand-rolled. Everything else it needs —

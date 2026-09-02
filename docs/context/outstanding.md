@@ -575,7 +575,10 @@ and that half is deliberately not built yet.
 **The installer.** Fetch what a feature needs into `<app>/program/tools/` — portable, no admin
 rights, travels when the folder is copied. Every piece exists and none is wired together:
 - `crates/fm-agent-run/src/fetch.rs` — resumable, SHA-256 verified, atomic, progress callback,
-  hermetic tests already in `pixi run ci`, **desktop-excluded by one Cargo feature**.
+  hermetic tests already in `pixi run ci`, **desktop-excluded by one Cargo feature** — and the
+  feature is `fm-agent-run/download`, *not* `fm-serve/agent`, which is on in the shipped binary
+  (corrected 2026-09-02). `pixi run build` also never builds `fm-agent-run` at all, so wiring the
+  fetch means building that crate for the desktop as well as enabling the feature.
 - `pixi.lock` already pins poppler, libvips and restic for all four platforms with checksums, so
   installing means fetching *the exact artifact pixi would*.
 - `packaging/formicaria.sh` records the proof they are relocatable: run "with PATH alone, resolving
@@ -597,7 +600,9 @@ enable, ship the manifest in the archive, start the runtime. **The blocker is cl
 `decisions.md#agent`): `models.toml` now pins every model to a Hugging Face **commit + SHA-256**, and
 `fetch.rs` gained the read timeout, the identity encoding, the completeness check, the fatal/transient
 split and the cancel flag it needed before being armed. What remains is the *desktop* wiring — the
-Cargo feature is still off there, and the runtime is still not in the archive.
+`download` feature is still off there, `fm-agent-run` is not built by `pixi run build`, and the
+runtime is still not in the archive. **Consequence, stated plainly since 2026-09-02:** a downloaded
+copy cannot run the assistant on *any* OS, Linux included.
 
 **Smaller, same theme — closed 2026-08-29** (`decisions.md#ui`, *One tag is an arrangement*): the
 "save this view" naming step is a real dialog now, not a `window.prompt()`, and it asks the two
