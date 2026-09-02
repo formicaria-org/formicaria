@@ -95,6 +95,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
   it was fired on* (read before changing a workflow trigger — disabling one re-meanings the rest) ·
   *The manual travels in the archive* (built-and-discarded docs do not exist) ·
+  ***The archive carries its own update path, and it copies one way*** (read before touching the
+  update script, `vaults.json` copying, or before adding a "you may have made a mistake" warning) ·
   ***What ships is an app, not a binary*** (read before touching `packaging/launcher/` or the
   `stage` step — the portable-vault recipe is exact and the CSP one is not obvious) ·
   ***An addition is checked against the record before it is written*** (read before adding a
@@ -4144,3 +4146,61 @@ reopen — and the answer is more likely a per-vault opt-out than raising the nu
 the form can warn before the backend refuses, and `ci/checks.sh` fails when the two disagree —
 proved against a deliberate mismatch before being trusted. Two constants that must agree and no
 guard is precisely how they stop agreeing.
+
+## 2026-09-02 — the archive carries its own update path, and it copies one way `#toolchain` `#vault`
+
+**Why:** the owner asked whether a user can update and keep their vaults, *"because we are
+shipping a vault with fm — if the user does not check it, it might delete it in the update
+process."* The audit found no updater, no version check, no migration, and **the word "update" in
+no user-facing document at all** — not `README-release.txt`, not the manual, not the release
+notes. The safe procedure existed and was written down nowhere.
+
+**The risk is not what it first looks like.** Each release unpacks into its own versioned folder
+(`formicaria-${VERSION}-${target}`), so an extraction cannot overwrite the previous one — the
+archive deletes nothing. The danger is the *person*: the vault lives inside the folder, so a new
+download opens on a pristine "Start here" note and someone's work appears to be gone. From there
+they either believe the update destroyed it or tidy away the "old" folder, and **that** is the
+deletion. `README-release.txt` teaches folder-as-app (*"copy this whole folder to a USB stick"*),
+which makes "new folder replaces old folder" the natural instinct. The portability that makes the
+app what it is, is also what sets the trap.
+
+**Consequence: one script per platform in the archive, and the direction is the decision.** It runs
+in the **new** folder and copies the old vault **in** — never the new program out into the old
+folder. That way the old folder is never written to and never deleted, so it stays a complete
+backup until the user chooses otherwise, and the worst outcome of a mistake is a folder to throw
+away rather than a notebook that cannot be recovered. It never deletes anything.
+
+**`vaults.json` is deliberately not copied, and this is the sharp edge.** `vaults::save` writes
+each vault's **absolute** path — its own doc comment says so: *"It does freeze that path into
+config."* Bring that file across and the new formicaria quietly keeps writing into the folder the
+user is about to delete. Left behind, the launcher's `FM_VAULT` points at the vault beside it and
+the file is rewritten on first start. The cost is that vaults kept *outside* the folder lose their
+registration, so the script reads the old file and **names them** rather than letting the absence
+be discovered later. `index.sqlite` is skipped for the reason `acquire::naturalise` already
+removes it: per-machine, rebuilt on open, and a stale index that looks current is worse than none.
+
+**Refusing on "already used", not on a note count.** Three signs — `vaults.json`, `vault/.git`,
+`vault/index.sqlite`, plus the `update.log` the script writes — distinguish a fresh unpack from a
+live notebook. A count cannot: someone who deleted the welcome note has zero notes and a real
+vault. Copying a second notebook onto a live one would mix two sets of files with no way to
+separate them afterwards.
+
+**No heuristic warning inside the app, and that was a choice.** The tempting feature is "if this
+vault holds only the welcome note and a sibling folder has a real one, say so". It was declined:
+the same shape is produced by a deliberate second copy, a portable stick, and a fresh install
+beside an archived one — and a warning that cries wolf on legitimate uses trains people to dismiss
+the one that matters. **What shipped instead is the missing fact**: the app now reports its own
+version (Settings → This machine), because until now two unpacked folders were indistinguishable
+from the inside. `option_env!("FM_VERSION")`, baked in by the release workflow and `dev` otherwise —
+the crates are all `0.0.0`, so there was no version to report even if something had asked. No
+comparison, no update check, nothing fetched.
+
+**Guarded, because the sheet promising the script and the workflow staging it are separate files.**
+`ci/checks.sh`'s release-sheet check gains the update script's base name. A stale README costs a
+user the app; this one would cost them their notes at exactly the moment they believe those notes
+are gone.
+
+**Accepted cost:** the Windows `.bat` has been executed by nobody, exactly as `outstanding.md`
+already records for `formicaria.vbs`. The `.sh` and `.command` were rehearsed end to end against a
+real git-backed vault, including paths containing spaces, an unrelated working directory, two
+candidate folders, a bad argument, and a second run.

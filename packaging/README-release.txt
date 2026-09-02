@@ -107,7 +107,56 @@ This folder contains the whole application. Nothing gets installed.
 
 
 ------------------------------------------------------------------------------
-  4. WHAT YOU NEED
+  4. INSTALLING A NEW VERSION
+------------------------------------------------------------------------------
+
+  *** YOUR NOTES ARE NOT IN THE NEW DOWNLOAD. THEY ARE STILL IN THIS FOLDER. ***
+
+  Every version arrives as its own folder - "formicaria-v0.2.1-...", then
+  "formicaria-v0.2.2-..." - and, as section 3 says, your notes live in the
+  "vault" folder inside the one you have been using.
+
+  So a new download starts empty. It shows the same "Start here" note you saw
+  the very first time, and it looks as though your writing is gone.
+
+  It is not gone. It is in the old folder, exactly where you left it.
+
+  TO MOVE IT ACROSS:
+
+    1. Unpack the new download, next to the old folder.
+    2. Open the NEW folder and double-click:
+
+           Windows      Update from an older folder.bat
+           macOS        Update from an older folder.command
+           Linux        Update from an older folder.sh
+
+    3. It finds your old folder, tells you how many notes it is about to
+       copy, and asks you to type "yes" before it does anything.
+
+  If it cannot work out which folder is the old one - because you keep several
+  - drag the old folder onto that same file and it will use the one you point
+  at.
+
+  IT NEVER TOUCHES THE OLD FOLDER. Nothing is moved out of it and nothing is
+  deleted from it, so until you say otherwise it stays a complete second copy
+  of everything you had.
+
+  *** DO NOT DELETE THE OLD FOLDER UNTIL YOU HAVE STARTED THE NEW ONE AND
+      SEEN YOUR NOTES THERE. ***
+
+  Prefer to do it yourself? Copy the "vault" folder out of the old folder and
+  into the new one. That is the whole operation. Do not also copy
+  "vaults.json": it records the old folder's location, and the new copy would
+  quietly keep writing into the folder you are about to remove.
+
+  If you kept other notebooks in places of your own, outside these folders,
+  the app will not know about them until you add them again - the notes
+  themselves are untouched wherever you put them. The update script lists any
+  it finds.
+
+
+------------------------------------------------------------------------------
+  5. WHAT YOU NEED
 ------------------------------------------------------------------------------
 
   A web browser, and a 64-bit computer. That is all.
@@ -120,7 +169,7 @@ This folder contains the whole application. Nothing gets installed.
 
 
 ------------------------------------------------------------------------------
-  5. OPTIONAL EXTRAS
+  6. OPTIONAL EXTRAS
 ------------------------------------------------------------------------------
 
   Writing notes, tasks, dates, the board and search all work with nothing
@@ -151,7 +200,7 @@ This folder contains the whole application. Nothing gets installed.
 
 
 ------------------------------------------------------------------------------
-  6. IF SOMETHING GOES WRONG
+  7. IF SOMETHING GOES WRONG
 ------------------------------------------------------------------------------
 
   Nothing happens when I double-click

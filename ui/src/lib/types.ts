@@ -425,6 +425,12 @@ export interface ViewResult {
  *  backup panel owns remotes and identity. Deliberately cheap to fetch: no shelling out, so
  *  opening Settings never triggers the per-vault `git ls-remote` that `backup_status` does. */
 export interface Config {
+  /** Which build this is — the release tag, or `dev` for anything built locally. Baked in at
+   *  build time, because the crates carry no version of their own. A string to read: there is no
+   *  update check behind it and nothing is fetched. It exists because each release unpacks into
+   *  its own folder, so someone who has updated has two of them and no other way to tell which
+   *  one is running. */
+  version: string;
   /** The vault list file we would write; `null` when this machine has no config dir at all. */
   vault_list: string | null;
   /** False also means "unparseable, so we will never overwrite it" — not merely "no permission". */

@@ -15,6 +15,7 @@
 - [Appearance](./user/appearance.md)
 - [Assets & media](./user/assets.md)
 - [Backup & versioning](./user/backup.md)
+- [Installing a new version](./user/updating.md)
 - [Collaboration](./user/collaboration.md)
 - [The study assistant](./user/assistant.md)
 

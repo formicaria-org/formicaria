@@ -557,6 +557,17 @@ The gray-screen fix and its tests are in
   `pnpm dev` you can save a repo in the backup panel and have Settings still report none. It is a
   bare `as T`, which is exactly the drift the entry above describes; `backup_status` and
   `git_assets_max` are read from the shared `mockVaults`/`mockRestic` state and do not have it.
+- **Updating is a manual step, and three parts of it are only as good as the user's care.**
+  The archive ships `Update from an older folder.{sh,command,bat}` (`decisions.md#toolchain`), and
+  what it cannot do is worth knowing. **The sibling search is a convenience, not a guarantee**: it
+  looks one directory up for `formicaria-*` folders with notes, so an old folder kept somewhere
+  else is found only when dragged onto the script. **Vaults outside the app folder lose their
+  registration** — `vaults.json` is not copied because it stores absolute paths, so the script
+  lists those vaults and the user re-adds them; the notes are never touched. **The `.md` merge
+  driver is stale until the next commit**: `.git/config` holds an absolute path to the `fm` binary
+  beside the old folder's executable, and `ensure_repo` re-points it (or `clear_merge_driver`
+  unsets it) the next time `commit_all` runs. And the **Windows `.bat` has been executed by
+  nobody**, like `formicaria.vbs` before it.
 - **A self-hosted remote may accept attachments larger than the ceiling, and there is no way to
   say so.** `GIT_ASSETS_CEILING` is 100MB decimal, chosen just inside GitHub's 100 MiB wall
   (`decisions.md#vault`) — but Gitea, GitLab and a plain SSH remote have no such rule, and a user

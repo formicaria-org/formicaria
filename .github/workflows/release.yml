@@ -54,13 +54,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
-      - run: pixi run build
-
-      # Stage the app: both binaries + the instructions. `fm` is NOT optional beside
-      # `fm-serve` — `ensure_repo` installs the `.md` merge driver by pointing git at the
-      # `fm` binary *beside the running one*, and installs nothing when it cannot find one,
-      # so a bundle carrying only fm-serve silently loses the merge driver.
-      - name: stage
+      # **The version, before the build rather than after it**, because the binary has to carry
+      # it: the crates are all `0.0.0` and the real version is this tag. `fm-app` reads it through
+      # `option_env!("FM_VERSION")` and falls back to `dev`, so an ordinary local `cargo build`
+      # still compiles with nothing set. Settings shows it — which is how someone with two
+      # unpacked folders can tell which one they are running.
+      - name: version
         shell: bash
         run: |
           set -euo pipefail
@@ -73,6 +72,20 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ "${GITHUB_REF_TYPE}" != "tag" ]; then
             VERSION="dev-$(git rev-parse --short HEAD)"
           fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - run: pixi run build
+
+      # Stage the app: both binaries + the instructions. `fm` is NOT optional beside
+      # `fm-serve` — `ensure_repo` installs the `.md` merge driver by pointing git at the
+      # `fm` binary *beside the running one*, and installs nothing when it cannot find one,
+      # so a bundle carrying only fm-serve silently loses the merge driver.
+      - name: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Computed once, in the `version` step above, and baked into the binary there — so the
+          # archive's name and the version the app reports can never disagree.
           DIR="formicaria-${VERSION}-${{ matrix.target }}"
 
           # **The top level is what a non-technical user sees, so almost nothing lives there.**
@@ -149,10 +162,16 @@ jobs:
           # folder, which is what makes the folder portable.
           # Pipe-separated because every name now contains a space — the whole point of the
           # rename — and word-splitting would turn each into two missing files.
+          #
+          # **Each platform also gets its update script.** The vault lives inside this folder, so
+          # a new download starts empty and someone's notes are still in the folder they had
+          # before — which looks exactly like the update destroyed them. The script copies the old
+          # vault in, never the other way, and never deletes. Windows gets the `.bat` and not a
+          # `.vbs`: the launcher is right to be silent, an update is not.
           case "${{ matrix.target }}" in
-            windows-*) launchers="Start formicaria.vbs|Start formicaria (show messages).bat" ;;
-            macos-*)   launchers="Start formicaria.command" ;;
-            *)         launchers="Start formicaria.sh" ;;
+            windows-*) launchers="Start formicaria.vbs|Start formicaria (show messages).bat|Update from an older folder.bat" ;;
+            macos-*)   launchers="Start formicaria.command|Update from an older folder.command" ;;
+            *)         launchers="Start formicaria.sh|Update from an older folder.sh" ;;
           esac
           # Names, not just files. "Start formicaria" answers the question a first-time user
           # actually has; `fm-serve.exe` answered a different one, and `formicaria.vbs` beside
@@ -306,6 +325,22 @@ jobs:
 
             **Linux.** No warning. If your file manager will not run it, mark it executable, or run
             `./Start\ formicaria.sh` from a terminal.
+
+            ### Already using an earlier version?
+
+            **Your notes are not in this download — they are still in the folder you have been
+            using.** Every version is its own folder, and your notes live in the `vault` inside
+            the one you already have. So this one starts empty, showing the same "Start here"
+            note as a first install.
+
+            Unpack this beside your existing folder, open the **new** folder and double-click
+            **Update from an older folder** (`.bat` on Windows, `.command` on macOS, `.sh` on
+            Linux). It finds the old folder, says what it is about to copy, and asks before it
+            does anything. It only ever copies *into* the new folder — the old one is never
+            written to and never deleted.
+
+            **Do not delete the old folder until you have started this one and seen your notes
+            in it.**
 
             ### What is in the folder
 

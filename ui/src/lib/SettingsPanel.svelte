@@ -775,6 +775,19 @@
       <section>
         <h3>This machine</h3>
         <ul class="caps">
+          <!-- **Which build this is.** First on the list because it is the one fact you need
+               before any of the others mean anything, and until now it was nowhere in the app.
+               Each release unpacks into its own folder and the notes live inside it, so someone
+               who has updated is holding two formicarias with no way to tell them apart from the
+               inside — and the one they are running is the one this line names. A plain string:
+               no check for a newer one, nothing fetched. -->
+          <li>
+            <span class="k">version</span>
+            <code>{cfg.version}</code>
+            {#if cfg.version === 'dev'}
+              <span class="muted small">— built from source, not a release</span>
+            {/if}
+          </li>
           <li>
             <span class="k">git</span>
             {#if cfg.git}

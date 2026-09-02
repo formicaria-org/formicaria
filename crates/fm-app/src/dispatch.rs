@@ -1636,6 +1636,7 @@ fn dispatch_inner(
         "config" => {
             let g = lock()?;
             json(Config {
+                version: option_env!("FM_VERSION").unwrap_or("dev").to_string(),
                 vault_list: app.config.as_ref().map(|p| p.display().to_string()),
                 vault_list_writable: app.config_writable,
                 vaults: infos(&g.configs(), &g.all.names()),
@@ -2328,6 +2329,19 @@ struct PullResult {
 /// What the machine is configured as. See the `config` arm for why this is read-only.
 #[derive(serde::Serialize)]
 struct Config {
+    /// Which build this is — the release tag, or `dev` for anything built locally.
+    ///
+    /// **Baked in at build time, because the crates have no version of their own.** The
+    /// workspace is `0.0.0` and always has been; the real version exists only as the git tag the
+    /// release workflow builds from, so it arrives through `FM_VERSION` and falls back to `dev`
+    /// when nobody set it. `option_env!`, not `env!`: an ordinary `cargo build` must not fail for
+    /// want of a release variable.
+    ///
+    /// **Why it is here at all.** Each release unpacks into its own folder and the vault lives
+    /// inside it, so a user updating ends up with two formicaria folders and no way to tell which
+    /// one they are looking at — from inside the app there was no version anywhere. A string to
+    /// read, nothing more: no comparison, no update check, nothing that phones home.
+    version: String,
     /// The vault list file we would write, or `None` when this machine has no config
     /// directory at all — in which case nothing can be persisted, which is worth saying.
     vault_list: Option<String>,

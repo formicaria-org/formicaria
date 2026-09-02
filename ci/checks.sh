@@ -441,7 +441,11 @@ if ! grep -qF 'manual/index.html' packaging/launcher/Manual.html; then
     echo "        one door into the manual opens onto nothing."
     fail=1
 fi
-for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt'; do
+# The update script belongs in the same chain, and the stake is higher than a broken link: the
+# sheet tells someone whose notes are in another folder to double-click it. Promised and not
+# staged, they are left copying folders by hand at exactly the moment they believe their work is
+# gone. The base name only — the extension differs per platform.
+for p in 'manual/index.html' 'manual/source' 'Manual.html' 'README.txt' 'Update from an older folder'; do
     if ! grep -qF "$p" .github/workflows/release.yml; then
         echo "  FAIL: .github/workflows/release.yml no longer stages $p, but the release still"
         echo "        promises it. Change both, or neither."

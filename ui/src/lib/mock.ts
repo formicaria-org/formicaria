@@ -1228,6 +1228,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // unwritable one are exactly the states the panel must render honestly, and a mock that
       // only ever returns the happy case is how those go untested.
       return {
+        // `dev` is what a local build genuinely reports (`option_env!("FM_VERSION")` unset), so
+        // the mock says the same rather than inventing a release number that never existed.
+        version: 'dev',
         vault_list: '~/.config/formicaria/vaults.json',
         vault_list_writable: true,
         vaults: mockVaults.map((v, i) => ({ ...v, default: i === 0 })),
