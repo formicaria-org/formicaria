@@ -86,6 +86,35 @@ pub struct Descriptor {
     pub supervision: Supervision,
 }
 
+/// The largest attachment this app will ever put into git, whatever a vault asks for.
+///
+/// **There is no git-lfs here, and that is the whole reason this number exists.** Every
+/// attachment under a vault's `git_assets_max` is stored as a full blob in permanent history:
+/// it is in every clone forever, it cannot be taken back without rewriting history others have
+/// pulled, and it is paid for again on every fresh clone. Without LFS there is no pointer to
+/// hide that cost behind, so the honest move is a bound.
+///
+/// **100 MB decimal, deliberately a little stricter than GitHub's 100 MiB** (104,857,600). A
+/// file this app accepts should never be one the host refuses over a rounding difference, so
+/// the ceiling sits just inside the wall rather than exactly on it. Above it, a push does not
+/// merely bloat the repository — it *fails*, and it fails after the commit is already made.
+///
+/// A self-hosted remote may well accept more, and there is deliberately no way to say so: one
+/// documented constant is clearer than a second key in a file format for one audience, and the
+/// restic tier already carries attachments of any size.
+pub const GIT_ASSETS_CEILING: u64 = 100_000_000;
+
+/// What a vault's `git_assets_max` actually means once [`GIT_ASSETS_CEILING`] is applied.
+///
+/// A function, not an inlined `min`, for two reasons: exactly one expression defines the rule,
+/// and the clamp is testable without writing a 100 MB file to disk. A descriptor asking for more
+/// than the ceiling is **not** an error — it may have been written by a hand, by another machine,
+/// or by a version that had no ceiling, and a value that was legal when written must not make a
+/// vault unopenable. It is simply not honoured.
+pub fn effective_git_assets_max(max: u64) -> u64 {
+    max.min(GIT_ASSETS_CEILING)
+}
+
 /// Parse a size a human would write: `2MB`, `500 kb`, `1.5 GiB`, or plain bytes.
 ///
 /// Decimal units (MB = 10^6) rather than binary, because that is what a file manager shows and
@@ -356,6 +385,21 @@ impl Descriptor {
     }
 
     pub fn set_git_assets_max(root: &Path, max: Option<u64>) -> Result<(), StoreError> {
+        // **Refused here, not in the dispatch arm**, so `fm-cli` and every future caller inherit
+        // the bound rather than each re-deriving it. Writing a limit we would then decline to
+        // honour is the dishonest half of a clamp: the file would say one thing and the push do
+        // another. See [`GIT_ASSETS_CEILING`] for why the number is what it is.
+        if let Some(n) = max {
+            if n > GIT_ASSETS_CEILING {
+                return Err(StoreError::Parse(format!(
+                    "{} is larger than {} — without git-lfs an attachment that size is permanent \
+                     history and most hosts refuse the push outright. Leave the heavy ones to the \
+                     backup snapshot.",
+                    format_size(n),
+                    format_size(GIT_ASSETS_CEILING)
+                )));
+            }
+        }
         let path = root.join("vault.json");
         let mut v: serde_json::Value = match std::fs::read_to_string(&path) {
             Ok(t) => serde_json::from_str(&t).map_err(|e| {

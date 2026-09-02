@@ -544,6 +544,15 @@ The gray-screen fix and its tests are in
   `pnpm dev` you can save a repo in the backup panel and have Settings still report none. It is a
   bare `as T`, which is exactly the drift the entry above describes; `backup_status` and
   `git_assets_max` are read from the shared `mockVaults`/`mockRestic` state and do not have it.
+- **A self-hosted remote may accept attachments larger than the ceiling, and there is no way to
+  say so.** `GIT_ASSETS_CEILING` is 100MB decimal, chosen just inside GitHub's 100 MiB wall
+  (`decisions.md#vault`) — but Gitea, GitLab and a plain SSH remote have no such rule, and a user
+  running one is refused a limit their host would have taken. Accepted deliberately: one
+  documented constant beats a second `vault.json` key for one audience, and the restic tier
+  carries attachments of any size. The reversal condition is in the decision entry. Note the
+  number lives **twice** — `crates/fm-core/src/descriptor.rs` is the authority,
+  `ui/src/lib/size.ts` mirrors it so the form can warn first, and `ci/checks.sh` fails when they
+  disagree.
 - **The restic tier's coverage is narrower than "the vault", and nothing in the code says it
   twice.** `backup()` takes the notes dir + `blobs/` only, so `views/`, `themes/`, `manifest.json`
   and `vault.json` — all vault-root files — are in **git only**. A user restoring from restic alone

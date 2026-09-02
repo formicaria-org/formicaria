@@ -37,7 +37,7 @@
   import { syncVault, syncFor } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
-  import { humanSize } from './size';
+  import { GIT_ASSETS_CEILING, humanSize } from './size';
   import { labelFor } from './vaultLabels.svelte';
   import type { BackupStatus, GitAuth, VaultStatus } from './types';
 
@@ -127,10 +127,17 @@
   // blobs at or under the limit are `git add -f`'d into the same commit and pushed with the
   // notes. The limit is set in Settings ("Send attachments under"); saying so here is what stops
   // the two panels contradicting each other.
-  const carries = (v: VaultStatus) =>
-    v.git_assets_max
-      ? `notes, and attachments up to ${humanSize(v.git_assets_max)}`
-      : 'notes only';
+  //
+  // **The *effective* limit, never the file's raw number.** A `vault.json` may ask for more than
+  // `GIT_ASSETS_CEILING`, and the staging walk clamps it — so quoting the raw value here would
+  // promise a push that carries more than it does. That is the same class of overstatement this
+  // line was written to remove.
+  const effectiveMax = (v: VaultStatus) =>
+    v.git_assets_max ? Math.min(v.git_assets_max, GIT_ASSETS_CEILING) : null;
+  const carries = (v: VaultStatus) => {
+    const max = effectiveMax(v);
+    return max ? `notes, and attachments up to ${humanSize(max)}` : 'notes only';
+  };
   // The password is the app's now, and the environment variable is the override rather than the
   // mechanism. Naming `RESTIC_PASSWORD` as *the* thing that is missing sent people to a launcher
   // script to fix something the field above this line fixes.
@@ -700,8 +707,8 @@
                  were being pushed into permanent shared history. -->
             {#each vaults as v (v.name)}
               <div>
-                {#if v.git_assets_max}
-                  Attachments{of(v)} over {humanSize(v.git_assets_max)} are
+                {#if effectiveMax(v)}
+                  Attachments{of(v)} over {humanSize(effectiveMax(v) ?? 0)} are
                   <strong>not included</strong> — smaller ones travel with the notes.
                 {:else}
                   Attachments{of(v)} in <code>blobs/</code> (images, PDFs, video) are

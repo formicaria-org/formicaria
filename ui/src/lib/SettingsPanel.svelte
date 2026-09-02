@@ -33,7 +33,7 @@
   import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
   import * as keys from './keys';
-  import { humanSize } from './size';
+  import { GIT_ASSETS_CEILING, GIT_ASSETS_WARN, humanSize } from './size';
 
   let assetError = $state<string | null>(null);
 
@@ -678,14 +678,39 @@
             </label>
             <p class="muted small">
               {#if v.git_assets_max}
-                Files up to {humanSize(v.git_assets_max)} are pushed with your notes. Anything
-                larger stays on this device — git history is permanent, so a large file committed
-                once is in every clone forever.
+                Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed
+                with your notes. Anything larger stays on this device — git history is permanent,
+                so a large file committed once is in every clone forever.
               {:else}
                 Empty means <strong>notes only</strong> — the default. Attachments stay in the
-                vault and travel only via restic.
+                vault and travel only via restic. The most you can send this way is
+                {humanSize(GIT_ASSETS_CEILING)} per file.
               {/if}
             </p>
+            <!-- **The ceiling, said where the number is chosen.** There is no git-lfs here, so an
+                 attachment in git is permanent history that every clone pays for again. Two
+                 different sentences, because they are two different situations: between the
+                 warning line and the ceiling the setting *works* and the cost is worth naming;
+                 above the ceiling the app is declining to do what the file asks, and hiding that
+                 would be the dishonest half of a clamp. The second is reachable only from a
+                 `vault.json` written by a hand, another machine, or a version with no ceiling —
+                 the field itself refuses those, through `assetError` below. -->
+            {#if v.git_assets_max && v.git_assets_max > GIT_ASSETS_CEILING}
+              <p class="warn">
+                This vault asks for {humanSize(v.git_assets_max)}, which is more than will ever be
+                sent: attachments over {humanSize(GIT_ASSETS_CEILING)} are left out, because most
+                hosts refuse a file that size and the push would fail after the commit was made.
+                Edit <code>vault.json</code> to agree, or leave the heavy ones to the backup
+                snapshot.
+              </p>
+            {:else if v.git_assets_max && v.git_assets_max > GIT_ASSETS_WARN}
+              <p class="warn">
+                That is large for git. Files this size are kept forever, downloaded again by every
+                clone, and cannot be taken back without rewriting history other people have already
+                pulled — and many hosts warn above {humanSize(GIT_ASSETS_WARN)}. The backup
+                snapshot carries attachments of any size without any of that.
+              </p>
+            {/if}
             <!-- Two questions, deliberately not one. The record is this person's own corrections in
                  their own vault, so keeping it needs no ceremony; publishing it relicenses content
                  and cannot be undone, so it is asked separately and never assumed. Lives in

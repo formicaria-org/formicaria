@@ -1147,3 +1147,63 @@ fn setting_the_asset_limit_preserves_the_rest_of_vault_json() {
     assert!(!text.contains("git_assets_max"), "off should look like never-set: {text}");
     assert!(text.contains("\"name\""), "and must not have eaten the rest");
 }
+
+// **The ceiling, and the two places it has to hold.**
+//
+// There is no git-lfs here, so an attachment in git is permanent history that every clone pays
+// for again — and above ~100 MB most hosts refuse the push outright, *after* the commit is made.
+// So the app refuses to write a limit it would not honour, and refuses to honour one it did not
+// write. Both halves are needed: the setter alone would leave a hand-edited `vault.json` staging
+// a blob no remote will take.
+#[test]
+fn an_attachment_limit_above_the_ceiling_is_refused_rather_than_written() {
+    let d = tempdir().unwrap();
+    fs::write(d.path().join("vault.json"), "{\n  \"name\": \"lab\"\n}\n").unwrap();
+
+    let err = fm_core::descriptor::Descriptor::set_git_assets_max(d.path(), Some(500_000_000))
+        .expect_err("500MB is past the ceiling and must not be written");
+    let msg = err.to_string();
+    assert!(msg.contains("500MB"), "the refusal names what was asked for: {msg}");
+    assert!(msg.contains("100MB"), "and the bound it broke: {msg}");
+
+    let text = fs::read_to_string(d.path().join("vault.json")).unwrap();
+    assert!(!text.contains("git_assets_max"), "a refused write leaves the file alone: {text}");
+    assert!(text.contains("\"name\""), "and certainly does not eat it");
+
+    // The ceiling itself is allowed — the bound is inclusive, so it is a limit and not a gap.
+    fm_core::descriptor::Descriptor::set_git_assets_max(
+        d.path(),
+        Some(fm_core::descriptor::GIT_ASSETS_CEILING),
+    )
+    .expect("exactly the ceiling is a legal limit");
+}
+
+#[test]
+fn a_vault_asking_for_more_than_the_ceiling_only_sends_what_the_ceiling_allows() {
+    use fm_core::descriptor::{effective_git_assets_max, GIT_ASSETS_CEILING};
+
+    // Driven through the pure clamp rather than by writing a 100 MB blob to disk: the rule is one
+    // expression, and `blobs_within` filters on exactly this value.
+    assert_eq!(effective_git_assets_max(2_000_000), 2_000_000, "an ordinary limit is untouched");
+    assert_eq!(effective_git_assets_max(GIT_ASSETS_CEILING), GIT_ASSETS_CEILING);
+    assert_eq!(
+        effective_git_assets_max(500_000_000),
+        GIT_ASSETS_CEILING,
+        "a descriptor asking for more is clamped, not obeyed and not an error"
+    );
+    assert_eq!(effective_git_assets_max(u64::MAX), GIT_ASSETS_CEILING);
+
+    // And such a descriptor must still *open*. It may have been written by a hand, another
+    // machine, or a version with no ceiling, and a value that was legal when written must never
+    // make a vault unopenable — that is why the clamp is not a parse error.
+    let d = tempdir().unwrap();
+    fs::write(d.path().join("vault.json"), "{\n  \"git_assets_max\": \"500MB\"\n}\n").unwrap();
+    let desc = fm_core::descriptor::Descriptor::read(d.path())
+        .expect("an over-ceiling vault.json still opens");
+    assert_eq!(desc.git_assets_max, Some(500_000_000), "read reports the file, unchanged");
+    assert_eq!(
+        effective_git_assets_max(desc.git_assets_max.unwrap()),
+        GIT_ASSETS_CEILING,
+        "and the staging walk is what declines to honour it"
+    );
+}

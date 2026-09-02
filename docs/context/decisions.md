@@ -71,7 +71,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   when it gains an audience* · *formicaria: three pillars, one atom (the rename)* · *Which
   attachments travel: per-vault size limit* · *Content-addressed blobs* ·
   ***A backup surface names what its tier carries*** (read before wording anything about backup, or
-  before proposing that restic snapshot the vault root — it also holds the git-lfs argument).
+  before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
+  ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
+  `git_assets_max`'s bounds, or before adding an "unlimited" option).
 - **`#data`**: ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
   (read before touching `parse_ref`, `assetUrl` or the resolve passes) · ***A paper is a note, made from the citation you already have*** (read before
@@ -3990,3 +3992,55 @@ copy), restic cannot give it and this argument should be reopened.
 no dispatch command exposes it, so the single most useful fact about a backup is unavailable to
 the UI. Letting a restic-only vault run without a git remote; the panel now at least explains why
 its own button is disabled instead of leaving it silently dead. Both are in `outstanding.md`.
+
+## 2026-09-02 — attachments in git have a ceiling, because there is no LFS `#vault` `#git`
+
+**Why:** the owner asked whether attachments can be tracked by git and how git manages LFS here.
+They can — `git_assets_max` has done it since 2026-07-20 — and **LFS is not used at all**, which
+is what makes the second half of the question load-bearing. Without LFS every attachment under a
+vault's limit is a whole blob in permanent history: paid for again by every clone, unremovable
+without rewriting history other people have pulled, and above roughly 100 MB **rejected by the
+host outright — after the commit is already made.** The owner's conclusion, and this decision:
+*"if we do not have lfs, we should put a reasonable upper limit."*
+
+**This narrows the 2026-07-20 ruling rather than reversing it** (*Which attachments travel is a
+per-vault size limit, in `vault.json`*, above). That entry stands and is not edited: the mechanism
+is untouched — still a size, still per vault, still in the vault's own file, still off by default.
+Only the range is now bounded. The first design considered here was the opposite — an explicit
+"All attachments" option, since today "send everything" means typing `10GB` and hoping — and it
+was dropped in favour of a bound. An unbounded option with no LFS behind it is an invitation to a
+push that cannot succeed.
+
+**Three bands, and the middle one is the point.** At or under 50 MB, accepted silently. Between 50
+and 100 MB it *works*, and Settings names what it costs — this band must not be refused, because
+those files do push, and an app that declines what would have worked is deciding for the user
+rather than informing them. Above 100 MB, refused with the reason.
+
+**100 MB decimal, deliberately just inside GitHub's 100 MiB** (104,857,600). A file this app
+accepts should never be one the host rejects over a rounding difference, so the ceiling sits
+inside the wall rather than on it.
+
+**Enforced twice, and both are needed.** `Descriptor::set_git_assets_max` refuses to *write* a
+limit above the ceiling — in the core setter, so `fm-cli` and every future caller inherit it
+rather than each re-deriving the bound. And `blobs_within` clamps through
+`effective_git_assets_max` at the point of staging, because a `vault.json` can ask for more than
+this app would ever write: hand-edited, carried from another machine, or written by a version that
+had no ceiling. The setter alone would leave exactly those vaults staging a blob no remote will
+take. A clamp that is not surfaced is the dishonest half, so Settings states plainly when a vault
+asks for more than will be sent.
+
+**`Descriptor::read` is deliberately unchanged.** An over-ceiling value still parses. It is a
+*valid* size, and a value that was legal when written must not make a vault unopenable — which is
+why this is a clamp and not the hard parse error an unparseable value still gets.
+
+**No escape hatch, and that is a real cost.** A self-hosted Gitea, GitLab or plain SSH remote may
+accept far more, and there is no way to tell the app so. One documented constant is clearer than a
+second key in the file format serving one audience, and the restic tier already carries
+attachments of any size with none of git's permanence. **Reversal condition:** if someone is
+actually running a self-hosted remote and wants 500 MB attachments versioned, this is the entry to
+reopen — and the answer is more likely a per-vault opt-out than raising the number for everyone.
+
+**The constant is written twice and guarded.** Rust owns it; `ui/src/lib/size.ts` holds a copy so
+the form can warn before the backend refuses, and `ci/checks.sh` fails when the two disagree —
+proved against a deliberate mismatch before being trusted. Two constants that must agree and no
+guard is precisely how they stop agreeing.

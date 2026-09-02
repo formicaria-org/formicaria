@@ -516,6 +516,32 @@ if [ -f ui/src/App.svelte ]; then
     fi
 fi
 
+# **The attachment ceiling is one number, written twice.**
+#
+# `GIT_ASSETS_CEILING` is the largest attachment this app will put into git. Rust is the
+# authority — it refuses the setting and clamps the staging walk — and `ui/src/lib/size.ts` holds
+# a copy purely so the form can warn before the backend refuses. If the two drift, the UI either
+# warns about a limit that is fine or accepts one the backend will reject, and the user meets the
+# disagreement as an error they cannot act on. There is no git-lfs here, so this number is what
+# stands between an attachment and a push that fails after the commit is already made.
+echo "[check] the attachment ceiling agrees between Rust and the UI..."
+rs_ceiling=$(grep -aoE 'pub const GIT_ASSETS_CEILING: u64 = [0-9_]+' crates/fm-core/src/descriptor.rs \
+    | grep -aoE '[0-9_]+$' | tr -d _)
+ts_ceiling=$(grep -aoE 'export const GIT_ASSETS_CEILING = [0-9_]+' ui/src/lib/size.ts \
+    | grep -aoE '[0-9_]+$' | tr -d _)
+if [ -z "$rs_ceiling" ] || [ -z "$ts_ceiling" ]; then
+    echo "  FAIL: could not read GIT_ASSETS_CEILING from both sides."
+    echo "        Rust: '${rs_ceiling:-<not found>}' (crates/fm-core/src/descriptor.rs)"
+    echo "        UI:   '${ts_ceiling:-<not found>}' (ui/src/lib/size.ts)"
+    echo "        If either constant was renamed or reshaped, update this check with it."
+    fail=1
+elif [ "$rs_ceiling" != "$ts_ceiling" ]; then
+    echo "  FAIL: the attachment ceiling disagrees — Rust says $rs_ceiling, the UI says $ts_ceiling."
+    echo "        Rust is the authority (it refuses the setting and clamps the staging walk); the"
+    echo "        UI copy exists only to warn first. Make ui/src/lib/size.ts match descriptor.rs."
+    fail=1
+fi
+
 # **An overlay panel is bounded by the visible viewport, and it scrolls.**
 #
 # Every dialog in this app is `position: fixed` inside `.app`, which is `height: 100dvh;

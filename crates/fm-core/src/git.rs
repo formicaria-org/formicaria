@@ -749,10 +749,19 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
 /// them would not remove them from history — the bytes are in every clone the moment they are
 /// pushed — so it would cost a confusing deletion commit and buy nothing. Lowering the limit
 /// governs what travels *next*, which is the only thing it can honestly govern.
+///
+/// **A limit above [`GIT_ASSETS_CEILING`] is not honoured either**, and that clamp lives here
+/// rather than only in the setter because a `vault.json` can ask for more than the app would ever
+/// write: hand-edited, carried from another machine, or written by a version that had no ceiling.
+/// Refusing at the setter alone would leave exactly those files staging a blob that no host will
+/// accept — a push that fails *after* the commit is made. There is no git-lfs to fall back on.
+///
+/// [`GIT_ASSETS_CEILING`]: crate::descriptor::GIT_ASSETS_CEILING
 fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
     let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
         return Ok(Vec::new());
     };
+    let max = crate::descriptor::effective_git_assets_max(max);
     let store = crate::blob::BlobStore::new(vault);
     let mut out: Vec<String> = store
         .blob_paths()

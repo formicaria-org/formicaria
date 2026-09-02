@@ -5,6 +5,7 @@
 // file is deliberately NOT under src/renderers — status names live here, never
 // in a renderer, which is the invariant the CI grep enforces.
 import { parseStamp } from './stamp';
+import { GIT_ASSETS_CEILING, humanSize } from './size';
 import type {
   AssetStatus,
   BackupStatus,
@@ -367,7 +368,18 @@ function parseSize(text: string): number | null {
     '': 1, b: 1, kb: 1e3, mb: 1e6, gb: 1e9,
     kib: 1024, mib: 1024 ** 2, gib: 1024 ** 3,
   };
-  return Math.round(parseFloat(m[1]) * mult[m[2] ?? '']);
+  const n = Math.round(parseFloat(m[1]) * mult[m[2] ?? '']);
+  // The backend refuses above the ceiling (`Descriptor::set_git_assets_max`), so the mock must
+  // too — otherwise `pnpm dev` can reach a configuration the product forbids, which is the exact
+  // drift this file's header promises not to have.
+  if (n > GIT_ASSETS_CEILING) {
+    throw new Error(
+      `${humanSize(n)} is larger than ${humanSize(GIT_ASSETS_CEILING)} — without git-lfs an ` +
+        `attachment that size is permanent history and most hosts refuse the push outright. ` +
+        `Leave the heavy ones to the backup snapshot.`,
+    );
+  }
+  return n;
 }
 
 /** Resolve a vault by name; empty means the default. Unknown throws, exactly as the

@@ -27,6 +27,24 @@ machine. It is off by default, and it is set per vault rather than per computer,
 because git history is permanent: a large file committed once is in every clone
 forever. Use it for small things and leave the heavy ones to the snapshot tier.
 
+**There is a ceiling: 100MB per file, and the app will not go past it.** formicaria
+does not use [git-lfs](https://git-lfs.com), so an attachment that travels in git is
+stored whole, in history, for good — every clone downloads it again, and taking it
+back means rewriting history other people have already pulled. Above roughly 100MB
+most hosts (GitHub among them) refuse the push outright, and they refuse it *after*
+your commit is made, which is the worst moment to discover it. So:
+
+| Limit you set | What happens |
+|---|---|
+| up to 50MB | accepted |
+| 50–100MB | accepted, and Settings says what it costs |
+| over 100MB | refused, with the reason |
+
+If a vault's `vault.json` asks for more than 100MB — hand-edited, or written by
+another machine — the extra is simply not sent, and Settings tells you so rather than
+letting a push fail. Anything above the ceiling belongs in the snapshot tier below,
+which carries attachments of any size and has none of these problems.
+
 ## Setting up (once)
 
 Click **Back up** and paste your vault's git remote — for example
