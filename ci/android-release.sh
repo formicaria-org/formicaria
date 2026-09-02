@@ -53,10 +53,22 @@ target="${1:-aarch64}"
 #
 # `android-apk` sets all three inline and this script did not, which is why the debug build
 # worked and the release build did not.
+# **The version the app reports about itself**, baked in exactly as the desktop release workflow
+# does it: `fm-app` reads `option_env!("FM_VERSION")` and falls back to `dev`. Without this the
+# phone said `dev` while the desktop of the same release said `v0.3.1` — two builds of one release
+# disagreeing about what they are, which is the confusion the version display exists to end.
+#
+# Taken from the tag on HEAD when there is one, so cutting a release and building the phone need
+# not be kept in step by hand; `FM_VERSION=... pixi run android-release` still wins for a one-off.
+: "${FM_VERSION:=$(git -C "$root" describe --tags --exact-match 2>/dev/null || echo dev)}"
+export FM_VERSION
+echo "android-release: building as FM_VERSION=$FM_VERSION"
+
 ( cd mobile \
     && PATH="$root/.android/bin:$PATH" \
        NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
        JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
+       FM_VERSION="$FM_VERSION" \
        pnpm exec tauri android build --apk --target "$target" )
 
 bt=$(ls -d "$root"/.android/sdk/build-tools/*/ | sort -V | tail -1)
