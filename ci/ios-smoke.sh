@@ -266,85 +266,111 @@ say "installed"
 # 3) The launch check, run twice. Launch 1 is the one that used to be gray on Android.
 # ---------------------------------------------------------------------------
 : > "$OUT/stats.txt"
+
+# **Both questions are polled together, and neither gates the other.**
+#
+# The first version asserted them in sequence — `vaults ready` on the pty, then the pixel check —
+# because iOS has no `dumpsys window` to say "our app is frontmost", so a pixel check run too early
+# measures the **home screen** (wallpaper and icons, deviation far above any blank-screen floor) and
+# passes at t+0 proving nothing. Ordering fixed that and introduced a worse problem: rung 2's third
+# firing (run 91357302585) reached `no 'vaults ready' line in 60s` with an **empty pty** and
+# therefore **no screenshot at all** — so "the app runs but cannot speak" and "the app never
+# painted" were indistinguishable, which is the one distinction the job was bought to make.
+#
+# So both are now watched in one loop, and the home-screen baseline is what keeps the pixel check
+# honest: a frame identical to it, or flat, is not our app. The verdict below names which of the two
+# failed, because they have opposite meanings — a silent-but-painting app is a *logging* problem
+# (the `os_log` question this project deferred), while a mute black screen is a *boot* problem.
 launch() {
     n=$1
     xcrun simctl terminate "$udid" "$bid" >/dev/null 2>&1 || true
 
-    # **The SpringBoard baseline, and the reason the checks below run in this order.**
-    #
-    # `android-smoke.sh` does not start measuring pixels until `dumpsys window` says our app is the
-    # focused one — because what it must measure is *our* window. iOS has no `dumpsys`, and without
-    # an equivalent gate the very first screenshot after `simctl launch` is the **home screen**:
-    # wallpaper plus a grid of icons, whose standard deviation is far above any blank-screen
-    # threshold. The check would pass at t+0, print "painted", and prove nothing — a wrong answer
-    # bought with a billed job, which is worse than a failure.
-    #
-    # The gate iOS does have is the app's own voice. `vaults ready` on the pty means the process is
-    # up and the store is open, so it is asserted FIRST and the pixel check runs after it. A gray
-    # screen — the Android bug this file exists for — still logs `vaults ready` and still fails the
-    # pixel check, which is exactly the case that has to survive the reordering.
-    #
-    # The baseline is kept as evidence and its deviation written to stats.txt, so the numbers below
-    # can be read against "what this screen looks like with no app on it" rather than in a vacuum.
+    # What this screen looks like with no app on it. Evidence, and the reference the pixel check
+    # compares against; its deviation goes to stats.txt so the numbers below can be read.
     xcrun simctl io "$udid" screenshot "$OUT/springboard-$n.png" >/dev/null 2>&1 \
         || fail "launch $n: could not screenshot the home screen"
     base_dev=$(vips deviate "$OUT/springboard-$n.png" 2>/dev/null || echo 0)
     printf 'launch %s: home screen deviation=%s  (context, NOT a threshold)\n' "$n" "$base_dev" \
         >> "$OUT/stats.txt"
 
+    # **The unified log, captured from before the launch.** `install_logger`'s iOS arm writes to
+    # stderr on the reasoning that `--console-pty` prints it (`decisions.md` 2026-09-03). Run
+    # 91357302585 produced an empty pty from a process that stayed alive for 60s, so that reasoning
+    # is now in question — and this is the fallback the kill criterion names, run automatically
+    # rather than left as an instruction for a human who would need another job to act on it.
+    xcrun simctl spawn "$udid" log stream --style compact \
+        --predicate 'processImagePath CONTAINS "formicaria"' > "$OUT/oslog-$n.log" 2>&1 &
+    oslog_pid=$!
+
     # `--console-pty` blocks for the life of the app, so it goes to the background with its output
-    # in a file. That file is the entire diagnostic channel this platform has here.
+    # in a file.
     xcrun simctl launch --console-pty "$udid" "$bid" > "$OUT/console-$n.log" 2>&1 &
     console_pid=$!
 
-    # C — the vaults opened, and the shell got to say so. The same assertion `android-smoke.sh`
-    # makes, against the same log line, which is why the iOS logger carries the same prefix.
-    j=0
-    until grep -q 'vaults ready' "$OUT/console-$n.log" 2>/dev/null; do
-        # **Did the launch itself die?** Without this the loop would burn its full timeout and then
-        # report "no vaults ready line", which is the wrong diagnosis for a bad bundle id, a failed
-        # install or a crash in `main` — and the real message is sitting unread in the log.
-        if ! kill -0 "$console_pid" 2>/dev/null; then
-            echo "--- console-$n.log ---" >&2; cat "$OUT/console-$n.log" >&2 || true
-            fail "launch $n: 'simctl launch' exited before the app reported anything ($OUT/console-$n.log)"
-        fi
-        j=$((j + 1))
-        if [ "$j" -ge 60 ]; then
-            echo "--- console-$n.log ---" >&2; cat "$OUT/console-$n.log" >&2 || true
-            fail "launch $n: no 'vaults ready' line in 60s. Either the store never opened, or stderr
-  is not reaching the pty — in which case try 'xcrun simctl spawn $udid log stream' before
-  concluding anything about the app ($OUT/console-$n.log)."
-        fi
-        sleep 1
-    done
-    say "launch $n reported 'vaults ready' at t+${j}s"
-
-    # B — painted. Polled rather than slept-and-hoped, so the number in stats.txt is the time the
-    # app actually took, which is the number worth watching across releases. Two conditions, because
-    # either alone can lie: the screen must be non-flat *and* it must no longer be the home screen.
-    # A byte-identical screenshot is the unambiguous case — nothing has been drawn since.
+    ready=no; painted=no; ready_at=-1; painted_at=-1; died=no
     k=0
-    while :; do
-        xcrun simctl io "$udid" screenshot "$OUT/open$n.png" >/dev/null 2>&1 \
-            || fail "launch $n: screenshot failed"
-        dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
-        same=no
-        if cmp -s "$OUT/springboard-$n.png" "$OUT/open$n.png"; then same=yes; fi
-        printf 'launch %s: t+%ss deviation=%s identical-to-home=%s\n' "$n" "$k" "$dev" "$same" \
-            >> "$OUT/stats.txt"
-        if [ "$same" = no ] && awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}'; then
-            break
+    while [ "$k" -lt 90 ]; do
+        if [ "$painted" = no ]; then
+            xcrun simctl io "$udid" screenshot "$OUT/open$n.png" >/dev/null 2>&1 || true
+            dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
+            same=no
+            if cmp -s "$OUT/springboard-$n.png" "$OUT/open$n.png"; then same=yes; fi
+            printf 'launch %s: t+%ss deviation=%s identical-to-home=%s ready=%s\n' \
+                "$n" "$k" "$dev" "$same" "$ready" >> "$OUT/stats.txt"
+            if [ "$same" = no ] && awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}'; then
+                painted=yes; painted_at=$k
+                cp "$OUT/open$n.png" "$OUT/painted-$n.png" 2>/dev/null || true
+            fi
         fi
+        # Either channel counts as the app having spoken; which one it was is reported below,
+        # because that is the answer to whether stderr works here at all.
+        if [ "$ready" = no ]; then
+            if grep -q 'vaults ready' "$OUT/console-$n.log" 2>/dev/null \
+               || grep -q 'vaults ready' "$OUT/oslog-$n.log" 2>/dev/null; then
+                ready=yes; ready_at=$k
+            fi
+        fi
+        [ "$painted" = yes ] && [ "$ready" = yes ] && break
+        # A launch that exited is decided; keep whatever was captured and stop waiting for it.
+        if ! kill -0 "$console_pid" 2>/dev/null; then died=yes; break; fi
         k=$((k + 1))
-        [ "$k" -lt 60 ] || fail "launch $n: the screen never painted (deviation $dev vs floor $MIN_DEVIATION, identical-to-home=$same, after 60s) — $OUT/open$n.png"
         sleep 1
     done
-    say "launch $n painted at t+${k}s after ready (deviation $dev, home screen was $base_dev)"
+    kill "$oslog_pid" "$console_pid" >/dev/null 2>&1 || true
 
-    if grep -q 'formicaria ERROR' "$OUT/console-$n.log"; then
-        fail "launch $n: an error was logged at startup ($OUT/console-$n.log)"
+    # Crash reports, if the app died on its own. Cheap, and the only place a dyld or TCC failure
+    # says anything at all.
+    find "$HOME/Library/Logs/DiagnosticReports" -name '*formicaria*' -newermt '-10 minutes' \
+        -exec cp {} "$OUT/" \; 2>/dev/null || true
+
+    if [ "$painted" = yes ] && [ "$ready" = yes ]; then
+        say "launch $n: painted at t+${painted_at}s (deviation $dev vs home $base_dev), ready at t+${ready_at}s"
+        if grep -q 'formicaria ERROR' "$OUT/console-$n.log" "$OUT/oslog-$n.log" 2>/dev/null; then
+            fail "launch $n: an error was logged at startup ($OUT/console-$n.log)"
+        fi
+        return 0
     fi
-    kill "$console_pid" >/dev/null 2>&1 || true
+
+    # **Name which half failed, because they mean opposite things.**
+    echo "--- console-$n.log (pty) ---" >&2; cat "$OUT/console-$n.log" >&2 2>/dev/null || true
+    echo "--- oslog-$n.log (unified log) ---" >&2; tail -40 "$OUT/oslog-$n.log" >&2 2>/dev/null || true
+    if [ "$painted" = yes ]; then
+        fail "launch $n: **the app painted but never said 'vaults ready'** (painted t+${painted_at}s,
+  deviation $dev vs home $base_dev; launch process $( [ "$died" = yes ] && echo exited || echo 'still alive' )).
+  The app runs. This is the diagnostic channel, not the app: if the unified log above is also empty,
+  stderr does not reach either channel on iOS and \`install_logger\` needs the os_log backend that
+  \`decisions.md\` deferred — that entry names this as its reversal trigger. Not a kill criterion."
+    elif [ "$ready" = yes ]; then
+        fail "launch $n: **reported ready but never painted** (ready t+${ready_at}s, deviation $dev
+  vs home $base_dev, identical-to-home=$same). The store opened and the screen did not — this is the
+  gray-screen signature \`android-smoke.sh\` exists for, now on iOS. $OUT/open$n.png"
+    else
+        fail "launch $n: **neither painted nor spoke** in 90s (deviation $dev vs home $base_dev,
+  launch process $( [ "$died" = yes ] && echo exited || echo 'still alive' )). If the launch process
+  exited, read the pty dump above and any crash report copied into $OUT. If it is still alive with a
+  home-screen frame, the app is not coming up at all. **This is the kill criterion** — record it and
+  stop rather than iterating."
+    fi
 }
 launch 1
 launch 2
