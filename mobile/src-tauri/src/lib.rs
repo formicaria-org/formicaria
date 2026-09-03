@@ -718,10 +718,21 @@ const WEB_LOG_SCRIPT: &str = r#"
         send(level, text(arguments));
       };
     });
+    // **Two different events wear the same name, and conflating them was the first version's bug.**
+    // A script error targets `window` and carries `message`/`filename`. A *resource* failure — an
+    // <img>, a <script>, a stylesheet — targets the element, carries no message, and would have
+    // been reported as the contentless string "error": a red job with nothing to act on, and a
+    // false positive for any optional asset. Named separately, a failed `fmblob:` image reports the
+    // URL that failed, which is the single most useful line this bridge can produce on this app.
     window.addEventListener('error', function (e) {
+      var t = e && e.target;
+      if (t && t !== window && (t.src || t.href)) {
+        send('error', 'resource failed to load: ' + (t.src || t.href));
+        return;
+      }
       send('error', (e && e.message ? e.message : 'error') +
         (e && e.filename ? ' @ ' + e.filename + ':' + e.lineno : ''));
-    });
+    }, true); // capture: resource errors do not bubble
     window.addEventListener('unhandledrejection', function (e) {
       var r = e && e.reason;
       send('error', 'unhandled rejection: ' + (r && r.stack ? r.stack : String(r)));
