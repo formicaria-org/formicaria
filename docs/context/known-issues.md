@@ -681,6 +681,30 @@ The gray-screen fix and its tests are in
   both tests take can, and now does (poison-recovering, so a failed assertion reports itself rather
   than cascading). **Any future test in that file must take the lock**, and any *other* test binary
   that touches the environment needs its own.
+- **A rust-cache can report `full match: true` and save you nothing — check *which* directory it
+  hit.** Measured from run **91415007453** (rung 3, cancelled at ~17 min), and this table is the
+  antidote to guessing at CI cost, which was done twice here before anyone read a log:
+
+  | Step | Time |
+  |---|---|
+  | `setup-pixi` (**cache miss**) | 59s |
+  | `rust-cache` restore — **full hit**, 2s to restore | 6s |
+  | the frontend (three `pnpm install`s) | **15s** |
+  | `boot it, twice` — of which: init+brew 26s, **build 464s**, sim boot 86s, install 87s, two launches 38s | **786s** |
+  | upload-artifact + job teardown | 161s |
+
+  **The build is 60% of the job and it was uncached.** `mobile/src-tauri/Cargo.toml:6` — *"Outside
+  the workspace on purpose"* — so the iOS app compiles into `mobile/src-tauri/target`, while
+  `Swatinem/rust-cache` was told only `workspaces: . -> target`. It hit perfectly on a directory the
+  iOS build scarcely touches, and vendored OpenSSL, libgit2 and SQLite were rebuilt for the
+  simulator triple every dispatch. Fixed by listing both workspaces in rungs 2 and 5 (rungs 1 and 4
+  do not build the mobile crate). **Watch the cache size**: that target dir is multi-GB, GitHub
+  evicts LRU past 10 GB per repo, and an evicted cache is indistinguishable from no cache.
+
+  **The corrections this forced**, recorded because both were asserted here before being measured:
+  the pixi pin below is worth about **50 seconds**, not minutes; and the missing pnpm store cache
+  was worth about **15 seconds**, not the "minutes per run" it was called when it was found. Both
+  fixes are right and both were oversold. **Read the per-step timings before naming a cost driver.**
 - **Every pixi cache miss since this repo had CI was one unpinned input.** Reported by the owner as
   *"I always see pixi cache misses"* (2026-09-03) — correctly, and after it had been waved off once.
   `setup-pixi@v0.8.1` (`src/cache.ts`) keys on

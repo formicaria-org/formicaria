@@ -84,14 +84,19 @@ iPhone SE (3rd generation) (com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-
 
     # Captured from `simctl list devices available` on the runner during the rung-3 dispatch of
     # 2026-09-03 — the run that spent 20 minutes booting a device that is *not in this list*.
+    # **Several spellings on purpose.** The previous fixture was hand-written in one assumed
+    # format and the parser agreed with it while disagreeing with the runner. These cover the
+    # simctl shape, a `-showdestinations` shape, an unindented line and a `(Booted)` state; the
+    # matcher must be indifferent to all of it. The runner's real list now ships in the artifact
+    # as `devices-available.txt`, so this fixture can finally be replaced by a measurement.
     avail='== Devices ==
 -- iOS 26.5 --
     iPad Pro 13-inch (M5) (B29636C6-DD18-4550-B6F7-54EB38151CFA) (Shutdown)
     iPhone 17 (FC5FEF2A-E933-4515-AAEF-C9FC16651D0B) (Shutdown)
-    iPhone 17 Pro (6EE862FE-93F2-4D55-946E-8745EE2B3A88) (Shutdown)
+    iPhone 17 Pro (6EE862FE-93F2-4D55-946E-8745EE2B3A88) (Booted)
     iPhone 17 Pro Max (6300F6FD-611A-422C-B6F2-F8C162FBDDF7) (Shutdown)
-    iPhone 17e (A10B76FC-4115-4057-8550-967F510895A7) (Shutdown)
-    iPhone Air (A8C66A3B-A7A0-4BD7-A222-B48E3A881425) (Shutdown)'
+iPhone 17e (A10B76FC-4115-4057-8550-967F510895A7) (Shutdown)
+    iPhone Air (A8C66A3B-A7A0-4BD7-A222-B48E3A881425)'
 
     echo "ios-smoke --self-test: the available-device matcher"
     check "an exact hyphenated name" \
@@ -104,6 +109,13 @@ iPhone SE (3rd generation) (com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-
         "B29636C6-DD18-4550-B6F7-54EB38151CFA" "$(printf '%s\n' "$avail" | pick_device_by 'iPad-Pro-13-inch-(M5)')"
     check "**iPhone-SE is absent and must come back empty**, not as some other device" \
         "" "$(printf '%s\n' "$avail" | pick_device_by iPhone-SE)"
+    # **The regression that cost a job.** The runner had this device; the first matcher returned
+    # empty for it and the sweep fell through to create-and-cold-boot. Here it is unindented and
+    # spelled with a space, against a hyphenated query — the mismatch the old parser could not see.
+    check "iPhone-17e resolves on the runner that actually had one" \
+        "A10B76FC-4115-4057-8550-967F510895A7" "$(printf '%s\n' "$avail" | pick_device_by iPhone-17e)"
+    check "an absent size is empty rather than the first device on the list" \
+        "" "$(printf '%s\n' "$avail" | pick_device_by iPad-mini)"
     [ "$t_fail" = 0 ] || { echo "ios-smoke --self-test: FAILED" >&2; exit 1; }
     echo "ios-smoke --self-test: all parsers ok"
     exit 0
@@ -375,6 +387,16 @@ fi
 # like, and the assertions that matter (paint, `vaults ready`) were already made above.
 # ---------------------------------------------------------------------------
 if [ -n "${FM_IOS_SIZES:-}" ]; then
+    # **Record the raw list before parsing it.** The first `pick_device_by` was validated against a
+    # fixture written by hand from a *different command's* output and returned empty on a runner
+    # that had the device — costing a create-and-cold-boot per size. Nobody here can run `simctl`,
+    # so the only way to stop guessing at its format is to ship it in the artifact. Cheap, and it
+    # turns the next parser question into a read rather than another billed dispatch.
+    xcrun simctl list devices available > "$OUT/devices-available.txt" 2>&1 || true
+    say "device list recorded ($(grep -c . "$OUT/devices-available.txt" 2>/dev/null || echo 0) lines) -> devices-available.txt"
+    say "matcher sees: $(device_index < "$OUT/devices-available.txt" | wc -l | tr -d ' ') device(s)"
+    device_index < "$OUT/devices-available.txt" > "$OUT/devices-parsed.txt" 2>&1 || true
+
     runtime=$(xcrun simctl list runtimes available | pick_runtime)
     [ -n "$runtime" ] || fail "FM_IOS_SIZES is set but no iOS runtime is available"
     for want in $FM_IOS_SIZES; do

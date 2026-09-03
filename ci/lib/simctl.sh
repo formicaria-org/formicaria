@@ -31,16 +31,51 @@ pick_udid()    { grep -m1 '^ *iPhone' | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}
 # Exact name first, then the first substring match — deliberately, because `iPhone-17` is a prefix
 # of `iPhone-17-Pro-Max` and "the last line that matched" would silently hand back the largest
 # device every time you asked for the smallest.
+# **Normalise to alphanumerics, and stop caring what the format is.** The first version of this
+# matched a hyphenated name against a `sed` pattern that assumed `  Name (UDID) (State)` with the
+# state anchored to end-of-line. It returned **empty for `iPhone-17e` on a runner that plainly had
+# one** (run of 2026-09-03), so the sweep fell through to create-and-cold-boot — the slow path this
+# function exists to avoid. The self-test passed throughout, because its fixture was hand-written
+# from `xcodebuild -showdestinations` output and encoded the same assumption the parser did.
+#
+# So: take the UDID by its **shape** wherever it appears on the line, take the name as whatever
+# precedes it, and compare both sides stripped to lowercase alphanumerics. `iPhone 17e`,
+# `iPhone-17e`, `iphone17e` and `IPHONE 17E` all become `iphone17e`. Spacing, case, hyphens,
+# punctuation and trailing state all stop mattering — which is the point, because this runs on a
+# machine nobody here can inspect.
+_norm() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]'; }
+
 device_index() {
-    sed -n 's/^[[:space:]]*\(.*\) (\([0-9A-Fa-f]\{8\}-[0-9A-Fa-f]\{4\}-[0-9A-Fa-f]\{4\}-[0-9A-Fa-f]\{4\}-[0-9A-Fa-f]\{12\}\)) (.*)$/\1|\2/p' \
-        | awk -F'|' '{ n=$1; gsub(/ /,"-",n); print n "\t" $2 }'
+    awk '
+        match($0, /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/) {
+            udid = substr($0, RSTART, RLENGTH)
+            name = substr($0, 1, RSTART - 1)
+            gsub(/^[ \t]+|[ \t(]+$/, "", name)
+            if (name != "") print name "\t" udid
+        }'
 }
+# Exact normalised name first, then the first normalised substring match. Exact-first is deliberate:
+# `iphone17` is a prefix of `iphone17promax`, and "last match wins" would hand back the largest
+# device every time the smallest was asked for.
+#
+# **One awk, not a shell loop, and that is a bug-avoidance choice rather than a style one.** The
+# loop this replaced ended a branch with `[ "$a" = "$b" ] && { ...; }` — an AND-list whose status is
+# 1 whenever the test fails, which under `set -eu` killed the subshell on the *first non-matching
+# device* and returned empty. That is the third instance of this exact trap in one day's work here
+# (see `ci/ios-package.sh`'s entitlement scanner and the `created_size` teardown). A single awk has
+# no last-command status to leak.
 pick_device_by() {
-    _want=$1
-    _idx=$(device_index)
-    _u=$(printf '%s\n' "$_idx" | awk -F'\t' -v w="$_want" '$1==w{print $2; exit}')
-    [ -n "$_u" ] || _u=$(printf '%s\n' "$_idx" | awk -F'\t' -v w="$_want" 'index($1,w){print $2; exit}')
-    printf '%s' "$_u"
+    device_index | awk -F'\t' -v w="$(_norm "$1")" '
+        function norm(s) { s = tolower(s); gsub(/[^a-z0-9]/, "", s); return s }
+        {
+            n = norm($1)
+            if (n == w) { print $2; found = 1; exit }
+            cnt++; names[cnt] = n; ids[cnt] = $2
+        }
+        END {
+            if (found) exit
+            for (i = 1; i <= cnt; i++) if (index(names[i], w)) { print ids[i]; exit }
+        }'
 }
 
 # `boot_with_deadline <udid> <logfile> <seconds>` — `simctl bootstatus -b`, but bounded.

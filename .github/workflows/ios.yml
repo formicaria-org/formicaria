@@ -216,9 +216,18 @@ jobs:
       # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
       # per iOS triple building exactly the C that rung 2 needs; without this they never see each
       # other's work.
+      # **Both target directories, and the second one is where the iOS app is actually built.**
+      # `mobile/src-tauri/Cargo.toml:6` — "Outside the workspace on purpose" — so `cargo` writes to
+      # `mobile/src-tauri/target`, not `./target`. Measured on run 91415007453: rust-cache reported
+      # `full match: true` and restored in 2s, and the build still took **464 seconds**, because the
+      # hit was on the workspace target the iOS build scarcely touches while vendored OpenSSL,
+      # libgit2 and SQLite were recompiled for the simulator triple from scratch. A cache can report
+      # a perfect hit and save nothing; the thing to check is *which* directory it hit.
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: . -> target
+          workspaces: |
+            . -> target
+            mobile/src-tauri -> target
           cache-on-failure: true
           shared-key: ios
 
@@ -231,6 +240,27 @@ jobs:
       # the two resolved different pnpm versions, the second re-resolved `@tauri-apps/cli` to the
       # darwin-x64 build, and the Tauri CLI ran under Rosetta 2 until `brew` refused it. The pins in
       # `[dependencies]` now make those versions equal — this keeps them the *same install*.
+      # **Cache pnpm's STORE, never node_modules** — the same pattern `cross.yml` documents, and it
+      # was missing here entirely: every iOS dispatch re-fetched the whole JS dependency tree, two
+      # or three `pnpm install`s per job, on a runner billed at 10x Linux.
+      #
+      # pnpm fills node_modules with symlinks into a content-addressable store elsewhere, so
+      # caching node_modules restores dangling links and pnpm then reports "Already up to date"
+      # and repairs nothing. The store is content-addressed, which is why `restore-keys` is safe:
+      # a partial hit means pnpm fetches what is missing and links the rest.
+      #
+      # `-e cross`, because that is the environment every pnpm step in this workflow runs in and a
+      # different environment can resolve a different pnpm with a different store path.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
       - name: the frontend
         run: |
           pixi run -e cross pnpm -C ui install --frozen-lockfile
@@ -378,12 +408,35 @@ jobs:
       # (2m47s) and nothing since has used. Without the shared key that work is bought twice.
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: . -> target
+          workspaces: |
+            . -> target
+            mobile/src-tauri -> target
           cache-on-failure: true
           shared-key: ios
 
       # Identical to rung 2's, and `-e cross` for the same measured reason: `node_modules` written
       # by one environment's pnpm and used by another's is what cost rung 2 its first job.
+      # **Cache pnpm's STORE, never node_modules** — the same pattern `cross.yml` documents, and it
+      # was missing here entirely: every iOS dispatch re-fetched the whole JS dependency tree, two
+      # or three `pnpm install`s per job, on a runner billed at 10x Linux.
+      #
+      # pnpm fills node_modules with symlinks into a content-addressable store elsewhere, so
+      # caching node_modules restores dangling links and pnpm then reports "Already up to date"
+      # and repairs nothing. The store is content-addressed, which is why `restore-keys` is safe:
+      # a partial hit means pnpm fetches what is missing and links the rest.
+      #
+      # `-e cross`, because that is the environment every pnpm step in this workflow runs in and a
+      # different environment can resolve a different pnpm with a different store path.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
       - name: the frontend
         run: |
           pixi run -e cross pnpm -C ui install --frozen-lockfile
