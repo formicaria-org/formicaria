@@ -14,8 +14,27 @@ platforms = [{ platform = "linux-64", glibc = "2.34" }, "osx-arm64", "osx-64", "
 [dependencies]
 rust = "*"
 c-compiler = "*"     # cc for rusqlite's bundled SQLite (and any C build), pinned via conda-forge
-nodejs = "*"
-pnpm = "*"
+# **Pinned, and the reason cost a billed macOS job (2026-09-03).** These were `"*"`, so every
+# environment's solve was free to pick its own: on `osx-arm64` the `default` env resolved
+# nodejs 26.5.0 + pnpm 11.13.1 while `cross` resolved nodejs 26.8.0 + pnpm 12.2.1. iOS rung 1 ran
+# every pnpm step in `default` and worked; rung 2 ran the same steps in `cross` — because that is
+# where the iOS `rust-std` packages live — and its pnpm re-resolved `@tauri-apps/cli` to the
+# **darwin-x64** binary. The Tauri CLI then ran under Rosetta 2, and the first thing it does is
+# shell out to `brew` for `xcodegen`, which refuses: *"Cannot install under Rosetta 2 in ARM
+# default prefix (/opt/homebrew)"*. Nothing about iOS was wrong; two environments disagreed about
+# which JavaScript toolchain to use, and only one of them had ever been tried.
+#
+# So the JS toolchain is pinned the way everything else here is. Environments may still differ in
+# *rust* — `cross` carries std packages built against 1.98.0 and that is deliberate — but the thing
+# that chooses a native binary's architecture may not drift between them. `ci/checks.sh` compares
+# the environments and fails if they diverge again.
+#
+# `pnpm` is the one that matters and it is now identical everywhere. `nodejs` is pinned to a minor
+# rather than a patch because `==26.5.0` has no candidate for `osx-64` and the solve fails outright
+# — so environments may still differ by a node patch, which the guard allows and nothing here
+# depends on.
+nodejs = "26.5.*"
+pnpm = "11.13.*"
 poppler = "*"        # provides pdftotext (PDF text -> FTS5, the killer feature)
 libvips = "*"        # provides vipsthumbnail (image/video thumbnails)
 restic = "*"         # backup: dedup + encryption + integrity + bit-rot scrub

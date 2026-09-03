@@ -175,11 +175,17 @@ jobs:
       # The frontend must exist on disk before anything Rust runs: `generate_context!()` panics at
       # compile time if `frontendDist` (`../../ui/dist`) is missing. `tauri ios build` would run
       # `beforeBuildCommand` itself, but doing it here keeps the failure legible and separate.
+      # **`-e cross` here too, so one environment does all of it.** The smoke step runs in `cross`
+      # (it is the only environment with the iOS `rust-std` packages), and `node_modules` written by
+      # one environment's pnpm and then used by another's is exactly what cost rung 2 its first job:
+      # the two resolved different pnpm versions, the second re-resolved `@tauri-apps/cli` to the
+      # darwin-x64 build, and the Tauri CLI ran under Rosetta 2 until `brew` refused it. The pins in
+      # `[dependencies]` now make those versions equal — this keeps them the *same install*.
       - name: the frontend
         run: |
-          pixi run -- pnpm -C ui install --frozen-lockfile
-          pixi run -- pnpm -C ui build
-          pixi run -- pnpm -C mobile install --frozen-lockfile
+          pixi run -e cross pnpm -C ui install --frozen-lockfile
+          pixi run -e cross pnpm -C ui build
+          pixi run -e cross pnpm -C mobile install --frozen-lockfile
 
       # **`-e cross`, exactly as every Rust step in rung 1.** The iOS `rust-std` packages live in
       # `[feature.cross.dependencies]` and the `default` environment has *none* of them (measured:

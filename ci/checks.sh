@@ -278,6 +278,49 @@ else
     echo "  (skipped: cargo not on PATH)"
 fi
 
+echo "[check] every pixi environment agrees on the JS toolchain (arch of native CLIs)..."
+# **This cost a billed macOS job on 2026-09-03.** `nodejs`/`pnpm` were `"*"`, so each environment
+# solved its own: on osx-arm64 `default` took pnpm 11.13.1 and `cross` took 12.2.1. iOS rung 1 ran
+# every pnpm step in `default` and passed; rung 2 ran them in `cross` (where the iOS rust-std
+# packages live), whose pnpm re-resolved `@tauri-apps/cli` to the **darwin-x64** build. The Tauri
+# CLI then ran under Rosetta 2 and `brew` refused to install `xcodegen` into an ARM prefix. The
+# failure named Rosetta and Homebrew; the cause was two environments disagreeing about pnpm.
+#
+# `rust` is deliberately NOT compared: `cross` carries std packages built against a newer compiler
+# and that divergence is intended (see the comment on [feature.cross.dependencies]). What may never
+# diverge is the tool that picks a native binary's architecture. Read from the lock, so it is free
+# and needs no Mac. `nodejs` is compared on major.minor only — an exact pin has no `osx-64`
+# candidate, so patch drift is allowed and nothing depends on it.
+#
+# **Honest note on how far this was proven.** Unlike every other guard in this file it could not be
+# mutation-tested: with `pnpm` pinned in `[dependencies]`, a conflicting pin in a feature does not
+# solve at all (the solver refuses before this could fire), and simply un-pinning does not reproduce
+# the old state because the lock is sticky. What *was* verified is the comparison itself — pointed
+# at `rust`, it correctly reports `cross: 1.98.0 (vs default: 1.97.1)`, the divergence this check
+# deliberately ignores. So: the logic is known good, the invariant currently holds, and this stands
+# as a backstop for the case the pin is removed and the lock regenerated from scratch.
+if command -v pixi >/dev/null 2>&1; then
+    js_ref=""; js_bad=""
+    for env in default cross android media; do
+        got=$(pixi list -e "$env" --platform osx-arm64 2>/dev/null \
+            | awk '/^pnpm /{p=$2} /^nodejs /{sub(/\.[^.]*$/,"",$2); n=$2} END{print "pnpm=" p " node=" n}')
+        case "$got" in *"pnpm= "*|*"node=") continue ;; esac
+        if [ -z "$js_ref" ]; then js_ref="$got"; js_ref_env="$env"
+        elif [ "$got" != "$js_ref" ]; then js_bad="$js_bad\n    $env: $got  (vs $js_ref_env: $js_ref)"
+        fi
+    done
+    if [ -n "$js_bad" ]; then
+        echo "  FAIL: pixi environments disagree on the JS toolchain for osx-arm64:"
+        printf "$js_bad\n"
+        echo "        Pin nodejs/pnpm in [dependencies] so every environment resolves the same."
+        echo "        A mismatched pnpm installs a native CLI for the wrong architecture, and the"
+        echo "        error you get names Rosetta and Homebrew rather than pixi."
+        fail=1
+    fi
+else
+    echo "  (skipped: pixi not on PATH)"
+fi
+
 echo "[check] the iOS smoke test's simctl parsers still parse (the only part testable off a Mac)..."
 # `ci/ios-smoke.sh` runs on macOS and nowhere else, so almost none of it can be checked here — its
 # first real execution is inside a billed CI job. Its *parsers* are the exception: they are pure

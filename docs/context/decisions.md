@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4698,3 +4698,46 @@ and `--no-default-features` there exercises exactly the `not(agent_shell)` arms 
 take. Both were checked for `aarch64-linux-android` before landing. That is a proxy, not the thing;
 it is also considerably more than the "unverifiable churn against a target that does not build yet"
 this work was previously deferred as.
+
+## 2026-09-03 — the JS toolchain is pinned across every pixi environment, because it picks a binary's architecture `#toolchain` `#track-m`
+
+> **Extends** *non-pixi dependencies are project-local, never a system requirement* (2026-07-19) to
+> a case it did not anticipate: two pixi environments that are each internally reproducible, and
+> disagree with each other.
+
+**Decision:** `nodejs` and `pnpm` are version-pinned in `[dependencies]` (shared by every
+environment) rather than left at `"*"`. Environments may still differ in **rust** — `cross` carries
+`rust-std` packages built against a newer compiler and that is deliberate — but not in the tool that
+selects a native binary.
+
+**Why, and it cost a billed macOS job.** iOS rung 2 failed at `tauri ios init` with
+*"Cannot install under Rosetta 2 in ARM default prefix (/opt/homebrew)"*, from `brew`, while
+installing `xcodegen`. Nothing about iOS was wrong. `@tauri-apps/cli` is a JS wrapper over a
+per-platform native binary chosen by pnpm as an optional dependency, and on `osx-arm64` the two
+environments had resolved different package managers:
+
+| | `default` | `cross` |
+|---|---|---|
+| nodejs | 26.5.0 | 26.8.0 |
+| pnpm | **11.13.1** | **12.2.1** |
+| rust | 1.97.1 | 1.98.0 |
+
+Rung 1 ran every pnpm step in `default` and passed. Rung 2 ran them in `cross` — the only
+environment with the iOS `rust-std` packages — whose pnpm re-resolved the CLI to **darwin-x64**.
+The Tauri CLI then ran under Rosetta 2, and the first thing it does is shell out to Homebrew.
+
+**What this says about the failure mode, which is the durable part.** Two environments were each
+internally consistent and locked; nothing was unpinned in the sense the 2026-07-19 ruling meant.
+The defect was *relative* — a version skew between environments that only manifests as a
+**wrong-architecture native binary**, three layers away, in an error message naming Rosetta and
+Homebrew. Pinning per-environment is not enough when environments share a `node_modules`.
+
+**Consequence:** `ci/checks.sh` compares the environments and fails if the JS toolchain diverges,
+and `ios.yml`'s rung 2 runs *every* pnpm step in the same environment as the build rather than
+relying on the pins alone. `ci/ios-smoke.sh` also checks the resolved CLI's architecture against
+`uname -m` before it spends 45 minutes, so the next occurrence is one line instead of a Homebrew
+message. `nodejs` is pinned to a minor, not a patch: `==26.5.0` has no `osx-64` candidate and the
+solve fails outright. The guard could **not** be mutation-proven — with the pin in place a
+conflicting feature pin does not solve at all, and un-pinning does not reproduce the old state
+because the lock is sticky — so its comparison was verified instead against the `rust` divergence it
+deliberately ignores. That limit is written into the guard rather than left implied.

@@ -181,6 +181,27 @@ run_logged() {
 }
 tauri_ios() { ( cd "$root/mobile" && pnpm exec tauri ios "$@" ); }
 
+# **Is the Tauri CLI the right architecture?** Checked here because the symptom is otherwise
+# unrecognisable. `@tauri-apps/cli` is a thin JS wrapper over a per-platform native binary that pnpm
+# selects as an optional dependency; if the wrong one is installed, `tauri` runs under Rosetta 2 and
+# the *first* thing it does — shell out to `brew` for `xcodegen` — fails with **"Cannot install
+# under Rosetta 2 in ARM default prefix (/opt/homebrew)"**. That names Rosetta and Homebrew and says
+# nothing about pnpm, which is what it actually is. It cost rung 2 its first job on 2026-09-03; see
+# the pins in `pixi.toml`'s `[dependencies]`. One `ls` is cheaper than reading that error again.
+arch=$(uname -m)
+case "$arch" in arm64) want=darwin-arm64 ;; x86_64) want=darwin-x64 ;; *) want= ;; esac
+if [ -n "$want" ]; then
+    have=$(ls -d mobile/node_modules/@tauri-apps/cli-darwin-* 2>/dev/null | sed 's|.*/cli-||' | tr '\n' ' ')
+    case " $have " in
+        *" $want "*) say "tauri CLI: $want (matches $arch)" ;;
+        "  ")        say "tauri CLI: no darwin binary resolved yet — 'tauri ios init' will fetch one" ;;
+        *)           fail "the tauri CLI installed is '$have' but this machine is $arch, so it would
+  run under Rosetta 2 and 'brew install xcodegen' would refuse with a message about /opt/homebrew.
+  This means two pixi environments resolved different pnpm versions — see the nodejs/pnpm pins in
+  pixi.toml [dependencies], and run every pnpm step of this job in the same environment." ;;
+    esac
+fi
+
 if [ ! -d mobile/src-tauri/gen/apple ]; then
     say "no gen/apple — running 'tauri ios init'"
     run_logged ios-init tauri_ios init --verbose
