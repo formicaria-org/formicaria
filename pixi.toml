@@ -380,5 +380,12 @@ ios-smoke = "sh ci/ios-smoke.sh"
 # `cross` environment for the iOS `rust-std`. See the script's header.
 ios-https-probe = "sh ci/ios-https-probe.sh"
 
+# **Does a device-target unsigned IPA build?** — rung 5, the artifact a user sideloads. Unsigned on
+# purpose: each user re-signs with their own free Apple ID (`decisions.md#track-m`, *iOS ships as an
+# unsigned IPA that each user signs with their own Apple ID*), so this needs no Apple account, no
+# certificate and no secret. macOS-only, `cross` for the iOS `rust-std`, and — like `ios-smoke` —
+# deliberately NOT part of `pixi run ci`. Its parsers are, via `ci/checks.sh`.
+ios-package = "sh ci/ios-package.sh"
+
 [tasks.ci]
 depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "docs"]

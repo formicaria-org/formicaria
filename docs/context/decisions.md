@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** (read before any iOS distribution work — it carries the App Store / TestFlight / sideloading facts) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** **⟶ + *iOS ships as an unsigned IPA that each user signs with their own Apple ID*** (read the pair before any iOS distribution work — the first carries the App Store / TestFlight / sideloading facts, the second picks free-account sideloading and says what it forbids) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4870,3 +4870,57 @@ no-remote-CI standing order and fires unattended on every `v*` tag. Whatever art
 produces follows the APK's shape: built by a manual dispatch, attached deliberately. And **G5
 (container-relative vault paths) stops being deferrable the moment a distribution channel exists** —
 a distributed app *updates*, which is precisely the failure G5 exists to prevent.
+
+## 2026-09-03 — iOS ships as an unsigned IPA that each user signs with their own Apple ID `#track-m`
+
+> **Completes** *iOS is meant to reach users' phones now, and the route is deliberately undecided*
+> (2026-09-03, immediately above). That entry chose a destination and named three routes without
+> picking one. This picks one. It supersedes nothing — read the pair.
+
+**Decision:** the route is **free-account sideloading**. A manually dispatched CI job produces an
+**unsigned `.ipa`**; each user signs it with **their own free Apple ID** and installs it over USB,
+using SideStore or AltStore on Windows/macOS, or AltServer-Linux, SideServer-for-Linux or `xtool
+install` on Linux. The project holds no Apple account, no certificate, no CI secret, and registers
+no device UDIDs — **it cannot observe who runs it**, which is the property that made this route
+right rather than merely cheap.
+
+**Why not the better-feeling one.** External TestFlight is the closest analogue to the APK and it
+was rejected on two counts, in this order. The owner's intent is that users install it themselves,
+off-store, over a cable — TestFlight is off-*store* but not off-Apple, and gates the first build of
+every group behind Beta App Review. And the catch recorded above is decisive independent of taste:
+Apple's enrolment identity check wants an iPhone, iPad or Apple-silicon Mac, and **the owner has
+none**, so the $99 route may not be purchasable here at all. A route that cannot be entered is not a
+route.
+
+**What it costs the user, stated plainly because they pay all of it:** the app stops launching after
+**7 days** unless refreshed (SideStore does this wirelessly, with no computer after first setup);
+a device holds at most **3** sideloaded apps; and they must run a sideloader on their desktop.
+
+**What it costs us: nothing recurring.** `tauri-cli` v2.11.4 already emits exactly this artifact —
+`crates/tauri-cli/src/mobile/ios/build.rs:432-509`: `--no-sign` skips `build()` entirely, archives
+with `skip_codesign()`, then lifts the `.app` out of the `.xcarchive` and calls `create_ipa()`. **No
+`-exportArchive`, no `ExportOptions.plist`, no provisioning profile, no development team** — every
+one of those lives in the `else` branch reached only when signing is on. `ci/ios-smoke.sh` has
+passed `--no-sign` since the day it was written, for the unrelated reason that a headless runner has
+no keychain. The delta between four green Simulator runs and a sideloadable artifact was a target
+triple.
+
+**Consequences.**
+
+- **Rung 5 exists again**, asking a different question than the one it was struck for: not *"can we
+  ship?"* but *"does a device-target unsigned IPA build?"* `workflow_dispatch`-only, like every
+  other iOS rung.
+- **`release.yml` still names nothing iOS**, and this is now *enforced* rather than asserted —
+  `ci/checks.sh` greps it. The rule was prose in two headers and nothing checked it.
+- **The app must never acquire an entitlement a free personal team cannot hold**: App Groups,
+  keychain sharing, push, iCloud, associated domains. Any one of them makes the artifact
+  unsignable by the people it is built for. `ci/ios-package.sh` asserts their absence, because
+  nothing else in this repo would notice one being added.
+- **G5 (container-relative vault paths) is now blocking, not deferred.** The entry above already
+  said it *"stops being deferrable the moment a distribution channel exists"*; sideloading is worse
+  than the update case it was written for, because a re-sign changes the container path on a
+  **7-day cycle** while `vaults.json` persists absolute ones.
+- **The artifact has never been installed on hardware, and every surface that mentions it says so.**
+  There is no iPhone here. CI can prove the `.ipa` is well-formed, arm64, device-platform and
+  unsigned; it cannot prove it re-signs, installs, launches or syncs. No user-manual page ships
+  until someone with a phone confirms it does.

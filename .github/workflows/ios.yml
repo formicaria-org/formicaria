@@ -38,6 +38,7 @@ on:
           - "2"
           - "3"
           - "4"
+          - "5"
 
 # **Keyed by rung, not just by ref.** `cancel-in-progress` is right *within* a rung — a re-dispatch
 # supersedes the previous attempt — but the two rungs are different experiments, and with a shared
@@ -235,10 +236,19 @@ jobs:
       # `FM_IOS_SIZES` is empty for rung 2, so the sweep is inert and rung 2 behaves exactly as it
       # did when it was proven. Substrings, not identifiers — a device the runner image drops should
       # cost a skipped size and a note, not a failed job.
+      #
+      # **`iPhone-SE` was here and is deliberately gone.** The first rung-3 dispatch (2026-09-03)
+      # ran 20+ minutes because of it: Xcode 26 still lists an `iPhone-SE-3rd-generation` *device
+      # type*, so `simctl create` succeeded, but no installed iOS 26 runtime pairs with it and
+      # `bootstatus -b` waited without a timeout. The script now resolves sizes against `simctl list
+      # devices available` and bounds every boot, so this list would degrade to a fast skip — but
+      # naming a device the image has not shipped since iOS 26 is asking for a skip, not a
+      # screenshot. **The smallest and largest iPhones actually on the runner** are what the sweep
+      # is for; re-read `simctl list devices available` in a job log before changing them.
       - name: boot it, twice
         run: pixi run -e cross ios-smoke
         env:
-          FM_IOS_SIZES: ${{ inputs.rung == '3' && 'iPhone-SE iPhone-17-Pro-Max' || '' }}
+          FM_IOS_SIZES: ${{ inputs.rung == '3' && 'iPhone-17e iPhone-17-Pro-Max' || '' }}
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -298,5 +308,77 @@ jobs:
           # the whole diagnosis.
           path: |
             target/ios-https-probe
+          if-no-files-found: warn
+          retention-days: 7
+
+  # =========================================================================================
+  # Rung 5: **does a device-target unsigned IPA build?**
+  #
+  # **This rung was struck and is back.** `ios-plan-2026-09-02.md` said *"There is no rung 5 — a
+  # device install would cost $99/yr to produce an artifact nobody can run"*, which was true under
+  # the "no iPhone" ruling that has since been withdrawn. It now asks a different question than the
+  # one it was struck for: not *"can we ship?"* but *"does the unsigned device path work?"* — see
+  # `decisions.md`, *iOS ships as an unsigned IPA that each user signs with their own Apple ID*.
+  #
+  # **It costs no money beyond the job.** `--no-sign` makes tauri-cli take a `create_ipa()` path
+  # that needs no team, no certificate and no provisioning profile
+  # (`crates/tauri-cli/src/mobile/ios/build.rs:432-509`), so there is **no secret in this workflow**
+  # and nothing to rotate. Everything asserted lives in `ci/ios-package.sh`, not here, for the same
+  # reason rung 2's assertions do: YAML steps cannot be read, reasoned about or fixed anywhere
+  # except inside a billed run.
+  #
+  # **Kill criterion, written before the money is spent:** if the archive fails asking for a signing
+  # identity, team or profile, record "the unsigned device path needs a team after all" and stop.
+  # Do not iterate this into a budget.
+  #
+  # **Order.** `decisions.md` binds rungs 4 and 3 ahead of this one — an unsyncable notes app is not
+  # worth distributing. Rung 4 is green; dispatch rung 3 and read its screenshots before spending
+  # this job.
+  # =========================================================================================
+  rung5:
+    if: inputs.rung == '5'
+    name: does a device-target unsigned ipa build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          # Same pair as rungs 1 and 2: `default` carries pnpm and the Tauri CLI, `cross` carries
+          # the iOS `rust-std` packages.
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      # `shared-key: ios` again — this is the *device* triple, which rung 1 already compiled
+      # (2m47s) and nothing since has used. Without the shared key that work is bought twice.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
+
+      # Identical to rung 2's, and `-e cross` for the same measured reason: `node_modules` written
+      # by one environment's pnpm and used by another's is what cost rung 2 its first job.
+      - name: the frontend
+        run: |
+          pixi run -e cross pnpm -C ui install --frozen-lockfile
+          pixi run -e cross pnpm -C ui build
+          pixi run -e cross pnpm -C mobile install --frozen-lockfile
+
+      - name: build and check the unsigned device ipa
+        run: pixi run -e cross ios-package
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-rung5
+          # **The `.ipa` itself, and the reasoning about it.** This is the first iOS artifact of
+          # this project that is meant to leave CI — it is what a user would sideload. It is also
+          # the first that has never run on the hardware it targets, which is why `stats.txt` and
+          # the logs ship beside it rather than the binary alone.
+          path: |
+            mobile/src-tauri/gen/apple/build/arm64/*.ipa
+            target/ios-package
           if-no-files-found: warn
           retention-days: 7

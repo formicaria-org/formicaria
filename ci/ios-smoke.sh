@@ -41,28 +41,15 @@ OUT="$root/target/ios-smoke/$(date +%Y%m%d-%H%M%S)"
 # grounded in something re-readable rather than in a constant somebody guessed.
 MIN_DEVIATION=10
 
-# **tauri#15066 / actions/runner-images#13135.** Under Xcode 26 the default toolchain search order
-# puts `MetalToolchain` ahead of `XcodeDefault`, and MetalToolchain ships no Swift back-deployment
-# libraries — so any Swift-linking build dies with `ld: library not found for -lswiftCompatibility56`.
-# The runner-images maintainers' own fix is this variable. Tauri's `xcodebuild` invocations have no
-# way to inject it (`cargo-mobile2/src/apple/target.rs` passes no `-toolchain`), so it has to be in
-# the environment before the CLI is called. Applied defensively: the issue is documented against the
-# device SDK, and nothing found says the Simulator SDK is immune.
-export TOOLCHAINS="${TOOLCHAINS:-com.apple.dt.toolchain.XcodeDefault}"
-
-# Our verifying `rustup` shim first, exactly as `pixi.toml`'s `android-apk` and
-# `ci/android-release.sh` do it. Tauri's mobile commands shell out to `rustup target add`, and this
-# project has no rustup — targets are conda packages pinned in `pixi.lock`. The shim reports what is
-# installed and refuses to invent anything; without it, `tauri ios build` either fails or finds a
-# real rustup and installs an unpinned toolchain, which is what the pinning exists to prevent.
-PATH="$root/ci/bin:$PATH"
-export PATH
-
 say()  { echo "ios-smoke: $*"; }
-# The `simctl` parsers and device acquisition live in one place, shared with `ci/ios-https-probe.sh`
-# — they are the part of an iOS script most likely to be quietly wrong, and one copy means one
-# self-test. `--self-test` below exercises them against captured output; `ci/checks.sh` runs it.
+# Two sourced libraries, both shared with another iOS script, both for the same reason: the parts of
+# an iOS script most likely to be quietly wrong should exist once and be self-tested once.
+#   `simctl.sh`       — the device parsers and acquisition, shared with `ci/ios-https-probe.sh`
+#   `ios-toolchain.sh` — TOOLCHAINS, the verifying rustup shim on PATH, `run_logged`, the Tauri CLI
+#                        architecture check and `ios_project_ready`, shared with `ci/ios-package.sh`
+# `--self-test` below exercises the parsers against captured output; `ci/checks.sh` runs it.
 . "$root/ci/lib/simctl.sh"
+. "$root/ci/lib/ios-toolchain.sh"
 
 if [ "${1:-}" = "--self-test" ]; then
     t_fail=0
@@ -94,6 +81,29 @@ iPhone SE (3rd generation) (com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-
         "com.apple.CoreSimulator.SimRuntime.iOS-26-5" "$(printf '%s\n' "$runtimes" | pick_runtime)"
     check "devtype is an identifier, not '3rd generation'" \
         "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" "$(printf '%s\n' "$devtypes" | pick_devtype)"
+
+    # Captured from `simctl list devices available` on the runner during the rung-3 dispatch of
+    # 2026-09-03 — the run that spent 20 minutes booting a device that is *not in this list*.
+    avail='== Devices ==
+-- iOS 26.5 --
+    iPad Pro 13-inch (M5) (B29636C6-DD18-4550-B6F7-54EB38151CFA) (Shutdown)
+    iPhone 17 (FC5FEF2A-E933-4515-AAEF-C9FC16651D0B) (Shutdown)
+    iPhone 17 Pro (6EE862FE-93F2-4D55-946E-8745EE2B3A88) (Shutdown)
+    iPhone 17 Pro Max (6300F6FD-611A-422C-B6F2-F8C162FBDDF7) (Shutdown)
+    iPhone 17e (A10B76FC-4115-4057-8550-967F510895A7) (Shutdown)
+    iPhone Air (A8C66A3B-A7A0-4BD7-A222-B48E3A881425) (Shutdown)'
+
+    echo "ios-smoke --self-test: the available-device matcher"
+    check "an exact hyphenated name" \
+        "6300F6FD-611A-422C-B6F2-F8C162FBDDF7" "$(printf '%s\n' "$avail" | pick_device_by iPhone-17-Pro-Max)"
+    check "'iPhone-17' is exact, not the Pro Max that merely contains it" \
+        "FC5FEF2A-E933-4515-AAEF-C9FC16651D0B" "$(printf '%s\n' "$avail" | pick_device_by iPhone-17)"
+    check "a substring with no exact match still resolves" \
+        "A8C66A3B-A7A0-4BD7-A222-B48E3A881425" "$(printf '%s\n' "$avail" | pick_device_by Air)"
+    check "a name with parentheses survives hyphenation" \
+        "B29636C6-DD18-4550-B6F7-54EB38151CFA" "$(printf '%s\n' "$avail" | pick_device_by 'iPad-Pro-13-inch-(M5)')"
+    check "**iPhone-SE is absent and must come back empty**, not as some other device" \
+        "" "$(printf '%s\n' "$avail" | pick_device_by iPhone-SE)"
     [ "$t_fail" = 0 ] || { echo "ios-smoke --self-test: FAILED" >&2; exit 1; }
     echo "ios-smoke --self-test: all parsers ok"
     exit 0
@@ -152,55 +162,15 @@ df -h / "$root" > "$OUT/disk-before.txt" 2>&1 || true
 # needs `tauri ios build`'s feature plumbing, which travels over the CLI's own WebSocket rather than
 # an env var, and this script deliberately does not depend on a flag nobody here can verify.
 # ---------------------------------------------------------------------------
-# `run_logged <name> <cmd...>` — live output *and* an honest exit status.
-#
-# **`cmd | tee log || fail` is a lie**: a pipeline reports the status of its last command, so the
-# `||` would fire on `tee` failing and never on the build. `pipefail` is not in POSIX sh. So the
-# status is written to a file inside the subshell and read back afterwards. Live output matters
-# here — this is a 25-45 minute build whose whole value is being watchable while it runs.
-run_logged() {
-    name=$1; shift
-    # `set +e` inside the subshell: with errexit on, a non-zero `$@` exits the subshell *before*
-    # `echo $?` runs, and the real code is lost — the failure is still caught, but every build
-    # failure would be reported as rc=1. Measured, not assumed.
-    ( set +e; "$@"; echo $? > "$OUT/$name.rc" ) 2>&1 | tee "$OUT/$name.log"
-    rc=$(cat "$OUT/$name.rc" 2>/dev/null || echo 1)
-    [ "$rc" = 0 ] || fail "$name failed (rc=$rc) — $OUT/$name.log"
-}
-tauri_ios() { ( cd "$root/mobile" && pnpm exec tauri ios "$@" ); }
+# `run_logged` and `tauri_ios` come from `ci/lib/ios-toolchain.sh`, sourced above. They are not
+# simulator-specific and rung 5 needs them byte-identically; see that file for what each one is
+# working around.
 
-# **Is the Tauri CLI the right architecture?** Checked here because the symptom is otherwise
-# unrecognisable. `@tauri-apps/cli` is a thin JS wrapper over a per-platform native binary that pnpm
-# selects as an optional dependency; if the wrong one is installed, `tauri` runs under Rosetta 2 and
-# the *first* thing it does — shell out to `brew` for `xcodegen` — fails with **"Cannot install
-# under Rosetta 2 in ARM default prefix (/opt/homebrew)"**. That names Rosetta and Homebrew and says
-# nothing about pnpm, which is what it actually is. It cost rung 2 its first job on 2026-09-03; see
-# the pins in `pixi.toml`'s `[dependencies]`. One `ls` is cheaper than reading that error again.
-arch=$(uname -m)
-case "$arch" in arm64) want=darwin-arm64 ;; x86_64) want=darwin-x64 ;; *) want= ;; esac
-if [ -n "$want" ]; then
-    have=$(ls -d mobile/node_modules/@tauri-apps/cli-darwin-* 2>/dev/null | sed 's|.*/cli-||' | tr '\n' ' ')
-    case " $have " in
-        *" $want "*) say "tauri CLI: $want (matches $arch)" ;;
-        "  ")        say "tauri CLI: no darwin binary resolved yet — 'tauri ios init' will fetch one" ;;
-        *)           fail "the tauri CLI installed is '$have' but this machine is $arch, so it would
-  run under Rosetta 2 and 'brew install xcodegen' would refuse with a message about /opt/homebrew.
-  This means two pixi environments resolved different pnpm versions — see the nodejs/pnpm pins in
-  pixi.toml [dependencies], and run every pnpm step of this job in the same environment." ;;
-    esac
-fi
-
-if [ ! -d mobile/src-tauri/gen/apple ]; then
-    say "no gen/apple — running 'tauri ios init'"
-    run_logged ios-init tauri_ios init --verbose
-fi
-
-# **Between init and build, always.** The generated project does not link zlib or iconv, which
-# libgit2 needs and which rustc cannot bundle into a `staticlib` — rung 2's second firing died at
-# the link step on exactly those twelve symbols. `gen/apple` is gitignored so a fresh checkout never
-# carries the fix, and `tauri ios build` never re-runs XcodeGen, so this script both patches
-# `project.yml` and regenerates. See its header for why no tidier mechanism works.
-run_logged inject-linker-libs sh "$root/ci/ios-inject-linker-libs.sh"
+# The CLI architecture check, `tauri ios init` if `gen/apple` is absent, and the zlib/iconv linker
+# injection that must follow it — all three in `ci/lib/ios-toolchain.sh`, because none of them is
+# simulator-specific and rung 5 hits every one of them identically.
+tauri_cli_arch_check
+ios_project_ready
 
 say "building for the Simulator (aarch64-sim, unsigned)…"
 run_logged build tauri_ios build --target aarch64-sim --no-sign --verbose
@@ -408,19 +378,35 @@ if [ -n "${FM_IOS_SIZES:-}" ]; then
     runtime=$(xcrun simctl list runtimes available | pick_runtime)
     [ -n "$runtime" ] || fail "FM_IOS_SIZES is set but no iOS runtime is available"
     for want in $FM_IOS_SIZES; do
-        dt=$(xcrun simctl list devicetypes \
-            | grep -F "$want" | tail -1 \
-            | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true)
-        if [ -z "$dt" ]; then
-            say "size '$want': no such device type on this runner — skipped"
-            continue
+        # **An already-available device first, and only then create one.** The runner image ships
+        # several iPhones already paired with a runtime and pre-created; using one skips a create
+        # *and* a first cold boot, and — the expensive part — it cannot select a device that will
+        # never boot. `simctl list devicetypes` lists what Xcode knows about, which on Xcode 26
+        # still includes an iPhone SE that no iOS 26 runtime will pair with: created fine, then sat
+        # in `bootstatus` until the job was 20 minutes old. See `pick_device_by` in lib/simctl.sh.
+        created_size=0
+        sud=$(xcrun simctl list devices available | pick_device_by "$want")
+        if [ -n "$sud" ]; then
+            say "size '$want': using the runner's own device $sud"
+        else
+            dt=$(xcrun simctl list devicetypes \
+                | grep -F "$want" | tail -1 \
+                | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true)
+            if [ -z "$dt" ]; then
+                say "size '$want': no available device and no such device type — skipped"
+                continue
+            fi
+            say "size '$want': no available device; creating one from $dt"
+            sud=$(xcrun simctl create "fm-size-$want" "$dt" "$runtime" 2>/dev/null || true)
+            if [ -z "$sud" ]; then
+                say "size '$want': simctl create failed — skipped"
+                continue
+            fi
+            created_size=1
         fi
-        sud=$(xcrun simctl create "fm-size-$want" "$dt" "$runtime" 2>/dev/null || true)
-        if [ -z "$sud" ]; then
-            say "size '$want': simctl create failed — skipped"
-            continue
-        fi
-        if xcrun simctl bootstatus "$sud" -b >"$OUT/bootstatus-$want.txt" 2>&1 \
+        # Bounded, always. Even a pre-paired device can stall on a loaded 3-core runner, and the
+        # whole point of this rung is screenshots — none of them is worth an unbounded wait.
+        if boot_with_deadline "$sud" "$OUT/bootstatus-$want.txt" "${FM_IOS_BOOT_TIMEOUT:-240}" \
            && xcrun simctl install "$sud" "$app" >/dev/null 2>&1; then
             xcrun simctl launch "$sud" "$bid" >/dev/null 2>&1 || true
             # No polling loop: the assertions live above. Give the WebView a moment, then record.
@@ -437,7 +423,13 @@ if [ -n "${FM_IOS_SIZES:-}" ]; then
             say "size '$want': would not boot or install — skipped ($OUT/bootstatus-$want.txt)"
         fi
         xcrun simctl shutdown "$sud" >/dev/null 2>&1 || true
-        xcrun simctl delete "$sud" >/dev/null 2>&1 || true
+        # **Delete only what this run created** — the same rule `created_device` follows at the end
+        # of this script. Now that the sweep prefers the runner's own pre-created devices, deleting
+        # unconditionally would destroy part of the image's device set: harmless on a throwaway
+        # runner, wrong on the "a Mac someone else owns" this file's header offers.
+        # `if`, not `&&`: under `set -eu` a trailing AND-list whose test fails is a non-zero status
+        # on the loop body's last command.
+        if [ "$created_size" = 1 ]; then xcrun simctl delete "$sud" >/dev/null 2>&1 || true; fi
     done
 fi
 

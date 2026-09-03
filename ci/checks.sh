@@ -391,6 +391,50 @@ else
     echo "  (skipped: ci/ios-smoke.sh not present)"
 fi
 
+echo "[check] the iOS packaging parsers still parse (device-vs-simulator, and free-team entitlements)..."
+# Same bargain as the smoke test above: `ci/ios-package.sh` (rung 5) is macOS-only, so its two pure
+# text filters are the only part checkable here — and both are load-bearing in a way that fails
+# *silently* if they break.
+#   - the Mach-O platform parser decides device-vs-simulator, and the constants are `2` and `7`.
+#     A parser that returned nothing for the numeric form would turn "this is a device build" —
+#     the entire question rung 5 exists to answer — into an assertion that always passes.
+#   - the entitlements scanner is the only thing in this repo that would notice the app acquiring
+#     App Groups, keychain sharing, push or iCloud. Any one of those makes the .ipa unsignable by
+#     a free Apple ID, i.e. by every user it is built for.
+if [ -f ci/ios-package.sh ]; then
+    if ! sh ci/ios-package.sh --self-test >/dev/null 2>&1; then
+        echo "  FAIL: \`sh ci/ios-package.sh --self-test\` does not pass. Run it to see which parser"
+        echo "        broke; the fixtures are captured \`vtool\`/\`otool\` output and plist text."
+        sh ci/ios-package.sh --self-test 2>&1 | sed 's/^/        /' | head -16
+        fail=1
+    fi
+else
+    echo "  (skipped: ci/ios-package.sh not present)"
+fi
+
+echo "[check] release.yml still names nothing iOS (the unattended-tag exception stays narrow)..."
+# `release.yml` is the **single named exception** to the no-remote-CI standing order: it fires
+# unattended on every `v*` tag. `decisions.md#track-m` (*an iOS build would contradict the
+# project-local-toolchain ruling*) rules that any iOS CI job is `workflow_dispatch`-only and must
+# not be added to it — and rung 5 now produces a downloadable `.ipa`, which is exactly the artifact
+# somebody would reasonably want attached automatically.
+#
+# **Until now that rule was prose in two file headers and nothing checked it.** A one-line addition
+# to `release.yml` would widen a billed, unattended exception permanently, and would do it in the
+# one workflow nobody dispatches by hand and therefore nobody reads.
+if [ -f .github/workflows/release.yml ]; then
+    if grep -nEi '(^|[^A-Za-z])ios([^A-Za-z]|$)|\.ipa|xcode|simulator|iphone' .github/workflows/release.yml >/dev/null 2>&1; then
+        echo "  FAIL: .github/workflows/release.yml names iOS. It fires unattended on every 'v*' tag"
+        echo "        and is the single named exception to the no-remote-CI standing order; an iOS leg"
+        echo "        there widens that exception permanently. iOS jobs are workflow_dispatch-only —"
+        echo "        see .github/workflows/ios.yml and decisions.md#track-m. Offending lines:"
+        grep -nEi '(^|[^A-Za-z])ios([^A-Za-z]|$)|\.ipa|xcode|simulator|iphone' .github/workflows/release.yml | sed 's/^/        /' | head -6
+        fail=1
+    fi
+else
+    echo "  (skipped: .github/workflows/release.yml not present)"
+fi
+
 echo "[check] the mobile study agent stays behind the feature AND Android (notes-only pays nothing)..."
 # The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
 # mobile shell must give the same guarantee, or a notes-only APK silently links the whole model

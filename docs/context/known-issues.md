@@ -667,6 +667,45 @@ The gray-screen fix and its tests are in
   a blank-screen check that would have *passed* on the home screen. The kill criterion is about the
   *app* (blank screen **and** an empty pty), not about the harness. Everything the script needs is
   discovered at runtime rather than hardcoded, precisely because of this.
+- **A simulator that cannot boot is indistinguishable from one that is slow, and `simctl` will wait
+  forever.** The first `rung=3` dispatch (2026-09-03) was **cancelled by the owner past 20 minutes**
+  with no end in sight, against a measured band of 2.8–7.7 min. It was not the cache and not the
+  build — the log shows `formicaria.app` built and both launches painted. The sweep resolved
+  `FM_IOS_SIZES` against **`simctl list devicetypes`**, which is what Xcode *knows about*: Xcode 26
+  still lists `iPhone-SE-3rd-generation`, so `simctl create` succeeded, no installed iOS 26 runtime
+  would pair with it, and `bootstatus -b` — **which has no timeout** — sat. The guard above it only
+  ever handled *"no such device type"*. Then the second size created and cold-booted another fresh
+  device, so the cost compounded.
+  **Fixed three ways, all in `ci/lib/simctl.sh`:** sizes now resolve against `simctl list devices
+  available` (the list that has already paired device *and* runtime, so a match boots and a miss is
+  an instant skip); the runner's own pre-created devices are reused, removing a create and a cold
+  boot per size; and **every** boot goes through `boot_with_deadline` — including the primary one,
+  which was equally unbounded. `pick_device_by` is self-tested against the real device list from
+  that job, including the case that bit: `iPhone-SE` must come back **empty**, not as some other
+  device. **The generalisation worth keeping:** on a billed runner, every wait needs an upper bound,
+  and so does the give-up path — `simctl shutdown` has no timeout either, so it is fired and
+  forgotten rather than waited on.
+- **The iOS `.ipa` is the first artifact here meant for users that has never run on its target.**
+  `ci/ios-package.sh` (rung 5) is written blind against tauri-cli v2.11.4's source, exactly as
+  `ci/ios-smoke.sh` was, and expects the same first-dispatch mechanical failures. Its parsers are
+  self-tested (`--self-test`, run by `ci/checks.sh`); nothing else in it is. **What no job here can
+  ever answer:** whether the `.ipa` re-signs under a free Apple ID, installs, launches, or syncs on
+  a physical iPhone. Do not let "rung 5 is green" become "iOS works" — it means the file is the
+  right shape. Three consequences follow, and none of them is fixed:
+  - **G5 (container-relative vault paths) is now blocking, not deferred.** `decisions.md` said it
+    *"stops being deferrable the moment a distribution channel exists"*; sideloading is worse than
+    the update case it was written for, because a **re-sign changes the app container path on a
+    7-day cycle** while `vaults.json` persists absolute ones. The first user to refresh their app
+    would find their vaults gone — a failure whose only symptom is an empty app.
+  - **LAN pairing will fail silently on a device.** *Share with a nearby device* discovers over
+    mDNS, which iOS 14+ gates behind `NSLocalNetworkUsageDescription` + `NSBonjourServices` and a
+    runtime prompt. Neither key is set, **there is no `bundle.iOS` block in `tauri.conf.json` at
+    all**, and a Simulator does not enforce the permission — so this cannot be caught by any rung.
+    git-over-HTTPS sync is unaffected (rung 4 proved it).
+  - **The app must never acquire a free-team-forbidden entitlement** — App Groups, keychain
+    sharing, push, iCloud, associated domains, Sign in with Apple, Apple Pay. Ticking a capability
+    box writes one, and it would make the artifact unsignable by every user it exists for.
+    `ci/ios-package.sh` asserts their absence; that assertion is the only guard.
 - **`ci/ios-logs.sh` has never completed a real fetch** — only its refusal paths are exercised (no
   credentials, and a bad token: both exit 1 with a usable message and leave no directory behind). It
   is *not* billed and needs no Mac; it needs `gh` logged in or a `GH_TOKEN`/`GITHUB_TOKEN` with
