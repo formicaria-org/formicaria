@@ -42,14 +42,24 @@ fn vault_dir(at: &Path, name: &str, notes: usize) -> PathBuf {
     p
 }
 
-/// An app over the given vaults, with its own vault-list file.
+/// An app over the given vaults, with its own vault-list file — **and the file is written first.**
+///
+/// **That write is the whole point, and its absence hid a shipped bug for as long as this test has
+/// existed.** Pointing `App` at a `vaults.json` that does not exist puts every assertion below on a
+/// path no real installation is ever on: `vaults::save` starts from `{}` and appends, so "the entry
+/// is not in the file afterwards" was true because it was never in the file to begin with. On a
+/// real machine the entry *is* there, `save` skips it as "theirs", and the forgotten vault comes
+/// back on the next start. Seeding the file is what makes this test able to fail.
 fn app_over(home: &TempDir, dirs: &[(String, PathBuf)]) -> App {
     let config = home.path().join("vaults.json");
-    let store = MultiStore::open(dirs).unwrap();
     let list: Vec<VaultConfig> = dirs
         .iter()
         .map(|(n, p)| VaultConfig { name: n.clone(), path: p.clone(), restic: None })
         .collect();
+    // Written through `save` rather than hand-rolled JSON, so the fixture is by construction the
+    // shape the app actually persists — including anything a later change makes it write.
+    fm_app::vaults::save(&list, &config).expect("the fixture vault list must be writable");
+    let store = MultiStore::open(dirs).unwrap();
     App::new(store, list, Some(config), true)
 }
 

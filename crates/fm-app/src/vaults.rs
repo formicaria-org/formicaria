@@ -287,6 +287,58 @@ fn write_atomic(to: &Path, bytes: &[u8]) -> Result<(), String> {
     std::fs::rename(&tmp, to).map_err(|e| format!("could not replace {}: {e}", to.display()))
 }
 
+/// Remove **one** entry: the vault called `name`, and nothing else.
+///
+/// **The first thing in this codebase that deletes a line from a user's config file**, and a
+/// deliberate, named exception to [`save`]'s append-only contract rather than a relaxation of it.
+/// `save` leaves a known entry's every byte alone — *"theirs"* — which is right for a function whose
+/// job is appending, and is exactly why it could not be the one that removes. Calling
+/// `save(&remaining, …)` to forget a vault **did nothing**: `save` iterates the list it is given and
+/// skips names already on disk; it never filters the on-disk array. The vault came back on the next
+/// start, on every real installation, for as long as `forget_vault` has existed.
+///
+/// Same shape as [`set_restic`], for the same reason: read, mutate one thing in the parsed tree,
+/// atomic replace. Every other entry, every other key of every entry, and any part of the file this
+/// app does not understand are carried through untouched.
+///
+/// **Two deliberate differences from [`set_restic`]:**
+/// - **A missing entry is success.** `set_restic` refuses one, because inventing a vault from a typo
+///   would create a phantom. Removal has no such hazard and every reason to be idempotent — the
+///   desired end state already holds, and a retry after a partial failure must not error.
+/// - **A missing file is success too.** An `FM_VAULT`-only install has no file, and there is nothing
+///   to remove from one that was never written.
+///
+/// A file that exists but cannot be parsed is still refused, exactly as everywhere else here: we do
+/// not overwrite a shape we did not understand.
+pub fn forget(name: &str, to: &Path) -> Result<(), String> {
+    let text = match std::fs::read_to_string(to) {
+        Ok(t) => t,
+        // Nothing on disk, nothing to remove. Not an error — see above.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(format!("{} could not be read: {e}", to.display())),
+    };
+    let mut root: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("{} is not valid JSON ({e}) — fix it first", to.display()))?;
+    let Some(arr) = root
+        .as_object_mut()
+        .and_then(|o| o.get_mut("vaults"))
+        .and_then(Value::as_array_mut)
+    else {
+        // No `vaults` array at all is the same "nothing to remove" case. A *malformed* one is not,
+        // and `save` refuses that separately — this function only ever narrows the file.
+        return Ok(());
+    };
+    let before = arr.len();
+    arr.retain(|e| e.get("name").and_then(Value::as_str) != Some(name));
+    if arr.len() == before {
+        return Ok(()); // absent: idempotent, and the file is not rewritten for nothing
+    }
+
+    let mut out = serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?;
+    out.push('\n');
+    write_atomic(to, out.as_bytes())
+}
+
 /// Absolute, and canonical where we can manage it. A **relative** path in a config file
 /// resolves against the cwd, which is not a thing a config file should do — it is how
 /// `FM_VAULT=vault` meant a different vault depending on where you launched from.
@@ -593,6 +645,81 @@ mod tests {
 
         let p = read(&f)["vaults"][0]["path"].as_str().unwrap().to_string();
         assert!(Path::new(&p).is_absolute(), "wrote a relative path: {p}");
+    }
+
+    /// The bug this function exists for: `save(&remaining, …)` removed **nothing**, because it
+    /// appends only and skips names already on disk.
+    #[test]
+    fn forget_removes_the_named_entry_and_leaves_the_others() {
+        let _env = RootGuard::none();
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("vaults.json");
+        save(&[cfg("notes", "/tmp/notes"), cfg("lab", "/tmp/lab")], &f).unwrap();
+
+        forget("notes", &f).unwrap();
+
+        let arr = read(&f)["vaults"].as_array().unwrap().clone();
+        assert_eq!(arr.len(), 1, "exactly one entry should remain: {arr:?}");
+        assert_eq!(arr[0]["name"], "lab", "and it must be the one not forgotten");
+    }
+
+    /// It narrows the file and touches nothing else — the property that makes it safe to run
+    /// against a config someone hand-edited.
+    #[test]
+    fn forget_preserves_unknown_keys_and_surviving_entries_verbatim() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("vaults.json");
+        std::fs::write(
+            &f,
+            r#"{ "theme": "solarized",
+                 "vaults": [ { "name": "gone", "path": "/tmp/gone" },
+                             { "name": "kept", "path": "/tmp/kept", "note": "hand-added" } ] }"#,
+        )
+        .unwrap();
+
+        forget("gone", &f).unwrap();
+
+        let v = read(&f);
+        assert_eq!(v["theme"], "solarized", "an unknown top-level key must survive");
+        let arr = v["vaults"].as_array().unwrap();
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["note"], "hand-added", "an unknown key inside a kept entry must survive");
+    }
+
+    /// Idempotent: the desired end state already holds, and a retry after a partial failure must
+    /// not turn into an error. Deliberately unlike `set_restic`, which refuses a missing entry
+    /// because inventing a vault from a typo would create a phantom.
+    #[test]
+    fn forgetting_something_absent_is_success_and_rewrites_nothing() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("vaults.json");
+        std::fs::write(&f, "{\"vaults\":[{\"name\":\"kept\",\"path\":\"/tmp/kept\"}]}").unwrap();
+        let before = std::fs::read_to_string(&f).unwrap();
+
+        forget("never-existed", &f).unwrap();
+
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), before, "the file must be left untouched");
+    }
+
+    /// An `FM_VAULT`-only install has no file, and there is nothing to remove from one that was
+    /// never written.
+    #[test]
+    fn forgetting_when_there_is_no_file_is_success() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("vaults.json");
+        forget("anything", &f).unwrap();
+        assert!(!f.exists(), "and it must not create one");
+    }
+
+    /// Same stance as everywhere else here: we do not overwrite a shape we did not understand.
+    #[test]
+    fn forget_refuses_a_file_it_could_not_parse() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("vaults.json");
+        std::fs::write(&f, "{ this is not json").unwrap();
+
+        assert!(forget("notes", &f).is_err(), "a malformed file must be refused, not rewritten");
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "{ this is not json", "and left alone");
     }
 
     /// **G5, and the whole point of it.** A phone vault must be found again after the app's

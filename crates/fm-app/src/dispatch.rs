@@ -2998,8 +2998,24 @@ fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
     // which is the recoverable order. Dropping it from memory first would leave a running app whose
     // vault list disagrees with the file it will reload from.
     let remaining: Vec<VaultConfig> = g.configs().into_iter().filter(|c| c.name != name).collect();
+    // **Two writers, in this order, and neither alone is enough.**
+    //
+    // `save` materialises: an `FM_VAULT`-only vault that is not in the file yet must be written
+    // before the file has entries, because `load` prefers the file over `FM_VAULT` the moment it
+    // does — the same reason `set_restic` documents for calling `save` first. It is given
+    // `remaining`, so it cannot re-add the vault being forgotten.
+    //
+    // `forget` removes. `save` **cannot**: it appends only and skips names already on disk, so the
+    // call below used to be the whole of this and removed nothing at all — the entry stayed in
+    // `vaults.json` and the vault returned on the next start.
     vaults::save(&remaining, &config)
         .map_err(|e| format!("the vault list could not be saved: {e} — nothing was changed"))?;
+    // **Not "nothing was changed"**: `save` above may already have materialised entries, so this
+    // message must not inherit that claim. The vault is still usable either way — nothing here
+    // touches its files.
+    vaults::forget(name, &config).map_err(|e| {
+        format!("'{name}' could not be removed from the vault list: {e} — it is still listed")
+    })?;
     g.remove(name);
     let names = g.all.names();
     Ok(serde_json::json!({

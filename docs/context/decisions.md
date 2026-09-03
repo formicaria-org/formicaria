@@ -5007,8 +5007,9 @@ had already cost ~1 run in 8 — `fm-core/tests/git_transport.rs`.
 remove anything from an existing `vaults.json`. It calls `save(&remaining, …)`, and `save` appends
 only — it never filters the on-disk array against the list it is given — so a forgotten vault
 returns on the next start. `dispatch.rs:1628` states the same fact from the other side. The existing
-test passes only because it writes to a file that does not yet exist. **Separate bug, separate fix**;
-recorded in `outstanding.md` rather than smuggled into a persistence change.
+test passes only because it writes to a file that does not yet exist. **Separate bug, separate fix** — and
+fixed the same day, in its own change: see *removal is a second narrow writer, not a relaxed
+`save`* below.
 
 ## 2026-09-03 — the WebView gets a voice: `console.error` reaches the native log `#track-m`
 
@@ -5047,3 +5048,41 @@ bridge dead is exactly today's behaviour.
 
 **Verified by cross-compiling the shell for `aarch64-linux-android` on Linux**, which the G2 work
 established is possible here — this is not another change written blind.
+
+## 2026-09-03 — removal is a second narrow writer, not a relaxed `save` `#vault`
+
+**`forget_vault` did not forget.** It called `vaults::save(&remaining, &config)`, and `save` appends
+only: it iterates the list it is given and skips every name already on disk — *"theirs. Leave every
+byte of it alone."* **It never filters the on-disk array.** So on every real installation the entry
+stayed in `vaults.json` and the vault came back on the next `App::load`. Live on desktop and Android
+for as long as `forget_vault` has existed. `dispatch.rs:1628` already stated the same fact from the
+other side and nobody joined it up.
+
+**Decision:** a new `vaults::forget(name, to)` removes exactly one entry. `save` keeps its
+append-only contract untouched.
+
+**Why not simply relax `save`.** That contract is load-bearing: it is what lets someone hand-edit
+`vaults.json` without this app reformatting, reordering or silently dropping what it does not
+understand. Relaxing it to "write the list I was given" would turn *"I don't understand this"* into
+*"I deleted it"* for every unknown key in the file. `set_restic` already established the alternative
+— a narrow writer that changes one thing and carries everything else through — and this is the same
+shape, so the file now has exactly two such writers and one appender.
+
+**`forget` differs from `set_restic` in two ways, both deliberate.** A missing entry is **success**,
+not an error: `set_restic` refuses one because inventing a vault from a typo would create a phantom,
+whereas removal has no such hazard and every reason to be idempotent under retry. A missing **file**
+is success too — an `FM_VAULT`-only install has none. A file that exists but does not parse is still
+refused, because we do not overwrite a shape we did not understand.
+
+**`forget_vault` now calls both, in this order, and neither alone is enough.** `save(&remaining)`
+first, to materialise a live `FM_VAULT` vault that is not in the file yet — `load` prefers the file
+over `FM_VAULT` the moment the file has entries, which is the hazard `save`'s own doc describes and
+`set_restic` already works around. Then `forget`. The second call gets its own error message rather
+than inheriting *"nothing was changed"*, which stops being true once `save` has materialised
+anything.
+
+**The test could not have caught it.** `forget_vault.rs`'s `app_over` pointed `App` at a
+`vaults.json` that **did not exist**, so `save` started from `{}` and appended, and *"the entry is
+not in the file afterwards"* was true because it had never been in the file. It now writes the
+fixture through `save` first — and the strengthened test was confirmed **red against the unfixed
+code** before the fix landed, because a regression test that has never been red proves nothing.
