@@ -6,10 +6,16 @@
 # here runs on TWO cold launches and requires both to pass.** A one-launch smoke test would have
 # gone green through the whole outage.
 #
-# What it asserts, in order of how much it is worth:
-#   C. two consecutive cold launches both report `vaults ready` — the store opened, on a real iOS
-#   B. the screen is not blank            (screenshot standard deviation, via libvips)
-#   A. the app is installed and launches  (necessary, and proves nothing about paint)
+# What it asserts, and **in the order it asserts them**, which is load-bearing:
+#   A. the app is installed and `simctl launch` stays alive  (necessary, proves nothing about paint)
+#   C. it reports `vaults ready` on the pty — the store opened, on a real iOS
+#   B. only *then*, that the screen is neither flat nor still the home screen (libvips)
+#
+# C precedes B deliberately. `android-smoke.sh` waits for `dumpsys window` to name our app before it
+# measures a single pixel; iOS has no `dumpsys`, and the first screenshot after `simctl launch` is
+# the **home screen** — wallpaper and icons, whose deviation sails past any blank-screen floor. A
+# pixel check run first would pass at t+0 and prove nothing. `vaults ready` is the gate this
+# platform does have, and a gray screen still fails B after passing it.
 #
 # **The diagnostic channel is stderr, and that is deliberate** (`decisions.md` 2026-09-03, *the iOS
 # diagnostic channel is stderr, not `os_log`*). `simctl launch --console-pty` attaches a pty to the
@@ -95,9 +101,16 @@ df -h / "$root" > "$OUT/disk-before.txt" 2>&1 || true
 # target too, on the same code path as a device build, and only `--no-sign` injects
 # `CODE_SIGNING_ALLOWED=NO`. A headless runner has no keychain, no certificate and no team.
 #
-# Features are left at their defaults on purpose. `mobile/src-tauri/build.rs` derives `agent_shell`
-# from *the feature and Android*, so an iOS build is agent-free however it is invoked — the flag is
-# not what makes that true, and this script does not depend on a flag nobody here can verify.
+# **Features are left at their defaults, and here is the honest version of what that costs.**
+# `build.rs`'s `agent_shell` gates `mod agent` — the *code* — so no iOS build runs an assistant
+# however it is invoked, and no `--no-default-features` has to be remembered. It does **not** prune
+# the dependency graph: the `agent` feature is still on, so `fm-agent`, `fm-agent-run` and their
+# `download` tail (`ureq` → `rustls` → `ring`, plus `sha2`/`flate2`/`tar`/`zip`) are compiled for
+# `aarch64-apple-ios-sim` here for the first time anywhere. `check-cross` covers `fm-agent` only —
+# by design, since `ring`'s C build script needs an Apple SDK that Linux does not have — so **if
+# this build fails inside `ring`, that is a known-unmeasured edge, not a mystery.** Pruning them
+# needs `tauri ios build`'s feature plumbing, which travels over the CLI's own WebSocket rather than
+# an env var, and this script deliberately does not depend on a flag nobody here can verify.
 # ---------------------------------------------------------------------------
 # `run_logged <name> <cmd...>` — live output *and* an honest exit status.
 #
@@ -124,11 +137,13 @@ fi
 say "building for the Simulator (aarch64-sim, unsigned)…"
 run_logged build tauri_ios build --target aarch64-sim --no-sign --verbose
 
-# The CLI renames the .app out of the .xcarchive into `gen/apple/build/<arch>/`, where <arch> is
-# `arm64-sim`. Globbed rather than hardcoded: the name comes from tauri.conf.json's productName and
-# the layout from cargo-mobile2, and neither is ours to pin.
-app=$(find mobile/src-tauri/gen/apple/build -maxdepth 3 -name '*.app' -type d 2>/dev/null | head -1)
-[ -n "$app" ] || fail "the build produced no .app under gen/apple/build ($OUT/build.log)"
+# The CLI renames the .app out of the .xcarchive into `gen/apple/build/<arch>/`, where <arch> for
+# `--target aarch64-sim` is `arm64-sim`. The *name* is globbed — it comes from tauri.conf.json's
+# productName via cargo-mobile2 — but the **directory is pinned**: a reused checkout can hold a
+# leftover `build/arm64/<Name>.app` from a device build at the same depth, and installing that on a
+# Simulator fails in a way that looks like the app is broken rather than like the wrong file.
+app=$(find mobile/src-tauri/gen/apple/build/arm64-sim -maxdepth 1 -name '*.app' -type d 2>/dev/null | head -1)
+[ -n "$app" ] || fail "the build produced no .app in gen/apple/build/arm64-sim ($OUT/build.log)"
 say "built $app"
 
 # The bundle id from what was actually built, not from tauri.conf.json — if those two ever disagree,
@@ -140,13 +155,30 @@ say "bundle id $bid"
 # ---------------------------------------------------------------------------
 # 2) A Simulator to run it on. Prefer one the image already has.
 # ---------------------------------------------------------------------------
-udid=$(xcrun simctl list devices available | awk -F'[()]' '/^ *iPhone/ {print $2; exit}')
+# **Match the identifier by its shape, never by which bracket it is in.** `simctl` lines look like
+#     iPhone 17 (A1B2C3D4-…) (Shutdown)
+#     iPhone SE (3rd generation) (A1B2C3D4-…) (Shutdown)
+# so "the second parenthesised group" is the UDID on the first line and the string `3rd generation`
+# on the second — and an `(Nth generation)` iPhone is an ordinary member of the default device set.
+# That parse would have handed `simctl bootstatus` a device name, and it would have done so *after*
+# the 25-45 minute build was already paid for.
+udid=$(xcrun simctl list devices available \
+    | grep -m1 '^ *iPhone' \
+    | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}' || true)
 if [ -z "$udid" ]; then
     say "no iPhone simulator available — creating one"
-    runtime=$(xcrun simctl list runtimes | awk '/^iOS /{r=$NF} END{print r}')
-    devtype=$(xcrun simctl list devicetypes | awk -F'[()]' '/iPhone/{d=$2} END{print d}')
-    [ -n "$runtime" ] && [ -n "$devtype" ] || fail "no iOS runtime or iPhone device type on this machine"
+    # `runtimes available`, not `runtimes`: an unavailable runtime prints a trailing
+    # "(unavailable, runtime profile not found … match policy)", so `$NF` on the unfiltered list can
+    # be the word `policy)`. Take the field that looks like a runtime identifier instead.
+    runtime=$(xcrun simctl list runtimes available \
+        | grep '^iOS ' | tail -1 \
+        | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9._-]+' || true)
+    devtype=$(xcrun simctl list devicetypes \
+        | grep 'iPhone' | tail -1 \
+        | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true)
+    [ -n "$runtime" ] && [ -n "$devtype" ] || fail "no available iOS runtime or iPhone device type on this machine"
     udid=$(xcrun simctl create fm-smoke "$devtype" "$runtime") || fail "simctl create failed"
+    created_device=1
 fi
 say "device $udid"
 # `bootstatus -b` boots if needed and blocks until the system is actually up, which is the
@@ -164,40 +196,76 @@ launch() {
     n=$1
     xcrun simctl terminate "$udid" "$bid" >/dev/null 2>&1 || true
 
+    # **The SpringBoard baseline, and the reason the checks below run in this order.**
+    #
+    # `android-smoke.sh` does not start measuring pixels until `dumpsys window` says our app is the
+    # focused one — because what it must measure is *our* window. iOS has no `dumpsys`, and without
+    # an equivalent gate the very first screenshot after `simctl launch` is the **home screen**:
+    # wallpaper plus a grid of icons, whose standard deviation is far above any blank-screen
+    # threshold. The check would pass at t+0, print "painted", and prove nothing — a wrong answer
+    # bought with a billed job, which is worse than a failure.
+    #
+    # The gate iOS does have is the app's own voice. `vaults ready` on the pty means the process is
+    # up and the store is open, so it is asserted FIRST and the pixel check runs after it. A gray
+    # screen — the Android bug this file exists for — still logs `vaults ready` and still fails the
+    # pixel check, which is exactly the case that has to survive the reordering.
+    #
+    # The baseline is kept as evidence and its deviation written to stats.txt, so the numbers below
+    # can be read against "what this screen looks like with no app on it" rather than in a vacuum.
+    xcrun simctl io "$udid" screenshot "$OUT/springboard-$n.png" >/dev/null 2>&1 \
+        || fail "launch $n: could not screenshot the home screen"
+    base_dev=$(vips deviate "$OUT/springboard-$n.png" 2>/dev/null || echo 0)
+    printf 'launch %s: home screen deviation=%s  (context, NOT a threshold)\n' "$n" "$base_dev" \
+        >> "$OUT/stats.txt"
+
     # `--console-pty` blocks for the life of the app, so it goes to the background with its output
     # in a file. That file is the entire diagnostic channel this platform has here.
     xcrun simctl launch --console-pty "$udid" "$bid" > "$OUT/console-$n.log" 2>&1 &
     console_pid=$!
 
-    # B — painted. Polled rather than slept-and-hoped, so the number in stats.txt is the time the
-    # app actually took, which is the number worth watching across releases.
-    k=0
-    while :; do
-        xcrun simctl io "$udid" screenshot "$OUT/open$n.png" >/dev/null 2>&1 \
-            || fail "launch $n: screenshot failed"
-        dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
-        printf 'launch %s: t+%ss deviation=%s\n' "$n" "$k" "$dev" >> "$OUT/stats.txt"
-        awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}' && break
-        k=$((k + 1))
-        [ "$k" -lt 60 ] || fail "launch $n: the screen never painted (deviation $dev <= $MIN_DEVIATION after 60s) — $OUT/open$n.png"
-        sleep 1
-    done
-    say "launch $n painted at t+${k}s (deviation $dev)"
-
     # C — the vaults opened, and the shell got to say so. The same assertion `android-smoke.sh`
     # makes, against the same log line, which is why the iOS logger carries the same prefix.
     j=0
     until grep -q 'vaults ready' "$OUT/console-$n.log" 2>/dev/null; do
-        j=$((j + 1))
-        if [ "$j" -ge 30 ]; then
+        # **Did the launch itself die?** Without this the loop would burn its full timeout and then
+        # report "no vaults ready line", which is the wrong diagnosis for a bad bundle id, a failed
+        # install or a crash in `main` — and the real message is sitting unread in the log.
+        if ! kill -0 "$console_pid" 2>/dev/null; then
             echo "--- console-$n.log ---" >&2; cat "$OUT/console-$n.log" >&2 || true
-            fail "launch $n: no 'vaults ready' line in 30s. Either the store never opened, or stderr
+            fail "launch $n: 'simctl launch' exited before the app reported anything ($OUT/console-$n.log)"
+        fi
+        j=$((j + 1))
+        if [ "$j" -ge 60 ]; then
+            echo "--- console-$n.log ---" >&2; cat "$OUT/console-$n.log" >&2 || true
+            fail "launch $n: no 'vaults ready' line in 60s. Either the store never opened, or stderr
   is not reaching the pty — in which case try 'xcrun simctl spawn $udid log stream' before
   concluding anything about the app ($OUT/console-$n.log)."
         fi
         sleep 1
     done
-    say "launch $n reported 'vaults ready'"
+    say "launch $n reported 'vaults ready' at t+${j}s"
+
+    # B — painted. Polled rather than slept-and-hoped, so the number in stats.txt is the time the
+    # app actually took, which is the number worth watching across releases. Two conditions, because
+    # either alone can lie: the screen must be non-flat *and* it must no longer be the home screen.
+    # A byte-identical screenshot is the unambiguous case — nothing has been drawn since.
+    k=0
+    while :; do
+        xcrun simctl io "$udid" screenshot "$OUT/open$n.png" >/dev/null 2>&1 \
+            || fail "launch $n: screenshot failed"
+        dev=$(vips deviate "$OUT/open$n.png" 2>/dev/null || echo 0)
+        same=no
+        if cmp -s "$OUT/springboard-$n.png" "$OUT/open$n.png"; then same=yes; fi
+        printf 'launch %s: t+%ss deviation=%s identical-to-home=%s\n' "$n" "$k" "$dev" "$same" \
+            >> "$OUT/stats.txt"
+        if [ "$same" = no ] && awk -v d="$dev" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}'; then
+            break
+        fi
+        k=$((k + 1))
+        [ "$k" -lt 60 ] || fail "launch $n: the screen never painted (deviation $dev vs floor $MIN_DEVIATION, identical-to-home=$same, after 60s) — $OUT/open$n.png"
+        sleep 1
+    done
+    say "launch $n painted at t+${k}s after ready (deviation $dev, home screen was $base_dev)"
 
     if grep -q 'formicaria ERROR' "$OUT/console-$n.log"; then
         fail "launch $n: an error was logged at startup ($OUT/console-$n.log)"
@@ -228,4 +296,12 @@ fi
 df -h / "$root" > "$OUT/disk-after.txt" 2>&1 || true
 xcrun simctl terminate "$udid" "$bid" >/dev/null 2>&1 || true
 xcrun simctl uninstall "$udid" "$bid" >/dev/null 2>&1 || true
+# Only a device *this run* created is deleted. A CI runner is thrown away either way, but the
+# header offers "a Mac someone else owns" and on one of those an undeleted `fm-smoke` accumulates
+# every run — and deleting a simulator the machine's owner made would be the worse mistake.
+if [ "${created_device:-0}" = 1 ]; then
+    xcrun simctl shutdown "$udid" >/dev/null 2>&1 || true
+    xcrun simctl delete "$udid" >/dev/null 2>&1 || true
+    say "deleted the simulator this run created"
+fi
 say "PASS — artifacts in $OUT"

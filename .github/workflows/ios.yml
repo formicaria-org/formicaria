@@ -35,8 +35,12 @@ on:
           - "1"
           - "2"
 
+# **Keyed by rung, not just by ref.** `cancel-in-progress` is right *within* a rung — a re-dispatch
+# supersedes the previous attempt — but the two rungs are different experiments, and with a shared
+# group, dispatching rung 2 while rung 1 was still running would cancel rung 1 mid-flight: minutes
+# billed, artifact lost. `inputs` is available in `concurrency`.
 concurrency:
-  group: ios-${{ github.ref }}
+  group: ios-${{ github.ref }}-${{ inputs.rung }}
   cancel-in-progress: true
 
 jobs:
@@ -177,10 +181,16 @@ jobs:
           pixi run -- pnpm -C ui build
           pixi run -- pnpm -C mobile install --frozen-lockfile
 
+      # **`-e cross`, exactly as every Rust step in rung 1.** The iOS `rust-std` packages live in
+      # `[feature.cross.dependencies]` and the `default` environment has *none* of them (measured:
+      # zero `apple-ios` entries in its sysroot). A bare `pixi run ios-smoke` would take the default
+      # env, `ci/bin/rustup` would correctly report the targets missing, and `tauri ios init` would
+      # die there — after the checkout, the pixi install and the cache restore had all been paid for.
+      #
       # `ci/ios-smoke.sh` puts `ci/bin` on PATH itself (the verifying `rustup` shim Tauri's mobile
-      # commands need), so this step needs no environment of its own.
+      # commands need), so this step needs no environment beyond that.
       - name: boot it, twice
-        run: pixi run ios-smoke
+        run: pixi run -e cross ios-smoke
 
       - uses: actions/upload-artifact@v4
         if: always()

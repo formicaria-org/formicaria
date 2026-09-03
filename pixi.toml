@@ -163,6 +163,19 @@ rust-std-aarch64-apple-darwin = "*"
 # here. This buys the type-check and nothing more: anything with a C build script still needs Xcode.
 rust-std-aarch64-apple-ios = "*"
 rust-std-aarch64-apple-ios-sim = "*"
+# **The third one is not for us — it is for `tauri ios init`, and it is not optional.**
+# `cargo-mobile2`'s `project::gen()` calls `Target::install_all()`, which shells out
+# `rustup target add` for **every** Apple triple it knows — `aarch64-apple-ios`,
+# `x86_64-apple-ios` and `aarch64-apple-ios-sim` — and `?`s on the first failure. The
+# `--target aarch64-sim` passed to *build* does not narrow what *init* installs.
+#
+# Nothing here ever compiles for an Intel Simulator (`macos-latest` is Apple silicon). But
+# `ci/bin/rustup` verifies rather than pretends, so an unpinned triple makes it exit 1 and takes
+# `tauri ios init` down with it. Rung 1 only passed because no shim was on PATH then and the
+# runner's own rustup answered — i.e. the shim, added as a safety measure, is what would have
+# broken this. Pinning is the cheap half of the fix: a noarch conda package, versus a
+# `--skip-targets-install` flag nothing on this machine can verify.
+rust-std-x86_64-apple-ios = "*"
 
 [feature.cross.tasks]
 # **`fm-agent` only, and that is the whole of the per-OS code.** Its `watchdog.rs` holds the Windows

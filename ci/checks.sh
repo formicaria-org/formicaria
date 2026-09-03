@@ -265,10 +265,13 @@ echo "[check] fm-agent-run still builds on its own, with no features..."
 # `ureq`/`sha2` unlinked. `cargo check -p <crate>` does not unify, so it is the only thing that sees
 # it — and it found the bug only because an iOS cross-check happened to be run per-package.
 if command -v cargo >/dev/null 2>&1; then
-    if ! cargo check -q -p fm-agent-run 2>/dev/null; then
+    if ! cargo check -q -p fm-agent-run >/dev/null 2>&1; then
         echo "  FAIL: \`cargo check -p fm-agent-run\` does not compile with no features."
         echo "        Something outside the \`download\` feature now names ureq/sha2/flate2/tar/zip,"
         echo "        or a cfg meant for \`pub mod fetch\` has drifted onto its neighbour."
+        # **Show the compiler, not just the guess above.** Two sentences of ours are a hypothesis;
+        # rustc knows. Re-run unsuppressed rather than sending the reader to reproduce it by hand.
+        cargo check -q -p fm-agent-run 2>&1 | sed 's/^/        /' | head -30
         fail=1
     fi
 else
@@ -308,29 +311,47 @@ fi
 # is gated, and the thing gating it still derives from the feature and the platform. Dropping
 # either half of the build.rs condition fails here.
 mobile_build=mobile/src-tauri/build.rs
-if grep -Eq '^[[:space:]]*mod agent;' "$mobile_lib" 2>/dev/null \
-    && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(agent_shell)'; then
+# **Assert positively that the declaration is there.** The first version of this made the whole
+# condition `found && not gated`, which is false — i.e. green — whenever the *first* grep misses:
+# a renamed file, a split module, `pub mod agent;`. A guard that a missing target satisfies is not
+# a guard, which is the same defect class as the comment one below.
+mod_decl=$(grep -nE '^[[:space:]]*(pub )?mod agent;' "$mobile_lib" 2>/dev/null || true)
+if [ -z "$mod_decl" ]; then
+    echo "  FAIL: no 'mod agent;' declaration in $mobile_lib. If the module moved, re-anchor this"
+    echo "        guard on its new home rather than leaving it pointed at nothing."
+    fail=1
+elif ! grep -B1 -E '^[[:space:]]*(pub )?mod agent;' "$mobile_lib" | grep -q 'cfg(agent_shell)'; then
     echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(agent_shell)]."
     fail=1
 fi
-# **Comment lines are stripped first, and that is not fastidiousness.** The first version of this
-# grep read the whole file and passed while the Android half was deleted from the code, because
-# the module doc above quotes `target_os = "android"` in prose. A guard that a comment can satisfy
-# is not a guard; it was caught here only because every guard in this file is proven by breaking it.
-mobile_build_code=$(grep -v '^[[:space:]]*//' "$mobile_build" 2>/dev/null || true)
+# **Comments are stripped first, and that is not fastidiousness.** The first version of this grep
+# read the whole file and passed while the Android half was deleted from the code, because the
+# module doc quotes `target_os = "android"` in prose. Since only `//` lines can be stripped with a
+# grep, block comments are refused outright in this one file — that is cheaper than a comment
+# parser and leaves nothing to assume.
+if grep -q '/\*' "$mobile_build" 2>/dev/null; then
+    echo "  FAIL: $mobile_build contains a /* */ comment. This guard strips only // lines, so a"
+    echo "        block comment could satisfy every check below without any code doing so. Use //."
+    fail=1
+fi
+mobile_build_code=$(grep -v '^[[:space:]]*//' "$mobile_build" 2>/dev/null | tr '\n' ' ' || true)
 if ! printf '%s\n' "$mobile_build_code" | grep -q 'rustc-cfg=agent_shell'; then
     echo "  FAIL: $mobile_build no longer emits 'agent_shell', so #[cfg(agent_shell)] in"
     echo "        $mobile_lib is dead and the agent is compiled into nothing."
     fail=1
 fi
-for half in CARGO_FEATURE_AGENT CARGO_CFG_TARGET_OS '"android"'; do
-    if ! printf '%s\n' "$mobile_build_code" | grep -q -- "$half"; then
-        echo "  FAIL: $mobile_build sets 'agent_shell' without testing $half. Both halves are"
-        echo "        load-bearing: the feature keeps a notes-only APK agent-free, and Android"
-        echo "        keeps an iOS build compiling at all (native_lib_dir has no iOS form)."
-        fail=1
-    fi
-done
+# **The conjunction, not three loose tokens.** Requiring the three names to each appear *somewhere*
+# says nothing about how they combine: flipping `&&` to `||`, or `==` to `!=`, leaves all three in
+# place and would emit `agent_shell` for **iOS** — the exact failure this guard exists to prevent,
+# passing green. So match the whole expression, on the source joined into one line because it wraps.
+if ! printf '%s\n' "$mobile_build_code" \
+    | grep -Eq 'CARGO_FEATURE_AGENT.*is_some\(\).*&&.*CARGO_CFG_TARGET_OS.*==[[:space:]]*Ok\("android"\)'; then
+    echo "  FAIL: $mobile_build does not set 'agent_shell' from CARGO_FEATURE_AGENT *and*"
+    echo "        CARGO_CFG_TARGET_OS == Ok(\"android\"). Both halves are load-bearing: the feature"
+    echo "        keeps a notes-only APK agent-free, and Android keeps an iOS build compiling at"
+    echo "        all (native_lib_dir has no iOS form). The operator between them matters too."
+    fail=1
+fi
 
 echo "[check] the Android setup hook: no panic path, and the store reachable before slow work..."
 # **This is the only thing in `pixi run ci` that looks at the phone's startup at all**, so it is
