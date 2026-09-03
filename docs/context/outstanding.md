@@ -798,7 +798,7 @@ untested client with a bug in the merge or commit path does not damage a phone �
 preference. (The body-merge engine that froze Android vaults mid-merge is the precedent: same class,
 already seen once.)
 
-**3. The three seams a user touches first have never executed on iOS.** The editor (`100dvh` with the
+**3. ~~The three seams a user touches first have never executed on iOS~~ — the test now exists, unrun.** `rung=3` seeds and drives (`decisions.md`, *rung 3 drives instead of photographing*), and a `fmblob:` failure fails the job automatically. **The editor and blobs are covered; the whiteboard is not** — the Excalidraw chunk needs navigation, i.e. real input injection, i.e. XCUITest and a test target injected into a `gen/apple` that is regenerated every run. The original reasoning, which still holds until the rung is actually dispatched: The editor (`100dvh` with the
 keyboard up), the whiteboard (the Excalidraw chunk), and `fmblob:` (any attachment). Rung 2 proved
 the *welcome screen* renders; nothing has proved anything past it, and rung 3 as built would not have
 — it photographs, it does not drive (`decisions.md`, 2026-09-03). **A `simctl` run that creates a
@@ -809,7 +809,7 @@ debug hook into the WebView. It is real work in `ci/ios-smoke.sh`, not a dispatc
 and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
 (`known-issues.md`). Media should reach a remote before the app is refreshed.
 
-**The order, then:** ~~G5~~ (done) → the drive-it-don't-photograph smoke test → a first-run notice on a
+**The order, then:** ~~G5~~ (done) → ~~the drive-it-don't-photograph smoke test~~ (built; **dispatch `rung=3` to actually learn anything**) → a first-run notice on a
 sideloaded build stating the 7-day reality → only then a user-manual install page. Until all four,
 the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
 exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,

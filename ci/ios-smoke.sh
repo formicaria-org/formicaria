@@ -51,6 +51,80 @@ say()  { echo "ios-smoke: $*"; }
 . "$root/ci/lib/simctl.sh"
 . "$root/ci/lib/ios-toolchain.sh"
 
+# A 1x1 red PNG. Inline base64 so this script stays a text file with no fixture to lose, and small
+# enough that the blob store's job here is to be *found*, not to be exercised.
+SEED_PNG_B64='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+# `shasum -a 256`, not `sha256sum`: the former is on both macOS and Linux, and this function runs on
+# a runner in CI and on this machine in `--self-test`.
+sha256_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+
+# `seed_vault <vault-dir>` — an identity, a note, and an image, in the shapes the app itself writes.
+#
+# **Every format here was read off `fm-cli`'s own output rather than guessed** (`capture` and `add`
+# into a scratch vault on 2026-09-03): frontmatter keys and order, `type: note` vs `type: asset`,
+# the `assets: [sha256:…]` list, and the blob's `blobs/sha256/<aa>/<bb>/<full>` fan-out. A seeded
+# vault the app rejects would fail this rung for the wrong reason, inside a billed job.
+seed_vault() {
+    _v=$1
+    mkdir -p "$_v/notes" || return 1
+
+    # **The identity is what stops the welcome screen**, and therefore what gets the app onto a
+    # screen worth photographing: `App.svelte`'s gate is `!vaults[0].identity`, fed by
+    # `vcs::identity(&path)`, which reads the vault's own git config. `fm-cli capture` does not
+    # create a repo, so this does.
+    git -C "$_v" rev-parse --git-dir >/dev/null 2>&1 || git -C "$_v" init -q
+    git -C "$_v" config user.name "iOS Smoke"
+    git -C "$_v" config user.email "smoke@formicaria.invalid"
+
+    printf '%s' "$SEED_PNG_B64" | base64 -d > "$_v/.seed.png" 2>/dev/null \
+        || printf '%s' "$SEED_PNG_B64" | base64 -D > "$_v/.seed.png"   # macOS base64 spells it -D
+    _sha=$(sha256_of "$_v/.seed.png")
+    _a=$(printf '%s' "$_sha" | cut -c1-2)
+    _b=$(printf '%s' "$_sha" | cut -c3-4)
+    mkdir -p "$_v/blobs/sha256/$_a/$_b"
+    mv "$_v/.seed.png" "$_v/blobs/sha256/$_a/$_b/$_sha"
+
+    # Fixed ULIDs and timestamps: a seeded vault should be byte-identical between runs, so a
+    # screenshot that differs means the *app* differed.
+    #
+    # **These are real ULIDs, and the first draft's were not.** `01SMOKE…NOTE1` was 25 characters
+    # and contained `O`, which Crockford base32 excludes — the store rejected both notes and
+    # `fm-cli list` answered `0 note(s)`. That is precisely the "seeded vault the app rejects fails
+    # this rung for the wrong reason" case, and the read-back below caught it on Linux for free
+    # rather than inside a billed macOS job. 26 characters, alphabet `0-9A-HJKMNP-TV-Z`.
+    _now="2026-01-01T00:00:00.000000000Z"
+    cat > "$_v/notes/01SMKE00000000000000000001.md" <<SEEDNOTE
+---
+schema: 1
+id: 01SMKE00000000000000000001
+type: note
+created: $_now
+updated: $_now
+---
+the smoke test seeded this note
+SEEDNOTE
+    cat > "$_v/notes/01SMKE00000000000000000002.md" <<SEEDASSET
+---
+schema: 1
+id: 01SMKE00000000000000000002
+type: asset
+title: dot.png
+created: $_now
+updated: $_now
+assets:
+- sha256:$_sha
+mime: image/png
+---
+SEEDASSET
+
+    # **Drop the index rather than reconcile with it.** `ColdStart::TrustIndex` on mobile reconciles
+    # by mtime, which would almost certainly pick these up — but "almost certainly" is not worth a
+    # billed job, and a missing index is a case the app already handles by rebuilding.
+    rm -f "$_v/index.sqlite"
+    printf '%s' "$_sha"
+}
+
 if [ "${1:-}" = "--self-test" ]; then
     t_fail=0
     check() {  # name expected actual
@@ -116,6 +190,39 @@ iPhone 17e (A10B76FC-4115-4057-8550-967F510895A7) (Shutdown)
         "A10B76FC-4115-4057-8550-967F510895A7" "$(printf '%s\n' "$avail" | pick_device_by iPhone-17e)"
     check "an absent size is empty rather than the first device on the list" \
         "" "$(printf '%s\n' "$avail" | pick_device_by iPad-mini)"
+    # **The seeder, validated by the app's own reader rather than by my idea of the format.**
+    # Every shape in `seed_vault` was read off `fm-cli`'s output, and this closes the loop: seed a
+    # scratch vault here, then ask `fm-cli list` what it sees. If the frontmatter, the ULIDs or the
+    # blob fan-out are wrong, the notes do not come back and this fails — on Linux, for free,
+    # instead of inside a billed macOS job.
+    echo "ios-smoke --self-test: the vault seeder, read back by fm-cli"
+    seed_dir=$(mktemp -d)
+    if seed_sha=$(seed_vault "$seed_dir" 2>"$seed_dir/err"); then
+        check "the blob lands at its sha-derived path" "yes" \
+            "$([ -f "$seed_dir/blobs/sha256/$(printf '%s' "$seed_sha" | cut -c1-2)/$(printf '%s' "$seed_sha" | cut -c3-4)/$seed_sha" ] && echo yes || echo no)"
+        check "the identity that stops the welcome screen is set" "iOS Smoke" \
+            "$(git -C "$seed_dir" config user.name 2>/dev/null)"
+        check "the index is dropped so the app rebuilds" "no" \
+            "$([ -f "$seed_dir/index.sqlite" ] && echo yes || echo no)"
+        if command -v cargo >/dev/null 2>&1; then
+            listed=$(FM_VAULT="$seed_dir" cargo run -q -p fm-cli -- list 2>/dev/null || true)
+            check "fm-cli reads both seeded notes back" "yes" \
+                "$(printf '%s' "$listed" | grep -q '^2 note(s):' && echo yes || echo no)"
+            check "the plain note's body is indexed" "yes" \
+                "$(printf '%s' "$listed" | grep -q 'the smoke test seeded this note' && echo yes || echo no)"
+            # By id, not by title: `fm list` prints id/date/body-excerpt and **no title**, so a real
+            # asset note made by `fm-cli add` shows a blank line here too. Checking for `dot.png`
+            # would have been a check that could never pass, on a seeder that was already correct.
+            check "the asset note is one of them" "yes" \
+                "$(printf '%s' "$listed" | grep -q '01SMKE00000000000000000002' && echo yes || echo no)"
+        else
+            echo "  skip fm-cli read-back (no cargo on PATH)"
+        fi
+    else
+        echo "  FAIL seed_vault errored: $(cat "$seed_dir/err" 2>/dev/null)"; t_fail=1
+    fi
+    rm -rf "$seed_dir"
+
     [ "$t_fail" = 0 ] || { echo "ios-smoke --self-test: FAILED" >&2; exit 1; }
     echo "ios-smoke --self-test: all parsers ok"
     exit 0
@@ -364,6 +471,46 @@ launch() {
     fi
 }
 launch 1
+
+# ---------------------------------------------------------------------------
+# 3b) **Rung 3's real question, answered without input injection.** Off unless `FM_IOS_SEED` is set.
+#
+# The old size sweep photographed the *welcome screen* at several widths and asserted nothing. The
+# three questions rung 3 was designed to answer — the editor, the Excalidraw chunk, `fmblob:` —
+# all need the app to be *past* first run and showing content, which needs either a tap or a vault
+# that already has something in it. `simctl` cannot tap. It can write into the data container.
+#
+# So: seed between the two launches the script already does. Launch 1 creates the vault; this puts
+# an identity, a note and an image in it; launch 2 renders them. **The assertion is automatic and
+# already wired** — a `fmblob:` image that fails to load fires a resource error, which the WebView
+# bridge forwards as `web: resource failed to load: …` at ERROR level (`decisions.md`, *the WebView
+# gets a voice*), which the `formicaria ERROR` grep in `launch` turns into a failed job. Nothing
+# here needs a human to look at a PNG.
+#
+# **Additive, and off by default**, exactly like `FM_IOS_SIZES` was: the single-device path cost
+# four billed jobs to get right and this must not be able to break it.
+# ---------------------------------------------------------------------------
+
+if [ -n "${FM_IOS_SEED:-}" ]; then
+    seed_container=$(xcrun simctl get_app_container "$udid" "$bid" data 2>/dev/null || true)
+    # Discovered, never guessed: `configure_paths` builds `<app_data>/vaults/notes`, and
+    # `app_data_dir()` is a value only the platform knows. The legacy `<app_data>/vault` is the
+    # pre-root default the shell still honours, so it is the fallback.
+    seed_vault_dir=""
+    if [ -n "$seed_container" ]; then
+        seed_vault_dir=$(find "$seed_container" -type d -path '*/vaults/notes' 2>/dev/null | head -1)
+        [ -n "$seed_vault_dir" ] || seed_vault_dir=$(find "$seed_container" -type d -name vault 2>/dev/null | head -1)
+    fi
+    if [ -z "$seed_vault_dir" ]; then
+        # Not fatal: rung 2's own assertions are unaffected, and a rung that cannot find the vault
+        # should say which half failed rather than fail the boot test.
+        say "seed: no vault directory found under the data container — skipped (tree in app-container.txt)"
+    else
+        seeded_sha=$(seed_vault "$seed_vault_dir") || fail "seed: could not write into $seed_vault_dir"
+        say "seed: identity, one note and one image ($seeded_sha) into $seed_vault_dir"
+    fi
+fi
+
 launch 2
 say "both launches painted and reported ready — the 'blank first, fine second' signature is absent"
 

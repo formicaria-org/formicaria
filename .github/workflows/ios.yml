@@ -287,10 +287,24 @@ jobs:
       # naming a device the image has not shipped since iOS 26 is asking for a skip, not a
       # screenshot. **The smallest and largest iPhones actually on the runner** are what the sweep
       # is for; re-read `simctl list devices available` in a job log before changing them.
+      # **Rung 3 now drives instead of photographing, and costs no extra device.**
+      #
+      # It used to mean "screenshot the welcome screen at two more widths": two extra simulator
+      # boots and installs (~170s each), asserting nothing — which is why it was marked
+      # deliberately unrun. `FM_IOS_SEED` instead writes an identity, a note and an image into the
+      # data container *between the two launches this job already does*, so launch 2 renders real
+      # content on the device already booted. Extra cost: a few file writes.
+      #
+      # And the assertion is automatic: a `fmblob:` image that fails to load fires a resource
+      # error, the WebView bridge forwards it as `web: resource failed to load: …` at ERROR level,
+      # and `launch`'s `formicaria ERROR` grep fails the job. No human looks at a PNG.
+      #
+      # The size sweep is still there and still works — set `FM_IOS_SIZES` by hand if a layout
+      # question ever justifies the boots. It is not worth them by default.
       - name: boot it, twice
         run: pixi run -e cross ios-smoke
         env:
-          FM_IOS_SIZES: ${{ inputs.rung == '3' && 'iPhone-17e iPhone-17-Pro-Max' || '' }}
+          FM_IOS_SEED: ${{ inputs.rung == '3' && '1' || '' }}
 
       - uses: actions/upload-artifact@v4
         if: always()

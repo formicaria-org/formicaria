@@ -5086,3 +5086,45 @@ anything.
 not in the file afterwards"* was true because it had never been in the file. It now writes the
 fixture through `save` first — and the strengthened test was confirmed **red against the unfixed
 code** before the fix landed, because a regression test that has never been red proves nothing.
+
+## 2026-09-03 — rung 3 drives instead of photographing, and is worth running again `#track-m`
+
+> **Amends** *rung 3 is not run, and the ladder ends at 1/2/4/5* (2026-09-03, earlier today). That
+> entry stands on its facts and its verdict was right **about the rung as it then existed**. What
+> changed is the rung, not the arithmetic.
+
+**What it was.** Per size: boot a simulator, install, launch, screenshot, shut down. Two extra boots
+and installs at ~170s each, for two PNGs of the **first-run screen**, driving nothing and asserting
+nothing. Three of its four stated questions — `100dvh`, the Excalidraw chunk, `fmblob:` — need the
+app *past* first run, which needs a tap. `simctl` cannot tap. That is why it was struck.
+
+**What unlocked it.** `simctl` cannot tap, but it can **write into the data container**. Launch 1
+already creates the vault and launch 2 already happens; seeding between them costs a few file
+writes and **no extra device**. So `FM_IOS_SEED` puts a git identity, a note and an image into the
+vault, and launch 2 renders real content instead of the welcome screen.
+
+- The **identity** is the gate: `App.svelte`'s `needsWelcome` is `!vaults[0].identity`, fed by
+  `vcs::identity(&path)` reading the vault's git config.
+- The **image** is the point: an `<img src="fmblob:…">` that fails fires a resource error, which
+  *the WebView gets a voice* forwards as `web: resource failed to load: …` at ERROR level, which
+  `launch`'s existing `formicaria ERROR` grep turns into a failed job. **The assertion is automatic
+  and nobody looks at a PNG.** This is why the bridge had to come first.
+
+**Every seeded format was read off `fm-cli`'s own output**, not invented — frontmatter keys, `type:
+note` vs `type: asset`, the `assets: [sha256:…]` list, the `blobs/sha256/<aa>/<bb>/<full>` fan-out.
+And the seeder is **read back by the app's own reader on Linux, free, on every commit**: `--self-test`
+seeds a scratch vault and asks `fm-cli list` what it sees.
+
+**That read-back immediately earned itself.** The first draft's ULIDs were `01SMOKE…` — 25 characters
+and containing `O`, which Crockford base32 excludes. The store rejected both notes and `fm-cli list`
+answered `0 note(s)`. That is exactly the *"a seeded vault the app rejects fails this rung for the
+wrong reason"* case, and it was caught on this machine instead of inside a billed macOS job.
+
+**A second, quieter correction from the same loop:** the read-back check first looked for `dot.png`
+in `fm list` output. `fm list` prints id, date and body excerpt and **no title** — a real asset note
+made by `fm-cli add` is blank there too. The check could never have passed, against a seeder that
+was already right. It asserts the note *count* and the asset's *id* now. A test that cannot pass is
+as bad as one that cannot fail.
+
+**The size sweep is kept and still works** — `FM_IOS_SIZES` by hand — but it is off by default. It
+buys layout screenshots for two device boots, and nothing here has a layout question worth that.
