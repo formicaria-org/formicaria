@@ -207,6 +207,13 @@ if [ ! -d mobile/src-tauri/gen/apple ]; then
     run_logged ios-init tauri_ios init --verbose
 fi
 
+# **Between init and build, always.** The generated project does not link zlib or iconv, which
+# libgit2 needs and which rustc cannot bundle into a `staticlib` — rung 2's second firing died at
+# the link step on exactly those twelve symbols. `gen/apple` is gitignored so a fresh checkout never
+# carries the fix, and `tauri ios build` never re-runs XcodeGen, so this script both patches
+# `project.yml` and regenerates. See its header for why no tidier mechanism works.
+run_logged inject-linker-libs sh "$root/ci/ios-inject-linker-libs.sh"
+
 say "building for the Simulator (aarch64-sim, unsigned)…"
 run_logged build tauri_ios build --target aarch64-sim --no-sign --verbose
 

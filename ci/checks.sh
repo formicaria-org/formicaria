@@ -321,6 +321,58 @@ else
     echo "  (skipped: pixi not on PATH)"
 fi
 
+echo "[check] the iOS linker-libs injection still finds its anchor and is idempotent..."
+# Without `libz.tbd` and `libiconv.tbd` the iOS app does not link at all — rung 2 died on twelve
+# undefined zlib/iconv symbols. `ci/ios-inject-linker-libs.sh` patches the generated (gitignored)
+# `project.yml`, so nothing in the repo proves it works; this runs it against a fixture built from
+# tauri-cli's own template, which needs no Mac. Checks the anchor is found, both libraries land
+# exactly once, and a second run is a no-op rather than a duplicate.
+if [ -f ci/ios-inject-linker-libs.sh ]; then
+    inj_dir=$(mktemp -d)
+    cat > "$inj_dir/project.yml" <<'INJYML'
+targets:
+  formicaria-mobile_iOS:
+    settings:
+      base:
+        ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
+    dependencies:
+      - framework: libapp.a
+        embed: false
+      - sdk: CoreGraphics.framework
+      - sdk: Security.framework
+      - sdk: UIKit.framework
+      - sdk: WebKit.framework
+    preBuildScripts:
+      - script: echo build rust
+INJYML
+    inj_ok=1
+    FM_SKIP_XCODEGEN=1 sh ci/ios-inject-linker-libs.sh "$inj_dir/project.yml" >/dev/null 2>&1 || inj_ok=0
+    FM_SKIP_XCODEGEN=1 sh ci/ios-inject-linker-libs.sh "$inj_dir/project.yml" >/dev/null 2>&1 || inj_ok=0
+    if [ "$inj_ok" != 1 ]; then
+        echo "  FAIL: ci/ios-inject-linker-libs.sh errored on a fixture built from tauri's template."
+        FM_SKIP_XCODEGEN=1 sh ci/ios-inject-linker-libs.sh "$inj_dir/project.yml" 2>&1 | sed 's/^/        /' | head -6
+        fail=1
+    fi
+    for lib in libz.tbd libiconv.tbd; do
+        n=$(grep -c "^      - sdk: $lib\$" "$inj_dir/project.yml" 2>/dev/null || echo 0)
+        if [ "$n" != 1 ]; then
+            echo "  FAIL: after two runs, '$lib' appears $n time(s) in the patched project.yml,"
+            echo "        expected exactly 1 (the injection must be idempotent — it runs on every build)."
+            fail=1
+        fi
+    done
+    # It must land inside the dependencies list, not after preBuildScripts.
+    if ! awk '/^    dependencies:/{d=1} /^    preBuildScripts:/{d=0} d && /libz\.tbd/{f=1} END{exit !f}' \
+        "$inj_dir/project.yml"; then
+        echo "  FAIL: libz.tbd was added outside the target's 'dependencies:' block, where XcodeGen"
+        echo "        will ignore it and the link will still fail."
+        fail=1
+    fi
+    rm -rf "$inj_dir"
+else
+    echo "  (skipped: ci/ios-inject-linker-libs.sh not present)"
+fi
+
 echo "[check] the iOS smoke test's simctl parsers still parse (the only part testable off a Mac)..."
 # `ci/ios-smoke.sh` runs on macOS and nowhere else, so almost none of it can be checked here — its
 # first real execution is inside a billed CI job. Its *parsers* are the exception: they are pure

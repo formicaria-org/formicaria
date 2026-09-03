@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4741,3 +4741,47 @@ solve fails outright. The guard could **not** be mutation-proven — with the pi
 conflicting feature pin does not solve at all, and un-pinning does not reproduce the old state
 because the lock is sticky — so its comparison was verified instead against the `rust` divergence it
 deliberately ignores. That limit is written into the guard rather than left implied.
+
+## 2026-09-03 — iOS gets zlib and iconv from the Xcode project, because a staticlib cannot carry them `#track-m` `#toolchain` `#git`
+
+> **Follows** *libgit2-sys is an unconditional dependency* (2026-09-02) — same crate, one layer
+> further out: that entry made libgit2 *compile* for iOS, this one makes it *link*.
+
+**Decision:** `ci/ios-inject-linker-libs.sh` adds `- sdk: libz.tbd` and `- sdk: libiconv.tbd` to the
+generated `gen/apple/project.yml` and re-runs `xcodegen generate`. `ci/ios-smoke.sh` calls it between
+`tauri ios init` and `tauri ios build`, every time.
+
+**Why it is needed at all.** The mobile crate is `crate-type = ["staticlib"]`, and **rustc cannot
+put a system dylib inside a static archive**. libgit2's own C objects *are* in `libapp.a` — `cc`
+emits `rustc-link-lib=static=git2` and `+bundle` is the default — but `libgit2-sys` also emits a
+plain `rustc-link-lib=z`, and `rustc-link-lib=iconv` for every Apple target. Those are instructions
+for whoever performs the final link, and here that is **Xcode, which never sees them**. Rung 2's
+second firing died on exactly twelve symbols: `_inflate*`/`_deflate*`/`_crc32` from `zstream.o`,
+`indexer.o`, `filebuf.o`, and `_iconv*` from `fs_path.o`. **Android never hits this** because it
+builds a `cdylib` that rustc links itself — a consequence of the output shape, not of iOS.
+
+**Three tidier-looking mechanisms were checked against the pinned tauri-cli source and rejected:**
+
+- **`tauri.conf.json` → `bundle > iOS > frameworks`** cannot express it. An entry with no extension
+  renders as `- sdk: {{this}}.framework`; any other extension is treated as a *vendored* framework
+  path relative to `src-tauri`. The template does carry an `ios-vendor-sdks` bucket that renders
+  `- sdk: …`, but tauri-cli never populates it — only `frameworks` and `vendor_frameworks`.
+- **`cargo:rustc-link-arg` / `.cargo/config.toml`** does not apply: Cargo documents it for binaries,
+  examples, tests, benches and **cdylibs**, and staticlib is not in that list.
+- **Vendoring** solves half at best. `libz-sys`'s `static` feature would bundle zlib, but
+  `libgit2-sys` emits `rustc-link-lib=iconv` unconditionally on Apple with no feature to avoid it,
+  and Apple ships `libiconv` only as a system library. iconv is Xcode-side regardless — so doing
+  both there is one mechanism instead of two, the second of which would be a platform-gated Cargo
+  feature edge, the exact shape that has bitten `fm-core/Cargo.toml` twice.
+
+**Why a script rather than a committed file.** `gen/apple` is gitignored (*"it embeds absolute
+paths"*), so a fresh checkout never has the edit — and **`tauri ios build` never runs XcodeGen**;
+only `init` does. So the patch must be re-applied *and* regenerated by us, which is precisely the
+`ci/android-inject-service.sh` pattern.
+
+**Consequence:** the anchor is `- sdk: WebKit.framework`, unconditional in tauri's template and the
+last dependency before `preBuildScripts:`. If the template changes, the script fails loudly naming
+the template rather than silently patching nothing. `ci/checks.sh` runs it against a fixture built
+from that template — no Mac needed — asserting the anchor is found, both libraries land exactly
+once across two runs, and they land *inside* `dependencies:`. Proven by two mutations: a missing
+anchor, and an injection placed after `preBuildScripts:`.
