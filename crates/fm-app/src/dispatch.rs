@@ -1679,6 +1679,7 @@ fn dispatch_inner(
                 restic_password_set: crate::secrets::has_restic_password(),
                 vault_root: vaults::vault_root().map(|p| p.display().to_string()),
                 ca_bundle: crate::ca_bundle::status(),
+                platform: std::env::consts::OS,
             })
         }
         // The other way a vault comes into existence: someone else already has it. Same
@@ -2374,6 +2375,16 @@ struct Config {
     /// trust store exists is the first question to ask when a remote will not verify, and the
     /// app is the only thing in a position to answer it.
     ca_bundle: Option<String>,
+    /// Which OS this build is running on — `std::env::consts::OS`, so `"linux"`, `"macos"`,
+    /// `"windows"`, `"android"` or `"ios"`.
+    ///
+    /// **A fact, deliberately, and not the policy that reads it.** The surface that needs this is
+    /// the sideload notice: an iOS build of formicaria is signed with the user's own Apple ID and
+    /// stops opening about seven days later (`decisions.md#track-m`, *iOS ships as an unsigned
+    /// IPA*). A field called `sideloaded` would bake that route into the wire contract and be
+    /// wrong the day the route changes; the OS name will still be true. The UI decides what a
+    /// platform means.
+    platform: &'static str,
 }
 
 /// A vault's restic destination. Its own type rather than a field on `VaultInfo` because it

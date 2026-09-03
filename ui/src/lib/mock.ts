@@ -499,6 +499,17 @@ export function setMockIdentity(identity: { name: string; email: string } | null
   if (git) git.identity = identity;
 }
 
+/// Which OS `get_config` should claim to be running on.
+///
+/// Defaults to the desktop shape, because that is what almost every test wants and a suite that
+/// silently ran as a phone would assert the wrong things everywhere. Flip it to `'ios'` to reach
+/// the sideload notice, `'android'` for the other phone. Call it from `beforeEach`: module state
+/// outlives a test, and [`reset`] puts it back.
+let mockPlatform = 'linux';
+export function setPlatform(os: string): void {
+  mockPlatform = os;
+}
+
 let mockFaults: Fault[] = [];
 export function faults(list: Fault[]): void {
   mockFaults = list.map((f) => ({ ...f }));
@@ -548,6 +559,7 @@ export function reset(): void {
   mockAgentEnabled = false;
   mockTranscribeEnabled = false;
   mockVaults = JSON.parse(JSON.stringify(FIXTURE_VAULTS)) as typeof mockVaults;
+  mockPlatform = 'linux';
 }
 
 /// Fill the vault to a realistic size.
@@ -1303,9 +1315,15 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // because that is the state a released machine is most often in and the one that used to
         // be invisible. A happy-path mock is how the silence lasted this long.
         pdf_text: false,
-        // The desktop shape: the user picks their own locations. The managed-root path is a
-        // phone, and is exercised there.
-        vault_root: null,
+        // **Derived from the platform, because the backend cannot produce any other combination.**
+        // `vault_root()` is `Some` exactly where the shell sets `FM_VAULT_ROOT`, i.e. on a phone —
+        // so a mock that let a test be `platform: 'android'` with `vault_root: null` would let it
+        // assert against a state that cannot exist. It did, once, and the test that caught nothing
+        // looked like a failing feature.
+        vault_root: mockPlatform === 'ios' || mockPlatform === 'android'
+          ? '/data/app/dev.formicaria.notes/vaults'
+          : null,
+        platform: mockPlatform,
         ca_bundle: null, // the desktop shape: the system store is used, none is built
       } as T;
     case 'create_vault': {

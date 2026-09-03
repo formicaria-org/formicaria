@@ -456,6 +456,12 @@ export interface Config {
   /** What happened when this build gave its bundled OpenSSL a CA trust store — a count, or
    *  why there is none. `null` on a desktop, which uses the system store. */
   ca_bundle: string | null;
+  /** Which OS this build runs on: `linux` | `macos` | `windows` | `android` | `ios`.
+   *
+   *  A fact, not a policy — the backend reports the OS and this side decides what it means. The
+   *  surface that needs it is the sideload notice: an iOS build is signed with the user's own
+   *  Apple ID and stops opening about seven days later. */
+  platform: string;
 }
 
 /** What asking a remote — without cloning it — told us. The three states need three different

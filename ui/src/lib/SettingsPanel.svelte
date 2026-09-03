@@ -1061,6 +1061,34 @@
               and a vault cannot be restored from a backup on this machine.
             {/if}
           </li>
+          {#if cfg.platform === 'ios'}
+            <li>
+              <!-- **Permanent, not a first-run dialog, and that is the point.** The thing being
+                   described recurs every seven days for as long as the app is installed; a notice
+                   you dismiss once would be gone before the first time it mattered. It lives here,
+                   beside the other facts about what this machine can and cannot do.
+
+                   `platform === 'ios'` rather than a `sideloaded` flag: every iOS build of
+                   formicaria is signed by whoever installed it, because there is no App Store
+                   route (`decisions.md#track-m`). The OS is the fact; the route is the policy. -->
+              <span class="k">this copy expires</span>
+              <span class="none">about 7 days after you installed it</span> — it was signed with
+              your own Apple ID, and iOS stops opening it when that signature lapses. Refresh it
+              with the same tool you installed it with; SideStore can do that over Wi-Fi.
+              <strong>Your notes are not affected</strong> — they stay on the phone, and the app
+              opens them again once it is refreshed.
+            </li>
+          {/if}
+          {#if cfg.vault_root !== null}
+            <li>
+              <!-- True of both phones, so it is gated on the managed root rather than on iOS: an
+                   app's private storage is removed when the app is, and `blobs/` is gitignored, so
+                   a push does not carry it. -->
+              <span class="k">photos and files</span>
+              <span class="none">live only on this phone</span> until they reach a backup — a git
+              push carries your notes but not their media.
+            </li>
+          {/if}
           {#if cfg.ca_bundle}
             <li>
               <!-- Only on builds that carry their own OpenSSL (the phone). A desktop uses the

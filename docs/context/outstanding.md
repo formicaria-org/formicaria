@@ -809,8 +809,7 @@ debug hook into the WebView. It is real work in `ci/ios-smoke.sh`, not a dispatc
 and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
 (`known-issues.md`). Media should reach a remote before the app is refreshed.
 
-**The order, then:** ~~G5~~ (done) → ~~the drive-it-don't-photograph smoke test~~ (built; **dispatch `rung=3` to actually learn anything**) → a first-run notice on a
-sideloaded build stating the 7-day reality → only then a user-manual install page. Until all four,
+**The order, then:** ~~G5~~ (done) → ~~the drive-it-don't-photograph smoke test~~ (built; **dispatch `rung=3` to actually learn anything**) → ~~a notice stating the 7-day reality~~ (done, and permanent in Settings rather than first-run: the fact recurs weekly) → **only the user-manual install page is left, and it is the one that cannot be written from here** — it needs one person with an iPhone to confirm the `.ipa` re-signs and opens. Until then,
 the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
 exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,
 launches or syncs on a physical iPhone."*

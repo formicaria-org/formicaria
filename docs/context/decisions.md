@@ -5128,3 +5128,33 @@ as bad as one that cannot fail.
 
 **The size sweep is kept and still works** — `FM_IOS_SIZES` by hand — but it is off by default. It
 buys layout screenshots for two device boots, and nothing here has a layout question worth that.
+
+## 2026-09-03 — the sideload notice is permanent, and gated on the OS `#track-m` `#ui`
+
+**The fact it states recurs weekly**: an iOS build is signed with the user's own free Apple ID and
+stops opening about seven days later (*iOS ships as an unsigned IPA that each user signs with their
+own Apple ID*). Someone not told that experiences it as the app breaking, and assumes their notes
+went with it.
+
+**Decision:** it lives in Settings, beside the other capability facts, **not** in a first-run
+dialog. A notice dismissed once would be gone before the first time it mattered — the seventh day,
+and every seventh day after. The half that says **"your notes are not affected"** is asserted in a
+test rather than left to the wording of the moment, because that is the half that stops a lapsed
+signature reading as data loss.
+
+**Gated on `platform === 'ios'`, not on a `sideloaded` flag.** The config DTO gains `platform`,
+reported from `std::env::consts::OS`. A `sideloaded` boolean would bake the current distribution
+route into the wire contract and be wrong the day the route changes; the OS name will still be true.
+**The backend reports a fact; the UI decides what it means.**
+
+**The media warning is gated differently, on `vault_root !== null`, so both phones get it.**
+App-private storage goes when the app does and `blobs/` is gitignored, so a push carries notes and
+not their media — that was never iOS-specific, and gating it on iOS would have hidden it from the
+platform that actually has users.
+
+**A mock that permitted an impossible state is fixed with it.** `mock.ts` let a test set
+`platform: 'android'` while `vault_root` stayed `null` — a combination the backend cannot produce,
+since `vault_root()` is `Some` exactly where the shell sets `FM_VAULT_ROOT`. The Android test failed
+and looked like a broken feature. `vault_root` is now **derived** from `platform` in the mock, so no
+test can assert against a state that cannot exist. **A mock is a claim about the backend, and a
+false one costs more than no mock at all.**
