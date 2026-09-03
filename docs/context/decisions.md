@@ -4924,3 +4924,41 @@ triple.
   There is no iPhone here. CI can prove the `.ipa` is well-formed, arm64, device-platform and
   unsigned; it cannot prove it re-signs, installs, launches or syncs. No user-manual page ships
   until someone with a phone confirms it does.
+
+## 2026-09-03 — rung 3 is not run, and the ladder ends at 1/2/4/5 `#track-m`
+
+> **Amends the sequencing clause** of *iOS is meant to reach users' phones now* (2026-09-03), which
+> reads *"rungs 4 and 3 come first"*. The rest of that entry stands.
+
+**Decision:** rung 3 is **deliberately unrun**. Rungs 1, 2, 4 and 5 are green and that is the ladder.
+
+**Why the sequencing clause does not survive contact with what rung 3 actually is.** Its stated
+reason was *"if git over HTTPS fails on iOS the port cannot sync, and a notes app whose notes cannot
+leave the device is not worth distributing"* — which is **rung 4's** question, and rung 4 is green.
+Rung 3 was carried along in the same sentence without its own cost ever being weighed.
+
+**What rung 3 would return, measured rather than assumed.** Per size the sweep boots a simulator,
+installs, launches, screenshots and shuts down. It **drives nothing and asserts nothing** — the
+deviation check is a "has it painted yet, stop waiting" loop condition, not a pass/fail. So the
+output is two PNGs of the **first-run screen** for a human to look at. Against the four questions
+`ios-plan` says the rung exists to answer:
+
+| Question | Answered by the sweep as built |
+|---|---|
+| Safe-area insets without the Kotlin bridge | **Partly** — already answered on iPhone 17 Pro by rung 2, *"content correctly clear of the Dynamic Island"*. The sweep adds two more geometries |
+| `100dvh` | **No.** It bites when the keyboard appears; nothing focuses a field |
+| The Excalidraw chunk | **No.** The whiteboard is never loaded — the welcome screen is an identity form |
+| The `fmblob:` scheme | **No.** Needs a note with an attachment; no note is created |
+
+**And it cannot be made cheap.** Measured floor from two complete runs: build ~450s + simulator boot
+86s + install 87s + two launches 38s ≈ **11 minutes**. Rung 5's cache does not rescue it — rung 5
+built `aarch64-apple-ios`, rung 3 needs `aarch64-apple-ios-sim`, and the vendored C is per-target.
+The owner cancelled three dispatches (at 13, 13 and 5 minutes), and **each cancellation writes no
+cache**, so every attempt started as cold as the last. Eleven billed minutes for two screenshots of
+one screen is the wrong trade, and saying so is cheaper than discovering it a fourth time.
+
+**Consequence — the real work this exposes.** The three unanswered questions all need the app
+**driven, not photographed**: create a note, focus the editor, open the whiteboard, attach an image.
+That is `outstanding.md` work in `ios-smoke.sh` (XCUITest, or a debug hook into the WebView), not a
+dispatch. **It is a precondition for handing the `.ipa` to anyone**, because those three seams are
+exactly what a user touches first and none of them has ever executed on iOS.

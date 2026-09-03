@@ -284,7 +284,10 @@ done
 # --- 6. what we actually ship, recorded ---------------------------------------------------------
 for k in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion MinimumOSVersion; do
     v=$(plutil -extract "$k" raw "$app/Info.plist" 2>/dev/null || echo "<absent>")
-    record "$(printf '%-14s' "$k")$v"
+    # `%-28s`: the longest key here is `CFBundleShortVersionString` at 26 characters, and `printf`
+    # pads but never truncates — at `%-14s` the first run printed `CFBundleIdentifierdev.formicaria.notes`
+    # with no separator at all. An artifact nobody can regenerate cheaply should be readable first time.
+    record "$(printf '%-28s' "$k")$v"
 done
 
 df -h / "$root" > "$OUT/disk-after.txt" 2>&1 || true

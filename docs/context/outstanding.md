@@ -778,3 +778,39 @@ Recorded so nobody spends a session on these thinking they are bugs.
   and `Search.svelte` takes no `query` when a view supplies it. `gallery` is reported as an **error**
   by `list_views` (its renderer was deliberately removed) instead of silently drawing a timeline,
   and `save_view` refuses to author one.
+
+### 2.11 Before anyone sideloads the iOS `.ipa` — making the first device test safe
+
+Rung 5 is green: `formicaria.ipa` exists, is device-platform, arm64, unsigned and free-team-signable
+(2026-09-03). **That is a statement about the file, not about the app.** Nothing here can install it,
+and three things make handing it to a user unsafe rather than merely unproven. In priority order:
+
+**1. G5 is now a data-loss bug, not a deferred tidy.** `vaults.json` persists **absolute** paths; a
+sideloaded app is re-signed on a **7-day cycle** and the container UUID changes each time. The user's
+vault does not corrupt, it *disappears* — the app opens to a first-run screen and their notes are
+still on disk under a path nothing refers to. **This alone disqualifies distribution.** It is the one
+item that must land before anyone but the author installs the file.
+
+**2. The blast radius reaches the desktop, through git.** The phone is a git peer that pushes. An
+untested client with a bug in the merge or commit path does not damage a phone — it writes to the
+**shared remote**, and the next desktop pull brings it home. So the first device run must use a
+**scratch vault and a scratch remote**, never one holding real work, and that is a protocol, not a
+preference. (The body-merge engine that froze Android vaults mid-merge is the precedent: same class,
+already seen once.)
+
+**3. The three seams a user touches first have never executed on iOS.** The editor (`100dvh` with the
+keyboard up), the whiteboard (the Excalidraw chunk), and `fmblob:` (any attachment). Rung 2 proved
+the *welcome screen* renders; nothing has proved anything past it, and rung 3 as built would not have
+— it photographs, it does not drive (`decisions.md`, 2026-09-03). **A `simctl` run that creates a
+note, focuses the editor, opens the board and loads one blob is the missing test**, via XCUITest or a
+debug hook into the WebView. It is real work in `ci/ios-smoke.sh`, not a dispatch.
+
+**Also true and worth stating to whoever installs it:** app-private storage is wiped on uninstall,
+and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
+(`known-issues.md`). Media should reach a remote before the app is refreshed.
+
+**The order, then:** G5 → the drive-it-don't-photograph smoke test → a first-run notice on a
+sideloaded build stating the 7-day reality → only then a user-manual install page. Until all four,
+the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
+exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,
+launches or syncs on a physical iPhone."*
