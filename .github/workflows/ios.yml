@@ -10,9 +10,11 @@
 # iOS leg there would widen that exception permanently, for a platform that cannot ship. See
 # `decisions.md#track-m`, *an iOS build would contradict the project-local-toolchain ruling*.
 #
-# **Cost, stated before it is spent:** one `macos-latest` job, billed at 10x Linux — roughly
-# $1.50-$3.00 and 25-45 minutes cold. Both steps run even if the first fails (`if: always()`),
-# because the whole point is to learn as much as possible per job rather than to go green.
+# **Cost, stated before it is spent:** one `macos-latest` job, billed at 10x Linux. The estimate was
+# $1.50-$3.00 and 25-45 minutes cold; **measured over three runs it is 2.8-7.7 min, ~$0.20-$0.60** —
+# pessimistic by about 5x, which is worth knowing before calling a rung too expensive to try. Both
+# steps run even if the first fails (`if: always()`), because the whole point is to learn as much as
+# possible per job rather than to go green.
 #
 # **Kill criterion, written before the money is spent:** if two runs cannot produce a compile, and
 # neither documented workaround for tauri#15066 takes, stop. Record "not until upstream moves" in
@@ -61,9 +63,24 @@ jobs:
             cross
           run-install: true
           cache: true
+      # **Two non-default settings, both of which are cost.**
+      #
+      # `cache-on-failure` defaults to **false**, so a job that fails saves nothing — measured: the
+      # two failed rung-2 runs (91349022694, 91351661719) have no `Post Run Swatinem/rust-cache`
+      # step at all. Every retry therefore recompiled vendored OpenSSL, libgit2 and SQLite for the
+      # iOS triples from scratch. For a rung expected to fail a few times while the *harness* is
+      # debugged, that is exactly backwards: the compile is the expensive part and it is valid
+      # regardless of whether the simulator later booted.
+      #
+      # `shared-key` replaces the automatic per-job key (`add-job-id-key` defaults to true), so
+      # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
+      # per iOS triple building exactly the C that rung 2 needs; without this they never see each
+      # other's work.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
 
       # ---- Question 1: the C wall. ----------------------------------------------------------
       # This is the one thing no amount of Linux work can answer. `fm-core --features native-git`
@@ -168,9 +185,24 @@ jobs:
             cross
           run-install: true
           cache: true
+      # **Two non-default settings, both of which are cost.**
+      #
+      # `cache-on-failure` defaults to **false**, so a job that fails saves nothing — measured: the
+      # two failed rung-2 runs (91349022694, 91351661719) have no `Post Run Swatinem/rust-cache`
+      # step at all. Every retry therefore recompiled vendored OpenSSL, libgit2 and SQLite for the
+      # iOS triples from scratch. For a rung expected to fail a few times while the *harness* is
+      # debugged, that is exactly backwards: the compile is the expensive part and it is valid
+      # regardless of whether the simulator later booted.
+      #
+      # `shared-key` replaces the automatic per-job key (`add-job-id-key` defaults to true), so
+      # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
+      # per iOS triple building exactly the C that rung 2 needs; without this they never see each
+      # other's work.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
 
       # The frontend must exist on disk before anything Rust runs: `generate_context!()` panics at
       # compile time if `frontendDist` (`../../ui/dist`) is missing. `tauri ios build` would run
