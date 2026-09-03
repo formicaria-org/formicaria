@@ -667,6 +667,35 @@ The gray-screen fix and its tests are in
   a blank-screen check that would have *passed* on the home screen. The kill criterion is about the
   *app* (blank screen **and** an empty pty), not about the harness. Everything the script needs is
   discovered at runtime rather than hardcoded, precisely because of this.
+- **`std::env::set_var` in a test is process-global, and cargo runs a binary's tests in parallel.**
+  `pixi run ci` — the single gate — failed roughly **1 run in 8** for as long as
+  `crates/fm-core/tests/git_transport.rs` had two tests. One sets `GIT_CONFIG_COUNT`/`KEY_0`/
+  `VALUE_0` to simulate a permissive `~/.gitconfig` and removes them afterwards; the sibling's
+  `git init` would land in the window where the count and key were still set and the value was
+  gone, and git refuses that outright (`missing config value GIT_CONFIG_VALUE_0`). It reads like a
+  git or environment bug and is neither. **Measured 2026-09-03: 1/8 failures parallel, 0/4 with
+  `--test-threads=1`, 0/20 after the fix.**
+  **The instructive part is how it got there.** The file's header already carried the invariant —
+  *"One test, not several: it manipulates process-wide environment, so it must not race a sibling"*
+  — and a second test was added anyway. A comment cannot stop that; a `static ENV_LOCK: Mutex<()>`
+  both tests take can, and now does (poison-recovering, so a failed assertion reports itself rather
+  than cascading). **Any future test in that file must take the lock**, and any *other* test binary
+  that touches the environment needs its own.
+- **Every pixi cache miss since this repo had CI was one unpinned input.** Reported by the owner as
+  *"I always see pixi cache misses"* (2026-09-03) — correctly, and after it had been waved off once.
+  `setup-pixi@v0.8.1` (`src/cache.ts`) keys on
+  `sha256( sha256(pixi.lock) + sha256(environments) + sha256(the pixi binary) + path + cwd )`
+  and calls `restoreCache(paths, key, undefined, …)` — **the third argument is `restoreKeys`, so
+  there is no prefix fallback**: exact match, or a full miss and a full reinstall. `pixi-version`
+  was unset in all eight blocks, so the action fetched **latest**, and every pixi release (roughly
+  fortnightly) rotated the key for **every workflow at once**. Manually-dispatched workflows fare
+  worst: the gap between two `ios.yml` dispatches exceeds the gap between two pixi releases, so they
+  essentially never hit. Now pinned to `v0.72.2` everywhere and CI-guarded (one version repo-wide;
+  every block pinned). **Raising it is a deliberate, all-blocks-together edit that costs one cold
+  install per workflow** — that is the price of the pin, and it is worth paying.
+  Two related facts worth keeping in the same place, because they make misses look mysterious:
+  a **cancelled** job saves no cache at all (the post-step never runs), and `Swatinem/rust-cache`
+  defaults `cache-on-failure` to **false**, which is why the iOS jobs set it explicitly.
 - **A simulator that cannot boot is indistinguishable from one that is slow, and `simctl` will wait
   forever.** The first `rung=3` dispatch (2026-09-03) was **cancelled by the owner past 20 minutes**
   with no end in sight, against a measured band of 2.8–7.7 min. It was not the cache and not the

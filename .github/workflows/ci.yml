@@ -38,6 +38,12 @@ jobs:
       # ~2.5 GB of conda packages.
       - uses: prefix-dev/setup-pixi@v0.8.1
         with:
+          # **Pinned, and this is the whole reason the cache ever hits.**
+          # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
+          # binary)**+path+cwd, and passes NO restoreKeys - it is exact-match or a full
+          # miss. Unpinned, every pixi release (roughly fortnightly) rotates that key for
+          # every workflow here at once, so a manually-dispatched job almost never hits.
+          pixi-version: v0.72.2
           run-install: true
           cache: true
 

@@ -412,6 +412,44 @@ else
     echo "  (skipped: ci/ios-package.sh not present)"
 fi
 
+echo "[check] every setup-pixi block pins pixi-version (an unpinned one misses the cache every run)..."
+# **This is the difference between a warm environment and rebuilding it every job.**
+# `setup-pixi@v0.8.1` (`src/cache.ts`) keys its cache on
+#   sha256( sha256(pixi.lock) + sha256(environments) + **sha256(the pixi binary)** + path + cwd )
+# and calls `cache.restoreCache(paths, key, undefined, ...)` — the third argument is `restoreKeys`,
+# so there is **no prefix fallback**: exact match, or a full miss and a full reinstall.
+#
+# With `pixi-version` unset the action fetches **latest**, so every pixi release — roughly
+# fortnightly — changes that binary hash and rotates the key for *every workflow in this repo at
+# once*. Manually-dispatched workflows suffer worst: the gap between two `ios.yml` dispatches is
+# usually longer than the gap between two pixi releases, so they essentially never hit.
+#
+# Reported by the owner as "I always see pixi cache misses", 2026-09-03. It was not noise.
+if ls .github/workflows/*.yml >/dev/null 2>&1; then
+    for wf in .github/workflows/*.yml; do
+        # `|| true`, never `|| echo 0`: `grep -c` **prints 0 and exits 1** when it matches
+        # nothing, so `|| echo 0` yields the two-line string "0\n0" and the comparison below dies
+        # with "integer expected" on the first workflow that has no setup-pixi block.
+        blocks=$(grep -c 'prefix-dev/setup-pixi@' "$wf" 2>/dev/null || true)
+        pins=$(grep -c '^ *pixi-version:' "$wf" 2>/dev/null || true)
+        if [ "$blocks" -gt 0 ] && [ "$pins" -lt "$blocks" ]; then
+            echo "  FAIL: $wf has $blocks setup-pixi block(s) but only $pins pixi-version pin(s)."
+            echo "        An unpinned block re-downloads the latest pixi, whose binary hash is part"
+            echo "        of the cache key — so that job reinstalls its whole environment on every"
+            echo "        run, and there are no restoreKeys to soften it. Add 'pixi-version: vX.Y.Z'"
+            echo "        as a 'with:' key. Bump every block together when you raise it."
+            fail=1
+        fi
+    done
+    # One version across the repo: a job that pins a different pixi builds a different environment.
+    vers=$(grep -h '^ *pixi-version:' .github/workflows/*.yml 2>/dev/null | awk '{print $2}' | sort -u)
+    if [ "$(printf '%s\n' "$vers" | grep -c .)" -gt 1 ]; then
+        echo "  FAIL: the workflows pin more than one pixi version:"
+        printf '%s\n' "$vers" | sed 's/^/        /'
+        fail=1
+    fi
+fi
+
 echo "[check] release.yml still names nothing iOS (the unattended-tag exception stays narrow)..."
 # `release.yml` is the **single named exception** to the no-remote-CI standing order: it fires
 # unattended on every `v*` tag. `decisions.md#track-m` (*an iOS build would contradict the
