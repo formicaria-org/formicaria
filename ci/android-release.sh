@@ -37,6 +37,13 @@ target="${1:-aarch64}"
 # favicon fills its canvas because a browser tab is a 16px square with no mask and wants every
 # pixel; the two requirements are opposite, so they are two files. See `mobile/icon-source.svg`.
 ( cd mobile && pnpm exec tauri icon ./icon-source.svg >/dev/null )
+# **If `icons/icon.icns` shows up modified after this runs, that is all it is.** `tauri icon` is
+# deterministic — three consecutive runs produce byte-identical output for all 52 files — but the
+# `.icns` packer's member *order* changed between CLI versions, so the committed copy went stale
+# and every release build re-dirtied it. It stayed dirty across eight commits before anyone looked
+# (measured 2026-09-03: same 12 members, identical payloads, different order; now committed).
+# Nothing here consumes `.icns`, `.ico` or the `Square*Logo` set — `bundle.icon` is `icons/icon.png`
+# alone and this app ships to Android and iOS. `tauri icon` just always emits the full desktop set.
 
 # **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
 # not a clear error: `tauri android build` fails with "failed to ensure Android environment:
