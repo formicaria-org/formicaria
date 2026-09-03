@@ -12,7 +12,7 @@
 //! enable. If the runtime isn't bundled or the model can't be fetched yet, the agent simply doesn't
 //! start and the app runs on as a notebook.
 
-use crate::AndroidHost;
+use crate::MobileHost;
 use fm_agent::launch::SupervisedModel;
 use fm_agent::preflight::Need;
 use fm_agent::watchdog::{Limits, SystemMonitor};
@@ -244,7 +244,7 @@ struct DispatchVault {
 
 impl DispatchVault {
     fn call(&self, cmd: &str, args: Value) -> Result<Value, String> {
-        let out = dispatch(cmd, &args, &[], &self.app, &AndroidHost)?;
+        let out = dispatch(cmd, &args, &[], &self.app, &MobileHost)?;
         let bytes = out.into_bytes();
         if bytes.is_empty() {
             return Ok(Value::Null);

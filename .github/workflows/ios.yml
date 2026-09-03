@@ -19,8 +19,21 @@
 # `decisions.md` and close the question. Do not iterate this into a budget.
 name: ios
 
+# **One dispatch spends one job.** The rungs are a ladder with a stop-and-decide point between each
+# step, and that is a cost control, so it belongs in the workflow rather than in remembering: pick
+# the rung you are paying for and the other job does not start. Adding rung 2 as a second job with
+# no switch would have doubled the bill of every dispatch, including the ones that only wanted a
+# rung-1 re-run.
 on:
   workflow_dispatch:
+    inputs:
+      rung:
+        description: "Which rung to spend a job on"
+        type: choice
+        default: "1"
+        options:
+          - "1"
+          - "2"
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -28,6 +41,7 @@ concurrency:
 
 jobs:
   rung1:
+    if: inputs.rung == '1'
     name: does it compile, and does a project generate
     runs-on: macos-latest
     steps:
@@ -112,5 +126,69 @@ jobs:
           name: ios-rung1
           path: |
             mobile/src-tauri/gen/apple
+          if-no-files-found: warn
+          retention-days: 7
+
+  # =========================================================================================
+  # Rung 2: **does it boot?**
+  #
+  # Everything asserted here is in `ci/ios-smoke.sh`, not in this file — the same split
+  # `android-smoke.sh` uses, and for the same reason: a test written as YAML steps cannot be read,
+  # reasoned about or fixed anywhere except inside a billed run.
+  #
+  # **Kill criterion for this rung, written before the money is spent:** a blank screen *and* an
+  # empty pty, after one `simctl spawn <udid> log stream` has been tried, ends the rung. Record
+  # "the Simulator runs it but nothing can be observed" and stop; do not iterate this into a budget.
+  #
+  # Prerequisites cleared before this was written, each of which would have burned a job on its own:
+  #   - `install_logger` has an iOS arm at all (there was no diagnostic channel on iOS until
+  #     2026-09-03 — `decisions.md`, *the iOS diagnostic channel is stderr, not `os_log`*)
+  #   - `ci/bin/rustup` is tracked, so Tauri's `rustup target add` finds our verifying shim on the
+  #     runner. It lived in a gitignored directory and existed on exactly one machine
+  #   - the shell compiles for iOS with default features at all — `build.rs` derives `agent_shell`
+  #     from the feature **and** Android, so `src/agent.rs` (Android-only `native_lib_dir`) is not
+  #     compiled into an iOS build
+  # =========================================================================================
+  rung2:
+    if: inputs.rung == '2'
+    name: does it boot on a simulator
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          # `default` carries pnpm, the Tauri CLI and libvips (the blank-screen check); `cross`
+          # carries the iOS rust-std targets. Same pair rung 1 used.
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+
+      # The frontend must exist on disk before anything Rust runs: `generate_context!()` panics at
+      # compile time if `frontendDist` (`../../ui/dist`) is missing. `tauri ios build` would run
+      # `beforeBuildCommand` itself, but doing it here keeps the failure legible and separate.
+      - name: the frontend
+        run: |
+          pixi run -- pnpm -C ui install --frozen-lockfile
+          pixi run -- pnpm -C ui build
+          pixi run -- pnpm -C mobile install --frozen-lockfile
+
+      # `ci/ios-smoke.sh` puts `ci/bin` on PATH itself (the verifying `rustup` shim Tauri's mobile
+      # commands need), so this step needs no environment of its own.
+      - name: boot it, twice
+        run: pixi run ios-smoke
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-rung2
+          # The screenshots, the pty transcripts, the deviation numbers, the data-container tree and
+          # the before/after disk. On a failure this is the whole observation.
+          path: |
+            target/ios-smoke
           if-no-files-found: warn
           retention-days: 7

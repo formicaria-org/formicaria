@@ -47,9 +47,10 @@ target="${1:-aarch64}"
 #                this one. Both must be set, and they are the same path.
 #   JAVA_HOME  — pinned to the environment's JDK 21. Gradle 8.14 refuses conda's default 25
 #                with "Unsupported class file major version 69", naming neither Java nor Gradle.
-#   PATH       — our `rustup` shim first. Tauri shells out to `rustup target add`, and this
-#                project has no rustup (targets come from conda-forge, pinned in pixi.lock);
-#                the shim verifies rather than pretends.
+#   PATH       — our `rustup` shim first (`ci/bin`). Tauri shells out to `rustup target add`, and
+#                this project has no rustup (targets come from conda-forge, pinned in pixi.lock);
+#                the shim verifies rather than pretends. It lived in the gitignored `.android/bin`
+#                until 2026-09-03, i.e. on one machine only — a fresh clone could not build.
 #
 # `android-apk` sets all three inline and this script did not, which is why the debug build
 # worked and the release build did not.
@@ -65,7 +66,7 @@ export FM_VERSION
 echo "android-release: building as FM_VERSION=$FM_VERSION"
 
 ( cd mobile \
-    && PATH="$root/.android/bin:$PATH" \
+    && PATH="$root/ci/bin:$PATH" \
        NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
        JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
        FM_VERSION="$FM_VERSION" \

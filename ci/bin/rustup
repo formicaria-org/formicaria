@@ -1,0 +1,60 @@
+#!/bin/sh
+# A deliberately tiny `rustup` shim — and an honest one.
+#
+# Tauri's `android init`/`android build` (and, on a Mac, `ios init`/`ios build`) shell out to
+# `rustup target add <triple>`. This project has no rustup: Rust and its cross standard libraries
+# come from conda-forge and are pinned in `pixi.lock`, which is the whole reason the Rust half of
+# the toolchain is reproducible at all (`docs/context/decisions.md`, ruling 3). Installing a
+# second, unpinned Rust toolchain to satisfy a subcommand would undo that.
+#
+# So this answers the one call Tauri makes — but it **verifies rather than pretends**. If the
+# target really is missing it fails loudly and says how to add it, because a silent success
+# here would surface later as an incomprehensible linker error for one ABI.
+#
+# **Tracked, and that is the fix rather than an accident.** This lived at `.android/bin/rustup`
+# from 2026-07-19 to 2026-09-03, inside a gitignored directory — so it existed on exactly one
+# machine, and a fresh clone could not build the APK at all (`pixi run android-apk` puts this
+# directory on PATH and would have found nothing there). It is a *build tool*, not downloaded
+# SDK, so it belongs in `ci/` with the scripts that use it.
+set -eu
+
+case "${1:-}" in
+    target)
+        case "${2:-}" in
+            add)
+                shift 2
+                for t in "$@"; do
+                    case "$t" in --*) continue ;; esac
+                    if [ -d "$(rustc --print sysroot)/lib/rustlib/$t" ]; then
+                        echo "rustup(shim): $t already installed (conda-forge, pinned in pixi.lock)"
+                    else
+                        # Name the environment that actually carries this triple: Android targets
+                        # live in [feature.android], everything else this shim ever sees (the
+                        # Apple and Windows triples) lives in [feature.cross]. A correct diagnostic
+                        # that points at the wrong file is still a wasted afternoon.
+                        case "$t" in
+                            *-linux-android*) env=android ;;
+                            *)                env=cross   ;;
+                        esac
+                        echo "rustup(shim): target '$t' is NOT installed." >&2
+                        echo "  This project manages Rust targets with pixi, not rustup." >&2
+                        echo "  Add 'rust-std-$t' to [feature.$env.dependencies] in pixi.toml" >&2
+                        echo "  and re-run 'pixi install -e $env'." >&2
+                        exit 1
+                    fi
+                done
+                ;;
+            list)
+                ls "$(rustc --print sysroot)/lib/rustlib" | grep -v '^manifest-'
+                ;;
+            *) echo "rustup(shim): unsupported 'target ${2:-}'" >&2; exit 1 ;;
+        esac
+        ;;
+    show)
+        echo "conda-forge rust (pixi-managed); no rustup toolchain"
+        ;;
+    *)
+        echo "rustup(shim): unsupported command '${1:-}'" >&2
+        exit 1
+        ;;
+esac

@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4611,3 +4611,90 @@ have caught it was a job that costs money.** Hence the grep, which is free and r
 merely convenient: iOS forbids `exec` outright, so the in-process engine is the *only* body merge it
 can ever have. The vendored OpenSSL it also drags in stays unused there (SecureTransport), and
 shedding it needs an upstream change rather than a manifest trick — see the entry above.
+
+## 2026-09-03 — the iOS diagnostic channel is stderr, not `os_log`, because only one of them can be tested from here `#track-m` `#toolchain`
+
+> **Reverses a step of the iOS plan**, not a standing decision: `ios-plan-2026-09-02.md` named
+> "the `os_log` backend for `install_logger()`" as rung 2's prerequisite. The prerequisite stands;
+> the mechanism does not.
+
+**Decision:** `install_logger`'s iOS arm is a ~15-line `log::Log` implementation writing one
+unbuffered line per record to **stderr**, prefixed `formicaria` so it greps the same as Android's
+logcat tag. No new crate, no C shim, no FFI. `xcrun simctl launch --console-pty` attaches a pty to
+the app's stdout/stderr and prints it, which is what rung 2 will assert against.
+
+**Why not `os_log`, which is the platform-correct answer.** Emitting to it is not a function call:
+`os_log_with_type` is a macro that lowers to `_os_log_impl` plus a format descriptor that must land
+in the `__TEXT,__os_log` section, which is why every Rust binding for it (`oslog`, `tracing-oslog`)
+ships a C shim built by `cc`. That is a dependency **this machine cannot compile**. The mobile shell
+does not cross-compile for iOS on Linux — a `cargo check` of it dies in `libdbus-sys` before it
+reaches a `--target` flag — and there is no Mac. Worse, getting the section wrong does not fail to
+build: it logs `<private>`, a diagnostic channel that lies. Trading a testable channel for an
+untestable dependency, in order to reach a reader (`log stream` on a machine the owner does not
+have) that nobody will ever be at, is the wrong way round.
+
+**Consequence:** every line of the iOS shell's logger first *executes* inside a billed CI job — so
+its entire surface is `log`'s trait and `std::eprintln!`, and the exact code shape was compiled on
+Linux in a throwaway crate before being committed. If rung 2 shows an empty pty, the fallback is
+`simctl spawn <device> log stream`, not a rewrite. This is Simulator-only reasoning and it is
+allowed to be: the owner has no Mac and no iPhone, so a Simulator under CI is the only place this
+shell can run. Should a real device ever enter the picture, stderr goes nowhere on one and this
+entry must be reversed — that is the trigger, written down now.
+
+## 2026-09-03 — the `rustup` shim is a build tool, so it lives in the tree `#toolchain` `#track-m`
+
+> **Repairs** *non-pixi dependencies are project-local, never a system requirement* (2026-07-19).
+> The ruling was right; its implementation had a hole that made it true on exactly one computer.
+
+**Decision:** the shim moves from `.android/bin/rustup` to a tracked **`ci/bin/rustup`**, and
+`pixi.toml`'s `android-apk`, `ci/android-release.sh` and any future iOS build step put `ci/bin` on
+`PATH`. Its "target is NOT installed" message now names the environment that actually carries the
+triple — `[feature.android]` for `*-linux-android*`, `[feature.cross]` for everything else.
+
+**Why:** `.android/` is gitignored — it is where `ci/android-init.sh` unpacks the SDK and NDK
+against the checksums in `android/toolchain.lock`. The shim is not downloaded toolchain, it is
+*our source*, and nothing ever wrote it: `git ls-files .android` was empty and no script created it.
+It existed because someone made it by hand on 2026-07-19 and that machine never lost it. **A fresh
+clone could not build the APK** — `pixi run android-apk` puts that directory first on `PATH`, finds
+no `rustup`, and Tauri's `rustup target add` then fails or finds a real rustup and installs an
+unpinned toolchain, which is the exact outcome the shim exists to prevent.
+
+**How it was found:** checking what a rung-2 iOS job would need. `tauri ios build` shells out to
+`rustup target add` the same way `android build` does, so the shim is on the iOS path too — and it
+would have been absent on the runner. Rung 1 survived only because `cargo-mobile2` never reached for
+rustup during `init`.
+
+**Consequence:** the Android release path changed for a reason that was not Android's. Verified both
+ways before landing: `PATH=$PWD/ci/bin:$PATH rustup target add aarch64-apple-ios-sim` reports the
+conda-pinned target, and an unknown triple fails loudly naming `[feature.cross.dependencies]`.
+
+## 2026-09-03 — the shell's agent gate is the feature **and** Android, derived in `build.rs` `#track-m` `#agent`
+
+> **Implements** *iOS ships agent-free* (2026-09-02, Route C) — which until now was a sentence in a
+> document and a `--no-default-features` somebody would have had to remember on a Mac we do not own.
+
+**Decision:** `mobile/src-tauri/build.rs` emits `--cfg agent_shell` when the `agent` feature is on
+**and** `CARGO_CFG_TARGET_OS == "android"`. Every arm in `lib.rs` reads `agent_shell` /
+`not(agent_shell)`; none reads the raw feature. `ci/checks.sh` checks both halves.
+
+**Why a build script rather than a feature.** A Cargo feature cannot be conditioned on a target, and
+`default = ["agent"]` turns it on everywhere. `src/agent.rs` calls
+`fm_agent_run::nativelib::native_lib_dir`, gated to Android since 2026-09-02 because an APK's
+`nativeLibraryDir` has no iOS counterpart — so **an iOS build of the shell with default features is
+a compile error**, not a degraded app. Naming the condition once also keeps the two-sided logic
+honest: the file has `not(...)` arms, and `not(all(feature = "agent", target_os = "android"))`
+repeated at eight sites is a bug waiting for a hurried edit.
+
+**The guard was widened, and it caught its own weakness.** The old check grepped `lib.rs` for the
+literal `cfg(feature = "agent")` above `mod agent;`. It now requires `cfg(agent_shell)` there *and*
+that `build.rs` still tests both `CARGO_FEATURE_AGENT` and `CARGO_CFG_TARGET_OS`. The first version
+of that second half **passed while the Android condition was deleted**, because the module doc
+quotes `target_os = "android"` in prose — so the guard strips comment lines before grepping. It was
+found the only way it could be: by breaking the code and requiring the check to go red.
+
+**Consequence, and the verification that is newly possible.** The mobile shell cannot be compiled
+for iOS from here, but it *can* be cross-compiled for Android — the NDK is in `[feature.android]` —
+and `--no-default-features` there exercises exactly the `not(agent_shell)` arms an iOS build will
+take. Both were checked for `aarch64-linux-android` before landing. That is a proxy, not the thing;
+it is also considerably more than the "unverifiable churn against a target that does not build yet"
+this work was previously deferred as.

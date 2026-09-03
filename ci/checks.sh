@@ -256,7 +256,26 @@ else
     echo "  (skipped: cargo not on PATH)"
 fi
 
-echo "[check] the mobile study agent stays behind the 'agent' feature (notes-only pays nothing)..."
+echo "[check] fm-agent-run still builds on its own, with no features..."
+# **A workspace build cannot see this.** `fm-serve` is the only workspace consumer and it hard-enables
+# `features = ["download"]`, so cargo's feature unification turns the downloader on for every
+# `cargo test --workspace` — and an item that should have been gated behind `download` compiles
+# anyway. That is exactly what happened: a `#[cfg(feature = "download")]` written for `pub mod fetch`
+# landed on the `pub use fm_agent` re-export above it (2026-09-03), leaving `fetch.rs` compiled with
+# `ureq`/`sha2` unlinked. `cargo check -p <crate>` does not unify, so it is the only thing that sees
+# it — and it found the bug only because an iOS cross-check happened to be run per-package.
+if command -v cargo >/dev/null 2>&1; then
+    if ! cargo check -q -p fm-agent-run 2>/dev/null; then
+        echo "  FAIL: \`cargo check -p fm-agent-run\` does not compile with no features."
+        echo "        Something outside the \`download\` feature now names ureq/sha2/flate2/tar/zip,"
+        echo "        or a cfg meant for \`pub mod fetch\` has drifted onto its neighbour."
+        fail=1
+    fi
+else
+    echo "  (skipped: cargo not on PATH)"
+fi
+
+echo "[check] the mobile study agent stays behind the feature AND Android (notes-only pays nothing)..."
 # The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
 # mobile shell must give the same guarantee, or a notes-only APK silently links the whole model
 # runner. `pixi run ci` has no Android toolchain (ruling 3), so this is a structural grep rather
@@ -280,11 +299,38 @@ if ! grep -Eq '^default[[:space:]]*=[[:space:]]*\[[^]]*"agent"' "$mobile_toml" 2
     fail=1
 fi
 # The gate itself: `mod agent;` must be preceded by the cfg, never bare.
+#
+# **Widened 2026-09-03, and strengthened rather than relaxed.** The gate used to be the literal
+# `cfg(feature = "agent")`; it is now `cfg(agent_shell)`, a cfg `mobile/src-tauri/build.rs` emits
+# only when the `agent` feature is on *and* the target is Android — Route C
+# (`decisions.md#track-m`, *iOS ships agent-free*) expressed as a compile-time fact rather than a
+# `--no-default-features` somebody has to remember. So this now checks **both** halves: the module
+# is gated, and the thing gating it still derives from the feature and the platform. Dropping
+# either half of the build.rs condition fails here.
+mobile_build=mobile/src-tauri/build.rs
 if grep -Eq '^[[:space:]]*mod agent;' "$mobile_lib" 2>/dev/null \
-    && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(feature = "agent")'; then
-    echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(feature = \"agent\")]."
+    && ! grep -B1 -E '^[[:space:]]*mod agent;' "$mobile_lib" | grep -q 'cfg(agent_shell)'; then
+    echo "  FAIL: 'mod agent;' in $mobile_lib is not gated by #[cfg(agent_shell)]."
     fail=1
 fi
+# **Comment lines are stripped first, and that is not fastidiousness.** The first version of this
+# grep read the whole file and passed while the Android half was deleted from the code, because
+# the module doc above quotes `target_os = "android"` in prose. A guard that a comment can satisfy
+# is not a guard; it was caught here only because every guard in this file is proven by breaking it.
+mobile_build_code=$(grep -v '^[[:space:]]*//' "$mobile_build" 2>/dev/null || true)
+if ! printf '%s\n' "$mobile_build_code" | grep -q 'rustc-cfg=agent_shell'; then
+    echo "  FAIL: $mobile_build no longer emits 'agent_shell', so #[cfg(agent_shell)] in"
+    echo "        $mobile_lib is dead and the agent is compiled into nothing."
+    fail=1
+fi
+for half in CARGO_FEATURE_AGENT CARGO_CFG_TARGET_OS '"android"'; do
+    if ! printf '%s\n' "$mobile_build_code" | grep -q -- "$half"; then
+        echo "  FAIL: $mobile_build sets 'agent_shell' without testing $half. Both halves are"
+        echo "        load-bearing: the feature keeps a notes-only APK agent-free, and Android"
+        echo "        keeps an iOS build compiling at all (native_lib_dir has no iOS form)."
+        fail=1
+    fi
+done
 
 echo "[check] the Android setup hook: no panic path, and the store reachable before slow work..."
 # **This is the only thing in `pixi run ci` that looks at the phone's startup at all**, so it is

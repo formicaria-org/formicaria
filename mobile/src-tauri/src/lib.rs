@@ -19,16 +19,26 @@ use std::sync::Arc;
 use fm_app::{dispatch, App, Host};
 use fm_core::ColdStart;
 
-// Behind the `agent` feature (default on). A `--no-default-features` build compiles none of it, so
-// a notes-only APK never links the model runner — the mobile half of "the core never knows the
-// agent exists." See Cargo.toml.
-#[cfg(feature = "agent")]
+// Behind `agent_shell` — the `agent` feature (default on) **and** Android. A
+// `--no-default-features` build compiles none of it, so a notes-only APK never links the model
+// runner: the mobile half of "the core never knows the agent exists." See Cargo.toml.
+//
+// The Android half of the gate is not a second opinion about the feature, it is Route C
+// (`decisions.md#track-m`, *iOS ships agent-free*) made structural: an iOS build with default
+// features would otherwise fail to compile on `native_lib_dir`. `build.rs` derives the cfg and
+// explains why Cargo cannot; every arm below reads `agent_shell`, never the raw feature.
+#[cfg(agent_shell)]
 mod agent;
 
-/// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the
-/// JVM. Wiring that is a later milestone (`tauri-plugin-opener`); until then this says so
-/// rather than pretending, because a silent no-op here looks like a broken PDF to a user.
-struct AndroidHost;
+/// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the JVM;
+/// iOS's is a `UIDocumentInteractionController`. Wiring either is a later milestone
+/// (`tauri-plugin-opener`); until then this says so rather than pretending, because a silent no-op
+/// here looks like a broken PDF to a user.
+///
+/// **Named for the shell, not for one platform.** It was called `AndroidHost` until 2026-09-03;
+/// nothing in it was ever Android-specific, and the name was one of the places an iOS port would
+/// have had to argue with a label rather than with code.
+struct MobileHost;
 
 /// The last startup failure, if there was one — and the lock that serialises attempts to fix it.
 ///
@@ -108,12 +118,22 @@ fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     let for_agent = app_state.clone();
     FINISH.call_once(move || {
         std::thread::spawn(move || {
+            // Android only: iOS's libgit2 links SecureTransport, not OpenSSL, so there is no
+            // bundle to install and the two Android certificate directories do not exist. Left
+            // ungated it would log `ca-bundle: <error>` on every iOS launch — a startup error line
+            // that is not one, in the one channel the Simulator smoke test has to read.
+            #[cfg(target_os = "android")]
             install_ca_bundle(&after);
             // A notes-only build (`--no-default-features`) compiles no agent at all, so the store
-            // it would have been handed is deliberately dropped here.
-            #[cfg(not(feature = "agent"))]
+            // it would have been handed is deliberately dropped here. Same for the handle on a
+            // platform that has neither the trust store nor the agent — iOS today — where this
+            // thread has genuinely nothing to do and the alternative is an `unused_variables`
+            // warning in the one log an iOS run can be read from.
+            #[cfg(not(agent_shell))]
             let _ = for_agent;
-            #[cfg(feature = "agent")]
+            #[cfg(not(target_os = "android"))]
+            let _ = &after;
+            #[cfg(agent_shell)]
             {
                 use tauri::Manager;
                 if let Ok(dir) = after.path().app_data_dir() {
@@ -158,7 +178,7 @@ fn vault_state(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     }
 }
 
-impl Host for AndroidHost {
+impl Host for MobileHost {
     fn open_external(&self, path: &std::path::Path) -> Result<(), String> {
         Err(format!(
             "opening {} outside the app needs the platform opener, which this build does not \
@@ -241,7 +261,7 @@ fn blob_response(
 
     let reference = percent_decode(path);
     let args = serde_json::json!({ "reference": reference, "kind": kind });
-    match dispatch("resolve_asset", &args, &[], &state, &AndroidHost) {
+    match dispatch("resolve_asset", &args, &[], &state, &MobileHost) {
         Ok(out) => {
             let bytes = out.into_bytes();
             Response::builder()
@@ -302,7 +322,7 @@ fn fm_ingest(
     let app = vault_state(&app_handle)?;
     let bytes = b64_decode(&data).ok_or_else(|| format!("{name}: could not decode the file"))?;
     let args = serde_json::json!({ "name": name, "vault": vault });
-    let out = dispatch("ingest", &args, &bytes, &app, &AndroidHost).inspect_err(|e| {
+    let out = dispatch("ingest", &args, &bytes, &app, &MobileHost).inspect_err(|e| {
         log::error!("ingest: {e}");
     })?;
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
@@ -359,9 +379,9 @@ fn fm(
     // fm-serve answers these; the core `dispatch` never has them (that keeps the core agent-agnostic).
     // So the phone answers them the same way, here in the shell — never dispatched into the vault.
     if cmd == "agents" {
-        #[cfg(feature = "agent")]
+        #[cfg(agent_shell)]
         return Ok(serde_json::json!({ "agents": agent::online_agents() }).to_string());
-        #[cfg(not(feature = "agent"))]
+        #[cfg(not(agent_shell))]
         return Ok("{\"agents\":[]}".to_string());
     }
     // **`agent_activity_poll` exists only in `fm-serve`, and the phone was asking anyway.**
@@ -379,7 +399,7 @@ fn fm(
     if cmd == "agent_activity_poll" {
         return Ok("{\"active\":false}".to_string());
     }
-    #[cfg(feature = "agent")]
+    #[cfg(agent_shell)]
     if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
         use tauri::Manager;
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
@@ -404,7 +424,7 @@ fn fm(
         })
         .to_string());
     }
-    #[cfg(not(feature = "agent"))]
+    #[cfg(not(agent_shell))]
     if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
         // A notes-only build: same shape again, and `why` says which kind of build this is rather
         // than leaving the row blank.
@@ -424,7 +444,7 @@ fn fm(
     // **Logged before it is returned.** The UI shows the message, but a phone screen is not
     // somewhere a stack of failures can be compared — and the whole point of the tag is that
     // a failing clone can be read off `adb logcat` instead of retyped by hand.
-    let out = dispatch(&cmd, &args, &[], &app, &AndroidHost).inspect_err(|e| {
+    let out = dispatch(&cmd, &args, &[], &app, &MobileHost).inspect_err(|e| {
         log::error!("{cmd}: {e}");
     })?;
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
@@ -500,6 +520,7 @@ fn configure_paths(handle: &tauri::AppHandle) {
 ///
 /// Best-effort and non-fatal: a phone that cannot build a bundle is still a working notebook —
 /// it just cannot reach an HTTPS remote, which is the same position it was in before.
+#[cfg(target_os = "android")]
 fn install_ca_bundle(handle: &tauri::AppHandle) {
     use tauri::Manager;
     let Ok(dir) = handle.path().app_data_dir() else { return };
@@ -517,12 +538,23 @@ fn install_ca_bundle(handle: &tauri::AppHandle) {
 
 /// Send this shell's diagnostics somewhere they can actually be read.
 ///
-/// **Android routes neither Rust's stdout nor its stderr anywhere.** Every `eprintln!` in this
-/// file has been writing into a void — which is precisely how "the SSL certificate is invalid"
-/// stayed unexplained across several builds while the app was already reporting the cause. A
-/// startup diagnostic nobody can read is not a diagnostic.
+/// **Neither mobile platform routes Rust's stdout or stderr anywhere by default.** Every
+/// `eprintln!` in this file has been writing into a void — which is precisely how "the SSL
+/// certificate is invalid" stayed unexplained across several builds while the app was already
+/// reporting the cause. A startup diagnostic nobody can read is not a diagnostic.
 ///
-/// Everything lands under the `formicaria` tag: `adb logcat -s formicaria`.
+/// - **Android** — everything lands under the `formicaria` tag: `adb logcat -s formicaria`.
+/// - **iOS** — everything lands on stderr, which `xcrun simctl launch --console-pty` attaches to a
+///   pty and prints. That is the only consumer there will ever be: the owner has no Mac and no
+///   iPhone, so a Simulator under CI is the sole place this shell can run (see
+///   `docs/context/ios-plan-2026-09-02.md`).
+///
+/// **iOS deliberately does not use `os_log`**, though the plan first named it. Emitting to it
+/// needs `_os_log_impl` with a format descriptor placed in `__TEXT,__os_log` — in practice a C
+/// shim and a new crate — and neither could be *compiled*, let alone read back, from this machine.
+/// Getting that section wrong does not fail to build; it logs `<private>`, which is a diagnostic
+/// channel that lies. Reaching for an untestable dependency to serve a reader that the testable
+/// channel already serves is the worse trade. Recorded under `#track-m` in `decisions.md`.
 fn install_logger() {
     #[cfg(target_os = "android")]
     android_logger::init_once(
@@ -530,6 +562,50 @@ fn install_logger() {
             .with_max_level(log::LevelFilter::Info)
             .with_tag("formicaria"),
     );
+
+    // `set_logger` may only succeed once per process. `install_logger` is called once, from
+    // `setup` — but a shell whose entire job is to stay up so it can report a failure must not
+    // panic on a second call, so the failure is a no-op rather than `unwrap`.
+    #[cfg(target_os = "ios")]
+    if log::set_logger(&IOS_LOGGER).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
+}
+
+/// The iOS backend for [`install_logger`]: one unbuffered line per record, on stderr.
+///
+/// Deliberately trivial, because **this crate cannot be compiled for iOS anywhere the owner can
+/// reach**: there is no Mac, and a Linux `cargo check` of the mobile shell dies in `libdbus-sys`
+/// long before it reaches a `--target` flag. Every line here first executes inside a billed CI
+/// job, so its whole surface is `log`'s trait and `std`'s `eprintln!`.
+#[cfg(target_os = "ios")]
+struct IosLogger;
+
+#[cfg(target_os = "ios")]
+static IOS_LOGGER: IosLogger = IosLogger;
+
+#[cfg(target_os = "ios")]
+impl log::Log for IosLogger {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            // The `formicaria` prefix mirrors Android's logcat tag on purpose: one grep, and the
+            // two smoke tests assert the same startup lines rather than drifting apart.
+            eprintln!(
+                "formicaria {:<5} {}: {}",
+                record.level(),
+                record.target(),
+                record.args()
+            );
+        }
+    }
+
+    /// Nothing to push: `eprintln!` writes straight through, which is the point — a diagnostic
+    /// still sitting in a buffer when the process dies is not a diagnostic.
+    fn flush(&self) {}
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -578,7 +654,7 @@ pub fn run() {
         .run(|_app, event| {
             // When the app exits, stop the study agent's model — trip its off-switch so the
             // llama-server child is killed rather than left to be reaped (PDEATHSIG is the backstop).
-            #[cfg(feature = "agent")]
+            #[cfg(agent_shell)]
             if let tauri::RunEvent::Exit = event {
                 agent::stop();
             }

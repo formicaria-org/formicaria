@@ -655,6 +655,17 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **Two iOS scripts have never been executed, and the first run of each is a billed job.**
+  `ci/ios-smoke.sh` (rung 2) and `ci/ios-logs.sh` were both written on Linux against source and
+  documentation, not against a run: there is no Mac here and `mobile/src-tauri` cannot even be
+  `cargo check`ed on this machine (a Linux check dies in `libdbus-sys`, and an iOS target needs
+  Xcode for the vendored C). `sh -n` and a read-through are the whole of the local verification.
+  So: **expect the first `rung2` dispatch to fail on something mechanical** — a `simctl` output
+  format, an awk field, a path — and read that as the script being new, not as iOS being closed.
+  The kill criterion is about the *app* (blank screen **and** an empty pty), not about the harness.
+  Everything the script needs is discovered at runtime rather than hardcoded precisely because of
+  this; where a name is asserted, it came from reading the pinned tauri-cli v2.11.4 source.
+
 - **A component test cannot tell you a thing is visible, and neither can grepping the bundle.**
   Demonstrated expensively on 2026-08-30: the panel's view rail shipped `display: none` at every
   width and survived two commits. It had `display: flex` inside `@media (min-width: 60rem)` and

@@ -118,14 +118,16 @@ android-inject-service = "sh ci/android-inject-service.sh"
 # NOT part of `pixi run ci`, which must stay green with no Android toolchain — run it after touching
 # the shell's startup, the boot gate, or before `android-release`. See the script's header.
 android-smoke = "sh ci/android-smoke.sh"
-# Build the APK. `PATH` puts our `rustup` shim first — Tauri shells out to `rustup target add`
-# and this project has no rustup (targets come from conda-forge, pinned in pixi.lock); the shim
-# verifies rather than pretends. `JAVA_HOME` is pinned because conda's default JDK is 25, whose
-# class files Gradle 8.14 refuses with an error naming neither Java nor Gradle.
+# Build the APK. `PATH` puts our `rustup` shim (`ci/bin/rustup`) first — Tauri shells out to
+# `rustup target add` and this project has no rustup (targets come from conda-forge, pinned in
+# pixi.lock); the shim verifies rather than pretends. **It is tracked**: it sat in the gitignored
+# `.android/bin` until 2026-09-03, so this task worked on one machine and nowhere else.
+# `JAVA_HOME` is pinned because conda's default JDK is 25, whose class files Gradle 8.14 refuses
+# with an error naming neither Java nor Gradle.
 # A signed, 16 KB-aligned release APK for a real phone. Keystore in ~/.config/formicaria,
 # never in the repo. See the script for why signing is not done in Gradle.
 android-release = { cmd = "sh ci/android-release.sh", depends-on = ["android-stage-runtime", "android-stage-whisper", "android-inject-service"] }
-android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/.android/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64", depends-on = ["android-stage-runtime", "android-inject-service"] }
+android-apk = { cmd = "cd mobile && PATH=$PIXI_PROJECT_ROOT/ci/bin:$PATH NDK_HOME=$ANDROID_NDK_HOME JAVA_HOME=$CONDA_PREFIX/lib/jvm pnpm exec tauri android build --debug --target x86_64", depends-on = ["android-stage-runtime", "android-inject-service"] }
 # Install the debug APK on whatever single device adb sees, and launch it.
 android-run = { cmd = "$ANDROID_HOME/../platform-tools/adb install -r mobile/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk && $ANDROID_HOME/../platform-tools/adb shell am start -n dev.formicaria.notes/.MainActivity" }
 # Create the emulator once. Its data lives in `.android/avd`, not your home directory, so the
@@ -333,6 +335,12 @@ android-init = "sh ci/android-init.sh"
 # `ios.yml`, the one workflow this project has no other way to observe — no Mac, no iPhone, so the
 # run's log is the whole experiment. Takes any workflow: `pixi run ci-logs cross.yml`.
 ci-logs = "sh ci/ios-logs.sh"
+
+# **Does the app boot on an iOS Simulator, twice in a row?** The analogue of `android-smoke`, and
+# like it deliberately NOT part of `pixi run ci`. It is macOS-only and refuses to run anywhere else:
+# this project has no Mac, so in practice it runs in `.github/workflows/ios.yml` (rung 2) and the
+# task exists so the CI job invokes a script rather than a wall of YAML. See the script's header.
+ios-smoke = "sh ci/ios-smoke.sh"
 
 [tasks.ci]
 depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "docs"]
