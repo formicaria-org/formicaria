@@ -5009,3 +5009,41 @@ only — it never filters the on-disk array against the list it is given — so 
 returns on the next start. `dispatch.rs:1628` states the same fact from the other side. The existing
 test passes only because it writes to a file that does not yet exist. **Separate bug, separate fix**;
 recorded in `outstanding.md` rather than smuggled into a persistence change.
+
+## 2026-09-03 — the WebView gets a voice: `console.error` reaches the native log `#track-m`
+
+**The gap this closes is documented and was paid for once already.** `known-issues.md`: *"the WebView
+routes **no `console.*` output** there either: a signed, installed, MD5-verified build full of
+`console.warn` produced zero lines while the native `ca-bundle:` log from the same run came through
+fine. Anything you need to read off that device must be rendered on screen. **This cost a full
+build/sign/install/ask-the-owner round trip.**"* That was Android, 2026-07-20. iOS inherits it.
+
+**Decision:** the mobile shell injects an initialization script that forwards `console.error`,
+`console.warn`, `window.onerror` and `unhandledrejection` to a third IPC command, `fm_log`, which
+writes them through the same `log` sink `install_logger` already owns — stderr **and** the app-container
+file on iOS, logcat on Android — tagged `web:` so the origin is never ambiguous.
+
+**Why it is worth a third command on a surface that has had two.** `fm` and `fm_ingest` are the
+whole IPC surface, deliberately. This adds one, and it is the same *category* as `fm_ingest`: a
+**transport** concern, not a notes command, so it does not touch the one-command-surface ruling —
+`fm_app::dispatch` remains the only door for anything that is about notes. What it buys:
+
+- **A user's phone becomes debuggable.** Today the only channel is the screen, so a frontend failure
+  on someone else's device is unreportable. This route ships to users who cannot be observed.
+- **Every WebView assertion in `ci/ios-smoke.sh` becomes possible.** A test that *drives* the app —
+  the next item in `outstanding.md` §2.11 — can assert nothing today, because a failed chunk load or
+  a broken `fmblob:` fetch is invisible. This is the prerequisite, not the feature.
+- **Android gets it too**, and Android is where the gap was found.
+
+**`console.log` is deliberately not forwarded.** Only failures. A phone log that carries every debug
+line is a phone log nobody reads, and the volume would ride the IPC surface it is being sent over.
+
+**The script may never break the app.** It runs on every page load on both platforms, before the
+frontend. So: wholly inside `try`/`catch`, a re-entrancy flag so a failure in the forwarding path
+cannot recurse through the very `console.error` it overrides, a length cap per message, and a bounded
+buffer while `__TAURI_INTERNALS__.invoke` does not yet exist — dropped rather than grown if the
+bridge never arrives. The original `console` methods are always called first, so behaviour with the
+bridge dead is exactly today's behaviour.
+
+**Verified by cross-compiling the shell for `aarch64-linux-android` on Linux**, which the G2 work
+established is possible here — this is not another change written blind.

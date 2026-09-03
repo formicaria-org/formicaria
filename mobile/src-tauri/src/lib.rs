@@ -654,9 +654,97 @@ impl log::Log for IosLogger {
     fn flush(&self) {}
 }
 
+/// Forwarded from the WebView by [`WEB_LOG_SCRIPT`]. **A transport concern, not a notes command** —
+/// the same category as `fm_ingest`, so `fm_app::dispatch` remains the only door for anything about
+/// notes (`decisions.md#track-m`, *the WebView gets a voice*).
+///
+/// `(async)` like every other command here, and for the reason `ci/checks.sh` enforces: Android
+/// never gets Tauri's async custom-protocol IPC, so a blocking command freezes the screen for its
+/// duration. A logging call that froze the UI would be a diagnostic that causes the symptom.
+///
+/// The level is clamped here rather than trusted: it arrives from the page.
+#[tauri::command(async)]
+fn fm_log(level: String, msg: String) {
+    // Truncation is the shell's job, not the script's — a page that stopped cooperating is exactly
+    // the case this exists to report, so the guard has to be on this side of the boundary too.
+    let msg: String = msg.chars().take(2000).collect();
+    match level.as_str() {
+        "warn" => log::warn!("web: {msg}"),
+        _ => log::error!("web: {msg}"),
+    }
+}
+
+/// Injected into every page, on both platforms, before the frontend runs.
+///
+/// **It may never break the app**, which is what most of its length is about: the whole body is
+/// inside `try`/`catch`, the original `console` method is always called first so a dead bridge
+/// leaves today's behaviour exactly as it is, a re-entrancy flag stops a failure in the forwarding
+/// path recursing through the `console.error` it just overrode, and messages are buffered — with a
+/// hard cap, dropped rather than grown — while `__TAURI_INTERNALS__.invoke` does not yet exist.
+///
+/// `console.log` is deliberately not forwarded. Only failures: a phone log carrying every debug
+/// line is a phone log nobody reads.
+const WEB_LOG_SCRIPT: &str = r#"
+(function () {
+  try {
+    var MAX = 2000, QUEUE_MAX = 50, queue = [], busy = false;
+    function send(level, text) {
+      if (busy) return;                       // never recurse through our own console.error
+      busy = true;
+      try {
+        var body = String(text).slice(0, MAX);
+        var inv = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke;
+        if (inv) {
+          while (queue.length) { var q = queue.shift(); inv('fm_log', q); }
+          inv('fm_log', { level: level, msg: body });
+        } else if (queue.length < QUEUE_MAX) {
+          queue.push({ level: level, msg: body });  // bridge not up yet; bounded, never grown
+        }
+      } catch (e) { /* a diagnostic must not become the fault */ }
+      busy = false;
+    }
+    function text(args) {
+      return Array.prototype.map.call(args, function (a) {
+        try {
+          if (a instanceof Error) return (a.stack || (a.name + ': ' + a.message));
+          return typeof a === 'string' ? a : JSON.stringify(a);
+        } catch (e) { return String(a); }
+      }).join(' ');
+    }
+    ['error', 'warn'].forEach(function (level) {
+      var original = console[level] ? console[level].bind(console) : function () {};
+      console[level] = function () {
+        original.apply(null, arguments);      // first, always: the bridge is additive
+        send(level, text(arguments));
+      };
+    });
+    window.addEventListener('error', function (e) {
+      send('error', (e && e.message ? e.message : 'error') +
+        (e && e.filename ? ' @ ' + e.filename + ':' + e.lineno : ''));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e && e.reason;
+      send('error', 'unhandled rejection: ' + (r && r.stack ? r.stack : String(r)));
+    });
+  } catch (e) { /* an init script that throws is a blank screen */ }
+})();
+"#;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // **Before `.setup`, and that ordering is the point.** Tauri builds the webview before the
+        // setup hook runs — the comment in that hook says so — so a script registered later would
+        // miss the page load it most needs to observe. A plugin is how Tauri v2 injects one
+        // globally; there is no per-app `initialization_script` for config-declared windows.
+        .plugin(
+            // `::<Wry, ()>` explicitly: `plugin::Builder` is generic over the runtime *and* a
+            // config type it will never deserialise here, and neither is inferable from a builder
+            // that only sets a script.
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("weblog")
+                .js_init_script(WEB_LOG_SCRIPT.to_string())
+                .build(),
+        )
         .setup(|app| {
             // First, so that everything below is visible — including its own failures.
             install_logger();
@@ -694,7 +782,7 @@ pub fn run() {
                 req.body(),
             )
         })
-        .invoke_handler(tauri::generate_handler![fm, fm_ingest])
+        .invoke_handler(tauri::generate_handler![fm, fm_ingest, fm_log])
         .build(tauri::generate_context!())
         .expect("error while running formicaria")
         .run(|_app, event| {

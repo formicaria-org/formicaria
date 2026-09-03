@@ -326,8 +326,17 @@ launch() {
 
     if [ "$painted" = yes ] && [ "$ready" = yes ]; then
         say "launch $n: painted at t+${painted_at}s (deviation $dev vs home $base_dev), ready at t+${ready_at}s via ${ready_via:-?}"
-        if grep -q 'formicaria ERROR' "$OUT/console-$n.log" "$OUT/oslog-$n.log" 2>/dev/null; then
-            fail "launch $n: an error was logged at startup ($OUT/console-$n.log)"
+        # **`applog-$n.log` is in this list, and its absence was a hole.** On iOS stderr was
+        # measured to reach nobody (`decisions.md`, *the iOS log is a file in the app container*),
+        # so the app's own file is the channel that actually carries a startup error — and it was
+        # copied here for a human to read while the assertion looked at the two channels that are
+        # empty on this platform. Now that the WebView forwards `console.error` as `web: …`
+        # through the same `log` sink (`decisions.md`, *the WebView gets a voice*), this grep is
+        # what makes a frontend failure fail the job instead of being filed as an artifact.
+        if grep -q 'formicaria ERROR' \
+            "$OUT/console-$n.log" "$OUT/oslog-$n.log" "$OUT/applog-$n.log" 2>/dev/null; then
+            fail "launch $n: an error was logged at startup — see $OUT/applog-$n.log,
+  $OUT/console-$n.log. A 'web:' prefix means it came from the page, not the shell."
         fi
         return 0
     fi

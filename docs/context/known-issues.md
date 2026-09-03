@@ -274,12 +274,18 @@ The gray-screen fix and its tests are in
   mtime against `ui/src`, never `ui/dist`'s.** The failure is silent in both directions — nothing
   warns, and the result looks like a broken change rather than an old one.
 
-- **The owner's phone has no diagnostic channel except the app's own UI.** `eprintln!`/stdout
-  never reaches logcat from a Tauri Android shell, and — found the hard way on 2026-07-20 — the
-  WebView routes **no `console.*` output there either**: a signed, installed, MD5-verified build
-  full of `console.warn` produced zero lines while the native `ca-bundle:` log from the same run
-  came through fine. Anything you need to read off that device must be rendered on screen. This
-  cost a full build/sign/install/ask-the-owner round trip.
+- **~~The phone has no diagnostic channel except its own UI~~ — half-closed 2026-09-03.** The
+  original finding stands and is why the fix exists: `eprintln!`/stdout never reaches logcat from a
+  Tauri Android shell, and — found the hard way on 2026-07-20 — the WebView routed **no `console.*`
+  output there either**: a signed, installed, MD5-verified build full of `console.warn` produced
+  zero lines while the native `ca-bundle:` log from the same run came through fine. **That cost a
+  full build/sign/install/ask-the-owner round trip.** The shell now injects a script forwarding
+  `console.error`, `console.warn`, `window.onerror` and `unhandledrejection` to `fm_log`, which
+  writes them through the same `log` sink tagged `web:` (`decisions.md`, *the WebView gets a
+  voice*). **`console.log` is still not forwarded, by design** — only failures — so anything you
+  want to read off a device that is not an error must still be rendered on screen. **Unverified on
+  hardware**: it cross-compiles for `aarch64-linux-android` and nothing here has run it on a phone
+  or a Simulator.
 
 - **A phone vault holds the only copy of its media.** App-private storage is wiped on uninstall,
   `blobs/` is gitignored so a push does not carry it, and restic — the one thing that does — is a
