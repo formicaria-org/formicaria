@@ -278,6 +278,24 @@ else
     echo "  (skipped: cargo not on PATH)"
 fi
 
+echo "[check] the iOS smoke test's simctl parsers still parse (the only part testable off a Mac)..."
+# `ci/ios-smoke.sh` runs on macOS and nowhere else, so almost none of it can be checked here — its
+# first real execution is inside a billed CI job. Its *parsers* are the exception: they are pure
+# text filters, they are where it is most likely to be quietly wrong, and one of them already was.
+# `awk -F'[()]' '{print $2}'` returns the UDID for `iPhone 17 (UDID) (Shutdown)` and the string
+# `3rd generation` for `iPhone SE (3rd generation) (UDID) (Shutdown)` — a stock device — which would
+# have been handed to `simctl bootstatus` 45 minutes into a paid job. Free to check, so it is checked.
+if [ -f ci/ios-smoke.sh ]; then
+    if ! sh ci/ios-smoke.sh --self-test >/dev/null 2>&1; then
+        echo "  FAIL: \`sh ci/ios-smoke.sh --self-test\` does not pass. Run it to see which parser"
+        echo "        broke; the fixtures are captured \`xcrun simctl\` output and are the contract."
+        sh ci/ios-smoke.sh --self-test 2>&1 | sed 's/^/        /' | head -12
+        fail=1
+    fi
+else
+    echo "  (skipped: ci/ios-smoke.sh not present)"
+fi
+
 echo "[check] the mobile study agent stays behind the feature AND Android (notes-only pays nothing)..."
 # The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
 # mobile shell must give the same guarantee, or a notes-only APK silently links the whole model

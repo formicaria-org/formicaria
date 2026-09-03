@@ -59,6 +59,58 @@ PATH="$root/ci/bin:$PATH"
 export PATH
 
 say()  { echo "ios-smoke: $*"; }
+# ---------------------------------------------------------------------------
+# The `simctl` output parsers, as functions over stdin — **so that the one part of this file which
+# can be tested without a Mac, is.**
+#
+# These three lines are where the script is most likely to be wrong and least likely to look wrong:
+# an `awk -F'[()]'` that reads "the second bracketed group" is correct for `iPhone 17 (UDID)
+# (Shutdown)` and returns the string `3rd generation` for `iPhone SE (3rd generation) (UDID)
+# (Shutdown)` — a device in the default set. That bug shipped here and was caught by review, having
+# been about to hand `simctl bootstatus` a device *name*, 45 minutes into a paid job.
+#
+# `--self-test` below runs them against captured fixtures. It needs no Mac, no simulator and no
+# network, and `ci/checks.sh` runs it on every commit.
+# ---------------------------------------------------------------------------
+pick_udid()    { grep -m1 '^ *iPhone' | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}' || true; }
+pick_runtime() { grep '^iOS ' | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9._-]+' || true; }
+pick_devtype() { grep 'iPhone' | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true; }
+
+if [ "${1:-}" = "--self-test" ]; then
+    t_fail=0
+    check() {  # name expected actual
+        if [ "$2" = "$3" ]; then
+            echo "  ok   $1"
+        else
+            echo "  FAIL $1: expected '$2', got '$3'"; t_fail=1
+        fi
+    }
+    # Captured from real `xcrun simctl` output. The `(3rd generation)` device is the regression.
+    devices='== Devices ==
+-- iOS 26.5 --
+    iPhone SE (3rd generation) (7B2A1C4D-9E3F-4A55-B1C2-0D3E4F5A6B7C) (Shutdown)
+    iPhone 17 (A1B2C3D4-1111-2222-3333-444455556666) (Shutdown)
+    iPad Pro 11-inch (M4) (C0FFEE00-1111-2222-3333-444455556666) (Shutdown)'
+    runtimes='== Runtimes ==
+iOS 16.4 (16.4 - 20E247) - com.apple.CoreSimulator.SimRuntime.iOS-16-4 (unavailable, runtime profile not found using '"'"'System'"'"' match policy)
+iOS 26.5 (26.5 - 23F79) - com.apple.CoreSimulator.SimRuntime.iOS-26-5'
+    devtypes='iPhone 17 (com.apple.CoreSimulator.SimDeviceType.iPhone-17)
+iPhone SE (3rd generation) (com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation)'
+
+    echo "ios-smoke --self-test: the simctl parsers"
+    check "udid ignores a bracketed device name" \
+        "7B2A1C4D-9E3F-4A55-B1C2-0D3E4F5A6B7C" "$(printf '%s\n' "$devices" | pick_udid)"
+    check "udid is empty when no iPhone is listed" \
+        "" "$(printf '%s\n' "== Devices ==" | pick_udid)"
+    check "runtime is an identifier, never 'policy)'" \
+        "com.apple.CoreSimulator.SimRuntime.iOS-26-5" "$(printf '%s\n' "$runtimes" | pick_runtime)"
+    check "devtype is an identifier, not '3rd generation'" \
+        "com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation" "$(printf '%s\n' "$devtypes" | pick_devtype)"
+    [ "$t_fail" = 0 ] || { echo "ios-smoke --self-test: FAILED" >&2; exit 1; }
+    echo "ios-smoke --self-test: all parsers ok"
+    exit 0
+fi
+
 # Only name the artifact directory once there is one. A precondition failure happens before
 # `mkdir`, and pointing at an empty path is the kind of small lie that sends the next person
 # looking for a log that was never written.
@@ -162,20 +214,14 @@ say "bundle id $bid"
 # on the second — and an `(Nth generation)` iPhone is an ordinary member of the default device set.
 # That parse would have handed `simctl bootstatus` a device name, and it would have done so *after*
 # the 25-45 minute build was already paid for.
-udid=$(xcrun simctl list devices available \
-    | grep -m1 '^ *iPhone' \
-    | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}' || true)
+udid=$(xcrun simctl list devices available | pick_udid)
 if [ -z "$udid" ]; then
     say "no iPhone simulator available — creating one"
     # `runtimes available`, not `runtimes`: an unavailable runtime prints a trailing
-    # "(unavailable, runtime profile not found … match policy)", so `$NF` on the unfiltered list can
-    # be the word `policy)`. Take the field that looks like a runtime identifier instead.
-    runtime=$(xcrun simctl list runtimes available \
-        | grep '^iOS ' | tail -1 \
-        | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9._-]+' || true)
-    devtype=$(xcrun simctl list devicetypes \
-        | grep 'iPhone' | tail -1 \
-        | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true)
+    # "(unavailable, runtime profile not found … match policy)", so the last field of the
+    # unfiltered list can be the word `policy)`. Both filters are covered by `--self-test`.
+    runtime=$(xcrun simctl list runtimes available | pick_runtime)
+    devtype=$(xcrun simctl list devicetypes | pick_devtype)
     [ -n "$runtime" ] && [ -n "$devtype" ] || fail "no available iOS runtime or iPhone device type on this machine"
     udid=$(xcrun simctl create fm-smoke "$devtype" "$runtime") || fail "simctl create failed"
     created_device=1
