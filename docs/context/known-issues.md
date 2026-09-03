@@ -744,6 +744,16 @@ The gray-screen fix and its tests are in
   device. **The generalisation worth keeping:** on a billed runner, every wait needs an upper bound,
   and so does the give-up path — `simctl shutdown` has no timeout either, so it is fired and
   forgotten rather than waited on.
+- **`＋ Media` would have crashed the app on iOS, and nothing would have said why.** Found by audit
+  on 2026-09-03, before anyone was asked to install anything. On iOS a missing `NS*UsageDescription`
+  is **not a denied permission — the system terminates the app** the moment the API is touched, and
+  `NotePanel.svelte` renders `＋ Media` on every note being edited with **no platform gate**: Record
+  audio reaches `getUserMedia`, Take a photo and Record a video reach the camera, and the file items
+  reach the photo library. Four keys, none declared. Two taps from a tester, and it would have read
+  as "your app is broken" — correctly. `ci/ios-inject-plist.sh` injects them; `ci/checks.sh` guards
+  the injection on Linux; `ci/ios-package.sh` asserts they survived into the built `.ipa`.
+  **The wording of each is user-visible** — it is what the system prompt shows — so it says what is
+  accessed and when, rather than being a string that merely satisfies the linker.
 - **The iOS `.ipa` is the first artifact here meant for users that has never run on its target.**
   `ci/ios-package.sh` (rung 5) is written blind against tauri-cli v2.11.4's source, exactly as
   `ci/ios-smoke.sh` was, and expects the same first-dispatch mechanical failures. Its parsers are
@@ -757,11 +767,15 @@ The gray-screen fix and its tests are in
     (`decisions.md`, *a managed vault persists as `@root/<name>`*). **Still unverified on hardware
     like everything else here** — the tests prove the resolution, not that iOS moves a container
     the way this assumes.
-  - **LAN pairing will fail silently on a device.** *Share with a nearby device* discovers over
-    mDNS, which iOS 14+ gates behind `NSLocalNetworkUsageDescription` + `NSBonjourServices` and a
-    runtime prompt. Neither key is set, **there is no `bundle.iOS` block in `tauri.conf.json` at
-    all**, and a Simulator does not enforce the permission — so this cannot be caught by any rung.
-    git-over-HTTPS sync is unaffected (rung 4 proved it).
+  - ~~**LAN pairing will fail silently on a device**~~ — **key added 2026-09-03, and the entry it
+    replaces was partly wrong.** It claimed `NSBonjourServices` was needed too. Reading the code says
+    otherwise: `fm-serve/src/share.rs:357-370` advertises `<hostname>.local` and the phone
+    **resolves** that name. `NSBonjourServices` is required for *browsing* services
+    (`NWBrowser`/`NSNetServiceBrowser`), which nothing here does — and inventing a service type to
+    satisfy a key we do not need is the exact class of guess this project keeps paying for.
+    `NSLocalNetworkUsageDescription` is injected by `ci/ios-inject-plist.sh`. **Still unverified on
+    hardware**: a Simulator does not enforce the permission, so no rung can prove the prompt appears
+    or that resolution works behind it. git-over-HTTPS sync is unaffected (rung 4 proved it).
   - **The app must never acquire a free-team-forbidden entitlement** — App Groups, keychain
     sharing, push, iCloud, associated domains, Sign in with Apple, Apple Pay. Ticking a capability
     box writes one, and it would make the artifact unsignable by every user it exists for.

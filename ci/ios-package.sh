@@ -281,6 +281,22 @@ done
   Every user of this app signs it with a free Apple ID. Any of these makes that impossible — see
   decisions.md, 'iOS ships as an unsigned IPA that each user signs with their own Apple ID'."
 
+# --- 5b. the permission keys, and this one is an assertion ---------------------------------------
+# **A missing `NS*UsageDescription` does not deny a permission on iOS, it terminates the app.** The
+# `＋ Media` menu is rendered on every note being edited with no platform gate, so without these
+# the first tester to tap Record audio crashes the artifact we just built. `ci/ios-inject-plist.sh`
+# puts them into `project.yml`; this is the check that they survived XcodeGen and the archive, on
+# the actual `.ipa` rather than on the spec that was supposed to produce it.
+missing=""
+for k in NSMicrophoneUsageDescription NSCameraUsageDescription \
+         NSPhotoLibraryUsageDescription NSLocalNetworkUsageDescription; do
+    v=$(plutil -extract "$k" raw "$app/Info.plist" 2>/dev/null || true)
+    if [ -z "$v" ]; then missing="$missing $k"; else record "$(printf '%-28s' "$k")present"; fi
+done
+[ -z "$missing" ] || fail "the built app declares no usage description for:$missing
+  On iOS that is not a denied permission — the system terminates the app the moment the API is
+  touched, and ＋ Media reaches all of them. See ci/ios-inject-plist.sh."
+
 # --- 6. what we actually ship, recorded ---------------------------------------------------------
 for k in CFBundleIdentifier CFBundleShortVersionString CFBundleVersion MinimumOSVersion; do
     v=$(plutil -extract "$k" raw "$app/Info.plist" 2>/dev/null || echo "<absent>")

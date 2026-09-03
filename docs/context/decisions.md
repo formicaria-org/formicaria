@@ -5158,3 +5158,46 @@ since `vault_root()` is `Some` exactly where the shell sets `FM_VAULT_ROOT`. The
 and looked like a broken feature. `vault_root` is now **derived** from `platform` in the mock, so no
 test can assert against a state that cannot exist. **A mock is a claim about the backend, and a
 false one costs more than no mock at all.**
+
+## 2026-09-03 — the iOS Info.plist is injected, because a missing usage description is a crash `#track-m`
+
+**Not a denied permission — a termination.** On iOS, touching a permission-gated API with no
+`NS*UsageDescription` in `Info.plist` makes the system kill the app. `＋ Media`
+(`ui/src/lib/NotePanel.svelte`) is rendered on every note being edited with **no platform gate**, and
+four of its items reach that hardware: Record audio (`getUserMedia`), Take a photo and Record a video
+(the camera), and the file pickers (the photo library). **None of the four keys was declared
+anywhere.** So the first tester to edit a note and tap ＋ Media would have crashed the app — and been
+right to call it broken. Found by audit, before anyone was asked to install anything.
+
+**Decision:** `ci/ios-inject-plist.sh` patches the generated `project.yml`'s `info: properties:` map,
+anchored on `CFBundleVersion` — the last unconditional property the tauri template emits.
+
+**The tidier routes were checked and are closed**, the same way the linker-libs script checked its
+own. The template *does* carry a hook, `{{#each apple.plist-pairs}}`, immediately after that anchor —
+but tauri-cli never populates it: the only `plist` in `crates/tauri-cli/src/mobile/ios/mod.rs` is
+`export_options_plist`, which is the signing export, not `Info.plist`. Same dead end as
+`ios-vendor-sdks`, for the same reason. And `gen/apple` is generated and gitignored, so editing it by
+hand reaches exactly one machine.
+
+**A second script rather than a bigger one.** `ios-inject-linker-libs.sh` is named for its job and
+`decisions.md` — append-only — refers to it by that name; renaming it to cover a second job would
+leave dated entries pointing at a file that no longer exists. So two scripts, one honest name each,
+and **`xcodegen` still runs exactly once**: `ios_project_ready` calls the plist one with
+`FM_SKIP_XCODEGEN=1` and lets the linker-libs one regenerate after both patches are in. Reversing
+that order would silently drop the keys.
+
+**`NSBonjourServices` is deliberately absent, and an earlier `known-issues.md` entry saying it was
+needed is corrected.** `fm-serve/src/share.rs:357-370` advertises `<hostname>.local` and the phone
+*resolves* that name; the key is required for **browsing** services, which nothing here does.
+Inventing a service type to satisfy a key we do not need is the exact class of guess this project
+keeps paying for.
+
+**Guarded at both ends.** `ci/checks.sh` runs the injection against a template-shaped fixture on
+Linux — idempotent, and landing inside `info: properties:` rather than after `entitlements:`, where
+XcodeGen would ignore it and the failure would arrive as a crash on a tester's phone instead of at
+build time. `ci/ios-package.sh` then asserts all four keys are present in the **built `.ipa`**, which
+is the only check that covers XcodeGen and the archive as well as the spec.
+
+**The wording is user-visible.** Each string is what the system prompt shows, so it says what is
+accessed and when. A vague reason is a worse prompt and a worse answer to "why does this want my
+microphone".

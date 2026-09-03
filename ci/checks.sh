@@ -373,6 +373,55 @@ else
     echo "  (skipped: ci/ios-inject-linker-libs.sh not present)"
 fi
 
+echo "[check] the iOS plist injection lands the usage descriptions, and is idempotent..."
+# **A missing `NS*UsageDescription` terminates the app on iOS** — it is not a denied permission —
+# and `＋ Media` reaches the microphone, the camera and the photo library with no platform gate. So
+# an injection that silently stopped finding its anchor would ship an app that crashes on a normal
+# action. Same fixture shape as the linker-libs check above, built from tauri-cli's own template,
+# and needing no Mac: `FM_SKIP_XCODEGEN=1` patches without regenerating.
+if [ -f ci/ios-inject-plist.sh ]; then
+    pl_dir=$(mktemp -d)
+    cat > "$pl_dir/project.yml" <<'PLYML'
+targets:
+  formicaria-mobile_iOS:
+    info:
+      path: formicaria-mobile_iOS/Info.plist
+      properties:
+        LSRequiresIPhoneOS: true
+        CFBundleShortVersionString: 0.4.0
+        CFBundleVersion: "0.4.0"
+    entitlements:
+      path: formicaria-mobile_iOS/formicaria-mobile_iOS.entitlements
+PLYML
+    pl_ok=1
+    FM_SKIP_XCODEGEN=1 sh ci/ios-inject-plist.sh "$pl_dir/project.yml" >/dev/null 2>&1 || pl_ok=0
+    FM_SKIP_XCODEGEN=1 sh ci/ios-inject-plist.sh "$pl_dir/project.yml" >/dev/null 2>&1 || pl_ok=0
+    if [ "$pl_ok" != 1 ]; then
+        echo "  FAIL: ci/ios-inject-plist.sh errored on a fixture built from tauri's template."
+        FM_SKIP_XCODEGEN=1 sh ci/ios-inject-plist.sh "$pl_dir/project.yml" 2>&1 | sed 's/^/        /' | head -6
+        fail=1
+    fi
+    for k in NSMicrophoneUsageDescription NSCameraUsageDescription \
+             NSPhotoLibraryUsageDescription NSLocalNetworkUsageDescription; do
+        n=$(grep -c "^        $k: " "$pl_dir/project.yml" 2>/dev/null || true)
+        if [ "$n" != 1 ]; then
+            echo "  FAIL: after two runs, '$k' appears $n time(s) in the patched project.yml,"
+            echo "        expected exactly 1 (the injection must be idempotent — it runs every build)."
+            fail=1
+        fi
+    done
+    # It must land inside `info: properties:`, not after `entitlements:`, where XcodeGen ignores it
+    # and the app crashes on the first ＋ Media tap instead of at build time.
+    if ! awk '/^      properties:/{p=1} /^    entitlements:/{p=0} p && /NSMicrophoneUsageDescription/{f=1} END{exit !f}' \
+        "$pl_dir/project.yml"; then
+        echo "  FAIL: the usage descriptions landed outside the target's 'info: properties:' map."
+        fail=1
+    fi
+    rm -rf "$pl_dir"
+else
+    echo "  (skipped: ci/ios-inject-plist.sh not present)"
+fi
+
 echo "[check] the iOS smoke test's simctl parsers still parse (the only part testable off a Mac)..."
 # `ci/ios-smoke.sh` runs on macOS and nowhere else, so almost none of it can be checked here — its
 # first real execution is inside a billed CI job. Its *parsers* are the exception: they are pure

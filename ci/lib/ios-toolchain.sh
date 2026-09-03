@@ -82,5 +82,10 @@ ios_project_ready() {
         say "no gen/apple — running 'tauri ios init'"
         run_logged ios-init tauri_ios init --verbose
     fi
+    # **Two patches, one regeneration.** The plist injection runs first with `FM_SKIP_XCODEGEN=1`
+    # so it only edits `project.yml`; the linker-libs script then patches *and* regenerates, so
+    # `xcodegen` runs exactly once with both edits in place. Reversing this order would silently
+    # drop the usage descriptions from the generated Info.plist.
+    run_logged inject-plist env FM_SKIP_XCODEGEN=1 sh "$root/ci/ios-inject-plist.sh"
     run_logged inject-linker-libs sh "$root/ci/ios-inject-linker-libs.sh"
 }
