@@ -36,6 +36,8 @@ on:
         options:
           - "1"
           - "2"
+          - "3"
+          - "4"
 
 # **Keyed by rung, not just by ref.** `cancel-in-progress` is right *within* a rung — a re-dispatch
 # supersedes the previous attempt — but the two rungs are different experiments, and with a shared
@@ -170,9 +172,12 @@ jobs:
   #     from the feature **and** Android, so `src/agent.rs` (Android-only `native_lib_dir`) is not
   #     compiled into an iOS build
   # =========================================================================================
+  # **Rungs 2 and 3 are one job**, because rung 3 *is* rung 2 plus a screenshot sweep over more
+  # device sizes — and the sweep reuses the `.app` this job already built. The build is 360s of a
+  # ~460s job, so a separate rung-3 job that rebuilt would cost more than every other rung together.
   rung2:
-    if: inputs.rung == '2'
-    name: does it boot on a simulator
+    if: inputs.rung == '2' || inputs.rung == '3'
+    name: does it boot on a simulator (rung 3 also sweeps sizes)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -227,16 +232,71 @@ jobs:
       #
       # `ci/ios-smoke.sh` puts `ci/bin` on PATH itself (the verifying `rustup` shim Tauri's mobile
       # commands need), so this step needs no environment beyond that.
+      # `FM_IOS_SIZES` is empty for rung 2, so the sweep is inert and rung 2 behaves exactly as it
+      # did when it was proven. Substrings, not identifiers — a device the runner image drops should
+      # cost a skipped size and a note, not a failed job.
       - name: boot it, twice
         run: pixi run -e cross ios-smoke
+        env:
+          FM_IOS_SIZES: ${{ inputs.rung == '3' && 'iPhone-SE iPhone-17-Pro-Max' || '' }}
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ios-rung2
-          # The screenshots, the pty transcripts, the deviation numbers, the data-container tree and
-          # the before/after disk. On a failure this is the whole observation.
+          name: ios-rung${{ inputs.rung }}
+          # The screenshots (including one per swept size), the pty transcripts, the deviation
+          # numbers, the data-container tree and the before/after disk. On a failure this is the
+          # whole observation.
           path: |
             target/ios-smoke
+          if-no-files-found: warn
+          retention-days: 7
+
+  # =========================================================================================
+  # Rung 4: **does git work over HTTPS from iOS?**
+  #
+  # Deliberately dispatchable ahead of rung 3, because it is the single result that can end the
+  # port. On Apple targets libgit2 links **SecureTransport**, not the vendored OpenSSL this project
+  # builds, and `add_certs_from_pem` — the whole Android CA workaround — is `cfg`'d off there. The
+  # iOS HTTPS path therefore rests on a claim nothing has ever executed.
+  #
+  # **The cheapest rung by a distance**: no pnpm, no frontend, no `tauri ios init`, no Homebrew, no
+  # `xcodebuild`. Just cargo and one `simctl spawn`, against a warm shared cache.
+  #
+  # **Kill criterion:** the Simulator reaches github.com:443 and libgit2 still cannot talk to it →
+  # stop. That is SecureTransport failing, the iPhone port cannot sync, and no distribution work
+  # should be spent on it. The script prints which layer failed rather than "it did not work".
+  rung4:
+    if: inputs.rung == '4'
+    name: does git work over https from ios
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target
+          cache-on-failure: true
+          shared-key: ios
+
+      # `-e cross` because that is the only environment carrying the iOS `rust-std` packages, and
+      # the pins in `[dependencies]` keep its toolchain identical to `default`.
+      - name: probe an https remote from the simulator
+        run: pixi run -e cross ios-https-probe
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-rung4
+          # The cargo build log, the boot log, and the probe's own output — which on a failure is
+          # the whole diagnosis.
+          path: |
+            target/ios-https-probe
           if-no-files-found: warn
           retention-days: 7

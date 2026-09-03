@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** (read before any iOS distribution work — it carries the App Store / TestFlight / sideloading facts) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4560,6 +4560,11 @@ is a fourth seam question, not a free win. Full survey: `ios-plan-2026-09-02.md`
 
 ## 2026-09-02 — an iOS build would contradict the project-local-toolchain ruling, and that is the price `#toolchain` `#track-m`
 
+> **Its premise changed 2026-09-03.** This entry reasons from *"shipping is not on the table"* and
+> *"a Simulator-only proof"*. The owner has since asked for formicaria on **users' iPhones**, outside
+> the App Store — see *iOS is meant to reach users' phones now, and the route is deliberately
+> undecided* below. Everything here about the **toolchain** still holds; only the ceiling moved.
+
 > **Scopes** *Non-pixi dependencies are accepted — but they are project-local, never a system
 > requirement* (2026-07-19). Not superseded: Android still honours it exactly. This records what
 > iOS would cost against it, **before** anyone spends a CI minute.
@@ -4827,3 +4832,41 @@ the fix is a `OnceLock` static, not a features change to a dependency the Androi
 **Consequence:** stderr is kept because it costs one line and would start working for free if a
 future Xcode fixed the pty — and because the harness now *reports which channel spoke*, so the day
 it does work we will know. Two sinks and no dependencies is cheaper than deciding which to trust.
+
+## 2026-09-03 — iOS is meant to reach users' phones now, and the route is deliberately undecided `#track-m`
+
+> **Reverses the ceiling** of *an iOS build would contradict the project-local-toolchain ruling*
+> (2026-09-02) and of `ios-plan-2026-09-02.md`'s **"There is no rung 5 — a device install would cost
+> $99/yr to produce an artifact nobody can run."** Both were sound under the *"no iPhone"* ruling
+> they were written under. That ruling is withdrawn.
+
+**Decision:** iOS work is no longer a survey. The goal is formicaria on **its users' iPhones**,
+distributed like the Android APK — **not through the App Store**. **The route is not chosen yet**,
+and that deferral is itself the decision: rungs 4 and 3 come first, because if git over HTTPS fails
+on iOS the port cannot sync, and a notes app whose notes cannot leave the device is not worth
+distributing at any price.
+
+**The facts that will decide it**, researched against Apple's current pages 2026-09-03 and recorded
+here so the choice needs no second research pass:
+
+- **iOS has no "install from unknown sources".** The Android model — publish an APK, user taps it,
+  it works forever — has *no direct analogue at any price*. Every app carries an Apple-issued
+  signature and the device holds a profile authorising it. Platform policy, not an engineering gap.
+- **External TestFlight is not the App Store**: 10,000 users, no listing, no search result, no store
+  page. One Beta App Review of the first build per group; users install TestFlight and tap. **This
+  was not on the menu when the owner declined "the store"** and is the only route resembling the
+  Android experience. $99/yr, and a rebuild inside every 90 days or installed builds stop opening.
+- **The only $0 route is free-account sideloading**: each user re-signs **every 7 days** with their
+  own Apple ID, capped at **3 sideloaded apps per device**, through community tooling driving
+  Apple's private APIs. Genuinely free, and genuinely much worse.
+- **Neither route needs a Mac.** The `macos-latest` runner already in use *is* the Mac — that was
+  never the blocker for shipping, only for debugging. A CSR can be made with `openssl` on Linux.
+- **A catch specific to this owner:** Apple's enrolment identity check runs through the Apple
+  Developer app and wants an iPhone/iPad or Apple-silicon Mac. The owner has none, so the paid route
+  may need a support conversation. Confirm before paying.
+
+**Consequence:** `release.yml` still gains nothing — it is the single named exception to the
+no-remote-CI standing order and fires unattended on every `v*` tag. Whatever artifact iOS eventually
+produces follows the APK's shape: built by a manual dispatch, attached deliberately. And **G5
+(container-relative vault paths) stops being deferrable the moment a distribution channel exists** —
+a distributed app *updates*, which is precisely the failure G5 exists to prevent.

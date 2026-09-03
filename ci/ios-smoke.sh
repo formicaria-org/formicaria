@@ -59,22 +59,10 @@ PATH="$root/ci/bin:$PATH"
 export PATH
 
 say()  { echo "ios-smoke: $*"; }
-# ---------------------------------------------------------------------------
-# The `simctl` output parsers, as functions over stdin — **so that the one part of this file which
-# can be tested without a Mac, is.**
-#
-# These three lines are where the script is most likely to be wrong and least likely to look wrong:
-# an `awk -F'[()]'` that reads "the second bracketed group" is correct for `iPhone 17 (UDID)
-# (Shutdown)` and returns the string `3rd generation` for `iPhone SE (3rd generation) (UDID)
-# (Shutdown)` — a device in the default set. That bug shipped here and was caught by review, having
-# been about to hand `simctl bootstatus` a device *name*, 45 minutes into a paid job.
-#
-# `--self-test` below runs them against captured fixtures. It needs no Mac, no simulator and no
-# network, and `ci/checks.sh` runs it on every commit.
-# ---------------------------------------------------------------------------
-pick_udid()    { grep -m1 '^ *iPhone' | grep -oE '[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}' || true; }
-pick_runtime() { grep '^iOS ' | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.[A-Za-z0-9._-]+' || true; }
-pick_devtype() { grep 'iPhone' | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true; }
+# The `simctl` parsers and device acquisition live in one place, shared with `ci/ios-https-probe.sh`
+# — they are the part of an iOS script most likely to be quietly wrong, and one copy means one
+# self-test. `--self-test` below exercises them against captured output; `ci/checks.sh` runs it.
+. "$root/ci/lib/simctl.sh"
 
 if [ "${1:-}" = "--self-test" ]; then
     t_fail=0
@@ -242,22 +230,8 @@ say "bundle id $bid"
 # on the second — and an `(Nth generation)` iPhone is an ordinary member of the default device set.
 # That parse would have handed `simctl bootstatus` a device name, and it would have done so *after*
 # the 25-45 minute build was already paid for.
-udid=$(xcrun simctl list devices available | pick_udid)
-if [ -z "$udid" ]; then
-    say "no iPhone simulator available — creating one"
-    # `runtimes available`, not `runtimes`: an unavailable runtime prints a trailing
-    # "(unavailable, runtime profile not found … match policy)", so the last field of the
-    # unfiltered list can be the word `policy)`. Both filters are covered by `--self-test`.
-    runtime=$(xcrun simctl list runtimes available | pick_runtime)
-    devtype=$(xcrun simctl list devicetypes | pick_devtype)
-    [ -n "$runtime" ] && [ -n "$devtype" ] || fail "no available iOS runtime or iPhone device type on this machine"
-    udid=$(xcrun simctl create fm-smoke "$devtype" "$runtime") || fail "simctl create failed"
-    created_device=1
-fi
+udid=$(simctl_device "$OUT/bootstatus.txt")
 say "device $udid"
-# `bootstatus -b` boots if needed and blocks until the system is actually up, which is the
-# difference between "the process started" and "the springboard will accept an install".
-xcrun simctl bootstatus "$udid" -b >"$OUT/bootstatus.txt" 2>&1 || fail "the simulator did not boot ($OUT/bootstatus.txt)"
 
 xcrun simctl install "$udid" "$bid" >/dev/null 2>&1 || true
 xcrun simctl install "$udid" "$app" || fail "simctl install failed"
@@ -414,6 +388,57 @@ if [ -n "$container" ]; then
     echo "$container" > "$OUT/app-container.txt"
     find "$container" -maxdepth 3 >> "$OUT/app-container.txt" 2>/dev/null || true
     say "data container: $container (tree in $OUT/app-container.txt)"
+fi
+
+# ---------------------------------------------------------------------------
+# 4b) **Rung 3 — the same app at other screen sizes.** Off unless `FM_IOS_SIZES` is set.
+#
+# Additive on purpose: the single-device path above took four billed jobs to get right, and this
+# must not be able to break it. It also reuses the `.app` already built rather than rebuilding —
+# the build is 360s of a ~460s job, so a size sweep that rebuilt per device would cost more than
+# every other rung put together.
+#
+# `FM_IOS_SIZES` is a space-separated list of **substrings** matched against `simctl list
+# devicetypes`, e.g. "iPhone-SE iPhone-17-Pro-Max". Substrings rather than identifiers because the
+# runner image's device set changes without notice: a name that no longer exists should cost a
+# skipped size and a note, not a failed job. Screenshots only — this rung asks what the UI *looks*
+# like, and the assertions that matter (paint, `vaults ready`) were already made above.
+# ---------------------------------------------------------------------------
+if [ -n "${FM_IOS_SIZES:-}" ]; then
+    runtime=$(xcrun simctl list runtimes available | pick_runtime)
+    [ -n "$runtime" ] || fail "FM_IOS_SIZES is set but no iOS runtime is available"
+    for want in $FM_IOS_SIZES; do
+        dt=$(xcrun simctl list devicetypes \
+            | grep -F "$want" | tail -1 \
+            | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+' || true)
+        if [ -z "$dt" ]; then
+            say "size '$want': no such device type on this runner — skipped"
+            continue
+        fi
+        sud=$(xcrun simctl create "fm-size-$want" "$dt" "$runtime" 2>/dev/null || true)
+        if [ -z "$sud" ]; then
+            say "size '$want': simctl create failed — skipped"
+            continue
+        fi
+        if xcrun simctl bootstatus "$sud" -b >"$OUT/bootstatus-$want.txt" 2>&1 \
+           && xcrun simctl install "$sud" "$app" >/dev/null 2>&1; then
+            xcrun simctl launch "$sud" "$bid" >/dev/null 2>&1 || true
+            # No polling loop: the assertions live above. Give the WebView a moment, then record.
+            i=0
+            while [ "$i" -lt 20 ]; do
+                xcrun simctl io "$sud" screenshot "$OUT/size-$want.png" >/dev/null 2>&1 || true
+                d=$(vips deviate "$OUT/size-$want.png" 2>/dev/null || echo 0)
+                awk -v d="$d" -v m="$MIN_DEVIATION" 'BEGIN{exit !(d+0 > m+0)}' && break
+                i=$((i + 1)); sleep 1
+            done
+            printf 'size %s: deviation=%s at t+%ss (%s)\n' "$want" "$d" "$i" "$dt" >> "$OUT/stats.txt"
+            say "size '$want': screenshot at t+${i}s (deviation $d)"
+        else
+            say "size '$want': would not boot or install — skipped ($OUT/bootstatus-$want.txt)"
+        fi
+        xcrun simctl shutdown "$sud" >/dev/null 2>&1 || true
+        xcrun simctl delete "$sud" >/dev/null 2>&1 || true
+    done
 fi
 
 # ---------------------------------------------------------------------------
