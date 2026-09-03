@@ -30,7 +30,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** (read before touching `install_logger` or writing the Simulator smoke test) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -4614,6 +4614,11 @@ shedding it needs an upstream change rather than a manifest trick — see the en
 
 ## 2026-09-03 — the iOS diagnostic channel is stderr, not `os_log`, because only one of them can be tested from here `#track-m` `#toolchain`
 
+> **AMENDED the same day** by *the iOS log is a file in the app container* (below). The trigger this
+> entry wrote down for itself — "if rung 2 shows an empty pty" — fired on the first run that got far
+> enough to test it. stderr reaches nobody on the Simulator; it is kept as a second sink, and the
+> channel that is actually read is now a file. The reasoning against `os_log` still stands.
+
 > **Reverses a step of the iOS plan**, not a standing decision: `ios-plan-2026-09-02.md` named
 > "the `os_log` backend for `install_logger()`" as rung 2's prerequisite. The prerequisite stands;
 > the mechanism does not.
@@ -4785,3 +4790,40 @@ the template rather than silently patching nothing. `ci/checks.sh` runs it again
 from that template — no Mac needed — asserting the anchor is found, both libraries land exactly
 once across two runs, and they land *inside* `dependencies:`. Proven by two mutations: a missing
 anchor, and an injection placed after `preBuildScripts:`.
+
+## 2026-09-03 — the iOS log is a file in the app container, because stderr reaches nobody `#track-m`
+
+> **Amends** *the iOS diagnostic channel is stderr, not `os_log`* (same day, above). That entry named
+> its own reversal trigger — "if rung 2 shows an empty pty" — and rung 2 showed one.
+
+**Decision:** `install_logger`'s iOS arm writes every record to
+`std::env::temp_dir()/formicaria.log` — inside the app's data container, which
+`xcrun simctl get_app_container` hands the smoke test — **and** to stderr. `ci/ios-smoke.sh` polls
+three channels (pty, unified log, app file) and reports which one spoke.
+
+**Why: measured, not reasoned.** Run 91364602829 got the app built, installed, launched and
+**painted** (deviation 35.4 against a 71.7 home screen, at t+1s). The unified log carried thirty
+seconds of that process's WebKit traffic — resources loading through Tauri's scheme handler — so the
+app was unambiguously alive. In the same run the pty capture was **byte-empty** and the unified log
+contained **not one** of our records. So the previous entry's central claim — *"`simctl launch
+--console-pty` attaches a pty and prints it"* — is false in practice here, and an iOS build had no
+voice at all. A startup failure would have been invisible in exactly the way `install_logger` exists
+to prevent, and it hid the very question rung 2 was bought to answer: *did the store open?*
+
+**Why a file, and not `os_log` after all.** The argument against `os_log` is unchanged and was never
+about preference: emitting to it needs `_os_log_impl` with a format descriptor in `__TEXT,__os_log`,
+i.e. a C shim and a crate **this machine cannot compile**, and getting the section wrong logs
+`<private>` rather than failing to build. A file needs no bridging assumption, no FFI, no framework
+and no dependency — and it is the one sink whose behaviour can be *run* on Linux before it ships,
+which is how the next defect was caught (see below). It is Simulator-only reasoning and allowed to
+be: a Simulator is the only place this shell runs. On a real device the file still works but nothing
+reads it, which is the same trigger, written down again.
+
+**A second defect, caught for free by the same discipline.** The first draft used
+`log::set_boxed_logger`, which lives behind `log`'s `std` feature — not enabled here, so it does not
+compile. Building this file's logger in a throwaway crate on Linux found it before a runner did;
+the fix is a `OnceLock` static, not a features change to a dependency the Android build shares.
+
+**Consequence:** stderr is kept because it costs one line and would start working for free if a
+future Xcode fixed the pty — and because the harness now *reports which channel spoke*, so the day
+it does work we will know. Two sinks and no dependencies is cheaper than deciding which to trust.

@@ -259,8 +259,18 @@ say "device $udid"
 # difference between "the process started" and "the springboard will accept an install".
 xcrun simctl bootstatus "$udid" -b >"$OUT/bootstatus.txt" 2>&1 || fail "the simulator did not boot ($OUT/bootstatus.txt)"
 
+xcrun simctl install "$udid" "$bid" >/dev/null 2>&1 || true
 xcrun simctl install "$udid" "$app" || fail "simctl install failed"
 say "installed"
+
+# **Where the app writes its own log, which is the channel that actually works.** stderr reaches
+# nobody here: run 91364602829 produced a byte-empty pty and not one of our records in the unified
+# log, from a process that was demonstrably running. `install_logger`'s iOS arm now also writes to
+# `std::env::temp_dir()/formicaria.log`, which on iOS is inside this container. Resolved once, here,
+# because the poll loop needs it — `tmp/` itself only appears at first launch, so it is searched for
+# each time rather than assumed.
+container=$(xcrun simctl get_app_container "$udid" "$bid" data 2>/dev/null || true)
+[ -n "$container" ] && say "data container: $container" || say "no data container yet (first launch will make one)"
 
 # ---------------------------------------------------------------------------
 # 3) The launch check, run twice. Launch 1 is the one that used to be gray on Android.
@@ -322,13 +332,21 @@ launch() {
                 cp "$OUT/open$n.png" "$OUT/painted-$n.png" 2>/dev/null || true
             fi
         fi
-        # Either channel counts as the app having spoken; which one it was is reported below,
-        # because that is the answer to whether stderr works here at all.
+        # **Three channels, and which one spoke is itself a result.** The pty and the unified log
+        # are both known to have carried nothing on 2026-09-03; the app's own file is the fix. If a
+        # future run reports `via=pty`, stderr started working and this note can go.
         if [ "$ready" = no ]; then
-            if grep -q 'vaults ready' "$OUT/console-$n.log" 2>/dev/null \
-               || grep -q 'vaults ready' "$OUT/oslog-$n.log" 2>/dev/null; then
-                ready=yes; ready_at=$k
+            applog=""
+            if [ -n "$container" ]; then
+                applog=$(find "$container" -maxdepth 3 -name 'formicaria.log' 2>/dev/null | head -1)
             fi
+            for src in "$OUT/console-$n.log:pty" "$OUT/oslog-$n.log:unified-log" "${applog:-/nonexistent}:app-file"; do
+                f=${src%:*}; via=${src##*:}
+                if [ -f "$f" ] && grep -q 'vaults ready' "$f" 2>/dev/null; then
+                    ready=yes; ready_at=$k; ready_via=$via
+                    break
+                fi
+            done
         fi
         [ "$painted" = yes ] && [ "$ready" = yes ] && break
         # A launch that exited is decided; keep whatever was captured and stop waiting for it.
@@ -338,13 +356,20 @@ launch() {
     done
     kill "$oslog_pid" "$console_pid" >/dev/null 2>&1 || true
 
+    # The app's own log, kept whatever happened — on a silent run it is the only thing that can say
+    # how far startup got, and it outlives the process the way the two stream captures do not.
+    if [ -n "$container" ]; then
+        found=$(find "$container" -maxdepth 3 -name 'formicaria.log' 2>/dev/null | head -1)
+        [ -n "$found" ] && cp "$found" "$OUT/applog-$n.log" 2>/dev/null || true
+    fi
+
     # Crash reports, if the app died on its own. Cheap, and the only place a dyld or TCC failure
     # says anything at all.
     find "$HOME/Library/Logs/DiagnosticReports" -name '*formicaria*' -newermt '-10 minutes' \
         -exec cp {} "$OUT/" \; 2>/dev/null || true
 
     if [ "$painted" = yes ] && [ "$ready" = yes ]; then
-        say "launch $n: painted at t+${painted_at}s (deviation $dev vs home $base_dev), ready at t+${ready_at}s"
+        say "launch $n: painted at t+${painted_at}s (deviation $dev vs home $base_dev), ready at t+${ready_at}s via ${ready_via:-?}"
         if grep -q 'formicaria ERROR' "$OUT/console-$n.log" "$OUT/oslog-$n.log" 2>/dev/null; then
             fail "launch $n: an error was logged at startup ($OUT/console-$n.log)"
         fi
@@ -353,7 +378,8 @@ launch() {
 
     # **Name which half failed, because they mean opposite things.**
     echo "--- console-$n.log (pty) ---" >&2; cat "$OUT/console-$n.log" >&2 2>/dev/null || true
-    echo "--- oslog-$n.log (unified log) ---" >&2; tail -40 "$OUT/oslog-$n.log" >&2 2>/dev/null || true
+    echo "--- applog-$n.log (the app's own file) ---" >&2; cat "$OUT/applog-$n.log" >&2 2>/dev/null || true
+    echo "--- oslog-$n.log (unified log, tail) ---" >&2; tail -40 "$OUT/oslog-$n.log" >&2 2>/dev/null || true
     if [ "$painted" = yes ]; then
         fail "launch $n: **the app painted but never said 'vaults ready'** (painted t+${painted_at}s,
   deviation $dev vs home $base_dev; launch process $( [ "$died" = yes ] && echo exited || echo 'still alive' )).

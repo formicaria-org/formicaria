@@ -566,23 +566,58 @@ fn install_logger() {
     // `set_logger` may only succeed once per process. `install_logger` is called once, from
     // `setup` — but a shell whose entire job is to stay up so it can report a failure must not
     // panic on a second call, so the failure is a no-op rather than `unwrap`.
+    //
+    // **A `OnceLock` static rather than `set_boxed_logger`**, which needs an owned `Box` and lives
+    // behind `log`'s `std` feature — not enabled here, so it does not compile. Caught before it
+    // reached a runner by building this file's logger in a throwaway crate on Linux; changing a
+    // shared dependency's features to reach a convenience function would have been the worse fix.
     #[cfg(target_os = "ios")]
-    if log::set_logger(&IOS_LOGGER).is_ok() {
+    if log::set_logger(IOS_LOGGER.get_or_init(IosLogger::new)).is_ok() {
         log::set_max_level(log::LevelFilter::Info);
     }
 }
 
-/// The iOS backend for [`install_logger`]: one unbuffered line per record, on stderr.
-///
-/// Deliberately trivial, because **this crate cannot be compiled for iOS anywhere the owner can
-/// reach**: there is no Mac, and a Linux `cargo check` of the mobile shell dies in `libdbus-sys`
-/// long before it reaches a `--target` flag. Every line here first executes inside a billed CI
-/// job, so its whole surface is `log`'s trait and `std`'s `eprintln!`.
+/// Storage for the one logger, so `set_logger` gets the `&'static` it requires without a `Box`.
 #[cfg(target_os = "ios")]
-struct IosLogger;
+static IOS_LOGGER: std::sync::OnceLock<IosLogger> = std::sync::OnceLock::new();
+
+/// The iOS backend for [`install_logger`]: every record to **a file inside the app container**,
+/// and to stderr as well.
+///
+/// **stderr alone was measured to reach nobody, and that is why the file exists.** The first
+/// version wrote only to stderr, on the reasoning that `xcrun simctl launch --console-pty` attaches
+/// a pty and prints it. Run 91364602829 disproved that: the app demonstrably ran — the unified log
+/// carries thirty seconds of its WebKit traffic, resources loading through Tauri's scheme handler —
+/// while the pty capture was **byte-empty** and the unified log contained **not one** of our
+/// records. So an iOS build had no voice at all, and a startup failure would have been invisible in
+/// exactly the way `install_logger` exists to prevent.
+///
+/// A file is the one channel that cannot be argued with: no bridging assumption, no FFI, no C shim,
+/// no framework to link. `std::env::temp_dir()` on iOS is the app's own `tmp/`, inside the data
+/// container, which `xcrun simctl get_app_container` hands the smoke test directly. Simulator-only
+/// reasoning, and allowed to be — a Simulator is the only place this shell runs (`decisions.md`).
+///
+/// stderr is kept because it costs one line and would start working for free if a future
+/// `simctl`/Xcode fixed the pty. A logger with two sinks and no dependencies is cheaper than
+/// deciding which one to trust.
+#[cfg(target_os = "ios")]
+struct IosLogger {
+    /// `None` if the file could not be opened. **Never a reason to fail**: a shell that cannot
+    /// write its log must still start, and stderr may yet be read by something.
+    file: std::sync::Mutex<Option<std::fs::File>>,
+}
 
 #[cfg(target_os = "ios")]
-static IOS_LOGGER: IosLogger = IosLogger;
+impl IosLogger {
+    /// The path is deliberately *not* `app_data_dir()`: `install_logger` runs before
+    /// `configure_paths`, precisely so that everything after it — including its own failures — is
+    /// visible. `temp_dir()` needs no Tauri handle and is inside the container either way.
+    fn new() -> Self {
+        let path = std::env::temp_dir().join("formicaria.log");
+        let file = std::fs::OpenOptions::new().create(true).append(true).open(&path).ok();
+        Self { file: std::sync::Mutex::new(file) }
+    }
+}
 
 #[cfg(target_os = "ios")]
 impl log::Log for IosLogger {
@@ -591,20 +626,31 @@ impl log::Log for IosLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        if self.enabled(record.metadata()) {
-            // The `formicaria` prefix mirrors Android's logcat tag on purpose: one grep, and the
-            // two smoke tests assert the same startup lines rather than drifting apart.
-            eprintln!(
-                "formicaria {:<5} {}: {}",
-                record.level(),
-                record.target(),
-                record.args()
-            );
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+        // The `formicaria` prefix mirrors Android's logcat tag on purpose: one grep, and the two
+        // smoke tests assert the same startup lines rather than drifting apart.
+        let line = format!(
+            "formicaria {:<5} {}: {}",
+            record.level(),
+            record.target(),
+            record.args()
+        );
+        eprintln!("{line}");
+        // Flushed per record rather than buffered: a diagnostic still in a buffer when the process
+        // dies is not a diagnostic, and this file exists for exactly the launches that end badly.
+        // A poisoned lock or a write error is swallowed — logging must never be why the app fell over.
+        if let Ok(mut slot) = self.file.lock() {
+            if let Some(f) = slot.as_mut() {
+                use std::io::Write;
+                let _ = writeln!(f, "{line}");
+                let _ = f.flush();
+            }
         }
     }
 
-    /// Nothing to push: `eprintln!` writes straight through, which is the point — a diagnostic
-    /// still sitting in a buffer when the process dies is not a diagnostic.
+    /// Nothing to push: both sinks write straight through.
     fn flush(&self) {}
 }
 
