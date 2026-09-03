@@ -4962,3 +4962,50 @@ one screen is the wrong trade, and saying so is cheaper than discovering it a fo
 That is `outstanding.md` work in `ios-smoke.sh` (XCUITest, or a debug hook into the WebView), not a
 dispatch. **It is a precondition for handing the `.ipa` to anyone**, because those three seams are
 exactly what a user touches first and none of them has ever executed on iOS.
+
+## 2026-09-03 — a managed vault persists as `@root/<name>`, resolved at read time `#track-m` `#vault`
+
+**This is G5**, promoted from *"deliberately deferred"* (`ios-plan-2026-09-02.md`) to blocking by the
+sideloading route, and now done.
+
+**The failure it removes.** `vaults.json` persisted `absolute(&v.path)`. On a sideloaded iOS build
+the app is re-signed every **7 days** and the container UUID changes, so a path written last week
+names nothing this week. The notes are still on disk; they are **unreferenced**, and the app opens
+to a first-run screen. That is worse than corruption because it looks like deletion, and it would
+have happened to every user, weekly.
+
+**Decision:** a vault inside this installation's managed root is written `@root/<rel>` and resolved
+against [`vault_root()`] at read time. Absolute everywhere else.
+
+**Why a marker and not a bare relative path.** This file's own doctrine forbids one — *"a relative
+path in a config file resolves against the cwd, which is not a thing a config file should do"*, the
+bug that made `FM_VAULT=vault` mean a different vault per launch directory. `@root/` states what it
+is relative **to**. It follows the `~` precedent already in `expand_home`: a portable prefix
+expanded at read time, and left literal when there is nothing to expand to, so it fails loudly as a
+missing path rather than resolving somewhere unexpected.
+
+**Desktop is untouched by construction, not by care.** `vault_root()` is `Some` only where the shell
+sets `FM_VAULT_ROOT` — `mobile/src-tauri/src/lib.rs:478-499`, `app_data_dir()/vaults`, and nothing
+else in the tree sets it. A desktop vault is a folder the user chose; it keeps being written
+absolute, and the test that pins that (`saved_paths_are_absolute`) still passes.
+
+**Reading heals, writing does not.** `save` is append-only and *"leaves every byte"* of an entry it
+did not create, so an install made from a pre-marker build would keep its stale absolute path
+forever. `resolve_path` therefore adopts `<root>/<leaf>` when the stored path is **missing**, the
+root exists, and the candidate is a **directory** — narrow on purpose, unreachable on desktop, and
+never fired when the stored path resolves (a decoy of the same name inside the root does not win).
+
+**A test-side prerequisite came with it, deliberately before the flake rather than after.**
+`FM_VAULT_ROOT` is process-global and now decides how a path is *persisted*, so every test that
+reads or writes one races any test that sets it. `a_relative_root_is_not_a_root` was already setting
+it unguarded. The lock lives **beside the code, not inside either test module**, because this file
+has **two** (`tests` and `contained`) and a lock in one would not protect the other. Same idiom as
+`fm-app/tests/backup_records_everything.rs`, `fm-app/src/secrets.rs` and — one day earlier, after it
+had already cost ~1 run in 8 — `fm-core/tests/git_transport.rs`.
+
+**What this does *not* fix, found while doing it and left alone on purpose:** `forget_vault` does not
+remove anything from an existing `vaults.json`. It calls `save(&remaining, …)`, and `save` appends
+only — it never filters the on-disk array against the list it is given — so a forgotten vault
+returns on the next start. `dispatch.rs:1628` states the same fact from the other side. The existing
+test passes only because it writes to a file that does not yet exist. **Separate bug, separate fix**;
+recorded in `outstanding.md` rather than smuggled into a persistence change.

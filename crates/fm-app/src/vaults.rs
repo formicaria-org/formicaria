@@ -120,9 +120,38 @@ fn entry(v: &Value) -> Option<VaultConfig> {
     let path = v.get("path")?.as_str()?;
     Some(VaultConfig {
         name,
-        path: PathBuf::from(expand_home(path)),
+        path: resolve_path(path),
         restic: v.get("restic").and_then(Value::as_str).filter(|s| !s.is_empty()).map(expand_home),
     })
+}
+
+/// A stored path, made into a real one: expand `@root/`, then `~`, then — **only on a phone, and
+/// only when the result is not there** — look for the vault under the current managed root.
+///
+/// That last step is the migration, and it has exactly one job: an install written *before*
+/// [`ROOT_MARKER`] existed holds an absolute container path that a re-sign has since invalidated.
+/// [`save`] never rewrites an entry it did not create (*"theirs. Leave every byte of it alone"*),
+/// so those entries would stay absolute and stay broken forever. Healing on read fixes them
+/// without touching the file.
+///
+/// **Deliberately narrow.** It runs only where [`vault_root`] is `Some` — a phone — only when the
+/// stored path is missing, and only adopts a **directory** that is actually there. On a desktop it
+/// is not reachable at all, so a user whose external drive is unmounted still gets the honest
+/// missing path they had before rather than a surprise vault somewhere else.
+fn resolve_path(raw: &str) -> PathBuf {
+    let stored = PathBuf::from(expand_home(&expand_root(raw)));
+    if stored.exists() {
+        return stored;
+    }
+    let (Some(root), Some(leaf)) = (vault_root(), stored.file_name()) else {
+        return stored;
+    };
+    let candidate = root.join(leaf);
+    if candidate.is_dir() {
+        candidate
+    } else {
+        stored
+    }
 }
 
 /// The single-vault install: `FM_VAULT`, named after its own directory. **No default** —
@@ -182,7 +211,7 @@ pub fn save(list: &[VaultConfig], to: &Path) -> Result<(), String> {
         if known {
             continue; // theirs. Leave every byte of it alone.
         }
-        let mut e = json!({ "name": v.name, "path": absolute(&v.path).to_string_lossy() });
+        let mut e = json!({ "name": v.name, "path": persist_path(&v.path) });
         if let Some(r) = &v.restic {
             e["restic"] = json!(r);
         }
@@ -366,6 +395,60 @@ pub fn home() -> Option<PathBuf> {
         .filter(|p| !p.as_os_str().is_empty())
 }
 
+/// The prefix that means *"inside whatever this installation's managed root is right now"*.
+///
+/// **This exists because an iOS container path is not stable.** A sideloaded app is re-signed
+/// every 7 days and reinstalled; the data survives, the container UUID does not, so an absolute
+/// `/var/mobile/Containers/Data/Application/<UUID>/…` written last week names nothing this week.
+/// The vault is still on disk and the app opens to a first-run screen — the notes are not
+/// corrupted, they are *unreferenced*, which is worse because it looks like deletion.
+///
+/// Desktop is untouched by construction: [`vault_root`] is `Some` only where the shell sets
+/// `FM_VAULT_ROOT`, i.e. only on a phone. A desktop vault is a folder the user chose and keeps
+/// being written absolute.
+pub const ROOT_MARKER: &str = "@root/";
+
+/// `@root/` in a config file means the managed root, resolved at read time. The direct analogue
+/// of [`expand_home`], and left alone for the same reason when there is nothing to expand to: a
+/// literal `@root/notes` fails loudly as a missing path, which beats resolving somewhere
+/// unexpected. A bare relative path would have followed the process working directory — the very
+/// bug [`absolute`] exists to prevent — so the marker states what it is relative *to*.
+pub fn expand_root(path: &str) -> String {
+    let Some(rest) = path.strip_prefix(ROOT_MARKER) else {
+        return path.to_string();
+    };
+    match vault_root() {
+        Some(r) => r.join(rest).to_string_lossy().into_owned(),
+        None => path.to_string(),
+    }
+}
+
+/// How a vault's path is written to `vaults.json`.
+///
+/// Root-relative when this installation has a managed root and the vault lives inside it —
+/// which is every phone vault, since [`contained_path`] is the only thing that makes one.
+/// Absolute otherwise, which is every desktop vault and any phone vault somehow outside the
+/// root. **Both forms are read back by [`entry`], so this is safe to change under an existing
+/// file**: nothing rewrites entries it did not create.
+fn persist_path(path: &Path) -> String {
+    let abs = absolute(path);
+    if let Some(root) = vault_root() {
+        // `absolute` canonicalises where it can, and the root may be a symlink on a phone, so
+        // canonicalise the root the same way before comparing — otherwise every path looks
+        // outside a root it is plainly inside.
+        let root = absolute(&root);
+        if let Ok(rel) = abs.strip_prefix(&root) {
+            // An empty tail would mean "the root is the vault", which `contained_path` cannot
+            // produce; writing `@root/` for it would round-trip to the root itself, so refuse
+            // to be clever and keep the absolute form.
+            if rel.as_os_str().len() > 0 {
+                return format!("{ROOT_MARKER}{}", rel.to_string_lossy());
+            }
+        }
+    }
+    abs.to_string_lossy().into_owned()
+}
+
 /// `~` in a config file is what a human writes; nothing else expands it for us. Left
 /// alone when there is no home to expand to — a literal `~/notes` fails loudly as a
 /// missing path, which beats silently resolving somewhere unexpected.
@@ -376,6 +459,49 @@ pub fn expand_home(path: &str) -> String {
     match home() {
         Some(h) => h.join(rest).to_string_lossy().into_owned(),
         None => path.to_string(),
+    }
+}
+
+/// **Serialises every test that touches `FM_VAULT_ROOT`** — and it lives here, beside the code,
+/// rather than inside either test module, because **this file has two of them** (`tests` and
+/// `contained`) and the variable is process-global to the whole binary. A lock in one module would
+/// not protect the other, which is precisely the shape of the bug it exists to prevent.
+///
+/// `std::env::set_var` is process-global while cargo runs a binary's tests on concurrent threads,
+/// so a test that sets the root races every test that reads it — and since [`vault_root`] now
+/// decides how a path is *persisted*, that is most of this file. The identical race in
+/// `fm-core/tests/git_transport.rs` failed `pixi run ci` about 1 run in 8 until it was locked; this
+/// is the same fix applied before the flake rather than after. The repo's other instances of the
+/// idiom are `fm-app/tests/backup_records_everything.rs` and `fm-app/src/secrets.rs`.
+#[cfg(test)]
+static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Hold [`ENV_LOCK`], set `FM_VAULT_ROOT`, and always unset it again — including on panic, which a
+/// bare `set_var`/`remove_var` pair wrapped around an assertion does not do. Poisoning is recovered
+/// from, so one failed assertion reports itself instead of turning every sibling into an unwrap
+/// panic on a poisoned mutex.
+#[cfg(test)]
+pub(crate) struct RootGuard(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
+
+#[cfg(test)]
+impl RootGuard {
+    fn set(root: &Path) -> Self {
+        let g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("FM_VAULT_ROOT", root);
+        RootGuard(g)
+    }
+    /// The desktop: no managed root at all.
+    fn none() -> Self {
+        let g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("FM_VAULT_ROOT");
+        RootGuard(g)
+    }
+}
+
+#[cfg(test)]
+impl Drop for RootGuard {
+    fn drop(&mut self) {
+        std::env::remove_var("FM_VAULT_ROOT");
     }
 }
 
@@ -459,6 +585,7 @@ mod tests {
     /// made `FM_VAULT=vault` mean a different vault depending on where you launched from.
     #[test]
     fn saved_paths_are_absolute() {
+        let _env = RootGuard::none(); // the desktop, where there is no managed root
         let d = tempfile::tempdir().unwrap();
         let f = d.path().join("vaults.json");
 
@@ -468,7 +595,106 @@ mod tests {
         assert!(Path::new(&p).is_absolute(), "wrote a relative path: {p}");
     }
 
+    /// **G5, and the whole point of it.** A phone vault must be found again after the app's
+    /// container path changes — which on a sideloaded iOS build happens on every 7-day re-sign.
     #[test]
+    fn a_phone_vault_is_found_again_under_a_new_container() {
+        let old = tempfile::tempdir().unwrap(); // the container as it was last week
+        let new = tempfile::tempdir().unwrap(); // the same app, re-signed, new UUID
+        let f = old.path().join("vaults.json");
+        std::fs::create_dir_all(old.path().join("notes")).unwrap();
+
+        {
+            let _env = RootGuard::set(old.path());
+            save(&[cfg("notes", &old.path().join("notes").to_string_lossy())], &f).unwrap();
+            let written = read(&f)["vaults"][0]["path"].as_str().unwrap().to_string();
+            assert_eq!(written, "@root/notes", "a managed vault must persist root-relative");
+        }
+
+        // The container moves, taking the data with it — which is what iOS actually does.
+        std::fs::create_dir_all(new.path().join("notes")).unwrap();
+        let _env = RootGuard::set(new.path());
+        let v = entry(&read(&f)["vaults"][0]).expect("the entry must still parse");
+        assert_eq!(v.path, new.path().join("notes"), "the vault must resolve against the new root");
+        assert!(v.path.is_dir(), "and it must be the directory that actually exists");
+    }
+
+    /// The desktop is untouched: no managed root means the absolute path it always wrote.
+    #[test]
+    fn a_desktop_vault_still_persists_absolute() {
+        let _env = RootGuard::none();
+        let d = tempfile::tempdir().unwrap();
+        let vault = d.path().join("notes");
+        std::fs::create_dir_all(&vault).unwrap();
+        let f = d.path().join("vaults.json");
+
+        save(&[cfg("notes", &vault.to_string_lossy())], &f).unwrap();
+
+        let p = read(&f)["vaults"][0]["path"].as_str().unwrap().to_string();
+        assert!(!p.starts_with(ROOT_MARKER), "a desktop vault must not be written root-relative");
+        assert!(Path::new(&p).is_absolute(), "and it must stay absolute: {p}");
+    }
+
+    /// A phone vault that is somehow *outside* the managed root keeps its absolute path — the
+    /// marker means "inside the root", and writing it for something else would relocate the vault.
+    #[test]
+    fn a_path_outside_the_root_is_not_made_relative() {
+        let root = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(elsewhere.path().join("notes")).unwrap();
+        let f = root.path().join("vaults.json");
+
+        let _env = RootGuard::set(root.path());
+        save(&[cfg("notes", &elsewhere.path().join("notes").to_string_lossy())], &f).unwrap();
+
+        let p = read(&f)["vaults"][0]["path"].as_str().unwrap().to_string();
+        assert!(!p.starts_with(ROOT_MARKER), "only a vault inside the root is root-relative: {p}");
+    }
+
+    /// **The migration.** An entry written before the marker existed holds an absolute container
+    /// path that no longer resolves. `save` never rewrites an entry it did not create, so such an
+    /// entry would stay broken forever — healing on read is what rescues an install made from a
+    /// pre-G5 build.
+    #[test]
+    fn a_stale_absolute_container_path_is_healed_to_the_current_root() {
+        let new = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(new.path().join("notes")).unwrap();
+        let stale = "/var/mobile/Containers/Data/Application/DEAD-BEEF/vaults/notes";
+
+        let _env = RootGuard::set(new.path());
+        let v = entry(&json!({ "name": "notes", "path": stale })).unwrap();
+
+        assert_eq!(v.path, new.path().join("notes"), "a missing container path must be healed");
+    }
+
+    /// The heal must not fire on a desktop, where a missing path means a drive is unmounted and
+    /// silently substituting a different directory would be worse than the honest failure.
+    #[test]
+    fn a_missing_desktop_path_is_left_alone() {
+        let _env = RootGuard::none();
+        let missing = "/definitely/not/here/notes";
+
+        let v = entry(&json!({ "name": "notes", "path": missing })).unwrap();
+
+        assert_eq!(v.path, PathBuf::from(missing), "a desktop path must be reported as it is");
+    }
+
+    /// And it must not fire when the stored path is perfectly fine, even on a phone — otherwise a
+    /// vault outside the root would be quietly relocated into it.
+    #[test]
+    fn a_resolvable_path_is_never_healed() {
+        let root = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let real = elsewhere.path().join("notes");
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::create_dir_all(root.path().join("notes")).unwrap(); // a decoy with the same leaf
+
+        let _env = RootGuard::set(root.path());
+        let v = entry(&json!({ "name": "notes", "path": real.to_string_lossy() })).unwrap();
+
+        assert_eq!(v.path, real, "a path that resolves must be used as-is, decoy or not");
+    }
+
     /// The narrow writer earns its existence by what it does **not** touch: `save` refuses to
     /// rewrite a known entry at all, so a relaxed `save` would have been the alternative — and
     /// that is the version that quietly reformats a file someone hand-edited.
@@ -583,7 +809,10 @@ mod contained {
     /// directory, which on a phone is not a place at all.
     #[test]
     fn a_relative_root_is_not_a_root() {
-        std::env::set_var("FM_VAULT_ROOT", "vaults");
+        // Takes the lock like every other test that touches this variable: it is process-global,
+        // and `vault_root()` now decides how a path is persisted, so an unguarded set here would
+        // race the save/resolve tests above.
+        let _env = super::RootGuard::set(Path::new("vaults"));
         assert_eq!(vault_root(), None, "a relative root must be ignored");
         std::env::set_var("FM_VAULT_ROOT", "/data/app/vaults");
         assert_eq!(vault_root(), Some(PathBuf::from("/data/app/vaults")));

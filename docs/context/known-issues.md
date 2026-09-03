@@ -745,11 +745,12 @@ The gray-screen fix and its tests are in
   ever answer:** whether the `.ipa` re-signs under a free Apple ID, installs, launches, or syncs on
   a physical iPhone. Do not let "rung 5 is green" become "iOS works" — it means the file is the
   right shape. Three consequences follow, and none of them is fixed:
-  - **G5 (container-relative vault paths) is now blocking, not deferred.** `decisions.md` said it
-    *"stops being deferrable the moment a distribution channel exists"*; sideloading is worse than
-    the update case it was written for, because a **re-sign changes the app container path on a
-    7-day cycle** while `vaults.json` persists absolute ones. The first user to refresh their app
-    would find their vaults gone — a failure whose only symptom is an empty app.
+  - ~~**G5 (container-relative vault paths) is now blocking**~~ — **fixed 2026-09-03.** A managed
+    vault persists as `@root/<name>` and resolves against the current root at read time, and a
+    stale absolute container path is healed on read for anyone on a pre-marker build
+    (`decisions.md`, *a managed vault persists as `@root/<name>`*). **Still unverified on hardware
+    like everything else here** — the tests prove the resolution, not that iOS moves a container
+    the way this assumes.
   - **LAN pairing will fail silently on a device.** *Share with a nearby device* discovers over
     mDNS, which iOS 14+ gates behind `NSLocalNetworkUsageDescription` + `NSBonjourServices` and a
     runtime prompt. Neither key is set, **there is no `bundle.iOS` block in `tauri.conf.json` at

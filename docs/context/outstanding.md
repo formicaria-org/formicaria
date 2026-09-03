@@ -785,7 +785,7 @@ Rung 5 is green: `formicaria.ipa` exists, is device-platform, arm64, unsigned an
 (2026-09-03). **That is a statement about the file, not about the app.** Nothing here can install it,
 and three things make handing it to a user unsafe rather than merely unproven. In priority order:
 
-**1. G5 is now a data-loss bug, not a deferred tidy.** `vaults.json` persists **absolute** paths; a
+**1. ~~G5 is now a data-loss bug~~ — DONE 2026-09-03.** A managed vault persists as `@root/<name>`, resolved against the current root at read time; a stale absolute path is healed on read. The reasoning it removes, kept because it is what made this blocking: `vaults.json` persists **absolute** paths; a
 sideloaded app is re-signed on a **7-day cycle** and the container UUID changes each time. The user's
 vault does not corrupt, it *disappears* — the app opens to a first-run screen and their notes are
 still on disk under a path nothing refers to. **This alone disqualifies distribution.** It is the one
@@ -809,8 +809,33 @@ debug hook into the WebView. It is real work in `ci/ios-smoke.sh`, not a dispatc
 and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
 (`known-issues.md`). Media should reach a remote before the app is refreshed.
 
-**The order, then:** G5 → the drive-it-don't-photograph smoke test → a first-run notice on a
+**The order, then:** ~~G5~~ (done) → the drive-it-don't-photograph smoke test → a first-run notice on a
 sideloaded build stating the 7-day reality → only then a user-manual install page. Until all four,
 the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
 exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,
 launches or syncs on a physical iPhone."*
+
+### 2.12 `forget_vault` does not remove anything from an existing `vaults.json`
+
+Found 2026-09-03 while doing G5, and deliberately **not** fixed in that change — a persistence bug
+should not ride along inside a persistence change.
+
+`forget_vault` builds the surviving list and calls `vaults::save(&remaining, &config)`
+(`dispatch.rs:2998-3002`). But `save` **appends only**: it reads the on-disk array, iterates *the
+list it was given*, and skips every name already present — *"theirs. Leave every byte of it alone"*.
+**It never filters the on-disk array against the list.** So when `vaults.json` already contains the
+entry, forgetting a vault re-serialises the file with that entry intact, and the vault is back on
+the next `App::load`. `dispatch.rs:1628` already states the same fact from the other side: *"`save`
+is append-only and never rewrites an existing entry, so a settings screen that offered to edit a
+vault's path or restic repo would silently no-op."*
+
+**Why the test does not catch it.** `crates/fm-app/tests/forget_vault.rs:46-53` points `App` at a
+`vaults.json` that **does not exist**, so `save` starts from `json!({})` and writes only
+`remaining` — the assertion at `:72` passes on a first-write path that no real installation is ever
+on. A regression test must pre-populate the file.
+
+**The fix is a decision, not a patch.** `save`'s append-only contract is load-bearing (it is what
+protects a hand-edited file), so removal needs either a second narrow writer in the shape of
+`set_restic` — which is already the precedent for "change exactly one thing" — or an explicit
+`remove` that filters the array by name. Whichever, it earns a `decisions.md` entry, because it is
+the first thing in this file that deletes a user's line.
