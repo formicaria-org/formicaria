@@ -17,15 +17,31 @@
 //! in `git_cmd()`.
 
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 fn have_git() -> bool {
     std::process::Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
 }
 
-/// One test, not several: it manipulates process-wide environment, so it must not race a sibling
-/// running in another thread of the same binary.
+/// **Serialises every test in this file, because one of them edits the process environment.**
+///
+/// `std::env::set_var`/`remove_var` are process-global while cargo runs a binary's tests on
+/// concurrent threads, so `ext_transport_is_refused…` and `ordinary_remotes_still_work` raced:
+/// the second would call `git init` in the window where `GIT_CONFIG_COUNT=1` and `GIT_CONFIG_KEY_0`
+/// were still set but `GIT_CONFIG_VALUE_0` had already been removed, and git refuses that with
+/// `missing config value GIT_CONFIG_VALUE_0 / fatal: unable to parse command-line config`.
+/// **Measured 2026-09-03: 1 failure in 8 default runs, 0 in 4 with `--test-threads=1`.**
+///
+/// This file's header used to hold the invariant as a note — *"One test, not several"* — and a
+/// second test was added anyway, which is the failure mode a comment has and a lock does not.
+///
+/// Poisoning is recovered from rather than propagated: a failing assertion in one test should
+/// report *that* assertion, not turn every sibling into an unwrap panic on a poisoned mutex.
+static ENV_LOCK: Mutex<()> = Mutex::new(());
+
 #[test]
 fn ext_transport_is_refused_even_when_the_users_own_config_allows_it() {
+    let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     if !have_git() {
         eprintln!("skipping: git not on PATH");
         return;
@@ -67,6 +83,9 @@ fn ext_transport_is_refused_even_when_the_users_own_config_allows_it() {
 /// supported way to acquire a vault, so `file`/local transports have to keep working.
 #[test]
 fn ordinary_remotes_still_work() {
+    // Takes the same lock: this test reads no `GIT_CONFIG_*` itself, but `git init` does, and a
+    // half-removed set from the sibling is what broke it.
+    let _env = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     if !have_git() {
         eprintln!("skipping: git not on PATH");
         return;
