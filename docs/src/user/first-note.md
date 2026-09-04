@@ -18,6 +18,9 @@ and you will be asked again the first time it actually matters.
 Click the **＋** button in the top left — *make something new* — and choose **New note**. Or just
 press **Ctrl+K** (**⌘K** on a Mac).
 
+![The ＋ menu open, offering New note, a whiteboard, a discussion and the other things you can
+make](../images/new.png)
+
 A blank note opens with the cursor in it. Type.
 
 That is the whole thing. There is no Save button, because there is nothing to save: what you type is
@@ -32,6 +35,9 @@ Two ways, and you will use both:
 
 **Search** — the magnifying glass in the top bar. It looks inside every note, not just titles, so
 searching for a phrase you half-remember works.
+
+![Search results for "paper": the matching notes, each with the line the match came
+from](../images/search.png)
 
 **Just look** — the main view lists your notes with the most recently touched first. For the first
 few weeks this is usually enough on its own.

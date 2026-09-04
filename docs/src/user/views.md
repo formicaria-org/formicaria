@@ -4,8 +4,13 @@ Every view is the same data seen a different way — "a query plus a renderer".
 Open a view into a **pane** from the top bar; each pane has its own picker, so several
 views can be on screen at once, side by side.
 
-- **Board** — a Kanban board. Group by any property (status, project, tags, or a
-  custom key) via the *group by* control. Drag a card to a column to set that
+![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due
+date and who last touched it](../images/board.png)
+
+- **Board** — a Kanban board, grouped by `status`. It can group by any property
+  (project, tags, or a custom key) — but that is chosen in a saved view's file,
+  `group_by:`, not from a control on screen; see [Saved views](#saved-views).
+  Drag a card to a column to set that
   property; the change writes straight back to the note's frontmatter. Drop it
   **where you want it** in the column — cards stay in the order you arrange them,
   which is remembered in this browser rather than written to your notes. Drag a
@@ -15,6 +20,9 @@ views can be on screen at once, side by side.
     (overdue / soon / this week / later), hard deadlines marked ◆.
   - **Week** — a denser single-week grid.
   - **List** — a sorted, soonest-first list.
+
+  ![The Agenda in Month layout: a calendar grid for September with notes on their due
+  days](../images/agenda.png)
 - **Timeline** — a journal: every note grouped under the day it was created,
   newest first.
 - **Activity** — who changed what, and when, read straight out of each vault's git
@@ -44,28 +52,19 @@ nudging a note's `due` date is the whole reprioritization gesture.
 ## Saved views
 
 A **view** is an arrangement you keep — *"my board grouped by status"*, *"this week's lab
-agenda"* — that appears alongside Board / Agenda / Timeline in the top bar and in each pane's
-view picker.
+agenda"*. It is a small file in your vault, at `<vault>/views/<name>.view`, and every one of them
+appears alongside Board / Agenda / Timeline in the top bar and in each pane's view picker.
+Because it lives in the vault it is **git-tracked and travels to collaborators** — a shared view
+is shared exactly like a note.
 
-**To make one:** arrange a board, agenda or timeline the way you want it, then press **Save
-view** in the pane's own header and give it a name. That is the whole thing.
+> **Views are written by hand at the moment, not from a screen.** There were **Save view**,
+> **Rename** and **Delete view** buttons; they were withdrawn on 2026-08-31, because views are
+> settled for now and authoring them deserves its own design rather than a box bolted to a pane
+> header. Nothing about *reading* a view changed: a `.view` file you write yourself, or one a
+> collaborator pushes to you, still lists and still opens, on the desktop and on the phone. To
+> remove one, delete its file and let git carry the deletion; to rename one, rename the file.
 
-Because a view lives in your vault as a small file, it is **git-tracked and travels to
-collaborators** — a shared view is shared exactly like a note.
-
-### Filtering a view
-
-A view can also *filter* what it shows. The **Save view** box asks for one optional thing
-besides the name — *only notes tagged …* — which is enough for the common case: a `Papers` view
-that shows the notes tagged `paper`, a `Reading` view for `reading`.
-
-Anything more than a single tag is still written into the view's file by hand, in the format
-below — the full grammar is nine kinds of condition, and a screen for it would be a query builder.
-A view you filtered by hand **keeps its filter**: saving over it from the app is refused rather
-than quietly dropping it, and re-saving a tag-filtered view without touching the tag box leaves
-its tag where it is.
-Because it lives in the vault, it is
-**git-tracked and travels to collaborators** — a shared view is shared exactly like a note.
+### Writing a view
 
 The simplest view is two lines:
 
@@ -86,7 +85,8 @@ filter:              # every entry is ANDed onto the renderer's own filter
 
 ### The filter
 
-`filter` is a list; a note must satisfy **every** entry. Each entry is one of:
+A view can also *filter* what it shows — a `Papers` view of the notes tagged `paper`, a `Reading`
+view for `reading`. `filter` is a list; a note must satisfy **every** entry. Each entry is one of:
 
 | Entry | Matches |
 |---|---|
@@ -145,13 +145,13 @@ first launch follows your OS preference.
 
 ## Renaming and deleting a view
 
-A view's header carries **Rename** and **Delete view**. Deleting asks twice — the second click is
-the confirmation — and removes only the view; the notes it was showing are untouched.
+Both are file operations, because there is no screen for either (see the note under
+[Saved views](#saved-views)). Rename `<vault>/views/<name>.view`, or delete it. The notes a view
+was showing are untouched either way — a view is a way of looking, and removing one removes only
+the looking.
 
-Renaming moves the file and leaves its contents alone, so anything you wrote in it by hand,
-including a filter this screen cannot describe, is kept exactly as it is. That is why it is a
-rename rather than "save it under the new name and delete the old one" — the latter would write a
-fresh file without your filter and then delete the only copy of it.
+Each device has its own clone of the vault, so a view you delete on the laptop is still on the
+phone until the change has been pushed from one and pulled by the other.
 
 ## Two ways to read the timeline
 
@@ -162,6 +162,13 @@ happening — your notes and your collaborators', newest first.
 Switch to **List** in the window's header for the original one line per note. That is the faster
 view when you are hunting for a note you half-remember rather than catching up. The choice is per
 window and is remembered, so you can keep one of each open.
+
+![The Timeline as a feed: each note a post under its day, with its first lines, its tags and its
+author](../images/timeline.png)
+
+And the same notes as a list — one line each, for hunting rather than catching up:
+
+![The Timeline in List layout: one dense row per note](../images/timeline-list.png)
 
 The feed loads thirty posts at a time; **Show more** at the bottom loads the next thirty and says
 how many are left.

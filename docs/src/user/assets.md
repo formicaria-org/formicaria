@@ -26,13 +26,33 @@ Both insert a Markdown image reference like:
 
 You can also ingest from the command line: `fm add path/to/file.pdf`.
 
+### On the phone, there is no longer a size limit
+
+Attaching used to stop at 16 MB on Android, which refused most video. The limit was never about
+what a sensible attachment weighs — the phone can only carry a file to the app as text, and a
+whole file encoded that way stops fitting in memory. Since 2026-09-04 a large file is **sent in
+slices** instead, so only one slice is in flight at a time and the file's own size stops
+mattering. Small files still go in one piece, which is quicker.
+
+**What has not changed is where those bytes live.** A phone vault is the app's private storage:
+Android erases it when the app is uninstalled, and a git push carries your notes but *not* their
+media. So a video attached on a phone has exactly one copy until it reaches a computer that can
+snapshot it. The app says so in Settings, and it is worth believing before trusting a phone with
+the only copy of something.
+
 ## How media renders
 
 In the read view, a referenced asset renders with the native browser element for
 its type:
 
+Maths and diagrams render the same way, from the note's own text and with no network access:
+
+![A note in the read view: a Mermaid flowchart drawn from a fenced code block](../images/note.png)
+
 - **Images** — inline.
-- **PDFs** — a scrollable, multi-page inline viewer (the browser's own).
+- **PDFs** — a scrollable, multi-page inline viewer (the browser's own) — **on the desktop
+  only**. Android's WebView cannot draw a PDF inline, so on the phone a PDF is a link that
+  opens in whatever app the phone uses for PDFs.
 - **Video / audio** — with native playback controls.
 - **Anything else** — a labelled link to open it.
 

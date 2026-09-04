@@ -22,6 +22,19 @@ plural.
 Notes, tasks and shared documents are not separate systems. A task is a note with a `due`
 property; a shared note is a note in a different repository.
 
+## Where this is up to
+
+**v0.4.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
+built alongside their research rather than as a product. It is used daily on **Linux and
+Android**, which are the only two platforms anyone has actually sat in front of. macOS and
+Windows builds are compiled and tested by CI and the release archives are real — but nobody
+has run the app on either, and the launchers for both have never been double-clicked.
+
+Treat the feature tables below as *what is implemented*, not as *what is proven on your
+machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
+kept as working notes rather than marketing; the current state of each feature is
+[`docs/context/features.md`](docs/context/features.md).
+
 ## Requirements
 
 | | |
@@ -98,9 +111,9 @@ manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria on
 | **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder is shown instead of a preview |
 | **Media backup** — encrypted, deduplicated snapshots of blobs | `restic`, a repository per vault, and `RESTIC_PASSWORD` | Notes still back up via git; media remains local |
 | **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
-| **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable, on Linux, macOS and Windows | Settings shows the reason instead of a switch |
+| **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable. Exercised on Linux and Android; **on macOS and Windows this is compiled and type-checked but has never been run** | Settings shows the reason instead of a switch |
 | **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable | The assistant says it cannot see pictures rather than guessing at one |
-| **Transcribing recordings** — `/transcribe` on audio | nothing on Linux or Windows: a further ~170 MB it fetches when you turn the switch on. **No macOS build exists upstream** | The switch says no runtime is published for this platform |
+| **Transcribing recordings** — `/transcribe` on audio | nothing on Linux or Windows: a further ~170 MB it fetches when you turn the switch on (the Windows path is untried, like the rest of Windows). **No macOS build exists upstream** | The switch says no runtime is published for this platform |
 
 <details>
 <summary>Installing the optional tools</summary>
@@ -125,9 +138,14 @@ account, no API key, no cloud — your notes never leave the machine), and is fu
 
 **Users do not need any of this.** Since 2026-09-02 the app installs the assistant itself: turn it
 on in Settings, it asks which model and states the size and licence, and downloads the runtime and
-weights with progress and a cancel. That works on Linux, macOS and Windows, from the ordinary
-download. Before starting a model it checks it can read how much memory the machine has free and
-refuses if it cannot — it will not run a model it cannot watch.
+weights with progress and a cancel. Before starting a model it checks it can read how much memory
+the machine has free and refuses if it cannot — it will not run a model it cannot watch.
+
+**Observed on Linux and Android; inferred on macOS and Windows.** The per-OS memory readings that
+gate it were written on a Linux machine that cannot compile them, so they are type-checked in CI
+(`pixi run -e cross check-cross`) and *run* only by the `cross` workflow. Until that has run,
+"the assistant works on macOS" is an inference — and this README would rather say so than let you
+find out.
 
 The commands below are the **developer** route: they put the same pieces in a checkout's `agents/`,
 which the app prefers when it is there, so the dev loop needs no download.
@@ -162,7 +180,7 @@ A vault is a directory: notes in `vault/notes/*.md`, media in `vault/blobs/` add
 content hash. Select one with `FM_VAULT`:
 
 ```sh
-FM_VAULT=~/notes ./fm-serve
+FM_VAULT=~/notes ./program/fm-serve
 ```
 
 Multiple vaults are configured in a file — `~/.config/formicaria/vaults.json` on Linux,
@@ -190,7 +208,10 @@ own collaborators.
 | `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
 | `FM_OPEN` | unset | Open the browser on start |
 | `FM_UI_DIST` | unset (uses the embedded interface) | Serve the interface from a directory instead |
+| `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app. Set to `0` to keep it running |
+| `FM_RESTIC_REPO` | unset | Restic repository for a single-vault install (a vault list uses its own `restic` field) |
 | `RESTIC_PASSWORD` | unset | Password for the restic repositories |
+| `FM_GIT_TOKEN` | unset | Git token, read only where there is no git credential helper — that is, on the phone |
 
 ## Sharing
 
@@ -210,29 +231,53 @@ a network.
 ## Documentation
 
 The manual is an mdBook under [`docs/`](docs/) — build with `pixi run docs`; start at
-`docs/src/introduction.md`. The design specification is
-[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md).
-[`docs/context/`](docs/context/README.md) holds maintainer notes: current state, the
-reasoning behind design decisions, and known gaps.
+`docs/src/introduction.md`. New to the code? [`docs/src/dev/getting-started.md`](docs/src/dev/getting-started.md).
+
+[`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md) is the **design journal**: where the
+shape of the project was argued out, including options that were rejected and rulings that
+have since been reversed. It is kept because the reasoning is worth having, not because it
+describes the current build — for that, read `docs/context/features.md`.
+
+[`docs/context/`](docs/context/README.md) is the maintainer's working memory — decisions and
+their reasons, known gaps, and the queue. These are **unedited working notes, not
+documentation**: they are written to be useful to whoever is next in the code, they contradict
+each other across dates on purpose (`decisions.md` is append-only, so a reversal sits beside
+what it reversed), and they are not a description of how to use the app. The manual is.
 
 ## Development
 
 ```sh
-pixi run ci        # test + test-ui + check-ui + deny + checks + docs — the single gate
+pixi run ci        # test + test-agent-download + test-ui + check-ui + deny + checks
+                   # + third-party-check + docs — the single gate
 ```
 
-**`pixi run ci` locally *is* the gate.** Every GitHub workflow here — `ci`, `cross`, `docs`,
-`release` — is `workflow_dispatch:` only: nothing runs on a push, and a `v*` tag publishes
-nothing until someone presses Run workflow. That is deliberate, not an oversight.
+**`pixi run ci` locally *is* the gate.** Four of the five GitHub workflows — `ci`, `cross`,
+`docs` and `ios` — are `workflow_dispatch:` only: nothing runs on a push or a pull request.
+That is deliberate, not an oversight; the repo has been private, where Actions minutes are
+billed, and at 10x on macOS runners the bill is the whole reason.
+
+**The exception is `release.yml`, which fires unattended on a `v*` tag.** Pushing a tag
+publishes a release. It is the one workflow you can start by accident.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
+         fm-agent · fm-agent-run   (the study assistant; optional features)
 ui/      Svelte 5 + Vite, compiled into the binary at build time
 docs/    mdBook manual
 vault/   notes (a separate git repository; ignored by this one)
 ```
 
+## Contributing
+
+[`CONTRIBUTING.md`](CONTRIBUTING.md) — the pixi-only toolchain, `pixi run ci` as the single gate,
+the invariants a change must not break, the **four questions** to ask before adding anything, and
+an honest list of what is deliberately *not* wanted. [`SECURITY.md`](SECURITY.md) has the private
+route for reporting a vulnerability and a plainly stated threat model.
+
 ## Licence
 
-[MIT](LICENSE). Release archives also contain `THIRD-PARTY.md`, listing the licences of the
-libraries compiled into the binaries.
+[MIT](LICENSE). [`THIRD-PARTY.md`](THIRD-PARTY.md) lists the licences of everything the
+binaries carry — the Rust crates they link, the npm packages baked into the bundled user
+interface, and the font families bundled with the whiteboard. It is generated by
+`ci/third-party.sh`, checked for staleness by `pixi run ci`, and copied into every release
+archive beside the binaries it describes.

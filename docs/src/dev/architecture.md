@@ -7,7 +7,7 @@ on three seams so that each layer can change without breaking the others.
 
 ```text
         Browser (Svelte 5)
-   Board · Agenda/Calendar · Timeline · Gallery · Search · NotePanel
+  Board · Agenda/Calendar · Timeline · Activity · Discussions · Search · NotePanel
              │  ipc.ts:  POST /api/<cmd>  (prod)  ·  in-memory mock (dev/test)
              ▼
         fm-serve  ── transport shell: frames HTTP, nothing else. Also serves the
@@ -47,6 +47,11 @@ on three seams so that each layer can change without breaking the others.
 | `fm-app`   | **library**: `dispatch` (the one command surface + the `Host` trait), the command functions, `.view` execution, the vault registry (`vaults`), DTOs. |
 | `fm-serve` | the HTTP **transport** over `fm_app::dispatch`; owns only framing. |
 | `fm-cli`   | the `fm` command-line tool over the same core.                   |
+| `fm-agent` | the study assistant as a **deterministic orchestrator** — a fixed pipeline whose two model touch-points and web search sit behind `LlmStep` / `WebSearch` seams, so the whole thing is unit-tested with fakes and needs no model and no network. The model never drives control flow, holds a tool, or loops. |
+| `fm-agent-run` | the out-of-process runner for it. All vault I/O goes through a running `fm-serve` (the `VaultAccess` seam), never a second `FileStore` — so `fm-serve` stays the single writer, and the path is the same one the in-process Android agent takes. |
+
+Both agent crates are behind optional features, and a build without them contains no assistant
+at all — which is what an Android `--no-default-features` build ships.
 
 ## The command surface
 

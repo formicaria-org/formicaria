@@ -127,6 +127,25 @@ reinstall — needs it typed in again, so it is worth storing where you keep you
 passwords rather than only in that file. And backing up that file is not a substitute
 for knowing the password; the file is a convenience, the password is the key.
 
+### When did this last work?
+
+![The Back up panel: the vault's git remote, what the snapshot tier would carry, and the
+button](../images/backup.png)
+
+Under each repository, the panel now says when that vault's last snapshot was taken. It is
+three different answers and they mean different things:
+
+- **Last snapshot: `<date>`** — the repository was read and this is the newest formicaria snapshot
+  in it. It also says how many paths that snapshot covered.
+- **Never backed up** — the repository opened fine and has no formicaria snapshot in it at all.
+  Configured is not the same as done, and this is the state worth noticing.
+- **Last snapshot: unknown — `<reason>`** — this computer could not ask: no restic, no password,
+  or a repository it could not open. That is different from "never", and the panel will not say
+  one when it means the other.
+
+It is read when you open the panel rather than continuously, because asking restic means running
+it — and for a repository that is not on this machine, reaching across the network.
+
 If **restic** is not installed on this computer, the fields do not appear and the
 tick box says why — notes are unaffected either way. To install it:
 
@@ -142,6 +161,11 @@ pixi global install restic
 **On Android there is no snapshot tier at all** — restic is not available there, so a
 phone's attachments have only the copy on the phone until they reach a computer.
 Notes are unaffected: the phone pushes them with git like everything else.
+
+**A snapshot can run on its own.** If no vault has a git remote yet but restic is set up, tick
+the snapshot box and **Back up** will take the snapshot — and since a snapshot carries the notes
+directory as well as `blobs/`, that is a real backup of everything, not a half one. (Until
+2026-09-04 the button stayed greyed out in exactly this case, which was a bug.)
 
 A vault can also be brought *back* from a snapshot inside the app — **New vault →
 Restore a backup** — and not only from the command line below.

@@ -17,10 +17,17 @@ Before anything else, the honest matrix.
 | | Assistant | Audio → transcript | Reading images |
 |---|---|---|---|
 | **Linux**, from the download | **yes** — it fetches what it needs on first enable | **yes** | yes |
-| **Windows**, from the download | **yes** | **yes** | yes |
-| **macOS**, from the download | **yes** | no — see below | yes |
+| **Windows**, from the download | yes\* | yes\* | yes\* |
+| **macOS**, from the download | yes\* | no — see below | yes\* |
 | **Linux**, from a checkout | yes | yes | yes |
 | **Android** | yes, bundled in the app | yes, bundled | no — the phone's model cannot see |
+
+\* **Compiled and type-checked, never yet run.** Linux and Android are the two platforms this has
+actually been used on. The per-operating-system parts — chiefly the check that reads how much
+memory is free, which the assistant refuses to start a model without — were written on a Linux
+machine that cannot compile them, and are exercised only by a CI job that builds them. Until
+someone runs it on a Mac or a Windows PC, "yes" there is a well-founded expectation rather than an
+observation, and this table would rather say so.
 
 **You no longer need the source code.** Turning the assistant on downloads the model and the runtime
 it needs, having first told you how large they are and under what licence. The commands in "Turn it
@@ -120,8 +127,14 @@ From a checkout, `pixi run fetch-whisper` still stages the same pieces by hand.
    A text-only model is not an error — the assistant says images are unavailable rather than asking
    a blind model to guess at a picture.
 
-**Web search** works in the app with nothing to set up. From a checkout you can instead run the
-keyless local proxy, which reaches one more engine:
+**Web search** works in the app with nothing to set up — but it is **three sources, not the open
+web**: **Wikipedia, arXiv and GitHub**, over their public APIs, text only. Each is tried
+independently, so one being unreachable does not sink the answer. General web search (DuckDuckGo)
+is deliberately not included: it needs fragile HTML scraping of a site that blocks scrapers.
+
+For a research notebook the three cover a great deal, and it is worth knowing what they do not:
+a news story, a blog post, a vendor's documentation page. From a checkout you can run the keyless
+local proxy instead, which does reach the general web:
 
    ```sh
    pixi run search-proxy
@@ -183,7 +196,16 @@ Example:
 @qwen3-vl-4b summarize the key idea of Bayesian model selection in 3 bullet points /search
 ```
 
-### Transcribing recordings and writing
+### Once it has started, it finishes
+
+**There is no way to stop a reply in progress.** Once the assistant has taken your question there
+is no cancel: you wait for it to finish, or you quit the app. The **Stop** button you may have seen
+belongs to the *download* on first enable, not to a running answer.
+
+This matters most with `/research`, which is several searches and several passes over what it
+found, and can take minutes on a small machine. It is a real gap rather than a design choice —
+cancelling means threading a signal down into the model call, which has not been built — so when
+you are unsure what you want, ask the short question first.
 
 `/transcribe` turns the media in a note into text: a voice memo becomes a transcript, and a photo of
 a page, a whiteboard or a printout becomes something you can search and edit.

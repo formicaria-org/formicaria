@@ -1,5 +1,27 @@
 # formicaria — master plan
 
+> ## What this document is — read this before trusting anything below
+>
+> **A design journal, not a status report.** It was written on 2026-07-14 to be handed to
+> implementation, and it did that job. It is kept because the *reasoning* is worth having: which
+> forks were considered, what the prior art actually cost the projects that got it wrong, and why
+> each call went the way it did. Several of those calls have since been reversed, and this file
+> records the reversals rather than hiding them.
+>
+> **It is not the current state of the software, and it will contain claims that are no longer
+> true.** Where one has been found, it is marked inline with a dated correction rather than
+> deleted — the value of *"we planned X, shipped Y"* is the whole chain. Where you want to know
+> what actually works today, the answer is [`docs/context/features.md`](../docs/context/features.md),
+> and the honest gap list is [`docs/context/known-issues.md`](../docs/context/known-issues.md).
+> The decision record with the *why*, kept append-only and indexed by subject, is
+> [`docs/context/decisions.md`](../docs/context/decisions.md).
+>
+> **Sections written as notes-to-self stay as notes-to-self.** "The user (a researcher)" is the
+> author; the kill criteria are the author's own. They are honest, so they are kept, and this
+> banner is so nobody reads them as a product brief.
+>
+> *Corrections pass: 2026-09-04.*
+
 **The single, self-contained specification for formicaria. Drafted 2026-07-14; revised 2026-07-15 (browser-first: the native Tauri window was removed and the app now runs in the browser via a local `fm-serve`).** Earlier design docs (BRIEF, PLAN, SPEC, REQUIREMENTS, ADR-001…007) are folded in here and removed — everything needed to implement lives in this one file. The key rationale and prior-art citations that justified each decision are preserved in the **Evidence & prior art** appendix at the end.
 
 ---
@@ -54,7 +76,10 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 
 ### What it deliberately will NOT do (and why)
 
-- **No mobile app (v1).** Desktop-only. This is the exact weakness that hurt Roam/Trilium/SilverBullet — stated openly rather than half-delivered. Multi-*desktop* is covered by file sync. *(The "it becomes a server+auth decision" framing was **overridden 2026-07-18**: the intent is now that the app runs **on the phone itself**, over the same git-repo vaults — see `docs/context/mobile-design.md`. Still unbuilt, and blocked on the Android toolchain.)*
+- **No mobile app (v1).** Desktop-only. This is the exact weakness that hurt Roam/Trilium/SilverBullet — stated openly rather than half-delivered. Multi-*desktop* is covered by file sync. *(The "it becomes a server+auth decision" framing was **overridden 2026-07-18**: the intent is now that the app runs **on the phone itself**, over the same git-repo vaults — see `docs/context/mobile-design.md`. **Corrected 2026-09-04: it is built.** The Android app ships — the whole stack, assistant
+included, running on the phone itself — and an iOS `.ipa` builds and has been driven in the
+Simulator. So the heading above is now wrong in the direction that matters: this *is* a mobile
+app. See `docs/context/features.md` and `decisions.md#track-m`.)*
 - **No *real-time* collaboration.** Still true, and now for a sharper reason than "single-user": real-time needs per-block ids, and **the atom here is the file** — the one invariant that voids this plan if it changes. Asynchronous collaboration *did* ship (Track C, 2026-07-17): a vault is a git repo, a set of vaults is a set of audiences, and concurrent edits merge through the `.md` driver rather than a CRDT. So the accurate line is: two people can edit one note, minutes apart, and both edits survive; they cannot watch each other's cursor. A genuine limitation, not a bug.
 - **No WYSIWYG / block editor.** Markdown stays canonical; a tree-first editor cannot guarantee lossless round-trip. Rejected to avoid Joplin's fidelity problem.
 - **No live-preview editing surface in v1.** You edit raw Markdown in a textarea; the read view renders it beautifully. Live-preview (CM6 decorations) is a v2 upgrade — deferred because it is the single biggest build risk and adds nothing to *capture* or *retrieval*.
@@ -82,7 +107,9 @@ The tool's *shape* (local-first, files-as-truth, single-user, no-plugin-API, des
 ## Architecture — three seams, and nothing else matters
 
 ```
- Browser UI     board · agenda/calendar · timeline · gallery · search  ← cheap, swappable (a query + a renderer)
+ Browser UI     board · agenda/calendar · timeline · activity · discussions · search
+                                                        ← cheap, swappable (a query + a renderer)
+                (gallery was built and then removed — see the renderer table below)
       │  transport: fm-serve HTTP /api/<cmd>  (prod)  ·  in-memory mock  (dev/test)
  query engine   filter · sort · generic group-by         ← THE STABLE CORE. Touches no filesystem, ever.
    ── Store seam ─────────────────────────────────────   ← SEAM 1 (compile-time guarded)
@@ -172,7 +199,7 @@ Efficiency, ease-of-use, open-source, cutting-edge-but-well-used. Licenses vette
 
 | Tool | Ver | Why this one | License |
 |---|---|---|---|
-| **Tauri v2** | 2.11.5 | Native window + real global capture hotkey today; OS-webview (3–15 MB, no bundled Chromium); best 10-yr momentum. | MIT/Apache-2.0 |
+| **Tauri v2** | 2.11.5 | Native window + real global capture hotkey today; OS-webview (3–15 MB, no bundled Chromium); best 10-yr momentum. **Corrected 2026-09-04: the desktop native window was removed on 2026-07-15** (the reversal table above says so, four rows up) and **the global hotkey went with it and has never been built** — the risk list still carries it as deferred. Tauri is not gone, though: it is the shell for Android and iOS. | MIT/Apache-2.0 |
 | tauri-plugin-global-shortcut | 2.3.2 | `⌘/Ctrl+Space` always-focused capture from anywhere. | MIT/Apache-2.0 |
 | tauri-plugin-opener | 2.5.4 | OS handoff (`xdg-open`) for non-web-native formats. | MIT/Apache-2.0 |
 | **rusqlite** (`bundled`) | 0.40.1 | Compiles SQLite into the binary (no cgo, no runtime dep); **FTS5 on by default**. | MIT |
@@ -352,7 +379,7 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
 | **board** | any | columns from distinct values of `groupBy` (**any** property); Pragmatic DnD drop → `set_property(id, key, value)`. **Renderer must not contain `todo`/`doing`/`done` — CI greps `ui/src/renderers/**` and fails the build if found.** |
 | **agenda** | `status!=done AND due!=null`, sort due asc | the "closest deadline" view; a **Month/Week calendar** or a list. Urgency computed in the card, `hard` flagged — **zero new query code** |
 | **timeline** | all, created desc | a Logseq-style journal grouped by creation day |
-| **gallery** | `type=asset` | grid of thumbnails |
+| ~~**gallery**~~ | `type=asset` | ~~grid of thumbnails~~ **Removed.** Built, shipped, then withdrawn: assets are reached from the notes that use them, and a wall of thumbnails detached from their notes answered no question anyone had. The `gallery` *command* survives (`fm-cli` and the asset pickers use it); a `.view` asking for `gallery` renders as a timeline. `list_views` reports it as an error. |
 | **search** | `Text` predicate (FTS5) | full-text results across notes + extracted PDF text |
 
 **Commands** (query engine stays in Rust; the frontend calls **named commands** with simple args — the `Query` struct is built server-side, never sent). The real surface is now ~30 and its authoritative list is the `match` in **`fm_app::dispatch`** (`crates/fm-app/src/dispatch.rs`) — restating it here is how this line went stale. Every frontend reaches it through that one function; `fm-serve` only frames HTTP. (`reindex`/`verify`/`manifest` are CLI-only; reindex also happens implicitly on `FileStore::open`.) `ObjectMeta.props` is an open map, so **custom frontmatter properties flow through with no code change** — required for board-by-any-property.
@@ -373,7 +400,7 @@ lock-free `POST /api/alive` beat — it used to ride this poll, which is why the
 
 ## Sync, backup, durability
 
-- **git** for note text (undo + non-overlapping merge). Auto-commit (500 ms→disk, 30 s/blur→commit) buys undo, **not** readable history — accepted.
+- **git** for note text (undo + non-overlapping merge). Auto-commit (500 ms→disk, 30 s/blur→commit) buys undo, **not** readable history — accepted. *(Corrected 2026-09-04: the shipped numbers are 500 ms to disk and **5 s to commit, with no blur handler at all**. And since 2026-07-18 `commit_all` stages exactly the paths `put`/`delete` recorded — so a note you are hand-editing in Vim is never swept into a commit mid-sentence, and is also never versioned by the app. **Files are never at risk; commits can lag.** Do not restate that as "history is always safe".)*
 - **Syncthing 2.x** for the whole vault incl. media; genuine conflicts become `.sync-conflict-*` copies (surfaced, not silently lost). **No CRDT** (single user; not worth the cost). **The index is never synced** (Trilium's DB-corruption lesson) — each machine rebuilds it.
 - **restic** to an external drive + an rclone/S3 remote (3-2-1). `restic check --read-data` on a schedule = bit-rot scrub. **Test the restore in month one** — an untested backup is not a backup.
 
@@ -391,7 +418,7 @@ OCI-style signed integrity manifest (bit-rot inventory) · git loose→packed li
 | S1 | search box → FTS5 → results w/ timestamps | retrieval works |
 | S2 | properties editable; `status` settable | the typed model holds |
 | S3 | **Board:** group by `status`, drag writes back | the thesis is alive |
-| **S4** | **Gallery:** a *second* renderer over the same query layer | **the thesis is proven — or dead.** If it costs more than a weekend, `fm-query` isn't a real seam; stop and fix it. |
+| **S4** | **Gallery:** a *second* renderer over the same query layer | **the thesis is proven — or dead.** If it costs more than a weekend, `fm-query` isn't a real seam; stop and fix it. *(2026-09-04: the thesis was proven — the gallery cost well under a weekend — and the renderer was later removed anyway, for product reasons rather than architectural ones. Four more renderers have been added over the same seam since. The gamble paid; the artifact it was won with is gone.)* |
 | S5 | assets (hash/dedup/pdftotext/thumbnail) + agenda `.view` + **rendered read view (KaTeX/media/mermaid inline)** | media library + deadlines + "looks nice" |
 | S6 | `verify` + manifest + restic + a **tested restore** | durability |
 
@@ -400,6 +427,16 @@ OCI-style signed integrity manifest (bit-rot inventory) · git loose→packed li
 **Kill criteria:** board not working after 8 weekends → install SilverBullet, you've learned enough · S4 painful → architecture wrong, stop · 2 weeks without opening it during the build → it isn't solving your problem, find out why.
 
 ## Build status — what works, what doesn't (as of 2026-07-14)
+
+> **Do not read this section as current.** It is dated 2026-07-14 — the day the plan was written —
+> and it is a snapshot of that day, under a heading a reader will reasonably trust. Everything
+> after it has moved: Android and iOS exist, the assistant exists, the gallery does not, and the
+> command surface is 81 rather than "~30".
+>
+> **For what works today, read [`docs/context/features.md`](../docs/context/features.md)** — one
+> row per feature with a status, kept current as part of finishing any piece of work. For what
+> does not, [`docs/context/known-issues.md`](../docs/context/known-issues.md). This section stays
+> as a record of where the project stood when it started.
 
 The whole build order **S0–S6 is implemented and committed on `main`**. What is *verified* vs. *unverified* differs by layer — recorded here honestly so nothing is mistaken for "done":
 

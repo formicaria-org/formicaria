@@ -21,12 +21,14 @@
 
 # Reference
 
+- [Glossary](./reference/glossary.md)
 - [The vault format](./user/vault.md)
 - [Commands](./reference/commands.md)
 - [Frontmatter schema](./reference/frontmatter.md)
 
 # Developer guide
 
+- [Getting started](./dev/getting-started.md)
 - [Architecture](./dev/architecture.md)
 - [How to add a feature](./dev/adding-features.md)
 - [Design system](./dev/design-system.md)

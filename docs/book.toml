@@ -1,6 +1,6 @@
 [book]
 title = "formicaria"
-authors = ["formicaria"]
+authors = ["The formicaria contributors"]
 language = "en"
 src = "src"
 
@@ -8,6 +8,11 @@ src = "src"
 default-theme = "navy"
 preferred-dark-theme = "navy"
 no-section-label = false
+# Puts the "Suggest an edit" pencil and the repository link in the page chrome. Without it a
+# reader who spots a mistake in the manual has no visible route from the page to the source —
+# and this manual ships inside every release archive, where that route is the only one there is.
+git-repository-url = "https://github.com/formicaria-org/formicaria"
+edit-url-template = "https://github.com/formicaria-org/formicaria/edit/main/docs/{path}"
 
 [output.html.fold]
 enable = true

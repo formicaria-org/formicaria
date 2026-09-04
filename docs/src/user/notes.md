@@ -255,8 +255,9 @@ records it without asking.
 
 To cite one, open its **＋ options** and pick **Copy as BibTeX**.
 
-To collect them, make a view: arrange a board how you like it, press **Save view**, name it
-`Papers` and put `paper` in the *only notes tagged* box.
+To collect them, make a view: write `<vault>/views/Papers.view` with `view: board` and a
+`- tag: paper` filter. [Views](./views.md#writing-a-view) has the format; there is no screen for
+authoring one yet.
 
 *(Reading and highlighting a PDF inside formicaria is not built yet — for now a PDF opens in your
 browser's own viewer, and a link can point at a page of it.)*
