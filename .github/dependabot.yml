@@ -1,0 +1,23 @@
+# Keep the pinned GitHub Actions current.
+#
+# **The pins are the reason this file exists.** Every non-GitHub action here is pinned to a commit
+# SHA rather than a tag (2026-09-04, on going public): a tag is a pointer its owner can move, and
+# `softprops/action-gh-release` is the one holding `contents: write` in `release.yml`. But a pin
+# nobody updates is its own problem — it silently ages past security fixes, and the version comment
+# beside it becomes a lie. Dependabot opens the PR; a human still reads it.
+#
+# **Actions only, deliberately.** Cargo and npm are not here: `Cargo.lock` and `ui/pnpm-lock.yaml`
+# are the project's own, `cargo deny` already gates advisories on every `pixi run ci`, and a bot
+# raising lockfile PRs against a single-maintainer repo produces noise rather than safety. This
+# file covers the one dependency class that is *not* in a lockfile and *is* executed with the
+# repository's own token.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    labels: [dependencies]

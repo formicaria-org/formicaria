@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/formicaria-org/formicaria/security/advisories/new
+    about: Report privately, never as a public issue. See SECURITY.md for what is in scope.
+  - name: What is already known to be broken
+    url: https://github.com/formicaria-org/formicaria/blob/main/docs/context/known-issues.md
+    about: The maintainer's own gap list — blunter than the manual, and usually the fastest answer.

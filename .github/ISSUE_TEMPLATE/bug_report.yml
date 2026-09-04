@@ -1,0 +1,55 @@
+name: Bug report
+description: Something behaves differently from what it says it does.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: [`docs/context/known-issues.md`](../blob/main/docs/context/known-issues.md)
+        is the honest list of what is already known to be wrong, and it is blunter than the manual.
+        If your problem is in there, an issue still helps — say that you hit it, which moves it up
+        the queue.
+
+        **Not a bug report:** a security vulnerability. Use
+        [Security → Advisories](../security/advisories/new), which is private.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The smallest sequence you can manage. "Every time" and "once, and I cannot get it back" are both useful — say which.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Settings shows it. If you built from source, the commit.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux (from the download)
+        - Linux (from a checkout)
+        - Android
+        - macOS
+        - Windows
+        - iOS
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: |
+        Often decisive: whether the vault has a git remote, whether it is shared with anyone,
+        whether the study assistant is on, and which browser. If a note failed to load or render,
+        the note's frontmatter (with the private parts removed) is usually the whole answer.
