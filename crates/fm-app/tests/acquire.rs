@@ -31,9 +31,29 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::{tempdir, TempDir};
 
-/// The public repo this exercises. Small, stable, and the owner's own — so it can be relied on
-/// without asking anything of a third party.
-const PUBLIC_REPO: &str = "https://github.com/singhbal-baljinder/teaching-scripts.git";
+/// The public repo the online half clones, overridable with `FM_TEST_PUBLIC_REPO`.
+///
+/// **`octocat/Hello-World` — GitHub's own sample repository** (changed 2026-09-04). It used to be
+/// one of the maintainer's unrelated personal repos, which worked and quietly made the suite
+/// depend on one individual's account continuing to look exactly as it does. A contributor running
+/// `pixi run ci` should not be cloning a stranger's teaching materials.
+///
+/// **Pointing it at this project's own repository was tried first and is wrong**, which is worth
+/// recording because it looks like the obvious answer. The test asserts that a public repo clones
+/// **anonymously** over HTTPS. On the maintainer's own machine a clone of this project's repo
+/// succeeds through the git credential helper — so the test would go green while proving nothing,
+/// and would go green for exactly the one person least able to notice. `octocat/Hello-World` has
+/// no such relationship with anybody: three commits, public since 2011, and used as the fixture in
+/// GitHub's own API documentation.
+///
+/// **The override exists for two real cases**: someone behind a mirror with no path to github.com,
+/// and anyone who would rather the suite not touch the network at all — point it at a local bare
+/// repo. It skips when unreachable, so it is not a hard dependency either way; see the module
+/// header on why "skipped" is not the same as "fine".
+fn public_repo() -> String {
+    std::env::var("FM_TEST_PUBLIC_REPO")
+        .unwrap_or_else(|_| "https://github.com/octocat/Hello-World.git".to_string())
+}
 
 struct NoHost;
 impl Host for NoHost {
@@ -201,7 +221,7 @@ fn acquisition_refuses_what_it_should_before_touching_the_disk() {
 /// this machine cannot run the online half, and saying so beats a red suite on a train.
 fn online() -> bool {
     Command::new("git")
-        .args(["ls-remote", "--exit-code", PUBLIC_REPO, "HEAD"])
+        .args(["ls-remote", "--exit-code", &public_repo(), "HEAD"])
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map(|o| o.status.success())
@@ -221,16 +241,16 @@ fn a_real_public_repo_becomes_a_vault_over_https() {
         return;
     }
     if !online() {
-        eprintln!("skipping: {PUBLIC_REPO} is not reachable from here");
+        eprintln!("skipping: {} is not reachable from here", public_repo());
         return;
     }
     let (home, app) = app();
-    let dest = home.path().join("teaching-scripts");
+    let dest = home.path().join("cloned-fixture");
 
     call(
         &app,
         "clone_vault",
-        json!({ "name": "teaching", "path": dest.to_string_lossy(), "url": PUBLIC_REPO,
+        json!({ "name": "fixture", "path": dest.to_string_lossy(), "url": public_repo(),
                 "gitName": "Ada", "gitEmail": "ada@example.org" }),
     )
     .expect("a public repo should clone over HTTPS and register as a vault");
@@ -247,7 +267,7 @@ fn a_real_public_repo_becomes_a_vault_over_https() {
     // It opens. A repo with no `notes/` is an empty vault, not a broken one — which is the
     // honest outcome for turning an arbitrary repo into a notebook.
     let listed = call(&app, "list_vaults", json!({})).unwrap();
-    assert!(listed.contains("teaching"), "registered and open: {listed}");
+    assert!(listed.contains("fixture"), "registered and open: {listed}");
 }
 
 /// The probe, against something real. It answers the question the clone form asks on every
@@ -260,18 +280,40 @@ fn probing_a_real_repo_reports_it_reachable() {
     }
     let (_home, app) = app();
 
-    let out = call(&app, "probe_remote", json!({ "url": PUBLIC_REPO })).unwrap();
+    let out = call(&app, "probe_remote", json!({ "url": public_repo() })).unwrap();
     assert!(out.contains("reachable"), "a public repo answers: {out}");
 
-    // A URL that is simply wrong must NOT be reported as an authentication problem — that is
-    // the misclassification that sends someone to configure credentials for a typo.
-    let out = call(
-        &app,
-        "probe_remote",
-        json!({ "url": "https://github.com/singhbal-baljinder/no-such-repo-here.git" }),
-    )
-    .unwrap();
-    assert!(!out.contains("needs_auth"), "a typo is not an auth problem: {out}");
+    // **A typo must not be reported as an authentication problem — but only a machine that can
+    // authenticate is able to tell the difference, and that is not a quibble.**
+    //
+    // GitHub's smart-HTTP endpoint answers an anonymous request with `401 WWW-Authenticate:
+    // Basic` for a private repository **and** for one that was never created — byte for byte the
+    // same, deliberately, so a 404 cannot be used to enumerate private repositories. (Measured
+    // 2026-09-04; it is also what `git_differential.rs`'s credentials-callback test depends on.)
+    //
+    // So with a credential helper configured, `git ls-remote` authenticates, gets a real 404, and
+    // `probe` returns `Unreachable` — a typo, correctly named. **With no helper it gets the 401
+    // and `needs_auth` is the honest answer**, because at that point the two cases are genuinely
+    // indistinguishable from outside. Telling the user "this may need credentials" is right.
+    //
+    // This assertion therefore runs only where the distinction exists. It was found by running
+    // the suite with `GIT_CONFIG_GLOBAL=/dev/null`, where it had been passing purely because the
+    // machine running it happened to be the maintainer's — a green tick that meant "this laptop
+    // has a credential helper", on the one machine least able to notice.
+    if fm_core::git::credential_helper().is_some() {
+        let out = call(
+            &app,
+            "probe_remote",
+            json!({ "url": "https://github.com/formicaria-org/no-such-repo-here.git" }),
+        )
+        .unwrap();
+        assert!(!out.contains("needs_auth"), "a typo is not an auth problem: {out}");
+    } else {
+        eprintln!(
+            "skipping the typo-vs-auth half: no git credential helper here, so a 404 and a \
+             private repo are indistinguishable — see the comment above"
+        );
+    }
 }
 
 // ── Ingest: the byte path media capture rides on ──

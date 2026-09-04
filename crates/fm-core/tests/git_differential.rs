@@ -510,9 +510,23 @@ fn adding_certificates_from_memory_initialises_libgit2_first() {
 /// that reads like a missing token even when one is configured. The `file://` clone test above
 /// cannot catch this, because a local path never authenticates.
 ///
-/// This asks a real private URL **without** a token. The point is not that it succeeds — it must
-/// not — but *which* failure comes back: an authentication refusal means the callback ran and had
-/// nothing to offer, whereas "no callback set" means the plumbing is missing again.
+/// This asks GitHub for a repository it will never serve anonymously, **without** a token. The
+/// point is not that it succeeds — it must not — but *which* failure comes back: an authentication
+/// refusal means the callback ran and had nothing to offer, whereas "no callback set" means the
+/// plumbing is missing again.
+///
+/// **The URL names a repository that does not exist, and that is not a compromise — it is the
+/// better test.** GitHub answers an unauthenticated `git-upload-pack` request with
+/// `401 WWW-Authenticate: Basic realm="GitHub"` for a private repository **and** for one that was
+/// never created, byte for byte the same, precisely so that a 404 cannot be used to probe which
+/// repositories exist. Measured 2026-09-04 against both. So libgit2 invokes the credentials
+/// callback either way, which is the whole mechanism under test.
+///
+/// It used to point at the owner's real private notes repository. Three things were wrong with
+/// that, and only the first is obvious: it published the name of a private repo in a public test
+/// file; it made the suite depend on one person's account staying exactly as it is; and it would
+/// have **inverted** — loudly, but for a reason nobody would guess — the day that repo's
+/// visibility changed. A URL that can never exist has none of those properties.
 #[cfg(feature = "native-git")]
 #[test]
 fn clone_offers_credentials_rather_than_failing_for_want_of_a_callback() {
@@ -523,7 +537,10 @@ fn clone_offers_credentials_rather_than_failing_for_want_of_a_callback() {
     let parent = tempdir().unwrap();
     let dest = parent.path().join("clone-attempt");
 
-    let Err(e) = git_native::clone("https://github.com/singhbal-baljinder/personal-notes.git", &dest)
+    let Err(e) = git_native::clone(
+        "https://github.com/formicaria-org/no-such-repository-this-is-a-test.git",
+        &dest,
+    )
     else {
         panic!("a private repo must not clone without credentials");
     };
