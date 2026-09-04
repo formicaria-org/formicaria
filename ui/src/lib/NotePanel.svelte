@@ -276,7 +276,12 @@
         return { reason: `no bytes in vault "${note?.vault || 'default'}" for ${ref}` };
       }
       const mime = status.mime ?? '';
-      if (streamsBlobs()) return { url: assetUrl(ref), mime };
+      // **A thumbnail to draw with, and the full blob behind it.** Only on the streaming
+      // transport: the other path hands back object URLs it built from bytes it already holds, so
+      // there is no second copy to point at and nothing to gain. `render.ts` uses `thumb` for
+      // images alone and falls back to `url`, which is what makes this safe on a phone — nothing
+      // there can generate a derivative, so most images have none.
+      if (streamsBlobs()) return { url: assetUrl(ref), thumb: assetUrl(ref, 'thumb'), mime };
       const buf = await ipcResolveAsset(ref, 'full');
       if (!buf || buf.byteLength === 0) {
         return { reason: 'the vault has this blob but it read back empty' };

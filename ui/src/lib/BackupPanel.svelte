@@ -25,6 +25,7 @@
   import {
     backup,
     backupStatus,
+    backupLatest,
     commit,
     forgetVault,
     gitAuth,
@@ -39,7 +40,7 @@
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
   import { labelFor } from './vaultLabels.svelte';
-  import type { BackupStatus, GitAuth, VaultStatus } from './types';
+  import type { BackupStatus, GitAuth, LatestBackup, VaultStatus } from './types';
 
   // `onnewvault` because this panel is already "a list, not a form" — the one surface in
   // the app that is *about the set of vaults*, which makes it where you add one. (The
@@ -69,6 +70,8 @@
   // one `ls-remote` per vault, and a second round trip per vault, per panel open, to learn
   // something git can answer from disk would be a poor trade.
   let auth = $state<Record<string, GitAuth | null>>({});
+  /// Per vault, and `null` when the call itself failed — see `loadLatest`.
+  let latest = $state<Record<string, LatestBackup | null>>({});
   let authSaved = $state<Record<string, boolean>>({});
   // **The media tier, configurable at last.** Both halves of it used to live outside the app: the
   // repo was a key you hand-edited into `vaults.json` (Settings said so, verbatim: *"there is no
@@ -99,7 +102,17 @@
   const noRestic = $derived(!!status && !status.restic);
   // Something to push somewhere. A vault with no remote isn't a failure, it just has
   // nowhere to go yet.
-  const canRun = $derived(!busy && !noGit && vaults.some((v) => !!v.remote));
+  const anyRemote = $derived(vaults.some((v) => !!v.remote));
+  /// **Either tier is enough to press the button** (2026-09-04). This used to require a git
+  /// remote, so a machine set up for snapshots alone — restic installed, a repo, a password —
+  /// had a tick box that ticked and a Back up button that never enabled. The panel was made to
+  /// *say* so, which was honesty rather than a fix; this is the fix.
+  ///
+  /// The two tiers were already independent inside `run()`: a vault with no remote gets its own
+  /// step line and the media loop never depended on the git loop. Only the gate assumed one.
+  const canRun = $derived(
+    !busy && ((!noGit && anyRemote) || (heavy && anyRestic)),
+  );
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
@@ -185,9 +198,33 @@
         resticDrafts[v.name] ??= v.restic_repo ?? '';
       }
       await loadAuth();
+      await loadLatest();
     } catch (e) {
       error = msg(e);
     }
+  }
+
+  /// **When each vault was last snapshotted** — the one fact somebody actually wants from a
+  /// backup panel, and until 2026-09-04 no command exposed it at all.
+  ///
+  /// Asked here rather than folded into `backup_status`, which polls every 45 s: this is a restic
+  /// spawn per vault and, for a repository that is not on this machine, a network round trip.
+  ///
+  /// Failures are swallowed into the answer's own `unavailable`, and a rejected call leaves the
+  /// entry absent — the line simply does not render. A panel that cannot answer must not invent
+  /// one, and every other thing on this screen still works.
+  async function loadLatest() {
+    for (const v of status?.vaults ?? []) {
+      if (!v.restic_repo) continue;
+      latest[v.name] = await backupLatest(v.name).catch(() => null);
+    }
+  }
+
+  /// Restic's stamp, rendered for a person. Deliberately tolerant: an unparseable value is shown
+  /// as it came rather than as `Invalid Date`, because the raw string is at least a fact.
+  function when(iso: string): string {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
   }
 
   /// Where credentials would come from for each HTTPS remote. Failures are left as `null`,
@@ -389,12 +426,19 @@
     // failures are not all one cause — a vault reaches `noMedia` from a missing repo, a
     // missing password *or* a restic error, so the verdict names the outcome and lets the
     // step above it give the reason.
+    // **A tier that never ran has no verdict.** With no remote anywhere, every vault lands in
+    // `stuck` and the git sentence would report a failure where there was no attempt — and
+    // "your notes are still on this machine" is flatly wrong when the snapshot tier just sent
+    // them somewhere, because a snapshot carries the notes directory as well as `blobs/`.
+    const gitRan = !noGit && status.vaults.some((v) => !!v.remote);
     verdict =
-      (stuck.length === 0
-        ? 'Your notes are off this machine.'
-        : off.length === 0
-          ? 'Your notes are still on this machine.'
-          : `Notes off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
+      (!gitRan
+        ? 'No vault has a git remote, so nothing was pushed.'
+        : stuck.length === 0
+          ? 'Your notes are off this machine.'
+          : off.length === 0
+            ? 'Your notes are still on this machine.'
+            : `Notes off this machine: ${off.join(', ')}. Still here: ${stuck.join(', ')}.`) +
       ' ' +
       (!heavy
         ? 'No snapshot was taken.'
@@ -625,6 +669,27 @@
                 they travel with git.
               {/if}
             </small>
+            <!-- **"When did this last work?"** — placed right under the repository it is about,
+                 because that is where somebody is deciding whether to trust it. Three states, kept
+                 apart on purpose: a real snapshot, a repository that opened and has never been
+                 written to, and a machine that cannot tell you. The middle one is the one that
+                 should worry a reader, so it says so plainly rather than going quiet. -->
+            {#if v.restic_repo && latest[v.name]}
+              {@const l = latest[v.name]}
+              <small class="why last-backup">
+                {#if l?.unavailable}
+                  Last snapshot: unknown — {l.unavailable}.
+                {:else if l?.time}
+                  Last snapshot: <strong>{when(l.time)}</strong>.
+                  {#if l.paths.length}
+                    It covered {l.paths.length} path{l.paths.length === 1 ? '' : 's'}.
+                  {/if}
+                {:else}
+                  <strong>Never backed up.</strong> This repository is configured and has no
+                  formicaria snapshot in it yet — pressing Back up below is what changes that.
+                {/if}
+              </small>
+            {/if}
           </label>
         {/if}
 
@@ -636,7 +701,16 @@
               {:else}
                 Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
                 <span class="muted">Carries {carries(v)}.</span>
-                {#if v.unpushed}
+                <!-- **`0` and `null` are different facts and used to render identically.**
+                     `{#if v.unpushed}` is falsy for zero, so "everything is pushed" and "this has
+                     never been pushed" both rendered as nothing at all — the panel simply went
+                     quiet, which reads as the reassuring one. They are the opposite states.
+                     `null` means git could not say (no remote, never pushed, or offline — a
+                     sleeping laptop is not an error), so it stays silent deliberately; zero is a
+                     positive answer and now says so. -->
+                {#if v.unpushed === 0}
+                  <span class="muted">Everything here is pushed.</span>
+                {:else if v.unpushed}
                   <span class="muted">{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span>
                 {/if}
                 {#if v.identity}
@@ -784,11 +858,19 @@
          explaining it. Saying so is not the fix; running the snapshot tier on its own is, and
          that is queued rather than smuggled in here. Until then the panel is at least honest
          about its own refusal. -->
-    {#if status && !noGit && !vaults.some((v) => !!v.remote)}
+    {#if status && !canRun && !busy}
       <p class="why">
-        Back up needs a git remote to send notes to, and no vault has one yet — set one above.
-        {#if anyRestic}
-          A snapshot cannot run on its own yet, even though this machine is set up for one.
+        {#if !noGit && !anyRemote && anyRestic && !heavy}
+          No vault has a git remote yet, so there is nothing to push — but this machine can take
+          a snapshot. Tick the box above to run that tier on its own.
+        {:else if !noGit && !anyRemote}
+          Back up needs a git remote to send notes to, and no vault has one yet — set one above.
+        {:else if noGit && !anyRestic}
+          This machine has neither git nor a configured snapshot repository, so there is nowhere
+          for anything to go.
+        {:else if noGit}
+          Git is not installed, so notes cannot be pushed. Tick the box above to take a snapshot
+          instead — that tier carries the notes as well as the attachments.
         {/if}
       </p>
     {/if}

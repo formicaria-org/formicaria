@@ -117,6 +117,13 @@ function sanitize(html: string): string {
 export interface ResolvedAsset {
   url: string;
   mime: string; // '' = unknown; the browser content-sniffs an <img>
+  /** A downscaled copy, when the transport can point at one.
+   *
+   *  **Images only, and deliberately optional.** A 400x400 webp is not a video poster and not a
+   *  PDF, so only the `<img>` branch reads it; every other branch keeps `url`. Absent on the mock
+   *  transport, which hands back object URLs and has no second copy to offer — so the fallback is
+   *  the ordinary case, not the error case. */
+  thumb?: string;
 }
 /** Resolved bytes, or **why not**.
  *
@@ -403,19 +410,22 @@ async function resolveAssets(el: HTMLElement, resolveAsset: AssetResolver): Prom
 function upgradeAsset(img: HTMLImageElement, asset: ResolvedAsset, alt: string): void {
   const mime = asset.mime;
   if (mime.startsWith('image/') || mime === '') {
-    img.src = asset.url;
-    // **Off-screen photos are never decoded.** There is no thumbnail path on any platform — the
-    // read view always points at the full blob (`has_thumb` has no consumer; `assetUrl` has no
-    // `kind`) — so every inline image decodes at whatever resolution the camera produced. A 12 MP
-    // JPEG is ~50 MB of decoded pixels; five in one note is a renderer kill on a phone, and the
-    // kill is silent (`onRenderProcessGone` is unhandled, so the framework default takes the
-    // process). `lazy` means the ones below the fold cost nothing at all, and `async` keeps the
-    // ones on screen off the critical path.
+    // **The small copy when there is one, the full blob when there is not** (2026-09-04).
     //
-    // This is a mitigation, not the fix — the fix is generating and serving a downscaled
-    // derivative, which is M8 and needs a pure-Rust image path on Android. Recorded in
-    // `known-issues.md` so the next reader does not re-diagnose it as an Android bug: the desktop
-    // has exactly the same missing path, it just has the memory to survive it.
+    // Every inline image used to decode at whatever resolution the camera produced. A 12 MP JPEG
+    // is ~50 MB of decoded pixels; five in one note is a renderer kill on a phone, and the kill is
+    // silent — `onRenderProcessGone` is unhandled, so the framework default takes the process and
+    // the app simply vanishes.
+    //
+    // **The fallback is the load-bearing half, not the thumbnail.** `vipsthumbnail` does not exist
+    // on Android, so *every* image ingested on a phone has a blob and no derivative. Asking for
+    // `?kind=thumb` used to be a hard error, which would have turned each one into a 404
+    // placeholder — a performance fix that breaks the picture. `resolve_asset_bytes` now degrades
+    // to the full blob (`commands::blob_path_of_kind`), so this is safe to ask for everywhere.
+    //
+    // `lazy` and `async` stay: they are what keeps the images below the fold costing nothing, and
+    // they help most on exactly the vaults where no thumbnail exists.
+    img.src = asset.thumb ?? asset.url;
     img.loading = 'lazy';
     img.decoding = 'async';
     return;

@@ -106,10 +106,38 @@ adbs shell am start -n "$ACT" >/dev/null || fail "could not launch $ACT"
 sleep 12
 adbs shell am force-stop "$PKG" >/dev/null
 note="---\nid: 01SMOKE0000000000000000000\ntype: note\ntitle: $NONCE\ncreated: 2026-07-31T00:00:00Z\nupdated: 2026-07-31T00:00:00Z\n---\n\nseeded by ci/android-smoke.sh\n"
-for dir in files/vaults/notes/notes files/vault/notes; do
-    if adbs shell run-as "$PKG" sh -c "[ -d $dir ]" >/dev/null 2>&1; then
-        adbs shell run-as "$PKG" sh -c "printf '$note' > $dir/01SMOKE0000000000000000000.md" \
+# **`run-as` lands in the app's data dir, and that IS `app_data_dir()` — there is no `files/`
+# in front of it.** These paths carried one until 2026-09-04, when this script was run for the
+# first time and stopped here with *"the app created no vault directory on first launch — that
+# is itself the bug"*. The app was fine; the script had never been executed against a device,
+# so a wrong constant had nowhere to show up.
+#
+# `configure_paths` (`mobile/src-tauri/src/lib.rs`) takes Tauri's `app_data_dir()`, which on
+# Android is `/data/data/<pkg>` itself, and puts the vault root at `<that>/vaults`. A vault named
+# `notes` is therefore `vaults/notes`, and its notes are `vaults/notes/notes`.
+#
+# The second candidate is not a guess either: the same function deliberately honours a legacy
+# `<app_data>/vault` when one exists, because repointing at the new root would leave those notes
+# on disk and invisible. A device upgraded from an earlier build still looks like that, and this
+# script has to be able to smoke-test it.
+#
+# **And the whole command goes to the device as ONE string.** `adb shell a b c` joins its
+# arguments and hands them to the device's shell, which re-parses them — so
+# `run-as $PKG sh -c "[ -d $dir ]"` arrives with the brackets as separate words and dies with
+# `[: missing ]`, exit 2, **for every path**. That is why the wrong prefix above was never
+# diagnosable from the failure message: the test could not have succeeded for a correct path
+# either. The redirect had the same disease one layer worse — `>` was applied by the *outer*
+# shell, whose working directory is `/` and not the app sandbox, so the seed wrote nothing
+# and could not have. Quoting the whole thing keeps both inside `run-as`.
+#
+# Verified on the emulator, both directions: `test -d` on the real directory exits 0, on a
+# missing one exits 1. A guard with no negative control is how this got here.
+for dir in vaults/notes/notes vault/notes; do
+    if adbs shell "run-as $PKG test -d $dir" >/dev/null 2>&1; then
+        adbs shell "run-as $PKG sh -c 'printf \"$note\" > $dir/01SMOKE0000000000000000000.md'" \
             || fail "could not seed a note into $dir"
+        adbs shell "run-as $PKG test -s $dir/01SMOKE0000000000000000000.md" \
+            || fail "the seed wrote nothing to $dir — the note is empty or absent"
         say "seeded $NONCE into $dir"
         seeded=1
         break
@@ -163,6 +191,19 @@ launch() {
     printf '%s\n' "$log" | grep -q 'vaults ready' \
         || fail "launch $n: no 'vaults ready' line — the shell never finished opening the vaults, or it never got to say so ($OUT/formicaria-$n.log)"
     ready_at=$(printf '%s\n' "$log" | grep -n 'vaults ready' | head -1 | cut -d: -f1)
+
+    # **The paths were configured, and before the vaults opened.** `configure_paths` used to fail
+    # silently: with no data directory, `App::load` succeeds with *zero* vaults and the user meets
+    # the ordinary first-run form, whose `create_vault` then cannot persist anything. That is a
+    # *wrong* screen, not a blank one, and it is indistinguishable from a fresh install — so the
+    # only way to catch it is to require the success line and require it to come first.
+    printf '%s\n' "$log" | grep -q 'vault root:' \
+        || fail "launch $n: no 'vault root:' line — configure_paths never completed, so this device has nowhere to keep a vault and the first-run form would be a dead end ($OUT/formicaria-$n.log)"
+    root_at=$(printf '%s\n' "$log" | grep -n 'vault root:' | head -1 | cut -d: -f1)
+    if [ "$root_at" -gt "$ready_at" ]; then
+        fail "launch $n: the vaults opened before the paths were configured — whatever they opened, it was not where this device keeps them"
+    fi
+
     for later in 'ca-bundle' 'study agent'; do
         at=$(printf '%s\n' "$log" | grep -n "$later" | head -1 | cut -d: -f1 || true)
         if [ -n "$at" ] && [ "$at" -lt "$ready_at" ]; then

@@ -1296,6 +1296,29 @@ pub fn accept_proposal(
         .parse()
         .map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
     let obj = store.get(pid)?.ok_or(StoreError::NotFound(pid))?;
+
+    // **A withdrawn proposal is never merged.** `reject_proposal` deletes the branch *and* stamps
+    // `declined`, so on the machine that rejected it there is nothing left to accept. When a
+    // **peer** rejects, only their copy of the branch goes: we get their `declined` note on the
+    // next pull and keep `refs/heads/proposal/<id>` — our own local branch, which no fetch flag
+    // removes. Without this guard, accepting from that state merges text its author withdrew
+    // straight into `main`.
+    //
+    // `retire_settled_proposals` sweeps those branches, but only where the guardrail ceiling is
+    // checked — i.e. when a *new* proposal is created. The window between pulling a rejection and
+    // the next `create_proposal` is real, and this is what closes it.
+    //
+    // **Refused here, at the seam, not only in the UI.** `ProposalReview.svelte` already orders its
+    // declined branch ahead of Accept, but `fm-serve`'s HTTP surface, `fm-cli`, the agent and a
+    // stale open pane all reach this function directly. Same stance as `edit.rs`'s `thread_of`
+    // refusal: guard the one gesture that can reach the damage.
+    if is_declined(&obj) {
+        return Err(StoreError::Io(format!(
+            "{id} was turned down, so it cannot be accepted — its author withdrew this text. \
+             `main` was not touched. If you want the change after all, propose it again."
+        )));
+    }
+
     let branch = match obj.get(crate::thread::PROPOSES) {
         PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).map(String::from),
         _ => None,
@@ -1545,11 +1568,21 @@ pub fn resolve_asset_bytes(
     reference: &str,
     kind: &str,
 ) -> Result<Vec<u8>, StoreError> {
-    let hash = parse_ref(reference)?;
-    let path = match kind {
-        "thumb" => ingest::thumb_path(vault, &hash),
-        _ => BlobStore::new(vault).path_for(&hash),
-    };
+    // **Resolved through `blob_path_of_kind`, which already gets this right** — see its doc. Two
+    // properties it has and the old two-arm `match` here did not:
+    //
+    // 1. **A missing thumbnail falls back to the full blob rather than erroring.** Asking for a
+    //    thumb used to be a hard failure, which made `?kind=thumb` unusable from the phone: nothing
+    //    on Android can *generate* one (`vipsthumbnail` does not exist there), so every phone-taken
+    //    photo would have answered 404. That is why the read view still fetches full blobs — the
+    //    fallback had to land before anything could ask for the small copy (2026-09-04).
+    // 2. **The blob is checked first, always.** Resolving a `derived/` file directly would let a
+    //    thumbnail answer for a vault whose blob the caller was never entitled to.
+    //
+    // A vault holding a thumb but no blob would now 404 where it used to serve the thumb — and that
+    // state is unreachable: `derived/` and `blobs/` are both gitignored and only `blobs/` is ever
+    // force-added, so a thumbnail never travels between clones.
+    let path = blob_path_of_kind(vault, reference, kind == "thumb")?;
     std::fs::read(&path).map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
 }
 
@@ -1712,6 +1745,32 @@ pub fn ingest(
 ) -> Result<ObjectMeta, StoreError> {
     let ing = ingest::ingest_bytes(vault, filename, bytes)?;
     asset_note(store, vault, vault_name, &ing)
+}
+
+/// Finish a chunked upload: ingest the assembled file, then discard the session.
+///
+/// **The second byte-arrival path `asset_note` was factored out for.** `ingest` above has the
+/// bytes in memory; this has them in a file, which is the whole point — `ingest_file_named`
+/// streams and hashes in 64 KB reads, so the transient peak is one buffer rather than the file.
+/// The note itself is identical, which is why it is not written twice.
+///
+/// **The session is discarded only on success.** A failed ingest leaves the bytes where they are,
+/// so the caller can retry the finish without re-uploading; the sweep collects it if nobody does.
+/// Deleting on failure would turn a recoverable error into a lost upload.
+pub fn ingest_finish(
+    store: &mut dyn Store,
+    vault: &Path,
+    vault_name: &str,
+    session: &str,
+    filename: &str,
+) -> Result<ObjectMeta, StoreError> {
+    let part = fm_core::chunked::assembled(vault, session)?;
+    let ing = fm_core::ingest_file_named(vault, &part, filename)?;
+    let meta = asset_note(store, vault, vault_name, &ing)?;
+    // Best-effort: the blob is stored and the note is written, so a session directory that will
+    // not delete is disk to reclaim, not a failure to report. The sweep gets it.
+    let _ = fm_core::chunked::discard(vault, session);
+    Ok(meta)
 }
 
 /// Turn an ingested blob into its asset note, and store it.
@@ -1915,8 +1974,27 @@ pub fn activity(
     vault_path: &Path,
     since: &str,
 ) -> Result<Vec<EditEvent>, StoreError> {
+    resolve_touches(store, fm_core::vcs::activity(vault_path, since)?)
+}
+
+/// The store half of [`activity`], split out so a caller can do the **git** half without holding
+/// the vault lock.
+///
+/// `dispatch`'s `activity` arm used to take the guard and then run one revwalk per vault inside it —
+/// and it is among the first things the UI's first `refresh()` fires, so every other command queued
+/// behind a year of git history on a cold start. The revwalk needs no store; the resolution needs
+/// no git. Separating them is the whole fix, and it is the pattern `run_backup`, `run_import` and
+/// `open_skipped` already follow.
+///
+/// **The exclusions stay here, in this file, on purpose.** `ci/checks.sh`'s notes-base-filter guard
+/// carries a *named-file exemption* for `activity`, keyed on `commands.rs`; moving this predicate
+/// out of the file would trip it.
+pub fn resolve_touches(
+    store: &dyn Store,
+    touches: Vec<fm_core::git::Touch>,
+) -> Result<Vec<EditEvent>, StoreError> {
     let mut events = Vec::new();
-    for t in fm_core::vcs::activity(vault_path, since)? {
+    for t in touches {
         let Ok(id) = t.id.parse::<Id>() else { continue };
         let Some(obj) = store.get(id)? else { continue };
         // A `git log` read-model has no `Filter` to hang the exclusion on, so the hidden

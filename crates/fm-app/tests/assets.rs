@@ -134,3 +134,46 @@ fn a_thumbnail_is_refused_when_the_blob_itself_is_absent() {
         "a thumbnail must not answer for a vault that does not hold the blob"
     );
 }
+
+/// **The bytes API behaves like the path API — which it did not until 2026-09-04.**
+///
+/// `blob_path_of_kind` has had the fallback and the blob-first ordering all along, and the two
+/// tests above pin them. `resolve_asset_bytes` — the arm `resolve_asset` and the phone's `fmblob`
+/// handler both go through — did **not** use it: it had its own two-arm `match` that read
+/// `thumb_path` directly and hard-errored when the file was absent.
+///
+/// That is why the read view still asks for full blobs everywhere. `vipsthumbnail` does not exist
+/// on Android, so **every** image ingested on a phone has a blob and no thumbnail; asking for the
+/// small copy would have turned each one into a 404 placeholder. A performance fix that breaks the
+/// picture is not a fix, so the fallback had to land first — these two tests are that prerequisite.
+#[test]
+fn resolve_asset_bytes_falls_back_to_the_full_blob_when_there_is_no_thumb() {
+    let vault = tempdir().unwrap();
+    seed(vault.path());
+    // A blob with no derivative — the phone's normal case, not an edge one.
+    fs::remove_dir_all(vault.path().join("derived")).unwrap();
+
+    let reference = format!("sha256:{HASH}");
+    let status = commands::asset_status(vault.path(), &reference).unwrap();
+    assert!(status.has_blob && !status.has_thumb, "the fixture must have a blob and no thumb");
+
+    let bytes = commands::resolve_asset_bytes(vault.path(), &reference, "thumb")
+        .expect("asking for a thumb that is not there must fall back, never fail");
+    assert_eq!(bytes, b"blob-bytes", "the fallback serves the full blob");
+}
+
+/// And the entitlement ordering reaches the bytes API too: a `derived/` file must not answer for a
+/// vault whose blob the caller was never entitled to. Pinned separately from the path-API twin
+/// above, because the whole defect was that the two had drifted apart.
+#[test]
+fn resolve_asset_bytes_refuses_a_thumb_when_the_blob_itself_is_absent() {
+    let vault = tempdir().unwrap();
+    seed(vault.path());
+    fs::remove_dir_all(vault.path().join("blobs")).unwrap();
+
+    let reference = format!("sha256:{HASH}");
+    assert!(
+        commands::resolve_asset_bytes(vault.path(), &reference, "thumb").is_err(),
+        "a derived file must not stand in for a blob the caller cannot have"
+    );
+}

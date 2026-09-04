@@ -185,6 +185,30 @@ export interface BackupStatus {
   restic_password_set: boolean;
 }
 
+/** When a vault's media was last snapshotted — the one fact a backup panel most needs.
+ *
+ *  **Its own call, not a field on `VaultStatus`.** `backup_status` is polled every 45 s and
+ *  already shells out per vault; asking restic for the latest snapshot is another spawn each
+ *  time, and against a network repo a round trip. So this is fetched when a human is looking. */
+export interface LatestBackup {
+  /** The vault this is about, echoed back so several answers can be keyed. */
+  vault: string;
+  /** Restic's short snapshot id, or null when the repo has no `fm`-tagged snapshot yet.
+   *  **Null is not an error** — a freshly configured repo has never been written to, and
+   *  "never" is the useful answer rather than a failure. */
+  id: string | null;
+  /** When it was taken, in restic's own words (RFC 3339). Null with `id`. */
+  time: string | null;
+  /** The **source** paths it recorded, absolute on whatever machine took it. A snapshot taken
+   *  on another device names that device's paths, and a restore that silently used them is the
+   *  failure this makes visible before it happens. */
+  paths: string[];
+  /** Why there is no answer, when there is none to be had — no restic, no repo, no password, or
+   *  a repository that would not open. Distinguished from `id: null` on purpose: *never backed
+   *  up* and *this machine cannot tell you* are different sentences to put in front of someone. */
+  unavailable: string | null;
+}
+
 /** A conflicted note **and what kind of conflict it is**.
  *
  *  `has_markers` is the field that matters. For a delete/modify conflict it is `false` and there is

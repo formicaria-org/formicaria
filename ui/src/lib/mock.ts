@@ -9,6 +9,7 @@ import { GIT_ASSETS_CEILING, humanSize } from './size';
 import type {
   AssetStatus,
   BackupStatus,
+  LatestBackup,
   Board,
   Column,
   NoteDetail,
@@ -309,6 +310,10 @@ function noteDetail(id: string): NoteDetail | null {
 // the backup panel's restic fields can be developed against the mock, exactly like `gitVaults`.
 const mockRestic: Record<string, string | null> = {};
 let mockResticPassword = false;
+// When each vault was last snapshotted here. Empty at start, so the first thing `pnpm dev` shows
+// is the "never backed up" state — the one that should worry somebody and therefore the one worth
+// having on screen by default.
+const mockLastBackup: Record<string, string> = {};
 
 const gitVaults: Array<{
   name: string;
@@ -895,6 +900,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // backend merges `proposal/<id>` into main and deletes the branch.
       const prop = notes.find((n) => n.id === String(args.id) && isProposal(n));
       if (!prop) return { outcome: 'already_gone' } as T;
+      // **A declined proposal is refused here too** (2026-09-04). `proposal_content` and
+      // `proposal_for` in this file already check `declined`; this arm did not, matching a real
+      // gap in `commands::accept_proposal` that let a peer's rejected text merge into `main`. Both
+      // were fixed together on purpose: a mock that accepts what the backend refuses lets a UI test
+      // go green for the wrong reason, which is the drift `mock.ts`'s own header warns about.
+      if (prop.props?.declined === 'true') return { outcome: 'already_gone' } as T;
       acceptedProposals.add(prop.id);
       return { outcome: 'merged' } as T;
     }
@@ -1617,7 +1628,35 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return { committed: !!had, conflicts: [] } as T;
     }
     case 'backup':
+      // A snapshot the mock actually remembers, so `backup_latest` below has something true to
+      // say afterwards. Without this the panel's "last backed up" line could only ever be
+      // developed against "never", which is the one state that needs no design.
+      if (mockRestic[mockVault(args.vault).name] && mockResticPassword) {
+        mockLastBackup[mockVault(args.vault).name] = new Date().toISOString();
+      }
       return undefined as T;
+    // **Three answers, not two.** `unavailable` is "this machine cannot tell you"; `id: null`
+    // with no `unavailable` is "the repository opened and has never been written to". Collapsing
+    // them is exactly the mistake the real command is shaped to prevent, so the mock keeps them
+    // apart too — a mock that permits a state the backend cannot produce costs more than none.
+    case 'backup_latest': {
+      const v = mockVault(args.vault);
+      const repo = mockRestic[v.name] ?? null;
+      const unavailable = !repo
+        ? 'this vault has no media-backup repository configured, so there is nothing to ask'
+        : !mockResticPassword
+          ? 'no restic password is set on this machine, so the repository cannot be opened'
+          : null;
+      const time = unavailable ? null : (mockLastBackup[v.name] ?? null);
+      const latest: LatestBackup = {
+        vault: v.name,
+        id: time ? 'a1b2c3d4' : null,
+        time,
+        paths: time ? [`/home/you/${v.name}/notes`, `/home/you/${v.name}/blobs`] : [],
+        unavailable,
+      };
+      return latest as T;
+    }
     case 'backup_status': {
       // `satisfies` and not a bare `as T`: this file's whole job is to answer exactly
       // what the Rust answers, and a plain cast lets it drift silently — which it had,

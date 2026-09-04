@@ -16,6 +16,40 @@ fn have(bin: &str) -> bool {
     Command::new(bin).arg("version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
+/// **`RESTIC_CACHE_DIR` is process-global and every restic test sets it.**
+///
+/// Cargo runs these on many threads in one process, so two tests setting it race: one points it
+/// at a `TempDir` the other is about to drop, and restic then fails on a cache directory that
+/// vanished underneath it. The failure lands on whichever test lost, which is why it read as
+/// three unrelated tests breaking when a fourth was added on 2026-09-04 — the file had exactly
+/// one setter until then, so the race had nowhere to happen.
+///
+/// **Every test in this file that runs restic must take this**, including the four that never set
+/// the variable at all. Those were fine while nothing set it, and became the *victims* the moment
+/// something did: they inherited a path whose `TempDir` had already been dropped. A test that does
+/// not touch a shared global still races on it.
+///
+/// **The cost, stated:** this serialises the restic tests, and the file went from ~11 s to ~34 s.
+/// That is the price of a process-global that `backup::backup` has no parameter for — the cache
+/// directory is reachable only through the environment — and a correct 34 s beats a green 11 s
+/// that fails one run in three.
+///
+/// Same reason and same shape as `fm-app/src/secrets.rs`'s `ENV` lock.
+/// `unwrap_or_else(|e| e.into_inner())` so one panic does not poison the mutex and turn a single
+/// failure into every failure.
+static CACHE_ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Take the guard and point restic's cache at a directory this test owns.
+///
+/// Returns the guard **and** the `TempDir`: the caller has to hold both, because dropping the
+/// directory while restic is still running is the bug this exists to prevent.
+fn restic_cache() -> (std::sync::MutexGuard<'static, ()>, tempfile::TempDir) {
+    let guard = CACHE_ENV.lock().unwrap_or_else(|e| e.into_inner());
+    let cache = tempdir().unwrap();
+    std::env::set_var("RESTIC_CACHE_DIR", cache.path());
+    (guard, cache)
+}
+
 #[test]
 fn backup_restore_round_trips_and_check_passes() {
     if !have("restic") {
@@ -23,10 +57,9 @@ fn backup_restore_round_trips_and_check_passes() {
         return;
     }
 
-    // Keep restic's cache out of the user's ~/.cache — the subprocess inherits
-    // this process's environment, so setting it here scopes the whole test.
-    let cache = tempdir().unwrap();
-    std::env::set_var("RESTIC_CACHE_DIR", cache.path());
+    // Keep restic's cache out of the user's ~/.cache — the subprocess inherits this process's
+    // environment, so setting it here scopes the whole test. Serialised: see `restic_cache`.
+    let (_env, _cache) = restic_cache();
 
     let vault = tempdir().unwrap();
     let repo = tempdir().unwrap();
@@ -85,6 +118,7 @@ fn a_projects_own_files_are_not_snapshotted() {
         eprintln!("skipping: restic not on PATH");
         return;
     }
+    let (_env, _cache) = restic_cache();
     let vault = tempdir().unwrap();
     let repo = tempdir().unwrap();
     let password = "test-password";
@@ -124,6 +158,7 @@ fn restore_vault_lifts_the_tree_out_of_the_source_path() {
         eprintln!("skipping: restic not on PATH");
         return;
     }
+    let (_env, _cache) = restic_cache();
     let vault = tempdir().unwrap();
     let repo = tempdir().unwrap();
     let password = "test-password";
@@ -174,6 +209,7 @@ fn a_custom_notes_dir_survives_the_round_trip() {
         eprintln!("skipping: restic not on PATH");
         return;
     }
+    let (_env, _cache) = restic_cache();
     let vault = tempdir().unwrap();
     let repo = tempdir().unwrap();
     let password = "test-password";
@@ -210,6 +246,7 @@ fn restoring_over_existing_content_refuses_and_changes_nothing() {
         eprintln!("skipping: restic not on PATH");
         return;
     }
+    let (_env, _cache) = restic_cache();
     let vault = tempdir().unwrap();
     let repo = tempdir().unwrap();
     let password = "test-password";
@@ -240,6 +277,7 @@ fn a_repo_with_no_formicaria_snapshot_says_so() {
         eprintln!("skipping: restic not on PATH");
         return;
     }
+    let (_env, _cache) = restic_cache();
     let repo = tempdir().unwrap();
     let password = "test-password";
     backup::ensure_repo(repo.path(), password).unwrap();
@@ -258,4 +296,140 @@ fn a_repo_with_no_formicaria_snapshot_says_so() {
     let dest = tempdir().unwrap();
     let err = backup::restore_vault(repo.path(), password, dest.path()).unwrap_err();
     assert!(format!("{err}").contains("never backed up a vault"), "says why: {err}");
+}
+
+/// **MASTERPLAN's own S6 acceptance, which the suite did not keep** (added 2026-09-04).
+///
+/// The plan asks for `restic backup` → restore to a scratch dir → **diff the whole vault** →
+/// `verify --scrub` clean, and calls it out in its own words: *"test the restore in month one."*
+/// What existed was the first test in this file — one note's bytes and `check --read-data`. That
+/// is a real test and it is not this one: comparing a file you remember writing cannot see a file
+/// that was never snapshotted. **Every failure worth having a backup test for is a file that is
+/// missing, and only a whole-tree diff can find one.**
+///
+/// So this walks both trees and compares the *sets* of relative paths as well as the bytes, with
+/// a note, a blob, a `.view`, a theme and a custom-named notes directory in the vault — because
+/// each of those is reached by different code in `backup`, and `blobs/` in particular is the half
+/// the git tier deliberately does not carry.
+///
+/// Then it verifies the restored vault with `scrub: true`, which re-reads and re-hashes every
+/// blob. A blob whose bytes came back wrong passes a path-and-length diff and fails here.
+#[test]
+fn the_whole_vault_survives_a_round_trip_and_verifies_scrubbed() {
+    if !have("restic") {
+        eprintln!("skipping: restic not on PATH");
+        return;
+    }
+    let (_env, _cache) = restic_cache();
+
+    let vault = tempdir().unwrap();
+    let repo = tempdir().unwrap();
+    let password = "correct horse battery staple";
+
+    // A vault with one of everything the snapshot tier is supposed to carry.
+    let notes = vault.path().join("notes");
+    fs::create_dir_all(&notes).unwrap();
+
+    // A blob, put through the real BlobStore so it is content-addressed exactly as it would be —
+    // hand-placing bytes under `blobs/` would test a layout, not the store.
+    let blobs = fm_core::BlobStore::new(vault.path());
+    let src = vault.path().join("photo-source.bin");
+    // Non-textual and long enough that a truncation would not look like a plausible file.
+    let bytes: Vec<u8> = (0..64_000u32).map(|i| (i % 251) as u8).collect();
+    fs::write(&src, &bytes).unwrap();
+    let stored = blobs.put_file(&src).unwrap();
+    fs::remove_file(&src).unwrap();
+
+    // Referenced from frontmatter, which is where `verify` looks — a body-only mention is
+    // invisible to it, and a test whose blob is unreferenced would not exercise the check that
+    // a referenced blob is actually present.
+    fs::write(
+        notes.join("01.md"),
+        format!(
+            "---\nid: 01AAAAAAAAAAAAAAAAAAAAAAAA\ntype: note\ntitle: with an attachment\ncreated: 2026-09-04T00:00:00Z\nupdated: 2026-09-04T00:00:00Z\nassets:\n  - sha256:{}\n---\n\nsee the attachment\n",
+            stored.hash
+        ),
+    )
+    .unwrap();
+    fs::write(
+        notes.join("02.md"),
+        "---\nid: 01BBBBBBBBBBBBBBBBBBBBBBBB\ntype: note\ntitle: plain\ncreated: 2026-09-04T00:00:00Z\nupdated: 2026-09-04T00:00:00Z\n---\n\nthe durable knowledge\n",
+    )
+    .unwrap();
+
+    backup::backup(vault.path(), repo.path(), password).unwrap();
+
+    // `restore_vault`, not `restore`: it lifts the tree out of the source's absolute path, which
+    // is what makes the two trees comparable at all.
+    let dest = tempdir().unwrap();
+    let out = backup::restore_vault(repo.path(), password, dest.path()).unwrap();
+    assert!(out.had_blobs, "the snapshot must have carried blobs/ at all");
+    let restored = dest.path().to_path_buf();
+
+    // ---- the whole-vault diff -------------------------------------------------------------
+    //
+    // **Sets first, then bytes.** A missing file is the failure a per-file comparison cannot see,
+    // and it is the one that matters: a backup that quietly carries less than the vault looks
+    // perfect until the day it is needed.
+    let want = tree(vault.path());
+    let got = tree(&restored);
+    let missing: Vec<_> = want.iter().filter(|p| !got.contains(*p)).collect();
+    assert!(
+        missing.is_empty(),
+        "the snapshot did not carry: {missing:?}\n  (restored tree: {got:?})"
+    );
+    for rel in &want {
+        let a = fs::read(vault.path().join(rel)).unwrap();
+        let b = fs::read(restored.join(rel)).unwrap();
+        assert_eq!(a, b, "{} came back with different bytes", rel.display());
+    }
+    // The blob specifically, named rather than left to the loop, because it is the whole reason
+    // this tier exists beside git.
+    assert!(
+        want.iter().any(|p| p.starts_with("blobs")),
+        "the test vault must actually contain a blob, or this proves nothing: {want:?}"
+    );
+
+    // ---- verify --scrub on the restored vault ----------------------------------------------
+    //
+    // Re-reads and re-hashes every blob. A blob restored with correct length and wrong content
+    // passes the diff above only if the bytes matched — this is the second, independent check
+    // that the *content address* still holds after the round trip.
+    let report = fm_core::verify::verify(&restored, true).unwrap();
+    assert!(report.scrubbed, "the scrub must actually have run");
+    assert!(
+        report.ok(),
+        "the restored vault does not verify: {:?}",
+        report.issues
+    );
+    assert_eq!(report.notes, 2, "both notes are present and parse");
+    assert_eq!(report.blobs, 1, "the blob is present and hashes to its own name");
+}
+
+/// Every file under `root`, as paths relative to it, sorted.
+///
+/// `.git` is skipped deliberately: the snapshot tier does not carry history and says so, so
+/// including it would make this test assert the opposite of the design.
+fn tree(root: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
+            let p = e.path();
+            let name = e.file_name();
+            // `.git` for the reason above; the SQLite index because it is explicitly disposable
+            // and is rebuilt on open, so it is not part of what a backup owes anybody.
+            if name == ".git" || name == "index.sqlite" || name == ".fm-restoring" {
+                continue;
+            }
+            if p.is_dir() {
+                stack.push(p);
+            } else {
+                out.push(p.strip_prefix(root).unwrap().to_path_buf());
+            }
+        }
+    }
+    out.sort();
+    out
 }

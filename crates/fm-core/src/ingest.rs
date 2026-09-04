@@ -28,6 +28,18 @@ pub struct Ingested {
 
 /// Store `src` in the vault's blob store and extract what is searchable.
 pub fn ingest_file(vault: &Path, src: &Path) -> Result<Ingested, StoreError> {
+    let name = src.file_name().and_then(|n| n.to_str()).unwrap_or("asset").to_string();
+    ingest_file_named(vault, src, &name)
+}
+
+/// [`ingest_file`], with the filename given rather than read off the path.
+///
+/// **For the chunked upload path**, where the bytes land in a session file called `part` and the
+/// name the user chose arrived separately — see [`chunked`]. Splitting the name out is the whole
+/// difference between the two entry points; everything below is shared, and deliberately so:
+/// a second copy of the sniff-and-extract logic is how the two paths would drift on SVG or on
+/// text extraction, and only one of them would be tested.
+pub fn ingest_file_named(vault: &Path, src: &Path, filename: &str) -> Result<Ingested, StoreError> {
     let store = BlobStore::new(vault);
     let Stored { hash, deduped } = store.put_file(src)?;
     let blob = store.path_for(&hash);
@@ -43,9 +55,7 @@ pub fn ingest_file(vault: &Path, src: &Path) -> Result<Ingested, StoreError> {
         // No known signature: call it text if it parsed as UTF-8, else opaque.
         if text.is_some() { "text/plain".into() } else { "application/octet-stream".into() }
     });
-    let filename =
-        src.file_name().and_then(|n| n.to_str()).unwrap_or("asset").to_string();
-    Ok(Ingested { hash, deduped, mime, filename, text })
+    Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
 }
 
 /// Store `bytes` in the vault's blob store and extract what is searchable — the
@@ -157,6 +167,15 @@ pub fn sniff_mime(path: &Path) -> Option<String> {
 /// `vault/derived/<hash>/thumb.webp`. Failure is not fatal — the gallery falls
 /// back to the AssetMissing placeholder. Returns the thumbnail path on success.
 pub fn thumbnail(vault: &Path, hash: &str) -> Result<PathBuf, StoreError> {
+    // **Already there? Then it is already right.** A thumbnail is a pure function of a
+    // content-addressed blob, so re-running vipsthumbnail over one is work whose only possible
+    // result is the bytes already on disk. This matters beyond dedup: `dispatch`'s ingest arms now
+    // generate the thumbnail *outside* the vault lock and then call `asset_note`, which calls this
+    // again — the short-circuit is what keeps that second call free instead of a second subprocess.
+    let existing = thumb_path(vault, hash);
+    if existing.is_file() {
+        return Ok(existing);
+    }
     let blob = BlobStore::new(vault).path_for(hash);
     let dir = thumb_path(vault, hash).parent().expect("thumb path has a parent").to_path_buf();
     std::fs::create_dir_all(&dir).map_err(io)?;

@@ -67,6 +67,12 @@ static FINISH: std::sync::Once = std::sync::Once::new();
 /// will never speak, and the phone has no other channel to say so.
 fn boot(handle: &tauri::AppHandle) -> Result<Arc<App>, String> {
     use tauri::Manager;
+    // **Refuse before opening anything.** If `setup` could not configure the paths, opening the
+    // vaults would *succeed* — with none — and hand the user a first-run form that cannot save.
+    // Saying so is the whole fix; the app cannot make the platform produce a data directory.
+    if let Some(Err(why)) = PATHS.get() {
+        return Err(why.clone());
+    }
     // **`TrustIndex`, and this is the one place that claim can honestly be made.**
     //
     // Opening a vault rebuilt its whole FTS index from every file on disk, every time. On a
@@ -211,6 +217,7 @@ fn blob_response(
     method: &str,
     uri: &str,
     body: &[u8],
+    range: Option<String>,
 ) -> tauri::http::Response<Vec<u8>> {
     use tauri::http::{Response, StatusCode};
     use tauri::Manager; // `try_state` lives on the trait, not on `AppHandle` itself
@@ -256,30 +263,105 @@ fn blob_response(
     // handler served `POST /ingest` for a while and stored every photo as zero bytes while
     // reporting success. Ingest lives on the `fm_ingest` IPC command; see its note.
     //
-    // This scheme stays the way blobs come *out*, which is what it is good at: a GET streams,
-    // and `<video>` can seek without the file ever being held whole in memory.
+    // This scheme stays the way blobs come *out*.
+    //
+    // **The comment here used to claim "a GET streams, and `<video>` can seek without the file
+    // ever being held whole in memory". None of that was true** (corrected 2026-09-04), and the
+    // "streams" half is not even achievable: `register_uri_scheme_protocol` hands back a
+    // `Response<Vec<u8>>` and Tauri offers no streaming body type at this seam. What *is*
+    // achievable, and what actually fixes the memory problem, is honouring `Range` — so the peak
+    // allocation is **one requested window**, not one file. Say that, and not more than that.
+    //
+    // This stopped being a latent cost on 2026-09-04, when chunked ingest removed the phone's
+    // upload ceiling: the files this path must serve are now unbounded.
 
     let reference = percent_decode(path);
-    let args = serde_json::json!({ "reference": reference, "kind": kind });
-    match dispatch("resolve_asset", &args, &[], &state, &MobileHost) {
-        Ok(out) => {
-            let bytes = out.into_bytes();
-            Response::builder()
-                // Sniffed by the webview: the blob store is content-addressed and does not keep
-                // the MIME beside the bytes, and guessing wrongly here would be worse than
-                // letting the browser look.
-                .header("Content-Type", "application/octet-stream")
-                .header("Access-Control-Allow-Origin", "*")
-                .body(bytes)
-                .unwrap_or_else(|_| not_found())
-        }
-        // A missing blob is the ordinary case for a vault whose media has not synced — the note
-        // renders a placeholder, which is the same thing the desktop does.
+    // `blob_path_of_kind` rather than `dispatch("resolve_asset")`: it is `pub` for exactly this —
+    // "for a transport that wants to stream the bytes itself rather than take them through
+    // `Output::Bytes`" — and `fm-serve/src/blob.rs` already uses it. Not a breach of the
+    // every-command-through-`dispatch` rule; it is the sanctioned transport-side door, and it is
+    // what makes the phone and the desktop share one resolver, one fallback and one entitlement
+    // check.
+    let path_of = fm_app::dispatch::blob_path_of_kind(
+        &state,
+        &fm_app::Scope::All,
+        &reference,
+        kind == "thumb",
+    );
+    let blob = match path_of {
+        Ok(p) => p,
         Err(e) => {
             log::warn!("blob {reference}: {e}");
-            not_found()
+            return not_found();
         }
+    };
+    let total = match std::fs::metadata(&blob) {
+        Ok(m) => m.len(),
+        Err(e) => {
+            log::warn!("blob {reference}: {e}");
+            return not_found();
+        }
+    };
+    // Sniffed from the bytes, as the desktop does: the blob store is content-addressed and keeps
+    // no MIME beside them. The old hardcoded `application/octet-stream` is why `inline_safe` could
+    // not have worked here even if it had been called.
+    let ctype = fm_core::ingest::sniff_mime(&blob)
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let reply = fm_app::wire::blob_reply(total, &ctype, range.as_deref());
+
+    let body = match reply.range {
+        None => Vec::new(),
+        Some((start, end)) => {
+            use std::io::{Read, Seek, SeekFrom};
+            let mut f = match std::fs::File::open(&blob) {
+                Ok(f) => f,
+                Err(e) => {
+                    log::warn!("blob {reference}: {e}");
+                    return not_found();
+                }
+            };
+            // **Seek and read exactly the window — never `std::fs::read`.** This is the whole
+            // memory fix: a 200 MB video answered in 1 MB slices allocates 1 MB at a time.
+            if f.seek(SeekFrom::Start(start)).is_err() {
+                return not_found();
+            }
+            let mut buf = vec![0u8; (end - start + 1) as usize];
+            match f.read_exact(&mut buf) {
+                Ok(()) => buf,
+                Err(e) => {
+                    log::warn!("blob {reference}: {e}");
+                    return not_found();
+                }
+            }
+        }
+    };
+
+    let mut builder = Response::builder()
+        .status(reply.status)
+        .header("Content-Type", &ctype)
+        // **Advertised, or a media element will not even try to seek.** A `<video>` that sees no
+        // `Accept-Ranges` downloads the whole file before it plays a frame.
+        .header("Accept-Ranges", "bytes")
+        // The same three the desktop sets, and for a reason that is not desktop-specific: a blob
+        // is reachable as a same-origin URL, and **blobs arrive from collaborators through the
+        // merge driver**. Navigating straight to someone else's file must not run it.
+        .header("X-Content-Type-Options", "nosniff")
+        .header(
+            "Content-Security-Policy",
+            "default-src 'none'; img-src 'self' blob: data:; media-src 'self' blob:; \
+             object-src 'none'; script-src 'none'; sandbox",
+        )
+        .header("Access-Control-Allow-Origin", "*");
+    if !reply.inline {
+        builder = builder.header("Content-Disposition", "attachment");
     }
+    if let Some(cr) = reply.content_range {
+        builder = builder.header("Content-Range", cr);
+    }
+    // A missing blob is the ordinary case for a vault whose media has not synced — every failure
+    // path above answers `not_found()`, and the note renders a placeholder, which is the same
+    // thing the desktop does.
+    builder.body(body).unwrap_or_else(|_| not_found())
 }
 
 /// Minimal percent-decoding for the one place a reference crosses a URL.
@@ -324,6 +406,65 @@ fn fm_ingest(
     let args = serde_json::json!({ "name": name, "vault": vault });
     let out = dispatch("ingest", &args, &bytes, &app, &MobileHost).inspect_err(|e| {
         log::error!("ingest: {e}");
+    })?;
+    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
+}
+
+/// **One slice of a chunked upload.** The bytes arrive base64, exactly as [`fm_ingest`]'s do and
+/// for the same reason — Android has no other door — but the file is sliced first, so what is
+/// held in memory here is one chunk instead of the whole thing.
+///
+/// That is the whole change, and it is what lifts the 16 MB ceiling: the limit was never about
+/// how large an attachment ought to be, it was the point at which base64-in-a-JSON-argument
+/// stopped fitting. A slice is bounded, so the file need not be.
+///
+/// **`(async)` for the same reason every command here is**: see [`fm`]. A blocking one parks the
+/// page's JS thread, and an upload is exactly the situation where the user is watching.
+#[tauri::command(async)]
+fn fm_ingest_chunk(
+    session: String,
+    seq: u32,
+    vault: String,
+    data: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let app = vault_state(&app_handle)?;
+    let bytes = b64_decode(&data)
+        .ok_or_else(|| format!("upload {session}: chunk {seq} could not be decoded"))?;
+    let args = serde_json::json!({ "session": session, "seq": seq, "vault": vault });
+    let out = dispatch("ingest_chunk", &args, &bytes, &app, &MobileHost).inspect_err(|e| {
+        log::error!("ingest_chunk: {e}");
+    })?;
+    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
+}
+
+/// Assemble the session and write the asset note. No bytes cross here — they are already on disk.
+#[tauri::command(async)]
+fn fm_ingest_finish(
+    session: String,
+    name: String,
+    vault: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let app = vault_state(&app_handle)?;
+    let args = serde_json::json!({ "session": session, "name": name, "vault": vault });
+    let out = dispatch("ingest_finish", &args, &[], &app, &MobileHost).inspect_err(|e| {
+        log::error!("ingest_finish: {e}");
+    })?;
+    String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
+}
+
+/// Abandon an upload and reclaim its bytes now, rather than at the next boot sweep.
+#[tauri::command(async)]
+fn fm_ingest_cancel(
+    session: String,
+    vault: String,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let app = vault_state(&app_handle)?;
+    let args = serde_json::json!({ "session": session, "vault": vault });
+    let out = dispatch("ingest_cancel", &args, &[], &app, &MobileHost).inspect_err(|e| {
+        log::error!("ingest_cancel: {e}");
     })?;
     String::from_utf8(out.into_bytes()).map_err(|e| e.to_string())
 }
@@ -457,9 +598,37 @@ fn fm(
 /// persist a vault list at all. Tauri knows the platform's app-data directory, so the shell is
 /// the right place to supply it: it is exactly the kind of fact only the platform has, which is
 /// why it is set here rather than guessed inside `fm-app`.
-fn configure_paths(handle: &tauri::AppHandle) {
+fn configure_paths(handle: &tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
-    let Ok(dir) = handle.path().app_data_dir() else { return };
+    // **A silent early return produced a *wrong* screen, not a blank one** (fixed 2026-09-04).
+    //
+    // This was `let Ok(dir) = … else { return };`. With nothing set, `config_dir()` answers `None`,
+    // `App::load` succeeds with **zero vaults**, and the user meets the ordinary first-run form —
+    // whose `create_vault` then cannot persist anything, because there is nowhere to write the
+    // vault list. Indistinguishable from a fresh install, and every attempt to fix it by hand
+    // fails the same way.
+    //
+    // `install_logger()` runs immediately before this call, and its own doc says that ordering
+    // exists *"precisely so that everything after it — including its own failures — is visible"*.
+    // The infrastructure was there; nothing used it.
+    let dir = match handle.path().app_data_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            // **The environment may already have answered.** A desktop debug run of this library
+            // sets `FM_CONFIG_DIR` itself, and there `app_data_dir()` failing is not fatal — so
+            // the refusal is scoped to the case where nothing else has supplied a location.
+            if std::env::var_os("FM_CONFIG_DIR").is_some() {
+                log::warn!("no platform data directory ({e}) — using FM_CONFIG_DIR from the environment");
+                return Ok(());
+            }
+            let msg = format!(
+                "this device gave the app no data directory ({e}), so there is nowhere to keep a \
+                 vault. Notes cannot be created or opened until that is resolved."
+            );
+            log::error!("{msg}");
+            return Err(msg);
+        }
+    };
     let _ = std::fs::create_dir_all(&dir);
     // Safety: single-threaded, before any vault is opened. `set_var` is the only way to reach
     // `config_dir()`, which reads the environment by design so that the same code works under
@@ -498,7 +667,21 @@ fn configure_paths(handle: &tauri::AppHandle) {
             std::env::set_var("FM_VAULT", &vault);
         }
     }
+    // Load-bearing, like the `vaults ready` line in `boot`: `ci/android-smoke.sh` asserts this
+    // appears **before** it, which is what proves the paths were configured rather than skipped.
+    log::info!("vault root: {}", root.display());
+    Ok(())
 }
+
+/// Whether the paths were configured — set once, in `setup`, and read by every later `boot`.
+///
+/// **A log line alone would not have been enough.** Without this, `boot` still succeeds with zero
+/// vaults, `vault_state` clears its `last` error, and the message evaporates behind a first-run
+/// form the user cannot complete. The verdict has to outlive the log.
+///
+/// Only the *paths* verdict is once-only. Opening the vaults stays retryable, which is the whole
+/// reason `boot` is callable more than once.
+static PATHS: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
 
 /// Give the vendored OpenSSL a CA trust store, without which **every** HTTPS remote fails.
 ///
@@ -759,7 +942,9 @@ pub fn run() {
         .setup(|app| {
             // First, so that everything below is visible — including its own failures.
             install_logger();
-            configure_paths(app.handle());
+            // **Recorded, not just logged.** See `PATHS`: a device that gave us nowhere to write
+            // must not present a first-run form whose every button fails.
+            let _ = PATHS.set(configure_paths(app.handle()));
             // The git token, if this device has one. **Only ever reached here**: a desktop
             // delegates to git's credential helper and stores nothing, so this call is the
             // mobile half of that split (`fm_app::secrets`). Must run before the first sync,
@@ -791,9 +976,22 @@ pub fn run() {
                 req.method().as_str(),
                 &req.uri().to_string(),
                 req.body(),
+                // **Forwarded, because the handler cannot answer a seek without it.** Until
+                // 2026-09-04 this was not passed at all and the handler had no way to know.
+                req.headers()
+                    .get("Range")
+                    .and_then(|v| v.to_str().ok())
+                    .map(str::to_string),
             )
         })
-        .invoke_handler(tauri::generate_handler![fm, fm_ingest, fm_log])
+        .invoke_handler(tauri::generate_handler![
+            fm,
+            fm_ingest,
+            fm_ingest_chunk,
+            fm_ingest_finish,
+            fm_ingest_cancel,
+            fm_log
+        ])
         .build(tauri::generate_context!())
         .expect("error while running formicaria")
         .run(|_app, event| {

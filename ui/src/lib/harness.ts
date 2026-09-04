@@ -43,7 +43,8 @@ export interface CountingBridge {
   /// Total argument bytes for a given dispatch name (all of them, if omitted).
   bytes(cmd?: string): number;
   /// Bytes handed to `fm_ingest`, decoded back to the file they encode — so a test can assert
-  /// the photo arrived intact, which no test could observe before.
+  /// the photo arrived intact, which no test could observe before. A chunked upload contributes
+  /// one entry too, assembled from its slices at `fm_ingest_finish`.
   ingested: Uint8Array[];
   reset(): void;
 }
@@ -75,8 +76,44 @@ export function asPhone(): CountingBridge {
     },
   };
 
-  /// The shell's two commands, in the shapes `mobile/src-tauri/src/lib.rs` really exposes.
+  /// **The chunked upload path** (`fm_ingest_chunk` / `fm_ingest_finish` / `fm_ingest_cancel`),
+  /// modelled the way `fm_core::chunked` behaves rather than the way it is convenient to fake:
+  /// slices are appended in order and an out-of-order `seq` is **refused**, because a harness that
+  /// accepted one would let a frontend bug through that the device would reject.
+  const sessions = new Map<string, { parts: number[][]; next: number }>();
+
+  /// The shell's commands, in the shapes `mobile/src-tauri/src/lib.rs` really exposes.
   async function invoke(cmd: string, args: Record<string, unknown> = {}): Promise<string> {
+    if (cmd === 'fm_ingest_chunk') {
+      const { session, seq, data } = args as { session: string; seq: number; data: string };
+      const s = sessions.get(session) ?? { parts: [], next: 0 };
+      if (seq !== s.next) {
+        throw new Error(`upload '${session}' expected chunk ${s.next} and got ${seq}`);
+      }
+      s.parts.push(Array.from(decodeBase64(data)));
+      s.next += 1;
+      sessions.set(session, s);
+      calls.push({ cmd: 'ingest_chunk', bytes: JSON.stringify(args).length });
+      return JSON.stringify({ session, received: s.parts.flat().length });
+    }
+    if (cmd === 'fm_ingest_finish') {
+      const { session, name, vault } = args as { session: string; name: string; vault: string };
+      const s = sessions.get(session);
+      if (!s) throw new Error(`upload '${session}' has no bytes`);
+      sessions.delete(session);
+      // Assembled in order — which is the whole thing under test on this side: the file the
+      // vault ends up with must be the file that was chosen, in the right order.
+      const bytes = new Uint8Array(s.parts.flat());
+      ingested.push(bytes);
+      calls.push({ cmd: 'ingest_finish', bytes: JSON.stringify(args).length });
+      return JSON.stringify(await mock.handle('ingest', { name, vault, bytes }));
+    }
+    if (cmd === 'fm_ingest_cancel') {
+      const { session } = args as { session: string };
+      sessions.delete(session);
+      calls.push({ cmd: 'ingest_cancel', bytes: JSON.stringify(args).length });
+      return '';
+    }
     if (cmd === 'fm_ingest') {
       const { name, vault, data } = args as { name: string; vault: string; data: string };
       // The one place a test can see the bytes. `lib.rs` base64-decodes and hands them to

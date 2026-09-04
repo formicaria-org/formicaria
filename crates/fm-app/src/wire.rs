@@ -215,3 +215,199 @@ mod tests {
         assert_eq!(percent_decode("x%3Ay"), "x:y");
     }
 }
+
+/// Types safe to render as a top-level document, if someone navigates straight to a blob.
+///
+/// An allowlist, and deliberately not "everything except a deny-list": the set of things a browser
+/// will execute grows, and a new one must default to *download*, not to *render*. SVG is excluded
+/// on purpose — it is an image everywhere it matters (an `<img>` ignores the disposition and
+/// disables script inside it) and a scriptable document only here.
+///
+/// **Moved here from `fm-serve/src/blob.rs` on 2026-09-04**, with `parse_range`, because the phone
+/// needs both and had neither. The reasoning `blob.rs` gives is not desktop-specific: a blob is
+/// reachable as a same-origin URL, and **blobs arrive from collaborators through the merge driver**
+/// — so "someone else's file, served from your origin, opened as a document" is a hazard on every
+/// platform that serves one. Android had no `nosniff`, no CSP and no disposition at all.
+pub fn inline_safe(ctype: &str) -> bool {
+    let base = ctype.split(';').next().unwrap_or("").trim();
+    match base {
+        "image/svg+xml" => false,
+        "application/pdf" => true,
+        _ => {
+            base.starts_with("image/") || base.starts_with("video/") || base.starts_with("audio/")
+        }
+    }
+}
+
+/// Parse one `bytes=` range against a known length.
+///
+/// Three-valued on purpose, because HTTP distinguishes three outcomes and conflating them is how a
+/// seek silently returns the wrong bytes:
+/// - `None` — no range, or a syntax we don't implement (multi-range). Send the whole file; RFC 9110
+///   says an unsatisfiable *syntax* must be ignored, not rejected.
+/// - `Some(None)` — understood, but outside the file. That is a 416.
+/// - `Some(Some((start, end)))` — an inclusive byte range, clamped to the file.
+pub fn parse_range(header: &str, total: u64) -> Option<Option<(u64, u64)>> {
+    let spec = header.trim().strip_prefix("bytes=")?.trim();
+    // One range only. A multi-range request needs a multipart/byteranges body; no media element
+    // sends one, and answering it wrongly is worse than ignoring it.
+    if spec.contains(',') {
+        return None;
+    }
+    let (from, to) = spec.split_once('-')?;
+    let (from, to) = (from.trim(), to.trim());
+
+    if from.is_empty() {
+        // `bytes=-500` — the last 500 bytes. Zero is unsatisfiable, not "the whole file".
+        let n: u64 = to.parse().ok()?;
+        if n == 0 || total == 0 {
+            return Some(None);
+        }
+        return Some(Some((total.saturating_sub(n), total - 1)));
+    }
+
+    let start: u64 = from.parse().ok()?;
+    if start >= total {
+        return Some(None); // includes an empty file, where every range is unsatisfiable
+    }
+    let end = match to.is_empty() {
+        true => total - 1,
+        // Clamped: asking past the end is legal and means "to the end".
+        false => to.parse::<u64>().ok()?.min(total - 1),
+    };
+    if end < start {
+        return Some(None);
+    }
+    Some(Some((start, end)))
+}
+
+/// What a blob response should be, given the file's size and the request's `Range`.
+///
+/// **The whole decision, with no I/O and no HTTP type in sight** — so both transports can share it
+/// and the gate can test it. `fm-serve` writes a raw HTTP response; the phone builds a
+/// `tauri::http::Response`. Neither difference is a *policy* difference, and until 2026-09-04 the
+/// phone had no policy at all: it read the entire blob into a `Vec`, sent
+/// `application/octet-stream`, and honoured no `Range`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct BlobReply {
+    pub status: u16,
+    /// The inclusive byte window to read, or `None` for a 416 (nothing to send).
+    pub range: Option<(u64, u64)>,
+    /// `Content-Range`'s value, when one is owed.
+    pub content_range: Option<String>,
+    /// False when the type is not on the inline allowlist and must be sent as an attachment.
+    pub inline: bool,
+}
+
+/// Decide a blob response. `range` is the raw `Range` header, if the client sent one.
+pub fn blob_reply(total: u64, ctype: &str, range: Option<&str>) -> BlobReply {
+    let inline = inline_safe(ctype);
+    match range.and_then(|h| parse_range(h, total)) {
+        // Understood and unsatisfiable: 416, and RFC 9110 requires the total be disclosed.
+        Some(None) => BlobReply {
+            status: 416,
+            range: None,
+            content_range: Some(format!("bytes */{total}")),
+            inline,
+        },
+        Some(Some((start, end))) => BlobReply {
+            status: 206,
+            range: Some((start, end)),
+            content_range: Some(format!("bytes {start}-{end}/{total}")),
+            inline,
+        },
+        // No range, or a syntax we do not implement — send the whole thing.
+        None => BlobReply {
+            status: 200,
+            range: if total == 0 { None } else { Some((0, total - 1)) },
+            content_range: None,
+            inline,
+        },
+    }
+}
+
+#[cfg(test)]
+mod blob_reply_tests {
+    use super::{blob_reply, inline_safe, parse_range};
+
+    /// The three-valued contract, which is the whole reason `parse_range` is not a `bool` or an
+    /// `Option<(u64, u64)>`: HTTP distinguishes *no range*, *unsatisfiable range* and *a range*,
+    /// and collapsing any two of them is how a seek silently returns the wrong bytes.
+    #[test]
+    fn a_range_header_has_three_possible_meanings() {
+        // A range.
+        assert_eq!(parse_range("bytes=0-99", 1000), Some(Some((0, 99))));
+        // Open-ended means "to the end"; asking past the end is legal and clamps.
+        assert_eq!(parse_range("bytes=500-", 1000), Some(Some((500, 999))));
+        assert_eq!(parse_range("bytes=500-99999", 1000), Some(Some((500, 999))));
+        // A suffix range — the last N bytes, which is what a media element sends to read a
+        // trailing index.
+        assert_eq!(parse_range("bytes=-100", 1000), Some(Some((900, 999))));
+        // Understood and outside the file: a 416, not a 200.
+        assert_eq!(parse_range("bytes=1000-", 1000), Some(None));
+        assert_eq!(parse_range("bytes=-0", 1000), Some(None));
+        assert_eq!(parse_range("bytes=0-", 0), Some(None));
+        // Not understood: ignore it and send everything. RFC 9110 requires exactly this, and a
+        // multi-range request is the case that matters — answering one wrongly is worse than
+        // ignoring it, because no media element sends one.
+        assert_eq!(parse_range("bytes=0-9,20-29", 1000), None);
+        assert_eq!(parse_range("kilograms=0-9", 1000), None);
+        assert_eq!(parse_range("bytes=abc", 1000), None);
+    }
+
+    /// The allowlist defaults to *download*, and SVG is the case it exists for: an image
+    /// everywhere it matters, and a scriptable document only when navigated to directly.
+    #[test]
+    fn only_known_safe_types_render_as_a_document() {
+        assert!(inline_safe("image/png"));
+        assert!(inline_safe("video/mp4"));
+        assert!(inline_safe("audio/ogg"));
+        assert!(inline_safe("application/pdf"));
+        assert!(inline_safe("image/jpeg; charset=binary"), "parameters must not defeat it");
+
+        assert!(!inline_safe("image/svg+xml"), "scriptable when navigated to");
+        assert!(!inline_safe("text/html"));
+        assert!(!inline_safe("application/octet-stream"));
+        assert!(!inline_safe(""));
+    }
+
+    /// **The decision both transports now share.** Until 2026-09-04 the phone had none of this: it
+    /// read the whole blob into a `Vec`, sent `application/octet-stream`, and honoured no `Range`
+    /// — while its own comment claimed `<video>` could seek "without the file ever being held
+    /// whole in memory".
+    #[test]
+    fn a_blob_reply_answers_the_range_it_was_asked_for() {
+        // No range: the whole file, no Content-Range.
+        let r = blob_reply(1000, "video/mp4", None);
+        assert_eq!(r.status, 200);
+        assert_eq!(r.range, Some((0, 999)));
+        assert_eq!(r.content_range, None);
+        assert!(r.inline);
+
+        // A range: 206, the window, and the total disclosed.
+        let r = blob_reply(1000, "video/mp4", Some("bytes=100-199"));
+        assert_eq!(r.status, 206);
+        assert_eq!(r.range, Some((100, 199)));
+        assert_eq!(r.content_range.as_deref(), Some("bytes 100-199/1000"));
+
+        // Unsatisfiable: 416, nothing to read, and the total still disclosed — a client that
+        // guessed the length needs to learn the real one from the refusal.
+        let r = blob_reply(1000, "video/mp4", Some("bytes=5000-"));
+        assert_eq!(r.status, 416);
+        assert_eq!(r.range, None);
+        assert_eq!(r.content_range.as_deref(), Some("bytes */1000"));
+
+        // The type decides the disposition independently of the range.
+        assert!(!blob_reply(10, "image/svg+xml", None).inline);
+    }
+
+    /// An empty blob is not an error and has nothing to send. Worth pinning because
+    /// `total - 1` underflows on a `u64` and would panic in a release build's debug assertions —
+    /// or, worse, wrap to `u64::MAX` and ask for a read of the whole address space.
+    #[test]
+    fn an_empty_blob_has_no_bytes_to_send_and_does_not_underflow() {
+        let r = blob_reply(0, "application/octet-stream", None);
+        assert_eq!(r.status, 200);
+        assert_eq!(r.range, None, "there is no byte zero to send");
+    }
+}

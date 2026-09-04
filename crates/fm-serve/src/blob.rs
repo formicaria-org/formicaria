@@ -172,64 +172,19 @@ fn hung_up(e: io::Error) -> io::Result<()> {
     }
 }
 
-/// Types safe to render as a top-level document, if someone navigates straight to a blob.
+/// `inline_safe` and `parse_range` now live in [`fm_app::wire`], and this module uses that copy.
 ///
-/// An allowlist, and deliberately not "everything except a deny-list": the set of things a
-/// browser will execute grows, and a new one must default to *download*, not to *render*.
-/// SVG is excluded on purpose — it is an image everywhere it matters (an `<img>` ignores
-/// the disposition and disables script inside it) and a scriptable document only here.
-fn inline_safe(ctype: &str) -> bool {
-    let base = ctype.split(';').next().unwrap_or("").trim();
-    match base {
-        "image/svg+xml" => false,
-        "application/pdf" => true,
-        _ => {
-            base.starts_with("image/") || base.starts_with("video/") || base.starts_with("audio/")
-        }
-    }
-}
-
-/// Parse one `bytes=` range against a known length.
+/// **Moved on 2026-09-04 because the phone needed them and had neither.** `mobile/src-tauri` is
+/// excluded from the workspace, so anything written there is never compiled by
+/// `cargo test --workspace` — which is how its blob handler shipped with no `Range` support, no
+/// `nosniff`, no CSP and no disposition, while its own comment claimed it streamed. `wire.rs`'s
+/// header already argued for exactly this move: *"Moving the pure logic into the workspace is the
+/// cheap half of that problem: no second test runner, no Android toolchain in CI, the tests just
+/// run."*
 ///
-/// Three-valued on purpose, because HTTP distinguishes three outcomes and conflating them
-/// is how a seek silently returns the wrong bytes:
-/// - `None` — no range, or a syntax we don't implement (multi-range). Send the whole file;
-///   RFC 9110 says an unsatisfiable *syntax* must be ignored, not rejected.
-/// - `Some(None)` — understood, but outside the file. That is a 416.
-/// - `Some(Some((start, end)))` — an inclusive byte range, clamped to the file.
-fn parse_range(header: &str, total: u64) -> Option<Option<(u64, u64)>> {
-    let spec = header.trim().strip_prefix("bytes=")?.trim();
-    // One range only. A multi-range request needs a multipart/byteranges body; no media
-    // element sends one, and answering it wrongly is worse than ignoring it.
-    if spec.contains(',') {
-        return None;
-    }
-    let (from, to) = spec.split_once('-')?;
-    let (from, to) = (from.trim(), to.trim());
-
-    if from.is_empty() {
-        // `bytes=-500` — the last 500 bytes. Zero is unsatisfiable, not "the whole file".
-        let n: u64 = to.parse().ok()?;
-        if n == 0 || total == 0 {
-            return Some(None);
-        }
-        return Some(Some((total.saturating_sub(n), total - 1)));
-    }
-
-    let start: u64 = from.parse().ok()?;
-    if start >= total {
-        return Some(None); // includes an empty file, where every range is unsatisfiable
-    }
-    let end = match to.is_empty() {
-        true => total - 1,
-        // Clamped: asking past the end is legal and means "to the end".
-        false => to.parse::<u64>().ok()?.min(total - 1),
-    };
-    if end < start {
-        return Some(None);
-    }
-    Some(Some((start, end)))
-}
+/// The tests below stay here — they exercise this transport's own framing — and `wire.rs` carries
+/// the ones for the shared decision itself.
+use fm_app::wire::{inline_safe, parse_range};
 
 #[cfg(test)]
 mod tests {

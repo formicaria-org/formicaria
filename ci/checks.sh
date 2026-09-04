@@ -6,6 +6,37 @@
 
 fail=0
 
+echo "[check] the gate has the tools its tests need (or it silently proves nothing)..."
+# ---------------------------------------------------------------------------------------------
+# **97 tests in this repo skip rather than fail when a tool is missing**, and a run that skipped
+# them reports `ok` in exactly the same words as one that ran them. 72 of those turn on `git`, 7 on
+# `restic`, and `fm-core/tests/backup.rs` opens by quoting the module's own rule — *"an untested
+# backup is not a backup"* — while skipping seven of its own without it.
+#
+# The skipping itself is deliberate and right: `fetch.rs` states the reason plainly, *"a gate that
+# fails on a train is a gate people learn to ignore"*, and a contributor with no restic should still
+# get a useful local run. What was missing is anything that notices the difference. So the *skips*
+# stay soft and the *gate* gets loud: `pixi run ci` is the single gate, and a single gate that can
+# quietly cover a third of the suite is not one.
+#
+# `restic`, `poppler` and `libvips` come from `pixi.toml`'s default environment, so they are present
+# by construction. **`git` does not** — it is the system binary, deliberately, because git is a
+# capability and not a dependency (`decisions.md#git`). That is precisely the one that can go
+# missing on a fresh machine or in a bare container.
+#
+# This is the same principle as the comment-anchoring above: a guard that is disarmed by the
+# absence of a tool is worse than no guard, because it reads as protection.
+for tool in git restic pdftotext vipsthumbnail; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "  FAIL: '$tool' is not on PATH, so part of the suite would skip and still report ok."
+        case "$tool" in
+            git) echo "        git is not a pixi dependency (it is a capability, not a dependency)" ;;
+            *)   echo "        '$tool' comes from pixi.toml's default environment — are you inside 'pixi run'?" ;;
+        esac
+        fail=1
+    fi
+done
+
 echo "[check] seam: fm-query must not depend on a database crate..."
 if cargo tree -p fm-query 2>/dev/null | grep -Eiq 'rusqlite|libsqlite3|sqlx|diesel'; then
     echo "  FAIL: fm-query pulls in a storage crate — the query engine must stay storage-free."
@@ -225,6 +256,46 @@ for crate in libgit2-sys openssl-src; do
         fi
     fi
 done
+
+echo "[check] every bundled font family is named in the licence notices..."
+# The fonts are the one part of THIRD-PARTY.md that CANNOT be generated, and this is what
+# keeps that honest.
+#
+# `ui/scripts/copy-excalidraw-fonts.mjs` copies font families out of the
+# `@excalidraw/excalidraw` package into `ui/public/fonts/`, which Vite emits and
+# `crates/fm-serve/build.rs` bakes into the binary — so the `.woff2` files ship, and the OFL
+# requires its notice to travel with them. But the npm package ships those files with **no
+# licence metadata at all**: no `license` field, no LICENSE beside them, and upstream
+# Excalidraw carries none in its own `fonts/` directory either. There is nothing on disk to
+# read, so `ci/third-party.sh` types the table by hand from each font project upstream.
+#
+# A typed table goes stale the moment Excalidraw adds or renames a family — which is exactly
+# what the copier's own header warns about for the font *files*. So: the licences are typed,
+# and the **set of families** is asserted against what the copier would actually copy.
+#
+# Hermetic-skip when `ui/node_modules` is absent, like every other check here that needs an
+# installed tool: a fresh checkout must still be able to run the gate.
+fonts_dir=$(ls -d ui/node_modules/.pnpm/@excalidraw+excalidraw@*/node_modules/@excalidraw/excalidraw/dist/prod/fonts 2>/dev/null | head -1)
+if [ -n "$fonts_dir" ] && [ -d "$fonts_dir" ]; then
+    # SKIP is read from the copier rather than retyped, so the two cannot disagree about
+    # which families are deliberately left out.
+    skipped=$(sed -n "s/^const SKIP = new Set(\[\(.*\)\]);/\1/p" ui/scripts/copy-excalidraw-fonts.mjs \
+              | tr -d "'\"" | tr ',' '\n' | tr -d ' ')
+    for fam in $(ls "$fonts_dir"); do
+        case " $(echo $skipped) " in *" $fam "*) continue ;; esac
+        # The table's first column is the family; "Lilita" ships as "Lilita One", so match the
+        # row prefix rather than requiring the directory name to be the display name.
+        if ! grep -q "^    echo \"| $fam" ci/third-party.sh; then
+            echo "  FAIL: the whiteboard bundles the font family '$fam', and ci/third-party.sh"
+            echo "        has no row for it — so the binary would ship font files with no notice."
+            echo "        Find that family's upstream licence and add a row. Do not assume OFL:"
+            echo "        ComicShanns is MIT while every other family here is OFL-1.1."
+            fail=1
+        fi
+    done
+else
+    echo "  (skipped: ui/node_modules has no @excalidraw/excalidraw — run 'pnpm -C ui install')"
+fi
 
 echo "[check] TLS uses the ring backend, never aws-lc-rs (licence + toolchain)..."
 # `rustls` and `rcgen` both DEFAULT to `aws-lc-rs`, whose licence is
@@ -460,6 +531,60 @@ if [ -f ci/ios-package.sh ]; then
 else
     echo "  (skipped: ci/ios-package.sh not present)"
 fi
+
+echo "[check] every third-party action is pinned to a commit SHA..."
+# ---------------------------------------------------------------------------------------------
+# **A tag is a pointer its owner can move; a SHA is not.** `softprops/action-gh-release` runs in
+# `release.yml` holding `contents: write` — the one elevated scope in this repo — and on a public
+# repository the workflows are readable by anyone deciding whether they are worth attacking.
+# Pinning is cheap and the failure it prevents is total.
+#
+# **`actions/*` is exempt on purpose, not by oversight.** Those are GitHub's own, published from
+# the same platform that would have to be compromised to move the tag, so pinning them buys much
+# less and costs a Dependabot PR every month. If that judgement changes, delete the exemption —
+# but change it deliberately.
+#
+# `.github/dependabot.yml` keeps the pins current: a pin nobody updates ages past security fixes
+# and turns its own version comment into a lie.
+if ls .github/workflows/*.yml >/dev/null 2>&1; then
+    unpinned=$(grep -hoE 'uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+' .github/workflows/*.yml \
+               | grep -v '^uses: actions/' \
+               | grep -vE '@[0-9a-f]{40}$' || true)
+    if [ -n "$unpinned" ]; then
+        echo "  FAIL: a non-GitHub action is referenced by tag rather than by commit SHA:"
+        echo "$unpinned" | sed 's/^/          /'
+        echo "        Pin it: 'uses: owner/repo@<40-hex-sha> # vX.Y.Z'. Resolve the SHA with"
+        echo "          git ls-remote https://github.com/<owner>/<repo> refs/tags/<tag> 'refs/tags/<tag>^{}'"
+        echo "        taking the '^{}' line when there is one (an annotated tag)."
+        fail=1
+    fi
+fi
+
+echo "[check] no workflow has gained a push or pull_request trigger..."
+# ---------------------------------------------------------------------------------------------
+# **The one mistake in this area that costs money.** While the repo was private, restoring a
+# trigger billed minutes immediately — at 10x on macOS. That reason is going away (`decisions.md`,
+# *the repo goes public, and the economics every CI ruling rested on invert*, 2026-09-04) and the
+# trigger blocks are prepared, commented, in each workflow, ready to uncomment **after** the flip.
+#
+# Until then this guard exists so the change cannot happen by accident — a stray paste, a merge, a
+# half-applied patch. `release.yml` is the single named exception and is allowed its `v*` tags.
+#
+# **Delete this whole check when the triggers are restored.** It is scaffolding for one transition,
+# not a permanent rule, and leaving it behind would block the very commit it was written to
+# protect. That is deliberate: a guard that outlives its reason becomes a puzzle.
+for wf in .github/workflows/*.yml; do
+    case "$wf" in */release.yml) continue ;; esac
+    # Only the real `on:` block — comments are how the restoration instructions are stored, and a
+    # grep that could not tell them apart would fire on the instructions themselves.
+    if sed -n '/^on:/,/^[a-z]/p' "$wf" | grep -qE '^\s+(push|pull_request):'; then
+        echo "  FAIL: $wf has an active push/pull_request trigger."
+        echo "        Nothing here is meant to fire automatically until the repo is public and the"
+        echo "        owner restores the triggers deliberately. If that has happened, this check"
+        echo "        has done its job and should be deleted along with the comment above it."
+        fail=1
+    fi
+done
 
 echo "[check] every setup-pixi block pins pixi-version (an unpinned one misses the cache every run)..."
 # **This is the difference between a warm environment and rebuilding it every job.**
@@ -1165,6 +1290,29 @@ done
 # `./fm-serve` that moved into `program/` in August, and an `xattr` instruction that exists nowhere
 # else in the project. The guard above covers `README-release.txt` and stopped ten lines short of
 # the file more people read.
+echo "[check] the command reference documents every dispatch arm..."
+# ---------------------------------------------------------------------------------------------
+# `reference/commands.md` calls itself the full list, and for years it was not: 81 arms, 41
+# documented. A reference that is *nearly* complete is one a reader stops trusting, and the way
+# it got there is the ordinary way — each new command was justified locally and nothing checked
+# the sum. So the sum is checked here.
+#
+# Matched on the arm name appearing anywhere in backticks in the document, not on a table row:
+# several commands are documented in a shared row (`set_restic_password` / `clear_restic_password`),
+# and forcing one row each would be a formatting rule pretending to be a correctness one.
+arms=$(awk 'NR>=505 && /^        "[a-z_0-9]+"( \| "[a-z_0-9]+")* =>/' crates/fm-app/src/dispatch.rs \
+       | sed 's/=>.*//' | grep -oE '"[a-z_0-9]+"' | tr -d '"' | sort -u)
+missing=
+for arm in $arms; do
+    grep -qF "\`$arm\`" docs/src/reference/commands.md || missing="$missing $arm"
+done
+if [ -n "$missing" ]; then
+    echo "  FAIL: dispatch has arms the command reference never mentions:$missing"
+    echo "        docs/src/reference/commands.md says it is the full list. Add a row (or fold the"
+    echo "        command into an existing row) so that stays true."
+    fail=1
+fi
+
 echo "[check] README.md points at the app that actually ships..."
 if grep -q 'singhbal-baljinder/formicaria' README.md; then
     echo "  FAIL: README.md links to github.com/singhbal-baljinder/formicaria."

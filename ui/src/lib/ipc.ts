@@ -24,6 +24,7 @@ import type {
   ConflictInfo,
   DuplicateFamily,
   Unrecorded,
+  LatestBackup,
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
@@ -614,6 +615,43 @@ export const openExternal = (reference: string) =>
 /// buys the headroom to do it properly. Recorded in `known-issues.md`.
 const MAX_INGEST = 16 * 1024 * 1024;
 
+/// How much of a file goes in one chunked message.
+///
+/// **Well under `MAX_INGEST`, and that is the point.** The ceiling above is where base64 in a
+/// JSON argument stops fitting; a slice this size is nowhere near it, so the transient peak stops
+/// scaling with the file. 2 MB is ~2.7 MB base64 — small enough that a dozen live copies are
+/// still nothing, large enough that a 200 MB video is a hundred messages rather than thousands.
+///
+/// Kept below `fm_core::chunked::MAX_CHUNK` (4 MB), which refuses anything larger. That limit
+/// exists precisely so a frontend cannot reintroduce the problem by calling the whole file
+/// "chunk 0".
+const CHUNK = 2 * 1024 * 1024;
+
+/// A `Blob` slice as standard base64, without the `data:` prefix.
+///
+/// Same `FileReader` reasoning as `base64` below: spreading a multi-megabyte array into
+/// `String.fromCharCode(...)` throws `RangeError` on exactly the sizes worth sending.
+function base64Slice(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error('could not read part of the file'));
+    r.onload = () => {
+      const t = String(r.result);
+      const comma = t.indexOf(',');
+      resolve(comma >= 0 ? t.slice(comma + 1) : t);
+    };
+    r.readAsDataURL(blob);
+  });
+}
+
+/// An id for one upload. Letters, digits and `-` only — `fm_core::chunked` validates it as a path
+/// segment and **refuses** anything else rather than rewriting it, so a generated id must already
+/// be in that alphabet.
+function uploadId(): string {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `u${Date.now().toString(36)}-${rand}`;
+}
+
 /// A `File` as standard base64, without the `data:` prefix.
 ///
 /// `FileReader` rather than `btoa(String.fromCharCode(...bytes))`: spreading a multi-megabyte
@@ -652,15 +690,42 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
     //
     // The cost is real — about a third more bytes, and a few copies — and it is the price of the
     // media arriving at all.
-    if (file.size > MAX_INGEST) {
-      throw new Error(
-        `${file.name} is ${Math.round(file.size / 1e6)} MB. On Android a file is carried inside a ` +
-          `text message to the app, so ${Math.round(MAX_INGEST / 1e6)} MB is the ceiling — ` +
-          `attach it from the desktop, where there is no such limit.`,
-      );
+    // **Over the single-shot ceiling, the file is sliced instead of refused** (2026-09-04).
+    //
+    // The ceiling was never a judgement about attachment size: it is where base64 in a JSON
+    // argument, copied several times between here and Rust, stops fitting on a phone —
+    // `outstanding.md` §1.3 called it *"a memory limit wearing a size limit's clothes"*, and it
+    // is what refused video. Chunking bounds the transient at one slice whatever the file
+    // weighs, and the blob is stored from the assembled file by `BlobStore::put_file`, which
+    // already streams and hashes in 64 KB reads.
+    //
+    // **Small files still take the single-shot path.** One message is cheaper than five, and the
+    // path that carries every photo anyone has ever taken with this app should not be rerouted
+    // through new code for no gain.
+    if (file.size <= MAX_INGEST) {
+      const data = await base64(file);
+      return shellInvoke<ObjectMeta>('fm_ingest', { name: file.name, vault, data });
     }
-    const data = await base64(file);
-    return shellInvoke<ObjectMeta>('fm_ingest', { name: file.name, vault, data });
+    const session = uploadId();
+    try {
+      let seq = 0;
+      for (let at = 0; at < file.size; at += CHUNK) {
+        const data = await base64Slice(file.slice(at, Math.min(at + CHUNK, file.size)));
+        // Sequential and awaited, deliberately. The backend checks `seq` and refuses a gap, so
+        // firing these in parallel would race them into a refusal — and the point of chunking is
+        // to hold one slice at a time, which parallel sends undo.
+        await shellInvoke<string>('fm_ingest_chunk', { session, seq, vault, data });
+        seq += 1;
+      }
+      return shellInvoke<ObjectMeta>('fm_ingest_finish', { session, name: file.name, vault });
+    } catch (e) {
+      // **Reclaim the bytes now.** A failed upload on a phone otherwise leaves its slices in
+      // app-private storage until the next boot sweep, which on a device someone leaves running
+      // is a long time to hold a partial video. Best-effort: the original error is what the user
+      // needs to see, so a failed cleanup must not replace it.
+      await shellInvoke<void>('fm_ingest_cancel', { session, vault }).catch(() => {});
+      throw e;
+    }
   }
   if (import.meta.env.PROD) {
     const q = `name=${encodeURIComponent(file.name)}&vault=${encodeURIComponent(vault)}`;
@@ -688,6 +753,16 @@ export const commit = (message: string, vault = '') =>
  *  repo is per repository — there is no one destination a set of vaults could share. */
 export const backup = (vault = '') => invoke<void>('backup', { vault });
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
+
+/** When this vault's media was last snapshotted, and what that snapshot covered.
+ *
+ *  **Deliberately not part of `backupStatus`.** That one polls every 45 s and already spawns a
+ *  process per vault; this spawns another and may be a network round trip, so it is asked when
+ *  someone opens the panel rather than on a timer. `unavailable` carries the reason when there is
+ *  no answer to be had — which is not the same as `id: null`, meaning the repo opened and has
+ *  never been written to. */
+export const backupLatest = (vault = '') =>
+  invoke<LatestBackup>('backup_latest', { vault });
 
 /** Point one vault's media backup at a restic repository — a path, or an `s3:`/`sftp:` URL.
  *

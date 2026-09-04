@@ -1155,3 +1155,67 @@ fn the_whole_record_composes_into_one_well_formed_message() {
     assert_eq!(read("Consent"), "local,publish");
     assert_eq!(read("Tool"), "transcribe");
 }
+
+/// **A proposal its author turned down must never be merged into `main`.**
+///
+/// This is the state a peer's reject leaves on *our* machine, and it is not exotic: `reject_proposal`
+/// deletes the branch only where it runs. The rejecter's note arrives on our next pull marked
+/// `declined`, while `refs/heads/proposal/<id>` — our own local branch — survives, because no fetch
+/// flag touches a local head. `retire_settled_proposals` does sweep it, but only when the guardrail
+/// ceiling is checked, i.e. when a *new* proposal is created. Between the pull and that moment,
+/// `accept_proposal` used to merge withdrawn text straight into `main`.
+///
+/// **The second assertion is the one that matters.** A test that only checked the error type would
+/// still pass against a guard placed *after* the merge — so this reads `main` and requires the
+/// proposed text to be absent from it.
+#[test]
+fn accepting_a_proposal_that_was_turned_down_is_refused_and_main_is_untouched() {
+    if !have_git() {
+        return;
+    }
+    let (dir, mut store, target) = vault_with_a_note();
+    let p = dir.path();
+
+    let prop = commands::create_proposal(
+        &mut store,
+        p,
+        &target,
+        "the withdrawn text",
+        &ProposalLimits::default(),
+        None,
+        commands::Record::default(),
+    )
+    .unwrap();
+
+    // Exactly what a peer's reject leaves behind: the note says declined, our branch does not know.
+    let mut obj = fm_core::Store::get(&store, prop.id.parse().unwrap())
+        .unwrap()
+        .unwrap();
+    obj.extra.insert(
+        fm_app::thread::DECLINED.into(),
+        fm_model::PropertyValue::Bool(true),
+    );
+    fm_core::Store::put(&mut store, &obj).unwrap();
+
+    let err = commands::accept_proposal(&store, p, &prop.id)
+        .expect_err("a declined proposal must not be accepted");
+    let msg = format!("{err}");
+    assert!(msg.contains("turned down"), "the refusal must say why: {msg}");
+    assert!(msg.contains("not touched"), "and that main is safe: {msg}");
+
+    // **The assertion the guard exists for.** Read `main` itself, not the return value.
+    let head = String::from_utf8_lossy(
+        &Command::new("git")
+            .arg("-C")
+            .arg(p)
+            .args(["show", &format!("HEAD:notes/{target}.md")])
+            .output()
+            .unwrap()
+            .stdout,
+    )
+    .to_string();
+    assert!(
+        !head.contains("the withdrawn text"),
+        "the rejected text reached main:\n{head}"
+    );
+}

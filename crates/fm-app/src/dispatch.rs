@@ -208,6 +208,23 @@ impl App {
                 );
             }
         }
+        // **Sweep abandoned chunked uploads, here, for the same reason as the block above.**
+        //
+        // A process killed mid-upload leaves a session directory behind (`fm_core::chunked`), and
+        // on a phone that is not an edge case — Android kills backgrounded apps whenever it
+        // likes, which is precisely why the write-record above has to be rebuilt at all. Open is
+        // the one moment nothing is in flight, so it is where the leftovers go.
+        //
+        // Age-based, never "delete everything": two uploads can be live across a restart on a
+        // device with a paired tablet, and collecting one of those would turn a survivable
+        // interruption into a failed upload. Best-effort — a session that will not delete is disk
+        // to reclaim, not a reason to refuse to start.
+        for cfg in &vaults {
+            let swept = fm_core::chunked::sweep(&cfg.path);
+            if swept > 0 {
+                eprintln!("note: swept {swept} abandoned upload(s) in '{}'", cfg.name);
+            }
+        }
         // Flattened to strings here on purpose: this is the startup log line, which wants
         // one readable sentence per note. The structured form is what rides the heartbeat.
         let skipped = store
@@ -244,8 +261,51 @@ impl App {
         Ok(self.lock()?.configs())
     }
 
+    /// The vault guard, **recovering from a poisoned mutex rather than propagating it**.
+    ///
+    /// A `PoisonError` means some earlier call panicked while holding this guard. Propagating it
+    /// bricked the whole process: every command afterwards answered with the `Display` of a
+    /// `PoisonError`, which is not a sentence anyone can act on, and there is no path back except
+    /// restarting the app. That is not hypothetical — `paper.rs` records one multi-byte character
+    /// in one PDF doing exactly this. The agent thread and the webview both dispatch, so a panic
+    /// in either used to poison both.
+    ///
+    /// **Is the poisoning load-bearing? No, and the argument is worth keeping.** Poisoning guards
+    /// against reading torn state, and there is one torn state to worry about: `Vaults::add` pushes
+    /// to `all` and `list` in turn, and its own doc says that is "so `store` and `list` cannot
+    /// disagree". But both halves are *reconstructions of on-disk truth* — `list` mirrors
+    /// `vaults.json`, which `import_into_new_vault` deliberately writes **before** memory ("JSON
+    /// before memory, so a failed write never leaves a vault that vanishes on restart"), and `all`
+    /// is an index over files that `reindex` rebuilds. So the worst case here is a transient
+    /// in-memory disagreement that a restart fixes, weighed against a process that answers nothing
+    /// until it is restarted anyway.
+    ///
+    /// **Recovery must be loud, or a panic becomes invisible** — which would be a worse bug than
+    /// the one this fixes. Logged once per recovery, not once per call.
     fn lock(&self) -> Result<MutexGuard<'_, Vaults>, String> {
-        self.vaults.lock().map_err(|e| e.to_string())
+        match self.vaults.lock() {
+            Ok(g) => Ok(g),
+            Err(poisoned) => {
+                eprintln!(
+                    "warning: recovering the vault lock after an earlier panic — some command \
+                     failed part-way through. Your notes are files and are not at risk, but if \
+                     anything looks wrong, restart the app."
+                );
+                Ok(poisoned.into_inner())
+            }
+        }
+    }
+
+    /// Panic while holding the vault guard, so a test can prove recovery works.
+    ///
+    /// `catch_unwind` keeps the panic inside this call — the point is to leave the mutex poisoned,
+    /// not to fail the test that arms it.
+    #[cfg(test)]
+    pub(crate) fn poison_for_test(&self) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _g = self.vaults.lock().expect("not yet poisoned");
+            panic!("deliberately poisoning the vault mutex");
+        }));
     }
 }
 
@@ -482,6 +542,10 @@ const READ_ONLY: &[&str] = &[
     // vault had changed, so each refetched its whole workspace for nothing.
     "paper_bibtex",
     "backup_status",
+    // A `restic snapshots` and nothing else. It changes no vault, so bumping the generation for
+    // it would tell every connected client the vault moved because somebody opened a panel —
+    // exactly the `paper_bibtex` lesson.
+    "backup_latest",
     "ping",
     "read_skipped",
     "list_vaults",
@@ -872,11 +936,26 @@ fn dispatch_inner(
                     s
                 }
             };
+            // **The revwalk runs with the guard dropped.** This arm is among the first things the
+            // UI's first `refresh()` fires, and it used to hold the vault lock across one `git log`
+            // per vault — so on a cold start every other command queued behind a year of history.
+            // The git half needs no store and the resolution needs no git, so they are separated:
+            // `vcs::activity` here, `commands::resolve_touches` after the guard is re-taken.
+            //
+            // Fail-fast is preserved deliberately: one vault's git erroring still fails the whole
+            // command, as it did before.
+            let vaults = lock()?.configs();
+            let mut touched = Vec::new();
+            for cfg in &vaults {
+                touched.push((cfg.clone(), vcs::activity(&cfg.path, &since).map_err(err)?));
+            }
+
             let mut g = lock()?;
             let mut all = Vec::new();
-            for cfg in g.configs() {
-                all.extend(commands::activity(&g.store(scope), &cfg.path, &since).map_err(err)?);
+            for (_cfg, touches) in touched {
+                all.extend(commands::resolve_touches(&g.store(scope), touches).map_err(err)?);
             }
+            drop(g);
             all.sort_by(|a, b| b.time.cmp(&a.time));
             json(all)
         }
@@ -1358,6 +1437,9 @@ fn dispatch_inner(
         // What the two backup tiers would actually do right now — the panel needs
         // this to promise the user only what it can deliver.
         "backup_status" => json(backup_status(app)?),
+        // **"When did this last work?"** — deliberately separate from `backup_status`, which
+        // polls. See `backup_latest`.
+        "backup_latest" => json(backup_latest(app, scope, &s("vault"))?),
         // The identity rides along because this is the one moment it is worth
         // asking for: a vault gaining a remote is a vault gaining an audience, and
         // from here on every commit carries a name into somebody else's clone.
@@ -1914,6 +1996,49 @@ fn dispatch_inner(
                 .ok_or_else(|| format!("no view named '{name}'"))?;
             json(crate::views::run_view(&g.store(scope), &vault_path, &name).map_err(err)?)
         }
+        // **Chunked upload, one slice at a time.** The raw `body` is this chunk; `session` and
+        // `seq` say which upload and which position. See `fm_core::chunked` for why the session
+        // lives at `<vault>/.fm-ingest/` and why `seq` is checked rather than trusted.
+        //
+        // Bounds the transient at one chunk regardless of the file's size, which is what lifts
+        // the 16 MB ceiling `ingest` below still needs — that one holds the whole file in memory
+        // several times over, so its limit is a memory limit wearing a size limit's clothes.
+        "ingest_chunk" => {
+            let session = s("session");
+            let seq = args.get("seq").and_then(Value::as_u64).unwrap_or(0) as u32;
+            let g = lock()?;
+            let into = g.config(scope, &s("vault"))?;
+            let total = fm_core::chunked::append(&into.path, &session, seq, body).map_err(err)?;
+            // The running total is the caller's progress bar and its correctness check: a
+            // frontend that has sent more than the file weighs knows something went wrong
+            // without waiting for the finish.
+            json(serde_json::json!({ "session": session, "received": total }))
+        }
+        // Assemble, ingest, and write the asset note — the same note `ingest` writes, from the
+        // same function, because the only real difference between the two paths is how the bytes
+        // arrived.
+        "ingest_finish" => {
+            let name = {
+                let n = s("name");
+                if n.is_empty() { "asset".to_string() } else { n }
+            };
+            json(ingest_unlocked(
+                app,
+                scope,
+                &s("vault"),
+                &name,
+                IngestSource::Session(&s("session")),
+            )?)
+        }
+        // Abandon an upload and reclaim its bytes — what a cancel button calls. Not required for
+        // correctness (the sweep would get it) and offered anyway, because "cancel" that leaves
+        // a gigabyte on a phone until tomorrow is not a cancel.
+        "ingest_cancel" => {
+            let g = lock()?;
+            let into = g.config(scope, &s("vault"))?;
+            fm_core::chunked::discard(&into.path, &s("session")).map_err(err)?;
+            nothing()
+        }
         // Binary upload: the raw `body` IS the file, which is exactly why its name and
         // vault arrive as `args` rather than in it.
         "ingest" => {
@@ -1946,12 +2071,13 @@ fn dispatch_inner(
                      the vault; this is a transport problem, not a problem with the file."
                 ));
             }
-            let mut g = lock()?;
-            let into = g.config(scope, &s("vault"))?;
-            json(
-                commands::ingest(&mut g.store(scope), &into.path, &into.name, &name, body)
-                    .map_err(err)?,
-            )
+            json(ingest_unlocked(
+                app,
+                scope,
+                &s("vault"),
+                &name,
+                IngestSource::Bytes(body),
+            )?)
         }
         // Copy a note into another vault. Restrictive by default (only the prose travels);
         // `with_assets` opts in to carrying the first-degree blobs. Validate the target up
@@ -2557,6 +2683,86 @@ struct BackupStatus {
     restic_password_set: bool,
 }
 
+/// When a vault's media was last snapshotted, and what that snapshot covered.
+///
+/// **Its own command, not a field on [`VaultStatus`].** `backup_status` is polled every 45 s and
+/// already shells out per vault; asking restic for the latest snapshot costs another spawn each
+/// time, and a `restic snapshots` against a network repo is a round trip. So the one fact a person
+/// actually wants from a backup panel — *when did this last work* — is fetched when a human is
+/// looking at it, not on a timer.
+#[derive(serde::Serialize)]
+struct LatestBackup {
+    /// The vault this is about, echoed back so a caller can key several answers.
+    vault: String,
+    /// Restic's short snapshot id, or null when the repo has no `fm`-tagged snapshot yet.
+    /// **Null is not an error**: a freshly configured repo has never been written to, and saying
+    /// "never" is the useful answer rather than a failure.
+    id: Option<String>,
+    /// When it was taken, in restic's own words — an RFC 3339 stamp. Null with `id`.
+    time: Option<String>,
+    /// The **source** paths it recorded, absolute on whatever machine took it. Worth reporting
+    /// because a snapshot taken on another device names that device's paths, and a restore that
+    /// silently used them is the failure this makes visible before it happens.
+    paths: Vec<String>,
+    /// Why there is no answer, when there is none to be had — no restic, no repo, no password.
+    /// Distinguished from `id: null` on purpose: *"never backed up"* and *"this machine cannot
+    /// tell you"* are different sentences to put in front of someone.
+    unavailable: Option<String>,
+}
+
+/// The read behind *"last backed up at"*.
+///
+/// `fm_core::backup::latest()` has returned the newest `fm`-tagged snapshot since the tier was
+/// built, and until now **no command exposed it** — so the fact could not be shown at any price.
+fn backup_latest(app: &App, scope: &Scope, vault: &str) -> Result<LatestBackup, String> {
+    let v = app.lock()?.config(scope, vault)?;
+    let unavailable = |why: &str| LatestBackup {
+        vault: v.name.clone(),
+        id: None,
+        time: None,
+        paths: Vec::new(),
+        unavailable: Some(why.to_string()),
+    };
+    if !backup::available() {
+        return Ok(unavailable(
+            "restic is not installed on this machine, so it cannot say when this vault was last \
+             backed up",
+        ));
+    }
+    let Some(repo) = v.restic.clone() else {
+        return Ok(unavailable(
+            "this vault has no media-backup repository configured, so there is nothing to ask",
+        ));
+    };
+    let Some(password) = crate::secrets::restic_password() else {
+        return Ok(unavailable(
+            "no restic password is set on this machine, so the repository cannot be opened",
+        ));
+    };
+    // A failure here is reported, not raised: an unreachable repo is an ordinary Tuesday for a
+    // backup destination on another machine, and a panel that throws on it tells the user less
+    // than one that says which repo it could not reach.
+    match backup::latest(Path::new(&repo), &password) {
+        Ok(Some(snap)) => Ok(LatestBackup {
+            vault: v.name.clone(),
+            id: Some(snap.id),
+            time: Some(snap.time),
+            paths: snap.paths.iter().map(|p| p.display().to_string()).collect(),
+            unavailable: None,
+        }),
+        // The repo opened and holds no `fm`-tagged snapshot. **"Never" is an answer**, and it is
+        // the one that should worry somebody, so it is not folded into `unavailable`.
+        Ok(None) => Ok(LatestBackup {
+            vault: v.name.clone(),
+            id: None,
+            time: None,
+            paths: Vec::new(),
+            unavailable: None,
+        }),
+        Err(e) => Ok(unavailable(&format!("could not read {repo}: {e}"))),
+    }
+}
+
 fn backup_status(app: &App) -> Result<BackupStatus, String> {
     // One password for every repo. A per-vault password would have to live somewhere,
     // and the one place it must never live is the config file next to the paths.
@@ -2597,6 +2803,72 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
         restic: has_restic,
         restic_password_set: has_password,
     })
+}
+
+/// Ingest bytes into a vault **without holding the vault lock across the subprocesses**.
+///
+/// `fm_core::ingest` shells out twice per file — `pdftotext` for the searchable text and
+/// `vipsthumbnail` for the preview — and both used to run with the global guard held. A bulk
+/// import therefore froze every tab, every pane and the phone's whole UI for as long as it took;
+/// the estimate on the record is 25–40 minutes for 5,000 PDFs. `papers-plan.md` B5 named it, and
+/// `ingest_finish` (added 2026-09-04 for chunked ingest) inherited it — which is the worse half,
+/// since that path exists precisely for large, slow files.
+///
+/// The shape is `run_import`'s, and so is the rule it turns on: **re-resolve the vault after
+/// re-taking the guard.** The work between can take minutes, and if the vault was forgotten or
+/// moved meanwhile, writing the note to the path we remember would put it somewhere nothing is
+/// watching. The blobs are already in the old path either way, so the refusal says where they are.
+fn ingest_unlocked(
+    app: &App,
+    scope: &Scope,
+    vault: &str,
+    filename: &str,
+    from: IngestSource<'_>,
+) -> Result<crate::dto::ObjectMeta, String> {
+    // Resolve, then drop the guard: everything below spawns processes.
+    let cfg = app.lock()?.config(scope, vault)?;
+
+    let ing = match from {
+        IngestSource::Bytes(body) => fm_core::ingest::ingest_bytes(&cfg.path, filename, body),
+        IngestSource::Session(session) => {
+            let part = fm_core::chunked::assembled(&cfg.path, session).map_err(|e| e.to_string())?;
+            fm_core::ingest_file_named(&cfg.path, &part, filename)
+        }
+    }
+    .map_err(|e| e.to_string())?;
+    // Best-effort, exactly as `asset_note` treats it — and this is the second subprocess. Doing it
+    // here rather than leaving it to `asset_note` is the whole point; `ingest::thumbnail` returns
+    // early when the file already exists, so the call inside `asset_note` costs a `stat`.
+    let _ = fm_core::ingest::thumbnail(&cfg.path, &ing.hash);
+
+    let mut g = app.lock()?;
+    let now = g.config(scope, vault)?;
+    if now.path != cfg.path {
+        return Err(format!(
+            "'{}' moved while the file was being read, so no note was written for it. The bytes \
+             are already stored in {}.",
+            cfg.name,
+            cfg.path.display()
+        ));
+    }
+    let (path, name) = (now.path.clone(), now.name.clone());
+    let meta = commands::asset_note(&mut g.store(scope), &path, &name, &ing)
+        .map_err(|e| e.to_string())?;
+    drop(g);
+
+    if let IngestSource::Session(session) = from {
+        // Only on success: a failed ingest leaves the slices where they are so the finish can be
+        // retried without re-uploading, and the boot sweep collects them if nobody does.
+        let _ = fm_core::chunked::discard(&cfg.path, session);
+    }
+    Ok(meta)
+}
+
+/// Where the bytes for an ingest come from — in memory, or already assembled on disk.
+#[derive(Clone, Copy)]
+enum IngestSource<'a> {
+    Bytes(&'a [u8]),
+    Session(&'a str),
 }
 
 /// The media tier, for **one** vault — snapshot it into *its own* restic repo.
@@ -3490,4 +3762,247 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
             identity: vcs::identity(&e.path),
         })
         .collect()
+}
+
+/// **The first tests this module has ever had** (2026-09-04).
+///
+/// `dispatch.rs` is the one command surface — every frontend goes through it — and it contained
+/// **zero** `#[test]`. The layer below is well covered (`fm-core`'s six real-`restic` tests) and
+/// the layer above is covered by mocks; the seam between them was where nothing looked. These
+/// start with the backup arms, which is where `outstanding.md` §2.10 says the blindness costs
+/// most: nothing asserted `backup_status`'s shape, and nothing drove the `backup` arm's refusals.
+///
+/// **None of these needs restic installed.** They exercise the refusals and the reported shape,
+/// which are exactly the paths that run on a machine that has *not* got everything set up — the
+/// machine most likely to be told something wrong.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::vaults::VaultConfig;
+    use fm_core::MultiStore;
+
+    /// **`FM_CONFIG_DIR`, `XDG_CONFIG_HOME` and the stored password are process-global.** Cargo
+    /// runs these on many threads in one process, so without this they race: one test clears the
+    /// password while another is asserting it is set. Same reason and same shape as
+    /// `secrets.rs`'s own `ENV` lock and `backup_records_everything.rs`'s.
+    /// `unwrap_or_else(|e| e.into_inner())` so one panic does not poison the mutex and turn a
+    /// single failure into every failure.
+    static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    struct NoHost;
+    impl Host for NoHost {
+        fn open_external(&self, _p: &Path) -> Result<(), String> {
+            Err("not in a test".into())
+        }
+    }
+
+    /// An app with one real vault directory, its config isolated in a tempdir.
+    ///
+    /// Returns the `TempDir`s so the caller holds them: dropping one deletes the directory the
+    /// app is pointing at, which produces failures that look like bugs in the code under test.
+    fn app_with_vault(restic: Option<&str>) -> (tempfile::TempDir, tempfile::TempDir, App) {
+        let home = tempfile::tempdir().unwrap();
+        let vault = tempfile::tempdir().unwrap();
+        std::env::set_var("FM_CONFIG_DIR", home.path());
+        std::env::set_var("XDG_CONFIG_HOME", home.path());
+        let list = vec![VaultConfig {
+            name: "notes".into(),
+            path: vault.path().to_path_buf(),
+            restic: restic.map(str::to_string),
+        }];
+        let store =
+            MultiStore::open(&[("notes".to_string(), vault.path().to_path_buf())]).unwrap();
+        let app = App::new(store, list, Some(home.path().join("vaults.json")), true);
+        (home, vault, app)
+    }
+
+    fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<String, String> {
+        dispatch(cmd, &args, &[], app, &NoHost)
+            .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+    }
+
+    /// **The password is reported as a bool and never by value**, and the three conditions behind
+    /// `restic_ready` are reported separately so a panel can name which one is missing.
+    ///
+    /// The value assertion is the one that matters and it is deliberately a search of the whole
+    /// serialized response, not of one field: a leak would arrive as a *new* field somebody added
+    /// without thinking, and a test that only checks the fields it knows about cannot see that.
+    #[test]
+    fn backup_status_reports_the_password_as_a_bool_and_never_its_value() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let secret = "correct horse battery staple";
+        let (_home, _vault, app) = app_with_vault(Some("/tmp/no-such-restic-repo"));
+        crate::secrets::save_restic_password(secret).unwrap();
+
+        let out = call(&app, "backup_status", serde_json::json!({})).unwrap();
+        assert!(
+            !out.contains(secret),
+            "the restic password must never cross the wire: {out}"
+        );
+        assert!(out.contains("\"restic_password_set\":true"), "{out}");
+        // Reported per vault, and separately from the machine-wide facts.
+        assert!(out.contains("\"restic_repo\":\"/tmp/no-such-restic-repo\""), "{out}");
+
+        crate::secrets::clear_restic_password().unwrap();
+        let out = call(&app, "backup_status", serde_json::json!({})).unwrap();
+        assert!(out.contains("\"restic_password_set\":false"), "{out}");
+        // **All three conditions, so "ready" means "will work".** With the password gone it must
+        // be false even though restic may well be installed and the repo is still configured.
+        assert!(out.contains("\"restic_ready\":false"), "{out}");
+    }
+
+    /// The `backup` arm's two refusals, which had never been driven.
+    ///
+    /// Both must name the vault and say what is missing: a backup that declines silently, or with
+    /// a generic message, is one somebody assumes ran.
+    #[test]
+    fn backup_refuses_without_a_repo_and_without_a_password() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+
+        // No repo configured for this vault.
+        let (_home, _vault, app) = app_with_vault(None);
+        crate::secrets::save_restic_password("irrelevant here").unwrap();
+        let e = call(&app, "backup", serde_json::json!({ "vault": "notes" })).unwrap_err();
+        assert!(e.contains("no restic repo configured"), "{e}");
+        assert!(e.contains("notes"), "the refusal must name the vault: {e}");
+
+        // A repo, but no password to open it with.
+        crate::secrets::clear_restic_password().unwrap();
+        let (_home2, _vault2, app) = app_with_vault(Some("/tmp/no-such-restic-repo"));
+        let e = call(&app, "backup", serde_json::json!({ "vault": "notes" })).unwrap_err();
+        assert!(e.contains("no password"), "{e}");
+    }
+
+    /// A vault that is not ours is refused **before** anything is written.
+    ///
+    /// The scope check is what stops a paired device reconfiguring an audience it was never
+    /// given, and `set_restic_repo` writes the vault list — so the order matters, not just the
+    /// verdict.
+    #[test]
+    fn set_restic_repo_refuses_a_vault_that_is_not_there() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (home, _vault, app) = app_with_vault(None);
+        let list = home.path().join("vaults.json");
+
+        let e = call(
+            &app,
+            "set_restic_repo",
+            serde_json::json!({ "vault": "not-a-vault", "repo": "/tmp/x" }),
+        )
+        .unwrap_err();
+        assert!(!e.is_empty(), "an unknown vault must be refused");
+        assert!(
+            !list.exists(),
+            "the refusal must come before the vault list is written"
+        );
+    }
+
+    /// Setting a repo and clearing it both round-trip through the file, not just through memory.
+    ///
+    /// The distinction is the whole point: an in-memory-only write looks identical until the app
+    /// restarts, which is the moment somebody discovers their backups were never configured.
+    #[test]
+    fn set_restic_repo_round_trips_and_an_empty_value_clears_it() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (home, _vault, app) = app_with_vault(None);
+
+        let out = call(
+            &app,
+            "set_restic_repo",
+            serde_json::json!({ "vault": "notes", "repo": "/tmp/lab-backup" }),
+        )
+        .unwrap();
+        assert!(out.contains("/tmp/lab-backup"), "{out}");
+        let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
+        assert!(on_disk.contains("/tmp/lab-backup"), "not persisted: {on_disk}");
+
+        let out = call(
+            &app,
+            "set_restic_repo",
+            serde_json::json!({ "vault": "notes", "repo": "" }),
+        )
+        .unwrap();
+        assert!(out.contains("\"restic_repo\":null"), "empty must clear it: {out}");
+        let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
+        assert!(!on_disk.contains("/tmp/lab-backup"), "still on disk: {on_disk}");
+    }
+
+    /// **"Never backed up" and "this machine cannot tell you" are different answers**, and
+    /// `backup_latest` has to keep them apart — that separation is the reason the command exists
+    /// in the shape it does.
+    #[test]
+    fn backup_latest_says_why_when_it_cannot_answer() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        crate::secrets::clear_restic_password().unwrap();
+
+        // No repo: unavailable, and it says which of the three reasons.
+        let (_home, _vault, app) = app_with_vault(None);
+        let out = call(&app, "backup_latest", serde_json::json!({ "vault": "notes" })).unwrap();
+        assert!(out.contains("\"vault\":\"notes\""), "{out}");
+        assert!(out.contains("\"id\":null"), "{out}");
+        if backup::available() {
+            assert!(out.contains("no media-backup repository"), "{out}");
+        } else {
+            // On a machine with no restic that reason is reported first, and correctly so:
+            // there is no point naming a missing repo to someone who has no tool to use it.
+            assert!(out.contains("restic is not installed"), "{out}");
+        }
+
+        // A repo but no password: a different sentence again.
+        let (_home2, _vault2, app) = app_with_vault(Some("/tmp/no-such-restic-repo"));
+        let out = call(&app, "backup_latest", serde_json::json!({ "vault": "notes" })).unwrap();
+        assert!(out.contains("\"unavailable\":"), "{out}");
+        if backup::available() {
+            assert!(out.contains("no restic password"), "{out}");
+        }
+    }
+
+    /// An unreachable repository is **reported, not raised**.
+    ///
+    /// A backup destination on another machine is unreachable as an ordinary matter, and a panel
+    /// that throws on it tells the user less than one that names the repo it could not open. This
+    /// is the assertion that keeps `backup_latest` returning `Ok` on a restic failure.
+    #[test]
+    fn backup_latest_reports_an_unreadable_repo_rather_than_failing() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        if !backup::available() {
+            eprintln!("skipping: restic is not installed, so there is no failure path to drive");
+            return;
+        }
+        let (_home, _vault, app) = app_with_vault(Some("/tmp/definitely-not-a-restic-repo"));
+        crate::secrets::save_restic_password("wrong password").unwrap();
+
+        let out = call(&app, "backup_latest", serde_json::json!({ "vault": "notes" }))
+            .expect("an unreachable repo is a reported state, never an error");
+        assert!(out.contains("could not read"), "{out}");
+        assert!(out.contains("definitely-not-a-restic-repo"), "must name it: {out}");
+        crate::secrets::clear_restic_password().unwrap();
+    }
+
+    /// **A panic must not brick the process.**
+    ///
+    /// Before 2026-09-04 `lock()` propagated the `PoisonError`, so the *next* command — and every
+    /// command after it, from every client, for the life of the process — answered with the
+    /// `Display` of a poison error. The agent thread and the webview both dispatch, so a panic in
+    /// either took out both. `paper.rs` records this happening for real: one multi-byte character
+    /// in one PDF, and the app was unusable until restart.
+    ///
+    /// Deterministic — no timing, no threads of its own, no subprocess.
+    #[test]
+    fn a_panic_while_holding_the_vault_lock_does_not_brick_every_later_command() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (_home, _vault, app) = app_with_vault(None);
+
+        // Prove the app works, poison it, prove it still works.
+        assert!(call(&app, "list_vaults", serde_json::json!({})).is_ok());
+        app.poison_for_test();
+        let out = call(&app, "list_vaults", serde_json::json!({}))
+            .expect("a poisoned lock must be recovered, not propagated");
+        assert!(out.contains("notes"), "and it must still answer correctly: {out}");
+
+        // A *write* has to survive it too — recovery that only served reads would move the failure
+        // rather than remove it.
+        call(&app, "capture", serde_json::json!({ "body": "after the panic", "vault": "notes" }))
+            .expect("writing must work after a recovered poisoning");
+    }
 }

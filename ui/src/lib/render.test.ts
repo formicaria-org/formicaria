@@ -526,3 +526,51 @@ describe('renderInto — note embeds (transclusion)', () => {
     expect(el.querySelector('.note-embed-cycle')).not.toBeNull(); // then refused to recurse
   });
 });
+
+/// **The read view draws the small copy, and only for images.**
+///
+/// Every inline image used to decode at full camera resolution: a 12 MP JPEG is ~50 MB of pixels,
+/// five in one note is a renderer kill on a phone, and the kill is silent — `onRenderProcessGone`
+/// is unhandled, so the framework default takes the process and the app just vanishes.
+///
+/// A 400x400 webp is not a video poster and not a PDF, so the other branches must keep the full
+/// blob. That distinction is the reason `thumb` is read in one branch rather than substituted for
+/// `url` at the resolver.
+describe('inline images use a downscaled copy when there is one', () => {
+  const withThumb = (mime: string) =>
+    vi.fn(
+      async (): Promise<ResolvedAsset> => ({
+        url: '/api/blob/abc',
+        thumb: '/api/blob/abc?kind=thumb',
+        mime,
+      }),
+    );
+
+  it('points an <img> at the thumbnail', async () => {
+    const el = pane();
+    await renderInto(el, '![pic](asset:sha256-abc)', withThumb('image/jpeg'));
+    const img = el.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('/api/blob/abc?kind=thumb');
+  });
+
+  it('leaves video and PDF on the full blob', async () => {
+    for (const mime of ['video/mp4', 'application/pdf']) {
+      const el = pane();
+      await renderInto(el, '![clip](asset:sha256-abc)', withThumb(mime));
+      const src =
+        el.querySelector('video')?.getAttribute('src') ??
+        el.querySelector('iframe')?.getAttribute('src');
+      expect(src, `${mime} must not be served a 400x400 webp`).toBe('/api/blob/abc');
+    }
+  });
+
+  /// **The fallback is the load-bearing half.** `vipsthumbnail` does not exist on Android, so every
+  /// image ingested on a phone has a blob and no derivative — and the mock transport hands back
+  /// object URLs with no second copy at all. If a missing `thumb` broke the image, this change
+  /// would have turned every phone photo into a placeholder.
+  it('falls back to the full blob when no thumbnail is offered', async () => {
+    const el = pane();
+    await renderInto(el, '![pic](asset:sha256-abc)', resolveAs('image/png', '/api/blob/abc'));
+    expect(el.querySelector('img')?.getAttribute('src')).toBe('/api/blob/abc');
+  });
+});

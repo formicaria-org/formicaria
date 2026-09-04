@@ -339,6 +339,15 @@ checks = "sh ci/checks.sh"                       # architectural greps: seam + g
 # list goes stale the first time someone adds a crate); the release workflow drops the
 # output into every archive.
 third-party = "sh ci/third-party.sh"
+# The freshness half. `third-party` GENERATES the notice; this one asserts the committed copy
+# still matches the tree it claims to describe. It is in `ci` because the notice drifted for
+# months without it: the task existed, nothing depended on it, and the npm and font halves of
+# what the binary carries were simply never in the file (2026-09-03, `decisions.md#toolchain`).
+# Needs `ui/node_modules`, which is why it runs after `test-ui`.
+third-party-check = { cmd = "sh ci/third-party-check.sh" }
+# Regenerate the manual's screenshots from a throwaway demo vault. NOT in `ci`: it needs a
+# browser and a running server, and the pictures only change when the UI does.
+shots = { cmd = "sh ci/shots.sh" }
 # Renders the manual FOR THIS MACHINE'"'"'S OS — the setup chapter is assembled from
 # `user/setup-<os>.md` first, because each release archive should carry instructions for its own
 # platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`
@@ -388,4 +397,4 @@ ios-https-probe = "sh ci/ios-https-probe.sh"
 ios-package = "sh ci/ios-package.sh"
 
 [tasks.ci]
-depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "docs"]
+depends-on = ["test", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "third-party-check", "docs"]

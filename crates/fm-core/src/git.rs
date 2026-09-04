@@ -734,7 +734,11 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
     // the next push shipped every PDF and video to the remote — plus a per-machine SQLite
     // file that must never travel.
     let path = vault.join(".gitignore");
-    for line in ["index.sqlite", "derived/", "blobs/"] {
+    // `.fm-ingest/` is a half-uploaded file mid-flight (`fm_core::chunked`). `commit_all` stages
+    // only the paths `put`/`delete` recorded so it would never sweep one in — but a user running
+    // `git add -A` in their own vault would, and committing a partial upload is committing bytes
+    // that are not a file yet.
+    for line in ["index.sqlite", "derived/", "blobs/", ".fm-ingest/"] {
         ensure_line(&path, line)?;
     }
     Ok(())
