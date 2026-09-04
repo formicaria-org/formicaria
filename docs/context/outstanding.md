@@ -91,40 +91,23 @@ What it does **not** buy, and what still needs the device:
 **Done now looks like:** install the next APK, open a big note and type a paragraph, add a photo,
 leave the app and come back. Those are the three reported symptoms and none is provable from CI.
 
-### 1.3 Chunked ingest — the real fix for the photo path
-`MAX_INGEST` dropped 48 → 16 MB on 2026-08-20 (`decisions.md#track-m`), which keeps every phone
-photo and drops the transient peak from ~600 MB to ~200 MB. It is an interim: a file still crosses
-the bridge as **one JSON string**, copied roughly ten times between the page and Rust, so the
-ceiling is a memory limit wearing a size limit's clothes and **video is still refused**.
-
-**Done looks like:** `fm_ingest_chunk(session, seq, data)` + `fm_ingest_finish(session, name, vault)`
-over `BlobStore::put_file`, which already streams and hashes in 64 KB chunks; `commands::asset_note`
-is already factored out for exactly this second byte-arrival path. Bounds the transient at one chunk
-regardless of file size, and lifts the video refusal. Content addressing is safe — the hash is taken
-once over the assembled file, chunks being pure transport. **The one new hazard** is an orphan
-session after a `SIGKILL` mid-upload; sweep the session directory at boot.
-
-Deliberately *not* done alongside the 2026-08-20 fixes: it is a transport design change, and
-smuggling one in beside a bug fix is how a transport ends up with two shapes nobody chose.
-
 ### 1.2 Where a phone's media actually survives
-**Video attaches and plays on a real phone (owner-confirmed, 2026-07-20)** — this entry used to
-say it did not, which was overstated. Photos and video both go through the same base64 `fm_ingest`
-IPC path, the one binary transport Android leaves open, and `MAX_INGEST` caps an attachment at
-48 MB; over that it is **refused with an explanation** rather than crashing. So the transport is
-not the open question. Two are:
+**Video attaches and plays on a real phone (owner-confirmed, 2026-07-20).** Two questions stood
+behind it, and **the second is now closed**:
 
-1. **Where the bytes live — the one that matters.** A phone vault is app-private storage, wiped
-   on uninstall; `blobs/` is gitignored so a push does not carry it; restic is a binary Android
-   does not have. Today a video attached on a phone has **exactly one copy, in the place a single
-   uninstall erases**. That is true right now, for media that already works — it is not gated on
-   anything below.
-2. **Chunked ingest**, only if the 48 MB cap turns out to bite: send the file in bounded slices
-   and append, so peak memory is one chunk rather than 1.33× the file. **Do not do 2 before 1** —
-   lifting the ceiling without an answer to 1 invites people to trust it with more.
+1. **Where the bytes live — the one that matters, and it is still open.** A phone vault is
+   app-private storage, wiped on uninstall; `blobs/` is gitignored so a push does not carry it;
+   restic is a binary Android does not have. A video attached on a phone has **exactly one copy,
+   in the place a single uninstall erases.** The app now *says* so (Settings, gated on
+   `vault_root`, 2026-09-03) — which is what the "done looks like" below asked for, and it is not
+   the same as the bytes being safe. A real answer is a destination the phone can reach: git LFS,
+   a restic build for Android, or an explicit "send my media to the desktop" step. None exists.
+2. ~~**Chunked ingest**~~ — **done 2026-09-04** (`decisions.md`, *a file is sliced, so its size
+   stops being a memory limit*). The `do not do 2 before 1` rule was honoured: the warning in (1)
+   shipped first, on 2026-09-03, and was checked before this was built rather than after.
 
-**Done looks like:** an honest, stated answer to where a phone-captured video survives — and the
-app saying it, rather than the user discovering it.
+**Done looks like:** the bytes having somewhere to go — not merely the app admitting they do not.
+The honest statement is shipped; the destination is not.
 
 ---
 
@@ -171,9 +154,12 @@ figure, a formula, and have the note be anchored to that place:
 **Three obligations the owner's *separate app* ruling incurs, none started, all cheaper now than
 later** (`papers-plan.md` Part 5): a dated reversal of `MASTERPLAN.md:341` with a `> SUPERSEDED`
 banner — **not** a scoping entry; widening `ci/checks.sh`'s HTML-sink and literal-free-renderer
-greps to the second app **in the same commit that creates it**; and an npm licence gate, because
-`deny.toml` and `third-party.sh` are keyed on `Cargo.lock` and will never see pdf.js. There is also
-no bundle-size gate at all today, and the eager JS payload is ~70 KB gz.
+greps to the second app **in the same commit that creates it**; and pointing the npm licence gate at
+the second app's `package.json` too, since `deny.toml` and `cargo tree` are keyed on `Cargo.lock` and
+will never see pdf.js. **That third one is now an extension, not a build:** `ci/third-party.sh` grew
+npm and font sections on 2026-09-03 (`decisions.md`, *The licence notice covers what the binary
+carries*) — but it reads `ui/` and only `ui/`. There is also no bundle-size gate at all today, and
+the eager JS payload is ~70 KB gz.
 
 ### 2.0b Extracted PDF text still lives in the note body
 `asset_note` puts `pdftotext` output in the body, measured at 1.7–2.2 KB per page — so a few
@@ -537,35 +523,6 @@ question this has to answer is: what is the small, sentence-shaped question a pe
 
 Not started. Do not treat the rejected query builder as the only shape this could take.
 
-### 2.6 The welcome screen — done
-**Closed on 2026-08-28:** the in-app manual route this entry used to ask for is done — the book is
-baked into the binary, `/manual/` serves it under its own CSP, and a Help button sits beside the
-gear (`decisions.md#toolchain`). What is left is the other half of that session's decision.
-
-The archive now ships a **ready vault with one note in it** (`packaging/welcome/`, staged by
-`release.yml` and dated with the build), so the app opens straight into somewhere real and the
-`vaults.length === 0` gate in `App.svelte` never fires. The owner's ruling was that a **short
-welcome screen** should come first: name, email, and optionally a remote — then into the app.
-
-**The note is the other half, added 2026-08-30.** The screen answers the question git forces; the
-note answers *what is this and where do I click*, on the Timeline the screen dismisses into. It is
-~360 words and says it can be deleted. Its risk is not that it is wrong today but that it goes
-stale silently, so `crates/fm-app/tests/welcome_note.rs` parses the shipped file, opens a vault
-staged exactly as the release does (**including the date rewrite**), and fails if the note names a
-control that is gone — three of its claims were already wrong when checked against the code.
-
-**Landed already (the backend half):** `set_identity` is its own `dispatch` command, because
-`set_git_remote` sets an identity only alongside a URL and refuses an empty one — so "just my name,
-no remote" wrote the identity to disk *and reported failure*. It is in `REMOTE_DENIED`: a paired
-tablet does not get to name the host's committer. `ipc.ts` exposes `setIdentity`.
-
-**Built 2026-08-29** (`decisions.md#ui`), to all three conditions: `identity` rides on
-`VaultInfo` from `list_vaults` — one local `git config` read beside the `remote_label` spawn that
-already happens, never `backup_status`; **Skip for now** saves nothing and is remembered per
-browser; the screen never renders where git is absent or unknown; and the identity is saved
-first and on its own, so a typo'd remote leaves the name standing and says both halves.
-`Welcome.svelte.test.ts` pins the component's promises, `App.welcome.test.ts` the gate.
-
 ### 2.6b Features a user asks for are still not *delivered* — only declared
 **Closed 2026-08-28** (`decisions.md#agent`): nothing now claims a capability it lacks, and saved
 views are writable from the app. What the owner asked for goes further — *"a user picks features and
@@ -634,12 +591,23 @@ depth; and the introduction routes beginners at beginners.
 What the 2026-08-28 audit found and this did **not** fix (three usability defects found on
 2026-08-29 *were* fixed — see the note at the end of this section):
 
-- **Zero screenshots** in a manual for a GUI. Now the largest remaining gap by some distance, and
-  the slowest to close. `docs/context/shots/` proves the capture path exists.
-- **`user/notes.md` is 2,245 words unsplit** — it is now the first chapter under *Going further*,
-  so it is the first wall a curious beginner hits.
-- **No glossary.** *frontmatter*, *ULID*, *content-addressed*, *blob*, *merge driver*, *remote* and
-  *FTS* all appear in user chapters undefined.
+- ~~**Zero screenshots** in a manual for a GUI.~~ **Closed 2026-09-04.** Nine of them, in
+  `docs/src/images/`, placed in `views.md`, `first-note.md`, `assets.md` and `backup.md` — and
+  **regenerable**: `pixi run shots` builds a throwaway demo vault in a temp directory, serves it on
+  a spare port, drives a headless Chromium over CDP and throws it all away. Nothing touches the
+  owner's vault, config or port 8765; a screenshot script that *could* photograph somebody's real
+  notes is one nobody should run.
+  **Two things the capture path taught, worth keeping:** the app has **no URL routing** (which view
+  is open lives in `localStorage`), and it correctly sets `frame-ancestors 'none'` — so
+  `chromium --screenshot` cannot reach any view but the default and the obvious iframe trick is
+  closed. Hence `ci/shots.py`, a ~150-line CDP driver. `--virtual-time-budget` does **not** survive
+  a redirect, which is the trap that ate the first three attempts.
+- **`user/notes.md` is 2,576 words unsplit** — it is the first chapter under *Going further*, so it
+  is the first wall a curious beginner hits. *(Still open. It grew slightly, being the chapter
+  everything lands in.)*
+- ~~**No glossary.**~~ **Closed 2026-09-04**: `reference/glossary.md`, covering *asset*, *audience*,
+  *blob*, *content-addressed*, *discussion*, *frontmatter*, *FTS*, *merge driver*, *note*,
+  *proposal*, *remote*, *snapshot*, *ULID*, *vault* and *view*.
 - ~~**`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
   on the page says so.~~ **Said, 2026-08-29:** the page now opens with a block quote stating that
   every step below needs the source, that the release archive carries no assistant, and that it runs
@@ -697,53 +665,50 @@ runner. Android's graph is byte-identical.
 **Still unverified:** whether the Windows job now *completes*. This fixes the failure that was
 observed; it cannot prove the next one does not exist.
 
-### 2.9 A backup with no git reports success and records nothing
-**Closed 2026-08-29** (`decisions.md#git`). Root-caused, and it was neither half of what the report
-guessed: `git::unrecorded` answers "nothing" for a directory that is **not yet a repository** — it
-has to, git cannot say otherwise — while `commit_all` only creates the repository once it is already
-running. So the first backup of a new vault swept for orphans *before* there was a repo to be
-missing from, found none, then init'd, staged the `.gitignore`/`.gitattributes` it had just written,
-and answered `committed: true` with not one note in history. Pinned by
-`a_first_backup_on_a_device_with_no_git_binary_creates_the_repository`, on both backends.
-
-The *other* claim did not reproduce and was measured rather than argued: on a Linux build with no
-git binary, `ping.git` is `false`, `backup_status.git` is `false`, and `commit` returns
-`io error: could not run git (is it installed?)`. Those surfaces were honest already.
-
 ### 2.10 Backup says the right things now; three of them it still cannot say
 Opened 2026-09-02 out of the review that produced `decisions.md`'s *A backup surface names what its
 tier carries*. The wording is fixed; these are the gaps behind it, in the order they are worth
 doing.
 
-**A "last backed up at", per vault.** `fm_core::backup::latest()` already returns the newest
-`fm`-tagged `Snapshot { id, time, paths }` and **no dispatch command exposes it**, so the one fact a
-person actually wants from a backup panel — *when did this last work* — cannot be shown at any
-price. The same shape of blindness one level down: `run_backup` returns unit, so even a snapshot
-taken thirty seconds ago tells the app nothing about what it contained. A `backup_latest` read
-command beside `backup_status` is the small version; folding the timestamp into `VaultStatus` costs
-a restic spawn per vault on a call that already polls every 45 s, so it should not go there.
+~~**A "last backed up at", per vault.**~~ **Done 2026-09-04.** `backup_latest` sits beside
+`backup_status` — its own command, not a `VaultStatus` field, because that one polls every 45 s and
+already spawns per vault. It answers **three** distinct states and the panel renders all three:
+a snapshot (time + the source paths it recorded), *never backed up* (the repo opened and holds
+nothing — the state that should worry somebody), and *cannot tell you* with the reason. An
+unreadable repository is reported, not raised.
 
-**A restic-only vault cannot run a backup.** `canRun` requires `vaults.some(v => !!v.remote)`, so a
-machine with restic, a repo and a password but no git remote has an enabled tick box and a Back up
-button that never enables. The panel now says why instead of sitting mute, which is honesty, not a
-fix. The fix is to let the snapshot tier run alone — worth doing, and it needs the verdict
-sentences to stop assuming a git tier ran at all.
+**Still open, one level down:** `run_backup` returns unit, so a snapshot taken thirty seconds ago
+still tells the app nothing about *what it contained*.
 
-**The dispatch layer for both tiers is untested.** `crates/fm-app/src/dispatch.rs` contains **zero**
-`#[test]`, and specifically: nothing asserts `backup_status`'s shape (not `restic_ready`'s three
-conditions, not that the password is only ever a bool), nothing drives the `backup` arm's two error
-paths (*no repo configured*, *no password*), and nothing covers `set_restic_repo` /
-`set_restic_password` / `clear_restic_password` / `restore_vault`. The `fm-core` layer beneath them
-is well covered by six real-`restic` tests, and the UI above them by mocks — the seam between is
-where nothing looks. `fm backup` / `fm restore` / `fm check` have no CLI test either. Related and
-cheaper: **no UI test has ever pressed the Back up button**, so not one step line or verdict
-sentence in `BackupPanel.run()` is asserted anywhere.
+~~**A restic-only vault cannot run a backup.**~~ **Fixed 2026-09-04.** `canRun` is now
+`(git && a remote) || (heavy && anyRestic)`, so the snapshot tier runs alone — the two tiers were
+already independent inside `run()`; only the gate assumed one. The verdict no longer reports a git
+outcome that never ran, which mattered more than it sounds: with no remote every vault landed in
+`stuck`, so the panel said *"your notes are still on this machine"* at the exact moment a snapshot
+had just carried them off it (a snapshot covers the notes directory as well as `blobs/`).
 
-**And the MASTERPLAN's own acceptance for S6 is not met.** `:429` asks for `restic backup` →
-`restic restore` to a scratch dir → **diff against the vault** → `fm verify --scrub` clean.
-`fm-core/tests/backup.rs` restores and compares one note's bytes and runs `check --read-data`;
-there is no whole-vault diff and no `--scrub` in the restore path. *"Test the restore in month
-one"* is the plan's own rule and the suite does not keep it.
+**The dispatch layer for both tiers was untested; most of that is now closed (2026-09-04).**
+`dispatch.rs` had **zero** `#[test]`. It now has six, covering `backup_status`'s shape (all three
+`restic_ready` conditions, and that the password never crosses the wire — asserted over the whole
+serialized response, so a *new* field somebody adds without thinking is caught too), the `backup`
+arm's two refusals, `set_restic_repo`'s round-trip and its refuse-before-writing order, and
+`backup_latest`. Each was proven red first. **A UI test now presses Back up** as well
+(`BackupPanel.run.svelte.test.ts`, six cases).
+
+**Still open here:** `restore_vault` has no dispatch-level test. ~~`fm backup` / `fm restore` /
+`fm check` have no CLI test~~ — **added 2026-09-04** (`crates/fm-cli/tests/backup_cli.rs`): the
+three commands drive the real binary against a real restic repo, back up → check `--read-data` →
+restore → read the note back, plus a wrong-password refusal. It found on its first run that `repo`
+is **positional**, not `--repo` — which is exactly the class of thing a three-line untested CLI arm
+hides — and it reproduced the `RESTIC_CACHE_DIR` race within minutes of that race being written up.
+
+**MASTERPLAN's S6 acceptance is now kept (2026-09-04).**
+`fm-core/tests/backup.rs::the_whole_vault_survives_a_round_trip_and_verifies_scrubbed` snapshots a
+vault holding a note, a blob and a custom layout, restores it, **diffs the whole tree** — path sets
+first, then bytes — and runs `verify --scrub` on the result. Proven red by making `backup` silently
+stop carrying `blobs/`: the pre-existing single-note test stayed **green** while the new one
+failed, which is exactly why a whole-tree diff was owed. *(It also surfaced a latent race: see
+`known-issues.md` on `RESTIC_CACHE_DIR`.)*
 
 ### 2.8 The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched

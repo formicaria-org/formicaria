@@ -131,13 +131,17 @@ The gray-screen fix and its tests are in
   (`GlobalMemoryStatusEx` / `host_statistics64`), not by relaxing the gate. **Residual:** the
   capability check covers the OS, the stack and the tools it shells out to, but **not the weights** —
   a machine with `agents/` and no GGUF still turns the assistant on and fails at the model server.
-- **A poisoned vault mutex bricks every command for the life of the process**
-  (`fm-app/src/dispatch.rs:186`, `lock().map_err(...)` with no recovery). The agent thread and the
-  webview both `dispatch`, so a panic in either poisons for both.
-- **`activity` holds the vault mutex across a per-vault libgit2 revwalk**, and it is among the first
-  things the first `refresh()` fires (`fm-app/src/dispatch.rs`, the `activity` arm; `App.svelte`
-  fires it before awaiting the feeds). Every other command queues behind a year of git history. This
-  is the arm the module's own "five arms drop the lock before slow I/O" note does not cover.
+- ~~**A poisoned vault mutex bricks every command for the life of the process.**~~
+  **Fixed 2026-09-04** (`decisions.md`, *a poisoned lock is recovered, not propagated*): `App::lock`
+  recovers with `into_inner()` and logs once, with the argument for why the poisoning was not
+  load-bearing written down. Original entry: `lock().map_err(...)` with no recovery — and the agent
+  thread and the webview both `dispatch`, so a panic in either poisoned both.
+- ~~**`activity` holds the vault mutex across a per-vault revwalk.**~~ **Fixed 2026-09-04**
+  (`decisions.md`, *the vault lock is not held across a subprocess or a revwalk*): the git half runs
+  with the guard dropped, and `commands::activity` split into `resolve_touches` + `activity` so the
+  two halves can run at different times. Original entry: it is among the first things the first
+  `refresh()` fires, so every other command queued behind a year of git history — the one arm the
+  module's own "five arms drop the lock before slow I/O" note did not cover.
 - **Android reclaiming the WebView renderer kills the app, silently**, because `RustWebViewClient`
   has no `onRenderProcessGone` override and the framework default is to kill the process. So a
   memory-tight phone can make formicaria vanish with nothing saying why. **A logging override cannot
@@ -155,13 +159,12 @@ The gray-screen fix and its tests are in
   `configure_paths` and `fm-app/src/secrets.rs` both say "single-threaded, before any vault is
   opened"; the webview is already loaded and invoking by then, and bionic's `setenv` is not
   thread-safe. The window is small and the fix is not obvious — but do not trust the comment.
-- **A `configure_paths` early return produces a *wrong* screen, not a blank one.** If
-  `app_data_dir()` fails, `FM_CONFIG_DIR`/`FM_VAULT` stay unset, `App::load` **succeeds** with zero
-  vaults, and the user is shown the first-run form — whose `create_vault` then cannot persist
-  anything.
-
-## Known gaps / not fully working
-
+- ~~**A `configure_paths` early return produces a *wrong* screen, not a blank one.**~~
+  **Fixed 2026-09-04** (`decisions.md`, *a shell that cannot configure its paths refuses*): the
+  failure is logged as a sentence and recorded in a `OnceLock` that `boot` consults first, so the
+  app says what happened instead of presenting a first-run form that cannot save. `configure_paths`
+  also logs `vault root:`, and `ci/android-smoke.sh` asserts that line exists **and precedes**
+  `vaults ready` — proven red on the emulator by removing it.
 - **A very large import may not land as one commit.** `vcs::commit_all` hands every path to `git`
   in a single argv, three times (`ls-files`, `add -A`, `commit --only`). Every other caller commits
   a handful; an import commits thousands, and somewhere past roughly fifty thousand paths that
@@ -212,29 +215,78 @@ The gray-screen fix and its tests are in
   therefore goes through `fm_ingest` with the file base64-encoded, capped at `MAX_INGEST`
   (**16 MB since 2026-08-20**, down from 48 — see `decisions.md#track-m`: the old number counted
   the string and not the ~10 copies the transport makes, so it permitted a ~600 MB transient and
-  an unexplained renderer kill) — above any phone photo, below video. **Video on Android is
-  refused with an explanation**; chunked ingest would lift it and is **still not built**. It is now
-  the *named* next step rather than a vague one: `fm_ingest_chunk` + `fm_ingest_finish` over
-  `BlobStore::put_file`, which already streams and hashes in 64 KB chunks, with `commands::
-  asset_note` already factored out for exactly this second byte-arrival path. Bounds the transient
-  at one chunk regardless of file size. The one new hazard is orphan sessions after a `SIGKILL`
-  mid-upload — sweep the session dir at boot.
+  an unexplained renderer kill).
+  **Chunked ingest lifted the ceiling on 2026-09-04** (`decisions.md`, *a file is sliced, so its
+  size stops being a memory limit*), so a file over 16 MB is no longer refused — it is sent in 2 MB
+  slices through `fm_ingest_chunk` + `fm_ingest_finish` over `BlobStore::put_file`, and **video on
+  Android works**. 16 MB is now the threshold between the cheap single-shot path and the chunked
+  one, not a refusal. The orphan-session hazard the plan named is handled by an age-based sweep at
+  boot (`fm_core::chunked::sweep`).
   **Both ends of the bridge are now tested** (they were not, which is how the zero-byte photo
   shipped): `fm-app/src/wire.rs` for the decoder, `ui/src/lib/ingest.phone.test.ts` for the
   encoder and the ceiling, `fm-app/tests/mobile_workload.rs` for a real multi-MB photo.
 
-- **The read view never asks for a thumbnail — on any platform.** Easy to mis-diagnose as an
+- ~~**The phone's `fmblob` handler holds a whole blob in memory, honours no `Range`, and ships none
+  of the desktop's security headers.**~~ **Fixed 2026-09-04** (`decisions.md`, *the phone's blob
+  route answers a `Range`, and stops lying about it*) — `parse_range`/`inline_safe`/`blob_reply` are
+  in `fm_app::wire` and tested in the gate, the handler seeks and reads one window, and it sets
+  `nosniff`, a CSP and the disposition allowlist. **One thing it does NOT close**, and it matters:
+  an actual ranged fetch has never run on a device. Verified by compilation and by the shared tests;
+  a negative control on the emulator proved the handler is not reached from any screen
+  `android-smoke` drives. That belongs to `outstanding.md` §1.1. Original entry, for the chain:
+  *(Moved here 2026-09-04 from `papers-plan.md` B4, which is where it had been recorded and is not
+  where anyone looks.)* `blob_response` (`mobile/src-tauri/src/lib.rs`) calls
+  `dispatch("resolve_asset", …)` and returns `out.into_bytes()`: no `Accept-Ranges`, no `Range`
+  parsing, a hardcoded `application/octet-stream`, and `Access-Control-Allow-Origin: *`. Its comment
+  says *"a GET streams, and `<video>` can seek without the file ever being held whole in memory"* —
+  **none of which is true**, and the *"streams"* half is not even achievable: Tauri's
+  `register_uri_scheme_protocol` returns `Response<Vec<u8>>` and has no streaming body type. What is
+  achievable is `Range`, which bounds the peak to one slice.
+  **Worse since 2026-09-04**: chunked ingest removed the upload ceiling, so the files this path must
+  serve are now unbounded — a 200 MB video is a 200 MB `Vec` plus wry's copy, on the device with the
+  least memory.
+  **And separately**: `fm-serve/src/blob.rs` sets `X-Content-Type-Options: nosniff`, a CSP, and an
+  `inline_safe` allowlist forcing `Content-Disposition: attachment` for anything not known-safe. Its
+  header argues that a blob reachable as a same-origin URL is a navigation hazard **because blobs
+  arrive from collaborators through the merge driver** — an argument that is platform-independent,
+  and the phone has none of the mitigations.
+
+- ~~**Ingest holds the global vault lock across two subprocess spawns per file.**~~
+  **Fixed 2026-09-04** (`decisions.md`, *the vault lock is not held across a subprocess or a
+  revwalk*), together with `activity`'s revwalk. Both are pinned by a rendezvous test in
+  `fm-app/tests/dispatch_concurrency.rs` — 5 s blocked versus 0.06 s free, measured both ways.
+  Original entry, for the chain:
+  *(Moved here 2026-09-04 from `papers-plan.md` B5.)* The `ingest` **and** `ingest_finish` arms in
+  `dispatch.rs` take the guard and keep it through `fm_core::ingest`'s `pdftotext` and
+  `vipsthumbnail` spawns, so a bulk import freezes every tab — the estimate on the record is 25–40
+  minutes for 5,000 PDFs. Several arms in the same file already drop the guard before slow I/O
+  (`run_backup`, `run_import`, `open_skipped`) and `run_import`'s comment states the rule the fix
+  must follow: **re-resolve the vault after re-taking the guard**, because it may have been
+  forgotten or moved while the work ran.
+  **`ingest_finish` is new (2026-09-04, chunked ingest) and inherited this** — which is the worse
+  half, since it is the path built specifically for large, slow files.
+
+- **The read view asks for a thumbnail now; *generating* one on Android is still missing.**
+  *(Half fixed 2026-09-04 — `decisions.md`, *the read view draws the small copy*.* `render.ts` uses
+  `asset.thumb ?? asset.url` for images, and `resolve_asset_bytes` falls back to the full blob so a
+  phone-ingested image without a derivative still renders. What remains is M8: nothing on Android
+  can *make* a thumbnail, so on a phone the fallback is the normal path and the full-resolution
+  decode is unchanged there.)* Original entry: Easy to mis-diagnose as an
   Android gap, and it is not. `ingest::thumbnail` shells `vipsthumbnail` and writes
   `derived/<hash>/thumb.webp`, but the only readers are `fm-cli` and `asset_status`'s `has_thumb`
-  flag; `NotePanel`'s resolver uses `assetUrl(ref)`, which has no `kind` parameter at all, so every
-  inline image is the **full blob** on desktop and phone alike. The Gallery view that used to
-  consume thumbnails was removed. So a note with five 12 MP photos decodes ~200 MB of bitmap
+  flag; `NotePanel`'s resolver calls `assetUrl(ref)` without a `kind`, so every inline image is the
+  **full blob** on desktop and phone alike. *(Corrected 2026-09-04: `assetUrl` does take a `kind` —
+  `ipc.ts:564` — and `Timeline.svelte:155` passes `'thumb'`, so the feed is fine. It is the read
+  view that never asks.)* The Gallery view that used to consume thumbnails was removed. So a note with five 12 MP photos decodes ~200 MB of bitmap
   everywhere — the desktop simply has the memory to survive it.
-  **Do not "fix" this by passing `kind: "thumb"` from the phone.** `commands.rs`'s `resolve_asset`
-  hard-errors on a missing thumb (there is no fallback to the full blob), and `vipsthumbnail` does
-  not exist on Android — so every image in every note would become a 404 placeholder. The real fix
-  is a downscale path that works on both platforms, which is M8 (pure-Rust media extraction),
-  deliberately unsequenced in `mobile-design.md`. Mitigated 2026-08-20 with `loading="lazy"` +
+  **Do not "fix" this by passing `kind: "thumb"` from the phone.** `commands.rs`'s
+  `resolve_asset_bytes` hard-errors on a missing thumb (there is no fallback to the full blob), and
+  `vipsthumbnail` does not exist on Android — so every image in every note would become a 404
+  placeholder. **The fallback has to land first**, and the correct implementation already exists
+  next door: `commands::blob_path_of_kind` documents both the fallback *and* why the blob must be
+  resolved before the thumb (a `derived/` file must not answer for a vault whose blob the caller was
+  never entitled to). The remaining half — *generating* a derivative on Android — is M8 (pure-Rust
+  media extraction), deliberately unsequenced in `mobile-design.md`. Mitigated 2026-08-20 with `loading="lazy"` +
   `decoding="async"` in `render.ts`, so off-screen images cost nothing; the on-screen ones still
   decode at full camera resolution.
 
@@ -400,7 +452,9 @@ The gray-screen fix and its tests are in
   + **Mark resolved** there instead.
   **And the gate to remember:** a compiler that checks signatures says nothing about behaviour, and
   the suite that catches backend divergence (`pixi run test-native-git`) is **opt-in** — run it
-  whenever `commit_all` or `git_native.rs` changes.
+  whenever `commit_all` or `git_native.rs` changes. *(Run 2026-09-04, for the first time: **green**,
+  54 tests across 9 binaries. It was framed here as a CI gap and it was never one — it is a pixi
+  task that runs on this machine in seconds. The gap was the habit.)*
 - **A conflicted note is surfaced only by name** (current behaviour, not a bug): the `.md` driver
   puts the markers in the note *body*, so it opens and resolves in the ordinary editor. `commit`
   answers `CommitResult { committed, conflicts }` and all three callers (the 5 s auto-commit in
@@ -565,15 +619,11 @@ The gray-screen fix and its tests are in
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never
   report a local destination as "off this machine".
-- **Backup gaps left standing on 2026-09-02** (the truth pass fixed the wording, not these;
-  `decisions.md#vault`). **There is no "last backed up at" anywhere** — `fm-core::backup::latest()`
-  returns a tagged `Snapshot` and *no dispatch command exposes it*, so the most useful fact about a
-  backup cannot reach the UI; and `backup` itself returns unit, so the app never learns what a
-  snapshot contained. **A restic-only vault cannot back up**: `canRun` requires a git remote, so a
-  machine with restic, a repo and a password but no remote has a tickable box and a dead button —
-  the panel now explains that rather than fixing it. **`unpushed: 0` and `null` render
-  identically**, as do `remote_moved: false` and `null`, so "fully pushed" and "never pushed" look
-  the same on screen.
+- **`backup` returns unit**, so a snapshot taken thirty seconds ago tells the app nothing about
+  what it **contained**. The last residue of three gaps recorded on 2026-09-02 — *no "last backed up
+  at"* and *a restic-only vault cannot back up* were fixed on 2026-09-04, and `unpushed: 0` vs
+  `null` rendering identically was fixed the same day (`BackupPanel` now says *"Everything here is
+  pushed"* for zero and stays deliberately silent for null, which means *git could not say*).
 - **`mock.ts`'s `config` arm contradicts its own `backup_status`.** It hardcodes
   `restic: [{repo: null}]` and `restic_password_set: false` (`mock.ts:1167,1173`) while
   `set_restic_repo`/`set_restic_password` mutate `mockRestic`/`mockResticPassword` — so under
@@ -660,6 +710,58 @@ The gray-screen fix and its tests are in
   reason behind the browser pivot ([decisions.md](./decisions.md)).
 
 ## Traps for whoever works here next
+
+- **A test that does not touch a process-global still races on it.** `fm-core/tests/backup.rs` had
+  one test setting `RESTIC_CACHE_DIR` to a `TempDir` and four that set nothing — which was fine,
+  because with a single setter there was no race and the other four quietly used the real
+  `~/.cache/restic`. Adding a *second* setter on 2026-09-04 broke **the four that had not
+  changed**: they inherited a path whose `TempDir` had already been dropped, and restic failed on
+  a cache directory that no longer existed. The failures moved between runs, which reads like four
+  unrelated flaky tests rather than one shared variable.
+  **Every restic test now takes `restic_cache()`**, which holds a mutex and hands back its own
+  directory. The cost is stated in its doc comment: the file serialises, ~11 s → ~34 s. Same shape
+  as `secrets.rs`'s `ENV` lock and `backup_records_everything.rs`'s `FM_VAULTS` one — this is the
+  third instance, so treat *"a process-global in a test"* as needing a lock by default.
+
+
+- **`adb shell` re-parses your command on the device, and a guard written without a negative
+  control cannot tell you.** `ci/android-smoke.sh` was run for the first time on 2026-09-04 and
+  failed at the seed step. Two bugs, stacked, and the second hid the first:
+  1. It looked for the vault at `files/vaults/notes/notes`. There is no `files/`: Tauri's
+     `app_data_dir()` on Android **is** `/data/data/<pkg>`, and `configure_paths`
+     (`mobile/src-tauri/src/lib.rs`) puts the root at `<that>/vaults`. `run-as` lands there too.
+  2. The test was `adb shell run-as $PKG sh -c "[ -d $dir ]"`. `adb shell` **joins its arguments
+     and hands the string to the device's shell, which re-parses it** — so the brackets arrive as
+     separate words and it dies with `[: missing ]`, **exit 2, for every path including a correct
+     one**. The seeding write had the same disease one layer worse: `>` was applied by the *outer*
+     shell, whose working directory is `/` and not the sandbox, so it wrote nothing and could not
+     have. The fix is to quote the whole command as one string:
+     `adb shell "run-as $PKG sh -c 'printf ... > path'"`.
+
+  So the wrong path in (1) was undiagnosable from the failure message, because (2) guaranteed the
+  same message either way. **Verify a device-side guard in both directions** — `test -d` on a
+  directory that exists *and* on one that does not — before believing it. `android-smoke` now
+  passes: four launches, all painted, deviation ~25.8 against a threshold of 10.
+
+
+- **A test can pass because of the machine's ambient git configuration, and the maintainer's
+  machine is the one least able to notice.** `acquire.rs` asserted *"a typo is not an auth
+  problem"* — that `probe_remote` on a nonexistent GitHub URL returns `unreachable`, not
+  `needs_auth`. It passed here for seven weeks and fails on a fresh machine, because **GitHub
+  answers an anonymous `git-upload-pack` request with `401 WWW-Authenticate: Basic` for a private
+  repository and for one that was never created, identically** — deliberately, so a 404 cannot be
+  used to enumerate private repos (measured 2026-09-04 against both). With a credential helper git
+  authenticates, gets a real 404, and the typo is named correctly. **With no helper the two cases
+  are genuinely indistinguishable**, and `needs_auth` is the honest answer. So the assertion is a
+  claim about the *machine*, not about the code. It is now conditioned on
+  `fm_core::git::credential_helper().is_some()` and skips with a reason otherwise.
+  **The general form: run the suite once with `GIT_CONFIG_GLOBAL=/dev/null
+  GIT_CONFIG_SYSTEM=/dev/null GIT_TERMINAL_PROMPT=0` before believing anything it says about a
+  remote.** The same run caught a second one — the online clone test had been pointed at this
+  project's own (then private) repository and was passing through the maintainer's credential
+  helper, so it was not testing an anonymous clone at all. It uses `octocat/Hello-World` now,
+  overridable with `FM_TEST_PUBLIC_REPO`.
+
 
 - **`ci/ios-smoke.sh` has never executed anywhere, and its first run is a billed job.** It was
   written on Linux against the pinned tauri-cli v2.11.4 source, not against a run: there is no Mac

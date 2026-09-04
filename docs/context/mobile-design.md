@@ -751,7 +751,7 @@ staked on a decision nobody has taken yet. Receipts:
   activation exports host `CFLAGS` that the `cc` crate *appends to* rather than lets you
   override, so they must be emptied in the android env; and `git2`'s `https` needs
   `vendored-openssl` because Android has no system OpenSSL.
-  **Still open:** `x86_64-linux-android` (the emulator target) is wired but unexercised, the
+  **Corrected 2026-09-04:** `x86_64-linux-android` **is** exercised — `pixi run android-smoke` builds that target, installs it on the emulator and passes (four launches, all painted). Still open: the
   SDK/cmdline-tools are not in the lock, and `pixi run ci` deliberately gains no NDK
   dependency — a contributor without the toolchain still gets a green gate.
 - **STEP 9 — M0**, only after step 8 is green *and* the transport is decided.

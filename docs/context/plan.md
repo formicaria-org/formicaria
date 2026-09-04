@@ -227,7 +227,7 @@ normal file.
 **Mostly closed since.** The *automatic* awareness is wired: a visibility-gated 45 s
 `remote_moved` poll feeds a top-bar chip with one-click pull, and that pull goes through
 `sync.svelte.ts`'s `pullVault` (commit first, then name any conflicted notes rather than
-throwing a string). **Still open, small:** `FileStore::skipped()` is stderr-only, so a note
+throwing a string). ~~**Still open, small:** `FileStore::skipped()` is stderr-only~~ — **closed:** `App::load` returns the skipped set to its caller and `SkippedPanel.svelte` renders it, with `read_skipped`/`resolve_skipped` for repairing one in place. Original note: `FileStore::skipped()` is stderr-only, so a note
 that could not be read is invisible in-app — the one place the app knows something is wrong
 and does not say so where you are looking.
 
@@ -543,7 +543,7 @@ that exists (`known-issues.md`).
 folder's own rule, **the code wins**. Known-stale, left uncorrected in the spec on purpose
 (flagged here instead of churning a 51 KB doc):
 
-- **Auto-commit self-contradicts:** `:391` lists it *not built*, `:426` lists it *shipped*.
+- ~~**Auto-commit self-contradicts:**~~ **corrected 2026-09-04** — `MASTERPLAN.md` now carries a dated inline correction stating the shipped numbers (500 ms to disk, 5 s to commit, no blur handler) beside the original claim.
   Reality: it exists, debounced **5 s** with **no blur handler** (`App.svelte`), best-effort
   and silent (`known-issues.md`). The spec's "500 ms→disk, 30 s/blur→commit" is aspiration.
 - ~~**`update_body`'s mtime check (`:319`) does not exist**~~ — **the spec is right again**,

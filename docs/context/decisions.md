@@ -14,7 +14,9 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): ***`Kind` is the second predicate that reaches SQL***
+- **`#seams`** (the compile-time invariants): ***A poisoned lock is recovered, not propagated*** ·
+  ***The vault lock is not held across a subprocess or a revwalk*** (read before adding a `dispatch`
+  arm that shells out or walks git) · ***`Kind` is the second predicate that reaches SQL***
   (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
   *`fm-query` may never touch fs/db* · *Generic,
   literal-free renderers* · *Files-as-truth; the atom is the file* · *`fm-cli` shares the command
@@ -30,7 +32,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   committed nothing must say why* · *Acquiring a vault: `naturalise` is the seam* · *Backup is two
   tiers* · ***A backup surface names what its tier carries*** (filed under `#vault`; the git half —
   what `git_assets_max` makes a push carry — is here). **On-device proposal lifecycle:** `sessions/2026-07-24-proposals-on-the-phone.md`.
-- **`#track-m`** (mobile/phone): ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** **⟶ + *iOS ships as an unsigned IPA that each user signs with their own Apple ID*** (read the pair before any iOS distribution work — the first carries the App Store / TestFlight / sideloading facts, the second picks free-account sideloading and says what it forbids) · ***The phone answers the same status shape as the desktop*** (read
+- **`#track-m`** (mobile/phone): ***The phone's blob route answers a `Range`, and stops lying about
+  it*** (read before touching `blob_response` — and note what is *not* verified there) ·
+  ***A shell that cannot configure its paths refuses*** · ***iOS ships agent-free, and the subprocess consequence is reversed for Android*** (read before any iOS work, and before assuming the 2026-07-19 no-subprocess clause still binds Android) · ***An iOS build would contradict the project-local-toolchain ruling*** (read before adding any iOS CI job — and never to `release.yml`) · ***The iOS diagnostic channel is stderr, not `os_log`*** **⟶ amended: *the iOS log is a file in the app container*** (read the pair before touching `install_logger` or the Simulator smoke test — stderr was measured to reach nobody) · ***The JS toolchain is pinned across every pixi environment*** (read before changing `nodejs`/`pnpm` or running a mobile CLI from a non-default environment) · ***iOS gets zlib and iconv from the Xcode project*** (read before touching `ci/ios-inject-linker-libs.sh` or wondering why a `staticlib` cannot carry them) · ***iOS is meant to reach users' phones now, and the route is undecided*** **⟶ + *iOS ships as an unsigned IPA that each user signs with their own Apple ID*** (read the pair before any iOS distribution work — the first carries the App Store / TestFlight / sideloading facts, the second picks free-account sideloading and says what it forbids) · ***The phone answers the same status shape as the desktop*** (read
   before adding a key to any status the shared panel renders) · *The owner's five Track M rulings* · *The Track M record drifted* ·
   *Mobile is the app on the phone, not a thin client* · *Android TLS: trust store from memory* ·
   *`fm-serve` sends a CSP* (+ ***the read view may frame its own blob*** — the phone's
@@ -38,7 +42,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   opens it externally*: the phone fix was inert and is withdrawn**) · ***Startup is a contract*** (read before touching the shell's `setup`
   hook or the render gate) · ***Every Android IPC command is `(async)`*** (read before adding a
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
-  index on open* (the `ColdStart` seam) · *The Android attachment ceiling is 16 MB* · *An emulator
+  index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
 - **`#ui`** (workspace/views/render): ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -64,7 +68,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): ***A gate must inspect the same string the router acts on***
+- **`#vault`** (audience/cross-vault): ***A backup surface that cannot say* when *is not a backup
+  surface*** (read before adding a field to `backup_status`, or before folding a per-vault restic
+  spawn into anything that polls) · ***A gate must inspect the same string the router acts on***
   (read before adding to `REMOTE_DENIED`, or before comparing a request path anywhere) ·
   *A vault is labelled by its remote, identified by its local
   name* · *A vault can be forgotten, and forgetting never deletes* ·
@@ -90,7 +96,18 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***A platform arm nobody can compile gets a tested core and a cross-check*** (read before adding per-OS code, or before trusting a grep-shaped guard) · *The core ships as one file; pixi is the only package manager* · *The TLS
+- **`#toolchain`**: ***The gate refuses to run without the tools its tests need*** (read before
+  adding a test that skips on a missing binary) ·
+  ***A test that names somebody's private repo, and three that only passed
+  here*** (read before writing a test that touches a remote, and before trusting a suite that
+  has never been run) ·
+  ***The repo goes public, and the economics every CI ruling rested on invert***
+  (read before touching any workflow, before restoring a trigger, and before believing prose
+  in `.github/` that talks about a bill) ·
+  ***The licence notice covers what the binary carries, not what Cargo resolves***
+  (read before touching `ci/third-party.sh`, `THIRD-PARTY.md`, or either licence guard in
+  `ci/checks.sh` — a gate keyed on one manifest is blind to the rest of the artifact) ·
+  ***A platform arm nobody can compile gets a tested core and a cross-check*** (read before adding per-OS code, or before trusting a grep-shaped guard) · *The core ships as one file; pixi is the only package manager* · *The TLS
   exception: a self-signed leaf, share-only* (read before touching `rustls`/`rcgen` — the `ring`
   pin is a licence gate) · *Every external
   tool is an optional feature* · *No plugin API* · *A hand-fired release names itself after the ref
@@ -1115,6 +1132,13 @@ transaction was considered and is strictly worse: it reintroduces the one failur
 prevent (a marker for an index that is not complete).
 
 ## The Android attachment ceiling is 16 MB, and the number counts copies (2026-08-20, `#track-m` `#vault`)
+
+> **PARTLY SUPERSEDED (2026-09-04)** — *a file is sliced, so its size stops being a memory limit*.
+> The reasoning below is unchanged and still governs the **single-shot** path, which still refuses
+> nothing and still carries every ordinary photo. What is superseded is the *consequence*: a file
+> over the ceiling is no longer refused, it is chunked. The number now decides which path a file
+> takes, not whether it is allowed.
+
 
 **Decision.** `MAX_INGEST` drops from 48 MB to 16 MB.
 
@@ -4577,6 +4601,13 @@ and Apple SDKs Agreement forbids running it on a non-Apple computer. **There is 
 pin into a `.ios/`**, and there never will be. The un-pinnable surface moves from a hashed NDK to a
 GitHub runner image nobody pins or controls — strictly worse than the position the ruling protects.
 
+> **PARTLY SUPERSEDED (2026-09-04)** — *the repo goes public, and the economics every CI ruling
+> rested on invert*. The premise quoted below still holds for "no Mac, no iPhone"; **"repo stays
+> private" and "a bounded macOS CI allocation" do not.** On a public repo, standard-runner minutes
+> are free, macOS included, so the bound this entry reasons against is gone. What survives it
+> unchanged: iOS is an exception to the project-local-toolchain rule rather than a quiet extension
+> of it, and no iOS leg may reach `release.yml`.
+
 **Why this is not a veto.** The owner has ruled: no Mac, no iPhone, repo stays private, a bounded
 macOS CI allocation spent strategically. Under that, iOS is a **Simulator-only proof** — no signing,
 no provisioning profile, no $99/yr, no App Store review, no annual certificate renewal, because all
@@ -4866,7 +4897,10 @@ here so the choice needs no second research pass:
   may need a support conversation. Confirm before paying.
 
 **Consequence:** `release.yml` still gains nothing — it is the single named exception to the
-no-remote-CI standing order and fires unattended on every `v*` tag. Whatever artifact iOS eventually
+no-remote-CI standing order and fires unattended on every `v*` tag. *(2026-09-04: the standing order
+itself is superseded — see* the repo goes public *— but this consequence is not. `release.yml` stays
+the one unattended workflow whether or not minutes are billed, because the reason it is narrow was
+never the money.)* Whatever artifact iOS eventually
 produces follows the APK's shape: built by a manual dispatch, attached deliberately. And **G5
 (container-relative vault paths) stops being deferrable the moment a distribution channel exists** —
 a distributed app *updates*, which is precisely the failure G5 exists to prevent.
@@ -5201,3 +5235,517 @@ is the only check that covers XcodeGen and the archive as well as the spec.
 **The wording is user-visible.** Each string is what the system prompt shows, so it says what is
 accessed and when. A vague reason is a worse prompt and a worse answer to "why does this want my
 microphone".
+
+## 2026-09-03 — the licence notice covers what the binary *carries*, not what Cargo *resolves* `#toolchain`
+
+**A gate keyed on one manifest is blind to everything the artifact carries that is not in it.**
+`crates/fm-serve/build.rs:26` bakes `ui/dist` into the binary. That bundle carries `marked`,
+`katex`, `mermaid`, `dompurify`, `@excalidraw/excalidraw`, `react`/`react-dom` (MIT) and
+`@atlaskit/pragmatic-drag-and-drop` (Apache-2.0), plus eight self-hosted font families. Both halves
+of the licence gate — `deny.toml` and `ci/third-party.sh` (built from `cargo tree`) — read
+`Cargo.lock`, so **neither could see any of it**. MIT and Apache-2.0 require their notice to travel
+with a *binary*; OFL requires it to travel with the *font files*. The reasoning was sound and was
+simply never extended past Rust; `outstanding.md:174` had queued the npm half and `papers-plan.md:112`
+already named the exact packages.
+
+**Decision:** `ci/third-party.sh` now emits four sections in the order the artifact assembles them —
+**crates → npm → fonts → downloaded-at-runtime** — and `THIRD-PARTY.md` is **committed at the repo
+root**. It existed only inside release archives (`release.yml:141`), so a visitor could not learn
+what the binary links without cloning and running pixi. That stops being acceptable the day the repo
+is public.
+
+**Three guards, each proven red before being trusted** (the repo's standing rule):
+- `ci/third-party-check.sh` regenerates to a temp dir and `diff`s. Red test: deleting the `marked`
+  row → *"THIRD-PARTY.md is stale"*. Wired into `pixi run ci`, which is why this drifted before —
+  `pixi.toml` defined the `third-party` task and **nothing depended on it**.
+- The generator **refuses to emit an `Unknown` row.** pnpm reads only the `license` *field*, so a
+  package shipping its licence as a *file* reports `Unknown`; emitting that silently understates
+  what ships. Red test: disabling the `khroma` override → *"no licence could be determined for:
+  khroma"*.
+- `ci/checks.sh` walks the **real** `@excalidraw/excalidraw` fonts directory and fails on a family
+  with no notice row. It reads `SKIP` out of `copy-excalidraw-fonts.mjs` rather than retyping it, so
+  the two cannot disagree. Red test: removing the Cascadia Code row → refused.
+
+**`svelte` and `@tauri-apps/api` moved from `devDependencies` to `dependencies`.** Not a workaround
+to make them appear in the notice — a correctness fix. Svelte 5 compiles components against its own
+client runtime, so `svelte` executes in the shipped bundle; `@tauri-apps/api/core` is dynamically
+imported by shipped code. Declaring them dev was simply false. Prod closure 227 → **246 packages**.
+
+**Two licences were determined by reading upstream, not by assuming.** `dompurify` is
+`(MPL-2.0 OR Apache-2.0)` — **Apache-2.0 is elected**, and the notice records that an election was
+made, so the table stays permissive-only and matches `deny.toml`'s posture. And **ComicShanns is
+MIT** while every other bundled family is OFL-1.1 — which is why the font guard's failure message
+says *do not assume OFL* in those words. Xiaolai is in the notice's prose as **deliberately not
+bundled** (the copier skips it) and correctly has no table row.
+
+**The crate table resolves with `--target all`, not for the host.** Two reasons, and the second
+only appeared because the file became committed. `cargo tree` with no `--target` resolves for
+whatever machine runs it, so a Linux-generated notice omits every Windows-only arm — including
+**`libgit2-sys`**, the one crate here vendoring GPL-2.0-only code, which is precisely what its
+override was written to state. It was absent from the first generated file. And a host-dependent
+table cannot be diffed: `third-party-check` would go red on every OS but the one that wrote it, so
+the gate could never move off Linux. 142 → **188 crates**. A superset over-attributes, which is the
+safe direction; under-attributing is the direction that is a violation.
+
+**The release now copies the notice instead of regenerating it** (`release.yml`). It used to run
+the generator on each runner, which is what made it host-dependent — and it meant **a tag was the
+first place the notice was ever computed**. Both are wrong now that the file is reproducible and
+gate-checked. So the archive ships the copy a human reviewed, and generation stays where a red
+result is cheap, rather than inside the one workflow that fires unattended on a `v*` tag, on
+Windows and macOS runners where the generator's new `pnpm licenses list` step has never once run.
+The step asserts all four section headings landed, because a truncated legal notice is a violation
+that looks like a success.
+
+**The count line counts each table separately.** A single `grep -c '^| '` over a three-table file
+reported *402 crates*. Per-table `awk` now, subtracting one header line each — the `|---|` separator
+does not match. Cross-checked against pnpm's own count: 142 crates, 246 npm packages, 8 font
+families.
+
+**Four questions verdict: permitted, and it widens what the notice covers — so it earns this entry
+whatever the verdict.** No GPL/AGPL anywhere in the JS tree, so this was an attribution gap, not a
+policy one. Nothing about `deny.toml`'s Rust posture changes.
+
+
+## 2026-09-04 — the repo goes public, and the economics every CI ruling rested on invert `#toolchain`
+
+**The owner's decision, and it reverses a written one.** `decisions.md:4583` records the ruling
+*"no Mac, no iPhone, **repo stays private**, a bounded macOS CI allocation spent strategically"*,
+and every workflow in `.github/` is shaped by the sentence after it: minutes are billed, at **1x
+Linux / 2x Windows / 10x macOS**, so nothing runs on a push and `ci`, `cross`, `docs` and `ios` are
+`workflow_dispatch:` only. That is the 2026-07-18 no-remote-CI standing order, and it has governed
+how this project works for seven weeks — including the habit of running four whole test suites
+nowhere at all.
+
+**What changes: on a public repository, GitHub Actions minutes are free on standard runners.** Not
+cheaper — free, and including `macos-latest`. Every workflow here uses standard runners, so **all
+five become free**, and the constraint that shaped the estate simply stops existing. The iOS ladder,
+`cross.yml`'s macOS and Windows legs, and the four never-run suites all become affordable at once.
+
+**The flip itself is the owner's, performed by hand.** Nothing in this pass touches visibility, cuts
+a tag, dispatches a workflow, or restores a `push:`/`pull_request:` trigger — the repo is still
+private while this is written, so re-enabling a trigger would bill immediately, at 10x on macOS.
+The trigger blocks are *prepared* and left commented where they already sit, so restoring them
+after the flip is one small commit.
+
+**Three things a public repo changes that are not about money.**
+
+1. **Every workflow now declares `permissions: contents: read`.** None did; every job inherited the
+   repository default, including four `macos-latest` iOS jobs that need nothing but read. The
+   `attach` job in `release.yml` keeps `contents: write`, because publishing a release is what it
+   is for — one job, one elevated scope, stated.
+2. **The three non-GitHub actions are pinned to a commit SHA**, with the version in a comment. A
+   floating tag is a tag someone else can move, and `softprops/action-gh-release` is the one holding
+   `contents: write`. `ci/checks.sh` gained a guard so it cannot regress, and `dependabot.yml` keeps
+   the pins current — a pinned action that nobody updates is its own problem.
+3. **An artifact on a public repo is downloadable by anyone.** `ios.yml`'s rung 5 uploaded the
+   unsigned `.ipa`, of which `features.md` says *"nobody should be handed it yet"*. It stops being
+   uploaded. The rung still builds it and still produces its stats and logs, which is what the rung
+   exists for; the binary just stops being a public download.
+
+**And one silent breakage found before it could happen.** `cross.yml` guards its expensive legs
+with `if: inputs.scope == 'full'`. `scope` is a `workflow_dispatch` input, so **on a `push` event
+`inputs.scope` is empty** and the condition is false: a pushed run would take the cheap `agent`
+path, skip the pnpm cache and skip the entire gate, **and report green**. Fixed to
+`github.event_name != 'workflow_dispatch' || inputs.scope == 'full'` *before* anyone restores the
+trigger. This is the 2026-08-28 lesson arriving from the other direction — *"disabling a trigger
+does not merely remove a path; it changes the meaning of the paths that remain"* — and re-enabling
+one does the same thing in reverse.
+
+**The cost prose is rewritten wherever it stops being true.** `ci.yml`, `cross.yml`, `docs.yml`,
+`ios.yml`, `release.yml` and `ci/ios-logs.sh` all explain themselves in terms of a private repo and
+a bill. Left in place after the flip, that prose is an instruction to the next reader — very
+possibly a later session of this project — to re-disable everything for a reason that no longer
+holds. `ios.yml`'s kill criteria were denominated in dollars that will not exist.
+
+**What does not change.** `ios.yml` stays manual even when it is free: a 4–11 minute job with a
+stop-and-decide point between rungs is an experiment, not a gate, and `ci/checks.sh` still enforces
+that no iOS leg reaches `release.yml`. `release.yml` remains the single named exception, still
+firing unattended on `v*`. And **macOS remains the one platform nobody here can observe** — a
+`cross.yml` run type-checks the assistant's per-OS code and reads memory; it does not use the app.
+Free minutes buy compilation, not a user.
+
+
+## 2026-09-04 — a file is sliced, so its size stops being a memory limit `#track-m` `#data`
+
+**`MAX_INGEST` was never a judgement about attachment size.** It is the point at which a file
+encoded base64 into one JSON argument — the only binary door Android leaves open — stops fitting
+in memory after being copied roughly ten times between the page and Rust. `outstanding.md` §1.3
+put it exactly: *a memory limit wearing a size limit's clothes*. Its visible cost was that **video
+was refused on a phone**, with a message telling the user to go and find a desktop.
+
+**Decision:** `fm_core::chunked` — `ingest_chunk` appends a bounded slice to
+`<vault>/.fm-ingest/<session>/part`, `ingest_finish` ingests that file through
+`BlobStore::put_file`, which already streams and hashes in 64 KB reads. **The transient peak is
+one slice, whatever the file weighs.** 2 MB slices from the UI, a 4 MB refusal in the core so a
+frontend cannot call the whole file "chunk 0". A 24 MB file is now proven to arrive whole and
+byte-identical (`fm-app/tests/chunked_ingest.rs`).
+
+**Content addressing is untouched, and that is asserted rather than assumed.** The hash is taken
+once, over the assembled file. A test sends the same bytes single-shot and in eleven pieces and
+requires **one blob and one address** — because the failure that would matter here is not a
+crash, it is dedup silently switching off for everything that arrived from a phone.
+
+**`seq` is checked, and this is the load-bearing part.** Without it a dropped or repeated chunk
+assembles a file that still hashes, still stores, still gets an asset note, and is wrong — the
+corruption surfacing days later as an image that will not open, with nothing connecting it to the
+upload. A mismatch is refused where it happens, naming the chunk it expected.
+
+**Ordering inside `append` is chosen for the recoverable failure.** The bytes are `sync_all`'d
+before the counter advances. Die in between and the next chunk is refused as out of order and the
+upload restarts — survivable. The other order accepts a chunk whose bytes never landed, which is a
+file with a hole in it that nothing downstream can detect.
+
+**Sessions live at the vault root, dot-prefixed, and not in `blobs/`.** That directory is
+content-addressed and `verify` inventories it; a half-uploaded file there would be reported as a
+blob whose name disagrees with its contents — the signature of bit-rot. **An integrity checker
+must not be taught to expect corruption.** At the root, `backup` (notes + `blobs/`, never the
+root) and `verify` both exclude it for free, and `.gitignore` gained a line so a user's own
+`git add -A` cannot commit bytes that are not a file yet.
+
+**The orphan session is the one new hazard, and it is swept at boot by age.** Android kills
+backgrounded apps constantly — the same fact that forces the write-record rebuild in `App::load`
+— so the sweep sits beside it. **Age, never "everything"**: two uploads can be live across a
+restart on a device with a paired tablet, and collecting one of those turns a survivable
+interruption into a failed upload. The age comes from a stamp the session writes for itself, not
+from mtime: mtime is not ours, and a sweep that deletes on a sync tool's timestamp eventually eats
+a live upload.
+
+**The gate this was waiting on had already been met.** `outstanding.md` §1.2 ruled *"do not do 2
+before 1"* — no lifting the ceiling until the app told people where phone media actually survives,
+since a higher ceiling invites people to trust it with more. That shipped on 2026-09-03: Settings
+states *"photos and files live only on this phone until they reach a backup — a git push carries
+your notes but not their media"*, gated on `vault_root` so both phones get it. Checked before
+building, not after.
+
+**A test was reversed, deliberately and in place.** `ingest.phone.test.ts` asserted *"refuses a
+file too large for the bridge, and says why"*, which was correct while the single-shot message was
+the only door. It now asserts the shape that survives — nothing oversized goes through the
+single-shot path — with the old reasoning kept above it, because a test that quietly changes its
+mind is a test nobody can date.
+
+
+## 2026-09-04 — a backup surface that cannot say *when* is not a backup surface `#vault`
+
+**The one fact a person wants from a backup panel could not be shown at any price.**
+`fm_core::backup::latest()` has returned the newest `fm`-tagged snapshot since the tier was built,
+and **no dispatch command exposed it** — so *when did this last work* was unanswerable, on a screen
+whose entire job is to answer it.
+
+**Decision:** `backup_latest`, its own command rather than a field on `VaultStatus`. `backup_status`
+polls every 45 s and already shells out per vault; adding a `restic snapshots` there is another
+spawn on every beat and, for a repository that is not on this machine, a network round trip. **A
+fact worth a process is a fact worth asking for when someone is looking at it.**
+
+**Three answers, not two, and keeping them apart is the design.** A snapshot (id, time, and the
+*source paths* it recorded — a snapshot taken on another device names that device's paths, and a
+restore that silently used them is a failure worth seeing coming). **Never backed up** — the
+repository opened and holds nothing; that is not an error and it is the state that should worry
+somebody, so it is not folded into the third. And **cannot tell you**, with the reason: no restic,
+no repo, no password, or a repository that would not open. An unreachable destination is *reported,
+not raised*: a backup repo on another machine is unreachable as an ordinary Tuesday, and a panel
+that throws on it tells the user less than one naming the repo it could not open.
+
+**A restic-only machine can now press the button.** `canRun` required a git remote, so a machine
+with restic, a repository and a password had a tick box that ticked and a Back up button that never
+enabled. The panel had been made to *say* so, which was honesty rather than a fix. The two tiers
+were already independent inside `run()`; only the gate assumed one.
+
+**And the verdict stopped reporting a tier that never ran.** With no remote anywhere, every vault
+landed in `stuck` and the panel said *"your notes are still on this machine"* — at the exact moment
+the snapshot tier had carried them off it, because a snapshot covers the notes directory as well as
+`blobs/`. Not merely unhelpful: false.
+
+**`dispatch.rs` has tests now — its first, ever.** It is the one command surface every frontend
+goes through, `fm-core` beneath it is well covered and the UI above it is covered by mocks, and the
+seam between them had **zero** `#[test]`. Six, each proven red first, including one that searches
+the *whole* serialized `backup_status` for the password rather than checking the fields it knows
+about — because a leak arrives as a new field somebody added without thinking, and a test that only
+inspects known fields cannot see that. **A UI test presses Back up**, which none ever had.
+
+**MASTERPLAN's own S6 acceptance is kept at last.** It asked for restore → **diff the whole vault**
+→ `verify --scrub`, and said *"test the restore in month one"*. What existed compared one note's
+bytes. The new test was proven red by making `backup` silently stop carrying `blobs/`: **the
+single-note test stayed green while the whole-tree diff failed.** That is the entire argument for
+the shape — every failure worth a backup test is a file that is *missing*, and only a set
+comparison finds one.
+
+
+## 2026-09-04 — a test that names somebody's private repo, and three that only passed here `#toolchain`
+
+**Found by running the suites that had never been run**, which was the point of running them.
+
+**`git_differential.rs` asserted that a *private* repo fails to clone**, and named the owner's real
+`personal-notes` in a file that was about to become public. Three things wrong with that, and only
+the first is obvious: it published the name; it made the suite depend on one account staying as it
+is; and it would have **inverted** the day that repo's visibility changed.
+
+**The fix is better than a fixture repo, because of a fact worth recording:** GitHub answers an
+unauthenticated `git-upload-pack` with `401 WWW-Authenticate: Basic realm="GitHub"` for a private
+repository **and for one that was never created — identically**, deliberately, so a 404 cannot be
+used to enumerate private repos. Measured against both on 2026-09-04, and confirmed through
+libgit2: the credentials callback runs either way and our wrapper says *"this remote needs an
+access token"*. So the URL now names a repository that can never exist. It depends on nobody.
+
+**`acquire.rs` cloned one of the maintainer's unrelated personal repos.** Pointing it at *this*
+project's repository was tried first and is **wrong**, which is worth recording because it looks
+like the obvious answer: the test asserts an **anonymous** clone, and on the maintainer's own
+machine a clone of this repo succeeds through the git credential helper — green while proving
+nothing, for exactly the one person least able to notice. It uses `octocat/Hello-World` now,
+overridable with `FM_TEST_PUBLIC_REPO`.
+
+**And that run found a test that was passing because of this machine.** `acquire.rs` asserted *"a
+typo is not an auth problem"* — and with no credential helper it is one, necessarily, because the
+401 above makes a typo and a private repo indistinguishable from outside. `needs_auth` is the
+honest answer there. The assertion was a claim about the *machine*, not the code; it is now
+conditioned on a helper existing and skips with a reason. **The general form is in
+`known-issues.md`: run the suite once with `GIT_CONFIG_GLOBAL=/dev/null` before believing anything
+it says about a remote.**
+
+**`ci/android-smoke.sh` had never executed and did not work.** Two bugs, stacked, the second hiding
+the first: it looked for the vault under `files/` (there is no `files/` — Tauri's `app_data_dir()`
+on Android *is* `/data/data/<pkg>`), and its directory test was
+`adb shell run-as $PKG sh -c "[ -d $dir ]"`, which **exits 2 for every path** because `adb shell`
+joins its arguments and the device's shell re-parses them. So the wrong path was undiagnosable from
+the failure message. Fixed, and **it now passes**: four launches, all painted, deviation ~25.8
+against a threshold of 10.
+
+**The durable lesson is about framing.** `test-native-git`, `check-cross`, `check-pins` and
+`android-smoke` were filed as blocked on CI minutes. **They are pixi tasks that run on this machine
+in seconds.** Three were green on their first run; the fourth was broken and nobody could have
+known. It was never a CI gap — it was a habit gap, and it cost a broken script sitting in the tree
+for five weeks.
+
+
+## 2026-09-04 — a poisoned lock is recovered, not propagated `#seams`
+
+**A panic anywhere bricked the whole process.** `App::lock` was
+`self.vaults.lock().map_err(|e| e.to_string())`, so one panic while holding the vault guard left the
+mutex poisoned and **every command afterwards** — from every client, for the life of the process —
+answered with the `Display` of a `PoisonError`. That is not a sentence anyone can act on, and there
+is no way back except restarting the app. `paper.rs` records it happening for real: one multi-byte
+character in one PDF.
+
+**It is worse than a single-client bug.** The agent thread and the webview both go through
+`dispatch`, so a panic in either took out both.
+
+**Decision:** recover with `into_inner()`, and **log it**.
+
+**Is the poisoning load-bearing? No, and the argument is the entry.** Poisoning guards against
+reading torn state, and there is exactly one torn state here: `Vaults::add` pushes to `all` and
+`list` in turn, and its own doc says that is *"so `store` and `list` cannot disagree"*. But **both
+halves are reconstructions of on-disk truth** — `list` mirrors `vaults.json`, which
+`import_into_new_vault` deliberately writes *before* memory (*"JSON before memory, so a failed write
+never leaves a vault that vanishes on restart"*), and `all` is an index `reindex` rebuilds. So the
+worst case recovery admits is a transient in-memory disagreement that a restart fixes — weighed
+against a process that answers nothing until it is restarted anyway. The trade is not close.
+
+**Recovery must be loud, or a panic becomes invisible** — which would be a worse bug than the one
+this fixes. Once per recovery, not once per call, and worded for a user: their notes are files and
+are not at risk.
+
+**The test is deterministic, which is why it is worth having.** `poison_for_test` panics inside a
+`catch_unwind` while holding the guard; the test then asserts a read *and a write* still work. It
+was proven red against the old one-liner. **This landed first of all the code changes on purpose**:
+the two lock-contention tests below it panic on worker threads, and without recovery the first such
+panic would poison the mutex and bury the real failure under a wall of unrelated errors.
+
+## 2026-09-04 — the vault lock is not held across a subprocess or a revwalk `#seams`
+
+Three arms took the global vault guard and kept it through work that shells out. `papers-plan.md`
+B5 named the ingest one and it sat in a survey document; the others were in `known-issues.md`.
+
+- **`ingest` and `ingest_finish`** held it through `pdftotext` *and* `vipsthumbnail` — two spawns
+  per file. A bulk import froze every tab, every pane and the phone's entire UI: 25–40 minutes for
+  5,000 PDFs. **`ingest_finish` is four days old and inherited it**, which is the worse half, since
+  chunked ingest exists precisely for large, slow files.
+- **`activity`** held it across one `git log` per vault, and it is among the first things the UI's
+  first `refresh()` fires — so on a cold start every other command queued behind a year of history.
+
+**Decision:** resolve the vault, **drop the guard**, do the slow work, re-take, and **re-resolve**.
+The pattern is not new — `run_backup`, `run_import` and `open_skipped` already follow it, and
+`run_import` states the rule the re-resolve exists for: *"if the vault was forgotten or moved in
+that time, writing to the path we remember would put notes somewhere nothing is watching."*
+
+**`commands::activity` split into `resolve_touches` + `activity`** so the git half and the store
+half can run at different times. The public signature is unchanged, so its integration-test callers
+did not move, and **the note-class exclusions stay in `commands.rs`** — `ci/checks.sh`'s
+notes-base-filter guard carries a *named-file exemption* for `activity`, keyed on that file.
+
+**`ingest::thumbnail` returns early when the thumbnail already exists.** Independently correct — a
+thumbnail is a pure function of a content-addressed blob — and it is what keeps `asset_note`'s
+later call a `stat` rather than a second subprocess, so no caller (`fm add`, bulk import) loses a
+thumbnail to this change.
+
+**The tests are a rendezvous, not a stopwatch**, and that distinction is what lets them sit in
+`pixi run ci`. A stub `vipsthumbnail` (and a stub `git` that defers to the real one) blocks until
+the test releases it, so the failing case waits out a 5 s timeout and the passing case returns in
+0.06 s. Measured both ways.
+
+**Two things the tests taught, both worth keeping.** The activity probe must not itself touch git —
+`list_vaults` was the obvious choice and is wrong, because `infos` shells out per vault for the
+remote label and identity, so it blocked on the stub rather than on the lock and measured nothing.
+And the activity test must be `#[cfg(not(feature = "native-git"))]`: under `test-native-git` the
+routing bypasses the subprocess backend, the stub is never invoked, and the test would **hang**
+rather than fail.
+
+## 2026-09-04 — a proposal its author turned down is never merged `#git` `#agent`
+
+**`accept_proposal` merged withdrawn text into `main`.** It read the `proposes:` branch and called
+`merge_proposal_branch` without ever checking `declined`.
+
+**The state is ordinary, not exotic.** `reject_proposal` deletes the branch *and* stamps `declined`
+— but only where it runs. When a **peer** rejects, their copy of the branch goes and ours does not:
+we get their `declined` note on the next pull and keep `refs/heads/proposal/<id>`, our own local
+head. `retire_settled_proposals` sweeps exactly that, but only where the guardrail ceiling is
+checked — when a *new* proposal is created. **The window between pulling a rejection and the next
+`create_proposal` is the bug**, and it is as long as the user goes without proposing anything.
+
+**Corrected on the way in:** `outstanding.md` blamed `pull` for lacking `--prune`, and **`--prune`
+would not have fixed this.** It removes only *remote-tracking* refs; the ref that survives here is a
+local head, which no fetch flag touches. Adding it would have changed both git backends, dragged in
+a differential test, and deleted every stale remote-tracking ref in a directory the user may also
+run git in by hand — for no effect on the defect. Dropped.
+
+**Refused at the seam, not only in the UI.** `ProposalReview.svelte` already orders its declined
+branch ahead of Accept, so the desktop was covered — but `fm-serve`'s HTTP surface, `fm-cli`, the
+agent and a stale open pane all reach the function directly. Same stance as `edit.rs`'s `thread_of`
+refusal: guard the one gesture that can reach the damage.
+
+**`mock.ts` had the identical gap and was fixed in the same commit.** Its `proposal_content` and
+`proposal_for` already checked `declined`; `accept_proposal` did not. A mock that accepts what the
+backend refuses lets a UI test go green for the wrong reason — the exact drift `mock.ts`'s own
+header warns about.
+
+**The test reads `main`, not the return value.** A test asserting only the error type would still
+pass against a guard placed *after* the merge; this one requires the proposed text to be absent
+from `HEAD`. Proven red — with the guard disabled, the withdrawn text is on `main`.
+
+
+## 2026-09-04 — the phone's blob route answers a `Range`, and stops lying about it `#track-m`
+
+**The comment claimed something the API cannot do.** `blob_response` said *"a GET streams, and
+`<video>` can seek without the file ever being held whole in memory"*. It did none of that: it took
+the bytes through `dispatch("resolve_asset")` and returned `out.into_bytes()` — the whole blob, in
+memory, with no `Accept-Ranges` and no `Range` parsing. **And "streams" is not achievable here at
+all**: `register_uri_scheme_protocol` hands back a `Response<Vec<u8>>` and Tauri exposes no
+streaming body at this seam. So the fix is not "make it stream"; it is **bound the peak to one
+requested window**, and say that instead.
+
+**This stopped being latent on 2026-09-04.** Chunked ingest removed the phone's upload ceiling that
+same day, so the files this path must serve are now unbounded — a 200 MB video was a 200 MB `Vec`
+plus wry's copy, on the device with the least memory.
+
+**Decision:** parse `Range`, answer `206`/`416` with `Content-Range`, advertise
+`Accept-Ranges: bytes`, and `seek` + `read_exact` exactly the window.
+
+**`parse_range` and `inline_safe` moved to `fm_app::wire`.** They were private in
+`fm-serve/src/blob.rs`; the phone needed both and had neither. `wire.rs`'s own header already made
+this argument — *"Moving the pure logic into the workspace is the cheap half of that problem: no
+second test runner, no Android toolchain in CI, the tests just run"* — and it is the same instinct
+as the `fm-query` seam. A new `blob_reply` joins them: the whole decision, with no I/O and no HTTP
+type in it, so both transports share one policy and **`pixi run ci` tests it**. `fm-serve`'s 67
+existing tests pass against the moved copy unchanged.
+
+**The phone also shipped none of the desktop's security headers, and that is not a desktop
+concern.** `blob.rs` sets `nosniff`, a CSP and an `inline_safe` allowlist forcing
+`Content-Disposition: attachment`, and its header argues why: a blob is reachable as a same-origin
+URL, and **blobs arrive from collaborators through the merge driver**. That is true on every
+platform that serves one. Android had a hardcoded `application/octet-stream` and nothing else. Now
+it sniffs the real type and sets all three.
+
+**It resolves through `fm_app::dispatch::blob_path_of_kind` rather than `dispatch`.** That looks
+like a breach of the every-command-through-`dispatch` rule and is not: the function is `pub` for
+exactly this, its doc says so — *"for a transport that wants to stream the bytes itself"* — and
+`fm-serve` already uses it. It is what makes both transports share one resolver, one thumbnail
+fallback and one entitlement check.
+
+**What is verified, and what is not — stated because the gap is the interesting part.** The
+decision logic has four tests in the gate, proven. The handler compiles for `x86_64-linux-android`
+and the app launches, paints four times and logs no error on the emulator. **An actual ranged fetch
+on a device is *not* verified.** I seeded a blob and a note referencing it, launched, and got
+silence — then seeded a *deliberately missing* blob as a negative control and got silence again,
+which proves the handler is not reached from any screen `android-smoke` drives. So the wiring rests
+on compilation plus the shared tests, and closing that properly belongs to `outstanding.md` §1.1's
+device work. Do not read the green smoke run as covering this.
+
+## 2026-09-04 — a shell that cannot configure its paths refuses, rather than opening the first-run form `#track-m`
+
+**A silent early return produced a *wrong* screen, not a blank one.** `configure_paths` was
+`let Ok(dir) = handle.path().app_data_dir() else { return };`. With nothing set, `config_dir()`
+answers `None`, `App::load` **succeeds with zero vaults**, and the user meets the ordinary first-run
+form — whose `create_vault` then cannot persist anything, because there is nowhere to write the
+vault list. Indistinguishable from a fresh install, and every attempt to fix it by hand fails
+identically.
+
+**The infrastructure to see it already existed and was not used.** `install_logger()` runs on the
+line immediately above, and its doc says that ordering exists *"precisely so that everything after
+it — including its own failures — is visible"*.
+
+**Decision:** `configure_paths` returns a verdict; the failure is a sentence saying what it means
+for the user, logged; and the verdict is recorded in a `OnceLock` that `boot` consults first.
+
+**A log line alone would not have been enough**, which is why the `OnceLock` is there: without it
+`boot` still succeeds with zero vaults, `vault_state` clears its `last` error, and the message
+evaporates behind the form. **Only the paths verdict is once-only** — opening the vaults stays
+retryable, which is the whole reason `boot` is callable more than once.
+
+**Scoped, so the escape hatch stays honest.** If `FM_CONFIG_DIR` is already set — a desktop debug
+run of this library — `app_data_dir()` failing is a warning, not a refusal.
+
+**This is not a "make it work" fix.** The app cannot make a platform produce a data directory.
+The defect was that it could not tell you.
+
+**Proven red on the real runtime.** `configure_paths` now logs `vault root:`, and
+`ci/android-smoke.sh` asserts that line exists **and precedes `vaults ready`** — the ordering is
+what proves the paths were configured rather than skipped. Removing the log line turns the smoke
+test red on the emulator; verified both ways, on-device.
+
+## 2026-09-04 — the read view draws the small copy, and the fallback is the load-bearing half `#ui` `#track-m`
+
+**Every inline image decoded at full camera resolution.** A 12 MP JPEG is ~50 MB of pixels; five in
+one note is a renderer kill on a phone, and the kill is *silent* — `onRenderProcessGone` is
+unhandled, so the framework default takes the process and the app simply vanishes.
+
+> **SUPERSEDES the comment at `render.ts`'s image branch**, which said *"There is no thumbnail path
+> on any platform … `has_thumb` has no consumer; `assetUrl` has no `kind`"* and named M8 as the fix.
+> Two of its three claims had already stopped being true — `assetUrl` gained a `kind` when the feed
+> shipped, and `Timeline.svelte` consumes it. A stale comment asserting the absence of the thing you
+> are adding is worse than no comment.
+
+**Decision:** the `<img>` branch uses `asset.thumb ?? asset.url`. Images only — a 400x400 webp is
+not a video poster and not a PDF, so every other branch keeps the full blob.
+
+**The fallback is the whole reason this is safe, and it had to land first.**
+`resolve_asset_bytes` used to hard-error on a missing thumbnail, and `vipsthumbnail` **does not
+exist on Android** — so every image ingested on a phone has a blob and no derivative. Asking for
+`?kind=thumb` would have turned each one into a 404 placeholder: a performance fix that breaks the
+picture. `resolve_asset_bytes` now routes through `commands::blob_path_of_kind`, which had the
+correct behaviour all along and documents both halves of it — the fallback, *and* that the blob is
+checked before the thumb so a `derived/` file cannot answer for a vault whose blob the caller was
+never entitled to. The two functions had simply drifted apart.
+
+**Which half of M8 this is.** Serving a derivative: done. *Generating* one on Android: still open,
+still M8, and still why the fallback is load-bearing rather than defensive.
+
+## 2026-09-04 — the gate refuses to run without the tools its tests need `#toolchain`
+
+**97 tests skip rather than fail when a tool is missing** — 72 on `git`, 7 on `restic`, 3 on being
+offline — and a run that skipped them reports `ok` in exactly the same words as one that ran them.
+`fm-core/tests/backup.rs` opens by quoting its module's rule, *"an untested backup is not a
+backup"*, and skips seven of its own without restic.
+
+**The skipping is right and stays.** `fetch.rs` gives the reason: *"a gate that fails on a train is
+a gate people learn to ignore."* A contributor without restic should still get a useful local run.
+
+**What was missing is anything that noticed the difference.** So the skips stay soft and the
+**gate** gets loud: `ci/checks.sh` now fails when `git`, `restic`, `pdftotext` or `vipsthumbnail`
+is absent. `pixi run ci` is the single gate, and a single gate that can quietly cover a third of the
+suite is not one.
+
+`restic`, `poppler` and `libvips` come from the default pixi environment and are present by
+construction. **`git` does not** — it is the system binary, deliberately, because git is a
+capability and not a dependency. That is precisely the one that goes missing in a bare container.
+
+Same principle as the comment-anchoring guard directly above it in the same file: *a guard that is
+disarmed by adding a comment is worse than no guard.* This one would have been disarmed by an
+absent binary.
