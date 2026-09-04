@@ -7,8 +7,13 @@
 #
 # **Two backends, because neither is guaranteed.** `gh` is used when it is on PATH; otherwise this
 # falls back to the REST API with `curl`, which needs a token in `GH_TOKEN` or `GITHUB_TOKEN` with
-# `actions:read`. The repo is private, so an unauthenticated fetch cannot work — the script says so
-# rather than handing back a 404 to interpret.
+# `actions:read`. The script refuses without one rather than handing back a 404 to interpret.
+#
+# **The token requirement is not about the repo being private** (it said so until 2026-09-04, and
+# that reason is going away — `decisions.md`, *the repo goes public…*). The log and artifact
+# *download* endpoints want an authenticated caller regardless; going public makes run *listing*
+# anonymous, not the downloads. If that ever changes, the fix is to relax the check below — but
+# check it, do not assume it: the failure mode is a 404 that reads exactly like "no such run".
 #
 # Output lands in `.ci-logs/<workflow>-<run-id>/`, which is gitignored. Logs and artifacts are
 # **both** fetched: for rung 1 the artifact is `gen/apple/`, and whether it exists at all is one of
@@ -58,7 +63,8 @@ else
     TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
     if [ -z "$TOKEN" ]; then
         echo "ios-logs: no 'gh' on PATH and no GH_TOKEN/GITHUB_TOKEN set." >&2
-        echo "          This repo is private, so an anonymous fetch returns 404, not logs." >&2
+        echo "          The log and artifact download endpoints want an authenticated caller," >&2
+        echo "          public repo or not, and answer an anonymous one with 404, not logs." >&2
         echo "          Either 'pixi global install gh && gh auth login', or export a token" >&2
         echo "          with actions:read." >&2
         exit 1

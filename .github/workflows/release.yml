@@ -10,16 +10,27 @@
 name: release
 
 # **Re-enabled 2026-08-28 on the owner's instruction**: cutting a `v*` tag builds the
-# release again, unattended. This workflow is the deliberate *exception* to the 2026-07-18
-# no-remote-CI standing order — `ci.yml`, `cross.yml` and `docs.yml` stay `workflow_dispatch`-
-# only. The exception is worth its cost because a release that must be fired by hand is a
-# release that silently does not exist: the tag lands, nothing builds, and the gap is only
-# noticed by someone looking for a download that was never produced.
+# release again, unattended. This workflow was the deliberate *exception* to the 2026-07-18
+# no-remote-CI standing order, and it is worth restating **why**, because that order is now
+# superseded (`decisions.md`, *the repo goes public…*, 2026-09-04) and the exception is not:
+# a release that must be fired by hand is a release that silently does not exist. The tag lands,
+# nothing builds, and the gap is noticed only by someone looking for a download that was never
+# produced. That was never an argument about minutes, so free minutes do not change it.
+#
+# **The corollary is the thing to remember: pushing a `v*` tag publishes a release.** This is the
+# one workflow in the repo that can be started by accident.
 on:
   push:
     tags: ['v*']
   # "I want a binary from this commit" without cutting a tag.
   workflow_dispatch:
+
+# **Read at the top; write only where publishing happens.** The `binaries` job compiles and
+# packages and needs nothing more than the tree; the `attach` job below re-declares
+# `contents: write` for itself, because creating a release is exactly what that scope is for.
+# One elevated job, stated, rather than five jobs inheriting whatever the repository default is.
+permissions:
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -47,7 +58,7 @@ jobs:
             archive: zip
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -57,7 +68,7 @@ jobs:
           pixi-version: v0.72.2
           run-install: true
           cache: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
       # **The version, before the build rather than after it**, because the binary has to carry
@@ -134,11 +145,26 @@ jobs:
             cp packaging/README-release.txt "stage/${DIR}/README.txt"
           fi
 
-          # Our licence, plus the notices of the ~87 crates linked into the binary — MIT and
-          # Apache both require those to travel with it. Generated from the real dependency tree,
-          # never hand-maintained. Beside the binaries they describe, not in the user's way.
+          # Our licence, plus the notices of everything the binary carries — the ~188 crates,
+          # the npm packages baked into `ui/dist`, and the bundled font families. MIT, Apache-2.0
+          # and OFL all require those to travel with it. Beside the binaries they describe, not
+          # in the user's way.
           cp LICENSE "stage/${DIR}/program/"
-          pixi run sh ci/third-party.sh "stage/${DIR}/program/THIRD-PARTY.md"
+          # **Copied, not regenerated here.** It used to be regenerated on each runner, which
+          # made the notice host-dependent and made a tag the first place it was ever computed.
+          # Both are now wrong: `ci/third-party.sh` resolves with `--target all`, so the file is
+          # identical on every platform, and `pixi run ci` fails if the committed copy has
+          # drifted (`ci/third-party-check.sh`). So the archive ships the copy a human reviewed,
+          # and generation stays on the gate where a red result is cheap — rather than inside the
+          # one workflow that fires unattended on a tag, on runners where the generator's `pnpm
+          # licenses list` step has never been exercised.
+          cp THIRD-PARTY.md "stage/${DIR}/program/THIRD-PARTY.md"
+          # Assert the artifact, not the exit code: a notice that arrives empty or truncated is
+          # a licence violation that looks like a success. All four sections or nothing.
+          for want in "## Bundled into the user interface" "## Fonts bundled" "## Downloaded at runtime"; do
+            grep -qF "${want}" "stage/${DIR}/program/THIRD-PARTY.md" \
+              || { echo "stage: THIRD-PARTY.md is missing the section '${want}'" >&2; exit 1; }
+          done
 
           # **The manual ships WITH the app.** `docs.yml` only ever built the book as a link
           # check and threw the HTML away with the runner — no artifact, no Pages deploy — and
@@ -294,7 +320,7 @@ jobs:
       # OS's warning **before** they can open any of it, so on the near side of the download our
       # documentation is unreachable by construction. This body is the only place words reach them
       # at that moment. `generate_release_notes` still appends the changelog underneath.
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: dist/*
           generate_release_notes: true

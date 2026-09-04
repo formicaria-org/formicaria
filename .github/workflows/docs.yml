@@ -6,14 +6,26 @@
 # code-only — a redrawn image should never run a Rust test.
 name: docs
 
-# Manual-only by owner's standing order (2026-07-18): no remote CI billing until re-enabled.
-# Restore by putting back below `workflow_dispatch:`:
+# **Currently manual-only, and now only because the visibility flip has not happened yet.**
+# The 2026-07-18 no-remote-CI standing order is superseded — `decisions.md`, *the repo goes
+# public, and the economics every CI ruling rested on invert* (2026-09-04). Restoring a trigger
+# while the repo is still private would bill immediately, so the block below stays commented
+# until the owner flips it by hand.
+#
+# **SAFE TO UNCOMMENT ONCE THE REPO IS PUBLIC.** Put back below `workflow_dispatch:`:
 #   push:
 #     paths: &docs ['docs/src/**', 'docs/book.toml', '.github/workflows/docs.yml']
 #   pull_request:
 #     paths: *docs
+#
+# **Keep `paths:` on `push`; leave `pull_request` unfiltered** if it is ever made a required
+# check — a path-filtered PR check that does not run stays *pending* forever and blocks the merge.
 on:
   workflow_dispatch:
+
+# Builds a book and throws it away. Read is all it needs.
+permissions:
+  contents: read
 
 concurrency:
   group: docs-${{ github.ref }}
@@ -24,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi

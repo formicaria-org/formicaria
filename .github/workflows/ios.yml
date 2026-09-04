@@ -10,22 +10,30 @@
 # iOS leg there would widen that exception permanently, for a platform that cannot ship. See
 # `decisions.md#track-m`, *an iOS build would contradict the project-local-toolchain ruling*.
 #
-# **Cost, stated before it is spent:** one `macos-latest` job, billed at 10x Linux. The estimate was
-# $1.50-$3.00 and 25-45 minutes cold; **measured over three runs it is 2.8-7.7 min, ~$0.20-$0.60** —
-# pessimistic by about 5x, which is worth knowing before calling a rung too expensive to try. Both
-# steps run even if the first fails (`if: always()`), because the whole point is to learn as much as
-# possible per job rather than to go green.
+# **Cost — the history, because the numbers taught something even though they no longer apply.**
+# While the repo was private this was one `macos-latest` job billed at 10x Linux. The estimate was
+# $1.50-$3.00 and 25-45 minutes cold; **measured over three runs it was 2.8-7.7 min, ~$0.20-$0.60**
+# — pessimistic by about 5x. Worth keeping: the reflex to call a rung too expensive to try was
+# wrong by an order of magnitude, and the only way to find that out was to run one.
 #
-# **Kill criterion, written before the money is spent:** if two runs cannot produce a compile, and
+# **On a public repo, standard-runner minutes are free, `macos-latest` included**, so the dollar
+# figures above are historical (`decisions.md`, *the repo goes public…*, 2026-09-04). What survives
+# the change is everything that was never about money: this is an *experiment* with a
+# stop-and-decide point between rungs, not a gate, so it stays `workflow_dispatch`-only even when
+# it is free. Both steps run even if the first fails (`if: always()`), because the point is to
+# learn as much as possible per job rather than to go green.
+#
+# **Kill criterion, restated without the currency:** if two runs cannot produce a compile, and
 # neither documented workaround for tauri#15066 takes, stop. Record "not until upstream moves" in
-# `decisions.md` and close the question. Do not iterate this into a budget.
+# `decisions.md` and close the question. Free minutes remove the bill, not the reason to decide —
+# an unbounded loop of runs that never resolves the question is the waste, and it always was.
 name: ios
 
-# **One dispatch spends one job.** The rungs are a ladder with a stop-and-decide point between each
-# step, and that is a cost control, so it belongs in the workflow rather than in remembering: pick
-# the rung you are paying for and the other job does not start. Adding rung 2 as a second job with
-# no switch would have doubled the bill of every dispatch, including the ones that only wanted a
-# rung-1 re-run.
+# **One dispatch spends one job.** The rungs are a ladder with a stop-and-decide point between
+# each step. That began as a cost control — pick the rung you are paying for and the other job does
+# not start — and it stays after the minutes became free, because the *deciding* is the point: a
+# ladder that runs every rung on every dispatch is not a ladder, it is a batch, and nobody reads
+# the rung that mattered.
 on:
   workflow_dispatch:
     inputs:
@@ -39,6 +47,12 @@ on:
           - "3"
           - "4"
           - "5"
+
+# Every rung here compiles, generates a project and packages. None of them writes to the
+# repository, and four of them are `macos-latest` jobs where an inherited write token would be the
+# broadest thing in the workflow for no reason at all.
+permissions:
+  contents: read
 
 # **Keyed by rung, not just by ref.** `cancel-in-progress` is right *within* a rung — a re-dispatch
 # supersedes the previous attempt — but the two rungs are different experiments, and with a shared
@@ -55,7 +69,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -85,7 +99,7 @@ jobs:
       # rung 1 and rung 2 share one cache instead of each keeping its own. Rung 1 spends ~3 minutes
       # per iOS triple building exactly the C that rung 2 needs; without this they never see each
       # other's work.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
           cache-on-failure: true
@@ -188,7 +202,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -223,7 +237,7 @@ jobs:
       # hit was on the workspace target the iOS build scarcely touches while vendored OpenSSL,
       # libgit2 and SQLite were recompiled for the simulator triple from scratch. A cache can report
       # a perfect hit and save nothing; the thing to check is *which* directory it hit.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             . -> target
@@ -338,7 +352,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -351,7 +365,7 @@ jobs:
             cross
           run-install: true
           cache: true
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
           cache-on-failure: true
@@ -403,7 +417,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -420,7 +434,7 @@ jobs:
           cache: true
       # `shared-key: ios` again — this is the *device* triple, which rung 1 already compiled
       # (2m47s) and nothing since has used. Without the shared key that work is bought twice.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             . -> target
@@ -464,12 +478,18 @@ jobs:
         if: always()
         with:
           name: ios-rung5
-          # **The `.ipa` itself, and the reasoning about it.** This is the first iOS artifact of
-          # this project that is meant to leave CI — it is what a user would sideload. It is also
-          # the first that has never run on the hardware it targets, which is why `stats.txt` and
-          # the logs ship beside it rather than the binary alone.
+          # **The `.ipa` is deliberately NOT uploaded** (2026-09-04). It used to be, on the
+          # reasoning that this is the first iOS artifact meant to leave CI — what a user would
+          # sideload. That reasoning held on a private repo, where the only people who could
+          # download it were the people who built it.
+          #
+          # **On a public repo an artifact is downloadable by anyone**, and `features.md` says of
+          # this exact file: *"nobody should be handed it yet"*. It has never run on the hardware
+          # it targets. So the rung still builds it, still proves it packages, and still uploads
+          # `stats.txt` and the logs — which are what the rung exists to produce — and the unsigned
+          # binary stops being a public download. When it is ready to be handed to someone, it will
+          # be handed to them deliberately, the way the APK is, not left in a bucket.
           path: |
-            mobile/src-tauri/gen/apple/build/arm64/*.ipa
             target/ios-package
           if-no-files-found: warn
           retention-days: 7

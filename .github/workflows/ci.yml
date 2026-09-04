@@ -1,26 +1,42 @@
-# The gate, on Linux, for every push. Cheap and always-on.
+# The gate, on Linux. Cheap, and meant to be always-on.
 #
-# macOS and Windows live in `cross.yml`, which is path-filtered — this is a private repo,
-# so minutes are billed and GitHub multiplies them: Linux 1x, Windows 2x, **macOS 10x**.
-# Running all three on every push is a 13x multiplier, and a large share of this repo's
-# commits touch only `docs/context/` (it is the project's working memory and is updated
-# every session). Those cannot break a Windows build, so they must not pay for one.
+# macOS and Windows live in `cross.yml`, which is path-filtered. That split was made when this
+# was a private repo and minutes were billed at Linux 1x / Windows 2x / **macOS 10x** — a 13x
+# multiplier on every push, most of which touch only `docs/context/` and cannot break a Windows
+# build. **On a public repo, standard-runner minutes are free**, so the split survives for a
+# smaller reason: wall-clock and noise, not money.
 name: ci
 
-# **Manual-only by owner's standing order (2026-07-18): NO remote CI billing until the
-# owner re-enables it themselves.** Every workflow in this repo is `workflow_dispatch`-only
-# so nothing fires on push or PR. `pixi run ci` LOCALLY is the gate meanwhile; it is the
-# same commands this workflow runs, at zero remote cost.
+# **Currently manual-only, and that is now a leftover rather than a policy.**
 #
-# To restore automatic runs, put back below `workflow_dispatch:`:
+# The 2026-07-18 no-remote-CI standing order made every workflow here `workflow_dispatch:`-only
+# because the repo was private and minutes were billed. That is superseded — see `decisions.md`,
+# *the repo goes public, and the economics every CI ruling rested on invert* (2026-09-04). The
+# triggers were left off in that pass on purpose: the flip is the owner's to perform by hand, and
+# restoring a trigger while the repo is still private bills immediately.
+#
+# **SAFE TO UNCOMMENT ONCE THE REPO IS PUBLIC.** Paste back below `workflow_dispatch:`:
 #   push:
 #     paths: &code
 #       - 'crates/**', 'ui/**', 'ci/**', 'Cargo.toml', 'Cargo.lock', 'pixi.toml',
 #         'pixi.lock', 'deny.toml', '.gitattributes', '.github/workflows/ci.yml'
 #   pull_request:
 #     paths: *code
+#
+# **Keep `paths:` on `push` and leave `pull_request` unfiltered.** A path-filtered
+# `pull_request` check that never runs stays *pending* forever, so if it is ever made a required
+# check it blocks every PR that does not touch those paths — a merge queue deadlocked by a
+# docs-only change. Filtering the push half costs nothing and has no such failure mode.
+#
+# Meanwhile `pixi run ci` LOCALLY is the gate. It is the same commands this workflow runs.
 on:
   workflow_dispatch:
+
+# **Least privilege, declared rather than inherited.** With no `permissions:` block every job
+# takes the repository default, which on a public repo is read but is a *setting* — one someone
+# can widen without touching a workflow. This job needs to read the tree and nothing else.
+permissions:
+  contents: read
 
 # Pushing twice in a minute shouldn't pay twice. Supersede the older run.
 concurrency:
@@ -36,7 +52,7 @@ jobs:
 
       # Caches the solved env by pixi.lock — otherwise every run re-downloads and relinks
       # ~2.5 GB of conda packages.
-      - uses: prefix-dev/setup-pixi@v0.8.1
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
@@ -49,7 +65,7 @@ jobs:
 
       # ~/.cargo + target/. rusqlite compiles bundled SQLite from C on every cold build,
       # which is the single slowest thing here.
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
 
