@@ -4005,4 +4005,148 @@ mod tests {
         call(&app, "capture", serde_json::json!({ "body": "after the panic", "vault": "notes" }))
             .expect("writing must work after a recovered poisoning");
     }
+    /// **Point restic's cache at a directory this test owns, and unset it again on the way out.**
+    ///
+    /// `RESTIC_CACHE_DIR` is process-global and `backup::backup` has no parameter for it. Every
+    /// test in this module already takes `ENV`, so nothing races *while* it is set — but the
+    /// variable would outlive the `TempDir` it names, and the next test to run restic
+    /// (`backup_latest_reports_an_unreadable_repo_rather_than_failing`) would inherit a cache
+    /// directory deleted underneath it: `mkdir …/data/67: no such file or directory`, which reads
+    /// like a permissions problem and is not. That is the trap `known-issues.md` records; in
+    /// `fm-core` it took out three tests that never touched the variable at all.
+    ///
+    /// A `Drop` rather than a line at the end of the test, so a panic part-way cannot leave it
+    /// set. The struct's `Drop` runs before its field's, so the variable is gone before the
+    /// directory is.
+    struct ResticCache(#[allow(dead_code)] tempfile::TempDir);
+
+    impl ResticCache {
+        fn scoped() -> Self {
+            let dir = tempfile::tempdir().unwrap();
+            std::env::set_var("RESTIC_CACHE_DIR", dir.path());
+            Self(dir)
+        }
+    }
+
+    impl Drop for ResticCache {
+        fn drop(&mut self) {
+            std::env::remove_var("RESTIC_CACHE_DIR");
+        }
+    }
+
+    /// **The third way a vault comes into being, and the one with no dispatch test** — the last
+    /// residue of `outstanding.md` §2.10.
+    ///
+    /// `restore_vault`'s own doc comment promises the shape: *"validate everything cheap and pure
+    /// first, so a mistyped field refuses while the disk is untouched"*. Nothing asserted it, so
+    /// what is asserted here is not the wording but the **absence of the destination**: a refusal
+    /// that has already created what it declined to fill has half-done the thing it said no to,
+    /// and the corrected second attempt then meets a directory that is in its way.
+    #[test]
+    fn restore_vault_refuses_before_it_creates_the_destination() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (_home, _vault, app) = app_with_vault(None);
+        let parent = tempfile::tempdir().unwrap();
+        let dest = parent.path().join("recovered");
+
+        // A name already in use — the cheapest check, and the first one.
+        let e = call(
+            &app,
+            "restore_vault",
+            serde_json::json!({
+                "name": "notes",
+                "path": dest.to_str().unwrap(),
+                "repo": "/tmp/no-such-restic-repo",
+            }),
+        )
+        .unwrap_err();
+        assert!(e.contains("already a vault called 'notes'"), "{e}");
+        assert!(!dest.exists(), "a refusal must not have created the destination");
+
+        // A good name and nothing to restore from. The refusal has to name the missing field:
+        // an empty repo is otherwise indistinguishable from a restore that failed.
+        let e = call(
+            &app,
+            "restore_vault",
+            serde_json::json!({
+                "name": "recovered", "path": dest.to_str().unwrap(), "repo": "  ",
+            }),
+        )
+        .unwrap_err();
+        assert!(e.contains("restic repository"), "{e}");
+        assert!(!dest.exists(), "still nothing on disk");
+    }
+
+    /// **The round trip through the dispatch arm, and the one thing only this layer does.**
+    ///
+    /// `fm-core` covers the restore itself, including that a custom notes directory survives —
+    /// but its test writes the descriptor back *inside the test*. The dispatch arm is the only
+    /// production code that writes it, and until now nothing executed that line. Without it the
+    /// restore succeeds perfectly and the vault opens looking in `notes/`: every note on disk,
+    /// every view empty, and nothing on screen to say why.
+    ///
+    /// So the assertions are the three that belong here rather than one level down — the notes
+    /// are visible **through the app**, the vault is in `vaults.json`, and the repo it came from
+    /// is remembered there. That last one matters more than it reads: a restored vault has no
+    /// remote and no history, so the restic repo is the only thing connecting it to anywhere.
+    ///
+    /// Proven red by deleting the `if restored.notes_dir != "notes"` block — the restore still
+    /// reports success, `vaults.json` is still correct, and `recent` comes back empty.
+    #[test]
+    fn restore_vault_makes_the_notes_visible_and_remembers_the_repo() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        if !backup::available() {
+            eprintln!("skipping: restic is not installed, so there is nothing to restore from");
+            return;
+        }
+        let _cache = ResticCache::scoped();
+        let password = "correct horse battery staple";
+
+        // A source vault that keeps its notes in `docs/` — the case this arm exists for.
+        let source = tempfile::tempdir().unwrap();
+        std::fs::write(source.path().join("vault.json"), r#"{"notes":"docs"}"#).unwrap();
+        {
+            let mut s = fm_core::FileStore::named(source.path(), "source").unwrap();
+            let mut note = fm_model::Object::new(fm_model::Kind::Note, "kept in docs");
+            note.title = Some("the recovered note".into());
+            s.put(&note).unwrap();
+        }
+        let repo = tempfile::tempdir().unwrap();
+        backup::backup(source.path(), repo.path(), password).unwrap();
+
+        let (home, _vault, app) = app_with_vault(None);
+        crate::secrets::save_restic_password(password).unwrap();
+        let parent = tempfile::tempdir().unwrap();
+        let dest = parent.path().join("recovered");
+
+        let out = call(
+            &app,
+            "restore_vault",
+            serde_json::json!({
+                "name": "recovered",
+                "path": dest.to_str().unwrap(),
+                "repo": repo.path().to_str().unwrap(),
+            }),
+        )
+        .expect("the restore must succeed");
+        assert!(out.contains("recovered"), "the new vault is in the answer: {out}");
+
+        // The descriptor written back — this arm's own contribution, and nothing else's.
+        let desc = std::fs::read_to_string(dest.join("vault.json")).expect("a descriptor");
+        assert!(desc.contains("docs"), "the notes directory must be recorded: {desc}");
+
+        // And the note is visible *through the app*, not merely present on disk.
+        let seen = call(&app, "recent", serde_json::json!({})).unwrap();
+        assert!(seen.contains("the recovered note"), "the app must see it: {seen}");
+
+        // Registered, and it remembers where it came from.
+        let list = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
+        assert!(list.contains("recovered"), "{list}");
+        assert!(
+            list.contains(repo.path().to_str().unwrap()),
+            "the restic repo it was restored from must be remembered: {list}"
+        );
+
+        crate::secrets::clear_restic_password().unwrap();
+    }
 }

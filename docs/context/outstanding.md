@@ -688,14 +688,24 @@ outcome that never ran, which mattered more than it sounds: with no remote every
 had just carried them off it (a snapshot covers the notes directory as well as `blobs/`).
 
 **The dispatch layer for both tiers was untested; most of that is now closed (2026-09-04).**
-`dispatch.rs` had **zero** `#[test]`. It now has six, covering `backup_status`'s shape (all three
-`restic_ready` conditions, and that the password never crosses the wire — asserted over the whole
+`dispatch.rs` had **zero** `#[test]`. It now has nine; six of them cover `backup_status`'s shape
+(all three `restic_ready` conditions, and that the password never crosses the wire — asserted over
+the whole
 serialized response, so a *new* field somebody adds without thinking is caught too), the `backup`
 arm's two refusals, `set_restic_repo`'s round-trip and its refuse-before-writing order, and
-`backup_latest`. Each was proven red first. **A UI test now presses Back up** as well
-(`BackupPanel.run.svelte.test.ts`, six cases).
+`backup_latest` — the other three being the poisoned-lock recovery and the two restore arms
+below. Each was proven red first. **A UI test now presses Back up** as well
+(`BackupPanel.run.svelte.test.ts`, nine cases in three groups — pressing Back up, what
+"last backed up" says in each of its three states, and the `unpushed` 0-vs-`null` rendering).
 
-**Still open here:** `restore_vault` has no dispatch-level test. ~~`fm backup` / `fm restore` /
+~~**Still open here:** `restore_vault` has no dispatch-level test.~~ **Closed 2026-09-04** —
+two tests in `dispatch.rs`'s own module. One drives the refusals and asserts not the wording but
+the **absence of the destination directory**, which is what the function's doc comment promises
+and nothing checked. The other is the round trip, and it covers the one line only this layer has:
+`fm-core`'s custom-notes-dir test writes the descriptor back *inside the test*, so the production
+write-back had never run. Proven red by deleting it — the restore still reports success,
+`vaults.json` is still correct, and `recent` comes back `[]`: every note on disk, every view
+empty, nothing on screen to say why. ~~`fm backup` / `fm restore` /
 `fm check` have no CLI test~~ — **added 2026-09-04** (`crates/fm-cli/tests/backup_cli.rs`): the
 three commands drive the real binary against a real restic repo, back up → check `--read-data` →
 restore → read the note back, plus a wrong-password refusal. It found on its first run that `repo`
