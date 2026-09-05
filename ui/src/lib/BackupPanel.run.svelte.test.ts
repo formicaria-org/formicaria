@@ -58,7 +58,21 @@ const show = (
 beforeEach(() => {
   vi.clearAllMocks();
   gitAuth.mockResolvedValue({ storage: 'system', have_credential: true, helper: null });
-  backup.mockResolvedValue(undefined);
+  // The shape the command actually answers. It returned `void` until 2026-09-05, and a default
+  // of `undefined` here would let a test pass against a panel that reads nothing back.
+  backup.mockResolvedValue({
+    vault: 'notes',
+    notes_dir: 'notes',
+    blobs: true,
+    contents: {
+      id: 'a1b2c3d4',
+      files_new: 3,
+      files_changed: 1,
+      files_unmodified: 214,
+      bytes_processed: 48_200_000,
+      bytes_added: 1_900_000,
+    },
+  });
   backupLatest.mockResolvedValue({
     vault: 'notes',
     id: null,
@@ -121,6 +135,66 @@ describe('pressing Back up', () => {
       expect(document.body.textContent).toContain('repository is locked');
     });
     expect(document.body.textContent).toContain('notes');
+  });
+
+  // **The fixed phrase, and why it had to go.** This line said "notes and attachments" over every
+  // vault for as long as `backup` answered nothing — including the ordinary vault that has no
+  // `blobs/` yet, which is most of them on a desktop. The assertion is scoped to the step line
+  // itself, because the panel's attachments explainer mentions `blobs/` too and a search of the
+  // whole document would pass for the wrong reason.
+  it('names what the snapshot actually held, not a fixed phrase', async () => {
+    backup.mockResolvedValue({
+      vault: 'notes',
+      notes_dir: 'docs',
+      blobs: false,
+      contents: {
+        id: 'a1b2c3d4',
+        files_new: 2,
+        files_changed: 0,
+        files_unmodified: 5,
+        bytes_processed: 4096,
+        bytes_added: 3455,
+      },
+    });
+    show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
+
+    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
+    // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
+    await waitFor(() => expect(button.disabled).toBe(false));
+    await fireEvent.click(button);
+
+    const line = await screen.findByText(/^Snapshot/);
+    // The vault keeps its notes in `docs/`, so the default name would be a lie.
+    expect(line.textContent).toContain('docs/');
+    expect(line.textContent).not.toContain('blobs/');
+    expect(line.textContent).toContain('7 file(s)');
+    expect(line.textContent).toContain('2 new or changed');
+  });
+
+  // **A snapshot restic did not describe is not an empty snapshot.** `contents: null` is the
+  // third state — the same distinction `backup_latest` draws between "never backed up" and "this
+  // machine cannot tell you" — and the line must say so rather than render zeros.
+  it('says the contents were not reported rather than printing zeros', async () => {
+    backup.mockResolvedValue({
+      vault: 'notes',
+      notes_dir: 'notes',
+      blobs: true,
+      contents: null,
+    });
+    show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
+
+    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
+    // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
+    await waitFor(() => expect(button.disabled).toBe(false));
+    await fireEvent.click(button);
+
+    const line = await screen.findByText(/^Snapshot/);
+    expect(line.textContent).toContain('contents not reported');
+    // What went in is still known — we chose the directories — so it is still said.
+    expect(line.textContent).toContain('notes/');
+    expect(line.textContent).not.toContain('0 file(s)');
   });
 });
 

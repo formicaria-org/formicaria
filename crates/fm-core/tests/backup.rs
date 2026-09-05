@@ -433,3 +433,72 @@ fn tree(root: &Path) -> Vec<PathBuf> {
     out.sort();
     out
 }
+
+/// **A snapshot that says what it contained.**
+///
+/// `backup` answered unit until 2026-09-05, so a caller could report that a snapshot had been
+/// taken and nothing whatever about what was in it — which is how the panel came to print the
+/// same fixed phrase, *"notes and attachments"*, over vaults that have no attachments. Three
+/// claims, and each is a different way the old return value could not be wrong because it said
+/// nothing:
+///
+/// 1. **The directories reported are the ones that went in.** A vault keeping its notes in
+///    `docs/` says `docs`, not the default; a vault with no `blobs/` says so rather than being
+///    described as carrying attachments it does not have.
+/// 2. **The numbers are restic's, not ours.** Backing the same vault up twice moves both files
+///    from `files_new` to `files_unmodified`. Nothing this crate computes could do that, so the
+///    assertion also proves the summary is parsed rather than invented.
+/// 3. **The short id names the snapshot the way [`backup::latest`] does**, so *"what this run
+///    contained"* and *"when this vault was last backed up"* can be joined by a reader.
+///
+/// Proven red twice: making `summary()` return `None` fails at *"restic describes the snapshot
+/// it just wrote"*, and hardcoding `blobs: true` fails at *"this vault has no `blobs/`"*.
+#[test]
+fn a_snapshot_reports_what_went_into_it() {
+    if !have("restic") {
+        eprintln!("skipping: restic not on PATH");
+        return;
+    }
+    let (_env, _cache) = restic_cache();
+
+    let vault = tempdir().unwrap();
+    let repo = tempdir().unwrap();
+    let password = "correct horse battery staple";
+
+    // Notes in `docs/`, so the reported name cannot be the hardcoded default coming back at us,
+    // and one attachment so `blobs` has something true to say.
+    fs::write(vault.path().join("vault.json"), r#"{"notes":"docs"}"#).unwrap();
+    let docs = vault.path().join("docs");
+    fs::create_dir_all(&docs).unwrap();
+    fs::write(docs.join("01.md"), "---\ntype: note\n---\nthe durable knowledge\n").unwrap();
+    let blobs = vault.path().join("blobs");
+    fs::create_dir_all(&blobs).unwrap();
+    fs::write(blobs.join("aa.bin"), vec![7u8; 4096]).unwrap();
+
+    let first = backup::backup(vault.path(), repo.path(), password).unwrap();
+    assert_eq!(first.notes_dir.as_deref(), Some("docs"), "the notes directory it actually took");
+    assert!(first.blobs, "`blobs/` exists, so it went in and the answer must say so");
+    let c = first.contents.expect("restic describes the snapshot it just wrote");
+    assert_eq!(c.id.len(), 8, "restic's short id, the way `latest` reports it: {}", c.id);
+    assert_eq!(c.files_new, 2, "one note and one attachment, both new");
+    assert_eq!(c.files_unmodified, 0, "nothing was already in an empty repository");
+    assert!(c.bytes_added > 0, "a first snapshot grows the repository");
+    assert!(c.bytes_processed >= 4096, "the attachment was read: {}", c.bytes_processed);
+
+    // The same vault again, untouched. **These are restic's numbers**: nothing here could move
+    // two files from `new` to `unmodified` between two identical calls.
+    let again = backup::backup(vault.path(), repo.path(), password).unwrap();
+    let c = again.contents.expect("the second snapshot is described too");
+    assert_eq!(c.files_new, 0, "nothing is new the second time");
+    assert_eq!(c.files_unmodified, 2, "both files were already in the repository");
+
+    // A vault with notes and no attachments — the ordinary case, and the one the fixed phrase
+    // was wrong about.
+    let bare = tempdir().unwrap();
+    let notes = bare.path().join("notes");
+    fs::create_dir_all(&notes).unwrap();
+    fs::write(notes.join("01.md"), "---\ntype: note\n---\nno attachments here\n").unwrap();
+    let plain = backup::backup(bare.path(), repo.path(), password).unwrap();
+    assert_eq!(plain.notes_dir.as_deref(), Some("notes"), "the default name, reported by name");
+    assert!(!plain.blobs, "this vault has no `blobs/`, and the answer must not claim otherwise");
+}

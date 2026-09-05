@@ -10,6 +10,7 @@ import type {
   AssetStatus,
   BackupStatus,
   LatestBackup,
+  BackupRun,
   Board,
   Column,
   NoteDetail,
@@ -1627,14 +1628,34 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== vault);
       return { committed: !!had, conflicts: [] } as T;
     }
-    case 'backup':
+    case 'backup': {
       // A snapshot the mock actually remembers, so `backup_latest` below has something true to
       // say afterwards. Without this the panel's "last backed up" line could only ever be
       // developed against "never", which is the one state that needs no design.
-      if (mockRestic[mockVault(args.vault).name] && mockResticPassword) {
-        mockLastBackup[mockVault(args.vault).name] = new Date().toISOString();
+      const v = mockVault(args.vault);
+      if (mockRestic[v.name] && mockResticPassword) {
+        mockLastBackup[v.name] = new Date().toISOString();
       }
-      return undefined as T;
+      // **What went in.** The command answered `void` until 2026-09-05, so the panel had nothing
+      // to say and said a fixed phrase instead. `contents: null` — the snapshot was written and
+      // restic did not describe it — is a state the backend can produce and this mock therefore
+      // must be able to, but it is not produced at random: a branch that appears on some runs and
+      // not others is one nobody develops against. Set it by hand to see that line.
+      const run: BackupRun = {
+        vault: v.name,
+        notes_dir: 'notes',
+        blobs: true,
+        contents: {
+          id: 'a1b2c3d4',
+          files_new: 3,
+          files_changed: 1,
+          files_unmodified: 214,
+          bytes_processed: 48_200_000,
+          bytes_added: 1_900_000,
+        },
+      };
+      return run as T;
+    }
     // **Three answers, not two.** `unavailable` is "this machine cannot tell you"; `id: null`
     // with no `unavailable` is "the repository opened and has never been written to". Collapsing
     // them is exactly the mistake the real command is shaped to prevent, so the mock keeps them

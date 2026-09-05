@@ -270,8 +270,31 @@ fn main() -> Result<()> {
             println!("wrote manifest.json: {} blob(s) inventoried", manifest.blobs.len());
         }
         Cmd::Backup { repo, password } => {
-            fm_core::backup::backup(&cli.vault, &repo, &password)?;
+            let done = fm_core::backup::backup(&cli.vault, &repo, &password)?;
             println!("backed up {} -> restic repo {}", cli.vault.display(), repo.display());
+            // **What went in**, in the same breath. `backup` used to answer unit, so this line
+            // could only ever say that something had happened — and it said "notes and blobs"
+            // whether or not the vault had either.
+            let covered = [done.notes_dir.as_deref(), done.blobs.then_some("blobs")]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" + ");
+            match done.contents {
+                Some(c) => println!(
+                    "  snapshot {} — {covered}: {} new, {} changed, {} unchanged; \
+                     {} read, {} added",
+                    c.id,
+                    c.files_new,
+                    c.files_changed,
+                    c.files_unmodified,
+                    fm_core::descriptor::format_size(c.bytes_processed),
+                    fm_core::descriptor::format_size(c.bytes_added),
+                ),
+                // Written, but not described. Saying so beats printing zeros that read as an
+                // empty vault, and beats saying nothing as if the question had not been asked.
+                None => println!("  snapshot written — {covered}; restic did not say what it held"),
+            }
         }
         Cmd::Restore { repo, dest, password } => {
             fm_core::backup::restore(&repo, &password, &dest)?;

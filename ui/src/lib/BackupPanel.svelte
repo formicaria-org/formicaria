@@ -40,7 +40,7 @@
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
   import { labelFor } from './vaultLabels.svelte';
-  import type { BackupStatus, GitAuth, LatestBackup, VaultStatus } from './types';
+  import type { BackupRun, BackupStatus, GitAuth, LatestBackup, VaultStatus } from './types';
 
   // `onnewvault` because this panel is already "a list, not a form" — the one surface in
   // the app that is *about the set of vaults*, which makes it where you add one. (The
@@ -150,6 +150,33 @@
   const carries = (v: VaultStatus) => {
     const max = effectiveMax(v);
     return max ? `notes, and attachments up to ${humanSize(max)}` : 'notes only';
+  };
+  // **What a snapshot actually held**, in place of the fixed phrase this panel printed for as
+  // long as `backup` answered nothing at all: "notes and attachments", over every vault —
+  // including the ordinary one that has no attachments yet. `outstanding.md` §2.10's last
+  // residue, and the level below "last backed up at": that one says *when*, this says *what*.
+  //
+  // `contents: null` is restic having written the snapshot and not described it. The line then
+  // names what went in and stops, because printing zeros a reader cannot tell from an empty
+  // vault is the overstatement in the other direction.
+  const held = (r: BackupRun) => {
+    const dirs: string[] = [];
+    if (r.notes_dir) dirs.push(`${r.notes_dir}/`);
+    if (r.blobs) dirs.push('blobs/');
+    // Both absent is refused by `backup` before it runs — there would be nothing to snapshot —
+    // so this fallback should never reach a screen. It is here because a blank where a
+    // directory name belongs reads as a bug in the panel rather than in the answer.
+    const what = dirs.join(' + ') || 'nothing this vault owns';
+    if (!r.contents) return `${what}, contents not reported`;
+    const c = r.contents;
+    const files = c.files_new + c.files_changed + c.files_unmodified;
+    const fresh = c.files_new + c.files_changed;
+    // "Nothing changed" is worth saying plainly: a snapshot that added no bytes is the healthy
+    // steady state, not a failure, and a panel that only ever reports numbers makes it look like
+    // one.
+    return fresh
+      ? `${what}, ${files} file(s), ${fresh} new or changed, ${humanSize(c.bytes_added)} added`
+      : `${what}, ${files} file(s), nothing changed since the last one`;
   };
   // The password is the app's now, and the environment variable is the override rather than the
   // mechanism. Naming `RESTIC_PASSWORD` as *the* thing that is missing sent people to a launcher
@@ -408,9 +435,9 @@
         }
         const reach = reachOf(v.restic_repo);
         try {
-          await backup(v.name);
+          const run = await backup(v.name);
           steps.push({
-            text: `Snapshot${of(v)} — notes and attachments → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
+            text: `Snapshot${of(v)} — ${held(run)} → ${shortDest(v.restic_repo ?? '')} — ${left(reach)}.`,
             ok: true,
           });
           if (reach === 'remote') mediaOff.push(v.name);

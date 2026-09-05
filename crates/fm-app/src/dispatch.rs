@@ -1430,10 +1430,8 @@ fn dispatch_inner(
                 conflicts,
             })
         }
-        "backup" => {
-            run_backup(app, scope, &s("vault"))?;
-            nothing()
-        }
+        // Answers **what the snapshot contained**, not merely that one happened. See `BackupRun`.
+        "backup" => json(run_backup(app, scope, &s("vault"))?),
         // What the two backup tiers would actually do right now — the panel needs
         // this to promise the user only what it can deliver.
         "backup_status" => json(backup_status(app)?),
@@ -2710,6 +2708,45 @@ struct LatestBackup {
     unavailable: Option<String>,
 }
 
+/// What a `backup` run put in the repository.
+///
+/// **The command used to answer nothing at all.** A snapshot taken thirty seconds ago told the
+/// app only that it had happened, so the panel printed the same fixed phrase — *"notes and
+/// attachments"* — over every vault, including the ones that have no attachments yet, and a
+/// person watching a backup they cannot see had no way to tell a full snapshot from an empty
+/// one. This is `outstanding.md` §2.10's last residue, and it is the level below *"last backed
+/// up at"*: that says **when**, this says **what**.
+#[derive(serde::Serialize)]
+struct BackupRun {
+    /// The vault this is about, echoed back as [`LatestBackup`] does — the panel runs this per
+    /// vault and writes one line each.
+    vault: String,
+    /// The notes directory that went in, by name (`notes`, or whatever `vault.json` calls it).
+    /// Null for a vault that has none yet.
+    notes_dir: Option<String>,
+    /// Whether `blobs/` existed and went in.
+    blobs: bool,
+    /// restic's account of the snapshot. **Null is "restic did not say", not "it was empty"** —
+    /// the same distinction `backup_latest` draws between `id: null` and `unavailable`, and for
+    /// the same reason: a zero a caller cannot tell from an unknown is worse than no number.
+    contents: Option<SnapshotContents>,
+}
+
+/// Restic's own numbers for the snapshot it just wrote. Mirrors `fm_core::backup::Contents`.
+#[derive(serde::Serialize)]
+struct SnapshotContents {
+    /// The short id, named the way `backup_latest` names it.
+    id: String,
+    files_new: u64,
+    files_changed: u64,
+    files_unmodified: u64,
+    /// Bytes read out of the vault.
+    bytes_processed: u64,
+    /// Bytes the repository grew by — usually a fraction of the above, which is deduplication
+    /// doing the work this tier exists for.
+    bytes_added: u64,
+}
+
 /// The read behind *"last backed up at"*.
 ///
 /// `fm_core::backup::latest()` has returned the newest `fm`-tagged snapshot since the tier was
@@ -2879,7 +2916,7 @@ enum IngestSource<'a> {
 /// silently folded into someone else's repo — the caller is told, by name, that this
 /// vault's media stayed put. Refusing to say so is the overstatement this whole panel
 /// exists to prevent.
-fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<(), String> {
+fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<BackupRun, String> {
     // Owned, and the guard dropped: restic can take minutes, and nothing else may write
     // notes meanwhile — but everything else may read them.
     let v = app.lock()?.config(scope, vault)?;
@@ -2894,8 +2931,21 @@ fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<(), String> {
          set one in Backup settings"
             .to_string()
     })?;
-    backup::backup(&v.path, Path::new(repo), &password)
-        .map_err(|e| format!("backing up '{}': {e}", v.name))
+    let done = backup::backup(&v.path, Path::new(repo), &password)
+        .map_err(|e| format!("backing up '{}': {e}", v.name))?;
+    Ok(BackupRun {
+        vault: v.name.clone(),
+        notes_dir: done.notes_dir,
+        blobs: done.blobs,
+        contents: done.contents.map(|c| SnapshotContents {
+            id: c.id,
+            files_new: c.files_new,
+            files_changed: c.files_changed,
+            files_unmodified: c.files_unmodified,
+            bytes_processed: c.bytes_processed,
+            bytes_added: c.bytes_added,
+        }),
+    })
 }
 
 /// Everything the form needs to decide, and the verdict itself.
@@ -3767,14 +3817,17 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
 /// **The first tests this module has ever had** (2026-09-04).
 ///
 /// `dispatch.rs` is the one command surface — every frontend goes through it — and it contained
-/// **zero** `#[test]`. The layer below is well covered (`fm-core`'s six real-`restic` tests) and
-/// the layer above is covered by mocks; the seam between them was where nothing looked. These
-/// start with the backup arms, which is where `outstanding.md` §2.10 says the blindness costs
-/// most: nothing asserted `backup_status`'s shape, and nothing drove the `backup` arm's refusals.
+/// **zero** `#[test]`. The layer below is well covered (`fm-core`'s eight real-`restic` tests)
+/// and the layer above is covered by mocks; the seam between them was where nothing looked.
+/// These start with the backup arms, which is where `outstanding.md` §2.10 says the blindness
+/// costs most: nothing asserted `backup_status`'s shape, and nothing drove the `backup` arm's
+/// refusals.
 ///
-/// **None of these needs restic installed.** They exercise the refusals and the reported shape,
-/// which are exactly the paths that run on a machine that has *not* got everything set up — the
-/// machine most likely to be told something wrong.
+/// **Most of these need nothing installed.** The refusals and the reported shape are exactly the
+/// paths that run on a machine which has *not* got everything set up — the machine most likely to
+/// be told something wrong — so they are the ones that must never be skipped. Three do need
+/// restic (the two restore arms and the snapshot's contents), and each says so and returns rather
+/// than failing, because what they prove cannot be proved without it.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3871,6 +3924,60 @@ mod tests {
         let (_home2, _vault2, app) = app_with_vault(Some("/tmp/no-such-restic-repo"));
         let e = call(&app, "backup", serde_json::json!({ "vault": "notes" })).unwrap_err();
         assert!(e.contains("no password"), "{e}");
+    }
+
+    /// **A snapshot that crosses the wire saying what it held.**
+    ///
+    /// The arm answered `nothing()` until 2026-09-05 — `outstanding.md` §2.10's last residue —
+    /// so a frontend could learn that a backup had happened and nothing about what was in it.
+    /// The panel filled the hole with a fixed phrase, *"notes and attachments"*, which is wrong
+    /// for the ordinary vault that has no attachments yet.
+    ///
+    /// What only this layer can prove: the answer reaches a caller as JSON, keyed by vault, with
+    /// `contents` **nested** rather than flattened. The nesting is the point — one nullable field
+    /// says *"restic did not describe it"* for the whole summary, where six nullable numbers
+    /// would put a caller back to guessing which zero was a zero.
+    ///
+    /// Proven red by restoring `nothing()` in the arm: the response is `null`, and every
+    /// assertion below has nothing to read.
+    #[test]
+    fn the_backup_arm_says_what_the_snapshot_contained() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        if !backup::available() {
+            eprintln!("skipping: restic is not installed, so no snapshot can be taken");
+            return;
+        }
+        let _cache = ResticCache::scoped();
+        let repo = tempfile::tempdir().unwrap();
+
+        let (_home, vault, app) = app_with_vault(Some(repo.path().to_str().unwrap()));
+        crate::secrets::save_restic_password("correct horse battery staple").unwrap();
+
+        // One note and deliberately **no `blobs/`** — the case the fixed phrase overstated.
+        let notes = vault.path().join("notes");
+        std::fs::create_dir_all(&notes).unwrap();
+        std::fs::write(notes.join("01.md"), "---\ntype: note\n---\nthe durable knowledge\n")
+            .unwrap();
+
+        let out = call(&app, "backup", serde_json::json!({ "vault": "notes" }))
+            .expect("the snapshot must succeed");
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+
+        assert_eq!(v["vault"], "notes", "keyed by vault, as the panel runs it: {out}");
+        assert_eq!(v["notes_dir"], "notes", "{out}");
+        assert_eq!(v["blobs"], false, "this vault has no attachments: {out}");
+
+        let c = &v["contents"];
+        assert!(c.is_object(), "restic described the snapshot, so this is not null: {out}");
+        assert_eq!(
+            c["id"].as_str().map(str::len),
+            Some(8),
+            "the short id, so this and `backup_latest` name the same snapshot: {out}"
+        );
+        assert_eq!(c["files_new"].as_u64(), Some(1), "the one note: {out}");
+        assert!(c["bytes_added"].as_u64().unwrap_or(0) > 0, "{out}");
+
+        crate::secrets::clear_restic_password().unwrap();
     }
 
     /// A vault that is not ours is refused **before** anything is written.

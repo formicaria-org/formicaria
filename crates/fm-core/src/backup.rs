@@ -71,18 +71,29 @@ pub fn ensure_repo(repo: &Path, password: &str) -> Result<bool, StoreError> {
 /// So this takes what we know is ours instead. `notes` comes from the store (a `vault.json`
 /// may put it in `docs/`), `blobs` is fixed. Anything else under the vault root — including
 /// a project's own files — is the user's to back up their own way.
-pub fn backup(vault: &Path, repo: &Path, password: &str) -> Result<(), StoreError> {
+///
+/// **Answers what it did**, which it did not use to. Returning unit meant a caller could say a
+/// snapshot had been taken and nothing whatever about what was in it — so the panel printed
+/// "notes and attachments" over every vault, including the ones that have no attachments yet,
+/// and a person watching a backup they cannot see had no way to tell a full one from an empty
+/// one. See [`Backed`].
+pub fn backup(vault: &Path, repo: &Path, password: &str) -> Result<Backed, StoreError> {
     ensure_repo(repo, password)?;
     // Asked here rather than taken as an argument, so the three callers cannot drift on
     // *which* directories are ours — `vault.json` may put the notes in `docs/`.
-    let notes = crate::descriptor::Descriptor::read(vault)?.notes_dir(vault);
+    let desc = crate::descriptor::Descriptor::read(vault)?;
+    let notes = desc.notes_dir(vault);
     // A vault with no blobs yet is normal; restic errors on a path that does not exist.
     let blobs = vault.join("blobs");
+    // Read once and reported, rather than asked again below: what went into the snapshot and
+    // what the caller is told went into it must be the same answer, and two `exists()` calls
+    // either side of a subprocess are two chances for them not to be.
+    let (has_notes, has_blobs) = (notes.exists(), blobs.exists());
     let mut paths: Vec<&Path> = Vec::new();
-    if notes.exists() {
+    if has_notes {
         paths.push(&notes);
     }
-    if blobs.exists() {
+    if has_blobs {
         paths.push(&blobs);
     }
     if paths.is_empty() {
@@ -90,17 +101,101 @@ pub fn backup(vault: &Path, repo: &Path, password: &str) -> Result<(), StoreErro
             "nothing to back up: this vault has no notes or blobs directory yet".into(),
         ));
     }
+    // `--json` for the summary line alone. It also moves restic's errors into JSON objects on
+    // stderr, which is why the failure below goes through [`failed_json`] — passing that
+    // through raw would hand the user a serialized struct where a sentence used to be.
     let out = restic(repo, password)
         .arg("backup")
+        .arg("--json")
         .args(&paths)
         .arg("--tag")
         .arg("fm")
         .output()
         .map_err(spawn)?;
     if !out.status.success() {
-        return Err(failed("restic backup", &out));
+        return Err(failed_json("restic backup", &out));
     }
-    Ok(())
+    Ok(Backed {
+        // The directory's own name, not its path: this is for a sentence in front of a person,
+        // and a vault that keeps its notes in `docs/` should say `docs`.
+        notes_dir: has_notes.then(|| {
+            desc.notes
+                .clone()
+                .unwrap_or_else(|| PathBuf::from("notes"))
+                .display()
+                .to_string()
+        }),
+        blobs: has_blobs,
+        contents: summary(&out.stdout),
+    })
+}
+
+/// restic's own account of the snapshot it just wrote.
+///
+/// Every number is restic's or the whole thing is absent — see [`summary`]. There is no field
+/// here this crate computes, because a count we worked out ourselves sitting beside counts
+/// restic gave us is exactly how a surface starts being confidently wrong.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Contents {
+    /// restic's **short** id for the snapshot, so this names it the way [`latest`] does.
+    pub id: String,
+    /// Files added, changed, and found already in the repository. The third is the interesting
+    /// one on a healthy vault: it is how much of this backup was free.
+    pub files_new: u64,
+    pub files_changed: u64,
+    pub files_unmodified: u64,
+    /// Bytes read out of the vault.
+    pub bytes_processed: u64,
+    /// Bytes the repository actually grew by. Deduplication is why this is normally a fraction
+    /// of the line above, and why a daily snapshot of a 4 GB vault costs almost nothing.
+    pub bytes_added: u64,
+}
+
+/// What one [`backup`] run put in the repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Backed {
+    /// The notes directory that went in, by its own name — `notes` unless a `vault.json` moved
+    /// it. `None` when the vault has none yet, which is a real state: a vault holding only
+    /// `blobs/` is still worth snapshotting, and [`backup`] does.
+    pub notes_dir: Option<String>,
+    /// Whether `blobs/` existed and went in. **A vault with no attachments yet is normal**, and
+    /// a surface that says "notes and attachments" over one is overstating what it did — which
+    /// is the one thing a backup surface must never do.
+    pub blobs: bool,
+    /// What restic said the snapshot contains. `None` means the snapshot was written and restic
+    /// did not describe it — **not** that it was empty. Kept apart for the same reason
+    /// [`latest`] keeps *never backed up* apart from *this machine cannot tell you*.
+    pub contents: Option<Contents>,
+}
+
+/// restic's `summary` line out of a `--json` run.
+///
+/// **Absent rather than an error.** The snapshot is already written by the time this is read, so
+/// refusing the backup because a line would not parse would turn a snapshot that exists into a
+/// reported failure — the worst answer available, and the one that teaches a user to distrust
+/// the panel. An unrecognised stream means the caller is told *nothing* about the contents.
+///
+/// All of restic's numbers or none of them, for the same reason: a missing field defaulted to
+/// zero reads as an empty vault, and there is no way to tell it from one.
+fn summary(stdout: &[u8]) -> Option<Contents> {
+    let text = String::from_utf8_lossy(stdout);
+    text.lines().find_map(|line| {
+        let v: serde_json::Value = serde_json::from_str(line).ok()?;
+        if v.get("message_type").and_then(|m| m.as_str()) != Some("summary") {
+            return None;
+        }
+        let num = |k: &str| v.get(k).and_then(serde_json::Value::as_u64);
+        Some(Contents {
+            // restic's own `short_id` — which `latest` reads — is the first 8 characters of the
+            // full id, and the two commands have to name the same snapshot the same way.
+            id: v.get("snapshot_id").and_then(|v| v.as_str())?.chars().take(8).collect(),
+            files_new: num("files_new")?,
+            files_changed: num("files_changed")?,
+            files_unmodified: num("files_unmodified")?,
+            bytes_processed: num("total_bytes_processed")?,
+            bytes_added: num("data_added")?,
+        })
+    })
 }
 
 /// Restore the latest snapshot into `dest` (restic recreates the source tree
@@ -322,6 +417,30 @@ fn io(e: std::io::Error) -> StoreError {
 fn failed(what: &str, out: &Output) -> StoreError {
     let stderr = String::from_utf8_lossy(&out.stderr);
     StoreError::Io(format!("{what} failed: {}", stderr.trim()))
+}
+
+/// The same, for a command run with `--json`.
+///
+/// `--json` puts restic's errors on stderr as objects rather than sentences —
+/// `{"message_type":"exit_error","code":12,"message":"Fatal: wrong password or no key found"}` —
+/// so [`failed`] would hand the user a serialized struct. Pulls out every `message` there is,
+/// and falls back to the raw text so a restic that wrote plain words still reaches them.
+fn failed_json(what: &str, out: &Output) -> StoreError {
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let said: Vec<String> = stderr
+        .lines()
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter_map(|v| {
+            v.get("message")
+                .or_else(|| v.get("error").and_then(|e| e.get("message")))
+                .and_then(|m| m.as_str())
+                .map(str::to_string)
+        })
+        .collect();
+    if said.is_empty() {
+        return failed(what, out);
+    }
+    StoreError::Io(format!("{what} failed: {}", said.join("; ")))
 }
 
 #[cfg(test)]

@@ -25,6 +25,7 @@ import type {
   DuplicateFamily,
   Unrecorded,
   LatestBackup,
+  BackupRun,
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
@@ -750,8 +751,11 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
 export const commit = (message: string, vault = '') =>
   invoke<CommitResult>('commit', { message, vault });
 /** Snapshot one vault's media into *its own* restic repo. Per vault because a restic
- *  repo is per repository — there is no one destination a set of vaults could share. */
-export const backup = (vault = '') => invoke<void>('backup', { vault });
+ *  repo is per repository — there is no one destination a set of vaults could share.
+ *
+ *  **Answers what the snapshot held**, which it did not use to: it returned `void`, so the panel
+ *  could say a backup had happened and nothing about what was in it. See `BackupRun`. */
+export const backup = (vault = '') => invoke<BackupRun>('backup', { vault });
 export const backupStatus = () => invoke<BackupStatus>('backup_status');
 
 /** When this vault's media was last snapshotted, and what that snapshot covered.

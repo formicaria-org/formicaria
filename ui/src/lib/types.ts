@@ -209,6 +209,43 @@ export interface LatestBackup {
   unavailable: string | null;
 }
 
+/** What one `backup` run put in the repository.
+ *
+ *  **The command used to answer nothing at all.** A snapshot could be reported as taken and
+ *  nothing said about what was in it, so the panel filled the hole with a fixed phrase — "notes
+ *  and attachments" — over every vault, including the ordinary one that has no attachments yet.
+ *  Mirrors `fm_app::dispatch::BackupRun`. */
+export interface BackupRun {
+  /** The vault this is about; the panel runs the snapshot tier per vault and writes a line each. */
+  vault: string;
+  /** The notes directory that went in, by name — `notes`, or whatever `vault.json` calls it.
+   *  Null for a vault that has none yet, which is a real state: a vault holding only `blobs/` is
+   *  still worth snapshotting. */
+  notes_dir: string | null;
+  /** Whether `blobs/` existed and went in. */
+  blobs: boolean;
+  /** Restic's own account of the snapshot. **Null is "restic did not say", not "it was empty"** —
+   *  the same distinction `LatestBackup` draws between `id: null` and `unavailable`. Nested
+   *  rather than flattened so that one null covers the whole summary; six nullable numbers would
+   *  put a reader back to guessing which zero was really a zero. */
+  contents: SnapshotContents | null;
+}
+
+/** Restic's numbers for the snapshot it just wrote. Mirrors `fm_core::backup::Contents`. */
+export interface SnapshotContents {
+  /** The short id, named the way `LatestBackup.id` names it. */
+  id: string;
+  files_new: number;
+  files_changed: number;
+  /** Files already in the repository. On a healthy vault this is most of them — it is how much
+   *  of the backup was free. */
+  files_unmodified: number;
+  /** Bytes read out of the vault. */
+  bytes_processed: number;
+  /** Bytes the repository grew by; deduplication is why it is normally a fraction of the above. */
+  bytes_added: number;
+}
+
 /** A conflicted note **and what kind of conflict it is**.
  *
  *  `has_markers` is the field that matters. For a delete/modify conflict it is `false` and there is

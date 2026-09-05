@@ -619,11 +619,6 @@ The gray-screen fix and its tests are in
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never
   report a local destination as "off this machine".
-- **`backup` returns unit**, so a snapshot taken thirty seconds ago tells the app nothing about
-  what it **contained**. The last residue of three gaps recorded on 2026-09-02 — *no "last backed up
-  at"* and *a restic-only vault cannot back up* were fixed on 2026-09-04, and `unpushed: 0` vs
-  `null` rendering identically was fixed the same day (`BackupPanel` now says *"Everything here is
-  pushed"* for zero and stays deliberately silent for null, which means *git could not say*).
 - **`mock.ts`'s `config` arm contradicts its own `backup_status`.** It hardcodes
   `restic: [{repo: null}]` and `restic_password_set: false` (`mock.ts:1167,1173`) while
   `set_restic_repo`/`set_restic_password` mutate `mockRestic`/`mockResticPassword` — so under

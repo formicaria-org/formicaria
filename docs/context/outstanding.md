@@ -677,8 +677,29 @@ a snapshot (time + the source paths it recorded), *never backed up* (the repo op
 nothing — the state that should worry somebody), and *cannot tell you* with the reason. An
 unreadable repository is reported, not raised.
 
-**Still open, one level down:** `run_backup` returns unit, so a snapshot taken thirty seconds ago
-still tells the app nothing about *what it contained*.
+~~**Still open, one level down:** `run_backup` returns unit.~~ **Closed 2026-09-05.** `backup`
+answers `BackupRun`: the directories that actually went in (`notes_dir` by its own name, so a
+vault keeping notes in `docs/` says `docs`; `blobs` true only if there were any) and, nested
+under one nullable `contents`, restic's own summary — short id, files new/changed/unmodified,
+bytes read and bytes the repository grew by. Parsed from `restic backup --json`, whose `summary`
+line is the whole reason for the flag.
+
+**Three things this was shaped by.** *(1)* The panel's step line was a **fixed phrase** — "notes
+and attachments" — printed over every vault including the ordinary one with no `blobs/` yet, so
+the gap was not merely a missing number but a small standing overstatement. *(2)* `contents` is
+nullable **as a whole**, not six nullable numbers: null means *restic did not describe it*, which
+is not *it held nothing*, and one null says that once instead of leaving a reader to guess which
+zero was real. Same discipline as `backup_latest`'s `id: null` vs `unavailable`, and as
+`unpushed`. *(3)* A summary that will not parse must never fail the backup — the snapshot is
+already written by then, and turning it into a reported failure is the worst answer available.
+
+`--json` also moves restic's errors into JSON objects on stderr, so a `failed_json` was needed
+beside `failed`; without it a locked repository would have reached the user as a serialized
+struct where a sentence used to be.
+
+Proven red four ways: `summary()` forced to `None`, `blobs` hardcoded true, the arm restored to
+`nothing()`, and the panel's fixed phrase put back — the last failing with the old sentence
+printed verbatim in the diff.
 
 ~~**A restic-only vault cannot run a backup.**~~ **Fixed 2026-09-04.** `canRun` is now
 `(git && a remote) || (heavy && anyRestic)`, so the snapshot tier runs alone — the two tiers were
@@ -688,14 +709,14 @@ outcome that never ran, which mattered more than it sounds: with no remote every
 had just carried them off it (a snapshot covers the notes directory as well as `blobs/`).
 
 **The dispatch layer for both tiers was untested; most of that is now closed (2026-09-04).**
-`dispatch.rs` had **zero** `#[test]`. It now has nine; six of them cover `backup_status`'s shape
+`dispatch.rs` had **zero** `#[test]`. It now has ten; seven of them cover `backup_status`'s shape
 (all three `restic_ready` conditions, and that the password never crosses the wire — asserted over
 the whole
 serialized response, so a *new* field somebody adds without thinking is caught too), the `backup`
 arm's two refusals, `set_restic_repo`'s round-trip and its refuse-before-writing order, and
-`backup_latest` — the other three being the poisoned-lock recovery and the two restore arms
-below. Each was proven red first. **A UI test now presses Back up** as well
-(`BackupPanel.run.svelte.test.ts`, nine cases in three groups — pressing Back up, what
+`backup_latest` and what a snapshot contained — the other three being the poisoned-lock recovery
+and the two restore arms below. Each was proven red first. **A UI test now presses Back up** as well
+(`BackupPanel.run.svelte.test.ts`, eleven cases in three groups — pressing Back up, what
 "last backed up" says in each of its three states, and the `unpushed` 0-vs-`null` rendering).
 
 ~~**Still open here:** `restore_vault` has no dispatch-level test.~~ **Closed 2026-09-04** —

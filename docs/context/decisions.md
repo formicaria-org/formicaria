@@ -44,7 +44,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***An overlay is bounded by the visible viewport, and it
+- **`#ui`** (workspace/views/render): ***A snapshot says what it held*** (filed under `#vault`;
+  the panel half — why the step line stopped printing a fixed phrase — is there too) ·
+  ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
   covering surface in `vh` — it is also where the NUL-byte-hides-a-file-from-grep trap is
   recorded) · ***One tag is an arrangement, not a query builder***
@@ -68,7 +70,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   query-layer-excluded from planning views* · *Status rotates; card order is a view preference* ·
   *`start`/`due` are a `Stamp`* · *Tauri was the light choice; native-GUI rewrite rejected* · *v1
   editor = textarea + read view* · *Markdown→HTML is `marked`*.
-- **`#vault`** (audience/cross-vault): ***A backup surface that cannot say* when *is not a backup
+- **`#vault`** (audience/cross-vault): ***A snapshot says what it held, and "restic did not say"
+  is its own answer*** (read before touching `backup::backup`'s return, the `--json` parse, or any
+  surface that describes a snapshot) · ***A backup surface that cannot say* when *is not a backup
   surface*** (read before adding a field to `backup_status`, or before folding a per-vault restic
   spawn into anything that polls) · ***A gate must inspect the same string the router acts on***
   (read before adding to `REMOTE_DENIED`, or before comparing a request path anywhere) ·
@@ -5749,3 +5753,48 @@ capability and not a dependency. That is precisely the one that goes missing in 
 Same principle as the comment-anchoring guard directly above it in the same file: *a guard that is
 disarmed by adding a comment is worse than no guard.* This one would have been disarmed by an
 absent binary.
+
+## 2026-09-05 — a snapshot says what it held, and "restic did not say" is its own answer `#vault` `#ui`
+
+`backup` returned unit. So the one thing the media tier could report was *that it happened* — and
+the panel, having nothing to say, said the same fixed phrase over every vault: **"notes and
+attachments"**. That sentence is wrong for the ordinary desktop vault, which has no `blobs/` yet.
+A backup surface whose entire job is to avoid overstating what it did was overstating on every
+run, quietly, because the layer below it answered nothing to contradict.
+
+**`fm_core::backup::backup` now answers `Backed`**, and the command answers `BackupRun`:
+
+- **The directories that actually went in.** `notes_dir` by its own name — `docs` for a vault
+  whose `vault.json` moved it — and `blobs` true only when there were any. These cost nothing:
+  `backup` already decided them, and the old signature simply threw them away.
+- **`contents`: restic's own summary**, from `restic backup --json` — short id, files new /
+  changed / unmodified, bytes read, bytes the repository grew by. Not one number computed here.
+  A count we worked out ourselves sitting beside counts restic gave us is how a surface starts
+  being confidently wrong.
+
+**Nullable as a whole, not field by field.** `contents: null` means *restic wrote the snapshot and
+did not describe it*. That is not *the snapshot held nothing*, and six separately-nullable numbers
+would have put a reader back to deciding which zero was a zero — the exact failure `unpushed: 0`
+vs `null` was fixed for on 2026-09-04, and the one `backup_latest` is shaped around (`id: null` is
+*never backed up*; `unavailable` is *this machine cannot tell you*). One null, said once.
+
+**A summary that will not parse must never fail the backup.** By the time the line is read the
+snapshot exists in the repository. Refusing the whole call because a progress line changed shape
+in some future restic would turn a snapshot that is safely written into a reported failure — the
+worst answer available, and the one that teaches someone to stop believing the panel. So
+`summary()` returns `None` and the caller says so. For the same reason it is all of restic's
+numbers or none: a missing field defaulted to zero is indistinguishable from an empty vault.
+
+**The cost of `--json`, paid.** It also moves restic's errors off stderr as sentences and into
+JSON objects — `{"message_type":"exit_error","code":12,"message":"Fatal: wrong password…"}` — so
+passing stderr through raw would have handed the user a serialized struct where a sentence used
+to be. `failed_json` pulls the messages out and falls back to the raw text. Worth naming because
+it is the kind of regression a flag like this smuggles in: the feature works, and the failure
+path quietly gets worse.
+
+**Not taken: a second `restic snapshots` call after the backup.** It would have given the id and
+nothing else, cost another round trip against a network repo, and still not said what changed.
+
+Closes `outstanding.md` §2.10's last residue. Proven red four ways: `summary()` forced to `None`,
+`blobs` hardcoded true, the dispatch arm restored to `nothing()`, and the panel's fixed phrase put
+back — that last one failing with the old sentence printed verbatim.
