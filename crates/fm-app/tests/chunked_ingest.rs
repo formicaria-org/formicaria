@@ -34,11 +34,7 @@ fn app() -> (TempDir, TempDir, App) {
     let store = MultiStore::open(&[("notes".to_string(), vault.path().to_path_buf())]).unwrap();
     let app = App::new(
         store,
-        vec![VaultConfig {
-            name: "notes".into(),
-            path: vault.path().to_path_buf(),
-            restic: None,
-        }],
+        vec![VaultConfig { name: "notes".into(), path: vault.path().to_path_buf(), restic: None }],
         Some(home.path().join("vaults.json")),
         true,
     );
@@ -46,7 +42,8 @@ fn app() -> (TempDir, TempDir, App) {
 }
 
 fn call(app: &App, cmd: &str, args: serde_json::Value, body: &[u8]) -> Result<String, String> {
-    dispatch(cmd, &args, body, app, &NoHost).map(|o| String::from_utf8_lossy(&o.into_bytes()).into_owned())
+    dispatch(cmd, &args, body, app, &NoHost)
+        .map(|o| String::from_utf8_lossy(&o.into_bytes()).into_owned())
 }
 
 /// Deterministic, non-compressible, and not a repeating byte — a file of zeros would hash the
@@ -71,10 +68,7 @@ fn payload(len: usize) -> Vec<u8> {
 /// worth asserting is that the blob **stored under that name** contains the bytes that were sent.
 fn hash_from(meta: &str) -> String {
     let i = meta.find("sha256:").expect("the asset note carries a blob reference");
-    meta[i + 7..]
-        .chars()
-        .take_while(|c| c.is_ascii_hexdigit())
-        .collect()
+    meta[i + 7..].chars().take_while(|c| c.is_ascii_hexdigit()).collect()
 }
 
 /// **The one that proves the refusal is lifted.** 24 MB is comfortably over the 16 MB ceiling the
@@ -134,16 +128,21 @@ fn the_same_file_has_the_same_address_whichever_way_it_arrives() {
     let (_home, vault, app) = app();
     let bytes = payload(700_000);
 
-    let single = call(&app, "ingest", json!({ "name": "a.bin", "vault": "notes" }), &bytes).unwrap();
+    let single =
+        call(&app, "ingest", json!({ "name": "a.bin", "vault": "notes" }), &bytes).unwrap();
     let one = blob_count(vault.path());
 
     for (seq, slice) in bytes.chunks(64 * 1024).enumerate() {
         call(&app, "ingest_chunk", json!({ "session": "s2", "seq": seq, "vault": "notes" }), slice)
             .unwrap();
     }
-    let chunked =
-        call(&app, "ingest_finish", json!({ "session": "s2", "name": "b.bin", "vault": "notes" }), &[])
-            .unwrap();
+    let chunked = call(
+        &app,
+        "ingest_finish",
+        json!({ "session": "s2", "name": "b.bin", "vault": "notes" }),
+        &[],
+    )
+    .unwrap();
 
     assert_eq!(
         hash_from(&single),
@@ -248,20 +247,28 @@ fn cancelling_an_upload_reclaims_its_bytes() {
 #[test]
 fn the_sweep_takes_stale_sessions_and_spares_fresh_ones() {
     let (_home, vault, app) = app();
-    call(&app, "ingest_chunk", json!({ "session": "old", "seq": 0, "vault": "notes" }), b"abandoned")
-        .unwrap();
-    call(&app, "ingest_chunk", json!({ "session": "live", "seq": 0, "vault": "notes" }), b"in flight")
-        .unwrap();
+    call(
+        &app,
+        "ingest_chunk",
+        json!({ "session": "old", "seq": 0, "vault": "notes" }),
+        b"abandoned",
+    )
+    .unwrap();
+    call(
+        &app,
+        "ingest_chunk",
+        json!({ "session": "live", "seq": 0, "vault": "notes" }),
+        b"in flight",
+    )
+    .unwrap();
 
     // Age the abandoned one by rewriting the stamp it wrote for itself — which is the field
     // `sweep` actually reads, so this drives the real code path rather than forging a filesystem
     // timestamp the sweep was taught to ignore.
     let dir = fm_core::chunked::sessions_dir(vault.path());
-    let long_ago = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        - fm_core::chunked::SESSION_TTL.as_secs() * 2;
+    let long_ago =
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs()
+            - fm_core::chunked::SESSION_TTL.as_secs() * 2;
     std::fs::write(dir.join("old").join("started"), long_ago.to_string()).unwrap();
 
     assert_eq!(fm_core::chunked::sweep(vault.path()), 1, "exactly the stale one");

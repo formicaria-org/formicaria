@@ -94,7 +94,8 @@ fn strip_url(url: &str, is_img: bool, keep_assets: bool) -> bool {
     }
     // A local image (relative path / bare filename) is an out-of-vault pointer too;
     // an external http(s)/data image is not, so it stays.
-    if is_img && !u.starts_with("http://") && !u.starts_with("https://") && !u.starts_with("data:") {
+    if is_img && !u.starts_with("http://") && !u.starts_with("https://") && !u.starts_with("data:")
+    {
         return !keep_assets;
     }
     false
@@ -109,7 +110,8 @@ fn bare_token(s: &str, keep_assets: bool) -> Option<usize> {
         return None;
     }
     if let Some(rest) = s.strip_prefix("asset:sha256-") {
-        return take_hex(rest).map(|h| "asset:sha256-".len() + h.len() + fragment_len(&rest[h.len()..]));
+        return take_hex(rest)
+            .map(|h| "asset:sha256-".len() + h.len() + fragment_len(&rest[h.len()..]));
     }
     if let Some(rest) = s.strip_prefix("sha256:") {
         return take_hex(rest).map(|h| "sha256:".len() + h.len() + fragment_len(&rest[h.len()..]));
@@ -226,7 +228,9 @@ mod tests {
 
     #[test]
     fn strip_default_removes_links_assets_and_notes_with_no_label_leak() {
-        let body = format!("Idea: ![secret-plan.png](asset:sha256-{HASH}) links [Lab roadmap](note:{ULID}) end.");
+        let body = format!(
+            "Idea: ![secret-plan.png](asset:sha256-{HASH}) links [Lab roadmap](note:{ULID}) end."
+        );
         let out = strip_cross_vault(&body, false);
         assert!(!out.contains("note:"));
         assert!(!out.contains("asset:"));

@@ -25,7 +25,8 @@ fn have_git() -> bool {
 fn backdate(vault: &std::path::Path) {
     let when = "2020-01-01T00:00:00+00:00";
     let out = std::process::Command::new("git")
-        .arg("-C").arg(vault)
+        .arg("-C")
+        .arg(vault)
         .args(["commit", "--amend", "--no-edit", "--date", when])
         .env("GIT_COMMITTER_DATE", when)
         .output()

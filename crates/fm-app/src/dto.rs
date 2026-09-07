@@ -345,9 +345,7 @@ fn prop_to_json(p: &PropertyValue) -> serde_json::Value {
         PropertyValue::Int(i) => Value::Number((*i).into()),
         PropertyValue::Text(s) => Value::String(s.clone()),
         PropertyValue::Stamp(s) => Value::String(s.to_string()),
-        PropertyValue::DateTime(dt) => {
-            Value::String(dt.format(&Rfc3339).unwrap_or_default())
-        }
+        PropertyValue::DateTime(dt) => Value::String(dt.format(&Rfc3339).unwrap_or_default()),
         PropertyValue::List(v) => Value::Array(v.iter().map(prop_to_json).collect()),
     }
 }

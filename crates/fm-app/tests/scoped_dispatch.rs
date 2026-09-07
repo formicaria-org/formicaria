@@ -36,10 +36,8 @@ fn two_vaults() -> (TempDir, TempDir, TempDir, App, String, String) {
     for d in [&a, &b] {
         std::fs::create_dir_all(d.path().join("notes")).unwrap();
     }
-    let owned: Vec<(String, PathBuf)> = vec![
-        ("personal".into(), a.path().to_path_buf()),
-        ("lab".into(), b.path().to_path_buf()),
-    ];
+    let owned: Vec<(String, PathBuf)> =
+        vec![("personal".into(), a.path().to_path_buf()), ("lab".into(), b.path().to_path_buf())];
     let configs: Vec<VaultConfig> = owned
         .iter()
         .map(|(n, p)| VaultConfig { name: n.clone(), path: p.clone(), restic: None })
@@ -155,18 +153,13 @@ fn writes_cannot_cross_the_boundary() {
         "an unstated audience must land in the caller's own, not the machine's default"
     );
 
-    let smuggled =
-        as_scope(&app, &lab(), "capture", json!({ "body": "x\n", "vault": "personal" }));
+    let smuggled = as_scope(&app, &lab(), "capture", json!({ "body": "x\n", "vault": "personal" }));
     assert!(smuggled.is_err(), "naming another audience must be refused, not redirected");
 
     // And the private vault is untouched: still exactly its original note.
     let all = as_scope(&app, &Scope::All, "recent", json!({})).unwrap();
-    let personal = all
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter(|o| o["vault"].as_str() == Some("personal"))
-        .count();
+    let personal =
+        all.as_array().unwrap().iter().filter(|o| o["vault"].as_str() == Some("personal")).count();
     assert_eq!(personal, 1, "something was written into an audience the caller was not in");
 }
 

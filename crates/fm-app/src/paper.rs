@@ -179,9 +179,7 @@ pub fn identifier_in_text(text: &str) -> Option<Identifier> {
     let head = &text[..end];
     // arXiv first: an arXiv preprint's DOI, when it has one, is usually the publisher's rather
     // than the copy in front of you.
-    find_arxiv(head)
-        .map(Identifier::ArXiv)
-        .or_else(|| find_doi(head).map(Identifier::Doi))
+    find_arxiv(head).map(Identifier::ArXiv).or_else(|| find_doi(head).map(Identifier::Doi))
 }
 
 /// The flat, scalar fields a paper note carries. Every one is a `String`, because that is what
@@ -235,7 +233,12 @@ fn clean_value(v: &str) -> String {
     let v = v.trim();
     let v = v.strip_prefix('{').and_then(|r| r.strip_suffix('}')).unwrap_or(v);
     let v = v.strip_prefix('"').and_then(|r| r.strip_suffix('"')).unwrap_or(v);
-    v.chars().filter(|c| *c != '{' && *c != '}').collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+    v.chars()
+        .filter(|c| *c != '{' && *c != '}')
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Parse one BibTeX entry. Returns `None` for anything that is not one, so a caller can fall
@@ -302,8 +305,12 @@ pub fn parse_bibtex(input: &str) -> Option<PaperFields> {
             // which contains a comma, survives as one author.
             "author" => {
                 out.authors = Some(
-                    value.split(" and ").map(str::trim).filter(|s| !s.is_empty())
-                        .collect::<Vec<_>>().join("; "),
+                    value
+                        .split(" and ")
+                        .map(str::trim)
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>()
+                        .join("; "),
                 )
             }
             "year" | "date" => {
@@ -362,8 +369,12 @@ pub fn to_bibtex(title: &str, props: &std::collections::BTreeMap<String, String>
     // Back to BibTeX's own ` and ` separator — the inverse of the parse above.
     let authors = get("authors");
     if !authors.is_empty() {
-        let joined =
-            authors.split(';').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" and ");
+        let joined = authors
+            .split(';')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" and ");
         out.push_str(&format!("  author = {{{joined}}},\n"));
     }
     // **`booktitle` for a proceedings, `journal` for a journal.** The parse maps both onto one

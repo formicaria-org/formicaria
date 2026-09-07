@@ -42,17 +42,15 @@ fn known_content_hashes_to_the_expected_sha256() {
     let f = dir.path().join("abc");
     fs::write(&f, b"abc").unwrap();
     let stored = BlobStore::new(dir.path()).put_file(&f).unwrap();
-    assert_eq!(
-        stored.hash,
-        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-    );
+    assert_eq!(stored.hash, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
 
 #[test]
 fn ingesting_a_text_file_makes_its_contents_searchable() {
     let dir = tempdir().unwrap();
     let src = dir.path().join("meta-rl.txt");
-    fs::write(&src, "GAE lambda interacts badly with inner-loop adaptation. marker_xyzzy.").unwrap();
+    fs::write(&src, "GAE lambda interacts badly with inner-loop adaptation. marker_xyzzy.")
+        .unwrap();
 
     let ing = ingest_file(dir.path(), &src).unwrap();
     assert_eq!(ing.filename, "meta-rl.txt");

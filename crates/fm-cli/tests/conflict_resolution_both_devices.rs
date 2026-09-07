@@ -376,7 +376,10 @@ fn marking_an_edited_conflict_resolved_settles_it_on_either_device() {
         // The reconciled text is what landed — both paragraphs, no markers.
         let show = g(&vault, &["show", &format!("HEAD:{rel}")]);
         let text = String::from_utf8_lossy(&show.stdout);
-        assert!(text.contains("our paragraph") && text.contains("their paragraph"), "native={native}");
+        assert!(
+            text.contains("our paragraph") && text.contains("their paragraph"),
+            "native={native}"
+        );
         assert!(!text.contains("<<<<<<<"), "native={native}: no markers in history");
     }
 }

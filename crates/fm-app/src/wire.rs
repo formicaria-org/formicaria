@@ -143,7 +143,8 @@ mod tests {
     /// when the decoder loses track of position.
     #[test]
     fn round_trips_a_phone_sized_photo() {
-        let bytes: Vec<u8> = (0..4_000_000u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
+        let bytes: Vec<u8> =
+            (0..4_000_000u32).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
         let decoded = b64_decode(&b64_encode(&bytes)).expect("a well-formed payload must decode");
         assert_eq!(decoded.len(), bytes.len(), "the decoded photo changed length");
         assert!(decoded == bytes, "the decoded photo differs from what was encoded");
@@ -233,9 +234,7 @@ pub fn inline_safe(ctype: &str) -> bool {
     match base {
         "image/svg+xml" => false,
         "application/pdf" => true,
-        _ => {
-            base.starts_with("image/") || base.starts_with("video/") || base.starts_with("audio/")
-        }
+        _ => base.starts_with("image/") || base.starts_with("video/") || base.starts_with("audio/"),
     }
 }
 

@@ -53,9 +53,6 @@ fn query_10k_under_budget() {
     let elapsed = start.elapsed();
 
     assert!(r.total > 0, "expected matches");
-    assert!(
-        elapsed.as_millis() < 100,
-        "query over 10k took {elapsed:?}, budget is 100 ms"
-    );
+    assert!(elapsed.as_millis() < 100, "query over 10k took {elapsed:?}, budget is 100 ms");
     eprintln!("query over 10k objects: {elapsed:?} ({} matches)", r.total);
 }

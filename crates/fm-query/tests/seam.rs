@@ -41,10 +41,38 @@ fn obj(
 
 fn fixtures() -> Vec<Object> {
     vec![
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA0", Kind::Asset, Some("doing"), Some(date!(2026 - 07 - 20)), &["meta-rl"], "trust region clipping"),
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA1", Kind::Asset, Some("todo"), Some(date!(2026 - 07 - 25)), &["meta-rl", "exploration"], "advantage estimator"),
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA2", Kind::Asset, Some("done"), None, &["writing"], "draft intro section"),
-        obj("01ARZ3NDEKTSV4RRFFQ69G5FA3", Kind::Note, None, None, &["meta-rl"], "idea about GAE lambda"),
+        obj(
+            "01ARZ3NDEKTSV4RRFFQ69G5FA0",
+            Kind::Asset,
+            Some("doing"),
+            Some(date!(2026 - 07 - 20)),
+            &["meta-rl"],
+            "trust region clipping",
+        ),
+        obj(
+            "01ARZ3NDEKTSV4RRFFQ69G5FA1",
+            Kind::Asset,
+            Some("todo"),
+            Some(date!(2026 - 07 - 25)),
+            &["meta-rl", "exploration"],
+            "advantage estimator",
+        ),
+        obj(
+            "01ARZ3NDEKTSV4RRFFQ69G5FA2",
+            Kind::Asset,
+            Some("done"),
+            None,
+            &["writing"],
+            "draft intro section",
+        ),
+        obj(
+            "01ARZ3NDEKTSV4RRFFQ69G5FA3",
+            Kind::Note,
+            None,
+            None,
+            &["meta-rl"],
+            "idea about GAE lambda",
+        ),
     ]
 }
 
@@ -64,7 +92,10 @@ fn filter_by_status() {
 #[test]
 fn text_is_just_a_predicate_and_case_insensitive() {
     let objs = fixtures();
-    let q = Query { filter: Filter::new().and(Predicate::Text("TRUST region".into())), ..Default::default() };
+    let q = Query {
+        filter: Filter::new().and(Predicate::Text("TRUST region".into())),
+        ..Default::default()
+    };
     let r = run(&q, &objs);
     assert_eq!(r.total, 1);
     assert_eq!(r.rows[0].body, "trust region clipping");
@@ -88,10 +119,7 @@ fn tags_all_semantics() {
 fn group_by_is_generic() {
     let objs = fixtures();
 
-    let by_status = run(
-        &Query { group_by: Some("status".into()), ..Default::default() },
-        &objs,
-    );
+    let by_status = run(&Query { group_by: Some("status".into()), ..Default::default() }, &objs);
     let groups = by_status.groups.expect("grouped");
     // doing, todo, done, and "(none)" for the Note with no status.
     assert_eq!(groups.len(), 4);
@@ -100,10 +128,7 @@ fn group_by_is_generic() {
 
     // Point the SAME engine at `type` and get a board of note/asset — no special
     // casing, no `todo`/`doing`/`done` anywhere.
-    let by_type = run(
-        &Query { group_by: Some("type".into()), ..Default::default() },
-        &objs,
-    );
+    let by_type = run(&Query { group_by: Some("type".into()), ..Default::default() }, &objs);
     let groups = by_type.groups.expect("grouped");
     assert_eq!(groups.len(), 2);
     assert!(groups.iter().any(|g| g.label == "asset" && g.rows.len() == 3));

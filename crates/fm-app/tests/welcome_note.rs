@@ -47,16 +47,33 @@ fn the_shipped_welcome_note_is_a_note_the_app_can_read() {
         // The three properties that would make it *invisible*: a `thread_of` makes it a discussion
         // message, a `proposes` makes it a proposal, and either is excluded from every view a new
         // user will look at. Nothing here should be a hidden note-class.
-        assert!(!fm_app::thread::is_message(&obj), "{}: must not read as a message", path.display());
-        assert!(!fm_app::thread::is_proposal(&obj), "{}: must not read as a proposal", path.display());
+        assert!(
+            !fm_app::thread::is_message(&obj),
+            "{}: must not read as a message",
+            path.display()
+        );
+        assert!(
+            !fm_app::thread::is_proposal(&obj),
+            "{}: must not read as a proposal",
+            path.display()
+        );
 
-        assert!(obj.title.is_some(), "{}: needs a title — it is the first thing shown", path.display());
+        assert!(
+            obj.title.is_some(),
+            "{}: needs a title — it is the first thing shown",
+            path.display()
+        );
         assert!(obj.body.len() > 200, "{}: too short to orient anyone", path.display());
 
         // Round-trips byte-for-byte, so the first edit does not rewrite the whole file and make the
         // user's first change look like a hundred-line diff.
         let round = fm_core::frontmatter::to_file(&obj).unwrap();
-        assert_eq!(round, text, "{}: must be written exactly as the app would write it", path.display());
+        assert_eq!(
+            round,
+            text,
+            "{}: must be written exactly as the app would write it",
+            path.display()
+        );
     }
 }
 
@@ -67,7 +84,10 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
     // this fails and the note gets fixed with it.
     let text = std::fs::read_to_string(&welcome_files()[0]).unwrap();
     for view in ["Timeline", "Board", "Agenda", "Search"] {
-        assert!(text.contains(view), "the note names the views a user can switch to; {view} missing");
+        assert!(
+            text.contains(view),
+            "the note names the views a user can switch to; {view} missing"
+        );
     }
     for control in ["Back up", "Settings", "Help", "Edit"] {
         assert!(text.contains(control), "{control} is a control the note tells the reader to use");
@@ -127,17 +147,14 @@ fn a_vault_staged_like_the_release_opens_with_the_note_in_it() {
     let owned = vec![("personal".to_string(), dir.path().to_path_buf())];
     let app = App::new(
         MultiStore::open(&owned).expect("a staged vault must open"),
-        vec![VaultConfig {
-            name: "personal".into(),
-            path: dir.path().to_path_buf(),
-            restic: None,
-        }],
+        vec![VaultConfig { name: "personal".into(), path: dir.path().to_path_buf(), restic: None }],
         Some(home.path().join("vaults.json")),
         true,
     );
 
     let call = |cmd: &str, args: Value| -> Value {
-        let out: Output = dispatch(cmd, &args, &[], &app, &NoHost).unwrap_or_else(|e| panic!("{cmd}: {e}"));
+        let out: Output =
+            dispatch(cmd, &args, &[], &app, &NoHost).unwrap_or_else(|e| panic!("{cmd}: {e}"));
         match out {
             Output::Json(b) if b.is_empty() => Value::Null,
             o => serde_json::from_slice(&o.into_bytes()).unwrap_or(Value::Null),

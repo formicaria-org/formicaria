@@ -94,10 +94,8 @@ fn copy_leaks_no_reference_through_frontmatter_either() {
     // Assert over **everything a human can type into**, not a hand-picked pair of fields.
     // The previous version of this test built its haystack from `title` + `extra` only, so it
     // passed green while `status` and `tags` carried pointers straight into the target vault.
-    let frontmatter = format!(
-        "{:?} {:?} {:?} {:?}",
-        copy.title, copy.status, copy.tags, copy.extra
-    );
+    let frontmatter =
+        format!("{:?} {:?} {:?} {:?}", copy.title, copy.status, copy.tags, copy.extra);
     assert!(!frontmatter.contains(NOTE_ID), "no note id survives in frontmatter: {frontmatter}");
     assert!(!frontmatter.contains(HASH), "no blob hash survives in frontmatter: {frontmatter}");
     assert!(!frontmatter.contains("Lab roadmap"), "nor the link label: {frontmatter}");
@@ -115,7 +113,9 @@ fn copy_is_prose_only_by_default_and_leaks_no_reference() {
     seed_blob(&paths[0].1);
     let mut n = Object::new(
         Kind::Note,
-        format!("Plan: ![secret-plan.png](asset:sha256-{HASH}) see [Lab roadmap](note:{NOTE_ID}) end"),
+        format!(
+            "Plan: ![secret-plan.png](asset:sha256-{HASH}) see [Lab roadmap](note:{NOTE_ID}) end"
+        ),
     );
     n.vault = "personal".into();
     n.assets = vec![format!("sha256:{HASH}")];
@@ -191,7 +191,11 @@ fn uncopy_keeps_a_blob_another_copy_still_references() {
 
     let ra = commands::copy_note(&mut m, &a.id.to_string(), "lab", &paths, true).unwrap();
     let _rb = commands::copy_note(&mut m, &b.id.to_string(), "lab", &paths, true).unwrap();
-    assert_eq!(ra.new_blobs, vec![HASH.to_string()], "the first copy wrote the blob; the second dedups");
+    assert_eq!(
+        ra.new_blobs,
+        vec![HASH.to_string()],
+        "the first copy wrote the blob; the second dedups"
+    );
 
     // Undoing A's copy must not orphan B's: the blob is still referenced there → kept.
     commands::uncopy_note(&mut m, &ra.meta.id, "lab", &ra.new_blobs, &paths).unwrap();
@@ -217,13 +221,8 @@ fn re_copying_the_same_note_replaces_the_prior_copy_never_duplicates() {
     assert_ne!(r2.meta.id, r1.meta.id, "the replacement has its own id");
     assert!(m.get(r1.meta.id.parse().unwrap()).unwrap().is_none(), "the old copy is gone");
 
-    let lab_copies = m
-        .candidates(&Filter::new())
-        .unwrap()
-        .0
-        .into_iter()
-        .filter(|o| o.vault == "lab")
-        .count();
+    let lab_copies =
+        m.candidates(&Filter::new()).unwrap().0.into_iter().filter(|o| o.vault == "lab").count();
     assert_eq!(lab_copies, 1, "exactly one copy of the source lives in the target");
 }
 

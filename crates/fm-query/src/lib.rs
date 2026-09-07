@@ -45,13 +45,21 @@ pub enum Predicate {
     /// `type ∈ {..}`
     Kind(Vec<Kind>),
     /// A comparison against any property (well-known or custom).
-    Prop { key: String, op: Op, value: PropertyValue },
+    Prop {
+        key: String,
+        op: Op,
+        value: PropertyValue,
+    },
     /// `tags ⊇ set` (every listed tag present).
     TagsAll(Vec<String>),
     /// `tags ∩ set ≠ ∅` (any listed tag present).
     TagsAny(Vec<String>),
     /// A date property within an inclusive `[from, to]` window (open-ended if None).
-    DateRange { key: String, from: Option<Date>, to: Option<Date> },
+    DateRange {
+        key: String,
+        from: Option<Date>,
+        to: Option<Date>,
+    },
     /// Full-text predicate. Substring scan here; FTS5 in `FileStore`.
     Text(String),
     Not(Box<Predicate>),
@@ -143,8 +151,7 @@ pub struct QueryResult {
 /// Run a query over a slice of objects. Pure and filesystem-free: the one stable
 /// core every storage backend shares.
 pub fn run(query: &Query, objects: &[Object]) -> QueryResult {
-    let mut matched: Vec<&Object> =
-        objects.iter().filter(|o| matches(&query.filter, o)).collect();
+    let mut matched: Vec<&Object> = objects.iter().filter(|o| matches(&query.filter, o)).collect();
 
     sort_rows(&mut matched, &query.sort);
     let total = matched.len();
@@ -254,10 +261,7 @@ fn group_rows(rows: &[&Object], key: &str) -> Vec<Group> {
     for o in rows {
         buckets.entry(o.get(key)).or_default().push((*o).clone());
     }
-    buckets
-        .into_iter()
-        .map(|(k, rows)| Group { label: k.display(), key: k, rows })
-        .collect()
+    buckets.into_iter().map(|(k, rows)| Group { label: k.display(), key: k, rows }).collect()
 }
 
 #[cfg(test)]
@@ -317,10 +321,7 @@ mod noteref_tests {
             Predicate::Not(Box::new(Predicate::NoteRef { key: "thread_of".into(), id: None }));
 
         assert!(eval(&not_a_message, &Object::new(Kind::Note, "a real note")));
-        assert!(!eval(
-            &not_a_message,
-            &note_with("thread_of", &fm_model::note_ref(Id::new()))
-        ));
+        assert!(!eval(&not_a_message, &note_with("thread_of", &fm_model::note_ref(Id::new()))));
     }
 
     /// `BranchRef` reads only a well-formed `branch:<name>`, so a proposal is hidden from the

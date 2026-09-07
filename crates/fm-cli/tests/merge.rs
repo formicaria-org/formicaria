@@ -203,8 +203,7 @@ fn a_divergent_status_field_breaks_the_fence_and_keeps_both_values() {
         eprintln!("skipping merge test: git not on PATH");
         return;
     }
-    let (ours, theirs) =
-        two_clones(&task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n"));
+    let (ours, theirs) = two_clones(&task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n"));
     let rel = "notes/01JQ0000000000000000000000.md";
 
     // Identical bodies on purpose: the card-drag case moves a card and touches nothing else.
@@ -271,7 +270,11 @@ fn pull_brings_their_work_home_and_says_so() {
     g(theirs.path(), &["remote", "add", "bare", url]);
     g(theirs.path(), &["fetch", "-q", "bare"]);
     g(theirs.path(), &["reset", "--hard", "bare/main"]);
-    fs::write(theirs.path().join("notes/theirs.md"), note("2026-07-17T12:00:00Z", "- shared\n", "A note only they have.\n")).unwrap();
+    fs::write(
+        theirs.path().join("notes/theirs.md"),
+        note("2026-07-17T12:00:00Z", "- shared\n", "A note only they have.\n"),
+    )
+    .unwrap();
     g(theirs.path(), &["add", "-A"]);
     g(theirs.path(), &["commit", "-m", "theirs"]);
     g(theirs.path(), &["push", "-q", "bare", "HEAD:main"]);

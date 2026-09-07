@@ -353,7 +353,10 @@ fn credentials() -> git2::RemoteCallbacks<'static> {
                 if !token.is_empty() {
                     // A fine-grained PAT is the *password*; every host accepts any non-empty
                     // username alongside it, so the remote's own username wins when present.
-                    return git2::Cred::userpass_plaintext(username.unwrap_or("x-access-token"), &token);
+                    return git2::Cred::userpass_plaintext(
+                        username.unwrap_or("x-access-token"),
+                        &token,
+                    );
                 }
             }
         }
@@ -448,10 +451,8 @@ pub fn add_certs_from_pem(pem: &[u8]) -> Result<usize, StoreError> {
     // loop. Every certificate we obtain is freed here; `X509_STORE_add_cert` takes its own
     // reference, so libgit2 keeps the ones it accepts alive independently of ours.
     unsafe {
-        let bio = openssl_sys::BIO_new_mem_buf(
-            pem.as_ptr() as *const std::ffi::c_void,
-            pem.len() as i32,
-        );
+        let bio =
+            openssl_sys::BIO_new_mem_buf(pem.as_ptr() as *const std::ffi::c_void, pem.len() as i32);
         if bio.is_null() {
             return Err(StoreError::Io("could not open a memory BIO for the CA bundle".into()));
         }
@@ -711,10 +712,14 @@ fn finish_merge_if_resolved(vault: &Path) -> Result<(), StoreError> {
     let tree_oid = index.write_tree().map_err(map)?;
     let tree = repo.find_tree(tree_oid).map_err(map)?;
     let sig = repo.signature().map_err(map)?;
-    repo.commit(Some("HEAD"), &sig, &sig, "merge: conflicts resolved", &tree, &[
-        &our_commit,
-        &their_commit,
-    ])
+    repo.commit(
+        Some("HEAD"),
+        &sig,
+        &sig,
+        "merge: conflicts resolved",
+        &tree,
+        &[&our_commit, &their_commit],
+    )
     .map_err(map)?;
     repo.cleanup_state().map_err(map)?;
     Ok(())
@@ -773,7 +778,8 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
     let repo = Repository::open(vault).map_err(map)?;
     let Ok(head) = repo.head() else { return Ok(None) };
     let Ok(name) = head.shorthand() else { return Ok(None) };
-    let Ok(upstream) = repo.find_branch(&format!("{}/{name}", crate::git::REMOTE), git2::BranchType::Remote)
+    let Ok(upstream) =
+        repo.find_branch(&format!("{}/{name}", crate::git::REMOTE), git2::BranchType::Remote)
     else {
         return Ok(None);
     };
@@ -860,7 +866,8 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
         // Nothing of ours is up there yet, so there is nothing of theirs to merge into.
         return Ok(Pulled::UpToDate);
     };
-    let their_oid = upstream.get().target().ok_or_else(|| StoreError::Io("remote ref has no target".into()))?;
+    let their_oid =
+        upstream.get().target().ok_or_else(|| StoreError::Io("remote ref has no target".into()))?;
     let our_oid = head.target().ok_or_else(|| StoreError::Io("HEAD has no target".into()))?;
 
     if repo.graph_descendant_of(our_oid, their_oid).map_err(map)? || our_oid == their_oid {
@@ -881,8 +888,7 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
         let mut r = repo.find_reference(&format!("refs/heads/{branch}")).map_err(map)?;
         r.set_target(their_oid, "pull: fast-forward").map_err(map)?;
         repo.set_head(&format!("refs/heads/{branch}")).map_err(map)?;
-        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force()))
-            .map_err(map)?;
+        repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
         return Ok(Pulled::Merged(0));
     }
 
@@ -1162,12 +1168,7 @@ fn remote_head(repo: &Repository, branch: &str) -> Result<Option<git2::Oid>, Sto
     // Connect borrows the callbacks, so the connection is scoped tightly and always closed.
     rem.connect_auth(git2::Direction::Fetch, Some(std::mem::take(&mut cbs)), None).map_err(map)?;
     let wanted = format!("refs/heads/{branch}");
-    let found = rem
-        .list()
-        .map_err(map)?
-        .iter()
-        .find(|h| h.name() == wanted)
-        .map(|h| h.oid());
+    let found = rem.list().map_err(map)?.iter().find(|h| h.name() == wanted).map(|h| h.oid());
     let _ = rem.disconnect();
     Ok(found)
 }
@@ -1265,7 +1266,8 @@ fn note_id_from_path(path: &str) -> Option<String> {
 fn format_iso(t: git2::Time) -> String {
     let offset_minutes = t.offset_minutes();
     let secs = t.seconds() + i64::from(offset_minutes) * 60;
-    let (sign, off) = if offset_minutes < 0 { ('-', -offset_minutes) } else { ('+', offset_minutes) };
+    let (sign, off) =
+        if offset_minutes < 0 { ('-', -offset_minutes) } else { ('+', offset_minutes) };
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
     let (y, m, d) = civil_from_days(days);
@@ -1386,13 +1388,9 @@ fn write_proposal_branch(
     ensure_identity(vault);
     let repo = Repository::open(vault).map_err(map)?;
 
-    let parent = repo
-        .head()
-        .ok()
-        .and_then(|h| h.peel_to_commit().ok())
-        .ok_or_else(|| {
-            StoreError::Io("this vault has no commits yet — nothing to propose a change to".into())
-        })?;
+    let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok()).ok_or_else(|| {
+        StoreError::Io("this vault has no commits yet — nothing to propose a change to".into())
+    })?;
 
     let refname = format!("refs/heads/{branch}");
     if !force && repo.find_reference(&refname).is_ok() {
@@ -1418,10 +1416,9 @@ fn write_proposal_branch(
 /// remote-tracking `origin/proposal/<id>` that any pull's fetch brings down. The second arm is
 /// what lets a *reviewer* accept a proposal whose branch was created on someone else's clone.
 fn resolve_proposal_ref(repo: &Repository, branch: &str) -> Option<git2::Oid> {
-    for cand in [
-        format!("refs/heads/{branch}"),
-        format!("refs/remotes/{}/{branch}", crate::git::REMOTE),
-    ] {
+    for cand in
+        [format!("refs/heads/{branch}"), format!("refs/remotes/{}/{branch}", crate::git::REMOTE)]
+    {
         if let Some(oid) = repo.find_reference(&cand).ok().and_then(|r| r.target()) {
             return Some(oid);
         }
@@ -1471,9 +1468,7 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
     let base_tree = proposal_base_tree(&repo, head, theirs)?;
     let their_tree = repo.find_commit(theirs).map_err(map)?.tree().map_err(map)?;
 
-    let diff = repo
-        .diff_tree_to_tree(Some(&base_tree), Some(&their_tree), None)
-        .map_err(map)?;
+    let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(&their_tree), None).map_err(map)?;
 
     let mut files: Vec<String> = Vec::new();
     for d in diff.deltas() {
@@ -1644,7 +1639,10 @@ fn accept_would_clobber(repo: &Repository, paths: &[String]) -> bool {
 /// **no marker of any kind**, after which the next auto-commit writes a tree from that stale
 /// index and silently commits a *revert of the whole accepted proposal*, indistinguishable from
 /// a user edit. An undetectable half-state is worse than a detectable one.
-pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::Accepted, StoreError> {
+pub fn merge_proposal_branch(
+    vault: &Path,
+    branch: &str,
+) -> Result<crate::git::Accepted, StoreError> {
     use crate::git::Accepted;
 
     ensure_identity(vault);
@@ -1739,9 +1737,7 @@ pub fn merge_proposal_branch(vault: &Path, branch: &str) -> Result<crate::git::A
 
     // (iv) The paths this merge actually writes — the checkout's scope, and the only paths whose
     //      uncommitted state can block it.
-    let changed = repo
-        .diff_tree_to_tree(Some(&our_tree), Some(&merged_tree), None)
-        .map_err(map)?;
+    let changed = repo.diff_tree_to_tree(Some(&our_tree), Some(&merged_tree), None).map_err(map)?;
     let paths: Vec<String> = changed
         .deltas()
         .filter_map(|d| d.new_file().path().or_else(|| d.old_file().path()))

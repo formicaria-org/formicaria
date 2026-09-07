@@ -45,8 +45,7 @@ fn all_good_vaults_report_nothing_unopened() {
     for p in [&a, &b] {
         std::fs::create_dir_all(p.join("notes")).unwrap();
     }
-    let store =
-        MultiStore::open(&[("a".to_string(), a), ("b".to_string(), b)]).unwrap();
+    let store = MultiStore::open(&[("a".to_string(), a), ("b".to_string(), b)]).unwrap();
     assert_eq!(store.names(), vec!["a", "b"]);
     assert!(store.unopened().is_empty(), "the normal case says nothing");
 }

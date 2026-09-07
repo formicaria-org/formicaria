@@ -36,7 +36,13 @@ pub fn slug(name: &str, what: &str) -> Result<String, String> {
 }
 
 /// `<vault>/<dir>/<slug(name)>.<ext>` — the one place a label becomes a path.
-pub fn path_in(vault: &Path, dir: &str, name: &str, ext: &str, what: &str) -> Result<PathBuf, String> {
+pub fn path_in(
+    vault: &Path,
+    dir: &str,
+    name: &str,
+    ext: &str,
+    what: &str,
+) -> Result<PathBuf, String> {
     let stem = slug(name, what)?;
     Ok(vault.join(dir).join(format!("{stem}.{ext}")))
 }

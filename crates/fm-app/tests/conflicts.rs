@@ -8,13 +8,10 @@ use fm_core::MemoryStore;
 #[test]
 fn a_note_with_conflict_markers_is_listed_and_a_clean_one_is_not() {
     let mut s = MemoryStore::new();
-    let conflicted = capture(
-        &mut s,
-        "intro\n<<<<<<< ours\nmine\n=======\ntheirs\n>>>>>>> theirs\noutro",
-        "",
-    )
-    .unwrap()
-    .id;
+    let conflicted =
+        capture(&mut s, "intro\n<<<<<<< ours\nmine\n=======\ntheirs\n>>>>>>> theirs\noutro", "")
+            .unwrap()
+            .id;
     capture(&mut s, "a perfectly clean note", "").unwrap();
 
     let listed: Vec<String> = conflicts(&s).unwrap().into_iter().map(|m| m.id).collect();

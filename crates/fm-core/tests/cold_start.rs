@@ -26,13 +26,8 @@ use tempfile::{tempdir, TempDir};
 /// Everything the index claims to hold, in a comparable form: every note, id and body, ordered.
 fn snapshot(store: &FileStore) -> Vec<(String, String)> {
     let q = Query { sort: vec![SortKey::asc("created")], limit: None, ..Default::default() };
-    let mut rows: Vec<(String, String)> = store
-        .query(&q)
-        .unwrap()
-        .rows
-        .iter()
-        .map(|o| (o.id.to_string(), o.body.clone()))
-        .collect();
+    let mut rows: Vec<(String, String)> =
+        store.query(&q).unwrap().rows.iter().map(|o| (o.id.to_string(), o.body.clone())).collect();
     rows.sort();
     rows
 }

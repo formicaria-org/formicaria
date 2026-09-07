@@ -30,11 +30,7 @@ use std::process::{Command, Output};
 pub fn available() -> bool {
     static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *AVAILABLE.get_or_init(|| {
-        Command::new("restic")
-            .arg("version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+        Command::new("restic").arg("version").output().map(|o| o.status.success()).unwrap_or(false)
     })
 }
 
@@ -119,11 +115,7 @@ pub fn backup(vault: &Path, repo: &Path, password: &str) -> Result<Backed, Store
         // The directory's own name, not its path: this is for a sentence in front of a person,
         // and a vault that keeps its notes in `docs/` should say `docs`.
         notes_dir: has_notes.then(|| {
-            desc.notes
-                .clone()
-                .unwrap_or_else(|| PathBuf::from("notes"))
-                .display()
-                .to_string()
+            desc.notes.clone().unwrap_or_else(|| PathBuf::from("notes")).display().to_string()
         }),
         blobs: has_blobs,
         contents: summary(&out.stdout),
@@ -237,8 +229,12 @@ pub fn latest(repo: &Path, password: &str) -> Result<Option<Snapshot>, StoreErro
         return Err(failed("restic snapshots", &out));
     }
     let text = String::from_utf8_lossy(&out.stdout);
-    let parsed: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| StoreError::Io(format!("restic returned something that is not JSON ({e}) — is {} really a restic repo?", repo.display())))?;
+    let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+        StoreError::Io(format!(
+            "restic returned something that is not JSON ({e}) — is {} really a restic repo?",
+            repo.display()
+        ))
+    })?;
     let Some(first) = parsed.as_array().and_then(|a| a.first()) else {
         return Ok(None);
     };
@@ -255,7 +251,12 @@ pub fn latest(repo: &Path, password: &str) -> Result<Option<Snapshot>, StoreErro
         ));
     }
     Ok(Some(Snapshot {
-        id: first.get("short_id").or_else(|| first.get("id")).and_then(|v| v.as_str()).unwrap_or("?").to_string(),
+        id: first
+            .get("short_id")
+            .or_else(|| first.get("id"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?")
+            .to_string(),
         time: first.get("time").and_then(|v| v.as_str()).unwrap_or("?").to_string(),
         paths,
     }))
@@ -386,9 +387,7 @@ fn common_parent(paths: &[PathBuf]) -> Option<PathBuf> {
 
 /// An absolute path as restic nests it under a restore target: `/home/ada/v` → `home/ada/v`.
 fn strip_prefix(root: &Path) -> PathBuf {
-    root.components()
-        .filter(|c| matches!(c, std::path::Component::Normal(_)))
-        .collect()
+    root.components().filter(|c| matches!(c, std::path::Component::Normal(_))).collect()
 }
 
 /// Verify repo integrity. `read_data` re-reads and re-hashes every pack — the
@@ -450,7 +449,8 @@ mod tests {
     /// The ordinary snapshot: notes and blobs side by side under the vault root.
     #[test]
     fn common_parent_of_notes_and_blobs_is_the_vault_root() {
-        let paths = [PathBuf::from("/home/ada/vault/notes"), PathBuf::from("/home/ada/vault/blobs")];
+        let paths =
+            [PathBuf::from("/home/ada/vault/notes"), PathBuf::from("/home/ada/vault/blobs")];
         assert_eq!(common_parent(&paths), Some(PathBuf::from("/home/ada/vault")));
     }
 

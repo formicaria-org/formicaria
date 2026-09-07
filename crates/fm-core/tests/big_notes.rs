@@ -200,11 +200,8 @@ fn saving_one_note_does_not_get_slower_as_the_vault_grows() {
         std::fs::create_dir_all(&notes).unwrap();
         for i in 0..n {
             let o = Object::new(Kind::Note, format!("routine note number {i} about estimators"));
-            std::fs::write(
-                notes.join(format!("{}.md", o.id)),
-                frontmatter::to_file(&o).unwrap(),
-            )
-            .unwrap();
+            std::fs::write(notes.join(format!("{}.md", o.id)), frontmatter::to_file(&o).unwrap())
+                .unwrap();
         }
         let mut store = FileStore::open(dir.path()).unwrap();
 
@@ -233,7 +230,6 @@ fn saving_one_note_does_not_get_slower_as_the_vault_grows() {
     println!("per-put at 2k: {small:?}, at 8k: {large:?} (growth {growth:.2}x over a 4x vault)");
     assert!(
         growth < 1.6,
-
         "saving one note got {growth:.2}x more expensive as the vault grew 4x \
          (2k: {small:?}, 8k: {large:?}). A write should not scale with the corpus — check that \
          index_object still deletes the fts row by rowid rather than by the UNINDEXED id.",

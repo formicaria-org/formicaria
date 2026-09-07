@@ -54,7 +54,10 @@ fn replying_to_a_message_re_roots_to_the_note() {
         &serde_json::json!(format!("note:{note}")),
         "the thread is the NOTE's, not the message's"
     );
-    assert_eq!(second.props.get("reply_to").unwrap(), &serde_json::json!(format!("note:{}", first.id)));
+    assert_eq!(
+        second.props.get("reply_to").unwrap(),
+        &serde_json::json!(format!("note:{}", first.id))
+    );
 
     let t = thread(&s, &note).unwrap();
     assert_eq!(t.count, 2, "both messages are in the one discussion");

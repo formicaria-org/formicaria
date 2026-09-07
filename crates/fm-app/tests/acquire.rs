@@ -70,7 +70,12 @@ fn have_git() -> bool {
 fn app() -> (TempDir, App) {
     let home = tempdir().unwrap();
     let config = home.path().join("vaults.json");
-    let app = App::new(MultiStore::open(&[] as &[(String, PathBuf)]).unwrap(), Vec::<VaultConfig>::new(), Some(config), true);
+    let app = App::new(
+        MultiStore::open(&[] as &[(String, PathBuf)]).unwrap(),
+        Vec::<VaultConfig>::new(),
+        Some(config),
+        true,
+    );
     (home, app)
 }
 
@@ -152,12 +157,8 @@ fn adopting_an_existing_repo_keeps_its_history_and_notes() {
     let existing = PathBuf::from(origin_with_a_note(home.path()));
     let git_before = std::fs::read_to_string(existing.join(".git/HEAD")).unwrap();
 
-    call(
-        &app,
-        "create_vault",
-        json!({ "name": "adopted", "path": existing.to_string_lossy() }),
-    )
-    .expect("adopting a directory that already has notes should succeed");
+    call(&app, "create_vault", json!({ "name": "adopted", "path": existing.to_string_lossy() }))
+        .expect("adopting a directory that already has notes should succeed");
 
     let notes = call(&app, "recent", json!({ "limit": 10 })).unwrap();
     assert!(notes.contains("theirs"), "adopted notes are visible with no import: {notes}");
@@ -341,15 +342,10 @@ fn ingesting_bytes_stores_a_blob_and_returns_a_note() {
         0x82,
     ];
 
-    let out = dispatch(
-        "ingest",
-        &json!({ "name": "nice-car.png", "vault": "v" }),
-        png,
-        &app,
-        &NoHost,
-    )
-    .map(|o| String::from_utf8(o.into_bytes()).unwrap())
-    .expect("ingesting bytes should produce a note");
+    let out =
+        dispatch("ingest", &json!({ "name": "nice-car.png", "vault": "v" }), png, &app, &NoHost)
+            .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+            .expect("ingesting bytes should produce a note");
 
     // **The whole shape an asset takes in a vault**, not just "a blob appeared". A photo taken
     // on a phone has to be indistinguishable from one dropped on a desktop, or it is a second

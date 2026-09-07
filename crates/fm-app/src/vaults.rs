@@ -205,9 +205,8 @@ pub fn save(list: &[VaultConfig], to: &Path) -> Result<(), String> {
     };
 
     for v in list {
-        let known = arr
-            .iter()
-            .any(|e| e.get("name").and_then(Value::as_str) == Some(v.name.as_str()));
+        let known =
+            arr.iter().any(|e| e.get("name").and_then(Value::as_str) == Some(v.name.as_str()));
         if known {
             continue; // theirs. Leave every byte of it alone.
         }
@@ -319,10 +318,8 @@ pub fn forget(name: &str, to: &Path) -> Result<(), String> {
     };
     let mut root: Value = serde_json::from_str(&text)
         .map_err(|e| format!("{} is not valid JSON ({e}) — fix it first", to.display()))?;
-    let Some(arr) = root
-        .as_object_mut()
-        .and_then(|o| o.get_mut("vaults"))
-        .and_then(Value::as_array_mut)
+    let Some(arr) =
+        root.as_object_mut().and_then(|o| o.get_mut("vaults")).and_then(Value::as_array_mut)
     else {
         // No `vaults` array at all is the same "nothing to remove" case. A *malformed* one is not,
         // and `save` refuses that separately — this function only ever narrows the file.
@@ -387,9 +384,8 @@ pub fn config_dir() -> Option<PathBuf> {
     // it in the same way `FM_VAULTS` already overrides this file's location on desktop.
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
-        std::env::var_os("FM_CONFIG_DIR")
-            .map(PathBuf::from)
-            .filter(|p| p.is_absolute()) // a relative one would follow the cwd, which on a phone means nothing
+        std::env::var_os("FM_CONFIG_DIR").map(PathBuf::from).filter(|p| p.is_absolute())
+        // a relative one would follow the cwd, which on a phone means nothing
     }
 }
 
@@ -596,7 +592,8 @@ mod tests {
     fn saving_never_rewrites_an_existing_entry() {
         let d = tempfile::tempdir().unwrap();
         let f = d.path().join("vaults.json");
-        std::fs::write(&f, r#"{"vaults":[{"name":"personal","path":"~/somewhere-else"}]}"#).unwrap();
+        std::fs::write(&f, r#"{"vaults":[{"name":"personal","path":"~/somewhere-else"}]}"#)
+            .unwrap();
 
         save(&[cfg("personal", "/a/totally/different/path")], &f).unwrap();
 
@@ -903,11 +900,7 @@ mod contained {
             // rejected rather than silently renamed. Anything that *does* produce a folder
             // must land inside the root as exactly one segment.
             let Ok(got) = contained_path(root, hostile) else { continue };
-            assert!(
-                got.starts_with(root),
-                "{hostile:?} escaped to {}",
-                got.display()
-            );
+            assert!(got.starts_with(root), "{hostile:?} escaped to {}", got.display());
             assert_eq!(
                 got.components().count(),
                 root.components().count() + 1,

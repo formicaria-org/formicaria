@@ -24,7 +24,8 @@ fn capture_list_search_and_set_round_trip() {
     // It appears in `list` (the header line is "N note(s):", so find the note row).
     let out = fm(vault.path()).arg("list").output().unwrap();
     let list = String::from_utf8_lossy(&out.stdout);
-    let note_line = list.lines().find(|l| l.contains("marker_alpha")).expect("captured note listed");
+    let note_line =
+        list.lines().find(|l| l.contains("marker_alpha")).expect("captured note listed");
     let id = note_line.split_whitespace().next().expect("an id begins the note line").to_string();
 
     // Full-text search finds the marker.

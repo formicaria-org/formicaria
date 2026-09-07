@@ -116,7 +116,10 @@ impl ProposalLimits {
             return Err(GuardrailBreach::TooManyFiles { files: change.files, max: self.max_files });
         }
         if change.bytes > self.max_change_bytes {
-            return Err(GuardrailBreach::ChangeTooLarge { bytes: change.bytes, max: self.max_change_bytes });
+            return Err(GuardrailBreach::ChangeTooLarge {
+                bytes: change.bytes,
+                max: self.max_change_bytes,
+            });
         }
         let would_be = load.open.saturating_add(1);
         if would_be > self.max_open {
@@ -164,8 +167,11 @@ mod tests {
     #[test]
     fn per_vault_count_counts_the_proposal_being_added() {
         let l = limits(); // max_open = 2
-        // One already open + this one = 2: allowed.
-        assert_eq!(l.check(ProposalSize { files: 1, bytes: 1 }, VaultLoad { open: 1, open_bytes: 0 }), Ok(()));
+                          // One already open + this one = 2: allowed.
+        assert_eq!(
+            l.check(ProposalSize { files: 1, bytes: 1 }, VaultLoad { open: 1, open_bytes: 0 }),
+            Ok(())
+        );
         // Two already open + this one = 3: refused.
         assert_eq!(
             l.check(ProposalSize { files: 1, bytes: 1 }, VaultLoad { open: 2, open_bytes: 0 }),
@@ -179,7 +185,13 @@ mod tests {
         // *aggregate* ceiling is what bites, not the per-proposal one.
         let l = limits();
         // 4000 already open + 1000 = 5000: exactly at the ceiling, allowed.
-        assert_eq!(l.check(ProposalSize { files: 1, bytes: 1000 }, VaultLoad { open: 0, open_bytes: 4000 }), Ok(()));
+        assert_eq!(
+            l.check(
+                ProposalSize { files: 1, bytes: 1000 },
+                VaultLoad { open: 0, open_bytes: 4000 }
+            ),
+            Ok(())
+        );
         // 4500 already open + 600 = 5100: over the aggregate ceiling (each still ≤ the per-proposal cap).
         assert_eq!(
             l.check(ProposalSize { files: 1, bytes: 600 }, VaultLoad { open: 0, open_bytes: 4500 }),
@@ -203,7 +215,10 @@ mod tests {
     fn saturating_add_cannot_wrap_on_a_colossal_change() {
         let l = ProposalLimits { max_open_bytes: u64::MAX, ..limits() };
         // A change claiming near-u64::MAX bytes still refuses on the per-proposal cap, never wraps.
-        let breach = l.check(ProposalSize { files: 1, bytes: u64::MAX }, VaultLoad { open: 0, open_bytes: 10 });
+        let breach = l.check(
+            ProposalSize { files: 1, bytes: u64::MAX },
+            VaultLoad { open: 0, open_bytes: 10 },
+        );
         assert_eq!(breach, Err(GuardrailBreach::ChangeTooLarge { bytes: u64::MAX, max: 1000 }));
     }
 

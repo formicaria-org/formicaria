@@ -25,7 +25,10 @@ fn a_doi_is_recognised_however_it_was_pasted() {
 #[test]
 fn an_arxiv_id_is_recognised_but_never_guessed() {
     assert_eq!(parse_identifier("arXiv:2401.12345"), Some(Identifier::ArXiv("2401.12345".into())));
-    assert_eq!(parse_identifier("arXiv:2401.12345v2"), Some(Identifier::ArXiv("2401.12345v2".into())));
+    assert_eq!(
+        parse_identifier("arXiv:2401.12345v2"),
+        Some(Identifier::ArXiv("2401.12345v2".into()))
+    );
     assert_eq!(
         parse_identifier("https://arxiv.org/abs/1706.03762"),
         Some(Identifier::ArXiv("1706.03762".into()))
@@ -52,7 +55,8 @@ fn a_url_is_recorded_rather_than_guessed_at() {
 
 #[test]
 fn the_identifier_a_pdf_prints_on_itself_comes_from_the_front_only() {
-    let front = "Attention Is All You Need\nAshish Vaswani\narXiv:1706.03762v7 [cs.CL]\n\nAbstract…";
+    let front =
+        "Attention Is All You Need\nAshish Vaswani\narXiv:1706.03762v7 [cs.CL]\n\nAbstract…";
     assert_eq!(identifier_in_text(front), Some(Identifier::ArXiv("1706.03762v7".into())));
 
     // **A DOI in the bibliography belongs to somebody else's paper.** Only the front matter is
@@ -116,7 +120,11 @@ fn bibtex_survives_the_shapes_exporters_actually_emit() {
       journal={Proc. of X, Y and Z}, year="2019",}"#;
     let got = parse_bibtex(entry).expect("parses");
     assert_eq!(got.title.as_deref(), Some("BERT: Pre-training of Deep Models"));
-    assert_eq!(got.venue.as_deref(), Some("Proc. of X, Y and Z"), "a comma inside braces is not a separator");
+    assert_eq!(
+        got.venue.as_deref(),
+        Some("Proc. of X, Y and Z"),
+        "a comma inside braces is not a separator"
+    );
     assert_eq!(got.year.as_deref(), Some("2019"));
 
     // biblatex's `date` narrows to the year, because that is what a paper note groups by.
@@ -139,7 +147,10 @@ fn a_paper_note_can_be_copied_back_out_as_bibtex() {
     props.insert("entry_type".to_string(), "inproceedings".to_string());
 
     let out = to_bibtex("Attention Is All You Need", &props);
-    assert!(out.starts_with("@inproceedings{vaswani2017,"), "key falls back to author+year:\n{out}");
+    assert!(
+        out.starts_with("@inproceedings{vaswani2017,"),
+        "key falls back to author+year:\n{out}"
+    );
     assert!(out.contains("title = {Attention Is All You Need}"), "{out}");
     // Back to BibTeX's own separator — the exact inverse of the parse.
     assert!(out.contains("author = {Vaswani, Ashish and Shazeer, Noam}"), "{out}");
@@ -160,7 +171,11 @@ fn the_venue_is_emitted_under_the_field_its_entry_type_takes() {
     let mut props = BTreeMap::new();
     props.insert("venue".to_string(), "NeurIPS".to_string());
     props.insert("entry_type".to_string(), "inproceedings".to_string());
-    assert!(to_bibtex("T", &props).contains("booktitle = {NeurIPS}"), "{:?}", to_bibtex("T", &props));
+    assert!(
+        to_bibtex("T", &props).contains("booktitle = {NeurIPS}"),
+        "{:?}",
+        to_bibtex("T", &props)
+    );
 
     props.insert("entry_type".to_string(), "article".to_string());
     assert!(to_bibtex("T", &props).contains("journal = {NeurIPS}"));

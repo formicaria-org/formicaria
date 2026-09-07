@@ -122,7 +122,8 @@ fn notes_written_before_a_restart_are_found_and_recordable() {
     //
     // What is asserted instead is the property that was actually being protected, and it is
     // asserted *directly* rather than as a side effect of forgetfulness — see the two files below.
-    std::fs::write(vault.join("notes").join("hand-written.md"), "not ours: no ULID name\n").unwrap();
+    std::fs::write(vault.join("notes").join("hand-written.md"), "not ours: no ULID name\n")
+        .unwrap();
     std::fs::write(vault.join("README.md"), "the project's own file\n").unwrap();
 
     let committed = call(&app, "commit", serde_json::json!({ "message": "auto", "vault": "v" }))
@@ -198,8 +199,8 @@ fn the_kinds_tell_the_two_stories_apart() {
     // A committed starting point, written and recorded by one session.
     let id = {
         let app = open_app(&home, &vault);
-        let meta =
-            call(&app, "capture", serde_json::json!({ "body": "committed", "vault": "v" })).unwrap();
+        let meta = call(&app, "capture", serde_json::json!({ "body": "committed", "vault": "v" }))
+            .unwrap();
         call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
         meta["id"].as_str().unwrap().to_string()
     };
@@ -325,9 +326,10 @@ fn duplicates_are_counted_by_body_and_the_role_names_the_code_path() {
     // `parse_note_ref` rejects it and `is_message` silently answers false; the first version of this
     // test used it and blamed the code. `mock.ts` carries the same warning about `M0CK` vs `MOCK`.
     let root = "01RTRTRTRTRTRTRTRTRTRTRTRT";
-    for (i, id) in ["01CCCCCCCCCCCCCCCCCCCCCC01", "01CCCCCCCCCCCCCCCCCCCCCC02", "01CCCCCCCCCCCCCCCCCCCCCC03"]
-        .iter()
-        .enumerate()
+    for (i, id) in
+        ["01CCCCCCCCCCCCCCCCCCCCCC01", "01CCCCCCCCCCCCCCCCCCCCCC02", "01CCCCCCCCCCCCCCCCCCCCCC03"]
+            .iter()
+            .enumerate()
     {
         std::fs::write(
             vault.join(format!("notes/{id}.md")),
@@ -392,7 +394,8 @@ fn a_refused_recording_reports_a_reason_and_not_an_empty_vault() {
     // Session zero, as above: history plus `ensure_repo`'s own files committed.
     {
         let app = open_app(&home, &vault);
-        call(&app, "capture", serde_json::json!({ "body": "the shared note", "vault": "v" })).unwrap();
+        call(&app, "capture", serde_json::json!({ "body": "the shared note", "vault": "v" }))
+            .unwrap();
         call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
     }
     let rel = {

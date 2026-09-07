@@ -21,7 +21,6 @@ fn notes_of(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
         .unwrap_or_default()
 }
 
-
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }

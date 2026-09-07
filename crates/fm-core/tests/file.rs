@@ -79,10 +79,8 @@ fn a_note_with_windows_line_endings_loads_and_keeps_its_body_byte_for_byte() {
 
     let s = FileStore::named(vault, "win").unwrap();
     assert!(s.skipped().is_empty(), "a CRLF note is a note, not a casualty: {:?}", s.skipped());
-    let got = s
-        .get("01JQ0000000000000000000000".parse().unwrap())
-        .unwrap()
-        .expect("the note loads");
+    let got =
+        s.get("01JQ0000000000000000000000".parse().unwrap()).unwrap().expect("the note loads");
 
     // The body is sliced, never rewritten — byte-for-byte is the invariant files-as-truth
     // rests on, so the author's line endings survive until the author changes them.
@@ -227,7 +225,11 @@ fn an_incremental_reindex_sees_external_changes_without_re_reading_the_vault() {
         "the external edit is visible",
     );
     assert!(
-        s.query(&Query::default()).unwrap().rows.iter().any(|o| o.title.as_deref() == Some("theirs")),
+        s.query(&Query::default())
+            .unwrap()
+            .rows
+            .iter()
+            .any(|o| o.title.as_deref() == Some("theirs")),
         "and so is the note that arrived",
     );
 }
@@ -249,10 +251,9 @@ fn a_note_that_changed_on_disk_refuses_the_write_that_would_erase_it() {
     // Someone else writes the file — a pull landing a collaborator's paragraph. The
     // app never sees it: `get` reads the index, and reindex only runs at `open`.
     let path = vault.join(format!("notes/{id}.md"));
-    let theirs = std::fs::read_to_string(&path).unwrap().replace(
-        "my half of the note",
-        "my half of the note\n\ntheir hard-won paragraph",
-    );
+    let theirs = std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("my half of the note", "my half of the note\n\ntheir hard-won paragraph");
     // A distinct mtime, without depending on the clock ticking between two writes.
     std::thread::sleep(std::time::Duration::from_millis(10));
     std::fs::write(&path, &theirs).unwrap();
@@ -317,8 +318,14 @@ fn filestore_matches_memorystore() {
         Query { filter: Filter::new().and(Predicate::Text("trust".into())), ..Default::default() },
         Query { group_by: Some("status".into()), ..Default::default() },
         Query { sort: vec![SortKey::asc("created")], ..Default::default() },
-        Query { filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])), ..Default::default() },
-        Query { filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])), ..Default::default() },
+        Query {
+            filter: Filter::new().and(Predicate::Kind(vec![Kind::Note])),
+            ..Default::default()
+        },
+        Query {
+            filter: Filter::new().and(Predicate::Kind(vec![Kind::Asset])),
+            ..Default::default()
+        },
         Query {
             filter: Filter::new().and(Predicate::Kind(vec![Kind::Note, Kind::Asset])),
             ..Default::default()

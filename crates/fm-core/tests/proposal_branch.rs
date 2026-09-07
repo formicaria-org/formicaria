@@ -67,8 +67,15 @@ fn it_creates_a_branch_with_the_change_and_touches_nothing_else() {
     let p = dir.path();
     let head_before = out(p, &["rev-parse", "HEAD"]);
 
-    git::create_proposal_branch(p, "proposal/01ABC", "notes/x.md", "PROPOSED body", "propose: edit x", None)
-        .unwrap();
+    git::create_proposal_branch(
+        p,
+        "proposal/01ABC",
+        "notes/x.md",
+        "PROPOSED body",
+        "propose: edit x",
+        None,
+    )
+    .unwrap();
 
     // The branch exists and carries the proposed content.
     assert!(g(p, &["rev-parse", "--verify", "refs/heads/proposal/01ABC"]).status.success());
@@ -97,8 +104,15 @@ fn a_brand_new_file_is_added_on_the_branch_only() {
     let dir = repo_with_a_note();
     let p = dir.path();
 
-    git::create_proposal_branch(p, "proposal/01NEW", "notes/fresh.md", "a new note", "propose: new note", None)
-        .unwrap();
+    git::create_proposal_branch(
+        p,
+        "proposal/01NEW",
+        "notes/fresh.md",
+        "a new note",
+        "propose: new note",
+        None,
+    )
+    .unwrap();
 
     // On the branch the new file exists; on HEAD it does not.
     assert_eq!(out(p, &["show", "proposal/01NEW:notes/fresh.md"]), "a new note");
@@ -114,7 +128,8 @@ fn it_refuses_to_clobber_an_existing_branch() {
     let dir = repo_with_a_note();
     let p = dir.path();
     git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "one", "m", None).unwrap();
-    let err = git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "two", "m", None).unwrap_err();
+    let err = git::create_proposal_branch(p, "proposal/01DUP", "notes/x.md", "two", "m", None)
+        .unwrap_err();
     assert!(format!("{err}").contains("already exists"), "got: {err}");
     // The first proposal's content is intact — the refused second write changed nothing.
     assert_eq!(out(p, &["show", "proposal/01DUP:notes/x.md"]), "one");
@@ -135,13 +150,23 @@ fn it_works_when_the_vault_path_is_relative() {
     let rel = relative_to_cwd(abs);
     assert!(rel.is_relative(), "the regression needs a relative path, got {rel:?}");
 
-    git::create_proposal_branch(&rel, "proposal/01REL", "notes/x.md", "PROPOSED via a relative path", "propose: rel", None)
-        .unwrap();
+    git::create_proposal_branch(
+        &rel,
+        "proposal/01REL",
+        "notes/x.md",
+        "PROPOSED via a relative path",
+        "propose: rel",
+        None,
+    )
+    .unwrap();
 
     assert_eq!(out(abs, &["show", "proposal/01REL:notes/x.md"]), "PROPOSED via a relative path");
     // The old bug created a doubled `<repo>/<basename>` dir from the mis-resolved index path.
     let basename = abs.file_name().unwrap();
-    assert!(!abs.join(basename).exists(), "a doubled vault dir was created — the index path is not absolute");
+    assert!(
+        !abs.join(basename).exists(),
+        "a doubled vault dir was created — the index path is not absolute"
+    );
 }
 
 #[test]
@@ -152,6 +177,7 @@ fn it_refuses_when_the_repo_has_no_commits() {
     let dir = tempfile::tempdir().unwrap();
     let p = dir.path();
     g(p, &["init"]);
-    let err = git::create_proposal_branch(p, "proposal/01EMPTY", "notes/x.md", "body", "m", None).unwrap_err();
+    let err = git::create_proposal_branch(p, "proposal/01EMPTY", "notes/x.md", "body", "m", None)
+        .unwrap_err();
     assert!(format!("{err}").contains("no commits"), "got: {err}");
 }

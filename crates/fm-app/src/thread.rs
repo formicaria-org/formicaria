@@ -161,13 +161,8 @@ pub fn is_proposal(o: &Object) -> bool {
 pub fn notes_base() -> Filter {
     Filter::new()
         .and(Predicate::Kind(vec![Kind::Note]))
-        .and(Predicate::Not(Box::new(Predicate::NoteRef {
-            key: THREAD_OF.into(),
-            id: None,
-        })))
-        .and(Predicate::Not(Box::new(Predicate::BranchRef {
-            key: PROPOSES.into(),
-        })))
+        .and(Predicate::Not(Box::new(Predicate::NoteRef { key: THREAD_OF.into(), id: None })))
+        .and(Predicate::Not(Box::new(Predicate::BranchRef { key: PROPOSES.into() })))
 }
 
 /// The base filter for the Collaboration surface: notes that **are** proposals — the exact
@@ -180,7 +175,5 @@ pub fn notes_base() -> Filter {
 pub fn proposals_base() -> Filter {
     Filter::new()
         .and(Predicate::Kind(vec![Kind::Note]))
-        .and(Predicate::BranchRef {
-            key: PROPOSES.into(),
-        })
+        .and(Predicate::BranchRef { key: PROPOSES.into() })
 }

@@ -117,8 +117,7 @@ fn main() {
 
     // Both spellings of "us": a browser sends whichever hostname the user typed.
     let port = addr.rsplit(':').next().unwrap_or("8765").to_string();
-    let origins =
-        vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
+    let origins = vec![format!("http://127.0.0.1:{port}"), format!("http://localhost:{port}")];
 
     let (app, skipped) = App::load().expect("open vaults");
     let configs = app.configs().expect("vaults");
@@ -132,7 +131,10 @@ fn main() {
     // those notes are now absent from every view, so say which ones: silently serving an
     // incomplete vault is the one outcome worse than not starting at all.
     if !skipped.is_empty() {
-        eprintln!("warning: {} note(s) could not be read and are missing from every view:", skipped.len());
+        eprintln!(
+            "warning: {} note(s) could not be read and are missing from every view:",
+            skipped.len()
+        );
         for note in &skipped {
             eprintln!("  {note}");
         }
@@ -265,7 +267,8 @@ fn main() {
         // it here, once, rather than letting `handle` ask: a peer address cannot be spoofed by a
         // header, and taking it at accept time means there is exactly one place the answer comes
         // from. A peer we cannot identify is treated as remote — the safe direction.
-        let peer = Peer { loopback: stream.peer_addr().is_ok_and(|a| a.ip().is_loopback()), tls: false };
+        let peer =
+            Peer { loopback: stream.peer_addr().is_ok_and(|a| a.ip().is_loopback()), tls: false };
         // **A read deadline, which this server has never had.** It is thread-per-connection, so a
         // peer that opens a socket and sends half a header line pins a thread forever; a few
         // dozen of those and nothing else is served. That was survivable while only this machine
@@ -716,7 +719,12 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     // arrive rather than being sized from a promise.
     let ceiling = if peer.loopback { 512 * 1024 * 1024 } else { 64 * 1024 * 1024 };
     if content_length > ceiling {
-        return write_response(reader.get_mut(), "413 Payload Too Large", "text/plain", b"payload too large");
+        return write_response(
+            reader.get_mut(),
+            "413 Payload Too Large",
+            "text/plain",
+            b"payload too large",
+        );
     }
     let mut body = Vec::new();
     if content_length > 0 {
@@ -724,7 +732,12 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
         // agreed to accept even if the header and the stream disagree.
         std::io::Read::take(&mut reader, content_length as u64).read_to_end(&mut body)?;
         if body.len() != content_length {
-            return write_response(reader.get_mut(), "400 Bad Request", "text/plain", b"short body");
+            return write_response(
+                reader.get_mut(),
+                "400 Bad Request",
+                "text/plain",
+                b"short body",
+            );
         }
     }
 
@@ -989,12 +1002,7 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
 ///
 /// Errors come back as a plain-text 500 body, which the UI shows in its error banner or
 /// degrades to the missing-asset placeholder.
-fn api(
-    cmd: &str,
-    body: &[u8],
-    scope: &Scope,
-    state: &AppState,
-) -> (&'static str, String, Vec<u8>) {
+fn api(cmd: &str, body: &[u8], scope: &Scope, state: &AppState) -> (&'static str, String, Vec<u8>) {
     let (cmd, query) = cmd.split_once('?').unwrap_or((cmd, ""));
 
     let args: Value = if query.is_empty() {
@@ -1026,7 +1034,9 @@ fn api(
 /// can equally turn these off.
 fn env_flag(key: &str, default: bool) -> bool {
     match std::env::var(key) {
-        Ok(v) => !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "no" | "off"),
+        Ok(v) => {
+            !matches!(v.trim().to_ascii_lowercase().as_str(), "" | "0" | "false" | "no" | "off")
+        }
         Err(_) => default,
     }
 }
@@ -1092,11 +1102,7 @@ fn probe(addr: &str) -> Running {
     if !buf.starts_with(b"HTTP/1.1 200") {
         return Running::NotOurs;
     }
-    let body = buf
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .map(|i| &buf[i + 4..])
-        .unwrap_or(&[]);
+    let body = buf.windows(4).position(|w| w == b"\r\n\r\n").map(|i| &buf[i + 4..]).unwrap_or(&[]);
     let id = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|v| v.get("build").and_then(|b| b.as_str()).map(str::to_string));
@@ -1472,7 +1478,8 @@ mod tests {
         std::fs::create_dir_all(vault.join("notes")).unwrap();
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
-        let state = AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, origins, 0);
+        let state =
+            AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, origins, 0);
         if let Some(token) = shared {
             state.share.force_enabled_for_test();
             if let Some(t) = token {
@@ -1655,24 +1662,20 @@ mod tests {
     /// and refusing it would break curl for no gain.
     #[test]
     fn a_request_with_no_host_is_allowed() {
-        let (status, _) =
-            request("POST /api/ping HTTP/1.0\r\nContent-Length: 2\r\n\r\n{}", ours());
+        let (status, _) = request("POST /api/ping HTTP/1.0\r\nContent-Length: 2\r\n\r\n{}", ours());
         assert_eq!(status, "HTTP/1.1 200 OK");
     }
 
     #[test]
     fn a_traversal_out_of_the_ui_directory_is_refused() {
-        let (status, _) = request(
-            "GET /../../../../etc/passwd HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n",
-            ours(),
-        );
+        let (status, _) =
+            request("GET /../../../../etc/passwd HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 400 Bad Request");
     }
 
     #[test]
     fn an_unsupported_method_is_refused() {
-        let (status, _) =
-            request("PUT /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        let (status, _) = request("PUT /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 405 Method Not Allowed");
     }
 
@@ -1725,9 +1728,7 @@ mod tests {
     /// A browser tab beating says a person is here, and the app must stay up.
     #[test]
     fn a_tabs_heartbeat_keeps_the_app_alive() {
-        assert!(kept_the_app_alive(
-            "POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n"
-        ));
+        assert!(kept_the_app_alive("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n"));
     }
 
     /// **The assistant must not.** It polls this server every 1–5 s for as long as it runs, so
@@ -1764,9 +1765,7 @@ mod tests {
     }
 
     fn rpost(path: &str, token: Option<&str>) -> String {
-        let cookie = token
-            .map(|t| format!("Cookie: {SHARE_COOKIE}={t}\r\n"))
-            .unwrap_or_default();
+        let cookie = token.map(|t| format!("Cookie: {SHARE_COOKIE}={t}\r\n")).unwrap_or_default();
         format!(
             "POST {path} HTTP/1.1\r\nHost: 192.168.1.5:8765\r\n\
              Origin: http://192.168.1.5:8765\r\n{cookie}Content-Length: 2\r\n\r\n{{}}"
@@ -1777,8 +1776,12 @@ mod tests {
     /// listener that somehow ends up reachable while the user never opted in refuses everything.
     #[test]
     fn a_remote_request_is_refused_outright_when_nothing_is_shared() {
-        let (status, _) =
-            request_as(&rpost("/api/ping", Some(TOKEN)), ours(), Peer { loopback: false, tls: true }, None);
+        let (status, _) = request_as(
+            &rpost("/api/ping", Some(TOKEN)),
+            ours(),
+            Peer { loopback: false, tls: true },
+            None,
+        );
         assert_eq!(status, "HTTP/1.1 403 Forbidden");
     }
 
@@ -1917,7 +1920,8 @@ mod tests {
         assert_eq!(status, "HTTP/1.1 403 Forbidden");
 
         // …while loopback keeps it, which is what `fm-cli`, curl and the study agent rely on.
-        let (status, _) = request("POST /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
+        let (status, _) =
+            request("POST /api/ping HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n", ours());
         assert_eq!(status, "HTTP/1.1 200 OK");
     }
 

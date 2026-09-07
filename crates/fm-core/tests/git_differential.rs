@@ -106,7 +106,9 @@ fn identity_agrees_on_what_is_a_person_and_what_is_refused() {
     assert_eq!(git_native::identity(b.path()), None);
 
     // Every refusal must be a refusal on both.
-    for (n, e) in [("", "a@b.c"), ("Ada", ""), ("Ada", "not-an-email"), ("Ada", "formicaria@localhost")] {
+    for (n, e) in
+        [("", "a@b.c"), ("Ada", ""), ("Ada", "not-an-email"), ("Ada", "formicaria@localhost")]
+    {
         assert_eq!(
             git::set_identity(a.path(), n, e).is_err(),
             git_native::set_identity(b.path(), n, e).is_err(),
@@ -269,7 +271,10 @@ fn commit_all_as_attributes_the_commit_identically_on_both_backends() {
     // pass on a machine whose git config happened to match.
     for v in [a.path(), b.path()] {
         let configured = g(v, &["config", "user.name"]);
-        assert_ne!(configured, name, "the vault's own identity must differ, or this proves nothing");
+        assert_ne!(
+            configured, name,
+            "the vault's own identity must differ, or this proves nothing"
+        );
     }
 }
 
@@ -353,7 +358,11 @@ fn push_squashed_agrees_on_what_it_collapses_and_what_it_refuses() {
     // returns false, and the second window would have had no commits to squash at all — the
     // test would then pass for the wrong reason on a backend that squashed nothing.
     let churn = |vault: &std::path::Path,
-                 commit: fn(&std::path::Path, &str, &[std::path::PathBuf]) -> Result<bool, fm_core::StoreError>,
+                 commit: fn(
+        &std::path::Path,
+        &str,
+        &[std::path::PathBuf],
+    ) -> Result<bool, fm_core::StoreError>,
                  round: u32| {
         for i in 0..3 {
             let f = vault.join(format!("notes/r{round}n{i}.md"));
@@ -370,7 +379,11 @@ fn push_squashed_agrees_on_what_it_collapses_and_what_it_refuses() {
     // First push: NEVER squashed. "Unpushed" here means the entire history, and destroying
     // history that has never left the machine is exactly backwards.
     assert_eq!(git::push_squashed(a.path(), "backup: one").unwrap(), 0, "subprocess first push");
-    assert_eq!(git_native::push_squashed(b.path(), "backup: one").unwrap(), 0, "libgit2 first push");
+    assert_eq!(
+        git_native::push_squashed(b.path(), "backup: one").unwrap(),
+        0,
+        "libgit2 first push"
+    );
     let subjects = |bare: &tempfile::TempDir| {
         String::from_utf8(
             Command::new("git")
@@ -388,7 +401,11 @@ fn push_squashed_agrees_on_what_it_collapses_and_what_it_refuses() {
     churn(a.path(), git::commit_all, 2);
     churn(b.path(), git_native::commit_all, 2);
     assert_eq!(git::push_squashed(a.path(), "backup: two").unwrap(), 3, "subprocess squashed 3");
-    assert_eq!(git_native::push_squashed(b.path(), "backup: two").unwrap(), 3, "libgit2 squashed 3");
+    assert_eq!(
+        git_native::push_squashed(b.path(), "backup: two").unwrap(),
+        3,
+        "libgit2 squashed 3"
+    );
     assert_eq!(subjects(&bare_a), subjects(&bare_b), "identical remote history after a squash");
     assert_eq!(
         subjects(&bare_a).lines().next().unwrap(),
@@ -433,7 +450,13 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
         push(w.path(), "backup: first").unwrap();
 
         // auto, auto, THEIR OWN commit, auto, auto.
-        for (i, msg) in [(0, "auto: a"), (1, "auto: b"), (2, "Chapter 3: the ants"), (3, "auto: c"), (4, "auto: d")] {
+        for (i, msg) in [
+            (0, "auto: a"),
+            (1, "auto: b"),
+            (2, "Chapter 3: the ants"),
+            (3, "auto: c"),
+            (4, "auto: d"),
+        ] {
             let f = w.path().join(format!("notes/1{i}.md"));
             fs::write(&f, format!("{i}\n")).unwrap();
             commit(w.path(), msg, &[f]).unwrap();
@@ -454,8 +477,10 @@ fn a_hand_written_commit_stops_the_squash_on_both_backends() {
             log.contains("Chapter 3: the ants"),
             "{backend}: the user's own commit must survive verbatim:\n{log}"
         );
-        assert!(log.contains("auto: a") && log.contains("auto: b"),
-            "{backend}: commits below the floor are untouched:\n{log}");
+        assert!(
+            log.contains("auto: a") && log.contains("auto: b"),
+            "{backend}: commits below the floor are untouched:\n{log}"
+        );
     }
 }
 
@@ -497,8 +522,8 @@ fn adding_certificates_from_memory_initialises_libgit2_first() {
         return;
     };
 
-    let added = git_native::add_certs_from_pem(pem.as_bytes())
-        .expect("certificates from memory must load");
+    let added =
+        git_native::add_certs_from_pem(pem.as_bytes()).expect("certificates from memory must load");
     assert!(added > 0, "at least one certificate reached libgit2's store");
 }
 
@@ -540,8 +565,7 @@ fn clone_offers_credentials_rather_than_failing_for_want_of_a_callback() {
     let Err(e) = git_native::clone(
         "https://github.com/formicaria-org/no-such-repository-this-is-a-test.git",
         &dest,
-    )
-    else {
+    ) else {
         panic!("a private repo must not clone without credentials");
     };
     let msg = format!("{e}").to_lowercase();
@@ -628,7 +652,10 @@ fn the_proposal_lifecycle_agrees_across_backends() {
         git::file_on_branch(a.path(), br, "notes/n1.md"),
         git_native::file_on_branch(b.path(), br, "notes/n1.md"),
     );
-    assert_eq!(git_native::file_on_branch(b.path(), br, "notes/n1.md").as_deref(), Some(&*proposed));
+    assert_eq!(
+        git_native::file_on_branch(b.path(), br, "notes/n1.md").as_deref(),
+        Some(&*proposed)
+    );
 
     let (ea, fa, pa) = git::branch_diff(a.path(), br).unwrap();
     let (eb, fb, pb) = git_native::branch_diff(b.path(), br).unwrap();
@@ -695,8 +722,9 @@ fn creating_a_proposal_agrees_on_its_refusals() {
             .unwrap();
     }
     // A proposal owns a fresh-ULID branch, so a collision is a bug, not a race.
-    assert!(git::create_proposal_branch(a.path(), "proposal/p", "notes/n1.md", "y", "m", None)
-        .is_err());
+    assert!(
+        git::create_proposal_branch(a.path(), "proposal/p", "notes/n1.md", "y", "m", None).is_err()
+    );
     assert!(git_native::create_proposal_branch(
         b.path(),
         "proposal/p",
@@ -805,7 +833,8 @@ fn retiring_a_settled_proposal_agrees_and_keeps_the_commit() {
     seed(b.path(), "notes/n1.md", NOTE);
     let br = "proposal/p1";
     let proposed = NOTE.replace("bravo", "settled");
-    git::create_proposal_branch(a.path(), br, "notes/n1.md", &proposed, "propose: m", None).unwrap();
+    git::create_proposal_branch(a.path(), br, "notes/n1.md", &proposed, "propose: m", None)
+        .unwrap();
     git_native::create_proposal_branch(b.path(), br, "notes/n1.md", &proposed, "propose: m", None)
         .unwrap();
     let tip = |v: &Path| g(v, &["rev-parse", &format!("refs/heads/{br}")]);
@@ -854,11 +883,15 @@ fn accepting_resolves_the_updated_collision_that_libgit2_alone_would_conflict_on
     seed(v.path(), "notes/n1.md", NOTE);
     let br = "proposal/p1";
 
-    let proposed = NOTE.replace("echo", "echo revised").replace("updated: 2026-07-24T10", "updated: 2026-07-24T11");
+    let proposed = NOTE
+        .replace("echo", "echo revised")
+        .replace("updated: 2026-07-24T10", "updated: 2026-07-24T11");
     git_native::create_proposal_branch(v.path(), br, "notes/n1.md", &proposed, "m", None).unwrap();
 
     // Meanwhile main moves on, touching a different line *and* the same `updated:` field.
-    let moved = NOTE.replace("alpha", "alpha edited").replace("updated: 2026-07-24T10", "updated: 2026-07-24T12");
+    let moved = NOTE
+        .replace("alpha", "alpha edited")
+        .replace("updated: 2026-07-24T10", "updated: 2026-07-24T12");
     fs::write(v.path().join("notes/n1.md"), &moved).unwrap();
     git_native::commit_all(v.path(), "edit", &[v.path().join("notes/n1.md")]).unwrap();
 

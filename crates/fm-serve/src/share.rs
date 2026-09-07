@@ -257,8 +257,7 @@ fn hash(token: &str) -> String {
 /// would mean the screen shows one and the other still works.
 pub fn new_code(state: &AppState, vaults: Vec<String>) -> Result<String, String> {
     let raw = random_bytes(CODE_LEN)?;
-    let code: String =
-        raw.iter().map(|b| ALPHABET[*b as usize % ALPHABET.len()] as char).collect();
+    let code: String = raw.iter().map(|b| ALPHABET[*b as usize % ALPHABET.len()] as char).collect();
     let mut pending = state.share.pending.lock().map_err(|e| e.to_string())?;
     *pending = Some(Pending { code: code.clone(), vaults, born: Instant::now(), wrong: 0 });
     Ok(code)
@@ -286,7 +285,10 @@ pub fn pair(state: &AppState, code: &str, name: &str) -> Result<Paired, String> 
             // Loud, and specifically *not* the same message as a plain wrong code: someone on
             // the network guessing is the case the owner most needs to be able to tell apart
             // from their own typo.
-            return Err("too many wrong codes — that code was cancelled. Start a new one on the computer.".into());
+            return Err(
+                "too many wrong codes — that code was cancelled. Start a new one on the computer."
+                    .into(),
+            );
         }
         return Err("that code is not right".into());
     }
@@ -399,13 +401,7 @@ pub fn status_json(state: &AppState) -> serde_json::Value {
     let enabled = state.share.enabled();
     let bound = state.share.bound.lock().ok().map(|b| b.clone());
     let devices = state.share.config.lock().map(|c| c.devices.len()).unwrap_or(0);
-    let seen = state
-        .share
-        .last_remote
-        .lock()
-        .ok()
-        .and_then(|t| *t)
-        .map(|t| t.elapsed().as_secs());
+    let seen = state.share.last_remote.lock().ok().and_then(|t| *t).map(|t| t.elapsed().as_secs());
 
     match bound {
         // Bound, and we know whether anything ever arrived. `seen: null` is the useful half:
@@ -494,8 +490,7 @@ pub fn route(
                     // `Max-Age` is capped in days for a reason the HSTS decision already names:
                     // DHCP eventually hands this IP to something else, and a token scoped to an
                     // address outlives the address.
-                    let lifetime =
-                        if peer.tls { "; Secure; Max-Age=604800" } else { "" };
+                    let lifetime = if peer.tls { "; Secure; Max-Age=604800" } else { "" };
                     let cookie = format!(
                         "Set-Cookie: {SHARE_COOKIE}={}; Path=/; HttpOnly; SameSite=Lax{lifetime}\r\n",
                         p.token
@@ -569,12 +564,9 @@ fn guarded(
             "application/json",
             &serde_json::to_vec(&v).unwrap_or_default(),
         ),
-        Err(e) => crate::write_response(
-            stream,
-            "500 Internal Server Error",
-            "text/plain",
-            e.as_bytes(),
-        ),
+        Err(e) => {
+            crate::write_response(stream, "500 Internal Server Error", "text/plain", e.as_bytes())
+        }
     }
 }
 

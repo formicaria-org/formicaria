@@ -109,12 +109,12 @@ fn open_skipped_refuses_anything_not_currently_unreadable() {
     call(&app, &host, "ping", json!({})).expect("ping");
 
     for (vault, name) in [
-        ("home", "fine.md"),                    // parses, so not ours to open
-        ("home", "nope.md"),                    // does not exist
-        ("home", "../../../etc/passwd"),        // traversal
-        ("home", "/etc/passwd"),                // absolute
-        ("other", "broken.md"),                 // right file, wrong audience
-        ("", ""),                               // empty
+        ("home", "fine.md"),             // parses, so not ours to open
+        ("home", "nope.md"),             // does not exist
+        ("home", "../../../etc/passwd"), // traversal
+        ("home", "/etc/passwd"),         // absolute
+        ("other", "broken.md"),          // right file, wrong audience
+        ("", ""),                        // empty
     ] {
         let r = call(&app, &host, "open_skipped", json!({ "vault": vault, "name": name }));
         assert!(r.is_err(), "{vault}/{name} must be refused, got {r:?}");
@@ -169,7 +169,10 @@ fn resolve_skipped_writes_the_fix_and_the_note_returns_to_the_vault() {
 
     // Next heartbeat: it is no longer skipped, and it is served — it renders.
     let ping = call(&app, &host, "ping", json!({})).expect("ping");
-    assert!(ping["skipped"].as_array().unwrap().is_empty(), "the note left the skipped set: {ping:?}");
+    assert!(
+        ping["skipped"].as_array().unwrap().is_empty(),
+        "the note left the skipped set: {ping:?}"
+    );
     let search = call(&app, &host, "search", json!({ "query": "broken" })).expect("search");
     assert!(!search.as_array().unwrap().is_empty(), "the resolved note is served and renders");
 }

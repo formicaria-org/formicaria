@@ -84,7 +84,12 @@ pub fn has_conflict_markers(text: &str) -> bool {
 /// strings it pulled out of an object database itself. Keeping the `%O %A %B` path shape here
 /// and the logic there is what stops a phone and a desktop merging the same note differently
 /// — the failure the `git2` rejection was written to avoid (`docs/context/decisions.md`).
-pub fn merge_files(base: &Path, ours: &Path, theirs: &Path, marker_size: usize) -> Result<Merged, StoreError> {
+pub fn merge_files(
+    base: &Path,
+    ours: &Path,
+    theirs: &Path,
+    marker_size: usize,
+) -> Result<Merged, StoreError> {
     let (b, o, t) = (read(base)?, read(ours)?, read(theirs)?);
     let (text, outcome) = merge_texts(&b, &o, &t, marker_size)?;
     std::fs::write(ours, text).map_err(io)?;
@@ -103,7 +108,11 @@ pub fn merge_texts(
     theirs: &str,
     marker_size: usize,
 ) -> Result<(String, Merged), StoreError> {
-    let parsed = (frontmatter::from_file(base), frontmatter::from_file(ours), frontmatter::from_file(theirs));
+    let parsed = (
+        frontmatter::from_file(base),
+        frontmatter::from_file(ours),
+        frontmatter::from_file(theirs),
+    );
     let (Ok(bo), Ok(oo), Ok(to)) = parsed else {
         return text_3way(base, ours, theirs, marker_size);
     };
@@ -350,8 +359,7 @@ fn text_3way_native(
         };
         // `automergeable` is libgit2's word for the exit code the subprocess arm reads: zero
         // means it left markers behind.
-        let verdict =
-            if result.automergeable != 0 { Merged::Clean } else { Merged::Conflicted };
+        let verdict = if result.automergeable != 0 { Merged::Clean } else { Merged::Conflicted };
         libgit2_sys::git_merge_file_result_free(&mut result);
         Ok((merged, verdict))
     }

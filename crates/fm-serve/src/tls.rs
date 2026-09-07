@@ -121,7 +121,10 @@ fn mint(dir: &Path, names: &[String]) -> Result<(Vec<u8>, Vec<u8>), String> {
         rcgen::CertificateParams::new(names.to_vec()).map_err(|e| format!("certificate: {e}"))?;
     params.distinguished_name.push(
         rcgen::DnType::CommonName,
-        format!("formicaria on {}", crate::share::hostname().unwrap_or_else(|| "this computer".into())),
+        format!(
+            "formicaria on {}",
+            crate::share::hostname().unwrap_or_else(|| "this computer".into())
+        ),
     );
     // **Not a CA.** See the module docs; this is the single most consequential line in the file.
     params.is_ca = rcgen::IsCa::ExplicitNoCa;
@@ -140,10 +143,7 @@ fn mint(dir: &Path, names: &[String]) -> Result<(Vec<u8>, Vec<u8>), String> {
     Ok((cert_der, key_der))
 }
 
-fn server_config(
-    cert_der: Vec<u8>,
-    key_der: Vec<u8>,
-) -> Result<rustls::ServerConfig, String> {
+fn server_config(cert_der: Vec<u8>, key_der: Vec<u8>) -> Result<rustls::ServerConfig, String> {
     // With `default-features = false` there is no ambient default provider, so it is installed
     // explicitly. `ok()` because a second call in the same process is an error we do not care
     // about — the provider is already what we wanted.

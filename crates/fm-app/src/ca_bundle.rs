@@ -234,7 +234,6 @@ mod tests {
         assert_eq!(collect(&[d.path()]).unwrap().matches(BEGIN).count(), 1);
     }
 
-
     /// A missing (or empty) directory falls through to the next — which of Android's stores is
     /// present varies by version, and an absent one is not a failure.
     #[test]

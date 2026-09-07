@@ -48,8 +48,7 @@ impl Manifest {
 
     /// Write atomically (temp + rename), so a crash never leaves a half manifest.
     pub fn write(&self, vault: &Path) -> Result<(), StoreError> {
-        let json =
-            serde_json::to_string_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
+        let json = serde_json::to_string_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
         let path = Self::path(vault);
         let tmp = path.with_extension("json.tmp");
         {
@@ -86,8 +85,7 @@ impl Manifest {
     /// failed halfway would leave a truncated JSON document sitting in the worktree *and* fail
     /// the driver, which is the worst of both.
     pub fn write_file(&self, path: &Path) -> Result<(), StoreError> {
-        let json =
-            serde_json::to_string_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
+        let json = serde_json::to_string_pretty(self).map_err(|e| StoreError::Io(e.to_string()))?;
         let tmp = path.with_extension("json.merge.tmp");
         fs::write(&tmp, json + "\n").map_err(io)?;
         fs::rename(&tmp, path).map_err(io)

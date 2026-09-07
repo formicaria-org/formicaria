@@ -230,9 +230,12 @@ fn a_custom_notes_dir_survives_the_round_trip() {
 
     // Without writing the descriptor back, this vault opens looking in `notes/` and shows
     // nothing at all — the notes are on disk and every view is empty, with no reason given.
-    fm_core::descriptor::Descriptor { notes: Some(PathBuf::from(&out.notes_dir)), ..Default::default() }
-        .write_new(dest.path())
-        .unwrap();
+    fm_core::descriptor::Descriptor {
+        notes: Some(PathBuf::from(&out.notes_dir)),
+        ..Default::default()
+    }
+    .write_new(dest.path())
+    .unwrap();
     let store = fm_core::FileStore::named(dest.path(), "restored").unwrap();
     let rows = store.query(&fm_query::Query::default()).unwrap().rows;
     assert_eq!(rows.len(), 1, "the note in docs/ is visible once the descriptor is restored");
@@ -397,11 +400,7 @@ fn the_whole_vault_survives_a_round_trip_and_verifies_scrubbed() {
     // that the *content address* still holds after the round trip.
     let report = fm_core::verify::verify(&restored, true).unwrap();
     assert!(report.scrubbed, "the scrub must actually have run");
-    assert!(
-        report.ok(),
-        "the restored vault does not verify: {:?}",
-        report.issues
-    );
+    assert!(report.ok(), "the restored vault does not verify: {:?}", report.issues);
     assert_eq!(report.notes, 2, "both notes are present and parse");
     assert_eq!(report.blobs, 1, "the blob is present and hashes to its own name");
 }

@@ -51,8 +51,7 @@ fn views_span_vaults_and_every_note_knows_its_audience() {
     assert_eq!(only_lab.rows[0].id, ours.id);
 
     // And grouping by it, for the same reason.
-    let grouped =
-        m.query(&Query { group_by: Some("vault".into()), ..Default::default() }).unwrap();
+    let grouped = m.query(&Query { group_by: Some("vault".into()), ..Default::default() }).unwrap();
     let mut names: Vec<_> = grouped
         .groups
         .unwrap()

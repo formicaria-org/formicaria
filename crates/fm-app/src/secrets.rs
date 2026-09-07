@@ -99,7 +99,9 @@ pub fn clear_token() -> Result<(), String> {
 /// signature here can leak it.
 pub fn has_token() -> bool {
     std::env::var(ENV).is_ok_and(|v| !v.is_empty())
-        || token_path().and_then(|p| std::fs::read_to_string(p).ok()).is_some_and(|t| !t.trim().is_empty())
+        || token_path()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .is_some_and(|t| !t.trim().is_empty())
 }
 
 /// Load a stored token into the environment, where the credential callback reads it.

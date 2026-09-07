@@ -85,12 +85,9 @@ fn read_frontmatter(page: &mut Page, yaml: &str) {
 fn string_list(v: &Value) -> Vec<String> {
     match v {
         Value::String(s) => s.split(',').map(clean).filter(|t| !t.is_empty()).collect(),
-        Value::Sequence(items) => items
-            .iter()
-            .filter_map(|i| i.as_str())
-            .map(clean)
-            .filter(|t| !t.is_empty())
-            .collect(),
+        Value::Sequence(items) => {
+            items.iter().filter_map(|i| i.as_str()).map(clean).filter(|t| !t.is_empty()).collect()
+        }
         _ => Vec::new(),
     }
 }

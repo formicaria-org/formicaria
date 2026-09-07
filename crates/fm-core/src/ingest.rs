@@ -53,7 +53,11 @@ pub fn ingest_file_named(vault: &Path, src: &Path, filename: &str) -> Result<Ing
     let text = extract_text(&blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
         // No known signature: call it text if it parsed as UTF-8, else opaque.
-        if text.is_some() { "text/plain".into() } else { "application/octet-stream".into() }
+        if text.is_some() {
+            "text/plain".into()
+        } else {
+            "application/octet-stream".into()
+        }
     });
     Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
 }
@@ -74,7 +78,11 @@ pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingest
         .or_else(|| infer::get(bytes).map(|t| t.mime_type().to_string()));
     let text = extract_text(&blob, sniffed.as_deref());
     let mime = sniffed.unwrap_or_else(|| {
-        if text.is_some() { "text/plain".into() } else { "application/octet-stream".into() }
+        if text.is_some() {
+            "text/plain".into()
+        } else {
+            "application/octet-stream".into()
+        }
     });
     Ok(Ingested { hash, deduped, mime, filename: filename.to_string(), text })
 }
@@ -86,10 +94,7 @@ pub fn ingest_bytes(vault: &Path, filename: &str, bytes: &[u8]) -> Result<Ingest
 /// special-cased; other signature-less formats stay `None` (link/plain text).
 fn sniff_svg(bytes: &[u8]) -> Option<&'static str> {
     let head = &bytes[..bytes.len().min(1024)];
-    String::from_utf8_lossy(head)
-        .to_ascii_lowercase()
-        .contains("<svg")
-        .then_some("image/svg+xml")
+    String::from_utf8_lossy(head).to_ascii_lowercase().contains("<svg").then_some("image/svg+xml")
 }
 
 fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
@@ -102,7 +107,11 @@ fn extract_text(blob: &Path, mime: Option<&str>) -> Option<String> {
         _ => return None,
     };
     let text = text.trim().to_string();
-    if text.is_empty() { None } else { Some(text) }
+    if text.is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 /// Can this machine read the text out of a PDF?

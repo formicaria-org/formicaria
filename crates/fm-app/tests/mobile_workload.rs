@@ -12,9 +12,9 @@
 //! browser tab; on the phone every command is serialised through one bridge, so a held lock is the
 //! whole app stopping. A discipline nothing checks lasts exactly one refactor.
 
+use fm_app::vaults::VaultConfig;
 use fm_app::{dispatch, App, Host};
 use fm_core::MultiStore;
-use fm_app::vaults::VaultConfig;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -64,7 +64,12 @@ fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<String, String>
     dispatch(cmd, &args, &[], app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
 }
 
-fn with_bytes(app: &App, cmd: &str, args: serde_json::Value, body: &[u8]) -> Result<String, String> {
+fn with_bytes(
+    app: &App,
+    cmd: &str,
+    args: serde_json::Value,
+    body: &[u8],
+) -> Result<String, String> {
     dispatch(cmd, &args, body, app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
 }
 
@@ -192,8 +197,9 @@ fn an_arm_that_drops_the_lock_does_not_block_other_commands() {
     let (home, app) = app();
     let vault = vault_in(&home, &app, "v");
 
-    let out = with_bytes(&app, "ingest", json!({ "name": "big.jpg", "vault": "v" }), &photo(64 * 1024))
-        .unwrap();
+    let out =
+        with_bytes(&app, "ingest", json!({ "name": "big.jpg", "vault": "v" }), &photo(64 * 1024))
+            .unwrap();
     let reference = out
         .split("\"assets\":[\"")
         .nth(1)
@@ -204,7 +210,8 @@ fn an_arm_that_drops_the_lock_does_not_block_other_commands() {
 
     let (entered_tx, entered_rx) = mpsc::channel();
     let (release_tx, release_rx) = mpsc::channel();
-    let host = BlockingHost { entered: entered_tx, release: std::sync::Mutex::new(Some(release_rx)) };
+    let host =
+        BlockingHost { entered: entered_tx, release: std::sync::Mutex::new(Some(release_rx)) };
 
     let app = Arc::new(app);
     let holder = {

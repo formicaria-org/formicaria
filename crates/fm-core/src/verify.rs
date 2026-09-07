@@ -85,7 +85,8 @@ pub fn verify(vault: &Path, scrub: bool) -> Result<Report, StoreError> {
                 continue;
             }
             report.notes += 1;
-            let note = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let note =
+                path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             let content = fs::read_to_string(&path).map_err(io)?;
             match frontmatter::from_file(&content) {
                 Ok(obj) => {
@@ -115,19 +116,26 @@ pub fn verify(vault: &Path, scrub: bool) -> Result<Report, StoreError> {
     report.blobs = paths.len();
     if scrub {
         for path in &paths {
-            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let name =
+                path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             let actual = sha256_file(path)?;
             if actual != name {
                 report.error(
                     format!("blobs/.../{}", short(&name)),
-                    format!("BIT ROT: content hashes to {} but is stored as {}", short(&actual), short(&name)),
+                    format!(
+                        "BIT ROT: content hashes to {} but is stored as {}",
+                        short(&actual),
+                        short(&name)
+                    ),
                 );
             }
         }
         // Cross-check against the manifest, if one has been written.
         if let Some(manifest) = Manifest::read(vault)? {
-            let on_disk: std::collections::BTreeSet<String> =
-                paths.iter().map(|p| p.file_name().unwrap().to_string_lossy().to_string()).collect();
+            let on_disk: std::collections::BTreeSet<String> = paths
+                .iter()
+                .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
+                .collect();
             for hash in manifest.blobs.keys() {
                 if !on_disk.contains(hash) {
                     report.error(

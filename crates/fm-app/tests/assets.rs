@@ -64,7 +64,8 @@ fn ingest_creates_an_asset_note_and_status_reports_its_mime() {
     // PNG magic bytes — sniffed to image/png regardless of the filename.
     let png: &[u8] = &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
-    let meta = commands::ingest(&mut store, vault.path(), "personal", "poster v2.png", png).unwrap();
+    let meta =
+        commands::ingest(&mut store, vault.path(), "personal", "poster v2.png", png).unwrap();
     assert_eq!(meta.kind, "asset");
     // The note joins the same audience as its bytes. Split them and the people who can
     // see the file cannot see the note describing it — and vice versa.

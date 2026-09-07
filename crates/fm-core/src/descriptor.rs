@@ -212,7 +212,10 @@ impl Descriptor {
         let git_assets_max = match v.get("git_assets_max") {
             None | Some(serde_json::Value::Null) => None,
             Some(serde_json::Value::Number(n)) => Some(n.as_u64().ok_or_else(|| {
-                StoreError::Parse(format!("{}: `git_assets_max` must not be negative", path.display()))
+                StoreError::Parse(format!(
+                    "{}: `git_assets_max` must not be negative",
+                    path.display()
+                ))
             })?),
             Some(serde_json::Value::String(t)) => Some(parse_size(t).ok_or_else(|| {
                 StoreError::Parse(format!(
@@ -264,12 +267,14 @@ impl Descriptor {
                         match p.get(key) {
                             None | Some(serde_json::Value::Null) => Ok(None),
                             Some(serde_json::Value::Number(n)) => Ok(Some(
-                                n.as_u64().and_then(|x| usize::try_from(x).ok()).ok_or_else(|| {
-                                    StoreError::Parse(format!(
+                                n.as_u64().and_then(|x| usize::try_from(x).ok()).ok_or_else(
+                                    || {
+                                        StoreError::Parse(format!(
                                         "{}: `proposals.{key}` must be a non-negative whole number",
                                         path.display()
                                     ))
-                                })?,
+                                    },
+                                )?,
                             )),
                             Some(_) => Err(StoreError::Parse(format!(
                                 "{}: `proposals.{key}` must be a whole number",
@@ -307,7 +312,8 @@ impl Descriptor {
             match v.get("supervision") {
                 None | Some(serde_json::Value::Null) => {}
                 Some(serde_json::Value::Object(o)) => {
-                    for (key, slot) in [("collect", &mut sup.collect), ("publish", &mut sup.publish)]
+                    for (key, slot) in
+                        [("collect", &mut sup.collect), ("publish", &mut sup.publish)]
                     {
                         match o.get(key) {
                             None | Some(serde_json::Value::Null) => {}
@@ -380,8 +386,7 @@ impl Descriptor {
         let mut text =
             serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
         text.push('\n');
-        std::fs::write(&path, text)
-            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
+        std::fs::write(&path, text).map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
     }
 
     pub fn set_git_assets_max(root: &Path, max: Option<u64>) -> Result<(), StoreError> {
@@ -432,8 +437,7 @@ impl Descriptor {
         let mut text =
             serde_json::to_string_pretty(&v).map_err(|e| StoreError::Io(e.to_string()))?;
         text.push('\n');
-        std::fs::write(&path, text)
-            .map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
+        std::fs::write(&path, text).map_err(|e| StoreError::Io(format!("{}: {e}", path.display())))
     }
 
     /// Where this vault's notes live, given its root. The single question `FileStore` asks.
@@ -470,10 +474,7 @@ impl Descriptor {
             obj.insert("description".into(), serde_json::Value::String(d.clone()));
         }
         if let Some(n) = &self.notes {
-            obj.insert(
-                "notes".into(),
-                serde_json::Value::String(n.to_string_lossy().into_owned()),
-            );
+            obj.insert("notes".into(), serde_json::Value::String(n.to_string_lossy().into_owned()));
         }
         if obj.is_empty() {
             return Ok(false);
@@ -540,7 +541,9 @@ mod tests {
     /// see this note" unanswerable.
     #[test]
     fn notes_may_not_escape_the_vault() {
-        for bad in [r#"{"notes":"/etc"}"#, r#"{"notes":"../elsewhere"}"#, r#"{"notes":"a/../../b"}"#] {
+        for bad in
+            [r#"{"notes":"/etc"}"#, r#"{"notes":"../elsewhere"}"#, r#"{"notes":"a/../../b"}"#]
+        {
             let d = tempdir().unwrap();
             std::fs::write(d.path().join("vault.json"), bad).unwrap();
             assert!(Descriptor::read(d.path()).is_err(), "must refuse: {bad}");

@@ -21,7 +21,6 @@ fn notes_of(vault: &std::path::Path) -> Vec<std::path::PathBuf> {
         .unwrap_or_default()
 }
 
-
 fn have_git() -> bool {
     Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
@@ -56,7 +55,10 @@ fn commit_all_commits_changes_then_reports_a_clean_tree() {
     fs::create_dir_all(&notes).unwrap();
     fs::write(notes.join("01.md"), "the durable knowledge\n").unwrap();
 
-    assert!(git::commit_all(vault.path(), "first snapshot", &notes_of(vault.path())).unwrap(), "committed the new note");
+    assert!(
+        git::commit_all(vault.path(), "first snapshot", &notes_of(vault.path())).unwrap(),
+        "committed the new note"
+    );
 
     let log = Command::new("git")
         .arg("-C")
@@ -72,7 +74,10 @@ fn commit_all_commits_changes_then_reports_a_clean_tree() {
 
     // A clean tree is not an error — it is the common case for a debounced
     // auto-commit and must report "nothing to commit" as `false`.
-    assert!(!git::commit_all(vault.path(), "no-op", &notes_of(vault.path())).unwrap(), "clean tree → nothing to commit");
+    assert!(
+        !git::commit_all(vault.path(), "no-op", &notes_of(vault.path())).unwrap(),
+        "clean tree → nothing to commit"
+    );
 }
 
 /// A note captured *and* deleted before the debounced auto-commit runs is in the batch `paths`
@@ -115,8 +120,7 @@ fn write_and_commit(vault: &std::path::Path, name: &str, body: &str) {
 }
 
 fn log_count(repo: &std::path::Path) -> usize {
-    let out =
-        Command::new("git").arg("-C").arg(repo).args(["log", "--oneline"]).output().unwrap();
+    let out = Command::new("git").arg("-C").arg(repo).args(["log", "--oneline"]).output().unwrap();
     String::from_utf8_lossy(&out.stdout).lines().count()
 }
 
@@ -151,13 +155,7 @@ fn a_repo_we_did_not_create_still_gets_the_ignore_rules() {
     // `add -A` would sweep blobs/ and the index into history, and a push would
     // ship every PDF to the remote — the light tier would silently be heavy.
     let vault = tempdir().unwrap();
-    assert!(Command::new("git")
-        .arg("init")
-        .arg(vault.path())
-        .output()
-        .unwrap()
-        .status
-        .success());
+    assert!(Command::new("git").arg("init").arg(vault.path()).output().unwrap().status.success());
 
     assert!(!git::ensure_repo(vault.path()).unwrap(), "already a repo — we did not create it");
 
@@ -186,12 +184,32 @@ fn a_rejected_push_restores_the_history_it_squashed() {
     // tracking ref — the divergence this whole design fails safe on.
     let other = tempdir().unwrap();
     Command::new("git").arg("clone").arg(bare.path()).arg(other.path()).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["config", "user.email", "t@t"]).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["config", "user.name", "t"]).output().unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["config", "user.email", "t@t"])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["config", "user.name", "t"])
+        .output()
+        .unwrap();
     fs::write(other.path().join("theirs.md"), "from elsewhere\n").unwrap();
     Command::new("git").arg("-C").arg(other.path()).args(["add", "-A"]).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["commit", "-m", "theirs"]).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["push", "origin", "HEAD"]).output().unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["commit", "-m", "theirs"])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["push", "origin", "HEAD"])
+        .output()
+        .unwrap();
 
     // Two commits here, so the push squashes before it tries — and gets rejected.
     write_and_commit(vault.path(), "02.md", "two\n");
@@ -242,8 +260,18 @@ fn a_fetched_remote_that_moved_refuses_the_squash_instead_of_eating_it() {
     }
     fs::write(other.path().join("precious.md"), "their unpublished work\n").unwrap();
     Command::new("git").arg("-C").arg(other.path()).args(["add", "-A"]).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["commit", "-m", "theirs"]).output().unwrap();
-    Command::new("git").arg("-C").arg(other.path()).args(["push", "origin", "HEAD"]).output().unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["commit", "-m", "theirs"])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(other.path())
+        .args(["push", "origin", "HEAD"])
+        .output()
+        .unwrap();
 
     // *** The fetch. *** Our tracking ref now points at their tip, so it is no
     // longer an ancestor of ours — this is what Phase 1's poll/pull will do.
@@ -462,7 +490,11 @@ fn push_sends_history_whole_the_first_time_then_squashes_each_later_push() {
     // Nothing has ever been pushed, so there is no tracking ref to measure
     // against — and squashing here would destroy the only copy of that history.
     assert_eq!(git::unpushed(vault.path()).unwrap(), None, "no tracking ref before the first push");
-    assert_eq!(git::push_squashed(vault.path(), "backup: first").unwrap(), 0, "first push: no squash");
+    assert_eq!(
+        git::push_squashed(vault.path(), "backup: first").unwrap(),
+        0,
+        "first push: no squash"
+    );
     assert_eq!(log_count(bare.path()), 3, "the first push sends the history as it stands");
     assert_eq!(git::unpushed(vault.path()).unwrap(), Some(0), "nothing left to push");
 
@@ -521,9 +553,7 @@ fn adopting_a_repo_that_already_has_these_files_still_gets_our_rules() {
     let vault = tempdir().unwrap();
     // A repo as it actually arrives: initialised, with both files already populated by
     // whoever set the project up.
-    std::process::Command::new("git")
-        .arg("-C").arg(vault.path()).arg("init")
-        .output().unwrap();
+    std::process::Command::new("git").arg("-C").arg(vault.path()).arg("init").output().unwrap();
     std::fs::write(vault.path().join(".gitattributes"), "*.png binary\n").unwrap();
     std::fs::write(vault.path().join(".gitignore"), "target/\n*.log\n").unwrap();
 
@@ -566,9 +596,7 @@ fn ensuring_a_repo_repeatedly_does_not_duplicate_lines() {
 #[test]
 fn a_file_missing_its_trailing_newline_is_not_corrupted() {
     let vault = tempdir().unwrap();
-    std::process::Command::new("git")
-        .arg("-C").arg(vault.path()).arg("init")
-        .output().unwrap();
+    std::process::Command::new("git").arg("-C").arg(vault.path()).arg("init").output().unwrap();
     std::fs::write(vault.path().join(".gitignore"), "target/").unwrap(); // no newline
 
     git::ensure_repo(vault.path()).unwrap();
@@ -596,15 +624,14 @@ fn the_auto_commit_never_touches_files_the_app_did_not_write() {
     assert!(git::commit_all(vault.path(), "auto: test", &notes_of(vault.path())).unwrap());
 
     let files = std::process::Command::new("git")
-        .arg("-C").arg(vault.path())
+        .arg("-C")
+        .arg(vault.path())
         .args(["show", "--name-only", "--format=", "HEAD"])
-        .output().unwrap();
+        .output()
+        .unwrap();
     let committed = String::from_utf8_lossy(&files.stdout);
     assert!(committed.contains("notes/01JQ.md"), "our note is committed:\n{committed}");
-    assert!(
-        !committed.contains("src/lib.rs"),
-        "their half-written code must NOT be:\n{committed}"
-    );
+    assert!(!committed.contains("src/lib.rs"), "their half-written code must NOT be:\n{committed}");
 }
 
 /// Losing a curated index is not recoverable by re-running anything, so the auto-commit
@@ -618,8 +645,11 @@ fn the_auto_commit_leaves_a_users_staged_index_staged() {
     // The user stages something of their own, intending to commit it themselves.
     std::fs::write(vault.path().join("theirs.txt"), "carefully staged\n").unwrap();
     std::process::Command::new("git")
-        .arg("-C").arg(vault.path()).args(["add", "theirs.txt"])
-        .output().unwrap();
+        .arg("-C")
+        .arg(vault.path())
+        .args(["add", "theirs.txt"])
+        .output()
+        .unwrap();
 
     // Meanwhile the app saves a note and the debounce fires.
     std::fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nbody\n").unwrap();
@@ -627,8 +657,11 @@ fn the_auto_commit_leaves_a_users_staged_index_staged() {
 
     // Their file is still staged and still uncommitted — theirs to commit, when they choose.
     let staged = std::process::Command::new("git")
-        .arg("-C").arg(vault.path()).args(["diff", "--cached", "--name-only"])
-        .output().unwrap();
+        .arg("-C")
+        .arg(vault.path())
+        .args(["diff", "--cached", "--name-only"])
+        .output()
+        .unwrap();
     assert!(
         String::from_utf8_lossy(&staged.stdout).contains("theirs.txt"),
         "the user's staged file was swept into our commit"
@@ -658,8 +691,7 @@ fn a_repo_dirty_only_with_their_work_reports_nothing_to_commit() {
 #[test]
 fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
     let bare = tempdir().unwrap();
-    std::process::Command::new("git")
-        .args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    std::process::Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
     let vault = tempdir().unwrap();
     git::ensure_repo(vault.path()).unwrap();
     std::fs::create_dir_all(vault.path().join("notes")).unwrap();
@@ -668,14 +700,23 @@ fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
         std::fs::write(
             vault.path().join(format!("notes/{n}.md")),
             format!("---\nid: {n}\n---\nbody {n}\n"),
-        ).unwrap();
+        )
+        .unwrap();
     };
     let hand_commit = |msg: &str, file: &str| {
         std::fs::write(vault.path().join(file), "their work\n").unwrap();
         std::process::Command::new("git")
-            .arg("-C").arg(vault.path()).args(["add", file]).output().unwrap();
+            .arg("-C")
+            .arg(vault.path())
+            .args(["add", file])
+            .output()
+            .unwrap();
         std::process::Command::new("git")
-            .arg("-C").arg(vault.path()).args(["commit", "-m", msg]).output().unwrap();
+            .arg("-C")
+            .arg(vault.path())
+            .args(["commit", "-m", msg])
+            .output()
+            .unwrap();
     };
 
     // A baseline that is already pushed, so `tracking` exists.
@@ -694,8 +735,11 @@ fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
     git::push_squashed(vault.path(), "backup: second").unwrap();
 
     let log = std::process::Command::new("git")
-        .arg("-C").arg(vault.path()).args(["log", "--format=%s", "-5"])
-        .output().unwrap();
+        .arg("-C")
+        .arg(vault.path())
+        .args(["log", "--format=%s", "-5"])
+        .output()
+        .unwrap();
     let log = String::from_utf8_lossy(&log.stdout);
     assert!(
         log.contains("Rewrite the introduction"),
@@ -707,8 +751,7 @@ fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
 #[test]
 fn a_vault_of_only_our_commits_still_squashes_to_one() {
     let bare = tempdir().unwrap();
-    std::process::Command::new("git")
-        .args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+    std::process::Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
     let vault = tempdir().unwrap();
     git::ensure_repo(vault.path()).unwrap();
     std::fs::create_dir_all(vault.path().join("notes")).unwrap();
@@ -717,7 +760,8 @@ fn a_vault_of_only_our_commits_still_squashes_to_one() {
         std::fs::write(
             vault.path().join(format!("notes/{n}.md")),
             format!("---\nid: {n}\n---\nbody {n}\n"),
-        ).unwrap();
+        )
+        .unwrap();
     };
 
     note(1);
@@ -779,7 +823,10 @@ fn a_cloned_vault_gets_the_driver_and_commits_as_a_real_person() {
     assert!(attrs.contains("merge=fm"), "the merge attribute is present: {attrs}");
     let ignore = fs::read_to_string(dest.join(".gitignore")).unwrap();
     for line in ["index.sqlite", "derived/", "blobs/"] {
-        assert!(ignore.contains(line), "clone gets the ignore rules too, missing {line}:\n{ignore}");
+        assert!(
+            ignore.contains(line),
+            "clone gets the ignore rules too, missing {line}:\n{ignore}"
+        );
     }
 
     // The *other* half of the driver — the `merge.fm.driver` definition in `.git/config` — is

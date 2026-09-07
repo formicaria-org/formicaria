@@ -175,16 +175,9 @@ impl App {
     /// wrong answer for every platform not yet listed — the same reasoning that made
     /// `open_external` a trait rather than a ladder.
     pub fn load_with(cold: ColdStart) -> Result<(Self, Vec<String>), String> {
-        let vaults::VaultList {
-            vaults,
-            path: config,
-            writable: config_writable,
-        } = vaults::load();
+        let vaults::VaultList { vaults, path: config, writable: config_writable } = vaults::load();
         let mut store = MultiStore::open_with(
-            &vaults
-                .iter()
-                .map(|v| (v.name.clone(), v.path.clone()))
-                .collect::<Vec<_>>(),
+            &vaults.iter().map(|v| (v.name.clone(), v.path.clone())).collect::<Vec<_>>(),
             cold,
         )
         .map_err(|e| format!("open vaults: {e}"))?;
@@ -494,10 +487,7 @@ fn notes_rel_of(root: &std::path::Path) -> String {
     fm_core::descriptor::Descriptor::read(root)
         .ok()
         .and_then(|d| {
-            d.notes_dir(root)
-                .strip_prefix(root)
-                .ok()
-                .map(|p| p.to_string_lossy().into_owned())
+            d.notes_dir(root).strip_prefix(root).ok().map(|p| p.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| "notes".to_string())
 }
@@ -581,12 +571,7 @@ fn dispatch_inner(
     host: &dyn Host,
     scope: &Scope,
 ) -> Result<Output, String> {
-    let s = |k: &str| {
-        args.get(k)
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string()
-    };
+    let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or("").to_string();
     let lock = || app.lock();
 
     match cmd {
@@ -618,9 +603,8 @@ fn dispatch_inner(
             let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
             for cfg in &configs {
                 for c in vcs::conflicted(&cfg.path).unwrap_or_default() {
-                    let Some(stem) = std::path::Path::new(&c.path)
-                        .file_stem()
-                        .and_then(|s| s.to_str())
+                    let Some(stem) =
+                        std::path::Path::new(&c.path).file_stem().and_then(|s| s.to_str())
                     else {
                         continue;
                     };
@@ -884,10 +868,8 @@ fn dispatch_inner(
             }
             let paths: Vec<std::path::PathBuf> =
                 found.iter().map(|u| cfg.path.join(&u.path)).collect();
-            let message = format!(
-                "notes: recording {} note(s) the app had not staged",
-                found.len()
-            );
+            let message =
+                format!("notes: recording {} note(s) the app had not staged", found.len());
             let made = vcs::commit_all(&cfg.path, &message, &paths).map_err(err)?;
             // **When git declines, say why.** `commit_all` answers `bool`, and every reason it can
             // return `false` for collapses into that one value: an unmerged path, an unchanged tree,
@@ -1070,9 +1052,8 @@ fn dispatch_inner(
                 .ok_or_else(|| format!("no such note: {id}"))?
                 .vault;
             let cfg = g.config(scope, &vault_name)?;
-            let limits = fm_core::descriptor::Descriptor::read(&cfg.path)
-                .map_err(err)?
-                .proposal_limits;
+            let limits =
+                fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
             // An agent passes its model's identity (`authorName`/`authorEmail`) so the proposal is
             // attributed to the model; a person proposing by hand sends neither and falls back to the
             // vault's own identity. A git author is a *label*, never a trust boundary (the human merge
@@ -1137,11 +1118,7 @@ fn dispatch_inner(
             // The proposed note (host + title + body on the branch) — for the review to show and edit.
             let id = s("id");
             let mut g = lock()?;
-            match id
-                .parse()
-                .ok()
-                .and_then(|pid| g.store(scope).get(pid).ok().flatten())
-            {
+            match id.parse().ok().and_then(|pid| g.store(scope).get(pid).ok().flatten()) {
                 Some(obj) => {
                     let path = g.config(scope, &obj.vault)?.path.clone();
                     json(commands::proposal_content(&g.store(scope), &path, &id).map_err(err)?)
@@ -1178,11 +1155,7 @@ fn dispatch_inner(
             // The note's current open proposal (its PR), or null — so the note's own view can show it.
             let id = s("id");
             let mut g = lock()?;
-            match id
-                .parse()
-                .ok()
-                .and_then(|nid| g.store(scope).get(nid).ok().flatten())
-            {
+            match id.parse().ok().and_then(|nid| g.store(scope).get(nid).ok().flatten()) {
                 Some(obj) => {
                     let path = g.config(scope, &obj.vault)?.path.clone();
                     json(commands::proposal_for(&g.store(scope), &path, &id).map_err(err)?)
@@ -1310,11 +1283,9 @@ fn dispatch_inner(
                 let g = lock()?;
                 (g.configs(), g.config(scope, "").ok())
             };
-            let found = vaults.iter().find_map(|v| {
-                commands::asset_status(&v.path, &r)
-                    .ok()
-                    .filter(|st| st.has_blob)
-            });
+            let found = vaults
+                .iter()
+                .find_map(|v| commands::asset_status(&v.path, &r).ok().filter(|st| st.has_blob));
             match found {
                 Some(st) => json(st),
                 // Absent everywhere. Still not an error — "media absence is a warning,
@@ -1429,10 +1400,7 @@ fn dispatch_inner(
             } else {
                 vcs::conflicts(&cfg.path).unwrap_or_default()
             };
-            json(CommitResult {
-                committed: made,
-                conflicts,
-            })
+            json(CommitResult { committed: made, conflicts })
         }
         // Answers **what the snapshot contained**, not merely that one happened. See `BackupRun`.
         "backup" => json(run_backup(app, scope, &s("vault"))?),
@@ -1508,18 +1476,9 @@ fn dispatch_inner(
             // than leave the user staring at pre-pull content until the next heartbeat.
             g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
             json(match outcome {
-                git::Pulled::UpToDate => PullResult {
-                    merged: 0,
-                    conflicts: Vec::new(),
-                },
-                git::Pulled::Merged(n) => PullResult {
-                    merged: n,
-                    conflicts: Vec::new(),
-                },
-                git::Pulled::Conflicted(f) => PullResult {
-                    merged: 0,
-                    conflicts: f,
-                },
+                git::Pulled::UpToDate => PullResult { merged: 0, conflicts: Vec::new() },
+                git::Pulled::Merged(n) => PullResult { merged: n, conflicts: Vec::new() },
+                git::Pulled::Conflicted(f) => PullResult { merged: 0, conflicts: f },
             })
         }
         // The browser heartbeat, which doubles as **the local poll**. Liveness is the
@@ -1561,12 +1520,7 @@ fn dispatch_inner(
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
                 // this pass happened to re-read.
-                skipped: g
-                    .store(scope)
-                    .skipped()
-                    .iter()
-                    .map(SkippedOut::from)
-                    .collect(),
+                skipped: g.store(scope).skipped().iter().map(SkippedOut::from).collect(),
                 unopened_vaults: g
                     .all
                     .unopened()
@@ -1625,17 +1579,9 @@ fn dispatch_inner(
         // vault called "acquisition-2027" discloses whether it holds anything or not.
         "list_vaults" => {
             let g = lock()?;
-            let mine: Vec<VaultConfig> = g
-                .configs()
-                .into_iter()
-                .filter(|c| scope.allows(&c.name))
-                .collect();
-            let names: Vec<&str> = g
-                .all
-                .names()
-                .into_iter()
-                .filter(|n| scope.allows(n))
-                .collect();
+            let mine: Vec<VaultConfig> =
+                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+            let names: Vec<&str> = g.all.names().into_iter().filter(|n| scope.allows(n)).collect();
             json(infos(&mine, &names))
         }
         // **Which attachments travel with this vault's notes.** Written into the vault's own
@@ -1665,19 +1611,11 @@ fn dispatch_inner(
         "check_path" => {
             let path = resolve_path(&s("name"), &s("path"))?;
             let g = lock()?;
-            json(check_path(
-                &g,
-                app.config.as_deref(),
-                app.config_writable,
-                &s("name"),
-                &path,
-            ))
+            json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &path))
         }
-        "create_vault" => json(create_vault(
-            app,
-            &s("name"),
-            &resolve_path(&s("name"), &s("path"))?,
-        )?),
+        "create_vault" => {
+            json(create_vault(app, &s("name"), &resolve_path(&s("name"), &s("path"))?)?)
+        }
         // What importing this folder would involve — asked on every keystroke, like `check_path`.
         // The guard is taken only for the destination question; the directory walk runs with it
         // released, because a source path is whatever a person typed and may be enormous.
@@ -1727,10 +1665,7 @@ fn dispatch_inner(
                 restic: g
                     .configs()
                     .iter()
-                    .map(|c| VaultRestic {
-                        vault: c.name.clone(),
-                        repo: c.restic.clone(),
-                    })
+                    .map(|c| VaultRestic { vault: c.name.clone(), repo: c.restic.clone() })
                     .collect(),
                 env: [
                     "FM_VAULT",
@@ -1743,10 +1678,7 @@ fn dispatch_inner(
                 ]
                 .iter()
                 .filter_map(|k| {
-                    std::env::var(k).ok().map(|v| EnvVar {
-                        name: (*k).into(),
-                        value: v,
-                    })
+                    std::env::var(k).ok().map(|v| EnvVar { name: (*k).into(), value: v })
                 })
                 .collect(),
                 // Capabilities, not settings: things the machine either has or does not, which
@@ -1824,9 +1756,7 @@ fn dispatch_inner(
             // so this cannot disturb a list that already exists.
             let list = g.configs();
             vaults::save(&list, &config)?;
-            let repo = Some(repo.trim())
-                .filter(|r| !r.is_empty())
-                .map(str::to_string);
+            let repo = Some(repo.trim()).filter(|r| !r.is_empty()).map(str::to_string);
             // The file first: if it fails nothing has changed, which is the recoverable order.
             vaults::set_restic(&cfg.name, repo.as_deref(), &config)?;
             g.set_restic(&cfg.name, repo);
@@ -1882,9 +1812,7 @@ fn dispatch_inner(
             let cfg = g.config(scope, &s("vault"))?;
             let (name, path) = (cfg.name.clone(), cfg.path.clone());
             let renderer: crate::views::Renderer = serde_json::from_value(
-                args.get("view")
-                    .cloned()
-                    .unwrap_or(Value::String("board".into())),
+                args.get("view").cloned().unwrap_or(Value::String("board".into())),
             )
             .map_err(|_| "that is not a view kind this app can render".to_string())?;
             let group = s("group_by");
@@ -1893,16 +1821,8 @@ fn dispatch_inner(
                 &path,
                 &s("name"),
                 renderer,
-                if group.is_empty() {
-                    None
-                } else {
-                    Some(group.as_str())
-                },
-                if tag.is_empty() {
-                    None
-                } else {
-                    Some(tag.as_str())
-                },
+                if group.is_empty() { None } else { Some(group.as_str()) },
+                if tag.is_empty() { None } else { Some(tag.as_str()) },
             )?;
             g.all.seed_written(&name, vec![written]);
             json(views_of(&name, &path))
@@ -1989,11 +1909,7 @@ fn dispatch_inner(
             let vault_path = g
                 .configs()
                 .iter()
-                .find(|v| {
-                    crate::views::list_views(&v.path)
-                        .iter()
-                        .any(|vi| vi.name == name)
-                })
+                .find(|v| crate::views::list_views(&v.path).iter().any(|vi| vi.name == name))
                 .map(|v| v.path.clone())
                 .ok_or_else(|| format!("no view named '{name}'"))?;
             json(crate::views::run_view(&g.store(scope), &vault_path, &name).map_err(err)?)
@@ -2022,7 +1938,11 @@ fn dispatch_inner(
         "ingest_finish" => {
             let name = {
                 let n = s("name");
-                if n.is_empty() { "asset".to_string() } else { n }
+                if n.is_empty() {
+                    "asset".to_string()
+                } else {
+                    n
+                }
             };
             json(ingest_unlocked(
                 app,
@@ -2073,23 +1993,14 @@ fn dispatch_inner(
                      the vault; this is a transport problem, not a problem with the file."
                 ));
             }
-            json(ingest_unlocked(
-                app,
-                scope,
-                &s("vault"),
-                &name,
-                IngestSource::Bytes(body),
-            )?)
+            json(ingest_unlocked(app, scope, &s("vault"), &name, IngestSource::Bytes(body))?)
         }
         // Copy a note into another vault. Restrictive by default (only the prose travels);
         // `with_assets` opts in to carrying the first-degree blobs. Validate the target up
         // front, hand `copy_note` every vault's (name, path) so it can locate/copy blobs, then
         // version the new note in its own vault (best-effort — a solo user's own repo).
         "copy_note" => {
-            let with_assets = args
-                .get("with_assets")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
+            let with_assets = args.get("with_assets").and_then(Value::as_bool).unwrap_or(false);
             let mut g = lock()?;
             let into = g.config(scope, &s("vault"))?;
             let vault_paths: Vec<(String, PathBuf)> =
@@ -2123,24 +2034,14 @@ fn dispatch_inner(
             let blobs: Vec<String> = args
                 .get("blobs")
                 .and_then(Value::as_array)
-                .map(|a| {
-                    a.iter()
-                        .filter_map(|v| v.as_str().map(String::from))
-                        .collect()
-                })
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
                 .unwrap_or_default();
             let mut g = lock()?;
             let into = g.config(scope, &s("vault"))?;
             let vault_paths: Vec<(String, PathBuf)> =
                 g.configs().into_iter().map(|c| (c.name, c.path)).collect();
-            commands::uncopy_note(
-                &mut g.store(scope),
-                &s("id"),
-                &into.name,
-                &blobs,
-                &vault_paths,
-            )
-            .map_err(err)?;
+            commands::uncopy_note(&mut g.store(scope), &s("id"), &into.name, &blobs, &vault_paths)
+                .map_err(err)?;
             if vcs::available() {
                 let paths = g.all.written(&into.name);
                 if vcs::commit_all(&into.path, "backup: undo copy", &paths).unwrap_or(false) {
@@ -2221,9 +2122,7 @@ impl Vaults {
                 .cloned()
                 .ok_or_else(|| "no vault is shared with this device".to_string());
         }
-        mine.find(|v| v.name == name)
-            .cloned()
-            .ok_or_else(|| format!("no vault named '{name}'"))
+        mine.find(|v| v.name == name).cloned().ok_or_else(|| format!("no vault named '{name}'"))
     }
 
     /// An owned snapshot, so callers can drop the guard before doing I/O — which
@@ -2350,9 +2249,7 @@ fn themes_of(name: &str, path: &std::path::Path) -> Vec<crate::themes::ThemeInfo
 }
 
 fn json<T: serde::Serialize>(v: T) -> Result<Output, String> {
-    serde_json::to_vec(&v)
-        .map(Output::Json)
-        .map_err(|e| e.to_string())
+    serde_json::to_vec(&v).map(Output::Json).map_err(|e| e.to_string())
 }
 
 /// Success with nothing to say. An empty JSON payload, not `null` — the commands that use
@@ -2425,11 +2322,7 @@ struct SkippedOut {
 
 impl From<&fm_core::SkippedNote> for SkippedOut {
     fn from(s: &fm_core::SkippedNote) -> Self {
-        Self {
-            vault: s.vault.clone(),
-            name: s.name.clone(),
-            reason: s.reason.clone(),
-        }
+        Self { vault: s.vault.clone(), name: s.name.clone(), reason: s.reason.clone() }
     }
 }
 
@@ -2872,7 +2765,8 @@ fn ingest_unlocked(
     let ing = match from {
         IngestSource::Bytes(body) => fm_core::ingest::ingest_bytes(&cfg.path, filename, body),
         IngestSource::Session(session) => {
-            let part = fm_core::chunked::assembled(&cfg.path, session).map_err(|e| e.to_string())?;
+            let part =
+                fm_core::chunked::assembled(&cfg.path, session).map_err(|e| e.to_string())?;
             fm_core::ingest_file_named(&cfg.path, &part, filename)
         }
     }
@@ -2893,8 +2787,8 @@ fn ingest_unlocked(
         ));
     }
     let (path, name) = (now.path.clone(), now.name.clone());
-    let meta = commands::asset_note(&mut g.store(scope), &path, &name, &ing)
-        .map_err(|e| e.to_string())?;
+    let meta =
+        commands::asset_note(&mut g.store(scope), &path, &name, &ing).map_err(|e| e.to_string())?;
     drop(g);
 
     if let IngestSource::Session(session) = from {
@@ -2925,10 +2819,7 @@ fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<BackupRun, String
     // notes meanwhile — but everything else may read them.
     let v = app.lock()?.config(scope, vault)?;
     let repo = v.restic.as_ref().ok_or_else(|| {
-        format!(
-            "no restic repo configured for '{}' — its media has nowhere to go",
-            v.name
-        )
+        format!("no restic repo configured for '{}' — its media has nowhere to go", v.name)
     })?;
     let password = crate::secrets::restic_password().ok_or_else(|| {
         "this vault has a media-backup repo but no password, so nothing can be written to it — \
@@ -2997,15 +2888,7 @@ fn check_path(
         && config_writable
         && config.is_some();
 
-    PathCheck {
-        facts,
-        name_ok,
-        name_taken,
-        path_taken,
-        overlaps,
-        config_writable,
-        ok,
-    }
+    PathCheck { facts, name_ok, name_taken, path_taken, overlaps, config_writable, ok }
 }
 
 /// Create a vault, register it, and make it live — no restart.
@@ -3052,11 +2935,7 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     })?;
 
     // The commit point.
-    let cfg = VaultConfig {
-        name: name.to_string(),
-        path: path.clone(),
-        restic: None,
-    };
+    let cfg = VaultConfig { name: name.to_string(), path: path.clone(), restic: None };
     let mut list = g.configs();
     list.push(cfg.clone());
     vaults::save(&list, &config).map_err(|e| {
@@ -3178,8 +3057,7 @@ fn run_import(
         (cfg, existing)
     };
 
-    let converted =
-        fm_core::import::convert(&source, &cfg.path, &existing, opts).map_err(err)?;
+    let converted = fm_core::import::convert(&source, &cfg.path, &existing, opts).map_err(err)?;
 
     let mut g = app.lock()?;
     // **Re-resolved, not reused.** The conversion above can take minutes; if the vault was
@@ -3245,7 +3123,8 @@ fn import_into_new_vault(
     //    re-run rather than assumed — and `vaults::save` is still the commit point: JSON before
     //    memory, so a failed write never leaves a vault that vanishes on restart.
     let mut g = app.lock()?;
-    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, &path.to_string_lossy());
+    let check =
+        check_path(&g, app.config.as_deref(), app.config_writable, name, &path.to_string_lossy());
     if !check.ok {
         return Err(format!(
             "the notes were imported into {}, but the vault could not be registered: {}.              Nothing was lost — the folder is there; add it with New vault once that is fixed.",
@@ -3324,9 +3203,7 @@ fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
             .unwrap_or_else(|_| cfg.path.join("notes")),
     )
     .map(|rd| {
-        rd.flatten()
-            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
-            .count()
+        rd.flatten().filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md")).count()
     })
     .unwrap_or(0);
     let remote = vcs::remote(&cfg.path).ok().flatten();
@@ -3399,11 +3276,9 @@ fn clone_vault(
     // Pre-flight, mirroring `git::set_identity`'s own rules, so the failure lands here rather
     // than after a clone has already written to disk.
     if git_name.trim().is_empty() || git_email.trim().is_empty() {
-        return Err(
-            "a shared vault needs your name and email — they sign every commit you \
+        return Err("a shared vault needs your name and email — they sign every commit you \
                     make in it, and your collaborators see them"
-                .into(),
-        );
+            .into());
     }
     if !git_email.contains('@') {
         return Err(format!("'{git_email}' is not an email address"));
@@ -3444,11 +3319,7 @@ fn clone_vault(
         )
     })?;
 
-    let cfg = VaultConfig {
-        name: name.to_string(),
-        path: path.clone(),
-        restic: None,
-    };
+    let cfg = VaultConfig { name: name.to_string(), path: path.clone(), restic: None };
     let mut list = g.configs();
     list.push(cfg.clone());
     vaults::save(&list, &config).map_err(|e| {
@@ -3496,11 +3367,9 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     }
     // Ask before doing, so "restic isn't installed" is not reported as a failed restore.
     if !backup::available() {
-        return Err(
-            "restic is not installed on this machine, so there is no backup to \
+        return Err("restic is not installed on this machine, so there is no backup to \
                     restore from — a vault can still be created here, or cloned with git"
-                .into(),
-        );
+            .into());
     }
     // **Points at the field that exists.** This used to say the app never stores a password and
     // send the reader to an environment variable; since 2026-08-29 it keeps one, `0600`, and the
@@ -3600,11 +3469,7 @@ struct GitAuth {
 /// The auth situation, as the form needs it.
 fn git_auth(url: &str) -> GitAuth {
     if !fm_core::vcs::available() {
-        return GitAuth {
-            storage: "none",
-            have_credential: false,
-            helper: None,
-        };
+        return GitAuth { storage: "none", have_credential: false, helper: None };
     }
     if fm_core::git::available() {
         GitAuth {
@@ -3616,11 +3481,7 @@ fn git_auth(url: &str) -> GitAuth {
         // A phone. There is no helper to ask, so the only question is whether we hold a token —
         // and it is per device, not per URL, because one account per method per device is the
         // stance this design took.
-        GitAuth {
-            storage: "app",
-            have_credential: crate::secrets::has_token(),
-            helper: None,
-        }
+        GitAuth { storage: "app", have_credential: crate::secrets::has_token(), helper: None }
     }
 }
 
@@ -3717,9 +3578,7 @@ fn resolve_path(name: &str, path: &str) -> Result<String, String> {
         return Ok(path.to_string());
     }
     match vaults::vault_root() {
-        Some(root) => Ok(vaults::contained_path(&root, name)?
-            .to_string_lossy()
-            .into_owned()),
+        Some(root) => Ok(vaults::contained_path(&root, name)?.to_string_lossy().into_owned()),
         None => Ok(String::new()),
     }
 }
@@ -3778,11 +3637,7 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
         .iter()
         .map(|d| {
             let l = d.as_ref()?;
-            (derived
-                .iter()
-                .filter(|o| o.as_deref() == Some(l.as_str()))
-                .count()
-                == 1)
+            (derived.iter().filter(|o| o.as_deref() == Some(l.as_str())).count() == 1)
                 .then(|| l.clone())
         })
         .collect();
@@ -3791,10 +3646,7 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
         .map(|(i, e)| VaultInfo {
             label: labels.get(i).cloned().flatten(),
             name: if e.name.is_empty() {
-                store_names
-                    .get(i)
-                    .map(|n| n.to_string())
-                    .unwrap_or_default()
+                store_names.get(i).map(|n| n.to_string()).unwrap_or_default()
             } else {
                 e.name.clone()
             },
@@ -3806,10 +3658,8 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
             // fail to render because one vault has a typo in a setting.
             git_assets_max: desc.get(i).and_then(|d| d.as_ref().and_then(|d| d.git_assets_max)),
             supervision: {
-                let sup = desc
-                    .get(i)
-                    .and_then(|d| d.as_ref().map(|d| d.supervision))
-                    .unwrap_or_default();
+                let sup =
+                    desc.get(i).and_then(|d| d.as_ref().map(|d| d.supervision)).unwrap_or_default();
                 Supervision { collect: sup.collect, publish: sup.publish }
             },
             // Local `git config` read, beside the `remote_label` spawn above — never a network call.
@@ -3867,15 +3717,13 @@ mod tests {
             path: vault.path().to_path_buf(),
             restic: restic.map(str::to_string),
         }];
-        let store =
-            MultiStore::open(&[("notes".to_string(), vault.path().to_path_buf())]).unwrap();
+        let store = MultiStore::open(&[("notes".to_string(), vault.path().to_path_buf())]).unwrap();
         let app = App::new(store, list, Some(home.path().join("vaults.json")), true);
         (home, vault, app)
     }
 
     fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<String, String> {
-        dispatch(cmd, &args, &[], app, &NoHost)
-            .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+        dispatch(cmd, &args, &[], app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
     }
 
     /// **The password is reported as a bool and never by value**, and the three conditions behind
@@ -3892,10 +3740,7 @@ mod tests {
         crate::secrets::save_restic_password(secret).unwrap();
 
         let out = call(&app, "backup_status", serde_json::json!({})).unwrap();
-        assert!(
-            !out.contains(secret),
-            "the restic password must never cross the wire: {out}"
-        );
+        assert!(!out.contains(secret), "the restic password must never cross the wire: {out}");
         assert!(out.contains("\"restic_password_set\":true"), "{out}");
         // Reported per vault, and separately from the machine-wide facts.
         assert!(out.contains("\"restic_repo\":\"/tmp/no-such-restic-repo\""), "{out}");
@@ -4002,10 +3847,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(!e.is_empty(), "an unknown vault must be refused");
-        assert!(
-            !list.exists(),
-            "the refusal must come before the vault list is written"
-        );
+        assert!(!list.exists(), "the refusal must come before the vault list is written");
     }
 
     /// Setting a repo and clearing it both round-trip through the file, not just through memory.
@@ -4027,12 +3869,9 @@ mod tests {
         let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
         assert!(on_disk.contains("/tmp/lab-backup"), "not persisted: {on_disk}");
 
-        let out = call(
-            &app,
-            "set_restic_repo",
-            serde_json::json!({ "vault": "notes", "repo": "" }),
-        )
-        .unwrap();
+        let out =
+            call(&app, "set_restic_repo", serde_json::json!({ "vault": "notes", "repo": "" }))
+                .unwrap();
         assert!(out.contains("\"restic_repo\":null"), "empty must clear it: {out}");
         let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
         assert!(!on_disk.contains("/tmp/lab-backup"), "still on disk: {on_disk}");

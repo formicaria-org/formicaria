@@ -126,7 +126,12 @@ fn a_feed_row_never_carries_an_unbounded_body() {
     let rows = recent(&store).unwrap();
     assert_eq!(rows.len(), bodies.len());
     let json = serde_json::to_string(&rows).unwrap();
-    eprintln!("recent(): {} B for {} rows ({} B/row)", json.len(), rows.len(), json.len() / rows.len());
+    eprintln!(
+        "recent(): {} B for {} rows ({} B/row)",
+        json.len(),
+        rows.len(),
+        json.len() / rows.len()
+    );
 
     // Generous: the cap on the text fields plus room for every other field, tags and props. The
     // failure this catches is a field that scales with the body, not a field that got a bit longer.

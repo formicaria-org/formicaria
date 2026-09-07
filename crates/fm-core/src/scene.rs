@@ -85,10 +85,7 @@ fn newer<'a>(ours: &'a Value, theirs: &'a Value) -> &'a Value {
 }
 
 fn by_id(elements: &[Value]) -> BTreeMap<String, Value> {
-    elements
-        .iter()
-        .filter_map(|e| id_of(e).map(|id| (id.to_string(), e.clone())))
-        .collect()
+    elements.iter().filter_map(|e| id_of(e).map(|id| (id.to_string(), e.clone()))).collect()
 }
 
 /// Merge three scenes element-wise. `None` when any of them is not a scene we understand —
@@ -162,11 +159,7 @@ pub fn merge_scene(base: &str, ours: &str, theirs: &str) -> Option<String> {
     let mut out = o.clone();
     out.insert("elements".into(), Value::Array(merged));
     if let Some(theirs_files) = t.get("files").and_then(Value::as_object) {
-        let mut files = out
-            .get("files")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
+        let mut files = out.get("files").and_then(Value::as_object).cloned().unwrap_or_default();
         for (k, v) in theirs_files {
             files.entry(k.clone()).or_insert_with(|| v.clone());
         }
@@ -204,13 +197,7 @@ mod tests {
     }
     fn find(merged: &str, id: &str) -> Value {
         let v: Value = serde_json::from_str(merged).unwrap();
-        v["elements"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|e| e["id"] == id)
-            .cloned()
-            .unwrap()
+        v["elements"].as_array().unwrap().iter().find(|e| e["id"] == id).cloned().unwrap()
     }
 
     #[test]
@@ -286,7 +273,8 @@ mod tests {
 
         assert_eq!(find(&forward, "a")["x"], 222, "lower nonce wins");
         assert_eq!(
-            find(&backward, "a")["x"], 222,
+            find(&backward, "a")["x"],
+            222,
             "and wins the same way whichever side is 'ours'"
         );
     }

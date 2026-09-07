@@ -53,7 +53,8 @@ fn a_missing_referenced_blob_is_a_warning_not_an_error() {
     let mut store = FileStore::open(dir.path()).unwrap();
     let mut obj = Object::new(Kind::Asset, "fig");
     // Reference a blob that was never stored (e.g. not synced to this machine).
-    obj.assets = vec!["sha256:0000000000000000000000000000000000000000000000000000000000000000".into()];
+    obj.assets =
+        vec!["sha256:0000000000000000000000000000000000000000000000000000000000000000".into()];
     store.put(&obj).unwrap();
 
     let report = verify(dir.path(), false).unwrap();

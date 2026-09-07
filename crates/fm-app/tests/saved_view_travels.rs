@@ -67,11 +67,8 @@ fn vault() -> (TempDir, TempDir, App) {
     git(dir.path(), &["config", "user.email", "tester@example.com"]);
 
     let owned: Vec<(String, PathBuf)> = vec![("personal".into(), dir.path().to_path_buf())];
-    let configs = vec![VaultConfig {
-        name: "personal".into(),
-        path: dir.path().to_path_buf(),
-        restic: None,
-    }];
+    let configs =
+        vec![VaultConfig { name: "personal".into(), path: dir.path().to_path_buf(), restic: None }];
     let app = App::new(
         MultiStore::open(&owned).unwrap(),
         configs,
@@ -100,16 +97,9 @@ fn a_view_saved_from_the_app_is_in_the_commit() {
     );
 
     // It is on disk. That much already worked.
-    assert!(
-        dir.path().join("views/papers.view").is_file(),
-        "save_view must write the file"
-    );
+    assert!(dir.path().join("views/papers.view").is_file(), "save_view must write the file");
 
-    call(
-        &app,
-        "commit",
-        json!({ "vault": "personal", "message": "backup: test" }),
-    );
+    call(&app, "commit", json!({ "vault": "personal", "message": "backup: test" }));
 
     // The only question that matters: is it in git? `ls-tree` reads the commit, not the disk.
     let tracked = git(dir.path(), &["ls-tree", "-r", "--name-only", "HEAD"]);
@@ -128,11 +118,7 @@ fn deleting_a_view_is_recorded_too() {
     }
     let (_home, dir, app) = vault();
     call(&app, "capture", json!({ "body": "# Note\n" }));
-    call(
-        &app,
-        "save_view",
-        json!({ "vault": "personal", "name": "Papers", "view": "board" }),
-    );
+    call(&app, "save_view", json!({ "vault": "personal", "name": "Papers", "view": "board" }));
     call(&app, "commit", json!({ "vault": "personal", "message": "backup: add" }));
 
     // Assert it landed first. Without this the test passes trivially against the old code, where
@@ -208,11 +194,8 @@ fn a_theme_is_listed_with_the_vault_that_holds_it() {
 fn every_reply_that_lists_views_or_themes_names_their_vault() {
     let (_home, _dir, app) = vault();
 
-    let after_save = call(
-        &app,
-        "save_view",
-        json!({ "vault": "personal", "name": "Papers", "view": "board" }),
-    );
+    let after_save =
+        call(&app, "save_view", json!({ "vault": "personal", "name": "Papers", "view": "board" }));
     assert_eq!(after_save.as_array().unwrap()[0]["vault"], json!("personal"), "{after_save}");
 
     let after_rename = call(
@@ -222,18 +205,12 @@ fn every_reply_that_lists_views_or_themes_names_their_vault() {
     );
     assert_eq!(after_rename.as_array().unwrap()[0]["vault"], json!("personal"), "{after_rename}");
 
-    let after_theme = call(
-        &app,
-        "save_theme",
-        json!({ "vault": "personal", "name": "Desk", "css": "/* x */" }),
-    );
+    let after_theme =
+        call(&app, "save_theme", json!({ "vault": "personal", "name": "Desk", "css": "/* x */" }));
     assert_eq!(after_theme.as_array().unwrap()[0]["vault"], json!("personal"), "{after_theme}");
 
-    let after_theme_rename = call(
-        &app,
-        "rename_theme",
-        json!({ "vault": "personal", "from": "desk", "to": "Room" }),
-    );
+    let after_theme_rename =
+        call(&app, "rename_theme", json!({ "vault": "personal", "from": "desk", "to": "Room" }));
     assert_eq!(
         after_theme_rename.as_array().unwrap()[0]["vault"],
         json!("personal"),

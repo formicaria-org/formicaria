@@ -55,7 +55,9 @@ fn a_collaborators_merge_lands(store: &mut FileStore, dir: &tempfile::TempDir, b
     let later = "2099-01-01T00:00:00Z";
     let front = front
         .lines()
-        .map(|l| if l.starts_with("updated:") { format!("updated: {later}") } else { l.to_string() })
+        .map(
+            |l| if l.starts_with("updated:") { format!("updated: {later}") } else { l.to_string() },
+        )
         .collect::<Vec<_>>()
         .join("\n");
     std::fs::write(&path, format!("{front}\n---\n\n{body}\n")).unwrap();
@@ -177,7 +179,10 @@ fn recovering_from_a_conflict_needs_the_version_not_the_stamp() {
 #[test]
 fn a_note_edited_outside_the_app_is_not_committed_by_it() {
     let (mut store, dir, id, base) = vault_with_a_note("written through the app\n");
-    if !std::process::Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
+    if !std::process::Command::new("git")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
     {
         eprintln!("skipping: git not on PATH");
         return;

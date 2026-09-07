@@ -126,11 +126,7 @@ fn re_saving_without_a_tag_keeps_the_filter_that_is_there() {
 fn a_gallery_view_names_itself_instead_of_impersonating_a_timeline() {
     let dir = tempdir().unwrap();
     fs::create_dir_all(views_dir(dir.path())).unwrap();
-    fs::write(
-        views_dir(dir.path()).join("shots.view"),
-        "name: Shots\nview: gallery\n",
-    )
-    .unwrap();
+    fs::write(views_dir(dir.path()).join("shots.view"), "name: Shots\nview: gallery\n").unwrap();
 
     let listed = list_views(dir.path());
     let v = listed.iter().find(|v| v.name == "Shots").expect("it must still be listed, not vanish");
@@ -196,9 +192,14 @@ fn renaming_onto_a_name_already_taken_is_refused_rather_than_overwriting() {
     assert!(err.contains("already"), "{err}");
     // Both survive untouched — the refusal must not be halfway done.
     let names: Vec<_> = list_views(dir.path()).into_iter().map(|v| v.name).collect();
-    assert!(names.contains(&"Papers".to_string()) && names.contains(&"Reading".to_string()), "{names:?}");
     assert!(
-        fs::read_to_string(views_dir(dir.path()).join("papers.view")).unwrap().contains("tag: paper"),
+        names.contains(&"Papers".to_string()) && names.contains(&"Reading".to_string()),
+        "{names:?}"
+    );
+    assert!(
+        fs::read_to_string(views_dir(dir.path()).join("papers.view"))
+            .unwrap()
+            .contains("tag: paper"),
         "the view that was already there kept its filter"
     );
 }

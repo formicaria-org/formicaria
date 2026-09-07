@@ -296,8 +296,7 @@ impl Store for Scoped<'_> {
     /// Routed exactly as before, but the route has to be one this caller was given — and an
     /// unstated audience resolves to *their* default, not the machine's.
     fn put(&mut self, obj: &Object) -> Result<(), StoreError> {
-        let vault =
-            if obj.vault.is_empty() { self.default_vault()? } else { obj.vault.clone() };
+        let vault = if obj.vault.is_empty() { self.default_vault()? } else { obj.vault.clone() };
         if !self.permits(&vault) {
             return Err(StoreError::Io(format!("no vault named '{vault}'")));
         }

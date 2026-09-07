@@ -49,11 +49,7 @@ fn restic_cache() -> (std::sync::MutexGuard<'static, ()>, tempfile::TempDir) {
 }
 
 fn have_restic() -> bool {
-    Command::new("restic")
-        .arg("version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    Command::new("restic").arg("version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// The whole tier, through the CLI: back up, check, restore, and read the bytes back.
@@ -85,11 +81,7 @@ fn backup_check_and_restore_round_trip_through_the_cli() {
         .args(["--password", PASSWORD])
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "fm backup failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success(), "fm backup failed: {}", String::from_utf8_lossy(&out.stderr));
     let said = String::from_utf8_lossy(&out.stdout);
     assert!(said.contains("backed up"), "it must say what it did: {said}");
 
@@ -119,11 +111,7 @@ fn backup_check_and_restore_round_trip_through_the_cli() {
         .args(["--password", PASSWORD])
         .output()
         .unwrap();
-    assert!(
-        out.status.success(),
-        "fm restore failed: {}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    assert!(out.status.success(), "fm restore failed: {}", String::from_utf8_lossy(&out.stderr));
 
     // **And the bytes came back.** A restore that exits 0 and produces nothing is the failure this
     // whole tier exists to prevent, so the assertion reads a file rather than a status.

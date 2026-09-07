@@ -100,9 +100,11 @@ impl BlobStore {
         if dest.exists() {
             return Ok(Stored { hash, deduped: true }); // already have these exact bytes
         }
-        let tmp = self
-            .root
-            .join(format!(".incoming-{}-{}", std::process::id(), TMP_SEQ.fetch_add(1, Ordering::Relaxed)));
+        let tmp = self.root.join(format!(
+            ".incoming-{}-{}",
+            std::process::id(),
+            TMP_SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
         {
             let mut writer = File::create(&tmp).map_err(io_err)?;
             writer.write_all(bytes).map_err(io_err)?;

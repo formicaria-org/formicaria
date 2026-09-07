@@ -313,7 +313,11 @@ fn an_obsidian_link_resolves_by_folder_path_as_well_as_by_name() {
 #[test]
 fn the_date_spellings_both_apps_use_all_parse() {
     for raw in ["<2026-09-02 Wed>", "[[2026-09-02]]", "2026-09-02"] {
-        assert_eq!(parse_date_value(raw).map(|d| d.to_string()).as_deref(), Some("2026-09-02"), "{raw}");
+        assert_eq!(
+            parse_date_value(raw).map(|d| d.to_string()).as_deref(),
+            Some("2026-09-02"),
+            "{raw}"
+        );
     }
     assert_eq!(
         parse_date_value("<2026-09-02 Wed 14:30>").map(|d| d.to_string()).as_deref(),
@@ -324,7 +328,10 @@ fn the_date_spellings_both_apps_use_all_parse() {
 
 #[test]
 fn a_journal_filename_is_the_day_it_stands_for() {
-    assert_eq!(journal_date("2026_09_02").map(|d| d.date().to_string()).as_deref(), Some("2026-09-02"));
+    assert_eq!(
+        journal_date("2026_09_02").map(|d| d.date().to_string()).as_deref(),
+        Some("2026-09-02")
+    );
     assert_eq!(journal_date("not a date"), None);
 }
 
@@ -390,11 +397,10 @@ fn a_logseq_graph_becomes_notes_with_resolved_links_and_a_stored_attachment() {
     assert_eq!(journal.title.as_deref(), Some("2026-09-02"));
 
     // Every note says where it came from, so a second import can recognise it.
-    assert_eq!(
-        alpha.extra.get(SOURCE_LIBRARY),
-        Some(&PropertyValue::Text("logseq".into()))
+    assert_eq!(alpha.extra.get(SOURCE_LIBRARY), Some(&PropertyValue::Text("logseq".into())));
+    assert!(
+        matches!(alpha.extra.get(SOURCE_KEY), Some(PropertyValue::Text(k)) if k.ends_with("Project Alpha.md"))
     );
-    assert!(matches!(alpha.extra.get(SOURCE_KEY), Some(PropertyValue::Text(k)) if k.ends_with("Project Alpha.md")));
 }
 
 /// **The invariant the whole design rests on.** V4 exists to avoid writing into folders the user
@@ -483,11 +489,7 @@ fn an_attachment_path_cannot_climb_out_of_the_source_folder() {
     std::fs::create_dir_all(src.path().join("logseq")).unwrap();
     std::fs::write(src.path().join("logseq/config.edn"), "{}").unwrap();
     std::fs::create_dir_all(src.path().join("pages")).unwrap();
-    std::fs::write(
-        src.path().join("pages/Evil.md"),
-        "- ![x](../outside-secret.txt)\n",
-    )
-    .unwrap();
+    std::fs::write(src.path().join("pages/Evil.md"), "- ![x](../outside-secret.txt)\n").unwrap();
 
     let out = convert(src.path(), vault.path(), &HashMap::new(), Options::default()).unwrap();
     assert_eq!(out.attachments.len(), 0, "a file outside the graph must never be ingested");
@@ -514,7 +516,8 @@ fn stubs_are_created_only_when_asked_for() {
     let vault = tempdir().unwrap();
     logseq_graph(src.path());
 
-    let out = convert(src.path(), vault.path(), &HashMap::new(), Options { create_stubs: true }).unwrap();
+    let out =
+        convert(src.path(), vault.path(), &HashMap::new(), Options { create_stubs: true }).unwrap();
     assert!(out.report.stubs_created > 0);
     let stub = out.notes.iter().find(|n| n.title.as_deref() == Some("Nowhere At All")).unwrap();
     assert!(stub.tags.contains(&"imported-stub".to_string()));
@@ -526,7 +529,11 @@ fn a_folder_that_is_neither_is_refused_with_a_reason() {
     std::fs::write(dir.path().join("notes.md"), "hello").unwrap();
     let s = scan(dir.path());
     assert!(!s.ok());
-    assert!(s.problems[0].contains("Logseq") && s.problems[0].contains("Obsidian"), "{:?}", s.problems);
+    assert!(
+        s.problems[0].contains("Logseq") && s.problems[0].contains("Obsidian"),
+        "{:?}",
+        s.problems
+    );
 }
 
 #[test]

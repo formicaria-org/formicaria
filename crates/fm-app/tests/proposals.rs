@@ -29,7 +29,11 @@ fn a_proposal_is_listed_as_one_and_hidden_from_the_planning_views() {
 
     // It is a proposal — the Collaboration surface's feed lists exactly it.
     let listed: Vec<String> = proposals(&s).unwrap().into_iter().map(|m| m.id).collect();
-    assert_eq!(listed, vec![prop.clone()], "only the proposal is offered on the collaboration surface");
+    assert_eq!(
+        listed,
+        vec![prop.clone()],
+        "only the proposal is offered on the collaboration surface"
+    );
 
     // ...and therefore not a note you plan: absent from the timeline / `/` note-picker...
     let recent_ids: Vec<String> = recent(&s).unwrap().into_iter().map(|m| m.id).collect();

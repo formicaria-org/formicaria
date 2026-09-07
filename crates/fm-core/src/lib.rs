@@ -9,10 +9,10 @@ use fm_query::{Filter, Query, QueryResult};
 use std::collections::HashMap;
 use thiserror::Error;
 
-pub mod descriptor;   // <vault>/vault.json — the facts git cannot supply
-pub mod proposal;     // hard guardrails on a proposal's size (vault policy, pure check)
-pub mod frontmatter;
+pub mod descriptor; // <vault>/vault.json — the facts git cannot supply
 mod file;
+pub mod frontmatter;
+pub mod proposal; // hard guardrails on a proposal's size (vault policy, pure check)
 pub use file::FileStore;
 mod multi;
 pub use multi::{ColdStart, MultiStore, Scoped};
@@ -27,19 +27,19 @@ pub mod manifest;
 pub mod verify;
 pub use manifest::Manifest;
 pub use verify::{verify, Report, Severity};
-pub mod acquire;   // the one step every way of getting a vault from elsewhere shares
-pub mod import;    // Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes
+pub mod acquire; // the one step every way of getting a vault from elsewhere shares
 pub mod backup;
 pub mod git;
+pub mod import; // Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.
 #[cfg(feature = "native-git")]
 pub mod git_native;
 // Which git backend the app talks to. **Always call through this, never `git`/`git_native`
 // directly** — naming a backend at a call site is what left the phone reporting "git not
 // installed" while carrying a working libgit2.
-pub mod vcs;
 pub mod merge;
-pub mod scene;   // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
+pub mod scene;
+pub mod vcs; // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
 
 #[derive(Debug, Error)]
 pub enum StoreError {

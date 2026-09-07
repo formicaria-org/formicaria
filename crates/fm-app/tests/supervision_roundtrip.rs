@@ -24,20 +24,12 @@ impl Host for NoHost {
 }
 
 fn have_git() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
+    Command::new("git").arg("--version").output().is_ok_and(|o| o.status.success())
 }
 
 /// Read the repository with **real git**, never through the app.
 fn g(repo: &Path, args: &[&str]) -> String {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(args)
-        .output()
-        .unwrap();
+    let out = Command::new("git").arg("-C").arg(repo).args(args).output().unwrap();
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
@@ -56,11 +48,8 @@ fn vault() -> (TempDir, TempDir, App) {
     let dir = tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("notes")).unwrap();
     let owned: Vec<(String, PathBuf)> = vec![("personal".into(), dir.path().to_path_buf())];
-    let configs = vec![VaultConfig {
-        name: "personal".into(),
-        path: dir.path().to_path_buf(),
-        restic: None,
-    }];
+    let configs =
+        vec![VaultConfig { name: "personal".into(), path: dir.path().to_path_buf(), restic: None }];
     let app = App::new(
         MultiStore::open(&owned).unwrap(),
         configs,
@@ -72,15 +61,7 @@ fn vault() -> (TempDir, TempDir, App) {
 
 /// A trailer, read back through git's own parser rather than by matching text.
 fn trailer(repo: &Path, rev: &str, key: &str) -> String {
-    g(
-        repo,
-        &[
-            "log",
-            "-1",
-            &format!("--format=%(trailers:key={key},valueonly)"),
-            rev,
-        ],
-    )
+    g(repo, &["log", "-1", &format!("--format=%(trailers:key={key},valueonly)"), rev])
 }
 
 #[test]
@@ -93,11 +74,7 @@ fn a_whole_review_event_survives_the_round_trip_through_git() {
     let p = dir.path();
 
     // A note, committed so there is a base to propose against.
-    let note = call(
-        &app,
-        "capture",
-        json!({ "body": "# Battery\n\nrough notes\n" }),
-    );
+    let note = call(&app, "capture", json!({ "body": "# Battery\n\nrough notes\n" }));
     let note_id = note["id"].as_str().unwrap().to_string();
     call(&app, "commit", json!({ "message": "auto: seed" }));
 
@@ -145,29 +122,20 @@ fn a_whole_review_event_survives_the_round_trip_through_git() {
 
     // The human's final text is on the branch HEAD points at (whatever git named it).
     let final_text = g(p, &["show", &format!("HEAD:notes/{note_id}.md")]);
-    assert!(
-        final_text.contains("Lithium-iron-phosphate"),
-        "the correction is what landed"
-    );
+    assert!(final_text.contains("Lithium-iron-phosphate"), "the correction is what landed");
 
     // The MODEL'S ORIGINAL is still reachable — the pair is what makes this a training example, and
     // without retention a revise would have force-orphaned it.
-    let kept: Vec<String> = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .map(str::to_string)
-    .collect();
+    let kept: Vec<String> = g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+        .lines()
+        .map(str::to_string)
+        .collect();
     assert!(!kept.is_empty(), "the superseded proposal must be retained");
     let recovered = kept
         .iter()
         .map(|oid| g(p, &["show", &format!("{oid}:notes/{note_id}.md")]))
         .find(|t| t.contains("Lithium-ion, per the sources."));
-    assert!(
-        recovered.is_some(),
-        "the model's pre-correction text must be recoverable"
-    );
+    assert!(recovered.is_some(), "the model's pre-correction text must be recoverable");
 
     // The reason, the labels and the provenance all parse as real trailers.
     let head = g(p, &["rev-parse", "HEAD"]);
@@ -186,10 +154,7 @@ fn a_whole_review_event_survives_the_round_trip_through_git() {
         .iter()
         .find(|oid| trailer(p, oid, "Tool") == "research")
         .expect("the agent's proposal must carry its input");
-    assert_eq!(
-        trailer(p, with_input, "Query"),
-        "what battery chemistry do electric cars use"
-    );
+    assert_eq!(trailer(p, with_input, "Query"), "what battery chemistry do electric cars use");
     assert!(trailer(p, with_input, "Sources").contains("Electric_vehicle"));
     assert_eq!(
         trailer(p, with_input, "Assisted-by"),
@@ -200,10 +165,7 @@ fn a_whole_review_event_survives_the_round_trip_through_git() {
     // `shown` lives on the immortal proposal note, because it is a fact that arrives after the
     // commit is written.
     let prop_note = g(p, &["show", &format!("HEAD:notes/{prop_id}.md")]);
-    assert!(
-        prop_note.contains("shown:"),
-        "the sighting must be recorded, got:\n{prop_note}"
-    );
+    assert!(prop_note.contains("shown:"), "the sighting must be recorded, got:\n{prop_note}");
 }
 
 #[test]
@@ -239,28 +201,19 @@ fn a_rejected_proposal_keeps_both_its_text_and_the_reason_it_was_refused() {
 
     // `main` is untouched — that is what rejecting means.
     let head_text = g(p, &["show", &format!("HEAD:notes/{note_id}.md")]);
-    assert!(
-        !head_text.contains("Invented Reference"),
-        "a reject must not touch the note"
-    );
+    assert!(!head_text.contains("Invented Reference"), "a reject must not touch the note");
 
     // But the rejected TEXT is still recoverable. This is the half that used to be deleted outright,
     // and it is the only negative signal the corpus can ever have.
-    let kept: Vec<String> = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .map(str::to_string)
-    .collect();
+    let kept: Vec<String> = g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+        .lines()
+        .map(str::to_string)
+        .collect();
     let recovered = kept
         .iter()
         .map(|oid| g(p, &["show", &format!("{oid}:notes/{note_id}.md")]))
         .find(|t| t.contains("Invented Reference"));
-    assert!(
-        recovered.is_some(),
-        "the rejected text must survive; refs were {kept:?}"
-    );
+    assert!(recovered.is_some(), "the rejected text must survive; refs were {kept:?}");
 
     // ...and so is *why*. A reject writes no commit and its text never reaches the branch, so the
     // proposal note is the only place that reason can live.
@@ -270,10 +223,7 @@ fn a_rejected_proposal_keeps_both_its_text_and_the_reason_it_was_refused() {
         prop_note.contains("invented a source that does not exist @hallucinated"),
         "the refusal's reason must survive, got:\n{prop_note}"
     );
-    assert!(
-        prop_note.contains("shown:"),
-        "and that a person actually looked"
-    );
+    assert!(prop_note.contains("shown:"), "and that a person actually looked");
 }
 
 #[test]
@@ -295,52 +245,26 @@ fn garbage_collection_does_not_take_the_record() {
     );
     let prop_id = prop["id"].as_str().unwrap().to_string();
     // A revision, so the first draft is superseded and only the retention ref holds it.
-    call(
-        &app,
-        "create_proposal",
-        json!({ "id": note_id, "body": "# GC\n\nsecond draft\n" }),
-    );
-    call(
-        &app,
-        "reject_proposal",
-        json!({ "id": prop_id, "why": "changed my mind" }),
-    );
+    call(&app, "create_proposal", json!({ "id": note_id, "body": "# GC\n\nsecond draft\n" }));
+    call(&app, "reject_proposal", json!({ "id": prop_id, "why": "changed my mind" }));
 
-    let kept: Vec<String> = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .map(str::to_string)
-    .collect();
-    assert!(
-        kept.len() >= 2,
-        "both the draft and the revision should be retained, got {kept:?}"
-    );
+    let kept: Vec<String> = g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+        .lines()
+        .map(str::to_string)
+        .collect();
+    assert!(kept.len() >= 2, "both the draft and the revision should be retained, got {kept:?}");
 
     // The whole durability claim in one command: unreachable objects are pruned NOW, and a retained
     // record is reachable, so it stays. This is what Step 0 had to rescue by hand precisely because
     // nothing referenced those commits.
-    let gc = Command::new("git")
-        .arg("-C")
-        .arg(p)
-        .args(["gc", "--prune=now"])
-        .output()
-        .unwrap();
-    assert!(
-        gc.status.success(),
-        "gc failed: {}",
-        String::from_utf8_lossy(&gc.stderr)
-    );
+    let gc = Command::new("git").arg("-C").arg(p).args(["gc", "--prune=now"]).output().unwrap();
+    assert!(gc.status.success(), "gc failed: {}", String::from_utf8_lossy(&gc.stderr));
 
     for oid in &kept {
         let t = g(p, &["cat-file", "-t", oid]);
         assert_eq!(t, "commit", "{oid} did not survive gc --prune=now");
     }
-    assert!(
-        g(p, &["fsck", "--unreachable", "--no-progress"]).is_empty(),
-        "nothing left dangling"
-    );
+    assert!(g(p, &["fsck", "--unreachable", "--no-progress"]).is_empty(), "nothing left dangling");
 }
 
 #[test]
@@ -392,29 +316,19 @@ fn pushing_does_not_collapse_the_record_away() {
     );
     call(&app, "accept_proposal", json!({ "id": prop_id }));
 
-    let retained: Vec<String> = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .map(str::to_string)
-    .collect();
+    let retained: Vec<String> =
+        g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+            .lines()
+            .map(str::to_string)
+            .collect();
     assert!(!retained.is_empty());
 
     // Back up, twice — the second push is the one with a tracking ref, and therefore the one that
     // actually squashes.
-    call(
-        &app,
-        "push",
-        json!({ "vault": "personal", "message": "backup: one" }),
-    );
+    call(&app, "push", json!({ "vault": "personal", "message": "backup: one" }));
     call(&app, "capture", json!({ "body": "# Later\n\nmore\n" }));
     call(&app, "commit", json!({ "message": "auto: later" }));
-    call(
-        &app,
-        "push",
-        json!({ "vault": "personal", "message": "backup: two" }),
-    );
+    call(&app, "push", json!({ "vault": "personal", "message": "backup: two" }));
 
     // The accept merge is not an `auto:`/`backup:` commit, so it is a squash barrier and survives —
     // and with it the model's proposal, as the merge's second parent.
@@ -427,20 +341,13 @@ fn pushing_does_not_collapse_the_record_away() {
 
     // The retained commits are held by refs of our own, which `push_squashed` never touches.
     for oid in &retained {
-        assert_eq!(
-            g(p, &["cat-file", "-t", oid]),
-            "commit",
-            "{oid} was lost to a push"
-        );
+        assert_eq!(g(p, &["cat-file", "-t", oid]), "commit", "{oid} was lost to a push");
     }
     let recovered = retained
         .iter()
         .map(|oid| g(p, &["show", &format!("{oid}:notes/{note_id}.md")]))
         .find(|t| t.contains("the model's draft"));
-    assert!(
-        recovered.is_some(),
-        "the model's original must survive a backup"
-    );
+    assert!(recovered.is_some(), "the model's original must survive a backup");
 
     // And the correction is still what the note says.
     assert!(g(p, &["show", &format!("HEAD:notes/{note_id}.md")]).contains("my correction"));
@@ -461,11 +368,8 @@ fn a_complete_dataset_row_is_derivable_from_git_alone() {
     }
     let (_home, dir, app) = vault();
     let p = dir.path();
-    std::fs::write(
-        p.join("vault.json"),
-        r#"{"supervision":{"collect":true,"publish":true}}"#,
-    )
-    .unwrap();
+    std::fs::write(p.join("vault.json"), r#"{"supervision":{"collect":true,"publish":true}}"#)
+        .unwrap();
 
     let note = call(&app, "capture", json!({ "body": "# Row\n\nbefore\n" }));
     let note_id = note["id"].as_str().unwrap().to_string();
@@ -500,14 +404,11 @@ fn a_complete_dataset_row_is_derivable_from_git_alone() {
     // The three texts a training example is made of.
     let context_before = g(p, &["show", &format!("{base}:{path}")]);
     let final_text = g(p, &["show", &format!("{final_commit}:{path}")]);
-    let original = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .map(|oid| g(p, &["show", &format!("{oid}:{path}")]))
-    .find(|t| t.contains("the model said this"))
-    .expect("the model's original must be recoverable");
+    let original = g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+        .lines()
+        .map(|oid| g(p, &["show", &format!("{oid}:{path}")]))
+        .find(|t| t.contains("the model said this"))
+        .expect("the model's original must be recoverable");
 
     // The labels and provenance.
     let t = |k: &str| trailer(p, &final_commit, k);
@@ -515,61 +416,28 @@ fn a_complete_dataset_row_is_derivable_from_git_alone() {
     let prop_note = g(p, &["show", &format!("HEAD:notes/{prop_id}.md")]);
 
     // ---- every field a row needs ----------------------------------------------------------
-    assert!(
-        context_before.contains("before"),
-        "the input the model was working from"
-    );
-    assert!(
-        original.contains("the model said this"),
-        "what the model produced"
-    );
-    assert!(
-        final_text.contains("what I actually meant"),
-        "what the human kept"
-    );
-    assert!(
-        why.contains("too vague"),
-        "why they changed it — the field measured most decisive"
-    );
+    assert!(context_before.contains("before"), "the input the model was working from");
+    assert!(original.contains("the model said this"), "what the model produced");
+    assert!(final_text.contains("what I actually meant"), "what the human kept");
+    assert!(why.contains("too vague"), "why they changed it — the field measured most decisive");
     assert_eq!(t("Kind"), "style", "which axis the corpus can be split on");
-    assert_eq!(
-        t("SchemaRev"),
-        "1",
-        "which schema this row was written under"
-    );
+    assert_eq!(t("SchemaRev"), "1", "which schema this row was written under");
     assert_eq!(t("Consent"), "local,publish", "what may be done with it");
-    assert!(
-        prop_note.contains("shown:"),
-        "that a person actually looked at it"
-    );
+    assert!(prop_note.contains("shown:"), "that a person actually looked at it");
     // The input half rides on the agent's own proposal, not on the human's revision of it.
-    let agent_side = g(
-        p,
-        &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"],
-    )
-    .lines()
-    .find(|oid| trailer(p, oid, "Tool") == "research")
-    .map(str::to_string)
-    .expect("the agent's proposal carries the input");
+    let agent_side = g(p, &["for-each-ref", "--format=%(objectname)", "refs/fm/review/"])
+        .lines()
+        .find(|oid| trailer(p, oid, "Tool") == "research")
+        .map(str::to_string)
+        .expect("the agent's proposal carries the input");
     assert_eq!(trailer(p, &agent_side, "Query"), "what goes here");
     assert!(trailer(p, &agent_side, "Sources").contains("example.org/one"));
-    assert_eq!(
-        trailer(p, &agent_side, "Assisted-by"),
-        "formicaria-agent:qwen3-vl-4b"
-    );
+    assert_eq!(trailer(p, &agent_side, "Assisted-by"), "formicaria-agent:qwen3-vl-4b");
 
     // The outcome is legible without any app: an `accept: merge` commit naming this proposal.
     assert!(
-        g(
-            p,
-            &[
-                "log",
-                "--oneline",
-                "--grep",
-                &format!("accept: merge proposal/{prop_id}")
-            ]
-        )
-        .contains("accept: merge"),
+        g(p, &["log", "--oneline", "--grep", &format!("accept: merge proposal/{prop_id}")])
+            .contains("accept: merge"),
         "the disposition must be readable from history alone"
     );
 }

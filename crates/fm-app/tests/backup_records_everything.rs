@@ -110,9 +110,7 @@ fn boot(home: &TempDir, vault: &Path) -> App {
 
 fn unrecorded_count(app: &App) -> u64 {
     let v = call(app, "unrecorded", serde_json::json!({})).unwrap();
-    v.as_array()
-        .map(|a| a.iter().filter_map(|u| u["count"].as_u64()).sum())
-        .unwrap_or(0)
+    v.as_array().map(|a| a.iter().filter_map(|u| u["count"].as_u64()).sum()).unwrap_or(0)
 }
 
 /// **The complaint, reproduced end to end.**

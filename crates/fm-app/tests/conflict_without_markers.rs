@@ -126,7 +126,10 @@ fn keeping_theirs_restores_the_note_and_finishes_the_merge() {
     let text = std::fs::read_to_string(vault.join(&rel)).expect("their note is on disk");
     assert!(text.contains("edited on the phone"), "their version won");
     let status = git_run(&vault, &["status", "--porcelain"]);
-    assert!(String::from_utf8_lossy(&status.stdout).trim().is_empty(), "clean tree after resolving");
+    assert!(
+        String::from_utf8_lossy(&status.stdout).trim().is_empty(),
+        "clean tree after resolving"
+    );
 }
 
 #[test]
@@ -174,16 +177,25 @@ fn notes_the_app_never_staged_are_listed_and_can_be_recorded() {
     git_run(&vault, &["init", "-q", "-b", "main"]);
     git_run(&vault, &["config", "user.name", "Tester"]);
     git_run(&vault, &["config", "user.email", "t@example.com"]);
-    std::fs::write(vault.join("notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md"), note("01AAAAAAAAAAAAAAAAAAAAAAAA", "first")).unwrap();
+    std::fs::write(
+        vault.join("notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md"),
+        note("01AAAAAAAAAAAAAAAAAAAAAAAA", "first"),
+    )
+    .unwrap();
     git_run(&vault, &["add", "-A"]);
     git_run(&vault, &["commit", "-qm", "one note"]);
 
     // Two notes written by a process that has since forgotten them — the state after any restart.
     for id in ["01BBBBBBBBBBBBBBBBBBBBBBBB", "01CCCCCCCCCCCCCCCCCCCCCCCC"] {
-        std::fs::write(vault.join(format!("notes/{id}.md")), note(id, "written and forgotten")).unwrap();
+        std::fs::write(vault.join(format!("notes/{id}.md")), note(id, "written and forgotten"))
+            .unwrap();
     }
     // And one *edit* to a tracked note, which is equally forgotten.
-    std::fs::write(vault.join("notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md"), note("01AAAAAAAAAAAAAAAAAAAAAAAA", "first, edited")).unwrap();
+    std::fs::write(
+        vault.join("notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md"),
+        note("01AAAAAAAAAAAAAAAAAAAAAAAA", "first, edited"),
+    )
+    .unwrap();
 
     let missing = vcs::unrecorded(&vault, "notes").unwrap();
     assert_eq!(missing.len(), 3, "two new notes and one modified one: {missing:?}");

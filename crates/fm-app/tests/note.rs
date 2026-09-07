@@ -11,7 +11,8 @@ use tempfile::tempdir;
 #[test]
 fn get_returns_the_full_body_verbatim() {
     let mut s = MemoryStore::new();
-    let body = "The GAE lambda interacts badly. $\\lambda = 0.95$.\n\n```mermaid\ngraph TD;A-->B;\n```\n";
+    let body =
+        "The GAE lambda interacts badly. $\\lambda = 0.95$.\n\n```mermaid\ngraph TD;A-->B;\n```\n";
     let id = capture(&mut s, body, "").unwrap().id;
 
     let note = get(&s, &id).unwrap().expect("note exists");
@@ -64,10 +65,7 @@ fn delete_removes_the_note_file_and_survives_reopen() {
         assert!(dir.path().join(format!("notes/{id}.md")).exists());
         delete(&mut s, &id).unwrap();
         assert!(get(&s, &id).unwrap().is_none(), "gone from the live store");
-        assert!(
-            !dir.path().join(format!("notes/{id}.md")).exists(),
-            "the .md file is unlinked"
-        );
+        assert!(!dir.path().join(format!("notes/{id}.md")).exists(), "the .md file is unlinked");
         id
     };
     let s2 = FileStore::open(dir.path()).unwrap();

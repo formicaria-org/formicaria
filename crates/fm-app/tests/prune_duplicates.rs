@@ -59,9 +59,10 @@ fn vault_with_copies(home: &TempDir) -> PathBuf {
     git(&vault, &["init", "-q", "-b", "main"]);
     git(&vault, &["config", "user.name", "T"]);
     git(&vault, &["config", "user.email", "t@e.com"]);
-    for (i, id) in ["01CCCCCCCCCCCCCCCCCCCCCC01", "01CCCCCCCCCCCCCCCCCCCCCC02", "01CCCCCCCCCCCCCCCCCCCCCC03"]
-        .iter()
-        .enumerate()
+    for (i, id) in
+        ["01CCCCCCCCCCCCCCCCCCCCCC01", "01CCCCCCCCCCCCCCCCCCCCCC02", "01CCCCCCCCCCCCCCCCCCCCCC03"]
+            .iter()
+            .enumerate()
     {
         std::fs::write(
             vault.join(format!("notes/{id}.md")),

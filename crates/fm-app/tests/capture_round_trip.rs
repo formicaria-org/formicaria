@@ -123,9 +123,13 @@ fn a_photo_ingested_into_a_named_vault_is_found_across_the_others() {
     let meta = call(&app, "ingest", json!({ "name": "photo.jpg", "vault": "work" }), JPEG)
         .expect("ingest into a named vault");
 
-    let status =
-        call(&app, "asset_status", json!({ "reference": reference_the_ui_would_write(&meta) }), &[])
-            .unwrap();
+    let status = call(
+        &app,
+        "asset_status",
+        json!({ "reference": reference_the_ui_would_write(&meta) }),
+        &[],
+    )
+    .unwrap();
     assert_eq!(
         status["has_blob"], true,
         "a blob in a non-default vault must still be found — asset_status searches every vault \
@@ -238,13 +242,13 @@ fn an_ingested_file_is_written_inside_the_vault_and_nowhere_else() {
     let hash = meta["assets"][0].as_str().unwrap().strip_prefix("sha256:").unwrap().to_string();
 
     // The blob is exactly where the content-addressed layout says, *under the vault*.
-    let expected = vault.join("blobs").join("sha256").join(&hash[0..2]).join(&hash[2..4]).join(&hash);
+    let expected =
+        vault.join("blobs").join("sha256").join(&hash[0..2]).join(&hash[2..4]).join(&hash);
     assert!(expected.is_file(), "the blob should be at {}", expected.display());
     assert_eq!(std::fs::read(&expected).unwrap(), JPEG, "and it should be the bytes we sent");
 
     // Everything new is inside the vault. Nothing landed beside it.
-    let new: Vec<String> =
-        tree(home.path()).into_iter().filter(|p| !before.contains(p)).collect();
+    let new: Vec<String> = tree(home.path()).into_iter().filter(|p| !before.contains(p)).collect();
     assert!(!new.is_empty(), "the ingest wrote nothing at all");
     for path in &new {
         assert!(

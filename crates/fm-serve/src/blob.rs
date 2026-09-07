@@ -29,7 +29,6 @@ use crate::{write_response, AppState};
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
 
-
 /// How much we move between disk and socket at a time. The point of the whole route is
 /// never to hold the file in memory, so this is the only buffer.
 const CHUNK: usize = 64 * 1024;
@@ -104,7 +103,11 @@ pub fn serve(
     let length = if total == 0 { 0 } else { end - start + 1 };
 
     let mut header = String::new();
-    header.push_str(if partial { "HTTP/1.1 206 Partial Content\r\n" } else { "HTTP/1.1 200 OK\r\n" });
+    header.push_str(if partial {
+        "HTTP/1.1 206 Partial Content\r\n"
+    } else {
+        "HTTP/1.1 200 OK\r\n"
+    });
     header.push_str(&format!("Content-Type: {ctype}\r\n"));
     header.push_str(&format!("Content-Length: {length}\r\n"));
     // Without this a browser will not seek — it assumes the whole file must be downloaded
@@ -209,7 +212,8 @@ mod tests {
 
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
-        let state = AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, Vec::new(), 0);
+        let state =
+            AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, Vec::new(), 0);
 
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
@@ -379,7 +383,9 @@ mod tests {
 
     #[test]
     fn ordinary_media_still_renders_inline() {
-        for ok in ["image/png", "image/jpeg", "image/webp", "video/mp4", "audio/mpeg", "application/pdf"] {
+        for ok in
+            ["image/png", "image/jpeg", "image/webp", "video/mp4", "audio/mpeg", "application/pdf"]
+        {
             assert!(inline_safe(ok), "{ok} should render inline");
         }
     }

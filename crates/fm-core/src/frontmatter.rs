@@ -255,7 +255,11 @@ fn as_tag_seq(v: Value) -> Vec<String> {
         other => as_string(other)
             .into_iter()
             .flat_map(|s| {
-                s.split(',').map(str::trim).filter(|t| !t.is_empty()).map(String::from).collect::<Vec<_>>()
+                s.split(',')
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .map(String::from)
+                    .collect::<Vec<_>>()
             })
             .collect(),
     }
@@ -306,10 +310,8 @@ pub fn scalar_property(raw: &str) -> PropertyValue {
     if matches!(prop, PropertyValue::Text(_)) {
         return PropertyValue::Text(raw.to_string());
     }
-    let round_trip = serde_yaml_ng::to_string(&prop_to_yaml(&prop))
-        .unwrap_or_default()
-        .trim_end()
-        .to_string();
+    let round_trip =
+        serde_yaml_ng::to_string(&prop_to_yaml(&prop)).unwrap_or_default().trim_end().to_string();
     if round_trip == raw {
         prop
     } else {

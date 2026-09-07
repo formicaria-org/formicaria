@@ -182,8 +182,7 @@ impl FileStore {
     ) -> Result<Self, StoreError> {
         let mut store = Self::prepare(root.as_ref(), name.into())?;
         store.init_schema()?;
-        let mode =
-            if store.index_is_complete()? { Reindex::Incremental } else { Reindex::Full };
+        let mode = if store.index_is_complete()? { Reindex::Incremental } else { Reindex::Full };
         let stats = store.reindex(mode)?;
         store.skipped = stats.skipped;
         store.mark_index_complete()?;
@@ -202,9 +201,7 @@ impl FileStore {
     fn mark_index_complete(&self) -> Result<(), StoreError> {
         // `PRAGMA user_version` takes no bound parameters, hence the format. The value is a
         // compile-time constant, so there is nothing to inject.
-        self.db
-            .execute_batch(&format!("PRAGMA user_version = {INDEX_SCHEMA}"))
-            .map_err(sql)
+        self.db.execute_batch(&format!("PRAGMA user_version = {INDEX_SCHEMA}")).map_err(sql)
     }
 
     /// This vault's name — its audience.
@@ -313,7 +310,9 @@ impl FileStore {
             .and_then(|mut s| s.exists([]))
             .map_err(sql)?;
         if !has_column {
-            self.db.execute_batch("ALTER TABLE objects ADD COLUMN fts_rowid INTEGER").map_err(sql)?;
+            self.db
+                .execute_batch("ALTER TABLE objects ADD COLUMN fts_rowid INTEGER")
+                .map_err(sql)?;
         }
         // Same again for `kind` (schema 2). **Bumping `INDEX_SCHEMA` is not a migration** — it only
         // makes `index_is_complete` false, which selects `Reindex::Full`, and `Full` does
@@ -417,10 +416,7 @@ impl FileStore {
     /// Nestable, unlike `BEGIN` — so this is safe whether or not a caller already holds a
     /// transaction. The rollback is best-effort by necessity: if it fails there is nothing useful
     /// left to do, and the original error is the one worth reporting.
-    fn in_savepoint<T>(
-        &self,
-        f: impl FnOnce() -> Result<T, StoreError>,
-    ) -> Result<T, StoreError> {
+    fn in_savepoint<T>(&self, f: impl FnOnce() -> Result<T, StoreError>) -> Result<T, StoreError> {
         self.db.execute_batch("SAVEPOINT fm_index").map_err(sql)?;
         match f() {
             Ok(v) => {
@@ -452,9 +448,7 @@ impl FileStore {
                 .map_err(sql)?;
             match previous.flatten() {
                 Some(rowid) => {
-                    self.db
-                        .execute("DELETE FROM fts WHERE rowid = ?1", [rowid])
-                        .map_err(sql)?;
+                    self.db.execute("DELETE FROM fts WHERE rowid = ?1", [rowid]).map_err(sql)?;
                 }
                 // Written before this column existed, or never indexed. Fall back to the scan:
                 // slow, and unreachable in practice (`open` rebuilds before anything can write),
@@ -560,9 +554,7 @@ impl FileStore {
         let rowids: Vec<i64> = self
             .db
             .prepare("SELECT fts_rowid FROM objects WHERE path = ?1 AND fts_rowid IS NOT NULL")
-            .and_then(|mut s| {
-                s.query_map([path], |r| r.get(0))?.collect::<Result<Vec<i64>, _>>()
-            })
+            .and_then(|mut s| s.query_map([path], |r| r.get(0))?.collect::<Result<Vec<i64>, _>>())
             .map_err(sql)?;
         for rowid in rowids {
             self.db.execute("DELETE FROM fts WHERE rowid = ?1", [rowid]).map_err(sql)?;
@@ -672,11 +664,7 @@ impl Store for FileStore {
     fn get(&self, id: Id) -> Result<Option<Object>, StoreError> {
         let content: Option<String> = self
             .db
-            .query_row(
-                "SELECT content FROM objects WHERE id = ?1",
-                [id.to_string()],
-                |r| r.get(0),
-            )
+            .query_row("SELECT content FROM objects WHERE id = ?1", [id.to_string()], |r| r.get(0))
             .optional()
             .map_err(sql)?;
         match content {
@@ -742,9 +730,7 @@ impl Store for FileStore {
                         .map_err(sql)?;
                 }
             }
-            self.db
-                .execute("DELETE FROM objects WHERE id = ?1", [id.to_string()])
-                .map_err(sql)?;
+            self.db.execute("DELETE FROM objects WHERE id = ?1", [id.to_string()]).map_err(sql)?;
             Ok(())
         })
     }
@@ -790,7 +776,8 @@ impl Store for FileStore {
                 HashMap::new()
             }
             Reindex::Incremental => {
-                let mut stmt = self.db.prepare("SELECT path, mtime_ns FROM objects").map_err(sql)?;
+                let mut stmt =
+                    self.db.prepare("SELECT path, mtime_ns FROM objects").map_err(sql)?;
                 let rows = stmt
                     .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
                     .map_err(sql)?;
@@ -1022,10 +1009,7 @@ fn strip_text(filter: &Filter) -> Filter {
 
 fn mtime_ns(path: &Path) -> Result<i64, StoreError> {
     let modified = fs::metadata(path).map_err(io)?.modified().map_err(io)?;
-    Ok(modified
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos() as i64)
-        .unwrap_or(0))
+    Ok(modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as i64).unwrap_or(0))
 }
 
 fn io(e: std::io::Error) -> StoreError {
@@ -1059,10 +1043,7 @@ mod upgrade_tests {
     fn v1_index(dir: &std::path::Path) {
         // Exactly the v1 column list, then the v1 stamp.
         let db = Connection::open(dir.join("index.sqlite")).unwrap();
-        db.execute_batch(
-            "ALTER TABLE objects DROP COLUMN kind; PRAGMA user_version = 1;",
-        )
-        .unwrap();
+        db.execute_batch("ALTER TABLE objects DROP COLUMN kind; PRAGMA user_version = 1;").unwrap();
         let cols: Vec<String> = db
             .prepare("SELECT name FROM pragma_table_info('objects')")
             .unwrap()

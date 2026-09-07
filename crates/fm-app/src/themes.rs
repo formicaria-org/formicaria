@@ -85,11 +85,7 @@ pub fn list_themes(vault: &Path) -> Vec<ThemeInfo> {
 }
 
 fn too_big(bytes: u64) -> String {
-    format!(
-        "this theme is {} KB, and the limit is {} KB",
-        bytes / 1024,
-        MAX_BYTES / 1024
-    )
+    format!("this theme is {} KB, and the limit is {} KB", bytes / 1024, MAX_BYTES / 1024)
 }
 
 /// The CSS of one theme, to show in the editor or to apply.

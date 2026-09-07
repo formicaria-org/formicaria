@@ -40,7 +40,6 @@ pub(crate) const REMOTE: &str = "origin";
 pub(crate) const PLACEHOLDER_NAME: &str = "formicaria";
 pub(crate) const PLACEHOLDER_EMAIL: &str = "formicaria@localhost";
 
-
 // ---------------------------------------------------------------------------------------
 // Rules shared with the `native-git` backend (`crate::git_native`).
 //
@@ -148,11 +147,7 @@ pub struct Identity {
 pub fn available() -> bool {
     static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *AVAILABLE.get_or_init(|| {
-        Command::new("git")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+        Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
     })
 }
 
@@ -841,8 +836,7 @@ fn commit_all_inner(
     //
     // The config files we author are included because we author them: `ensure_repo` writes
     // the ignore rules and the merge attribute, and they must travel.
-    let mut owned: Vec<String> =
-        paths.iter().filter_map(|p| relative(vault, p)).collect();
+    let mut owned: Vec<String> = paths.iter().filter_map(|p| relative(vault, p)).collect();
     for f in [".gitattributes", ".gitignore", "manifest.json"] {
         if vault.join(f).exists() {
             owned.push(f.to_string());
@@ -855,7 +849,8 @@ fn commit_all_inner(
     // must not brick the vault. Such a path has nothing to record (git never saw it), so keep only
     // the nameable ones: a path that is tracked (a real modify/delete) or exists on disk (an add).
     if !owned.is_empty() {
-        let ls = git(vault).arg("ls-files").arg("-z").arg("--").args(&owned).output().map_err(spawn)?;
+        let ls =
+            git(vault).arg("ls-files").arg("-z").arg("--").args(&owned).output().map_err(spawn)?;
         if !ls.status.success() {
             return Err(failed("git ls-files", &ls));
         }
@@ -884,13 +879,7 @@ fn commit_all_inner(
     // happens here and each chosen file is named explicitly. Nothing else can slip in.
     let blobs = blobs_within(vault)?;
     if !blobs.is_empty() {
-        let add = git(vault)
-            .arg("add")
-            .arg("-f")
-            .arg("--")
-            .args(&blobs)
-            .output()
-            .map_err(spawn)?;
+        let add = git(vault).arg("add").arg("-f").arg("--").args(&blobs).output().map_err(spawn)?;
         if !add.status.success() {
             return Err(failed("git add (assets)", &add));
         }
@@ -1017,9 +1006,7 @@ pub fn revise_proposal_branch(
 fn retain_proposal_tip(vault: &Path, branch: &str) {
     let Some(id) = branch.strip_prefix("proposal/") else { return };
     let Ok(tip) = rev_parse(vault, &format!("refs/heads/{branch}")) else { return };
-    let _ = git(vault)
-        .args(["update-ref", &format!("refs/fm/review/{id}/{tip}"), &tip])
-        .output();
+    let _ = git(vault).args(["update-ref", &format!("refs/fm/review/{id}/{tip}"), &tip]).output();
 }
 
 fn write_proposal_branch(
@@ -1065,12 +1052,7 @@ fn write_proposal_branch(
         .spawn()
         .map_err(spawn)?;
     use std::io::Write as _;
-    child
-        .stdin
-        .take()
-        .expect("piped stdin")
-        .write_all(content.as_bytes())
-        .map_err(io)?;
+    child.stdin.take().expect("piped stdin").write_all(content.as_bytes()).map_err(io)?;
     let blob_out = child.wait_with_output().map_err(spawn)?;
     if !blob_out.status.success() {
         return Err(failed("git hash-object", &blob_out));
@@ -1103,7 +1085,12 @@ fn write_proposal_branch(
         step("git read-tree", with_index(&["read-tree", &parent])?)?;
         step(
             "git update-index",
-            with_index(&["update-index", "--add", "--cacheinfo", &format!("100644,{blob},{rel_path}")])?,
+            with_index(&[
+                "update-index",
+                "--add",
+                "--cacheinfo",
+                &format!("100644,{blob},{rel_path}"),
+            ])?,
         )?;
         let tree = step("git write-tree", with_index(&["write-tree"])?)?;
         let tree = String::from_utf8_lossy(&tree.stdout).trim().to_string();
@@ -1127,7 +1114,10 @@ fn write_proposal_branch(
         retain_proposal_tip(vault, branch); // no-op on a create; on a revise this is the whole point
         step(
             "git update-ref",
-            git(vault).args(["update-ref", &format!("refs/heads/{branch}"), &commit]).output().map_err(spawn)?,
+            git(vault)
+                .args(["update-ref", &format!("refs/heads/{branch}"), &commit])
+                .output()
+                .map_err(spawn)?,
         )?;
         Ok(())
     })();
@@ -1167,12 +1157,14 @@ pub fn proposal_load(vault: &Path) -> Result<(usize, u64), StoreError> {
             continue;
         }
         let base = String::from_utf8_lossy(&base.stdout).trim().to_string();
-        let diff = git(vault).args(["diff", "--name-only", "-z", &base, b]).output().map_err(spawn)?;
+        let diff =
+            git(vault).args(["diff", "--name-only", "-z", &base, b]).output().map_err(spawn)?;
         if !diff.status.success() {
             continue;
         }
         for f in String::from_utf8_lossy(&diff.stdout).split('\0').filter(|s| !s.is_empty()) {
-            let sz = git(vault).args(["cat-file", "-s", &format!("{b}:{f}")]).output().map_err(spawn)?;
+            let sz =
+                git(vault).args(["cat-file", "-s", &format!("{b}:{f}")]).output().map_err(spawn)?;
             if sz.status.success() {
                 if let Ok(n) = String::from_utf8_lossy(&sz.stdout).trim().parse::<u64>() {
                     bytes = bytes.saturating_add(n);
@@ -1290,7 +1282,8 @@ pub fn branch_diff(vault: &Path, branch: &str) -> Result<(bool, Vec<String>, Str
         "HEAD".to_string()
     };
 
-    let names = git(vault).args(["diff", "--name-only", &base, &refname]).output().map_err(spawn)?;
+    let names =
+        git(vault).args(["diff", "--name-only", &base, &refname]).output().map_err(spawn)?;
     if !names.status.success() {
         return Err(failed("git diff --name-only", &names));
     }
@@ -1441,8 +1434,10 @@ fn is_ancestor(vault: &Path, maybe_ancestor: &str, descendant: &str) -> Result<b
 }
 
 fn count_ahead(vault: &Path, base: &str) -> Result<u32, StoreError> {
-    let out =
-        git(vault).args(["rev-list", "--count", &format!("{base}..HEAD")]).output().map_err(spawn)?;
+    let out = git(vault)
+        .args(["rev-list", "--count", &format!("{base}..HEAD")])
+        .output()
+        .map_err(spawn)?;
     if !out.status.success() {
         return Err(failed("git rev-list", &out));
     }
@@ -1725,7 +1720,10 @@ pub fn remote_moved(vault: &Path) -> Result<Option<bool>, StoreError> {
     let Ok(b) = branch(vault) else { return Ok(None) };
     let Some(track) = tracking(vault)? else { return Ok(None) };
 
-    let out = git(vault).args(["ls-remote", REMOTE, &format!("refs/heads/{b}")]).output().map_err(spawn)?;
+    let out = git(vault)
+        .args(["ls-remote", REMOTE, &format!("refs/heads/{b}")])
+        .output()
+        .map_err(spawn)?;
     if !out.status.success() {
         // Offline, or no such branch there yet. Not knowing is not an error: this runs
         // on a timer and a laptop that sleeps must not show the user a failure.
@@ -1978,13 +1976,21 @@ pub fn resolve_conflict(vault: &Path, rel: &str, keep: Keep) -> Result<(), Store
     // should be no file". For the two marker kinds the side has to be checked out first, because the
     // file on disk is the *merged, marked-up* text and staging that would enshrine the markers.
     let keep_file = match (keep, conflict.kind) {
-        (Theirs, DeletedByUs) | (Mine, DeletedByThem) | (Mine, AddedByUs) | (Theirs, AddedByThem) => true,
-        (Mine, DeletedByUs) | (Theirs, DeletedByThem) | (Theirs, AddedByUs) | (Mine, AddedByThem) => false,
+        (Theirs, DeletedByUs)
+        | (Mine, DeletedByThem)
+        | (Mine, AddedByUs)
+        | (Theirs, AddedByThem) => true,
+        (Mine, DeletedByUs)
+        | (Theirs, DeletedByThem)
+        | (Theirs, AddedByUs)
+        | (Mine, AddedByThem) => false,
         (_, BothDeleted) => false,
         // Unreachable: `Edited` returned above. An error rather than `unreachable!()` — this is the
         // path that must never corrupt a note, and a panic here would take the whole shell down
         // (on Android, silently: see the mobile shell's own no-panic rule).
-        (Edited, _) => return Err(StoreError::Io(format!("{rel}: 'edited' is handled before this"))),
+        (Edited, _) => {
+            return Err(StoreError::Io(format!("{rel}: 'edited' is handled before this")))
+        }
         (_, BothModified) | (_, BothAdded) => {
             let side = if keep == Theirs { "--theirs" } else { "--ours" };
             let co = git(vault).args(["checkout", side, "--", rel]).output().map_err(spawn)?;

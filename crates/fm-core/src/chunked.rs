@@ -74,9 +74,7 @@ pub fn sessions_dir(vault: &Path) -> PathBuf {
 fn session_dir(vault: &Path, session: &str) -> Result<PathBuf, StoreError> {
     let ok = !session.is_empty()
         && session.len() <= 64
-        && session
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+        && session.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
     if !ok {
         return Err(StoreError::Io(format!(
             "'{session}' is not a usable upload id — letters, digits, '-' and '_' only, at most \
@@ -138,11 +136,7 @@ pub fn append(vault: &Path, session: &str, seq: u32, bytes: &[u8]) -> Result<u64
         )));
     }
 
-    let mut f = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&part)
-        .map_err(io)?;
+    let mut f = fs::OpenOptions::new().create(true).append(true).open(&part).map_err(io)?;
     f.write_all(bytes).map_err(io)?;
     // **Durability before the counter moves.** If the process dies between the write and the
     // counter, the next chunk is refused as out of order and the upload restarts — which is
@@ -192,10 +186,8 @@ pub fn sweep(vault: &Path) -> usize {
 pub fn sweep_older_than(vault: &Path, ttl: Duration) -> usize {
     let dir = sessions_dir(vault);
     let Ok(entries) = fs::read_dir(&dir) else { return 0 };
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    let now =
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let mut removed = 0;
     for e in entries.flatten() {
         let path = e.path();

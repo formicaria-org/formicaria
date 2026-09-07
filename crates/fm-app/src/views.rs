@@ -131,7 +131,6 @@ impl PredDto {
     }
 }
 
-
 /// What the UI lists in the sidebar. A view that would not parse still appears — with its
 /// `error` set — because a view that silently vanished is exactly the failure the parse-error
 /// discipline exists to prevent.
@@ -196,11 +195,9 @@ fn base(renderer: Renderer, group_by: Option<&str>) -> Query {
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
-        Renderer::Timeline => Query {
-            filter: notes(),
-            sort: vec![SortKey::desc("created")],
-            ..Default::default()
-        },
+        Renderer::Timeline => {
+            Query { filter: notes(), sort: vec![SortKey::desc("created")], ..Default::default() }
+        }
         Renderer::Agenda => Query {
             filter: notes()
                 .and(Predicate::Prop {
@@ -234,9 +231,7 @@ fn base(renderer: Renderer, group_by: Option<&str>) -> Query {
 fn lower(file: &ViewFile) -> Result<Query, String> {
     let mut q = base(file.view, file.group_by.as_deref());
     for (i, p) in file.filter.iter().enumerate() {
-        q.filter
-            .all
-            .push(lower_pred(p).map_err(|e| format!("filter[{i}]: {e}"))?);
+        q.filter.all.push(lower_pred(p).map_err(|e| format!("filter[{i}]: {e}"))?);
     }
     if !file.sort.is_empty() {
         q.sort = file
@@ -270,7 +265,10 @@ fn lower_pred(p: &PredDto) -> Result<Predicate, String> {
     .filter(|b| **b)
     .count();
     if selectors == 0 {
-        return Err("a filter needs one of prop / tag / tags_any / tags_all / text / date / not / any".into());
+        return Err(
+            "a filter needs one of prop / tag / tags_any / tags_all / text / date / not / any"
+                .into(),
+        );
     }
     if selectors > 1 {
         return Err("a filter must set exactly one of prop / tag / text / date / not / any".into());
@@ -327,9 +325,7 @@ fn lower_pred(p: &PredDto) -> Result<Predicate, String> {
         return Ok(Predicate::Not(Box::new(lower_pred(inner)?)));
     }
     if let Some(ps) = &p.any {
-        return Ok(Predicate::Any(
-            ps.iter().map(lower_pred).collect::<Result<Vec<_>, _>>()?,
-        ));
+        return Ok(Predicate::Any(ps.iter().map(lower_pred).collect::<Result<Vec<_>, _>>()?));
     }
     unreachable!("selector count guaranteed exactly one above")
 }
@@ -552,8 +548,7 @@ pub fn save_view(
     }
     let dir = path.parent().ok_or("no views directory")?;
     std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
-    std::fs::write(&path, body)
-        .map_err(|e| format!("could not write {}: {e}", path.display()))?;
+    std::fs::write(&path, body).map_err(|e| format!("could not write {}: {e}", path.display()))?;
     Ok(path)
 }
 
@@ -618,8 +613,8 @@ pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
 
 /// Run the view named `name` (matched against the `name:` field, then the filename stem).
 pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResult, StoreError> {
-    let path = find_view(vault, name)
-        .ok_or_else(|| StoreError::Io(format!("no view named '{name}'")))?;
+    let path =
+        find_view(vault, name).ok_or_else(|| StoreError::Io(format!("no view named '{name}'")))?;
     let file = read_view(&path).map_err(StoreError::Io)?;
     let q = lower(&file).map_err(StoreError::Io)?;
     let res = store.query(&q)?;
@@ -660,8 +655,7 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
 }
 
 fn read_view(path: &Path) -> Result<ViewFile, String> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: {e}", path.display()))?;
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     serde_yaml_ng::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
 }
 
@@ -692,8 +686,7 @@ pub fn rename_view(vault: &Path, from: &str, to: &str) -> Result<(PathBuf, PathB
             dst.file_name().unwrap_or_default().to_string_lossy()
         ));
     }
-    std::fs::rename(&src, &dst)
-        .map_err(|e| format!("could not rename {}: {e}", src.display()))?;
+    std::fs::rename(&src, &dst).map_err(|e| format!("could not rename {}: {e}", src.display()))?;
     rewrite_name(&dst, to)?;
     Ok((src, dst))
 }

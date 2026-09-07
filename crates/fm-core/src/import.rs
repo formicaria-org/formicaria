@@ -45,8 +45,16 @@ mod tests;
 /// Directories that are never a note: version control, the apps' own state, and the caches they
 /// keep beside it. Walking into `.git` on a large graph is also the difference between a scan that
 /// feels instant and one that does not.
-const SKIP_DIRS: &[&str] =
-    &[".git", ".obsidian", ".trash", ".stfolder", "node_modules", "bak", "version-files", ".recycle"];
+const SKIP_DIRS: &[&str] = &[
+    ".git",
+    ".obsidian",
+    ".trash",
+    ".stfolder",
+    "node_modules",
+    "bak",
+    "version-files",
+    ".recycle",
+];
 
 /// Files an import has no landing site for. Counted and named in the report — *"left behind"* is a
 /// thing the user should be told, not something to discover later.
@@ -87,7 +95,13 @@ impl Page {
 
     /// Tidy what the parsers accumulated. Called once, by the parser, before handing the page on.
     pub fn finish(&mut self) {
-        for v in [&mut self.tags, &mut self.aliases, &mut self.links, &mut self.block_refs, &mut self.attachments] {
+        for v in [
+            &mut self.tags,
+            &mut self.aliases,
+            &mut self.links,
+            &mut self.block_refs,
+            &mut self.attachments,
+        ] {
             v.retain(|s| !s.trim().is_empty());
             v.sort();
             v.dedup();
@@ -644,7 +658,8 @@ fn embed_target(inner: &str, graph: &Graph, s: &mut Rewritten) -> Option<String>
 fn link_of(inner: &str, graph: &Graph, s: &mut Rewritten) -> Option<String> {
     let target = link_target(inner)?;
     // `[[Page|shown]]` — the alias is what the reader sees, so it is the label.
-    let label = inner.split_once('|').map(|(_, a)| a.trim()).filter(|a| !a.is_empty()).unwrap_or(target);
+    let label =
+        inner.split_once('|').map(|(_, a)| a.trim()).filter(|a| !a.is_empty()).unwrap_or(target);
     match graph.page(target) {
         Some(id) => {
             s.links_resolved += 1;
@@ -726,9 +741,26 @@ pub const SOURCE_LIBRARY: &str = "source_library";
 /// proposal keys are here for a second reason: `thread::notes_base` *hides* a note carrying them,
 /// so an imported `base:` would silently vanish from every board, agenda and timeline.
 const RESERVED_KEYS: &[&str] = &[
-    "schema", "id", "type", "title", "status", "start", "due", "hard", "created", "updated",
-    "tags", "assets", "code", "vault", "thread_of", "reply_to", "proposes", "base",
-    SOURCE_KEY, SOURCE_LIBRARY,
+    "schema",
+    "id",
+    "type",
+    "title",
+    "status",
+    "start",
+    "due",
+    "hard",
+    "created",
+    "updated",
+    "tags",
+    "assets",
+    "code",
+    "vault",
+    "thread_of",
+    "reply_to",
+    "proposes",
+    "base",
+    SOURCE_KEY,
+    SOURCE_LIBRARY,
 ];
 
 /// How deep a source tree may nest before we stop. A graph is a handful of levels; anything past
@@ -788,8 +820,9 @@ pub fn convert(
     existing: &HashMap<String, Id>,
     opts: Options,
 ) -> Result<Converted, StoreError> {
-    let format = detect(source)
-        .ok_or_else(|| StoreError::Io("that folder is not a Logseq graph or an Obsidian vault".into()))?;
+    let format = detect(source).ok_or_else(|| {
+        StoreError::Io("that folder is not a Logseq graph or an Obsidian vault".into())
+    })?;
 
     // **The source may not contain the destination.** Otherwise the vault's own `<ULID>.md` files
     // and blobs land inside the graph — breaking the read-only promise — and the next import reads
@@ -804,14 +837,15 @@ pub fn convert(
     }
 
     let mut files = Vec::new();
-    walk(source, &mut files).map_err(|e| StoreError::Io(format!("could not read that folder: {e}")))?;
+    walk(source, &mut files)
+        .map_err(|e| StoreError::Io(format!("could not read that folder: {e}")))?;
 
     let mut report = Report { format: format.as_str().to_string(), ..Default::default() };
 
     // Split the walk once: Markdown is a page, everything else is a candidate attachment.
-    let (markdown, others): (Vec<_>, Vec<_>) = files
-        .into_iter()
-        .partition(|p| p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("md")));
+    let (markdown, others): (Vec<_>, Vec<_>) = files.into_iter().partition(|p| {
+        p.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("md"))
+    });
 
     let mut left: BTreeMap<String, usize> = BTreeMap::new();
     let mut file_index: HashMap<String, PathBuf> = HashMap::new();
@@ -845,7 +879,9 @@ pub fn convert(
             Ok(t) => t,
             // A file we cannot read as text is not a note. Say which one rather than stopping.
             Err(e) => {
-                report.warnings.push(format!("{source_key} could not be read ({e}) and was skipped"));
+                report
+                    .warnings
+                    .push(format!("{source_key} could not be read ({e}) and was skipped"));
                 continue;
             }
         };
@@ -885,7 +921,13 @@ pub fn convert(
         for (uuid, text) in &page.block_texts {
             graph.blocks.insert(uuid.clone(), text.clone());
         }
-        parsed.push(Parsed { id, source_key, dir: path.parent().map(Path::to_path_buf), page, updated: mtime_of(&path) });
+        parsed.push(Parsed {
+            id,
+            source_key,
+            dir: path.parent().map(Path::to_path_buf),
+            page,
+            updated: mtime_of(&path),
+        });
     }
 
     // ── attachments: hashed once, before any rewriting ─────────────────────────
@@ -899,7 +941,8 @@ pub fn convert(
             if graph.page(reference).is_some() || graph.asset(reference).is_some() {
                 continue;
             }
-            let Some(path) = resolve_file(source, item.dir.as_deref(), reference, &file_index) else {
+            let Some(path) = resolve_file(source, item.dir.as_deref(), reference, &file_index)
+            else {
                 continue;
             };
             if !seen.insert(path.clone()) {
@@ -912,9 +955,15 @@ pub fn convert(
                     } else {
                         report.attachments_added += 1;
                     }
-                    graph.add_asset(reference, Asset { hash: ing.hash.clone(), filename: ing.filename.clone() });
+                    graph.add_asset(
+                        reference,
+                        Asset { hash: ing.hash.clone(), filename: ing.filename.clone() },
+                    );
                     if let Some(base) = path.file_name().and_then(|n| n.to_str()) {
-                        graph.add_asset(base, Asset { hash: ing.hash.clone(), filename: ing.filename.clone() });
+                        graph.add_asset(
+                            base,
+                            Asset { hash: ing.hash.clone(), filename: ing.filename.clone() },
+                        );
                     }
                     attachments.push(ing);
                 }
@@ -1049,10 +1098,13 @@ fn resolve_file(
             tries.push(hit.clone());
         }
     }
-    tries.into_iter().find(|p| {
-        let c = canonical(p);
-        c.starts_with(&root) && c.is_file()
-    }).map(|p| canonical(&p))
+    tries
+        .into_iter()
+        .find(|p| {
+            let c = canonical(p);
+            c.starts_with(&root) && c.is_file()
+        })
+        .map(|p| canonical(&p))
 }
 
 fn canonical(p: &Path) -> PathBuf {

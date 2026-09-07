@@ -26,9 +26,12 @@ fn have_git() -> bool {
 /// binary beside `fm-serve`, which a test binary in `target/debug/deps` is not.
 fn install_driver(repo: &Path) {
     let fm = Path::new(env!("CARGO_BIN_EXE_fm"));
-    Command::new("git").arg("-C").arg(repo)
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
         .args(["config", "merge.fm.driver", &format!("'{}' merge-md %O %A %B %L", fm.display())])
-        .output().unwrap();
+        .output()
+        .unwrap();
 }
 
 fn no_identity(vault: &Path) {
@@ -56,14 +59,28 @@ fn diverged(mine_backend: &str) -> (TempDir, TempDir, TempDir, String) {
 
     let origin = tempdir().unwrap();
     fs::create_dir_all(origin.path().join("notes")).unwrap();
-    fs::write(origin.path().join("notes/01.md"), note("2026-07-17T10:00:00Z", "todo", "Line one.\nLine two.\nLine three.\n")).unwrap();
+    fs::write(
+        origin.path().join("notes/01.md"),
+        note("2026-07-17T10:00:00Z", "todo", "Line one.\nLine two.\nLine three.\n"),
+    )
+    .unwrap();
     git::ensure_repo(origin.path()).unwrap();
     install_driver(origin.path());
     no_identity(origin.path());
     git::set_identity(origin.path(), "Origin", "origin@example.org").unwrap();
     git::commit_all(origin.path(), "base", &[origin.path().join("notes/01.md")]).unwrap();
-    Command::new("git").arg("-C").arg(origin.path()).args(["push", &url, "HEAD:refs/heads/main"]).output().unwrap();
-    Command::new("git").arg("-C").arg(bare.path()).args(["symbolic-ref", "HEAD", "refs/heads/main"]).output().unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(origin.path())
+        .args(["push", &url, "HEAD:refs/heads/main"])
+        .output()
+        .unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(bare.path())
+        .args(["symbolic-ref", "HEAD", "refs/heads/main"])
+        .output()
+        .unwrap();
 
     // Ours.
     let mine = tempdir().unwrap();
@@ -120,13 +137,22 @@ fn a_concurrent_edit_merges_the_same_way_on_both_backends() {
         // the collision the driver exists to absorb.
         fs::write(
             mine.path().join("notes/01.md"),
-            note("2026-07-17T11:00:00Z", "todo", "Line one.\nLine two.\nLine three CHANGED BY ME.\n"),
+            note(
+                "2026-07-17T11:00:00Z",
+                "todo",
+                "Line one.\nLine two.\nLine three CHANGED BY ME.\n",
+            ),
         )
         .unwrap();
         let commit = if backend == "native" { git_native::commit_all } else { git::commit_all };
         commit(mine.path(), "auto: mine", &[mine.path().join("notes/01.md")]).unwrap();
 
-        let pulled = if backend == "native" { git_native::pull(mine.path()) } else { git::pull(mine.path()) }.unwrap();
+        let pulled = if backend == "native" {
+            git_native::pull(mine.path())
+        } else {
+            git::pull(mine.path())
+        }
+        .unwrap();
         let merged = fs::read_to_string(mine.path().join("notes/01.md")).unwrap();
         results.push((backend, pulled, merged));
     }
@@ -134,8 +160,14 @@ fn a_concurrent_edit_merges_the_same_way_on_both_backends() {
     let (_, sub_pulled, sub_text) = &results[0];
     let (_, nat_pulled, nat_text) = &results[1];
 
-    assert!(matches!(sub_pulled, git::Pulled::Merged(_)), "subprocess merged cleanly: {sub_pulled:?}");
-    assert!(matches!(nat_pulled, git::Pulled::Merged(_)), "native must too, or the driver gap is real: {nat_pulled:?}");
+    assert!(
+        matches!(sub_pulled, git::Pulled::Merged(_)),
+        "subprocess merged cleanly: {sub_pulled:?}"
+    );
+    assert!(
+        matches!(nat_pulled, git::Pulled::Merged(_)),
+        "native must too, or the driver gap is real: {nat_pulled:?}"
+    );
 
     for (name, text) in [("subprocess", sub_text), ("native", nat_text)] {
         assert!(text.contains("CHANGED BY THEM"), "{name} kept their edit:\n{text}");
@@ -167,17 +199,28 @@ fn a_genuine_conflict_is_reported_the_same_way_on_both_backends() {
         let commit = if backend == "native" { git_native::commit_all } else { git::commit_all };
         commit(mine.path(), "auto: mine", &[mine.path().join("notes/01.md")]).unwrap();
 
-        let pulled = if backend == "native" { git_native::pull(mine.path()) } else { git::pull(mine.path()) }.unwrap();
+        let pulled = if backend == "native" {
+            git_native::pull(mine.path())
+        } else {
+            git::pull(mine.path())
+        }
+        .unwrap();
         match pulled {
             git::Pulled::Conflicted(files) => {
-                assert!(files.iter().any(|f| f.contains("01.md")), "{backend} named the note: {files:?}");
+                assert!(
+                    files.iter().any(|f| f.contains("01.md")),
+                    "{backend} named the note: {files:?}"
+                );
             }
             other => panic!("{backend} should have conflicted, got {other:?}"),
         }
 
         let text = fs::read_to_string(mine.path().join("notes/01.md")).unwrap();
         assert!(text.contains("<<<<<<<"), "{backend} shows the disagreement:\n{text}");
-        assert!(text.contains("my way") && text.contains("their way"), "{backend} keeps both sides:\n{text}");
+        assert!(
+            text.contains("my way") && text.contains("their way"),
+            "{backend} keeps both sides:\n{text}"
+        );
         // The property the whole `.md` driver exists for: markers in the BODY, so the note
         // still parses and still opens in the editor.
         fm_core::frontmatter::from_file(&text)

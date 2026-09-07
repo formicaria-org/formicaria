@@ -140,7 +140,9 @@ mod tests {
     #[test]
     fn hand_written_spellings_normalize_to_the_canonical_form() {
         let want = Stamp::at(date!(2026 - 07 - 20), time!(14:30));
-        for raw in ["2026-07-20T14:30", "2026-07-20 14:30", "2026-07-20T14:30:00", " 2026-07-20T14:30 "] {
+        for raw in
+            ["2026-07-20T14:30", "2026-07-20 14:30", "2026-07-20T14:30:00", " 2026-07-20T14:30 "]
+        {
             assert_eq!(raw.parse::<Stamp>().unwrap(), want, "failed on {raw:?}");
         }
         // Seconds are truncated, not preserved — minute granularity is the rule.
@@ -149,7 +151,9 @@ mod tests {
 
     #[test]
     fn garbage_is_rejected_rather_than_silently_defaulted() {
-        for raw in ["", "not-a-date", "2026-13-01", "2026-07-20T25:00", "2026-07-20T14", "20/07/2026"] {
+        for raw in
+            ["", "not-a-date", "2026-13-01", "2026-07-20T25:00", "2026-07-20T14", "20/07/2026"]
+        {
             assert!(raw.parse::<Stamp>().is_err(), "{raw:?} should not parse");
         }
     }

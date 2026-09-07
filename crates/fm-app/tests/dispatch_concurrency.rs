@@ -96,7 +96,13 @@ fn an_ingest_that_is_shelling_out_does_not_block_every_other_command() {
     let ingesting = {
         let app = std::sync::Arc::clone(&app);
         std::thread::spawn(move || {
-            dispatch("ingest", &json!({ "name": "photo.png", "vault": "notes" }), PNG, &app, &NoHost)
+            dispatch(
+                "ingest",
+                &json!({ "name": "photo.png", "vault": "notes" }),
+                PNG,
+                &app,
+                &NoHost,
+            )
         })
     };
 

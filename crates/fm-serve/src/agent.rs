@@ -192,15 +192,23 @@ pub fn provision_and_spawn(state: &Arc<AgentState>, model: Option<String>, want_
         };
         if !dir.join("runtime").join(server_bin()).exists() {
             let Some(key) = fm_agent_run::manifest::Manifest::platform_key() else {
-                set("failed", 0, None, Some(
-                    "no model runtime has been published for this kind of computer yet".into(),
-                ));
+                set(
+                    "failed",
+                    0,
+                    None,
+                    Some(
+                        "no model runtime has been published for this kind of computer yet".into(),
+                    ),
+                );
                 return;
             };
             let Some(rt) = manifest.runtime(key) else {
-                set("failed", 0, None, Some(format!(
-                    "no verified model runtime is pinned for {key} yet"
-                )));
+                set(
+                    "failed",
+                    0,
+                    None,
+                    Some(format!("no verified model runtime is pinned for {key} yet")),
+                );
                 return;
             };
             if !set("runtime", 0, None, None) {
@@ -327,7 +335,8 @@ fn remove_provisioned() -> Result<u64, String> {
     for sub in ["models", "runtime"] {
         let p = dir.join(sub);
         if p.exists() {
-            std::fs::remove_dir_all(&p).map_err(|e| format!("could not remove {}: {e}", p.display()))?;
+            std::fs::remove_dir_all(&p)
+                .map_err(|e| format!("could not remove {}: {e}", p.display()))?;
         }
     }
     Ok(freed)
@@ -367,12 +376,8 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
             let st = Arc::clone(&st);
             move |done: u64, total: Option<u64>| {
                 if st.generation.load(Ordering::SeqCst) == gen {
-                    *st.provisioning.lock().unwrap() = Some(Provision {
-                        stage: "transcribe".into(),
-                        done,
-                        total,
-                        error: None,
-                    });
+                    *st.provisioning.lock().unwrap() =
+                        Some(Provision { stage: "transcribe".into(), done, total, error: None });
                 }
             }
         };
@@ -393,10 +398,15 @@ pub fn provision_transcribe(state: &Arc<AgentState>) {
             }
         };
         let Some(rt) = whisper_runtime_key().and_then(|k| manifest.runtime(k)) else {
-            set("failed", 0, None, Some(
-                "no speech-to-text runtime has been published for this kind of computer yet"
-                    .into(),
-            ));
+            set(
+                "failed",
+                0,
+                None,
+                Some(
+                    "no speech-to-text runtime has been published for this kind of computer yet"
+                        .into(),
+                ),
+            );
             return;
         };
 
@@ -508,9 +518,7 @@ pub fn spawn(port: u16) -> bool {
 /// treated as one. Accepted and recorded in `decisions.md`.
 pub fn agents_dir() -> Option<PathBuf> {
     // The checkout, when this is a dev run: `agents/` beside the binary, or at the repo root.
-    let beside = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(|p| p.join("agents")));
+    let beside = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.join("agents")));
     if let Some(dir) = beside
         .into_iter()
         .chain(std::iter::once(PathBuf::from("agents")))
@@ -745,7 +753,12 @@ pub fn spawn_at_launch(state: Arc<AppState>) {
 /// Handle the `/api/agent_*` transport routes. `None` means "not an agent route" — the caller falls
 /// through to the normal command dispatch. This is the ONE place the agent touches the request path;
 /// without the feature it does not exist, and the routes simply aren't there.
-pub fn route(stream: &mut dyn crate::Conn, path: &str, body: &[u8], state: &AppState) -> Option<std::io::Result<()>> {
+pub fn route(
+    stream: &mut dyn crate::Conn,
+    path: &str,
+    body: &[u8],
+    state: &AppState,
+) -> Option<std::io::Result<()>> {
     let r = &state.agent.registry;
     let resp: (&str, &str, Vec<u8>) = match path {
         // The on/off setting the settings screen reads/writes. A *launcher* concern, deliberately not

@@ -37,9 +37,7 @@ fn have_git() -> bool {
 /// underneath them would silently change which engine they were grading.
 fn serial() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-    LOCK.get_or_init(|| std::sync::Mutex::new(()))
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    LOCK.get_or_init(|| std::sync::Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
 }
 
 /// Pin the subprocess engine — what a desktop always resolves to anyway, stated rather than

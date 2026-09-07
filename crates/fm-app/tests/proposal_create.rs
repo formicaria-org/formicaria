@@ -9,20 +9,11 @@ use std::path::Path;
 use std::process::Command;
 
 fn have_git() -> bool {
-    Command::new("git")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    Command::new("git").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 fn show(repo: &Path, rev_path: &str) -> std::process::Output {
-    Command::new("git")
-        .arg("-C")
-        .arg(repo)
-        .args(["show", rev_path])
-        .output()
-        .unwrap()
+    Command::new("git").arg("-C").arg(repo).args(["show", rev_path]).output().unwrap()
 }
 
 /// A store over a fresh git repo with one committed note; returns (dir, store, target-note-id).
@@ -57,30 +48,18 @@ fn a_proposal_lands_on_a_branch_and_a_note_leaving_main_untouched() {
 
     // The branch carries the revised note.
     let on_branch = show(p, &format!("{branch}:notes/{target}.md"));
-    assert!(
-        on_branch.status.success(),
-        "branch should exist with the target file"
-    );
+    assert!(on_branch.status.success(), "branch should exist with the target file");
     let branch_body = String::from_utf8_lossy(&on_branch.stdout);
-    assert!(
-        branch_body.contains("revised body"),
-        "branch note not revised: {branch_body}"
-    );
+    assert!(branch_body.contains("revised body"), "branch note not revised: {branch_body}");
 
     // `main`'s copy on disk is still the original — the proposal did not touch it.
     let on_disk = std::fs::read_to_string(p.join(format!("notes/{target}.md"))).unwrap();
-    assert!(
-        on_disk.contains("original body"),
-        "the live note was changed: {on_disk}"
-    );
+    assert!(on_disk.contains("original body"), "the live note was changed: {on_disk}");
     assert!(!on_disk.contains("revised body"));
 
     // The proposal is what the Collaboration view lists.
     let listed = commands::proposals(&store).unwrap();
-    assert!(
-        listed.iter().any(|o| o.id == prop.id),
-        "proposal not listed"
-    );
+    assert!(listed.iter().any(|o| o.id == prop.id), "proposal not listed");
 }
 
 #[test]
@@ -98,13 +77,9 @@ fn a_proposal_against_an_uncommitted_note_commits_it_and_merges_cleanly() {
     let _seed = commands::capture(&mut store, "seed", "").unwrap();
     git::commit_all(dir.path(), "seed", &store.written()).unwrap();
     // …but the TARGET note is left UNCOMMITTED, exactly as a freshly-captured note is.
-    let target = commands::capture(&mut store, "original body", "")
-        .unwrap()
-        .id;
+    let target = commands::capture(&mut store, "original body", "").unwrap().id;
     assert!(
-        !show(dir.path(), &format!("HEAD:notes/{target}.md"))
-            .status
-            .success(),
+        !show(dir.path(), &format!("HEAD:notes/{target}.md")).status.success(),
         "precondition: the target note is uncommitted"
     );
 
@@ -121,17 +96,12 @@ fn a_proposal_against_an_uncommitted_note_commits_it_and_merges_cleanly() {
 
     // create_proposal committed the note, so it is now on HEAD…
     assert!(
-        show(dir.path(), &format!("HEAD:notes/{target}.md"))
-            .status
-            .success(),
+        show(dir.path(), &format!("HEAD:notes/{target}.md")).status.success(),
         "create_proposal must commit the target note so the branch shares a base with main"
     );
     // …and accepting the proposal MERGES cleanly rather than conflicting.
     let outcome = commands::accept_proposal(&store, dir.path(), &prop.id).unwrap();
-    assert!(
-        matches!(outcome, git::Accepted::Merged),
-        "expected a clean merge, got {outcome:?}"
-    );
+    assert!(matches!(outcome, git::Accepted::Merged), "expected a clean merge, got {outcome:?}");
     let merged = show(dir.path(), &format!("HEAD:notes/{target}.md"));
     assert!(
         String::from_utf8_lossy(&merged.stdout).contains("revised body"),
@@ -175,25 +145,15 @@ fn a_second_proposal_on_the_same_note_refines_the_first_instead_of_stacking() {
         first.id, second.id,
         "a second proposal must refine the same PR, not open a new one"
     );
-    assert_eq!(
-        commands::proposals(&store).unwrap().len(),
-        1,
-        "exactly one open proposal per note"
-    );
+    assert_eq!(commands::proposals(&store).unwrap().len(), 1, "exactly one open proposal per note");
 
     // The branch now carries the LATEST revision, not the stale first one.
     let branch = format!("proposal/{}", first.id);
     let on_branch =
         String::from_utf8_lossy(&show(p, &format!("{branch}:notes/{target}.md")).stdout)
             .into_owned();
-    assert!(
-        on_branch.contains("second revision"),
-        "branch not revised to the latest: {on_branch}"
-    );
-    assert!(
-        !on_branch.contains("first revision"),
-        "the stale first revision remains: {on_branch}"
-    );
+    assert!(on_branch.contains("second revision"), "branch not revised to the latest: {on_branch}");
+    assert!(!on_branch.contains("first revision"), "the stale first revision remains: {on_branch}");
 }
 
 #[test]
@@ -217,20 +177,14 @@ fn rejecting_a_proposal_drops_the_branch_but_keeps_it_as_a_declined_record() {
     )
     .unwrap();
     let branch = format!("proposal/{}", prop.id);
-    assert!(
-        git::branch_open(p, &branch),
-        "precondition: the branch is open"
-    );
+    assert!(git::branch_open(p, &branch), "precondition: the branch is open");
 
     commands::reject_proposal(&mut store, p, &prop.id, None).unwrap();
 
     // Branch gone; the note is kept as a declined record, but it is no longer the note's OPEN proposal.
     assert!(!git::branch_open(p, &branch), "reject must drop the branch");
     assert!(
-        commands::proposals(&store)
-            .unwrap()
-            .iter()
-            .any(|o| o.id == prop.id),
+        commands::proposals(&store).unwrap().iter().any(|o| o.id == prop.id),
         "the declined proposal is kept as a record, not deleted"
     );
     assert_eq!(
@@ -276,13 +230,9 @@ fn the_proposed_note_is_readable_and_an_edit_revises_the_same_pr() {
     )
     .unwrap();
 
-    let content = commands::proposal_content(&store, p, &prop.id)
-        .unwrap()
-        .expect("proposal has content");
-    assert_eq!(
-        content.host, target,
-        "the content names the host note it edits"
-    );
+    let content =
+        commands::proposal_content(&store, p, &prop.id).unwrap().expect("proposal has content");
+    assert_eq!(content.host, target, "the content names the host note it edits");
     assert!(
         content.body.contains("the proposed body"),
         "the proposed body is readable: {}",
@@ -300,13 +250,8 @@ fn the_proposed_note_is_readable_and_an_edit_revises_the_same_pr() {
         commands::Record::default(),
     )
     .unwrap();
-    assert_eq!(
-        again.id, prop.id,
-        "editing revises the same PR, not a new one"
-    );
-    let edited = commands::proposal_content(&store, p, &prop.id)
-        .unwrap()
-        .unwrap();
+    assert_eq!(again.id, prop.id, "editing revises the same PR, not a new one");
+    let edited = commands::proposal_content(&store, p, &prop.id).unwrap().unwrap();
     assert!(
         edited.body.contains("an edited body"),
         "the edit is reflected on the branch: {}",
@@ -321,10 +266,7 @@ fn an_over_size_change_is_refused_not_truncated() {
     }
     let (dir, mut store, target) = vault_with_a_note();
     // A tiny per-change ceiling: the serialized note is far larger than 10 bytes.
-    let tight = ProposalLimits {
-        max_change_bytes: 10,
-        ..ProposalLimits::default()
-    };
+    let tight = ProposalLimits { max_change_bytes: 10, ..ProposalLimits::default() };
     let err = commands::create_proposal(
         &mut store,
         dir.path(),
@@ -335,26 +277,16 @@ fn an_over_size_change_is_refused_not_truncated() {
         commands::Record::default(),
     )
     .unwrap_err();
-    assert!(
-        format!("{err}").contains("at most"),
-        "expected a guardrail refusal, got: {err}"
-    );
+    assert!(format!("{err}").contains("at most"), "expected a guardrail refusal, got: {err}");
     // Nothing was created — no proposal branch, no proposal note.
     assert!(commands::proposals(&store).unwrap().is_empty());
     let branches = Command::new("git")
         .arg("-C")
         .arg(dir.path())
-        .args([
-            "for-each-ref",
-            "--format=%(refname:short)",
-            "refs/heads/proposal/",
-        ])
+        .args(["for-each-ref", "--format=%(refname:short)", "refs/heads/proposal/"])
         .output()
         .unwrap();
-    assert!(
-        branches.stdout.is_empty(),
-        "a refused proposal left a branch behind"
-    );
+    assert!(branches.stdout.is_empty(), "a refused proposal left a branch behind");
 }
 
 #[test]
@@ -377,25 +309,13 @@ fn a_proposals_diff_shows_its_change_and_tolerates_a_gone_branch() {
 
     let diff = commands::proposal_diff(&store, p, &prop.id).unwrap();
     assert!(diff.exists);
-    assert!(
-        diff.patch.contains("revised body"),
-        "diff should show the change: {}",
-        diff.patch
-    );
-    assert!(
-        diff.files.iter().any(|f| f.contains(target.as_str())),
-        "the changed file is listed"
-    );
+    assert!(diff.patch.contains("revised body"), "diff should show the change: {}", diff.patch);
+    assert!(diff.files.iter().any(|f| f.contains(target.as_str())), "the changed file is listed");
 
     // Delete the branch: the proposal note outlives it, so the diff reports `exists: false` rather
     // than erroring.
     let branch = format!("proposal/{}", prop.id);
-    Command::new("git")
-        .arg("-C")
-        .arg(p)
-        .args(["branch", "-D", &branch])
-        .output()
-        .unwrap();
+    Command::new("git").arg("-C").arg(p).args(["branch", "-D", &branch]).output().unwrap();
     let gone = commands::proposal_diff(&store, p, &prop.id).unwrap();
     assert!(!gone.exists);
     assert!(gone.patch.is_empty());
@@ -444,15 +364,10 @@ fn the_per_vault_open_count_is_enforced() {
     let p = dir.path();
     // A SECOND note, so the second proposal is a genuinely NEW PR. (A second proposal on the SAME note
     // just refines the first — the living-PR model — and rightly does NOT count against the ceiling.)
-    let target2 = commands::capture(&mut store, "another note", "")
-        .unwrap()
-        .id;
+    let target2 = commands::capture(&mut store, "another note", "").unwrap().id;
     git::commit_all(p, "second note", &store.written()).unwrap();
     // Allow exactly one open proposal.
-    let one = ProposalLimits {
-        max_open: 1,
-        ..ProposalLimits::default()
-    };
+    let one = ProposalLimits { max_open: 1, ..ProposalLimits::default() };
 
     // First proposal: fine (0 open + this one = 1).
     commands::create_proposal(
@@ -507,11 +422,7 @@ fn a_review_note_is_made_safe_for_a_commit_message() {
     // Nothing to say is a first-class answer, not a failure — a required prompt produces
     // satisficing, not reasons, so every one of these is a legitimate skip.
     for empty in ["", "   ", "\n\n", "---", "...", "  --- \n"] {
-        assert_eq!(
-            commands::review_note(empty),
-            None,
-            "{empty:?} should be treated as skipped"
-        );
+        assert_eq!(commands::review_note(empty), None, "{empty:?} should be treated as skipped");
     }
 
     // `---` at column 0 terminates a commit message for git's own patch tooling, and EVERY note in
@@ -524,19 +435,10 @@ fn a_review_note_is_made_safe_for_a_commit_message() {
 
     // A final `Token: value` paragraph would otherwise be parsed as a git trailer and mix a human
     // sentence into the machine fields; one line makes that impossible too.
-    assert_eq!(
-        commands::review_note("  wrong  \n  name  "),
-        Some("wrong name".into())
-    );
+    assert_eq!(commands::review_note("  wrong  \n  name  "), Some("wrong name".into()));
 
     // Bounded: a reason is a sentence, not an essay pasted into history forever.
-    assert_eq!(
-        commands::review_note(&"x".repeat(900))
-            .unwrap()
-            .chars()
-            .count(),
-        500
-    );
+    assert_eq!(commands::review_note(&"x".repeat(900)).unwrap().chars().count(), 500);
 }
 
 /// The reason reaches git as the commit BODY — never the subject, whose prefix is the squash
@@ -577,15 +479,9 @@ fn a_proposal_carries_the_reviewers_reason_as_the_commit_body() {
     };
     let m = msg(&branch);
     let mut lines = m.lines();
-    assert!(
-        lines.next().unwrap().starts_with("propose: change to"),
-        "subject must be unchanged"
-    );
+    assert!(lines.next().unwrap().starts_with("propose: change to"), "subject must be unchanged");
     assert_eq!(lines.next(), Some(""), "body is separated by a blank line");
-    assert_eq!(
-        lines.next(),
-        Some("the model misheard the electrolyte name")
-    );
+    assert_eq!(lines.next(), Some("the model misheard the electrolyte name"));
 
     // A revision carries its own reason; a skipped one leaves a bare subject rather than failing.
     commands::create_proposal(
@@ -595,10 +491,7 @@ fn a_proposal_carries_the_reviewers_reason_as_the_commit_body() {
         "revised again",
         &ProposalLimits::default(),
         None,
-        commands::Record {
-            why: Some("dropped the speculative paragraph"),
-            ..Default::default()
-        },
+        commands::Record { why: Some("dropped the speculative paragraph"), ..Default::default() },
     )
     .unwrap();
     assert!(msg(&branch).contains("dropped the speculative paragraph"));
@@ -630,12 +523,7 @@ fn a_proposal_carries_machine_trailers_that_git_itself_parses() {
             &Command::new("git")
                 .arg("-C")
                 .arg(repo)
-                .args([
-                    "log",
-                    "-1",
-                    &format!("--format=%(trailers:key={key},valueonly)"),
-                    rev,
-                ])
+                .args(["log", "-1", &format!("--format=%(trailers:key={key},valueonly)"), rev])
                 .output()
                 .unwrap()
                 .stdout,
@@ -659,11 +547,7 @@ fn a_proposal_carries_machine_trailers_that_git_itself_parses() {
     .unwrap();
     let mine_branch = format!("proposal/{}", mine.id);
     assert_eq!(read(p, &mine_branch, "SchemaRev"), "1");
-    assert_eq!(
-        read(p, &mine_branch, "Assisted-by"),
-        "",
-        "a human proposal is not agent-assisted"
-    );
+    assert_eq!(read(p, &mine_branch, "Assisted-by"), "", "a human proposal is not agent-assisted");
     assert_eq!(read(p, &mine_branch, "Tool"), "");
 
     // An agent's proposal names the model — `Assisted-by`, never `Co-authored-by`: the ecosystem
@@ -700,16 +584,10 @@ fn a_proposal_carries_machine_trailers_that_git_itself_parses() {
         "the human sentence must not become a field",
     );
     assert_eq!(read(p2, &b, "Tool"), "research");
-    assert_eq!(
-        read(p2, &b, "Query"),
-        "what battery chemistry is best for electric cars"
-    );
+    assert_eq!(read(p2, &b, "Query"), "what battery chemistry is best for electric cars");
     let cited = read(p2, &b, "Sources");
     assert!(cited.contains("Electric_vehicle") && cited.contains("Lithium-ion_battery"));
-    assert!(
-        !cited.contains('\n'),
-        "a trailer is single-line by definition"
-    );
+    assert!(!cited.contains('\n'), "a trailer is single-line by definition");
 
     // The one axis the corpus cannot be split on later: style saturates after ~1k examples while
     // factual and reasoning keep climbing, so unlabelled the two are indistinguishable.
@@ -732,10 +610,7 @@ fn an_unknown_correction_kind_is_dropped_rather_than_stored() {
         "revised",
         &ProposalLimits::default(),
         None,
-        commands::Record {
-            kind: Some("vibes"),
-            ..Default::default()
-        },
+        commands::Record { kind: Some("vibes"), ..Default::default() },
     )
     .unwrap();
     let out = String::from_utf8_lossy(
@@ -785,18 +660,13 @@ fn a_rejection_keeps_its_reason_on_the_proposal_note() {
     )
     .unwrap();
 
-    let obj = fm_core::Store::get(&store, prop.id.parse().unwrap())
-        .unwrap()
-        .unwrap();
+    let obj = fm_core::Store::get(&store, prop.id.parse().unwrap()).unwrap().unwrap();
     assert_eq!(
         obj.get(fm_app::thread::DECLINED_WHY),
         fm_model::PropertyValue::Text("invented a source that does not exist".into()),
     );
     // Still a declined record, as before — the reason rides along, it does not replace anything.
-    assert_eq!(
-        obj.get(fm_app::thread::DECLINED),
-        fm_model::PropertyValue::Bool(true)
-    );
+    assert_eq!(obj.get(fm_app::thread::DECLINED), fm_model::PropertyValue::Bool(true));
 }
 
 /// A settled proposal must not hold a guardrail slot hostage — and retiring it must keep its text.
@@ -812,14 +682,9 @@ fn a_settled_proposal_stops_holding_a_slot_but_keeps_its_text() {
     }
     let (dir, mut store, target) = vault_with_a_note();
     let p = dir.path();
-    let target2 = commands::capture(&mut store, "another note", "")
-        .unwrap()
-        .id;
+    let target2 = commands::capture(&mut store, "another note", "").unwrap().id;
     git::commit_all(p, "second note", &store.written()).unwrap();
-    let one = ProposalLimits {
-        max_open: 1,
-        ..ProposalLimits::default()
-    };
+    let one = ProposalLimits { max_open: 1, ..ProposalLimits::default() };
 
     let prop = commands::create_proposal(
         &mut store,
@@ -846,13 +711,8 @@ fn a_settled_proposal_stops_holding_a_slot_but_keeps_its_text() {
     assert_eq!(git::proposal_load(p).unwrap().0, 1);
 
     // Exactly what a peer's reject leaves behind: the note says declined, our branch does not know.
-    let mut obj = fm_core::Store::get(&store, prop.id.parse().unwrap())
-        .unwrap()
-        .unwrap();
-    obj.extra.insert(
-        fm_app::thread::DECLINED.into(),
-        fm_model::PropertyValue::Bool(true),
-    );
+    let mut obj = fm_core::Store::get(&store, prop.id.parse().unwrap()).unwrap().unwrap();
+    obj.extra.insert(fm_app::thread::DECLINED.into(), fm_model::PropertyValue::Bool(true));
     fm_core::Store::put(&mut store, &obj).unwrap();
 
     // A new proposal on a different note now succeeds: the settled one was retired, not counted.
@@ -872,11 +732,7 @@ fn a_settled_proposal_stops_holding_a_slot_but_keeps_its_text() {
         &Command::new("git")
             .arg("-C")
             .arg(p)
-            .args([
-                "for-each-ref",
-                "--format=%(refname)",
-                &format!("refs/heads/{branch}"),
-            ])
+            .args(["for-each-ref", "--format=%(refname)", &format!("refs/heads/{branch}")])
             .output()
             .unwrap()
             .stdout,
@@ -887,10 +743,7 @@ fn a_settled_proposal_stops_holding_a_slot_but_keeps_its_text() {
 
     // ...and the data is NOT. Retiring joins the unlabelled pool; it does not drop it.
     let kept = show(p, &format!("{tip}:notes/{target}.md"));
-    assert!(
-        kept.status.success(),
-        "the retired proposal's commit must still be readable"
-    );
+    assert!(kept.status.success(), "the retired proposal's commit must still be readable");
     assert!(String::from_utf8_lossy(&kept.stdout).contains("the model's text"));
 }
 
@@ -909,12 +762,7 @@ fn every_record_carries_the_consent_it_was_made_under() {
             &Command::new("git")
                 .arg("-C")
                 .arg(repo)
-                .args([
-                    "log",
-                    "-1",
-                    &format!("--format=%(trailers:key={key},valueonly)"),
-                    rev,
-                ])
+                .args(["log", "-1", &format!("--format=%(trailers:key={key},valueonly)"), rev])
                 .output()
                 .unwrap()
                 .stdout,
@@ -938,10 +786,7 @@ fn every_record_carries_the_consent_it_was_made_under() {
     // Default: collect locally, publish nothing. Publication is never inferred — it cannot be recalled.
     let (dir, mut store, target) = vault_with_a_note();
     let a = propose(&dir, &mut store, &target, "default");
-    assert_eq!(
-        read(dir.path(), &format!("proposal/{}", a.id), "Consent"),
-        "local"
-    );
+    assert_eq!(read(dir.path(), &format!("proposal/{}", a.id), "Consent"), "local");
 
     // Granted explicitly in the vault's own file — not per device, because publishing relicenses
     // shared content and the loosest machine must not decide for everyone.
@@ -952,19 +797,12 @@ fn every_record_carries_the_consent_it_was_made_under() {
     )
     .unwrap();
     let b = propose(&dir2, &mut store2, &target2, "granted");
-    assert_eq!(
-        read(dir2.path(), &format!("proposal/{}", b.id), "Consent"),
-        "local,publish"
-    );
+    assert_eq!(read(dir2.path(), &format!("proposal/{}", b.id), "Consent"), "local,publish");
 
     // Opted out: no record at all, not merely a flag saying so. The subject the app has always
     // written, and nothing else.
     let (dir3, mut store3, target3) = vault_with_a_note();
-    std::fs::write(
-        dir3.path().join("vault.json"),
-        r#"{"supervision":{"collect":false}}"#,
-    )
-    .unwrap();
+    std::fs::write(dir3.path().join("vault.json"), r#"{"supervision":{"collect":false}}"#).unwrap();
     let c = propose(&dir3, &mut store3, &target3, "opted out");
     let br = format!("proposal/{}", c.id);
     assert_eq!(read(dir3.path(), &br, "Consent"), "");
@@ -980,11 +818,7 @@ fn every_record_carries_the_consent_it_was_made_under() {
     )
     .trim()
     .to_string();
-    assert_eq!(
-        msg.lines().count(),
-        1,
-        "opting out must leave no record, got: {msg:?}"
-    );
+    assert_eq!(msg.lines().count(), 1, "opting out must leave no record, got: {msg:?}");
 }
 
 /// "Shown" is stamped once, server-side, and never overwritten.
@@ -1016,35 +850,21 @@ fn a_proposal_records_the_first_time_it_was_actually_shown() {
             .unwrap()
             .get(fm_app::thread::SHOWN)
     };
-    assert_eq!(
-        shown(&store),
-        fm_model::PropertyValue::Null,
-        "unseen until someone looks"
-    );
+    assert_eq!(shown(&store), fm_model::PropertyValue::Null, "unseen until someone looks");
 
-    assert!(
-        commands::mark_proposal_shown(&mut store, &prop.id).unwrap(),
-        "first sighting writes"
-    );
+    assert!(commands::mark_proposal_shown(&mut store, &prop.id).unwrap(), "first sighting writes");
     let first = shown(&store);
     let fm_model::PropertyValue::Text(stamp) = first.clone() else {
         panic!("expected a timestamp, got {first:?}")
     };
-    assert!(
-        stamp.contains('T') && stamp.ends_with('Z'),
-        "expected RFC3339 UTC, got {stamp:?}"
-    );
+    assert!(stamp.contains('T') && stamp.ends_with('Z'), "expected RFC3339 UTC, got {stamp:?}");
 
     // A second viewing is not a second FIRST viewing.
     assert!(
         !commands::mark_proposal_shown(&mut store, &prop.id).unwrap(),
         "no write the second time"
     );
-    assert_eq!(
-        shown(&store),
-        first,
-        "the first sighting must not be overwritten"
-    );
+    assert_eq!(shown(&store), first, "the first sighting must not be overwritten");
 
     // Only proposals have the concept at all.
     let err = commands::mark_proposal_shown(&mut store, &target).unwrap_err();
@@ -1065,11 +885,8 @@ fn the_whole_record_composes_into_one_well_formed_message() {
     }
     let (dir, mut store, target) = vault_with_a_note();
     let p = dir.path();
-    std::fs::write(
-        p.join("vault.json"),
-        r#"{"supervision":{"collect":true,"publish":true}}"#,
-    )
-    .unwrap();
+    std::fs::write(p.join("vault.json"), r#"{"supervision":{"collect":true,"publish":true}}"#)
+        .unwrap();
     let sources = vec!["https://example.org/a".to_string()];
     let prop = commands::create_proposal(
         &mut store,
@@ -1102,11 +919,7 @@ fn the_whole_record_composes_into_one_well_formed_message() {
 
     // Three paragraphs, in this order and no other: what happened, why, and the machine fields.
     let paras: Vec<&str> = msg.split("\n\n").collect();
-    assert_eq!(
-        paras.len(),
-        3,
-        "expected subject / reason / trailers, got:\n{msg}"
-    );
+    assert_eq!(paras.len(), 3, "expected subject / reason / trailers, got:\n{msg}");
     assert!(paras[0].starts_with("propose: change to"));
     assert_eq!(paras[1], "misheard the electrolyte name @wrong");
 
@@ -1114,21 +927,10 @@ fn the_whole_record_composes_into_one_well_formed_message() {
     for line in paras[2].lines() {
         assert!(line.contains(": "), "not a trailer: {line:?}");
     }
-    let keys: Vec<&str> = paras[2]
-        .lines()
-        .filter_map(|l| l.split(':').next())
-        .collect();
+    let keys: Vec<&str> = paras[2].lines().filter_map(|l| l.split(':').next()).collect();
     assert_eq!(
         keys,
-        vec![
-            "SchemaRev",
-            "Assisted-by",
-            "Tool",
-            "Query",
-            "Sources",
-            "Kind",
-            "Consent"
-        ],
+        vec!["SchemaRev", "Assisted-by", "Tool", "Query", "Sources", "Kind", "Consent"],
         "the record's shape is versioned by SchemaRev — changing it means bumping that",
     );
 
@@ -1188,13 +990,8 @@ fn accepting_a_proposal_that_was_turned_down_is_refused_and_main_is_untouched() 
     .unwrap();
 
     // Exactly what a peer's reject leaves behind: the note says declined, our branch does not know.
-    let mut obj = fm_core::Store::get(&store, prop.id.parse().unwrap())
-        .unwrap()
-        .unwrap();
-    obj.extra.insert(
-        fm_app::thread::DECLINED.into(),
-        fm_model::PropertyValue::Bool(true),
-    );
+    let mut obj = fm_core::Store::get(&store, prop.id.parse().unwrap()).unwrap().unwrap();
+    obj.extra.insert(fm_app::thread::DECLINED.into(), fm_model::PropertyValue::Bool(true));
     fm_core::Store::put(&mut store, &obj).unwrap();
 
     let err = commands::accept_proposal(&store, p, &prop.id)
@@ -1214,8 +1011,5 @@ fn accepting_a_proposal_that_was_turned_down_is_refused_and_main_is_untouched() 
             .stdout,
     )
     .to_string();
-    assert!(
-        !head.contains("the withdrawn text"),
-        "the rejected text reached main:\n{head}"
-    );
+    assert!(!head.contains("the withdrawn text"), "the rejected text reached main:\n{head}");
 }
