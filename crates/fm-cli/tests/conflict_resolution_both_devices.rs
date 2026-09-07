@@ -658,3 +658,84 @@ fn both_survive_or_it_said_so(
          {outcome:?} — a side may only go missing when the app says so"
     );
 }
+
+/// **Two devices merging the same pair of commits must produce the same bytes.**
+///
+/// There is an asymmetry worth pinning. On a desktop, `git merge` runs the `fm merge-md` driver for
+/// every `.md`, so our frontmatter-aware merge sees all of them. On a phone, `repo.merge()` does
+/// libgit2's own text merge first and `git_native::pull` only re-merges the paths libgit2 left
+/// *conflicted* — so a note libgit2 merges cleanly never passes through our rules at all.
+///
+/// In practice that window is narrow, because `updated:` is rewritten on every save and therefore
+/// collides on any two concurrent edits, forcing the path to conflict and our merge to run. This
+/// pins the narrow case anyway: **a note whose `updated` happens to agree, edited in two different
+/// places.** If the two backends' internal text merges ever diverge — different diff algorithms
+/// being the obvious way — the devices commit different bytes from identical inputs and then
+/// conflict with each other forever afterwards.
+///
+/// `merge_differential.rs` grades our `text_3way` across 400 generated triples. It does **not**
+/// cover this path, because this one never reaches `text_3way`.
+///
+/// **What this actually compares, stated precisely.** The `fm merge-md` driver is not installed in
+/// these vaults — `install_merge_driver` refuses when it cannot resolve a real `fm` binary, which a
+/// test process never can — so *both* sides fall back to their built-in text merges. That is the
+/// comparison worth having here: git's xdiff against libgit2's vendored copy of it, which is where
+/// a diff-algorithm divergence would show up. It is **not** a test of driver-versus-libgit2; a
+/// mutation inside `merge_texts` leaves it green, and that is correct rather than a gap.
+///
+/// Proven red by perturbing one backend's output directly (an extra line appended in
+/// `git_native::pull` after the merge): the byte comparison fails, naming the divergence.
+#[test]
+fn a_clean_merge_is_byte_identical_on_both_devices() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    let rel = format!("notes/{ID}.md");
+    let mut results = Vec::new();
+
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_r, ours, theirs) = two_clones(dir.path());
+
+        // Same `updated` on both sides, so the line the app rewrites on every save does not
+        // collide — this is the case that can merge cleanly without our rules being consulted.
+        let base = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n";
+        std::fs::write(ours.join(&rel), note_with("todo", "2026-07-21T08:07:08Z", base)).unwrap();
+        g(&ours, &["commit", "-qam", "a longer body"]);
+        g(&ours, &["push", "-q", "origin", "main"]);
+        g(&theirs, &["pull", "-q", "--no-rebase", "origin", "main"]);
+
+        // They change the first line; we change the last. Far apart, so a 3-way merge settles it.
+        let their_body = base.replace("one\n", "ONE (theirs)\n");
+        std::fs::write(theirs.join(&rel), note_with("todo", "2026-07-21T08:07:08Z", &their_body))
+            .unwrap();
+        g(&theirs, &["commit", "-qam", "their end"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+
+        let our_body = base.replace("eight\n", "EIGHT (ours)\n");
+        std::fs::write(ours.join(&rel), note_with("todo", "2026-07-21T08:07:08Z", &our_body))
+            .unwrap();
+        g(&ours, &["commit", "-qam", "our end"]);
+
+        vcs::force_native(native);
+        let outcome = vcs::pull(&ours);
+        vcs::force_native(false);
+
+        assert!(
+            matches!(outcome, Ok(git::Pulled::Merged { .. })),
+            "native={native}: edits at opposite ends of a note must merge, not conflict: {outcome:?}"
+        );
+        let merged = std::fs::read_to_string(ours.join(&rel)).unwrap();
+        assert!(merged.contains("ONE (theirs)"), "native={native}: their edit survived");
+        assert!(merged.contains("EIGHT (ours)"), "native={native}: our edit survived");
+        results.push(merged);
+    }
+
+    assert_eq!(
+        results[0], results[1],
+        "the two backends produced different bytes from identical inputs — the devices would then \
+         disagree with each other forever, from a merge that both of them called clean"
+    );
+}
