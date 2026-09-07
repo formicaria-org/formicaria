@@ -5840,3 +5840,49 @@ not. New citations should still prefer the subject; this is about the ones alrea
 length and intent: a tombstone says *this is closed, look here* and stops. A changelog entry
 re-litigates the fix. §2.10 had grown to 76 lines of solved problem sitting in a work queue, which
 is precisely the failure mode the file's opening paragraph describes.
+
+## 2026-09-07 — the tree is mechanically formatted, and both formatters' settings were measured `#toolchain`
+
+Until now this project had **no formatter at all**: no `rustfmt.toml`, no prettier, no eslint, no
+`cargo fmt` in the gate, and no `-D warnings` or `RUSTFLAGS` anywhere. On 235,000 lines, about to be
+public, a stranger's first pull request would have met no mechanical baseline — and every review of
+it would have spent some of its attention on spacing.
+
+**The rule this follows: record the house style, do not overwrite it.** A formatter adopted on
+defaults reformats a codebase into somebody else's habits and calls the result a standard. So every
+setting was measured against the code as written, and the measurements are in `rustfmt.toml` and
+`ui/.prettierrc` beside the values they justify.
+
+- **`max_width` / `printWidth` = 100.** Excluding comments, the 99th percentile of Rust line length
+  is 101 characters and the UI's is 102. Both are written to a hundred columns; nobody had said so.
+- **`use_small_heuristics = "Max"` is the setting that mattered for Rust.** rustfmt's default
+  `chain_width` is 60% of `max_width`, so an 82-character method chain explodes across five lines —
+  and this codebase writes them on one. It takes the adoption diff from 1,480 hunks to 685, and
+  from +21,716 lines to a **net −470**: most of what rustfmt does here is *rejoin* lines that had
+  been split unnecessarily, which is the opposite of what a bulk reformat usually reads like.
+- **Widening prettier makes it worse, which is not the direction I expected.** At `printWidth` 110
+  it disagrees with 70 files and at 120 with 74, against 68 at 100 — a wider budget lets it rejoin
+  lines the authors had split on purpose. The measurement argued for the narrower setting.
+
+**Comments are never reformatted.** The doc comments here are prose — arguments, incident reports,
+the reasoning behind a ruling — hand-wrapped for reading. rustfmt's `wrap_comments` and
+`format_code_in_doc_comments` are nightly-only and stay off, and `rustfmt.toml` names them so
+whoever finds them and thinks they look tidy is told not to.
+
+**What formatting is not allowed to cost.** Three clippy lints were **refused** rather than obeyed,
+each with the reason in the code: `drop(scoped)` is the mechanism that ends a `&mut` borrow, not a
+mistake; `merge.rs`'s explicit `None => {}` is where a comment lives that an `if let` has nowhere to
+put; and `write_vault_files` was not dead but native-only. A style rule that deletes an explanation
+is a bad trade, and the `#[allow]` carries the argument so the next person does not re-litigate it.
+One prettier regression is recorded rather than hidden: `size.ts`'s `if (v >= 1) return …` was 101
+characters on one line and is now a braceless `if` across two. That is the price of any mechanical
+formatter, paid knowingly.
+
+**Both reformats landed as their own commits and are in `.git-blame-ignore-revs`**, which GitHub
+honours. That file's own rule: a commit with one real change in it does not belong there, because
+blame would step over that change too.
+
+**Cost, stated.** Two devDependencies (`prettier`, `prettier-plugin-svelte`). Neither reaches the
+bundle, and `ci/third-party.sh` reads `pnpm licenses --prod`, so the licence notice is unaffected.
+The gate grows by four tasks (`fmt`, `fmt-ui`, `clippy`, and `test-native-git` alongside them) and
+about 30 seconds.

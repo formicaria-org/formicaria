@@ -343,6 +343,9 @@ deny = "cargo deny --all-features check"         # license / advisory gate (perm
 # `--check` only: the gate reports, it never rewrites your tree mid-run. Run `cargo fmt --all`
 # yourself when it complains. Settings and their reasoning are in `rustfmt.toml`.
 fmt = "cargo fmt --all -- --check"
+# The UI half. `--check` for the same reason: a gate that rewrites your tree while you are reading
+# its output is one you stop trusting. Settings and their reasoning are in `ui/.prettierrc`.
+fmt-ui = "pnpm -C ui install && pnpm -C ui exec prettier --check \"src/**/*.{ts,svelte}\""
 clippy = { cmd = "cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p fm-core -p fm-cli -p fm-app --features native-git --all-targets -- -D warnings" }
 checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
 # The notices that must ship WITH a binary — MIT and Apache-2.0 both require it, and ~87
@@ -420,4 +423,4 @@ ios-package = "sh ci/ios-package.sh"
 # nothing warm. That is well inside what a gate may ask for. `ci/checks.sh` now fails on any
 # `test-*` task that is neither here nor marked `# not-in-ci: <reason>`, so leaving one out is a
 # decision somebody makes rather than one that happens.
-depends-on = ["test", "test-native-git", "test-agent-download", "test-ui", "check-ui", "fmt", "clippy", "deny", "checks", "third-party-check", "docs"]
+depends-on = ["test", "test-native-git", "test-agent-download", "test-ui", "check-ui", "fmt", "fmt-ui", "clippy", "deny", "checks", "third-party-check", "docs"]

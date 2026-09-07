@@ -6,3 +6,6 @@
 
 # 2026-09-07 — adopt rustfmt (settings measured against the code; comments untouched)
 0b51a28334f5201531939ff0a11a024eaa681276
+
+# 2026-09-07 — adopt prettier for ui/src (width measured; behaviour untouched)
+912c669d3fbce3803831f1a6bf985515a7616889
