@@ -33,7 +33,8 @@
     <EmptyState
       icon="chat"
       title="No discussions yet"
-      hint="Start one from + → New discussion, or leave a comment on any note." />
+      hint="Start one from + → New discussion, or leave a comment on any note."
+    />
   {:else}
     <div class="feed">
       {#each rows as d (d.id)}

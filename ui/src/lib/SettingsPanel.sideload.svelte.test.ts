@@ -36,8 +36,9 @@ describe('SettingsPanel — the sideload notice', () => {
     mock.setPlatform('ios');
     panel();
 
-    expect((await screen.findAllByText(/about 7 days after you installed it/)).length)
-      .toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText(/about 7 days after you installed it/)).length,
+    ).toBeGreaterThan(0);
     // The reassurance is the half that stops a lapsed signature reading as data loss, so it is
     // asserted rather than left to the wording of the moment.
     expect((await screen.findAllByText(/Your notes are not affected/)).length).toBeGreaterThan(0);

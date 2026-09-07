@@ -96,7 +96,6 @@ export function isoDate(stamp: string): string {
   return dayOf(stamp) || ymd(new Date(stamp));
 }
 
-
 /** Where a bar sits within one Monday–Sunday week, in 0-based columns. `null`
  *  when the `[start, end]` day range (inclusive, `start <= end`) doesn't touch
  *  this week at all. `continuesLeft/Right` mark a bar that runs off the row into

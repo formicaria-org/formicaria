@@ -108,7 +108,8 @@
   {:else}
     {#if total > tail.length}
       <button class="more" onclick={() => onopen?.(noteId)}>
-        {total - tail.length} earlier {total - tail.length === 1 ? 'message' : 'messages'} — open the note
+        {total - tail.length} earlier {total - tail.length === 1 ? 'message' : 'messages'} — open the
+        note
       </button>
     {/if}
     {#each tail as m (m.id)}

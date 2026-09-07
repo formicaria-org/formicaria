@@ -29,7 +29,8 @@
     <EmptyState
       icon="calendar"
       title="Nothing on the horizon"
-      hint="Give a note a date and it appears here, sorted by how soon it is." />
+      hint="Give a note a date and it appears here, sorted by how soon it is."
+    />
   {:else}
     <div class="list">
       {#each groups as group (group.u)}

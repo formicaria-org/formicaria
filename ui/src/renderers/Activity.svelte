@@ -40,7 +40,8 @@
     <EmptyState
       icon="inbox"
       title="No history yet"
-      hint="Edits appear here once your notes have been recorded. Press Back up to record them." />
+      hint="Edits appear here once your notes have been recorded. Press Back up to record them."
+    />
   {:else}
     <div class="feed">
       {#each days as day (day.key)}

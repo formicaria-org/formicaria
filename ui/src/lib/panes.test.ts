@@ -204,7 +204,9 @@ describe('migrateWorkspace', () => {
       active: 5,
     });
     expect(workspace.active).toBe(1);
-    expect(migrateWorkspace({ cols: 1, panes: [newPane('board')], active: -3 }).workspace.active).toBe(0);
+    expect(
+      migrateWorkspace({ cols: 1, panes: [newPane('board')], active: -3 }).workspace.active,
+    ).toBe(0);
   });
 
   it('recomputes the column count, which load never used to do', () => {
@@ -259,7 +261,15 @@ describe('default shortcuts are typeable on a non-US layout', () => {
     // Captured on one layout, pressed on another: the character differs, the position does not.
     const b: k.Binding = { key: 'z', code: 'KeyY', mod: true };
     const ev = (o: Partial<KeyboardEvent>) =>
-      ({ key: 'y', code: 'KeyY', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false, ...o }) as KeyboardEvent;
+      ({
+        key: 'y',
+        code: 'KeyY',
+        ctrlKey: true,
+        metaKey: false,
+        altKey: false,
+        shiftKey: false,
+        ...o,
+      }) as KeyboardEvent;
     expect(k.matches(ev({}), b)).toBe(true);
     expect(k.matches(ev({ code: 'KeyZ' }), b)).toBe(false);
   });

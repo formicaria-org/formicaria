@@ -75,7 +75,9 @@ describe('bindings', () => {
   });
 
   it('describes a binding the way a human reads it', () => {
-    expect(keys.describe({ key: 'w', mod: true, shift: true }, 'Linux x86_64')).toBe('Ctrl+Shift+W');
+    expect(keys.describe({ key: 'w', mod: true, shift: true }, 'Linux x86_64')).toBe(
+      'Ctrl+Shift+W',
+    );
     expect(keys.describe({ key: 'k', mod: true }, 'MacIntel')).toBe('⌘K');
     expect(keys.describe({ key: '' })).toBe('unbound');
   });

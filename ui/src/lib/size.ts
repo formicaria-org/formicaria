@@ -29,7 +29,8 @@ export function humanSize(bytes: number): string {
     ['kB', 1e3],
   ] as const) {
     const v = bytes / mult;
-    if (v >= 1) return Math.abs(v % 1) < 0.05 ? `${Math.round(v)}${unit}` : `${v.toFixed(1)}${unit}`;
+    if (v >= 1)
+      return Math.abs(v % 1) < 0.05 ? `${Math.round(v)}${unit}` : `${v.toFixed(1)}${unit}`;
   }
   return `${bytes}B`;
 }

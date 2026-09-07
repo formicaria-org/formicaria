@@ -49,7 +49,11 @@ describe('what a card shows', () => {
   it('says "Untitled" rather than showing an id when a note has neither', () => {
     // The reachable case is a whiteboard: its body is Excalidraw JSON, so the old fallback put
     // `{"type":"excalidraw"…` on the card as its one line of text.
-    render(Card, { card: card({ title: null, preview: undefined }), onopen: () => {}, statuses: [] } as never);
+    render(Card, {
+      card: card({ title: null, preview: undefined }),
+      onopen: () => {},
+      statuses: [],
+    } as never);
     expect(screen.getByText('Untitled')).toBeTruthy();
     expect(screen.queryByText('01AAA')).toBeNull();
     cleanup();

@@ -103,7 +103,8 @@
     <EmptyState
       icon="timeline"
       title="No notes yet"
-      hint="Press + to write your first one. Everything you write shows up here, newest day first." />
+      hint="Press + to write your first one. Everything you write shows up here, newest day first."
+    />
   {:else}
     <div class="feed">
       {#each days as day (day.key)}
@@ -156,7 +157,8 @@
                             alt={card.title ? `Picture in “${card.title}”` : 'Picture in this note'}
                             loading="lazy"
                             decoding="async"
-                            onerror={() => (broken = new Set(broken).add(ref))} />
+                            onerror={() => (broken = new Set(broken).add(ref))}
+                          />
                         {/if}
                       </span>
                     {/if}
@@ -190,7 +192,8 @@
                         class="comments"
                         aria-expanded={expandedId === card.id}
                         onclick={() => ontoggle?.(card.id)}
-                        title={counts[card.id] ? 'Show the discussion' : 'Start a discussion'}>
+                        title={counts[card.id] ? 'Show the discussion' : 'Start a discussion'}
+                      >
                         <Icon name="chat" size={14} />
                         {#if counts[card.id]}<span class="n">{counts[card.id]}</span>{/if}
                       </button>

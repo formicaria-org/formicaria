@@ -27,7 +27,8 @@
   aria-modal="true"
   aria-label="How this works"
   tabindex="-1"
-  onkeydown={(e) => e.key === 'Escape' && onclose()}>
+  onkeydown={(e) => e.key === 'Escape' && onclose()}
+>
   <div class="help">
     <h2>How this works</h2>
 
@@ -41,27 +42,28 @@
     <h3>Finding it again</h3>
     <p>
       Your notes are not filed in one place. You look at the same notes in different ways, and the
-      name at the top of each window is a button: <strong>click it</strong> to step to the next way
-      of looking.
+      name at the top of each window is a button: <strong>click it</strong> to step to the next way of
+      looking.
     </p>
     <ul>
       <li><strong>Timeline</strong> — everything, by the day you wrote it.</li>
-      <li><strong>Board</strong> — cards in columns. Drag a card; the column is just a property.</li>
+      <li>
+        <strong>Board</strong> — cards in columns. Drag a card; the column is just a property.
+      </li>
       <li><strong>Agenda</strong> — a calendar and a list, for anything you gave a date.</li>
       <li><strong>Search</strong> — a word anywhere in any note.</li>
     </ul>
 
     <h3>Giving a note a shape</h3>
     <p>
-      Open a note and press <strong>Edit</strong> to add a title, tags, a status or dates. A status
-      puts it on the Board; a date puts it on the Agenda. None of it is required.
+      Open a note and press <strong>Edit</strong> to add a title, tags, a status or dates. A status puts
+      it on the Board; a date puts it on the Agenda. None of it is required.
     </p>
 
     <h3>Keeping it safe</h3>
     <p>
-      <strong>Back up</strong> records the history of your notes and can send a copy somewhere you
-      own. Photos, PDFs and recordings are larger, so they are a separate, optional step in the same
-      place.
+      <strong>Back up</strong> records the history of your notes and can send a copy somewhere you own.
+      Photos, PDFs and recordings are larger, so they are a separate, optional step in the same place.
     </p>
 
     <!-- **The assistant belongs here, and on the phone this is the only place it can be.** Android
@@ -74,15 +76,15 @@
       Turn it on in <strong>Settings → Study assistant</strong>; the first time, it asks which model
       and how much to download. Then, in any note's discussion, type <code>@</code> and pick it:
       <code>@qwen3-vl-4b summarise this</code>. Add <code>/search</code> to let it look something up
-      first, or <code>/propose</code> to have it draft an edit you approve before anything changes.
-      It never edits a note on its own.
+      first, or <code>/propose</code> to have it draft an edit you approve before anything changes. It
+      never edits a note on its own.
     </p>
 
     <h3>Changing how it looks</h3>
     <p>
-      <strong>Settings → Appearance</strong> sets the accent colour, text size and font, and can
-      hold a theme of your own. If a theme ever makes the app unusable, close it and open it again —
-      a theme you could not click through is not switched on a second time.
+      <strong>Settings → Appearance</strong> sets the accent colour, text size and font, and can hold
+      a theme of your own. If a theme ever makes the app unusable, close it and open it again — a theme
+      you could not click through is not switched on a second time.
     </p>
 
     {#if !isPhone()}
@@ -92,7 +94,8 @@
           onclick={() => {
             window.open('/manual/', '_blank', 'noopener');
             onclose();
-          }}>Open the full manual</button>
+          }}>Open the full manual</button
+        >
         — every feature, offline, in this app.
       </p>
     {/if}

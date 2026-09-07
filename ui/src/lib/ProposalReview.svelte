@@ -14,8 +14,11 @@
 
   // `onaccepted`/`onrejected` let the parent (the Collaboration list) refresh once a proposal is
   // merged or discarded.
-  let { id, onaccepted, onrejected }: { id: string; onaccepted?: () => void; onrejected?: () => void } =
-    $props();
+  let {
+    id,
+    onaccepted,
+    onrejected,
+  }: { id: string; onaccepted?: () => void; onrejected?: () => void } = $props();
 
   let diff = $state<ProposalDiff | null>(null);
   let error = $state<string | null>(null);
@@ -108,7 +111,8 @@
     acceptMsg = null;
     try {
       await rejectProposal(id, reason());
-      acceptMsg = 'Rejected — the change was dropped and kept as a declined record. main is untouched.';
+      acceptMsg =
+        'Rejected — the change was dropped and kept as a declined record. main is untouched.';
       why = '';
       await refetch();
       onrejected?.();
@@ -129,7 +133,8 @@
       if (dirty && !(await persistDraft())) return; // persistDraft set the message; `finally` clears the flag
       const { outcome } = await acceptProposal(id);
       if (outcome === 'conflicted') {
-        acceptMsg = "This proposal doesn't merge cleanly onto the current note — main was left unchanged. Ask the author to redo it against the latest, or resolve it after a sync.";
+        acceptMsg =
+          "This proposal doesn't merge cleanly onto the current note — main was left unchanged. Ask the author to redo it against the latest, or resolve it after a sync.";
       } else {
         // 'merged' or 'already_gone' → it is on main now. Re-fetch: the branch is gone, so the diff
         // flips to the "merged" message, and let the parent refresh its list.
@@ -205,13 +210,19 @@
   {:else if error}
     <p class="error">Couldn't load the diff: {error}</p>
   {:else if diff && diff.declined}
-    <p class="muted">This proposal was declined; the change was dropped, main untouched, and it is kept as a record.</p>
+    <p class="muted">
+      This proposal was declined; the change was dropped, main untouched, and it is kept as a
+      record.
+    </p>
   {:else if diff && !diff.exists}
     <p class="muted">This proposal was merged into the note; the discussion lives on.</p>
   {:else if diff}
     {#if proposed}
-      <p class="pr-edit-label">Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:</p>
-      <textarea class="pr-edit" bind:value={draft} rows="12" aria-label="proposed note body"></textarea>
+      <p class="pr-edit-label">
+        Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:
+      </p>
+      <textarea class="pr-edit" bind:value={draft} rows="12" aria-label="proposed note body"
+      ></textarea>
       <div class="pr-edit-actions">
         <button class="pr-save" onclick={save} disabled={!dirty || saving || accepting}>
           {saving ? 'Saving…' : 'Save changes'}
@@ -220,8 +231,12 @@
       </div>
     {/if}
     <details class="pr-diff-details">
-      <summary>View the diff against the current note{#if diff.files.length} · {diff.files.join(', ')}{/if}</summary>
-      <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code>{/each}</pre>
+      <summary
+        >View the diff against the current note{#if diff.files.length}
+          · {diff.files.join(', ')}{/if}</summary
+      >
+      <pre class="diff">{#each lines as line}<code class="line {role(line)}">{line}</code
+          >{/each}</pre>
     </details>
     <div class="pr-why">
       <label class="pr-why-label" for={`pr-why-${id}`}>
@@ -268,7 +283,10 @@
   {/if}
 
   {#if acceptMsg}
-    <p class="accept-msg" class:muted={!acceptMsg.startsWith("Couldn't") && !acceptMsg.startsWith('This')}>
+    <p
+      class="accept-msg"
+      class:muted={!acceptMsg.startsWith("Couldn't") && !acceptMsg.startsWith('This')}
+    >
       {acceptMsg}
     </p>
   {/if}

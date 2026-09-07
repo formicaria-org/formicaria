@@ -36,7 +36,14 @@ beforeEach(() => {
   commit.mockResolvedValue({ committed: true, conflicts: [] });
   // `ping` must answer `git: true`, or `scheduleCommit` returns early and this test would pass for
   // the wrong reason.
-  ping.mockResolvedValue({ changed: false, generation: 0, git: true, restic: true, skipped: [], unopened_vaults: [] });
+  ping.mockResolvedValue({
+    changed: false,
+    generation: 0,
+    git: true,
+    restic: true,
+    skipped: [],
+    unopened_vaults: [],
+  });
   capture.mockImplementation(async () => ({
     id: `M0CK${String(Math.floor(Math.random() * 1e6)).padStart(22, '0')}`,
     type: 'note',

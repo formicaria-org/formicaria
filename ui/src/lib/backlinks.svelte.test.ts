@@ -9,7 +9,9 @@ import type { ObjectMeta } from './types';
 describe('backlinks in the mock backend', () => {
   it('lists notes that reference the target, never the target itself', async () => {
     const target = await mock.handle<ObjectMeta>('capture', { body: 'a target note' });
-    const linker = await mock.handle<ObjectMeta>('capture', { body: `see [it](note:${target.id})` });
+    const linker = await mock.handle<ObjectMeta>('capture', {
+      body: `see [it](note:${target.id})`,
+    });
     await mock.handle<ObjectMeta>('capture', { body: 'an unrelated note' });
 
     const back = await mock.handle<ObjectMeta[]>('backlinks', { id: target.id });

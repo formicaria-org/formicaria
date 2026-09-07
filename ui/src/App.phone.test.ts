@@ -109,9 +109,7 @@ describe('a phone-sized vault', () => {
     // flight and passed whether or not it deduplicated — an adversarial review caught it, and it
     // is the exact failure mode a work budget is most prone to: measuring work that has not
     // happened yet.
-    await waitFor(() =>
-      expect(document.querySelectorAll('a[href^="note:"]').length).toBe(0),
-    );
+    await waitFor(() => expect(document.querySelectorAll('a[href^="note:"]').length).toBe(0));
     // `get` covers the note being opened plus at most one for the distinct referenced note —
     // *not* one per mention, which is what it was before the dedupe.
     expect(bridge.count('get')).toBeLessThanOrEqual(2);

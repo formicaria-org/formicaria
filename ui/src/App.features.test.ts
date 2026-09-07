@@ -303,9 +303,7 @@ describe('v2: property editing, timeline, delete', () => {
 
     // The title in the header is not a control, so a click on it means "done".
     await fireEvent.click(screen.getByRole('heading', { level: 2 }));
-    await waitFor(() =>
-      expect(screen.queryByLabelText('note body (Markdown)')).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByLabelText('note body (Markdown)')).toBeNull());
   });
 
   // Templates must be *discoverable*: a note tagged `template` shows up in the ＋ "make something
@@ -347,9 +345,7 @@ describe('v2: property editing, timeline, delete', () => {
 
     // Shift+Enter → the embed form (image syntax `![…](note:…)`), not a chip link `[…](note:…)`.
     await fireEvent.keyDown(body, { key: 'Enter', shiftKey: true });
-    await waitFor(() =>
-      expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
-    );
+    await waitFor(() => expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/));
   });
 
   // `//` opens the menu in embed mode, so a plain Enter (a tap on a phone — no Shift) embeds.
@@ -368,9 +364,7 @@ describe('v2: property editing, timeline, delete', () => {
     // Plain Enter, no Shift — because the menu is already in embed mode, it inserts the embed and
     // consumes both slashes (no leading `/` left behind).
     await fireEvent.keyDown(body, { key: 'Enter' });
-    await waitFor(() =>
-      expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/),
-    );
+    await waitFor(() => expect(body.value).toMatch(/^!\[[^\]]*\]\(note:[0-9A-HJKMNP-TV-Z]{26}\)/));
   });
 
   // Tapping a rendered checkbox flips only its `[ ]`↔`[x]` byte in the source — a surgical patch,

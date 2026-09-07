@@ -177,7 +177,10 @@
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
-      ? { ...feed.board, columns: feed.board.columns.map((c) => ({ ...c, cards: c.cards.filter(shown) })) }
+      ? {
+          ...feed.board,
+          columns: feed.board.columns.map((c) => ({ ...c, cards: c.cards.filter(shown) })),
+        }
       : null,
   );
 
@@ -305,9 +308,9 @@
             {vaults}
             solo
             wide={maximized}
-            onclose={onclose}
-            onnavigate={onnavigate}
-            onsaved={onsaved}
+            {onclose}
+            {onnavigate}
+            {onsaved}
             ontogglewide={toggleMax}
           />
         {/await}
@@ -322,7 +325,7 @@
           onreorder={reorderColumns}
           {onopen}
           {statuses}
-          onstatus={onstatus}
+          {onstatus}
         />
       {:else}
         <p class="pane-empty">Loading…</p>
@@ -444,12 +447,13 @@
         {cards}
         {onopen}
         {statuses}
-        onstatus={onstatus}
+        {onstatus}
         mode={pane.timelineMode ?? 'feed'}
         counts={threadCounts}
         {expandedId}
         ontoggle={(id) => (expandedId = expandedId === id ? null : id)}
-        {thread} />
+        {thread}
+      />
     {/if}
   </div>
 
@@ -465,13 +469,13 @@
   ></span>
 </section>
 
-
 {#snippet thread(id: string)}
   <FeedThread
     noteId={id}
     onposted={(n) => (threadCounts = { ...threadCounts, [id]: n })}
     {onsaved}
-    {onopen} />
+    {onopen}
+  />
 {/snippet}
 
 <style>

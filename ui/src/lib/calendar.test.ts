@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { assignLanes, clampRangeToWeek, dayHeading, isoDate, weekOf, ymd, type Day } from './calendar';
+import {
+  assignLanes,
+  clampRangeToWeek,
+  dayHeading,
+  isoDate,
+  weekOf,
+  ymd,
+  type Day,
+} from './calendar';
 
 // The week of 2026-07-13 (a Monday) → 13..19 July, Monday-first.
 const week: Day[] = weekOf('2026-07-15');
@@ -50,7 +58,9 @@ describe('clampRangeToWeek', () => {
 
 describe('assignLanes', () => {
   it('keeps a single bar in lane 0', () => {
-    expect(assignLanes([{ startCol: 0, endCol: 2 }])).toEqual([{ startCol: 0, endCol: 2, lane: 0 }]);
+    expect(assignLanes([{ startCol: 0, endCol: 2 }])).toEqual([
+      { startCol: 0, endCol: 2, lane: 0 },
+    ]);
   });
 
   it('stacks overlapping bars into distinct lanes', () => {

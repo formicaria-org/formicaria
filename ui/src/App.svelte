@@ -56,7 +56,14 @@
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
   import { labelFor, setVaultLabels } from './lib/vaultLabels.svelte';
-  import type { ObjectMeta, VaultInfo, ViewInfo, ConflictInfo, DuplicateFamily, Unrecorded } from './lib/types';
+  import type {
+    ObjectMeta,
+    VaultInfo,
+    ViewInfo,
+    ConflictInfo,
+    DuplicateFamily,
+    Unrecorded,
+  } from './lib/types';
   import NewVault from './lib/NewVault.svelte';
   import Welcome from './lib/Welcome.svelte';
   import * as appearance from './lib/appearance';
@@ -182,7 +189,11 @@
   function setCols(cols: number | 'auto') {
     workspace =
       cols === 'auto'
-        ? { ...workspace, colMode: 'auto', cols: autoCols(workspace.panes.length, { ...workspace, colMode: 'auto' }) }
+        ? {
+            ...workspace,
+            colMode: 'auto',
+            cols: autoCols(workspace.panes.length, { ...workspace, colMode: 'auto' }),
+          }
         : { ...workspace, colMode: 'fixed', cols: Math.max(1, Math.min(cols, 4)) };
     persistWorkspace();
   }
@@ -580,14 +591,24 @@
     // surface: typing "timeline" should land on a timeline without knowing that a window is the
     // thing that holds one. Opening a window already on the right view is strictly less work.
     ...paletteTargets.map((t) => ({ group: 'Open', label: `Open ${t.label}`, run: t.run })),
-    { group: 'Vault', label: 'Back up the vault', run: onBackup, command: 'backup' as keys.Command },
+    {
+      group: 'Vault',
+      label: 'Back up the vault',
+      run: onBackup,
+      command: 'backup' as keys.Command,
+    },
     {
       group: 'This view',
       label: 'Close this view',
       run: () => run('closePane'),
       command: 'closePane' as keys.Command,
     },
-    { group: 'App', label: 'Settings', run: () => (settingsOpen = true), command: 'palette' as keys.Command }
+    {
+      group: 'App',
+      label: 'Settings',
+      run: () => (settingsOpen = true),
+      command: 'palette' as keys.Command,
+    },
   ]);
 
   // Keyboard map: ⌘K palette · / focus global search · c new note · Esc close palette.
@@ -932,7 +953,7 @@
         if (!r.git && !saidNoGit) {
           saidNoGit = true;
           notice =
-            'git isn\'t installed — your notes are saved as files, but not versioned. ' +
+            "git isn't installed — your notes are saved as files, but not versioned. " +
             'Install git for history, backup and sharing.';
         }
       }
@@ -1636,7 +1657,6 @@
       run: () => openSettings(),
     },
   ] as { label: string; note: string; run: () => void }[]);
-
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -1682,15 +1702,10 @@
     }}
   />
 {:else if !vaults}
-  <Starting
-    error={bootError}
-    attempts={bootAttempts}
-    waitedMs={bootWaited}
-    onretry={loadVaults}
-  />
+  <Starting error={bootError} attempts={bootAttempts} waitedMs={bootWaited} onretry={loadVaults} />
 {:else}
-<div class="app" data-layout={workspace.layout ?? 'single'} class:panel-collapsed={!panelOpen}>
-  <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
+  <div class="app" data-layout={workspace.layout ?? 'single'} class:panel-collapsed={!panelOpen}>
+    <!-- **One set of controls, two placements.** Wide: a vertical panel down the left, holding
        everything. Narrow: the same element as a bar along the bottom, where a thumb can reach it.
        Nothing is duplicated and nothing is platform-branched — it is the container that changes,
        which is why this is markup that does not know where it is.
@@ -1699,9 +1714,8 @@
        vertical space"). That rail sat *beside* a top bar and displaced nothing; this one replaces
        the top bar, so the workspace gets that row's height back — and it collapses, which the old
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
-  <header class="topbar">
-
-    <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
+    <header class="topbar">
+      <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
          you its name on every screen of its own window, and on a phone that space is the
@@ -1712,41 +1726,43 @@
          measured off the button, so no ancestor's overflow can clip it — and the alternative,
          routing every creation through a full-screen palette, is what made "new note" feel like
          a settings trip. -->
-    <div class="create-wrap">
-      <button
-        type="button"
-        class="plus-btn"
-        onclick={(e) => {
-          anchorTo(e);
-          createOpen = !createOpen;
-          if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
-        }}
-        aria-expanded={createOpen}
-        aria-haspopup="menu"
-        title="Make something new (Ctrl+K)"
-        aria-label="make something new">
-        <Icon name="plus" size={18} />
-      </button>
-      {#if createOpen}
-        <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
+      <div class="create-wrap">
+        <button
+          type="button"
+          class="plus-btn"
+          onclick={(e) => {
+            anchorTo(e);
+            createOpen = !createOpen;
+            if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
+          }}
+          aria-expanded={createOpen}
+          aria-haspopup="menu"
+          title="Make something new (Ctrl+K)"
+          aria-label="make something new"
+        >
+          <Icon name="plus" size={18} />
+        </button>
+        {#if createOpen}
+          <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
              tap that would otherwise land on whatever is behind the menu. -->
-        <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
-        <ul class="create-menu" role="menu" style={menuAnchor}>
-          {#each createItems as item, i (item.label)}
-            <!-- The rule falls where "make something" turns into "look at something", worked out
+          <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
+          <ul class="create-menu" role="menu" style={menuAnchor}>
+            {#each createItems as item, i (item.label)}
+              <!-- The rule falls where "make something" turns into "look at something", worked out
                  from the groups rather than flagged by hand — so it stays right when an item is
                  added on either side of it. -->
-            {#if i > 0 && item.group !== createItems[i - 1].group}
-              <li class="menu-sep" role="separator"></li>
-            {/if}
-            <li role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onclick={() => ((createOpen = false), item.run())}>{item.label}</button>
-            </li>
-          {/each}
-          <!-- **Where it lands, asked where you decide it** (2026-08-31). This was a permanent
+              {#if i > 0 && item.group !== createItems[i - 1].group}
+                <li class="menu-sep" role="separator"></li>
+              {/if}
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onclick={() => ((createOpen = false), item.run())}>{item.label}</button
+                >
+              </li>
+            {/each}
+            <!-- **Where it lands, asked where you decide it** (2026-08-31). This was a permanent
                `in <select>` in the chrome: a control on screen at all times for a choice you make
                only while creating something, and on a narrow bar it cost a whole row. It belongs
                to the ＋ menu, so it lives in the ＋ menu.
@@ -1754,48 +1770,51 @@
                **`menuitemradio`, and the click does not close.** One-of-many, unlike the vault
                *filter* beside it — and you almost always pick the destination and then pick what
                to make, so closing here would mean opening the menu twice for one note. -->
-          {#if allVaults.length > 1}
-            <li class="menu-sep" role="separator"></li>
-            <li class="menu-head" role="presentation">Create in</li>
-            {#each allVaults as v (v)}
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={(createTarget || defaultVault) === v}
-                  onclick={() => setCreateVault(v)}>
-                  <span class="tick" aria-hidden="true"
-                    >{(createTarget || defaultVault) === v ? '✓' : ''}</span
+            {#if allVaults.length > 1}
+              <li class="menu-sep" role="separator"></li>
+              <li class="menu-head" role="presentation">Create in</li>
+              {#each allVaults as v (v)}
+                <li role="none">
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={(createTarget || defaultVault) === v}
+                    onclick={() => setCreateVault(v)}
                   >
-                  {labelFor(v)}
-                </button>
-              </li>
-            {/each}
-          {/if}
-        </ul>
-      {/if}
-    </div>
+                    <span class="tick" aria-hidden="true"
+                      >{(createTarget || defaultVault) === v ? '✓' : ''}</span
+                    >
+                    {labelFor(v)}
+                  </button>
+                </li>
+              {/each}
+            {/if}
+          </ul>
+        {/if}
+      </div>
 
-    <!-- Collapsed to its lens until wanted. A search field is the widest thing in the bar and
+      <!-- Collapsed to its lens until wanted. A search field is the widest thing in the bar and
          is used a fraction as often as it occupies space; open it and it takes the room it
          needs. `searchOpen` starts false on every load, deliberately — a bar that remembers
          being open is a bar that is usually open. -->
-    <div class="search-slot" class:open={searchOpen}>
-      <label class="searchfield">
-        <Icon name="search" size={15} />
-        <input
-          bind:this={searchEl}
-          class="topbar-search"
-          type="search"
-          placeholder="Search…"
-          bind:value={searchQuery}
-          oninput={onSearchInput}
-          onblur={() => { if (!searchQuery.trim()) searchOpen = false; }}
-          spellcheck="false"
-          aria-label="search notes"
-        />
-      </label>
-      <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
+      <div class="search-slot" class:open={searchOpen}>
+        <label class="searchfield">
+          <Icon name="search" size={15} />
+          <input
+            bind:this={searchEl}
+            class="topbar-search"
+            type="search"
+            placeholder="Search…"
+            bind:value={searchQuery}
+            oninput={onSearchInput}
+            onblur={() => {
+              if (!searchQuery.trim()) searchOpen = false;
+            }}
+            spellcheck="false"
+            aria-label="search notes"
+          />
+        </label>
+        <!-- **Its own class, not `.icon-btn`.** Narrow layouts hide every `.icon-btn` in the top
            bar, because those controls also live in the bottom `ViewBar` where the thumb is.
            Search does not, so reusing that class would have made the search button disappear on
            exactly the screen this collapsing is for.
@@ -1804,19 +1823,19 @@
            by "a search field is the widest thing in the bar" — true of a bar, and meaningless in a
            panel of fixed width, where the field costs one row of height. Choosing between them in
            script would mean measuring the viewport, which the layout ruling forbids outright. -->
-      <button
-        type="button"
-        class="search-btn"
-        onclick={openSearch}
-        aria-label="search notes"
-        aria-expanded={searchOpen}
-        title="Search">
-        <Icon name="search" size={16} />
-      </button>
-    </div>
+        <button
+          type="button"
+          class="search-btn"
+          onclick={openSearch}
+          aria-label="search notes"
+          aria-expanded={searchOpen}
+          title="Search"
+        >
+          <Icon name="search" size={16} />
+        </button>
+      </div>
 
-
-    <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
+      <!-- **The same list, for when there is no panel to put a rail in.** Below 60rem the chrome is
          a bar, so the rail is hidden and this opens the identical `viewTargets` in a menu. Without
          it a narrow window has no way to open a view at all, now that a pane header names its
          window instead of switching it.
@@ -1824,53 +1843,55 @@
          Not `.icon-btn`: the twin rules hide every `.icon-btn` in the bar, because those controls
          move to `ViewBar` there — the same trap `.search-btn` carries a comment about. This one
          has to be visible in exactly the place that rule would hide it. -->
-    <div class="create-wrap views-wrap">
-      <button
-        type="button"
-        class="views-btn"
-        onclick={(e) => (anchorTo(e), (viewsOpen = !viewsOpen))}
-        aria-expanded={viewsOpen}
-        aria-haspopup="menu"
-        title="Open a view"
-        aria-label="open a view">
-        <Icon name="board" size={16} />
-      </button>
-      {#if viewsOpen}
-        <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
-        <ul class="create-menu" role="menu" style={menuAnchor}>
-          {#each viewTargets as t (t.key)}
-            <li role="none">
-              <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
-                >{t.label}</button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
+      <div class="create-wrap views-wrap">
+        <button
+          type="button"
+          class="views-btn"
+          onclick={(e) => (anchorTo(e), (viewsOpen = !viewsOpen))}
+          aria-expanded={viewsOpen}
+          aria-haspopup="menu"
+          title="Open a view"
+          aria-label="open a view"
+        >
+          <Icon name="board" size={16} />
+        </button>
+        {#if viewsOpen}
+          <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
+          <ul class="create-menu" role="menu" style={menuAnchor}>
+            {#each viewTargets as t (t.key)}
+              <li role="none">
+                <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
+                  >{t.label}</button
+                >
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
 
-    <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
+      <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
          order, so it can be learned: every built-in, then every saved view. It is the same set the
          action list offers under "Open …", computed once (`viewTargets`) so the two cannot drift.
          Panel only: the bottom bar already has `ViewBar`, which answers a different question —
          which of your open windows to look at, rather than which view to open. -->
-    <nav class="panel-views" aria-label="views">
-      {#each viewTargets as t (t.key)}
-        <button
-          type="button"
-          class="view-item"
-          class:saved={t.saved}
-          onclick={t.run}
-          title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
-          aria-label={`open ${t.label}`}>
-          <Icon name={t.icon} size={16} />
-          <span class="lbl">{t.label}</span>
-        </button>
-      {/each}
-    </nav>
+      <nav class="panel-views" aria-label="views">
+        {#each viewTargets as t (t.key)}
+          <button
+            type="button"
+            class="view-item"
+            class:saved={t.saved}
+            onclick={t.run}
+            title={t.saved ? `Open “${t.label}” — a view you saved` : `Open ${t.label}`}
+            aria-label={`open ${t.label}`}
+          >
+            <Icon name={t.icon} size={16} />
+            <span class="lbl">{t.label}</span>
+          </button>
+        {/each}
+      </nav>
 
-
-    {#if allVaults.length > 1}
-      <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
+      {#if allVaults.length > 1}
+        <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
            list: it wrapped the bar onto extra rows and, collapsed, showed slivers of names. A menu
            costs one control whatever the list does.
 
@@ -1881,133 +1902,158 @@
 
            Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults`
            persists), labelled with what the repository is called — see `vaultLabels.svelte.ts`. -->
-      <div class="create-wrap vaults-wrap">
-        <button
-          type="button"
-          class="tb-chip vaults-btn"
-          class:filtering={hiddenVaults.length > 0}
-          onclick={(e) => (anchorTo(e), (vaultMenuOpen = !vaultMenuOpen))}
-          aria-expanded={vaultMenuOpen}
-          aria-haspopup="menu"
-          title="Which vaults to show"
-          aria-label="which vaults to show">
-          <span class="lbl">{vaultFilterLabel}</span>
-          <Icon name="chevron-down" size={12} />
-        </button>
-        {#if vaultMenuOpen}
-          <div class="menu-backdrop" role="presentation" onclick={() => (vaultMenuOpen = false)}></div>
-          <ul class="create-menu" role="menu" style={menuAnchor}>
-            {#each allVaults as v (v)}
-              <li role="none">
-                <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
+        <div class="create-wrap vaults-wrap">
+          <button
+            type="button"
+            class="tb-chip vaults-btn"
+            class:filtering={hiddenVaults.length > 0}
+            onclick={(e) => (anchorTo(e), (vaultMenuOpen = !vaultMenuOpen))}
+            aria-expanded={vaultMenuOpen}
+            aria-haspopup="menu"
+            title="Which vaults to show"
+            aria-label="which vaults to show"
+          >
+            <span class="lbl">{vaultFilterLabel}</span>
+            <Icon name="chevron-down" size={12} />
+          </button>
+          {#if vaultMenuOpen}
+            <div
+              class="menu-backdrop"
+              role="presentation"
+              onclick={() => (vaultMenuOpen = false)}
+            ></div>
+            <ul class="create-menu" role="menu" style={menuAnchor}>
+              {#each allVaults as v (v)}
+                <li role="none">
+                  <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
                      app is single-shot because it runs one action; a filter is many-of-many and
                      closing after each vault would make setting two of them a chore. That is the
                      one place this diverges from the shared skeleton, so it is stated here. -->
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={!hiddenVaults.includes(v)}
+                    onclick={() => toggleVault(v)}
+                  >
+                    <span class="tick" aria-hidden="true"
+                      >{hiddenVaults.includes(v) ? '' : '✓'}</span
+                    >
+                    {labelFor(v)}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+
+      <span class="tb-spacer"></span>
+
+      {#if movedVaults.length}
+        <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
+        <button
+          class="tb-chip moved"
+          onclick={getTheirChanges}
+          title="Someone pushed — get their changes"
+        >
+          <Icon name="inbox" size={14} />
+          <span class="lbl"
+            >{movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get
+            changes</span
+          >
+        </button>
+      {/if}
+
+      {#if skippedNotes.length}
+        <!-- Notes that are on disk but absent from every view because they do not parse.
+           A chip rather than only a banner: the banner is dismissible and this condition
+           is not transient — it persists until a human resolves the file. -->
+        <button
+          class="tb-chip moved"
+          onclick={() => (skippedOpen = true)}
+          title="Notes that could not be read — usually a conflicted merge"
+        >
+          {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
+        </button>
+      {/if}
+
+      {#if unrecordedTotal}
+        <!-- **Notes that exist and are not in history.** A chip for the same reason "unreadable" is
+           one: this condition is not transient, and its whole failure mode was silence. `commit_all`
+           stages only the paths the app remembers writing, and that memory dies with the process —
+           so a note written before the last restart could never be staged by it, and nothing said
+           so. Ninety-five had accumulated over a week before anyone noticed (2026-07-31). -->
+        <!-- **Opens the panel rather than committing blind.** It used to record on one click, which is
+           the right *action* and the wrong *first* step: the count alone cannot say whether these are
+           notes that exist nowhere else or notes something is rewriting, and those want opposite
+           responses. The panel says which, then offers the button. -->
+        <button
+          class="tb-chip moved"
+          onclick={() => (unrecordedOpen = true)}
+          title="Notes on disk that git does not have yet — click to see which, and why"
+        >
+          {unrecordedTotal}{' '}<span class="lbl">not in history</span>
+        </button>
+      {/if}
+
+      <!-- **Back up is a split button**, because "save" had become a question nobody could answer
+         from the screen. The wide half does the ordinary thing — commit and push **notes** — and
+         the narrow half opens the variants. That keeps one obvious action at one click while the
+         rarer choices stay reachable without a trip to Settings.
+         Pushes are user-triggered rather than on a timer: a push is a visible act with a remote
+         audience, and a cadence that fires on its own makes it one nobody chose. -->
+      <div class="create-wrap">
+        <button
+          type="button"
+          class="save-btn"
+          onclick={backUpNotes}
+          disabled={savingLabel !== null}
+          title="Commit and push your notes"
+          aria-label="back up notes"
+        >
+          <Icon name="backup" size={14} />
+          <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
+             state is what makes a column of controls read as a column rather than a list of
+             exceptions. The word returns while it is *working*, because "is anything happening?"
+             is the one moment an icon alone cannot answer (heuristic 1, visibility of system
+             status); the tooltip carries the meaning the rest of the time. -->
+          {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
+        </button>
+        <button
+          type="button"
+          class="save-more"
+          onclick={(e) => (anchorTo(e), (backupMenuOpen = !backupMenuOpen))}
+          aria-expanded={backupMenuOpen}
+          aria-haspopup="menu"
+          aria-label="other backup options"
+          title="Other backup options"
+        >
+          <Icon name="chevron-down" size={12} />
+        </button>
+        {#if backupMenuOpen}
+          <div
+            class="menu-backdrop"
+            role="presentation"
+            onclick={() => (backupMenuOpen = false)}
+          ></div>
+          <ul class="create-menu" role="menu" style={menuAnchor}>
+            {#each BACKUP_MENU as item (item.label)}
+              <li role="none">
                 <button
                   type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={!hiddenVaults.includes(v)}
-                  onclick={() => toggleVault(v)}>
-                  <span class="tick" aria-hidden="true">{hiddenVaults.includes(v) ? '' : '✓'}</span>
-                  {labelFor(v)}
+                  role="menuitem"
+                  onclick={() => ((backupMenuOpen = false), item.run())}
+                >
+                  <span class="mi-label">{item.label}</span>
+                  <span class="mi-note">{item.note}</span>
                 </button>
               </li>
             {/each}
           </ul>
         {/if}
       </div>
-    {/if}
 
-    <span class="tb-spacer"></span>
-
-    {#if movedVaults.length}
-      <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
-      <button class="tb-chip moved" onclick={getTheirChanges} title="Someone pushed — get their changes">
-        <Icon name="inbox" size={14} />
-        <span class="lbl"
-        >{movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`}: get changes</span
-      >
-      </button>
-    {/if}
-
-    {#if skippedNotes.length}
-      <!-- Notes that are on disk but absent from every view because they do not parse.
-           A chip rather than only a banner: the banner is dismissible and this condition
-           is not transient — it persists until a human resolves the file. -->
-      <button
-        class="tb-chip moved"
-        onclick={() => (skippedOpen = true)}
-        title="Notes that could not be read — usually a conflicted merge">
-        {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
-      </button>
-    {/if}
-
-    {#if unrecordedTotal}
-      <!-- **Notes that exist and are not in history.** A chip for the same reason "unreadable" is
-           one: this condition is not transient, and its whole failure mode was silence. `commit_all`
-           stages only the paths the app remembers writing, and that memory dies with the process —
-           so a note written before the last restart could never be staged by it, and nothing said
-           so. Ninety-five had accumulated over a week before anyone noticed (2026-07-31). -->
-      <!-- **Opens the panel rather than committing blind.** It used to record on one click, which is
-           the right *action* and the wrong *first* step: the count alone cannot say whether these are
-           notes that exist nowhere else or notes something is rewriting, and those want opposite
-           responses. The panel says which, then offers the button. -->
-      <button
-        class="tb-chip moved"
-        onclick={() => (unrecordedOpen = true)}
-        title="Notes on disk that git does not have yet — click to see which, and why">
-        {unrecordedTotal}{' '}<span class="lbl">not in history</span>
-      </button>
-    {/if}
-
-    <!-- **Back up is a split button**, because "save" had become a question nobody could answer
-         from the screen. The wide half does the ordinary thing — commit and push **notes** — and
-         the narrow half opens the variants. That keeps one obvious action at one click while the
-         rarer choices stay reachable without a trip to Settings.
-         Pushes are user-triggered rather than on a timer: a push is a visible act with a remote
-         audience, and a cadence that fires on its own makes it one nobody chose. -->
-    <div class="create-wrap">
-      <button
-        type="button"
-        class="save-btn"
-        onclick={backUpNotes}
-        disabled={savingLabel !== null}
-        title="Commit and push your notes"
-        aria-label="back up notes">
-        <Icon name="backup" size={14} />
-        <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
-             state is what makes a column of controls read as a column rather than a list of
-             exceptions. The word returns while it is *working*, because "is anything happening?"
-             is the one moment an icon alone cannot answer (heuristic 1, visibility of system
-             status); the tooltip carries the meaning the rest of the time. -->
-        {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
-      </button>
-      <button
-        type="button"
-        class="save-more"
-        onclick={(e) => (anchorTo(e), (backupMenuOpen = !backupMenuOpen))}
-        aria-expanded={backupMenuOpen}
-        aria-haspopup="menu"
-        aria-label="other backup options"
-        title="Other backup options">
-        <Icon name="chevron-down" size={12} />
-      </button>
-      {#if backupMenuOpen}
-        <div class="menu-backdrop" role="presentation" onclick={() => (backupMenuOpen = false)}></div>
-        <ul class="create-menu" role="menu" style={menuAnchor}>
-          {#each BACKUP_MENU as item (item.label)}
-            <li role="none">
-              <button type="button" role="menuitem" onclick={() => ((backupMenuOpen = false), item.run())}>
-                <span class="mi-label">{item.label}</span>
-                <span class="mi-note">{item.note}</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-
-    <!-- The manual, one click from anywhere in the app.
+      <!-- The manual, one click from anywhere in the app.
          The first non-technical tester's verdict was that it was "difficult to find and click on"
          — it shipped in the archive as a folder, and nothing in the running app ever mentioned
          it. It is baked into the binary, so this works offline and still works when someone has
@@ -2015,57 +2061,68 @@
 
          **Not on the phone.** There the UI is served by the Tauri shell, not `fm-serve`, so
          `/manual/` resolves to nothing; a Help button that 404s is worse than no Help button. -->
-    <button
-      class="icon-btn help"
-      onclick={() => (helpOpen = true)}
-      aria-label="help"
-      title="Help — how this works">
-      <Icon name="help" size={16} />
-    </button>
+      <button
+        class="icon-btn help"
+        onclick={() => (helpOpen = true)}
+        aria-label="help"
+        title="Help — how this works"
+      >
+        <Icon name="help" size={16} />
+      </button>
 
-    <button class="icon-btn" onclick={() => openSettings()} aria-label="settings" title="Settings — what this install is configured as">
-      <Icon name="gear" size={16} />
-    </button>
+      <button
+        class="icon-btn"
+        onclick={() => openSettings()}
+        aria-label="settings"
+        title="Settings — what this install is configured as"
+      >
+        <Icon name="gear" size={16} />
+      </button>
 
-    <!-- Last, with the other system controls, rather than above the ＋ where it started: the first
+      <!-- Last, with the other system controls, rather than above the ＋ where it started: the first
          thing in a panel should be the thing you came to do. Hidden where the chrome is a bar,
          because a bar is already as small as it gets. -->
-    <button
-      type="button"
-      class="icon-btn panel-toggle"
-      onclick={togglePanel}
-      aria-expanded={panelOpen}
-      aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
-      title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand the panel'}>
-      <Icon name="chevron-down" size={16} />
-    </button>
-  </header>
+      <button
+        type="button"
+        class="icon-btn panel-toggle"
+        onclick={togglePanel}
+        aria-expanded={panelOpen}
+        aria-label={panelOpen ? 'collapse the panel' : 'expand the panel'}
+        title={panelOpen ? 'Collapse — give the width back to your notes' : 'Expand the panel'}
+      >
+        <Icon name="chevron-down" size={16} />
+      </button>
+    </header>
 
-  <div class="body">
-    {#if error}
-      <p class="banner error">
-        {error}
-        <button
-          class="banner-dismiss"
-          onclick={() => ((error = null), (errorIsTransient = true))}
-          aria-label="dismiss">✕</button>
-      </p>
-    {/if}
-    {#if notice}
-      <p class="banner notice">
-        {notice}
-        <button class="banner-dismiss" onclick={() => (notice = null)} aria-label="dismiss">✕</button>
-      </p>
-    {/if}
-    {#if themeRefused}
-      <p class="banner notice">
-        {themeRefused}
-        <button class="banner-dismiss" onclick={() => (themeRefused = '')} aria-label="dismiss"
-          >✕</button>
-      </p>
-    {/if}
+    <div class="body">
+      {#if error}
+        <p class="banner error">
+          {error}
+          <button
+            class="banner-dismiss"
+            onclick={() => ((error = null), (errorIsTransient = true))}
+            aria-label="dismiss">✕</button
+          >
+        </p>
+      {/if}
+      {#if notice}
+        <p class="banner notice">
+          {notice}
+          <button class="banner-dismiss" onclick={() => (notice = null)} aria-label="dismiss"
+            >✕</button
+          >
+        </p>
+      {/if}
+      {#if themeRefused}
+        <p class="banner notice">
+          {themeRefused}
+          <button class="banner-dismiss" onclick={() => (themeRefused = '')} aria-label="dismiss"
+            >✕</button
+          >
+        </p>
+      {/if}
 
-    <!-- **The way out of a theme that hides everything.** On screen only while the theme is still
+      <!-- **The way out of a theme that hides everything.** On screen only while the theme is still
          unproven — the first click, key, wheel or touch anywhere takes it away, because that is the
          moment we learn the app is reachable. A permanent floating button would tax every session
          to insure against a rare one.
@@ -2074,13 +2131,13 @@
          theme it exists to escape. **This is convenience, not a guarantee**: a theme carrying its
          own `!important` at equal specificity still wins. The layer that actually rescues the app
          is the armed-boot guard in `appearance.ts`, which is JS and cannot be styled away. -->
-    {#if userTheme && themeUnproven}
-      <button class="theme-escape" onclick={turnOffTheme}>
-        Turn off “{userTheme.name}”
-      </button>
-    {/if}
+      {#if userTheme && themeUnproven}
+        <button class="theme-escape" onclick={turnOffTheme}>
+          Turn off “{userTheme.name}”
+        </button>
+      {/if}
 
-    <!-- **The chrome, when one view fills the window**: which views are open, and the controls
+      <!-- **The chrome, when one view fills the window**: which views are open, and the controls
          belonging to the one you are looking at. At the *top*, which reverses a 2026-08-30 ruling
          about a phone's thumb reach — see `decisions.md` 2026-08-31: only the tabs moved, the
          actions bar stays at the bottom, and this row replaces the pane header rather than
@@ -2091,172 +2148,182 @@
          pane header would both be in the DOM, giving two elements labelled `group by` — ambiguous
          to a screen reader and to `getByLabelText`. This branches on the layout *preference*, not
          on the viewport, so the rule it has to respect is untouched. -->
-    {#if (workspace.layout ?? 'single') === 'single'}
-      <ViewBar
-        panes={workspace.panes}
-        active={focused}
-        feed={feedKey(workspace.panes[focused]) ? feeds[feedKey(workspace.panes[focused]) ?? ''] : undefined}
-        onselect={(i) => {
-          focused = i;
-          persistWorkspace();
-        }}
-        onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
-        onclose={closePane} />
-    {/if}
+      {#if (workspace.layout ?? 'single') === 'single'}
+        <ViewBar
+          panes={workspace.panes}
+          active={focused}
+          feed={feedKey(workspace.panes[focused])
+            ? feeds[feedKey(workspace.panes[focused]) ?? '']
+            : undefined}
+          onselect={(i) => {
+            focused = i;
+            persistWorkspace();
+          }}
+          onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
+          onclose={closePane}
+        />
+      {/if}
 
-    <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
+      <!-- The flexible workspace: a CSS grid of panes. `cols` sets the column count; each pane
          spans some columns; panes flow into rows. The renderers are pure and height:100%, so
          each drops into its cell unchanged. -->
-    <div class="workspace" style="--cols:{workspace.cols}">
-      {#each workspace.panes as pane, i (pane.id)}
-        <div
-          class="cell"
-          class:active={i === focused}
-          style="grid-column: span {Math.min(pane.colSpan, workspace.cols)}; grid-row: span {pane.rowSpan};">
-          <Pane
-            {pane}
-            index={i}
-            cols={workspace.cols}
-            feed={feedKey(pane) ? feeds[feedKey(pane) ?? ''] : undefined}
-            statuses={knownStatuses}
-            {shown}
-            focused={i === focused}
-            startEditing={pane.kind === 'note' && pane.noteId === editingId}
-            vaults={allVaults}
-            onopen={openNote}
-            onresolve={onResolveConflict}
-            onmove={onMove}
-            onstatus={onSetStatus}
-            counts={threadCounts}
-            onnavigate={openNoteInPane}
-            onsaved={scheduleCommit}
-            onchange={(patch) => changePane(pane.id, patch)}
-            onreorder={movePane}
-            onresize={(patch) => resizePane(pane.id, patch)}
-            onclose={() => closePane(pane.id)}
-            onfocus={() => (focused = i)}
-            headed={workspace.layout === 'tiled'}
-          />
-        </div>
-      {/each}
-    </div>
-
-  </div>
-
-  {#if settingsOpen}
-    {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
-      <SettingsPanel
-        layout={workspace.layout ?? 'single'}
-        onlayout={setLayout}
-        onclose={() => (settingsOpen = false)}
-        onkeyschanged={reloadKeys}
-        {commands}
-        section={settingsSection}
-        columns={workspace.colMode === 'fixed' ? workspace.cols : 'auto'}
-        oncolumns={setCols}
-        {theme}
-        ontheme={toggleTheme}
-        userTheme={userTheme}
-        onusertheme={(sel) => {
-          appearance.writeSelection(sel);
-          userTheme = sel;
-          themeRefused = '';
-        }}
-        onbackup={() => {
-          settingsOpen = false;
-          backupOpen = true;
-        }} />
-    {/await}
-  {/if}
-
-  {#if helpOpen}
-    {#await import('./lib/HelpPanel.svelte') then { default: HelpPanel }}
-      <HelpPanel onclose={() => (helpOpen = false)} />
-    {/await}
-  {/if}
-
-  {#if unrecordedOpen}
-    {#await import('./lib/UnrecordedPanel.svelte') then { default: UnrecordedPanel }}
-      <UnrecordedPanel
-        unrecorded={unrecordedList}
-        duplicates={duplicateList}
-        onrecord={onRecordUnrecorded}
-        onprune={onPruneDuplicates}
-        onclose={() => (unrecordedOpen = false)}
-      />
-    {/await}
-  {/if}
-
-  {#if skippedOpen}
-    {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
-      <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
-    {/await}
-  {/if}
-
-  {#if backupOpen}
-    {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
-      <BackupPanel
-        onclose={() => (backupOpen = false)}
-        onnewvault={() => {
-          backupOpen = false;
-          newVaultOpen = true;
-        }}
-      />
-    {/await}
-  {/if}
-
-  {#if paperOpen}
-    <div class="sheet-backdrop" role="presentation" onclick={() => (paperOpen = false)}></div>
-    <div
-      class="sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add a paper"
-      tabindex="-1"
-      onkeydown={(e) => e.key === 'Escape' && (paperOpen = false)}>
-      <div class="save-view">
-        <h2>Add a paper</h2>
-        <label class="sv-field">
-          <span>Paste a citation, a DOI, an arXiv link — or just type the title</span>
-          <!-- svelte-ignore a11y_autofocus -->
-          <textarea
-            aria-label="paper citation or identifier"
-            bind:value={paperInput}
-            rows="6"
-            autofocus
-            spellcheck="false"
-            placeholder={'@article{…}\n\nor  10.48550/arXiv.1706.03762\nor  https://arxiv.org/abs/1706.03762\nor  Attention Is All You Need'}
-          ></textarea>
-        </label>
-        <p class="sv-hint">
-          Read on this computer — nothing is looked up online. A pasted citation fills in the
-          author, year and journal; an identifier on its own is recorded, and you can fill in the
-          rest from the note itself.
-        </p>
-        <div class="sv-actions">
-          <button class="sv-cancel" onclick={() => (paperOpen = false)}>Cancel</button>
-          <button class="sv-save" onclick={confirmNewPaper} disabled={!paperInput.trim()}>Add paper</button>
-        </div>
+      <div class="workspace" style="--cols:{workspace.cols}">
+        {#each workspace.panes as pane, i (pane.id)}
+          <div
+            class="cell"
+            class:active={i === focused}
+            style="grid-column: span {Math.min(
+              pane.colSpan,
+              workspace.cols,
+            )}; grid-row: span {pane.rowSpan};"
+          >
+            <Pane
+              {pane}
+              index={i}
+              cols={workspace.cols}
+              feed={feedKey(pane) ? feeds[feedKey(pane) ?? ''] : undefined}
+              statuses={knownStatuses}
+              {shown}
+              focused={i === focused}
+              startEditing={pane.kind === 'note' && pane.noteId === editingId}
+              vaults={allVaults}
+              onopen={openNote}
+              onresolve={onResolveConflict}
+              onmove={onMove}
+              onstatus={onSetStatus}
+              counts={threadCounts}
+              onnavigate={openNoteInPane}
+              onsaved={scheduleCommit}
+              onchange={(patch) => changePane(pane.id, patch)}
+              onreorder={movePane}
+              onresize={(patch) => resizePane(pane.id, patch)}
+              onclose={() => closePane(pane.id)}
+              onfocus={() => (focused = i)}
+              headed={workspace.layout === 'tiled'}
+            />
+          </div>
+        {/each}
       </div>
     </div>
-  {/if}
 
-  {#if newVaultOpen}
-    <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
-    <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
-      <NewVault
-        git={gitAvailable}
-        restic={resticAvailable}
-        oncreated={(v) => {
-          vaults = v;
-          newVaultOpen = false;
-          void refresh();
-        }}
-        oncancel={() => (newVaultOpen = false)}
-      />
-    </div>
-  {/if}
-</div>
+    {#if settingsOpen}
+      {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
+        <SettingsPanel
+          layout={workspace.layout ?? 'single'}
+          onlayout={setLayout}
+          onclose={() => (settingsOpen = false)}
+          onkeyschanged={reloadKeys}
+          {commands}
+          section={settingsSection}
+          columns={workspace.colMode === 'fixed' ? workspace.cols : 'auto'}
+          oncolumns={setCols}
+          {theme}
+          ontheme={toggleTheme}
+          {userTheme}
+          onusertheme={(sel) => {
+            appearance.writeSelection(sel);
+            userTheme = sel;
+            themeRefused = '';
+          }}
+          onbackup={() => {
+            settingsOpen = false;
+            backupOpen = true;
+          }}
+        />
+      {/await}
+    {/if}
+
+    {#if helpOpen}
+      {#await import('./lib/HelpPanel.svelte') then { default: HelpPanel }}
+        <HelpPanel onclose={() => (helpOpen = false)} />
+      {/await}
+    {/if}
+
+    {#if unrecordedOpen}
+      {#await import('./lib/UnrecordedPanel.svelte') then { default: UnrecordedPanel }}
+        <UnrecordedPanel
+          unrecorded={unrecordedList}
+          duplicates={duplicateList}
+          onrecord={onRecordUnrecorded}
+          onprune={onPruneDuplicates}
+          onclose={() => (unrecordedOpen = false)}
+        />
+      {/await}
+    {/if}
+
+    {#if skippedOpen}
+      {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
+        <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
+      {/await}
+    {/if}
+
+    {#if backupOpen}
+      {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
+        <BackupPanel
+          onclose={() => (backupOpen = false)}
+          onnewvault={() => {
+            backupOpen = false;
+            newVaultOpen = true;
+          }}
+        />
+      {/await}
+    {/if}
+
+    {#if paperOpen}
+      <div class="sheet-backdrop" role="presentation" onclick={() => (paperOpen = false)}></div>
+      <div
+        class="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add a paper"
+        tabindex="-1"
+        onkeydown={(e) => e.key === 'Escape' && (paperOpen = false)}
+      >
+        <div class="save-view">
+          <h2>Add a paper</h2>
+          <label class="sv-field">
+            <span>Paste a citation, a DOI, an arXiv link — or just type the title</span>
+            <!-- svelte-ignore a11y_autofocus -->
+            <textarea
+              aria-label="paper citation or identifier"
+              bind:value={paperInput}
+              rows="6"
+              autofocus
+              spellcheck="false"
+              placeholder={'@article{…}\n\nor  10.48550/arXiv.1706.03762\nor  https://arxiv.org/abs/1706.03762\nor  Attention Is All You Need'}
+            ></textarea>
+          </label>
+          <p class="sv-hint">
+            Read on this computer — nothing is looked up online. A pasted citation fills in the
+            author, year and journal; an identifier on its own is recorded, and you can fill in the
+            rest from the note itself.
+          </p>
+          <div class="sv-actions">
+            <button class="sv-cancel" onclick={() => (paperOpen = false)}>Cancel</button>
+            <button class="sv-save" onclick={confirmNewPaper} disabled={!paperInput.trim()}
+              >Add paper</button
+            >
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    {#if newVaultOpen}
+      <div class="sheet-backdrop" role="presentation" onclick={() => (newVaultOpen = false)}></div>
+      <div class="sheet" role="dialog" aria-modal="true" aria-label="New vault">
+        <NewVault
+          git={gitAvailable}
+          restic={resticAvailable}
+          oncreated={(v) => {
+            vaults = v;
+            newVaultOpen = false;
+            void refresh();
+          }}
+          oncancel={() => (newVaultOpen = false)}
+        />
+      </div>
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -2477,7 +2544,9 @@
     border-radius: 8px !important;
     background: #fff !important;
     color: #000 !important;
-    font: 500 14px/1.2 system-ui, sans-serif !important;
+    font:
+      500 14px/1.2 system-ui,
+      sans-serif !important;
     cursor: pointer !important;
   }
   /* ================= WHERE THE CHROME SITS =====================================

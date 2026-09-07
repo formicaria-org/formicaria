@@ -21,7 +21,11 @@
 
 {#if vault}
   {#if dot}
-    <span class="vault-dot" style="--vh:{hue}" title={`Vault: ${shown}`} aria-label={`Vault: ${shown}`}
+    <span
+      class="vault-dot"
+      style="--vh:{hue}"
+      title={`Vault: ${shown}`}
+      aria-label={`Vault: ${shown}`}
     ></span>
   {:else}
     <span class="vault-badge" style="--vh:{hue}" title={`Vault: ${shown}`}>{shown}</span>

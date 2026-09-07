@@ -39,7 +39,12 @@ beforeEach(() => {
   // The mock vault never moves (`changed: false`), so the heartbeat is stubbed per-test where a
   // test needs it to report one.
   ping.mockResolvedValue({
-    changed: false, generation: 0, git: true, restic: false, skipped: [], unopened_vaults: [],
+    changed: false,
+    generation: 0,
+    git: true,
+    restic: false,
+    skipped: [],
+    unopened_vaults: [],
   });
   document.getElementById('fm-theme')?.remove();
 });

@@ -110,9 +110,7 @@
   ///
   /// The two tiers were already independent inside `run()`: a vault with no remote gets its own
   /// step line and the media loop never depended on the git loop. Only the gate assumed one.
-  const canRun = $derived(
-    !busy && ((!noGit && anyRemote) || (heavy && anyRestic)),
-  );
+  const canRun = $derived(!busy && ((!noGit && anyRemote) || (heavy && anyRestic)));
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
@@ -380,7 +378,10 @@
     for (const v of status.vaults) {
       if (!v.remote) {
         stuck.push(v.name);
-        steps.push({ text: `No remote set${of(v)} — those notes cannot leave this machine.`, ok: false });
+        steps.push({
+          text: `No remote set${of(v)} — those notes cannot leave this machine.`,
+          ok: false,
+        });
         continue;
       }
       const reach = reachOf(v.remote);
@@ -502,9 +503,9 @@
            inviting someone to type a remote into it would be a lie. The notebook itself is
            unaffected, and that is worth saying in the same breath. -->
       <p class="error">
-        <strong>git isn't installed on this machine.</strong> Your notes are safe — they're
-        Markdown files on disk and the app works normally — but nothing on this panel can
-        run without git: no history, no backup, no sharing. Install git and reopen.
+        <strong>git isn't installed on this machine.</strong> Your notes are safe — they're Markdown files
+        on disk and the app works normally — but nothing on this panel can run without git: no history,
+        no backup, no sharing. Install git and reopen.
       </p>
     {/if}
 
@@ -516,8 +517,8 @@
       <div class="vault">
         <div class="identity">
           <p class="why">
-            Your snapshots are encrypted, and they need a password. Choose one now — it is kept in
-            a file on this machine only, readable by nobody else, and never written into the vault
+            Your snapshots are encrypted, and they need a password. Choose one now — it is kept in a
+            file on this machine only, readable by nobody else, and never written into the vault
             list.
           </p>
           <div class="row">
@@ -538,9 +539,9 @@
                is gone — there is no reset and nobody to ask. Said here because this is the only
                moment it is actionable. -->
           <p class="why">
-            <strong>Write it down somewhere safe.</strong> If this password is lost, the backups it
-            protects cannot be opened again — not by us, not by anyone. Your notes themselves are
-            unaffected: they are plain files, and they travel with git.
+            <strong>Write it down somewhere safe.</strong> If this password is lost, the backups it protects
+            cannot be opened again — not by us, not by anyone. Your notes themselves are unaffected: they
+            are plain files, and they travel with git.
           </p>
         </div>
       </div>
@@ -573,7 +574,8 @@
             <button
               onclick={() => saveRemote(v)}
               disabled={!canSaveRemote(v)}
-              aria-label={`Save the ${v.name} git remote`}>Save</button>
+              aria-label={`Save the ${v.name} git remote`}>Save</button
+            >
           </div>
         </label>
 
@@ -637,7 +639,10 @@
                   autocapitalize="off"
                   disabled={busy}
                 />
-                <button onclick={() => void saveToken(v)} disabled={busy || !tokenDrafts[v.name]?.trim()}>
+                <button
+                  onclick={() => void saveToken(v)}
+                  disabled={busy || !tokenDrafts[v.name]?.trim()}
+                >
                   Save token
                 </button>
               </div>
@@ -645,15 +650,17 @@
                    A token is a *bearer* credential: it is not tied to a device, so scope and
                    expiry are the only things that bound the damage. -->
               <p class="why">
-                Use a <strong>fine-grained</strong> token limited to this one repository, with
-                contents read/write and an expiry date. Anyone who has the token can use it from
-                anywhere, so a narrow one is the protection.
+                Use a <strong>fine-grained</strong> token limited to this one repository, with contents
+                read/write and an expiry date. Anyone who has the token can use it from anywhere, so a
+                narrow one is the protection.
               </p>
               {#if auth[v.name]?.helper?.plaintext}
                 <p class="why">
-                  Heads up: git on this machine uses the <code>{auth[v.name]?.helper?.configured}</code>
-                  helper, which keeps credentials as <strong>plain text</strong> on disk. That is
-                  where this token will go.
+                  Heads up: git on this machine uses the <code
+                    >{auth[v.name]?.helper?.configured}</code
+                  >
+                  helper, which keeps credentials as <strong>plain text</strong> on disk. That is where
+                  this token will go.
                 </p>
               {/if}
             {/if}
@@ -689,8 +696,8 @@
             <small class="why">
               {#if v.restic_repo}
                 This vault's notes and attachments are snapshotted here, encrypted — not the other
-                files at the vault root, and not its git history. Clear the field and save to stop
-                — nothing already backed up is removed.
+                files at the vault root, and not its git history. Clear the field and save to stop —
+                nothing already backed up is removed.
               {:else}
                 Empty means this vault's attachments stay on this machine. Notes are unaffected:
                 they travel with git.
@@ -712,8 +719,8 @@
                     It covered {l.paths.length} path{l.paths.length === 1 ? '' : 's'}.
                   {/if}
                 {:else}
-                  <strong>Never backed up.</strong> This repository is configured and has no
-                  formicaria snapshot in it yet — pressing Back up below is what changes that.
+                  <strong>Never backed up.</strong> This repository is configured and has no formicaria
+                  snapshot in it yet — pressing Back up below is what changes that.
                 {/if}
               </small>
             {/if}
@@ -738,7 +745,9 @@
                 {#if v.unpushed === 0}
                   <span class="muted">Everything here is pushed.</span>
                 {:else if v.unpushed}
-                  <span class="muted">{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span>
+                  <span class="muted"
+                    >{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span
+                  >
                 {/if}
                 {#if v.identity}
                   <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
@@ -768,7 +777,12 @@
               Cancel
             </button>
           {:else}
-            <button type="button" class="quiet" onclick={() => (confirmForget = v.name)} disabled={busy}>
+            <button
+              type="button"
+              class="quiet"
+              onclick={() => (confirmForget = v.name)}
+              disabled={busy}
+            >
               Remove this vault from the list…
             </button>
           {/if}
@@ -854,8 +868,8 @@
         Include an encrypted snapshot — notes and attachments, via restic
         {#if noRestic}
           <span class="muted">
-            (unavailable: restic isn't installed on this machine — the snapshot is an
-            optional feature, and your notes don't need it)
+            (unavailable: restic isn't installed on this machine — the snapshot is an optional
+            feature, and your notes don't need it)
           </span>
         {:else if status && !anyRestic}
           <!-- Both halves of what this used to say were stale: it sent people to edit the vault
@@ -888,13 +902,13 @@
     {#if status && !canRun && !busy}
       <p class="why">
         {#if !noGit && !anyRemote && anyRestic && !heavy}
-          No vault has a git remote yet, so there is nothing to push — but this machine can take
-          a snapshot. Tick the box above to run that tier on its own.
+          No vault has a git remote yet, so there is nothing to push — but this machine can take a
+          snapshot. Tick the box above to run that tier on its own.
         {:else if !noGit && !anyRemote}
           Back up needs a git remote to send notes to, and no vault has one yet — set one above.
         {:else if noGit && !anyRestic}
-          This machine has neither git nor a configured snapshot repository, so there is nowhere
-          for anything to go.
+          This machine has neither git nor a configured snapshot repository, so there is nowhere for
+          anything to go.
         {:else if noGit}
           Git is not installed, so notes cannot be pushed. Tick the box above to take a snapshot
           instead — that tier carries the notes as well as the attachments.

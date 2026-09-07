@@ -40,10 +40,7 @@ const vault = (name: string, restic_repo: string | null) => ({
   git_assets_max: null,
 });
 
-const show = (
-  vaults: ReturnType<typeof vault>[],
-  { restic = true, password = false } = {},
-) => {
+const show = (vaults: ReturnType<typeof vault>[], { restic = true, password = false } = {}) => {
   backupStatus.mockResolvedValue({ vaults, git: true, restic, restic_password_set: password });
   render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
 };

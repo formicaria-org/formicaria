@@ -48,7 +48,11 @@ describe('renderInto — markdown becomes the expected HTML', () => {
 
   it('renders headings, emphasis, and links', async () => {
     const el = pane();
-    await renderInto(el, '# Title\n\n**bold** and _italic_ and [a link](https://example.com).', noAsset);
+    await renderInto(
+      el,
+      '# Title\n\n**bold** and _italic_ and [a link](https://example.com).',
+      noAsset,
+    );
     expect(el.querySelector('h1')?.textContent).toBe('Title');
     expect(el.querySelector('strong')?.textContent).toBe('bold');
     expect(el.querySelector('em')?.textContent).toBe('italic');
@@ -107,7 +111,11 @@ describe('renderInto — assets degrade gracefully', () => {
 
   it('renders a PDF as a scrollable inline iframe', async () => {
     const el = pane();
-    await renderInto(el, '![paper](asset:sha256-deadbeef)', resolveAs('application/pdf', 'blob:test/p.pdf'));
+    await renderInto(
+      el,
+      '![paper](asset:sha256-deadbeef)',
+      resolveAs('application/pdf', 'blob:test/p.pdf'),
+    );
     const frame = el.querySelector('iframe.asset-pdf');
     expect(frame).not.toBeNull();
     expect(frame?.getAttribute('src')).toBe('blob:test/p.pdf');
@@ -126,7 +134,11 @@ describe('renderInto — assets degrade gracefully', () => {
 
   it('falls back to an open-link for an unknown non-image type', async () => {
     const el = pane();
-    await renderInto(el, '![data](asset:sha256-cc)', resolveAs('application/octet-stream', 'blob:test/d.bin'));
+    await renderInto(
+      el,
+      '![data](asset:sha256-cc)',
+      resolveAs('application/octet-stream', 'blob:test/d.bin'),
+    );
     const link = el.querySelector('a.asset-file');
     expect(link?.getAttribute('href')).toBe('blob:test/d.bin');
     expect(link?.textContent).toBe('Open data');
@@ -188,8 +200,14 @@ describe('renderInto — math and diagrams upgrade or fall back', () => {
     await renderInto(el, 'Euler: $e^{i\\pi} + 1 = 0$ and $$a^2 + b^2 = c^2$$', noAsset);
     // One inline + one display formula → two KaTeX calls, display flag preserved.
     expect(katexRender).toHaveBeenCalledTimes(2);
-    expect(katexRender).toHaveBeenCalledWith('e^{i\\pi} + 1 = 0', expect.objectContaining({ displayMode: false }));
-    expect(katexRender).toHaveBeenCalledWith('a^2 + b^2 = c^2', expect.objectContaining({ displayMode: true }));
+    expect(katexRender).toHaveBeenCalledWith(
+      'e^{i\\pi} + 1 = 0',
+      expect.objectContaining({ displayMode: false }),
+    );
+    expect(katexRender).toHaveBeenCalledWith(
+      'a^2 + b^2 = c^2',
+      expect.objectContaining({ displayMode: true }),
+    );
     // Placeholders are gone (filled), and no raw `$` leaks into the pane.
     expect(el.querySelector('span[data-math]')?.innerHTML).toContain('katex');
   });
@@ -202,7 +220,7 @@ describe('renderInto — math and diagrams upgrade or fall back', () => {
 
   it('keeps a broken formula visible with the error as a tooltip, not a blank pane', async () => {
     katexRender.mockImplementationOnce(() => {
-      throw new Error("Undefined control sequence: \\nope");
+      throw new Error('Undefined control sequence: \\nope');
     });
     const el = pane();
     await renderInto(el, 'Bad: $$ \\nope{x} $$', noAsset);
@@ -282,11 +300,7 @@ describe('renderInto — characterization of the real sample note', () => {
   // dangerous schemes. This pins both halves: the useful one survives, the script one dies.
   it('keeps geo: links but still strips javascript:', async () => {
     const el = pane();
-    await renderInto(
-      el,
-      '[map](geo:1.2807,103.8720) and [x](javascript:alert(1))',
-      noAsset,
-    );
+    await renderInto(el, '[map](geo:1.2807,103.8720) and [x](javascript:alert(1))', noAsset);
     expect(el.querySelector('a[href^="geo:"]')?.getAttribute('href')).toBe('geo:1.2807,103.8720');
     // The javascript: URL must not survive as an href — sanitize drops it.
     expect(el.querySelector('a[href^="javascript:"]')).toBeNull();
@@ -354,15 +368,13 @@ describe('renderInto — note references become chips', () => {
   const ref = `See [Q3 planning](note:${ID}) for context.`;
   /** A resolver standing in for the vault, like NotePanel's real one. */
   const resolveAs = (note: Partial<ResolvedNote> = {}) =>
-    vi.fn(
-      async (id: string): Promise<ResolvedNote> => ({
-        id,
-        type: 'meeting',
-        title: 'Q3 planning',
-        status: 'doing',
-        ...note,
-      }),
-    );
+    vi.fn(async (id: string): Promise<ResolvedNote> => ({
+      id,
+      type: 'meeting',
+      title: 'Q3 planning',
+      status: 'doing',
+      ...note,
+    }));
   const noNote = async (): Promise<ResolvedNote | null> => null;
 
   // The whole `note:` syntax rests on marked passing an unknown URL scheme
@@ -456,7 +468,11 @@ describe('renderInto — decorative extensions (highlight, colour, callout)', ()
 
   it('renders > [!type] as a callout with a title, and an unknown type stays a blockquote', async () => {
     const el = pane();
-    await renderInto(el, '> [!warning] Heads up\n> be careful\n\n> [!bogus] plain\n> quote', noAsset);
+    await renderInto(
+      el,
+      '> [!warning] Heads up\n> be careful\n\n> [!bogus] plain\n> quote',
+      noAsset,
+    );
     const callout = el.querySelector('div.callout.callout-warning');
     expect(callout).not.toBeNull();
     expect(callout?.querySelector('.callout-title')?.textContent).toBe('Heads up');
@@ -538,13 +554,11 @@ describe('renderInto — note embeds (transclusion)', () => {
 /// `url` at the resolver.
 describe('inline images use a downscaled copy when there is one', () => {
   const withThumb = (mime: string) =>
-    vi.fn(
-      async (): Promise<ResolvedAsset> => ({
-        url: '/api/blob/abc',
-        thumb: '/api/blob/abc?kind=thumb',
-        mime,
-      }),
-    );
+    vi.fn(async (): Promise<ResolvedAsset> => ({
+      url: '/api/blob/abc',
+      thumb: '/api/blob/abc?kind=thumb',
+      mime,
+    }));
 
   it('points an <img> at the thumbnail', async () => {
     const el = pane();

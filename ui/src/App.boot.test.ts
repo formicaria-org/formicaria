@@ -111,7 +111,8 @@ describe('the boot gate never leaves the user with a blank screen', () => {
       {
         cmd: 'list_vaults',
         mode: 'reject',
-        message: 'could not open vaults: open /data/user/0/dev.formicaria.notes/vaults: no such file',
+        message:
+          'could not open vaults: open /data/user/0/dev.formicaria.notes/vaults: no such file',
       },
     ]);
     render(App);
@@ -127,7 +128,9 @@ describe('the boot gate never leaves the user with a blank screen', () => {
   it('recovers on its own once the backend comes up', async () => {
     // Two refusals then success: the automatic retry (1.2 s) must get there without the user
     // doing anything, which is what makes "the vaults took a while to open" a non-event.
-    faults([{ cmd: 'list_vaults', mode: 'reject', message: 'still opening your vaults', times: 2 }]);
+    faults([
+      { cmd: 'list_vaults', mode: 'reject', message: 'still opening your vaults', times: 2 },
+    ]);
     render(App);
     await vi.advanceTimersByTimeAsync(SETTLED);
     expect(appPainted()).toBe(false);

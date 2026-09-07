@@ -61,14 +61,19 @@
       groupBy: shownView.group_by ?? pane.groupBy,
     });
   }
-
 </script>
 
 {#if pane.kind === 'agenda'}
   <div class="seg">
-    <button class:on={pane.agendaMode === 'month'} onclick={() => onchange({ agendaMode: 'month' })}>M</button>
-    <button class:on={pane.agendaMode === 'week'} onclick={() => onchange({ agendaMode: 'week' })}>W</button>
-    <button class:on={pane.agendaMode === 'list'} onclick={() => onchange({ agendaMode: 'list' })}>L</button>
+    <button class:on={pane.agendaMode === 'month'} onclick={() => onchange({ agendaMode: 'month' })}
+      >M</button
+    >
+    <button class:on={pane.agendaMode === 'week'} onclick={() => onchange({ agendaMode: 'week' })}
+      >W</button
+    >
+    <button class:on={pane.agendaMode === 'list'} onclick={() => onchange({ agendaMode: 'list' })}
+      >L</button
+    >
   </div>
 {:else if pane.kind === 'timeline'}
   <!-- One renderer, two densities, chosen per window and remembered. Words rather than initials —
@@ -77,11 +82,13 @@
     <button
       class:on={pane.timelineMode !== 'compact'}
       onclick={() => onchange({ timelineMode: 'feed' })}
-      title="Each note as a post, with its picture">Feed</button>
+      title="Each note as a post, with its picture">Feed</button
+    >
     <button
       class:on={pane.timelineMode === 'compact'}
       onclick={() => onchange({ timelineMode: 'compact' })}
-      title="One line per note">List</button>
+      title="One line per note">List</button
+    >
   </div>
 {:else if pane.kind === 'view' && hides.length}
   <!-- **A filtered view has to admit it.** Everything else here tunes a view; this one explains
@@ -89,7 +96,13 @@
        is and a view narrowing by tag or date reads just as well. The text is *visible*, not tucked
        into `title`: a phone has no hover, and the point is to be legible at the moment the column
        looks missing. -->
-  <button type="button" class="hides" onclick={showEverything} title={hidesTitle} aria-label={hidesTitle}>
+  <button
+    type="button"
+    class="hides"
+    onclick={showEverything}
+    title={hidesTitle}
+    aria-label={hidesTitle}
+  >
     filtered: {hides.join(' · ')}
   </button>
 {:else if pane.kind === 'search'}

@@ -168,7 +168,11 @@
       provisioned = st.provisioned;
       provisionedBytes = st.provisioned_bytes;
       provisioning = st.provisioning;
-      if (st.provisioning && st.provisioning.stage !== 'ready' && st.provisioning.stage !== 'failed') {
+      if (
+        st.provisioning &&
+        st.provisioning.stage !== 'ready' &&
+        st.provisioning.stage !== 'failed'
+      ) {
         watchProvisioning();
       }
       agentWhy = st.why;
@@ -252,7 +256,11 @@
         const st = await agentStatus();
         provisioning = st.provisioning;
         provisioned = st.provisioned;
-        if (st.provisioning && st.provisioning.stage !== 'ready' && st.provisioning.stage !== 'failed') {
+        if (
+          st.provisioning &&
+          st.provisioning.stage !== 'ready' &&
+          st.provisioning.stage !== 'failed'
+        ) {
           watchProvisioning();
         }
       } catch {
@@ -421,7 +429,8 @@
           placeholder="Filter actions…"
           bind:value={filter}
           autocomplete="off"
-          spellcheck="false" />
+          spellcheck="false"
+        />
         <ul class="action-list">
           {#each shown as c, i (c.label)}
             {#if c.group && c.group !== shown[i - 1]?.group}
@@ -433,7 +442,8 @@
                 onclick={() => {
                   c.run();
                   onclose();
-                }}>
+                }}
+              >
                 <span>{c.label}</span>
                 <!-- The standard menu pattern: the accelerator beside the thing it triggers.
                      Rebinding has shipped for a while and was invisible unless you scrolled to the
@@ -479,9 +489,9 @@
       <section>
         <h3>Layout</h3>
         <p class="muted">
-          How views are arranged. <strong>One view</strong> is the default everywhere, including
-          this machine — a narrow layout only a phone could run would be a second frontend wearing
-          a setting, and nothing would exercise it during ordinary desktop work.
+          How views are arranged. <strong>One view</strong> is the default everywhere, including this
+          machine — a narrow layout only a phone could run would be a second frontend wearing a setting,
+          and nothing would exercise it during ordinary desktop work.
         </p>
         <ul class="caps">
           {#each [['single', 'One view', 'The default. One at a time; the strip along the bottom moves between the ones you have open.'], ['tiled', 'Tiled', 'The pane grid — several views side by side.']] as [value, label, why] (value)}
@@ -491,7 +501,8 @@
                   type="radio"
                   name="layout"
                   checked={layout === value}
-                  onchange={() => onlayout(value as 'single' | 'tiled')} />
+                  onchange={() => onlayout(value as 'single' | 'tiled')}
+                />
                 <span class="k">{label}</span>
                 <span class="muted">{why}</span>
               </label>
@@ -504,9 +515,10 @@
         <section>
           <h3>Study assistant</h3>
           <p class="muted">
-            A small local model that reads your notes and answers in discussions — mention it by name
-            (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review, and never
-            touches your notes on its own. It runs entirely on this device, starts and stops
+            A small local model that reads your notes and answers in discussions — mention it by
+            name (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review,
+            and never touches your notes on its own. It runs entirely on this device, starts and
+            stops
             <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change takes
             effect at the next launch.
           </p>
@@ -521,131 +533,136 @@
                 <span class="muted">{agentWhy}</span>
               </li>
             {:else}
-            <li>
-              <label class="choice">
-                <!-- Named explicitly: this and the sharing switch both read "Off" from their
+              <li>
+                <label class="choice">
+                  <!-- Named explicitly: this and the sharing switch both read "Off" from their
                      first span, so without a label a screen reader announces two identical
                      checkboxes on one screen. -->
-                <input
-                  type="checkbox"
-                  aria-label="study assistant"
-                  checked={agentOn}
-                  onchange={(e) => toggleAgent(e.currentTarget.checked)} />
-                <span class="k">{agentOn ? 'On' : 'Off'}</span>
-                <span class="muted">
-                  {agentOn
-                    ? 'Starts with formicaria on the next launch.'
-                    : provisioned
-                      ? 'Formicaria runs pure and super-light.'
-                      : 'Turning it on downloads a model first — it will ask before it does.'}
-                </span>
-              </label>
-            </li>
+                  <input
+                    type="checkbox"
+                    aria-label="study assistant"
+                    checked={agentOn}
+                    onchange={(e) => toggleAgent(e.currentTarget.checked)}
+                  />
+                  <span class="k">{agentOn ? 'On' : 'Off'}</span>
+                  <span class="muted">
+                    {agentOn
+                      ? 'Starts with formicaria on the next launch.'
+                      : provisioned
+                        ? 'Formicaria runs pure and super-light.'
+                        : 'Turning it on downloads a model first — it will ask before it does.'}
+                  </span>
+                </label>
+              </li>
 
-            <!-- **Ask, with the numbers, before spending anything.** The size and the licence are
+              <!-- **Ask, with the numbers, before spending anything.** The size and the licence are
                  read from the catalogue rather than written here, so the figures cannot drift from
                  what is actually fetched. -->
-            {#if choosing}
-              <li class="vault">
-                <p class="why">
-                  The assistant needs a model on this computer. It is downloaded once, kept on this
-                  machine, and used offline afterwards. Pick one:
-                </p>
-                {#each catalogue as m (m.name)}
-                  <label class="choice">
-                    <input
-                      type="radio"
-                      name="fm-agent-model"
-                      value={m.name}
-                      checked={pickedModel === m.name}
-                      onchange={() => (pickedModel = m.name)} />
-                    <span class="k">{m.name}</span>
-                    <span class="muted">
-                      {m.bytes ? humanSize(m.bytes) : 'size unknown'}{m.license
-                        ? ` · ${m.license}`
-                        : ''}{m.vision ? ' · can read images' : ''}
-                    </span>
-                  </label>
-                {/each}
-                {#if picked?.vision}
-                  <label class="choice">
-                    <input
-                      type="checkbox"
-                      checked={pickVision}
-                      onchange={(e) => (pickVision = e.currentTarget.checked)} />
-                    <span class="k">Read images too</span>
-                    <span class="muted">
-                      A further {picked.mmproj_bytes ? humanSize(picked.mmproj_bytes) : 'download'}
-                      — needed to turn a photographed page into text. Without it the model works
-                      normally and says it cannot see pictures.
-                    </span>
-                  </label>
-                {/if}
-                <p class="why">
-                  <strong>Total: {humanSize(pickedBytes)}.</strong> You can stop it at any time; what
-                  has already arrived is kept, and starting again continues where it left off.
-                </p>
-                <div class="row">
-                  <button class="primary" onclick={startProvisioning} disabled={!pickedModel}>
-                    Download and turn on
-                  </button>
-                  <button onclick={() => (choosing = false)}>Cancel</button>
-                </div>
-              </li>
-            {/if}
+              {#if choosing}
+                <li class="vault">
+                  <p class="why">
+                    The assistant needs a model on this computer. It is downloaded once, kept on
+                    this machine, and used offline afterwards. Pick one:
+                  </p>
+                  {#each catalogue as m (m.name)}
+                    <label class="choice">
+                      <input
+                        type="radio"
+                        name="fm-agent-model"
+                        value={m.name}
+                        checked={pickedModel === m.name}
+                        onchange={() => (pickedModel = m.name)}
+                      />
+                      <span class="k">{m.name}</span>
+                      <span class="muted">
+                        {m.bytes ? humanSize(m.bytes) : 'size unknown'}{m.license
+                          ? ` · ${m.license}`
+                          : ''}{m.vision ? ' · can read images' : ''}
+                      </span>
+                    </label>
+                  {/each}
+                  {#if picked?.vision}
+                    <label class="choice">
+                      <input
+                        type="checkbox"
+                        checked={pickVision}
+                        onchange={(e) => (pickVision = e.currentTarget.checked)}
+                      />
+                      <span class="k">Read images too</span>
+                      <span class="muted">
+                        A further {picked.mmproj_bytes
+                          ? humanSize(picked.mmproj_bytes)
+                          : 'download'}
+                        — needed to turn a photographed page into text. Without it the model works normally
+                        and says it cannot see pictures.
+                      </span>
+                    </label>
+                  {/if}
+                  <p class="why">
+                    <strong>Total: {humanSize(pickedBytes)}.</strong> You can stop it at any time; what
+                    has already arrived is kept, and starting again continues where it left off.
+                  </p>
+                  <div class="row">
+                    <button class="primary" onclick={startProvisioning} disabled={!pickedModel}>
+                      Download and turn on
+                    </button>
+                    <button onclick={() => (choosing = false)}>Cancel</button>
+                  </div>
+                </li>
+              {/if}
 
-            <!-- **Getting the space back.** Nothing in the app could reclaim 2.5-3.3 GB until now,
+              <!-- **Getting the space back.** Nothing in the app could reclaim 2.5-3.3 GB until now,
                  and no document said where the files were. Two steps, like forgetting a vault: this
                  is irreversible and large. It names the figure, because "delete 2.5 GB" is a
                  decision someone can make and "delete the model" is a leap of faith. -->
-            {#if provisioned && provisionedBytes > 0 && !provisioning}
-              <li>
-                {#if removingModel}
-                  <span class="k">remove the model?</span>
-                  <span class="muted">
-                    Frees {humanSize(provisionedBytes)}. Your notes are untouched — this deletes only
-                    the downloaded model and its runtime. Turning the assistant on again asks which
-                    model you want and downloads it afresh.
-                  </span>
-                  <button class="primary" onclick={removeModel}>Yes, remove it</button>
-                  <button onclick={() => (removingModel = false)}>Cancel</button>
-                {:else}
-                  <span class="k">disk</span>
-                  <span class="muted">
-                    The model and its runtime use {humanSize(provisionedBytes)}.
-                  </span>
-                  <button onclick={() => (removingModel = true)}>Remove the model…</button>
-                {/if}
-              </li>
-            {/if}
-            {#if removedNote}
-              <li><span class="muted">{removedNote}</span></li>
-            {/if}
+              {#if provisioned && provisionedBytes > 0 && !provisioning}
+                <li>
+                  {#if removingModel}
+                    <span class="k">remove the model?</span>
+                    <span class="muted">
+                      Frees {humanSize(provisionedBytes)}. Your notes are untouched — this deletes
+                      only the downloaded model and its runtime. Turning the assistant on again asks
+                      which model you want and downloads it afresh.
+                    </span>
+                    <button class="primary" onclick={removeModel}>Yes, remove it</button>
+                    <button onclick={() => (removingModel = false)}>Cancel</button>
+                  {:else}
+                    <span class="k">disk</span>
+                    <span class="muted">
+                      The model and its runtime use {humanSize(provisionedBytes)}.
+                    </span>
+                    <button onclick={() => (removingModel = true)}>Remove the model…</button>
+                  {/if}
+                </li>
+              {/if}
+              {#if removedNote}
+                <li><span class="muted">{removedNote}</span></li>
+              {/if}
 
-            <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
+              <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
                  a made-up percentage is worse than an honest number. -->
-            {#if provisioning && provisioning.stage !== 'ready'}
-              <li>
-                {#if provisioning.stage === 'failed'}
-                  <span class="k">download failed</span>
-                  <span class="muted">{provisioning.error ?? 'no reason given'}</span>
-                {:else}
-                  <span class="k">
-                    {provisioning.stage === 'runtime'
-                      ? 'getting the runtime'
-                      : provisioning.stage === 'projector'
-                        ? 'getting the image reader'
-                        : 'downloading the model'}
-                  </span>
-                  <span class="muted">
-                    {humanSize(provisioning.done)}{provisioning.total
-                      ? ` of ${humanSize(provisioning.total)}`
-                      : ''} — you can keep working; it continues in the background.
-                  </span>
-                  <button onclick={cancelProvisioning}>Stop</button>
-                {/if}
-              </li>
-            {/if}
+              {#if provisioning && provisioning.stage !== 'ready'}
+                <li>
+                  {#if provisioning.stage === 'failed'}
+                    <span class="k">download failed</span>
+                    <span class="muted">{provisioning.error ?? 'no reason given'}</span>
+                  {:else}
+                    <span class="k">
+                      {provisioning.stage === 'runtime'
+                        ? 'getting the runtime'
+                        : provisioning.stage === 'projector'
+                          ? 'getting the image reader'
+                          : 'downloading the model'}
+                    </span>
+                    <span class="muted">
+                      {humanSize(provisioning.done)}{provisioning.total
+                        ? ` of ${humanSize(provisioning.total)}`
+                        : ''} — you can keep working; it continues in the background.
+                    </span>
+                    <button onclick={cancelProvisioning}>Stop</button>
+                  {/if}
+                </li>
+              {/if}
             {/if}
             {#if agentInstalled && agentOn}
               {#if transcribeAvailable}
@@ -654,7 +671,8 @@
                     <input
                       type="checkbox"
                       checked={transcribeOn}
-                      onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
+                      onchange={(e) => toggleTranscribe(e.currentTarget.checked)}
+                    />
                     <span class="k">Audio transcription {transcribeOn ? 'on' : 'off'}</span>
                     <span class="muted">
                       {transcribeOn
@@ -678,7 +696,8 @@
                         type="checkbox"
                         aria-label="audio transcription"
                         checked={transcribeOn}
-                        onchange={(e) => toggleTranscribe(e.currentTarget.checked)} />
+                        onchange={(e) => toggleTranscribe(e.currentTarget.checked)}
+                      />
                       <span class="k">Audio transcription</span>
                       <span class="muted">
                         Turns recordings into text. Needs a further download of about 170 MB, which
@@ -688,9 +707,9 @@
                   {:else}
                     <span class="k">Audio transcription unavailable</span>
                     <span class="muted">
-                      No speech-to-text runtime has been published for this kind of computer yet,
-                      so recordings cannot be transcribed here. The assistant works normally
-                      without it.
+                      No speech-to-text runtime has been published for this kind of computer yet, so
+                      recordings cannot be transcribed here. The assistant works normally without
+                      it.
                     </span>
                   {/if}
                 </li>
@@ -718,7 +737,8 @@
                 <input
                   type="checkbox"
                   checked={shareOn}
-                  onchange={(e) => toggleShare(e.currentTarget.checked)} />
+                  onchange={(e) => toggleShare(e.currentTarget.checked)}
+                />
                 <span class="k">{shareOn ? 'On' : 'Off'}</span>
                 <!-- **The capability, not the setting.** "Listening" is not "working": a bound
                      socket says nothing about whether the wifi carries device-to-device traffic
@@ -731,8 +751,8 @@
               <li>
                 <span class="k">Which vaults</span>
                 <span class="muted">
-                  A device is let into the vaults you choose here and <strong>no others</strong> —
-                  it cannot see, search or open anything in the rest.
+                  A device is let into the vaults you choose here and <strong>no others</strong> — it
+                  cannot see, search or open anything in the rest.
                 </span>
                 <ul class="caps">
                   {#each cfg?.vaults ?? [] as v (v.name)}
@@ -744,7 +764,8 @@
                           onchange={(e) =>
                             (chosen = e.currentTarget.checked
                               ? [...chosen, v.name]
-                              : chosen.filter((n) => n !== v.name))} />
+                              : chosen.filter((n) => n !== v.name))}
+                        />
                         <span class="k">{v.name}</span>
                       </label>
                     </li>
@@ -760,15 +781,14 @@
                 <li>
                   <span class="k">First, trust this computer</span>
                   <span class="muted">
-                    Copy this file to the device and open it, then allow the certificate
-                    (on iPad also: <strong>Settings → General → About → Certificate Trust
-                    Settings</strong>). Encryption is what lets the device use its microphone.
+                    Copy this file to the device and open it, then allow the certificate (on iPad
+                    also: <strong>Settings → General → About → Certificate Trust Settings</strong>).
+                    Encryption is what lets the device use its microphone.
                   </span>
                   <span class="muted"><code>{share.cert_path}</code></span>
                   <span class="muted">
                     Before you tap install, check the device shows this exact fingerprint. If it
-                    shows anything else, <strong>stop</strong> — you are not talking to this
-                    computer.
+                    shows anything else, <strong>stop</strong> — you are not talking to this computer.
                   </span>
                   <code class="code fp">{share.fingerprint}</code>
                 </li>
@@ -778,9 +798,8 @@
                 {#if code}
                   <span class="k">Code: <code class="code">{code}</code></span>
                   <span class="muted">
-                    Type this on the other device. It works once, and only for the next few
-                    minutes. {#if share?.state === 'listening'}Open <code>{share.url}</code> there
-                      first.{/if}
+                    Type this on the other device. It works once, and only for the next few minutes. {#if share?.state === 'listening'}Open
+                      <code>{share.url}</code> there first.{/if}
                   </span>
                 {:else}
                   <button onclick={startCode} disabled={chosen.length === 0}>
@@ -813,9 +832,8 @@
       <section>
         <h3>Columns</h3>
         <p class="muted">
-          How wide the grid is in the tiled arrangement. <strong>Automatic</strong> follows the
-          number of open views, so opening one widens the grid and closing one lets the rest
-          reclaim the space.
+          How wide the grid is in the tiled arrangement. <strong>Automatic</strong> follows the number
+          of open views, so opening one widens the grid and closing one lets the rest reclaim the space.
         </p>
         <ul class="caps">
           {#each ['auto', 1, 2, 3, 4] as c (c)}
@@ -825,7 +843,8 @@
                   type="radio"
                   name="columns"
                   checked={columns === c}
-                  onchange={() => oncolumns(c as number | 'auto')} />
+                  onchange={() => oncolumns(c as number | 'auto')}
+                />
                 <span class="k">{c === 'auto' ? 'Automatic' : `${c}`}</span>
               </label>
             </li>
@@ -836,10 +855,10 @@
       <section>
         <h3>Keyboard</h3>
         <p class="muted">
-          Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels.
-          The <em>Next / Previous view</em> pair works even while you are typing in a note —
-          which is the whole reason they exist, since otherwise a note has to be closed before
-          anything else can be reached.
+          Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels. The
+          <em>Next / Previous view</em> pair works even while you are typing in a note — which is the
+          whole reason they exist, since otherwise a note has to be closed before anything else can be
+          reached.
         </p>
         <ul class="caps">
           {#each COMMANDS as cmd (cmd)}
@@ -849,7 +868,8 @@
               <button
                 class="binding"
                 class:capturing={capturing === cmd}
-                onclick={() => (capturing = capturing === cmd ? null : cmd)}>
+                onclick={() => (capturing = capturing === cmd ? null : cmd)}
+              >
                 {capturing === cmd ? 'press keys…' : keys.describe(keymap[cmd])}
               </button>
               {#if clash}
@@ -881,14 +901,14 @@
                  it. Both mean "creating a vault would not survive a restart", which is the bit
                  that matters. -->
             <p class="warn">
-              Not writable — either the file can't be written, or it couldn't be parsed and we
-              won't overwrite it. New vaults wouldn't survive a restart.
+              Not writable — either the file can't be written, or it couldn't be parsed and we won't
+              overwrite it. New vaults wouldn't survive a restart.
             </p>
           {/if}
         {:else}
           <p class="warn">
-            No config directory on this machine, so there is nowhere to save a vault list.
-            Vaults come from <code>FM_VAULT</code> only, and nothing can be added.
+            No config directory on this machine, so there is nowhere to save a vault list. Vaults
+            come from <code>FM_VAULT</code> only, and nothing can be added.
           </p>
         {/if}
       </section>
@@ -922,12 +942,12 @@
             </label>
             <p class="muted small">
               {#if v.git_assets_max}
-                Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed
-                with your notes. Anything larger stays on this device — git history is permanent,
-                so a large file committed once is in every clone forever.
+                Files up to {humanSize(Math.min(v.git_assets_max, GIT_ASSETS_CEILING))} are pushed with
+                your notes. Anything larger stays on this device — git history is permanent, so a large
+                file committed once is in every clone forever.
               {:else}
-                Empty means <strong>notes only</strong> — the default. Attachments stay in the
-                vault and travel only via restic. The most you can send this way is
+                Empty means <strong>notes only</strong> — the default. Attachments stay in the vault
+                and travel only via restic. The most you can send this way is
                 {humanSize(GIT_ASSETS_CEILING)} per file.
               {/if}
             </p>
@@ -942,17 +962,16 @@
             {#if v.git_assets_max && v.git_assets_max > GIT_ASSETS_CEILING}
               <p class="warn">
                 This vault asks for {humanSize(v.git_assets_max)}, which is more than will ever be
-                sent: attachments over {humanSize(GIT_ASSETS_CEILING)} are left out, because most
-                hosts refuse a file that size and the push would fail after the commit was made.
-                Edit <code>vault.json</code> to agree, or leave the heavy ones to the backup
-                snapshot.
+                sent: attachments over {humanSize(GIT_ASSETS_CEILING)} are left out, because most hosts
+                refuse a file that size and the push would fail after the commit was made. Edit
+                <code>vault.json</code> to agree, or leave the heavy ones to the backup snapshot.
               </p>
             {:else if v.git_assets_max && v.git_assets_max > GIT_ASSETS_WARN}
               <p class="warn">
                 That is large for git. Files this size are kept forever, downloaded again by every
                 clone, and cannot be taken back without rewriting history other people have already
-                pulled — and many hosts warn above {humanSize(GIT_ASSETS_WARN)}. The backup
-                snapshot carries attachments of any size without any of that.
+                pulled — and many hosts warn above {humanSize(GIT_ASSETS_WARN)}. The backup snapshot
+                carries attachments of any size without any of that.
               </p>
             {/if}
             <!-- Two questions, deliberately not one. The record is this person's own corrections in
@@ -996,8 +1015,8 @@
               {#if resticFor(v.name)}
                 <code>{resticFor(v.name)}</code>
               {:else}
-                <span class="none">not configured</span> — its attachments stay on this machine.
-                Set a backup repo for it in <strong>Backup</strong>.
+                <span class="none">not configured</span> — its attachments stay on this machine. Set
+                a backup repo for it in <strong>Backup</strong>.
               {/if}
             </p>
           </div>
@@ -1011,8 +1030,7 @@
         <p class="muted">
           Remotes and committer identity live in
           <button class="link" onclick={onbackup}>Back up</button>, which is also where they are
-          editable. They are not repeated here because reading them runs a network call per
-          vault.
+          editable. They are not repeated here because reading them runs a network call per vault.
         </p>
       </section>
 
@@ -1037,8 +1055,8 @@
             {#if cfg.git}
               <span class="ok">available</span>
             {:else}
-              <span class="none">not installed</span> — notes are still files and still safe;
-              there is no history, backup or sharing without it.
+              <span class="none">not installed</span> — notes are still files and still safe; there is
+              no history, backup or sharing without it.
             {/if}
           </li>
           <li>
@@ -1048,8 +1066,8 @@
             {#if cfg.pdf_text}
               <span class="ok">available</span>
             {:else}
-              <span class="none">not available</span> — PDFs are still stored, opened and shown;
-              their contents just are not searchable on this machine.
+              <span class="none">not available</span> — PDFs are still stored, opened and shown; their
+              contents just are not searchable on this machine.
             {/if}
           </li>
           <li>
@@ -1057,8 +1075,8 @@
             {#if cfg.restic_installed}
               <span class="ok">available</span>
             {:else}
-              <span class="none">not installed</span> — heavy media has nowhere to back up,
-              and a vault cannot be restored from a backup on this machine.
+              <span class="none">not installed</span> — heavy media has nowhere to back up, and a vault
+              cannot be restored from a backup on this machine.
             {/if}
           </li>
           {#if cfg.platform === 'ios'}
@@ -1075,8 +1093,8 @@
               <span class="none">about 7 days after you installed it</span> — it was signed with
               your own Apple ID, and iOS stops opening it when that signature lapses. Refresh it
               with the same tool you installed it with; SideStore can do that over Wi-Fi.
-              <strong>Your notes are not affected</strong> — they stay on the phone, and the app
-              opens them again once it is refreshed.
+              <strong>Your notes are not affected</strong> — they stay on the phone, and the app opens
+              them again once it is refreshed.
             </li>
           {/if}
           {#if cfg.vault_root !== null}
@@ -1085,8 +1103,8 @@
                    app's private storage is removed when the app is, and `blobs/` is gitignored, so
                    a push does not carry it. -->
               <span class="k">photos and files</span>
-              <span class="none">live only on this phone</span> until they reach a backup — a git
-              push carries your notes but not their media.
+              <span class="none">live only on this phone</span> until they reach a backup — a git push
+              carries your notes but not their media.
             </li>
           {/if}
           {#if cfg.ca_bundle}
@@ -1097,9 +1115,8 @@
               {#if /^\d+ certificates$/.test(cfg.ca_bundle)}
                 <span class="ok">{cfg.ca_bundle}</span>
               {:else}
-                <span class="none">{cfg.ca_bundle}</span> — HTTPS remotes cannot be verified
-                without a trust store, which git reports only as "the SSL certificate is
-                invalid".
+                <span class="none">{cfg.ca_bundle}</span> — HTTPS remotes cannot be verified without a
+                trust store, which git reports only as "the SSL certificate is invalid".
               {/if}
             </li>
           {/if}
@@ -1108,9 +1125,9 @@
             {#if cfg.restic_password_set}
               <span class="ok">set</span>
             {:else}
-              <span class="none">unset</span> — attachment backups cannot run without it. Set one
-              in <strong>Backup</strong>; <code>RESTIC_PASSWORD</code> still wins if you'd rather
-              set it in the environment.
+              <span class="none">unset</span> — attachment backups cannot run without it. Set one in
+              <strong>Backup</strong>; <code>RESTIC_PASSWORD</code> still wins if you'd rather set it
+              in the environment.
             {/if}
           </li>
         </ul>
@@ -1120,8 +1137,8 @@
         <section>
           <h3>Environment overrides</h3>
           <p class="muted">
-            In effect right now, and they win over the config file. This is usually the answer
-            to "why is it using that vault?".
+            In effect right now, and they win over the config file. This is usually the answer to
+            "why is it using that vault?".
           </p>
           <ul class="env">
             {#each cfg.env as e (e.name)}

@@ -23,7 +23,12 @@
   // status is tedious with many of them, so a *secondary* gesture opens a menu to jump straight
   // there (or clear). `contextmenu` is that gesture on both platforms at once — right-click on a
   // laptop, long-press on a phone — leaving the primary tap untouched.
-  let { status, statuses, onchange, title = 'Tap to rotate · long-press to pick' }: {
+  let {
+    status,
+    statuses,
+    onchange,
+    title = 'Tap to rotate · long-press to pick',
+  }: {
     status: string | null;
     statuses: string[];
     onchange: (next: string | null) => void;

@@ -46,7 +46,9 @@ test('the auto-commit clears it too, so the chip is never left behind by an ordi
   vi.useFakeTimers();
   setUnrecorded([{ vault: 'personal', count: 4, new: 4, modified: 0, deleted: 0, notes: [] }]);
   render(App);
-  await vi.waitFor(() => expect(screen.getByRole('button', { name: /4 not in history/i })).toBeTruthy());
+  await vi.waitFor(() =>
+    expect(screen.getByRole('button', { name: /4 not in history/i })).toBeTruthy(),
+  );
 
   // One real write through the app's own path — it is `scheduleCommit` that follows it that matters.
   await fireEvent.click(screen.getByRole('button', { name: /make something new/i }));

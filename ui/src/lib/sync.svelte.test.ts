@@ -32,8 +32,8 @@ function ops(over: Partial<SyncOps> = {}) {
 function rejectingPush(times: number, calls: { push: number }) {
   return async () => {
     calls.push++;
-    if (calls.push <= times) throw new Error('the remote has changes you don\'t have');
-    };
+    if (calls.push <= times) throw new Error("the remote has changes you don't have");
+  };
 }
 
 describe('syncVault', () => {

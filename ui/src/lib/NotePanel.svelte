@@ -24,8 +24,8 @@
     proposalFor as ipcProposalFor,
     discussions as ipcDiscussions,
     backlinks as ipcBacklinks,
-  paperBibtex,
-} from './ipc';
+    paperBibtex,
+  } from './ipc';
   import {
     renderInto,
     type AssetFailure,
@@ -466,7 +466,9 @@
   // The callout-type picker. `at` anchors a small menu under the tapped type badge; `el`/`idx` say
   // which callout the pick rewrites. The vocabulary is the closed `CALLOUT_TYPES` — data SELECTS a
   // type from a fixed set, it never supplies one (the no-plugin-API line).
-  let calloutPick = $state<{ el: HTMLElement; idx: number; top: number; left: number } | null>(null);
+  let calloutPick = $state<{ el: HTMLElement; idx: number; top: number; left: number } | null>(
+    null,
+  );
   const CALLOUT_OPTIONS = CALLOUT_TYPES;
 
   // The `[!type]` token span of each valid callout, in document order, skipping fenced code —
@@ -523,9 +525,15 @@
   // Tap a cell in one of this note's tables to edit it in place. It only handles a plain **bordered**
   // GFM row (`| a | b |`) and **bails** on anything it can't map exactly — ragged rows, a column past
   // the source, a non-bordered row — rather than risk mangling a table. Byte-for-byte beats coverage.
-  let cellEdit = $state<
-    { at: number; len: number; value: string; top: number; left: number; width: number; height: number } | null
-  >(null);
+  let cellEdit = $state<{
+    at: number;
+    len: number;
+    value: string;
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   function isTableSeparator(line: string): boolean {
     return line.includes('-') && /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/.test(line);
@@ -570,17 +578,24 @@
     const trimmed = line.trim();
     if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) return null;
     const pipes: number[] = [];
-    for (let k = 0; k < line.length; k++) if (line[k] === '|' && line[k - 1] !== '\\') pipes.push(k);
+    for (let k = 0; k < line.length; k++)
+      if (line[k] === '|' && line[k - 1] !== '\\') pipes.push(k);
     if (pipes.length < 2) return null;
     const cells: { start: number; end: number; text: string }[] = [];
     for (let k = 0; k < pipes.length - 1; k++) {
-      cells.push({ start: pipes[k] + 1, end: pipes[k + 1], text: line.slice(pipes[k] + 1, pipes[k + 1]) });
+      cells.push({
+        start: pipes[k] + 1,
+        end: pipes[k + 1],
+        text: line.slice(pipes[k] + 1, pipes[k + 1]),
+      });
     }
     return cells;
   }
 
   // Map a tapped DOM cell to its exact source byte range, or null if it can't be mapped safely.
-  function cellSourceSpan(cell: HTMLTableCellElement): { at: number; len: number; value: string } | null {
+  function cellSourceSpan(
+    cell: HTMLTableCellElement,
+  ): { at: number; len: number; value: string } | null {
     if (!content) return null;
     const table = cell.closest('table');
     if (!table) return null;
@@ -616,7 +631,10 @@
     const c = cellEdit;
     cellEdit = null;
     if (!c || !note) return;
-    const clean = c.value.replace(/[\r\n]+/g, ' ').replace(/\|/g, '\\|').trim();
+    const clean = c.value
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\|/g, '\\|')
+      .trim();
     const replacement = ` ${clean} `;
     if (draft.slice(c.at, c.at + c.len) === replacement) return; // no change
     draft = draft.slice(0, c.at) + replacement + draft.slice(c.at + c.len);
@@ -687,7 +705,10 @@
     }
     const { top, left } = caretXY(el, s);
     const BAR_H = 40;
-    fmtBar = { top: top - BAR_H < 0 ? top + 22 : top - BAR_H, left: clamp(left, 220, el.clientWidth) };
+    fmtBar = {
+      top: top - BAR_H < 0 ? top + 22 : top - BAR_H,
+      left: clamp(left, 220, el.clientWidth),
+    };
   }
 
   // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
@@ -698,7 +719,8 @@
     const s = el.selectionStart;
     const e = el.selectionEnd;
     const inner = draft.slice(s, e);
-    const wrapped = draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after;
+    const wrapped =
+      draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after;
     if (wrapped) {
       draft = draft.slice(0, s - before.length) + inner + draft.slice(e + after.length);
       onInput();
@@ -807,7 +829,8 @@
     void save();
   }
   function onPageHidden() {
-    if (typeof document === 'undefined' || document.visibilityState === 'hidden') flushPendingSave();
+    if (typeof document === 'undefined' || document.visibilityState === 'hidden')
+      flushPendingSave();
   }
 
   async function save() {
@@ -906,7 +929,10 @@
   $effect(() => {
     const id = noteId; // the memo, not `note?.id` — see `noteId` for what that cost
     backRefs = [];
-    if (id) void ipcBacklinks(id).then((r) => (backRefs = r)).catch(() => {});
+    if (id)
+      void ipcBacklinks(id)
+        .then((r) => (backRefs = r))
+        .catch(() => {});
   });
   let replyDraft = $state('');
   let replyTo = $state('');
@@ -992,7 +1018,13 @@
   let mentionCandidates = $derived([...new Set([...agentsOnline, ...collaborators])]);
   // The `@`-mention picker: open while the caret sits on an `@token`, listing matching live agents.
   // `at` is the index of the `@` in the draft, so a pick can replace exactly the token.
-  let atMenu = $state<{ open: boolean; query: string; results: string[]; index: number; at: number }>({
+  let atMenu = $state<{
+    open: boolean;
+    query: string;
+    results: string[];
+    index: number;
+    at: number;
+  }>({
     open: false,
     query: '',
     results: [],
@@ -1004,7 +1036,6 @@
 
   // The compose textarea, so a tapped command chip can return focus for typing the question.
   let discInputEl = $state<HTMLTextAreaElement | null>(null);
-
 
   // While a discussion is open, poll the agent's live status *and* refresh the thread — the agent's
   // reply arrives asynchronously a few seconds after the user asks, and its stage updates in
@@ -1067,7 +1098,10 @@
         pending = null;
         agentWorking = null;
       } else {
-        agentWorking = { stage: 'thinking', elapsed: Math.floor((Date.now() - pending.since) / 1000) };
+        agentWorking = {
+          stage: 'thinking',
+          elapsed: Math.floor((Date.now() - pending.since) / 1000),
+        };
       }
     } else {
       agentWorking = null;
@@ -1255,7 +1289,13 @@
     if (m && mentionCandidates.length) {
       const q = m[1].toLowerCase();
       const results = mentionCandidates.filter((n) => n.toLowerCase().startsWith(q));
-      atMenu = { open: results.length > 0, query: m[1], results, index: 0, at: caret - m[0].length };
+      atMenu = {
+        open: results.length > 0,
+        query: m[1],
+        results,
+        index: 0,
+        at: caret - m[0].length,
+      };
     } else if (atMenu.open) {
       atMenu = { ...atMenu, open: false };
     }
@@ -1295,7 +1335,10 @@
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        atMenu = { ...atMenu, index: (atMenu.index - 1 + atMenu.results.length) % atMenu.results.length };
+        atMenu = {
+          ...atMenu,
+          index: (atMenu.index - 1 + atMenu.results.length) % atMenu.results.length,
+        };
         return;
       }
       if (e.key === 'Enter' || e.key === 'Tab') {
@@ -1379,7 +1422,7 @@
       const text = await paperBibtex(note.id);
       if (!navigator.clipboard?.writeText) {
         throw new Error(
-          'copying needs a secure context — open the app on localhost, or use the note\'s own fields',
+          "copying needs a secure context — open the app on localhost, or use the note's own fields",
         );
       }
       await navigator.clipboard.writeText(text);
@@ -1433,7 +1476,11 @@
   // window, ＋ Media, full-screen, close); everything else in the header is "done".
   function onHeaderClick(e: MouseEvent) {
     if (!editing) return;
-    if ((e.target as HTMLElement | null)?.closest('button, input, a, select, .capture, .options-window')) {
+    if (
+      (e.target as HTMLElement | null)?.closest(
+        'button, input, a, select, .capture, .options-window',
+      )
+    ) {
       return;
     }
     void toggleEdit();
@@ -1444,7 +1491,11 @@
     // Skip the targets that already mean something: a reference chip navigates, a
     // link follows, media has its own controls, and double-clicking to select a
     // word inside them should not throw you into the editor.
-    if ((e.target as HTMLElement | null)?.closest('.note-chip, a, button, input, video, audio, iframe')) {
+    if (
+      (e.target as HTMLElement | null)?.closest(
+        '.note-chip, a, button, input, video, audio, iframe',
+      )
+    ) {
       return;
     }
     await openEditor(clickedOffset());
@@ -1655,7 +1706,9 @@
   // a missing target still degrades to a labelled placeholder. Assets are already `![…](asset:…)`,
   // so an embed request on one is just its ordinary ref.
   function embedFor(meta: ObjectMeta): string {
-    return meta.type === 'asset' ? assetRef(meta) : `![${escapeLabel(meta.title ?? 'note')}](note:${meta.id})`;
+    return meta.type === 'asset'
+      ? assetRef(meta)
+      : `![${escapeLabel(meta.title ?? 'note')}](note:${meta.id})`;
   }
 
   function onDragOver(e: DragEvent) {
@@ -1820,7 +1873,10 @@
       slash = { ...slash, active: (slash.active + 1) % slash.results.length };
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      slash = { ...slash, active: (slash.active - 1 + slash.results.length) % slash.results.length };
+      slash = {
+        ...slash,
+        active: (slash.active - 1 + slash.results.length) % slash.results.length,
+      };
     } else if (e.key === 'Enter') {
       // Enter inserts a chip link; Shift+Enter inserts an inline embed. preventDefault stops the
       // textarea's own newline — but only while the menu is open (we returned early otherwise).
@@ -1922,26 +1978,33 @@
 <svelte:document onvisibilitychange={onPageHidden} />
 
 <article class="panel" class:wide class:solo class:board-full={boardFull} bind:this={paneEl}>
-    {#if boardFull}
-      <!-- The only chrome in full-screen: a small floating exit. Back button does the same. -->
-      <button class="board-exit" onclick={() => history.back()} aria-label="exit full screen" title="Exit full screen (or press Back)">✕</button>
-    {/if}
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <header
-      class:editing={!!(note && editing)}
-      onclick={onHeaderClick}
-      title={note && editing ? 'Click here (or press Ctrl+S / Esc) to finish editing' : undefined}>
-      <!-- **The title gets its own line.** It used to share one flex row with the vault badge,
+  {#if boardFull}
+    <!-- The only chrome in full-screen: a small floating exit. Back button does the same. -->
+    <button
+      class="board-exit"
+      onclick={() => history.back()}
+      aria-label="exit full screen"
+      title="Exit full screen (or press Back)">✕</button
+    >
+  {/if}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <header
+    class:editing={!!(note && editing)}
+    onclick={onHeaderClick}
+    title={note && editing ? 'Click here (or press Ctrl+S / Esc) to finish editing' : undefined}
+  >
+    <!-- **The title gets its own line.** It used to share one flex row with the vault badge,
            the last editor, the status chip and every action button, so a title of any real
            length was squeezed into whatever those left over — unreadable on a narrow pane and
            worse on a phone. The title is what identifies the note; the controls act on it.
            Two rows, in that order. -->
-      <div class="title-row">
-        {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span>{/if}
-        <h2>{note?.title ?? 'note'}</h2>
-      </div>
-      <div class="control-row">
+    <div class="title-row">
+      {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span
+        >{/if}
+      <h2>{note?.title ?? 'note'}</h2>
+    </div>
+    <div class="control-row">
       {#if note?.vault}<VaultBadge vault={note.vault} />{/if}
       {#if note}<EditedBy edit={lastEditFor(note.id)} />{/if}
       {#if note}
@@ -1958,7 +2021,8 @@
             aria-haspopup="dialog"
             aria-expanded={optionsOpen}
             aria-label="note options"
-            title="Options">＋</button>
+            title="Options">＋</button
+          >
           {#if optionsOpen}
             <!-- Dismissed by tapping outside (the wrapper's clickOutside), Escape, or its ✕ —
                  identically on a phone and a laptop. Each action closes it, so it and a popover are
@@ -1969,18 +2033,35 @@
               role="dialog"
               tabindex="-1"
               aria-label="note options"
-              onkeydown={(e) => e.key === 'Escape' && (optionsOpen = false)}>
+              onkeydown={(e) => e.key === 'Escape' && (optionsOpen = false)}
+            >
               <div class="options-head">
                 <span>Options</span>
-                <button class="opt-close" onclick={() => (optionsOpen = false)} aria-label="close options">✕</button>
+                <button
+                  class="opt-close"
+                  onclick={() => (optionsOpen = false)}
+                  aria-label="close options">✕</button
+                >
               </div>
               {#if !isDiscussion}
-                <button class="opt" onclick={() => { optionsOpen = false; void toggleEdit(); }}>
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    void toggleEdit();
+                  }}
+                >
                   {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
                 </button>
               {/if}
               {#if isPaper && clipboardAvailable}
-                <button class="opt" onclick={() => { optionsOpen = false; void copyBibtex(); }}>
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    void copyBibtex();
+                  }}
+                >
                   {copiedBibtex ? 'Copied' : 'Copy as BibTeX'}
                 </button>
               {/if}
@@ -1989,12 +2070,30 @@
                    screen you are not looking at. The server refuses it too — this only spares
                    the user a button that could not work. -->
               {#if note.type === 'asset' && note.assets.length && !isRemote()}
-                <button class="opt" onclick={() => { optionsOpen = false; openExternal(note!.assets[0]).catch((e) => (error = String(e))); }}>Open externally</button>
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    openExternal(note!.assets[0]).catch((e) => (error = String(e)));
+                  }}>Open externally</button
+                >
               {/if}
               {#if canCopy}
-                <button class="opt" onclick={() => { optionsOpen = false; copyOpen = true; }}>Copy to…</button>
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    copyOpen = true;
+                  }}>Copy to…</button
+                >
               {/if}
-              <button class="opt danger" onclick={() => { optionsOpen = false; confirmingDelete = true; }}>Delete</button>
+              <button
+                class="opt danger"
+                onclick={() => {
+                  optionsOpen = false;
+                  confirmingDelete = true;
+                }}>Delete</button
+              >
             </div>
           {/if}
         </div>
@@ -2007,7 +2106,8 @@
             class="edit"
             onclick={() => (captureOpen = !captureOpen)}
             aria-expanded={captureOpen}
-            aria-label="add media">＋ Media</button>
+            aria-label="add media">＋ Media</button
+          >
           {#if captureOpen}
             <ul class="capture-menu">
               <li>
@@ -2025,7 +2125,12 @@
         {#if recording}
           <div class="recording" role="status" aria-live="polite">
             <span class="rec-dot" aria-hidden="true"></span>
-            <span class="rec-time">Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, '0')}</span>
+            <span class="rec-time"
+              >Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(
+                2,
+                '0',
+              )}</span
+            >
             <button class="rec-stop" onclick={finishRecording}>Stop &amp; add</button>
             <button class="rec-cancel" onclick={cancelRecording}>Cancel</button>
           </div>
@@ -2037,336 +2142,406 @@
           type="file"
           multiple
           bind:this={captureEl}
-          onchange={onCaptured} />
+          onchange={onCaptured}
+        />
       {/if}
       <button
         class="icon-toggle"
         onclick={isBoard ? enterBoardFull : ontogglewide}
         aria-pressed={isBoard ? boardFull : wide}
         aria-label="full screen"
-        title={isBoard ? 'Full screen board (Back to exit)' : wide ? 'Exit full screen' : 'Full screen'}>
+        title={isBoard
+          ? 'Full screen board (Back to exit)'
+          : wide
+            ? 'Exit full screen'
+            : 'Full screen'}
+      >
         {isBoard ? '⛶' : wide ? '⤡' : '⤢'}
       </button>
       <button class="close" onclick={onclose} aria-label="close">✕</button>
+    </div>
+  </header>
+  {#if confirmingDelete}
+    <div class="confirm" role="alertdialog" aria-label="confirm delete">
+      <span>Delete this note permanently? This can't be undone.</span>
+      <div class="confirm-actions">
+        <button class="edit" onclick={() => (confirmingDelete = false)}>Cancel</button>
+        <button class="edit danger solid" onclick={confirmDelete}>Delete</button>
+      </div>
+    </div>
+  {/if}
+  {#if copyOpen && otherVaults.length}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="copy-pop"
+      role="dialog"
+      tabindex="-1"
+      aria-label="copy to another vault"
+      use:clickOutside={() => (copyOpen = false)}
+      onkeydown={(e) => e.key === 'Escape' && (copyOpen = false)}
+    >
+      <p class="copy-warn">
+        Copying writes a <strong>new note</strong> into another vault's repository —
+        <strong>permanent in that vault's git history</strong>. By default only the text is copied;
+        links and attached files are removed. Pick a vault:
+      </p>
+      <label class="copy-opt">
+        <input type="checkbox" bind:checked={copyWithAssets} aria-label="also copy the files" />
+        Also copy the files into that vault
+      </label>
+      {#if copyConfirm}
+        {@const cc = copyConfirm}
+        <!-- The sharper confirm: replacing an existing copy and/or carrying the files, both
+               permanent in that vault's history. Warning-coloured, and still reversible —
+               Cancel backs out before anything runs. -->
+        <div class="copy-danger" role="alertdialog" aria-label="confirm copy">
+          <span>
+            <strong>{cc.vault}</strong>
+            {#if cc.existing}
+              already has a copy of this note — copying again replaces it{#if copyWithAssets}, and
+                writes its files there{/if}. Written into that vault's repository — permanent in its
+              git history.
+            {:else}
+              — copy the note and its files here. Written into that vault's repository — permanent
+              in its git history.
+            {/if}
+          </span>
+          <div class="confirm-actions">
+            <button class="edit" onclick={() => (copyConfirm = null)}>Cancel</button>
+            <button class="edit danger solid" onclick={() => doCopy(cc.vault)}>
+              {cc.existing ? 'Replace copy' : 'Copy with files'}
+            </button>
           </div>
-    </header>
-    {#if confirmingDelete}
-      <div class="confirm" role="alertdialog" aria-label="confirm delete">
-        <span>Delete this note permanently? This can't be undone.</span>
-        <div class="confirm-actions">
-          <button class="edit" onclick={() => (confirmingDelete = false)}>Cancel</button>
-          <button class="edit danger solid" onclick={confirmDelete}>Delete</button>
+        </div>
+      {:else}
+        <div class="copy-targets">
+          {#each otherVaults as v (v)}
+            <button class="edit" onclick={() => requestCopy(v)} title={`Copy into ${v}`}>{v}</button
+            >
+          {/each}
+          <button class="edit" onclick={() => (copyOpen = false)}>Cancel</button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+  {#if copyUndo}
+    <div class="copy-undo" role="status">
+      <span>
+        {copyUndo.replaced > 0
+          ? `Replaced the copy in ${copyUndo.vault}.`
+          : `Copied to ${copyUndo.vault}.`}
+      </span>
+      <button class="edit" onclick={undoCopy}>Undo</button>
+    </div>
+  {/if}
+  {#if error}
+    <p class="err">{error}</p>
+  {/if}
+  {#if notice}
+    <p class="note-notice">{notice}</p>
+  {/if}
+  {#if note}
+    {#if editing}
+      <div class="props">
+        <label class="field">
+          <span>Status</span>
+          <input
+            aria-label="status"
+            list="np-statuses"
+            bind:value={pStatus}
+            oninput={() => setPropDebounced('status', pStatus)}
+            placeholder="e.g. todo, doing, done"
+            spellcheck="false"
+          />
+          <datalist id="np-statuses">
+            {#each statuses as st (st)}<option value={st}></option>{/each}
+          </datalist>
+        </label>
+        <label class="field">
+          <span>Start</span>
+          <span class="when">
+            <input
+              aria-label="start"
+              type="date"
+              bind:value={pStart}
+              onchange={() => setStamp('start')}
+            />
+            <input
+              aria-label="start time"
+              type="time"
+              bind:value={pStartTime}
+              onchange={() => setStamp('start')}
+              disabled={!pStart}
+              title={pStart
+                ? 'Optional — leave empty for an all-day item'
+                : 'Set a start date first'}
+            />
+          </span>
+        </label>
+        <label class="field">
+          <span>Due</span>
+          <span class="when">
+            <input
+              aria-label="due"
+              type="date"
+              bind:value={pDue}
+              onchange={() => setStamp('due')}
+            />
+            <input
+              aria-label="due time"
+              type="time"
+              bind:value={pDueTime}
+              onchange={() => setStamp('due')}
+              disabled={!pDue}
+              title={pDue ? 'Optional — leave empty for an all-day item' : 'Set a due date first'}
+            />
+          </span>
+        </label>
+        <label class="field checkbox">
+          <input
+            aria-label="hard deadline"
+            type="checkbox"
+            bind:checked={pHard}
+            onchange={() => setProp('hard', pHard ? 'true' : 'false')}
+          />
+          <span>Hard deadline</span>
+        </label>
+        <label class="field wide">
+          <span>Title</span>
+          <input
+            aria-label="title"
+            bind:value={pTitle}
+            oninput={() => setPropDebounced('title', pTitle)}
+            placeholder="optional title"
+            spellcheck="false"
+          />
+        </label>
+        <label class="field wide">
+          <span>Tags</span>
+          <input
+            aria-label="tags"
+            bind:value={pTags}
+            oninput={() => setPropDebounced('tags', pTags)}
+            placeholder="comma separated"
+            spellcheck="false"
+          />
+        </label>
+        {#each customKeys as key (key)}
+          <label class="field wide">
+            <span>{key}</span>
+            {#if STRUCTURAL.includes(key)}
+              <input
+                aria-label={key}
+                value={customValue(key)}
+                readonly
+                title="Set by formicaria itself — editing it here would detach this note from the view it belongs to."
+              />
+            {:else}
+              <input
+                aria-label={key}
+                value={customValue(key)}
+                oninput={(e) => editCustom(key, e.currentTarget.value)}
+                placeholder="empty removes this property"
+                spellcheck="false"
+              />
+            {/if}
+          </label>
+        {/each}
+        <div class="field wide add-prop">
+          <span>Add</span>
+          <span class="pair">
+            <input
+              aria-label="new property name"
+              bind:value={newPropKey}
+              placeholder="name, e.g. author"
+              spellcheck="false"
+              onkeydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void addCustomProp();
+                }
+              }}
+            />
+            <input
+              aria-label="new property value"
+              bind:value={newPropValue}
+              placeholder="value"
+              spellcheck="false"
+              onkeydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void addCustomProp();
+                }
+              }}
+            />
+            <button class="add-prop-btn" onclick={addCustomProp} disabled={!newPropKey.trim()}
+              >Add</button
+            >
+          </span>
         </div>
       </div>
     {/if}
-    {#if copyOpen && otherVaults.length}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="copy-pop"
-        role="dialog"
-        tabindex="-1"
-        aria-label="copy to another vault"
-        use:clickOutside={() => (copyOpen = false)}
-        onkeydown={(e) => e.key === 'Escape' && (copyOpen = false)}>
-        <p class="copy-warn">
-          Copying writes a <strong>new note</strong> into another vault's repository —
-          <strong>permanent in that vault's git history</strong>. By default only the text is
-          copied; links and attached files are removed. Pick a vault:
-        </p>
-        <label class="copy-opt">
-          <input type="checkbox" bind:checked={copyWithAssets} aria-label="also copy the files" />
-          Also copy the files into that vault
-        </label>
-        {#if copyConfirm}
-          {@const cc = copyConfirm}
-          <!-- The sharper confirm: replacing an existing copy and/or carrying the files, both
-               permanent in that vault's history. Warning-coloured, and still reversible —
-               Cancel backs out before anything runs. -->
-          <div class="copy-danger" role="alertdialog" aria-label="confirm copy">
-            <span>
-              <strong>{cc.vault}</strong>
-              {#if cc.existing}
-                already has a copy of this note — copying again replaces it{#if copyWithAssets}, and
-                  writes its files there{/if}. Written into that vault's repository — permanent in
-                its git history.
-              {:else}
-                — copy the note and its files here. Written into that vault's repository —
-                permanent in its git history.
-              {/if}
-            </span>
-            <div class="confirm-actions">
-              <button class="edit" onclick={() => (copyConfirm = null)}>Cancel</button>
-              <button class="edit danger solid" onclick={() => doCopy(cc.vault)}>
-                {cc.existing ? 'Replace copy' : 'Copy with files'}
-              </button>
-            </div>
+    {#if isDiscussion}
+      <!-- A discussion has no document body; its content is the thread below, always shown. -->
+    {:else if isBoard}
+      <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
+    {:else if editing}
+      <div class="editor-wrap">
+        {#snippet fmtButtons()}
+          <button
+            class="fmt-btn"
+            title="Bold"
+            aria-label="bold"
+            onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button
+          >
+          <button
+            class="fmt-btn"
+            title="Italic"
+            aria-label="italic"
+            onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button
+          >
+          <button
+            class="fmt-btn"
+            title="Highlight"
+            aria-label="highlight"
+            onclick={() => wrapSel('==', '==', 'text')}>==</button
+          >
+          <button
+            class="fmt-btn code"
+            title="Code"
+            aria-label="code"
+            onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button
+          >
+          <div class="fmt-color">
+            <button
+              class="fmt-btn"
+              title="Colour"
+              aria-label="colour"
+              aria-expanded={colorOpen}
+              onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button
+            >
+            {#if colorOpen}
+              <ul class="fmt-colors" role="listbox" aria-label="colour token">
+                {#each TEXT_TOKENS as t (t)}
+                  <li>
+                    <button
+                      class="fmt-color-opt"
+                      data-token={t}
+                      onclick={() => wrapSel('[', `]{.${t}}`, 'text')}>{t}</button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </div>
-        {:else}
-          <div class="copy-targets">
-            {#each otherVaults as v (v)}
-              <button class="edit" onclick={() => requestCopy(v)} title={`Copy into ${v}`}>{v}</button>
+          <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
+          <div class="fmt-color">
+            <button
+              class="fmt-btn"
+              title="Block format"
+              aria-label="block format"
+              aria-expanded={blockOpen}
+              onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button
+            >
+            {#if blockOpen}
+              <ul class="fmt-colors" role="listbox" aria-label="block format">
+                <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
+                <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
+                <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
+                <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
+                <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
+                <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
+                <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
+              </ul>
+            {/if}
+          </div>
+        {/snippet}
+        {#if coarsePointer}
+          <!-- Touch: a persistent bar above the editor — the float would hide behind Android's
+                 system Cut/Copy menu. `pointerdown` prevented so a press keeps the selection. -->
+          <div
+            class="fmt-bar fmt-bar-static"
+            role="toolbar"
+            tabindex="-1"
+            aria-label="format text"
+            onpointerdown={(e) => e.preventDefault()}
+          >
+            {@render fmtButtons()}
+          </div>
+        {/if}
+        <textarea
+          class="editor"
+          bind:this={editorEl}
+          bind:value={draft}
+          oninput={onInput}
+          onkeydown={onEditorKeydown}
+          onselect={onEditorSelect}
+          onmouseup={onEditorSelect}
+          onkeyup={onEditorSelect}
+          ondragover={onDragOver}
+          ondrop={onDrop}
+          onblur={() => (fmtBar = null)}
+          spellcheck="false"
+          aria-label="note body (Markdown)"></textarea>
+        {#if adding}<span class="adding">Adding…</span>{/if}
+        {#if slash.open && slash.results.length}
+          <ul
+            class="slash-menu"
+            class:embedding={slash.embed}
+            class:fixed-pos={coarsePointer}
+            role="listbox"
+            aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
+            style="top: {slash.at.top}px; left: {slash.at.left}px"
+            use:clickOutside={closeSlash}
+            onpointerdown={(e) => {
+              // Mouse: keep the textarea focused so the menu doesn't blur-close. Touch: do NOT
+              // preventDefault — that would block scrolling the list (and select on thumb-down).
+              if (e.pointerType === 'mouse') e.preventDefault();
+            }}
+          >
+            {#each slash.results as r, i (r.id)}
+              <!-- Keyboard selection is the editor's Arrow/Enter path (onEditorKeydown); the click
+                     is the pointer shortcut, so no per-item key handler is needed. -->
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <li
+                role="option"
+                aria-selected={i === slash.active}
+                class:active={i === slash.active}
+                onclick={(e) => chooseSlash(r, e.shiftKey)}
+              >
+                <span class="slash-type" data-type={r.type}>{r.type}</span>
+                <span class="slash-title">{r.title ?? r.preview}</span>
+              </li>
             {/each}
-            <button class="edit" onclick={() => (copyOpen = false)}>Cancel</button>
+            <li class="slash-hint" aria-hidden="true">
+              {#if slash.embed}
+                <kbd>//</kbd> embedding — tap to insert
+              {:else}
+                <kbd>↵</kbd> link · <kbd>⇧↵</kbd> or <kbd>//</kbd> embed
+              {/if}
+            </li>
+          </ul>
+        {/if}
+        {#if !coarsePointer && fmtBar && !slash.open}
+          <!-- Desktop: a discrete bar that floats above the selection, only while text is selected. -->
+          <div
+            class="fmt-bar fmt-bar-float"
+            role="toolbar"
+            tabindex="-1"
+            aria-label="format selection"
+            style="top: {fmtBar.top}px; left: {fmtBar.left}px"
+            onpointerdown={(e) => e.preventDefault()}
+          >
+            {@render fmtButtons()}
           </div>
         {/if}
       </div>
-    {/if}
-    {#if copyUndo}
-      <div class="copy-undo" role="status">
-        <span>
-          {copyUndo.replaced > 0
-            ? `Replaced the copy in ${copyUndo.vault}.`
-            : `Copied to ${copyUndo.vault}.`}
-        </span>
-        <button class="edit" onclick={undoCopy}>Undo</button>
-      </div>
-    {/if}
-    {#if error}
-      <p class="err">{error}</p>
-    {/if}
-    {#if notice}
-      <p class="note-notice">{notice}</p>
-    {/if}
-    {#if note}
-      {#if editing}
-        <div class="props">
-          <label class="field">
-            <span>Status</span>
-            <input
-              aria-label="status"
-              list="np-statuses"
-              bind:value={pStatus}
-              oninput={() => setPropDebounced('status', pStatus)}
-              placeholder="e.g. todo, doing, done"
-              spellcheck="false"
-            />
-            <datalist id="np-statuses">
-              {#each statuses as st (st)}<option value={st}></option>{/each}
-            </datalist>
-          </label>
-          <label class="field">
-            <span>Start</span>
-            <span class="when">
-              <input
-                aria-label="start"
-                type="date"
-                bind:value={pStart}
-                onchange={() => setStamp('start')}
-              />
-              <input
-                aria-label="start time"
-                type="time"
-                bind:value={pStartTime}
-                onchange={() => setStamp('start')}
-                disabled={!pStart}
-                title={pStart ? 'Optional — leave empty for an all-day item' : 'Set a start date first'}
-              />
-            </span>
-          </label>
-          <label class="field">
-            <span>Due</span>
-            <span class="when">
-              <input aria-label="due" type="date" bind:value={pDue} onchange={() => setStamp('due')} />
-              <input
-                aria-label="due time"
-                type="time"
-                bind:value={pDueTime}
-                onchange={() => setStamp('due')}
-                disabled={!pDue}
-                title={pDue ? 'Optional — leave empty for an all-day item' : 'Set a due date first'}
-              />
-            </span>
-          </label>
-          <label class="field checkbox">
-            <input
-              aria-label="hard deadline"
-              type="checkbox"
-              bind:checked={pHard}
-              onchange={() => setProp('hard', pHard ? 'true' : 'false')}
-            />
-            <span>Hard deadline</span>
-          </label>
-          <label class="field wide">
-            <span>Title</span>
-            <input
-              aria-label="title"
-              bind:value={pTitle}
-              oninput={() => setPropDebounced('title', pTitle)}
-              placeholder="optional title"
-              spellcheck="false"
-            />
-          </label>
-          <label class="field wide">
-            <span>Tags</span>
-            <input
-              aria-label="tags"
-              bind:value={pTags}
-              oninput={() => setPropDebounced('tags', pTags)}
-              placeholder="comma separated"
-              spellcheck="false"
-            />
-          </label>
-          {#each customKeys as key (key)}
-            <label class="field wide">
-              <span>{key}</span>
-              {#if STRUCTURAL.includes(key)}
-                <input
-                  aria-label={key}
-                  value={customValue(key)}
-                  readonly
-                  title="Set by formicaria itself — editing it here would detach this note from the view it belongs to."
-                />
-              {:else}
-                <input
-                  aria-label={key}
-                  value={customValue(key)}
-                  oninput={(e) => editCustom(key, e.currentTarget.value)}
-                  placeholder="empty removes this property"
-                  spellcheck="false"
-                />
-              {/if}
-            </label>
-          {/each}
-          <div class="field wide add-prop">
-            <span>Add</span>
-            <span class="pair">
-              <input
-                aria-label="new property name"
-                bind:value={newPropKey}
-                placeholder="name, e.g. author"
-                spellcheck="false"
-                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addCustomProp(); } }}
-              />
-              <input
-                aria-label="new property value"
-                bind:value={newPropValue}
-                placeholder="value"
-                spellcheck="false"
-                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void addCustomProp(); } }}
-              />
-              <button class="add-prop-btn" onclick={addCustomProp} disabled={!newPropKey.trim()}>Add</button>
-            </span>
-          </div>
-        </div>
-      {/if}
-      {#if isDiscussion}
-        <!-- A discussion has no document body; its content is the thread below, always shown. -->
-      {:else if isBoard}
-        <Whiteboard body={note.body} theme={boardTheme} onSave={saveBoard} />
-      {:else if editing}
-        <div class="editor-wrap">
-          {#snippet fmtButtons()}
-            <button class="fmt-btn" title="Bold" aria-label="bold" onclick={() => wrapSel('**', '**', 'bold')}><b>B</b></button>
-            <button class="fmt-btn" title="Italic" aria-label="italic" onclick={() => wrapSel('*', '*', 'italic')}><i>I</i></button>
-            <button class="fmt-btn" title="Highlight" aria-label="highlight" onclick={() => wrapSel('==', '==', 'text')}>==</button>
-            <button class="fmt-btn code" title="Code" aria-label="code" onclick={() => wrapSel('`', '`', 'code')}>{'</>'}</button>
-            <div class="fmt-color">
-              <button class="fmt-btn" title="Colour" aria-label="colour" aria-expanded={colorOpen} onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button>
-              {#if colorOpen}
-                <ul class="fmt-colors" role="listbox" aria-label="colour token">
-                  {#each TEXT_TOKENS as t (t)}
-                    <li><button class="fmt-color-opt" data-token={t} onclick={() => wrapSel('[', `]{.${t}}`, 'text')}>{t}</button></li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-            <button class="fmt-btn" title="Link" aria-label="link" onclick={insertLink}>🔗</button>
-            <div class="fmt-color">
-              <button class="fmt-btn" title="Block format" aria-label="block format" aria-expanded={blockOpen} onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button>
-              {#if blockOpen}
-                <ul class="fmt-colors" role="listbox" aria-label="block format">
-                  <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
-                  <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
-                  <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
-                  <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
-                  <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
-                  <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
-                  <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
-                </ul>
-              {/if}
-            </div>
-          {/snippet}
-          {#if coarsePointer}
-            <!-- Touch: a persistent bar above the editor — the float would hide behind Android's
-                 system Cut/Copy menu. `pointerdown` prevented so a press keeps the selection. -->
-            <div class="fmt-bar fmt-bar-static" role="toolbar" tabindex="-1" aria-label="format text" onpointerdown={(e) => e.preventDefault()}>
-              {@render fmtButtons()}
-            </div>
-          {/if}
-          <textarea
-            class="editor"
-            bind:this={editorEl}
-            bind:value={draft}
-            oninput={onInput}
-            onkeydown={onEditorKeydown}
-            onselect={onEditorSelect}
-            onmouseup={onEditorSelect}
-            onkeyup={onEditorSelect}
-            ondragover={onDragOver}
-            ondrop={onDrop}
-            onblur={() => (fmtBar = null)}
-            spellcheck="false"
-            aria-label="note body (Markdown)"
-          ></textarea>
-          {#if adding}<span class="adding">Adding…</span>{/if}
-          {#if slash.open && slash.results.length}
-            <ul
-              class="slash-menu"
-              class:embedding={slash.embed}
-              class:fixed-pos={coarsePointer}
-              role="listbox"
-              aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
-              style="top: {slash.at.top}px; left: {slash.at.left}px"
-              use:clickOutside={closeSlash}
-              onpointerdown={(e) => {
-                // Mouse: keep the textarea focused so the menu doesn't blur-close. Touch: do NOT
-                // preventDefault — that would block scrolling the list (and select on thumb-down).
-                if (e.pointerType === 'mouse') e.preventDefault();
-              }}
-            >
-              {#each slash.results as r, i (r.id)}
-                <!-- Keyboard selection is the editor's Arrow/Enter path (onEditorKeydown); the click
-                     is the pointer shortcut, so no per-item key handler is needed. -->
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <li
-                  role="option"
-                  aria-selected={i === slash.active}
-                  class:active={i === slash.active}
-                  onclick={(e) => chooseSlash(r, e.shiftKey)}
-                >
-                  <span class="slash-type" data-type={r.type}>{r.type}</span>
-                  <span class="slash-title">{r.title ?? r.preview}</span>
-                </li>
-              {/each}
-              <li class="slash-hint" aria-hidden="true">
-                {#if slash.embed}
-                  <kbd>//</kbd> embedding — tap to insert
-                {:else}
-                  <kbd>↵</kbd> link · <kbd>⇧↵</kbd> or <kbd>//</kbd> embed
-                {/if}
-              </li>
-            </ul>
-          {/if}
-          {#if !coarsePointer && fmtBar && !slash.open}
-            <!-- Desktop: a discrete bar that floats above the selection, only while text is selected. -->
-            <div
-              class="fmt-bar fmt-bar-float"
-              role="toolbar"
-              tabindex="-1"
-              aria-label="format selection"
-              style="top: {fmtBar.top}px; left: {fmtBar.left}px"
-              onpointerdown={(e) => e.preventDefault()}
-            >
-              {@render fmtButtons()}
-            </div>
-          {/if}
-        </div>
-        <p class="editor-hint">
-          Drag files in to attach · <kbd>/</kbd> to link a note or asset,
-          <kbd>//</kbd> to embed one · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
-        </p>
-      {:else}
-        <!-- Chips are built by render.ts, so one delegated listener beats
+      <p class="editor-hint">
+        Drag files in to attach · <kbd>/</kbd> to link a note or asset,
+        <kbd>//</kbd> to embed one · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
+      </p>
+    {:else}
+      <!-- Chips are built by render.ts, so one delegated listener beats
              re-binding per chip on every render. The handler only acts on a
              .note-chip, and each chip is a real <button> — so the keyboard path
              works natively and this stays a click-target shortcut, not the only
@@ -2375,205 +2550,226 @@
              button any more. dblclick has no keyboard equivalent, so the view is
              focusable and Enter does the same job — otherwise dropping the button
              would leave the keyboard with no way in at all. -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <div
-          class="read"
-          bind:this={content}
-          tabindex="0"
-          onclick={onReadClick}
-          ondblclick={startEdit}
-          onkeydown={(e) => {
-            // Only when the view itself has focus — never when a chip inside it does.
-            if (e.key === 'Enter' && e.target === content) {
-              e.preventDefault();
-              void openEditor();
-            }
-          }}
-          title="Double-click to edit"
-        ></div>
-      {/if}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+      <div
+        class="read"
+        bind:this={content}
+        tabindex="0"
+        onclick={onReadClick}
+        ondblclick={startEdit}
+        onkeydown={(e) => {
+          // Only when the view itself has focus — never when a chip inside it does.
+          if (e.key === 'Enter' && e.target === content) {
+            e.preventDefault();
+            void openEditor();
+          }
+        }}
+        title="Double-click to edit"
+      ></div>
+    {/if}
 
-      <!-- Discussion. Inside the note's own pane rather than a pane of its own: a discussion
+    <!-- Discussion. Inside the note's own pane rather than a pane of its own: a discussion
            is *about* a note, and two panes could drift apart on screen (panes are capped at 8
            anyway). Collapsed by default and fetched on open, so a note that nobody has
            discussed costs nothing to display. -->
-      {#if backRefs.length}
-        <!-- "Linked from": the reverse of the note references in this note's body, shown only when
+    {#if backRefs.length}
+      <!-- "Linked from": the reverse of the note references in this note's body, shown only when
              non-empty. Clicking one opens it in a pane, the same navigation as a chip. -->
-        <section class="backlinks">
-          <div class="backlinks-head">Linked from</div>
-          <div class="backlinks-list">
-            {#each backRefs as b (b.id)}
-              <button class="backlink" onclick={() => onnavigate?.(b.id)} title={b.title ?? b.id}>
-                {#if b.vault}<VaultBadge vault={b.vault} />{/if}
-                <span class="backlink-title">{b.title || b.preview || b.id}</span>
-              </button>
-            {/each}
-          </div>
-        </section>
-      {/if}
-      {#if note && !isBoard}
-        <section class="discussion" class:is-discussion={isDiscussion}>
-          {#if isDiscussion}
-            <!-- The discussion IS the note; its title is the at-a-glance label, editable here
-                 because a discussion has no separate edit mode. -->
-            <input
-              class="disc-title"
-              value={note.title ?? ''}
-              onchange={(e) => renameDiscussion(e.currentTarget.value)}
-              placeholder="Discussion title"
-              aria-label="discussion title"
-            />
-          {:else}
-            <button class="disc-toggle" onclick={toggleDiscussion} aria-expanded={discOpen}>
-              <span class="disc-caret" class:open={discOpen}>▸</span>
-              Discussion{#if discCount > 0}<span class="disc-count">{discCount}</span>{/if}
+      <section class="backlinks">
+        <div class="backlinks-head">Linked from</div>
+        <div class="backlinks-list">
+          {#each backRefs as b (b.id)}
+            <button class="backlink" onclick={() => onnavigate?.(b.id)} title={b.title ?? b.id}>
+              {#if b.vault}<VaultBadge vault={b.vault} />{/if}
+              <span class="backlink-title">{b.title || b.preview || b.id}</span>
             </button>
-          {/if}
-          {#if discOpen}
-            {#each discMessages as m (m.id)}
-              <!-- Indent from the server's `depth`: it is capped and cycle-guarded there, so a
+          {/each}
+        </div>
+      </section>
+    {/if}
+    {#if note && !isBoard}
+      <section class="discussion" class:is-discussion={isDiscussion}>
+        {#if isDiscussion}
+          <!-- The discussion IS the note; its title is the at-a-glance label, editable here
+                 because a discussion has no separate edit mode. -->
+          <input
+            class="disc-title"
+            value={note.title ?? ''}
+            onchange={(e) => renameDiscussion(e.currentTarget.value)}
+            placeholder="Discussion title"
+            aria-label="discussion title"
+          />
+        {:else}
+          <button class="disc-toggle" onclick={toggleDiscussion} aria-expanded={discOpen}>
+            <span class="disc-caret" class:open={discOpen}>▸</span>
+            Discussion{#if discCount > 0}<span class="disc-count">{discCount}</span>{/if}
+          </button>
+        {/if}
+        {#if discOpen}
+          {#each discMessages as m (m.id)}
+            <!-- Indent from the server's `depth`: it is capped and cycle-guarded there, so a
                    hand-edited `reply_to` cannot push a row off-screen or hang this loop. -->
-              <div class="disc-msg" style="margin-left: {m.depth * 1.1}rem">
-                <div class="disc-meta">
-                  {#if m.vault}<VaultBadge vault={m.vault} />{/if}
-                  <EditedBy edit={lastEditFor(m.id)} />
-                  <button class="disc-reply" onclick={() => startReply(m.id)}>Reply</button>
-                  <button
-                    class="disc-del"
-                    class:confirming={confirmingMsg === m.id}
-                    onclick={() => deleteMessage(m.id)}
-                    onblur={() => { if (confirmingMsg === m.id) confirmingMsg = null; }}
-                  >{confirmingMsg === m.id ? 'Delete?' : 'Delete'}</button>
-                </div>
-                <p class="disc-body">{m.body}</p>
+            <div class="disc-msg" style="margin-left: {m.depth * 1.1}rem">
+              <div class="disc-meta">
+                {#if m.vault}<VaultBadge vault={m.vault} />{/if}
+                <EditedBy edit={lastEditFor(m.id)} />
+                <button class="disc-reply" onclick={() => startReply(m.id)}>Reply</button>
+                <button
+                  class="disc-del"
+                  class:confirming={confirmingMsg === m.id}
+                  onclick={() => deleteMessage(m.id)}
+                  onblur={() => {
+                    if (confirmingMsg === m.id) confirmingMsg = null;
+                  }}>{confirmingMsg === m.id ? 'Delete?' : 'Delete'}</button
+                >
               </div>
-            {/each}
-            {#if noteProposal}
-              <!-- The note's current PR, in the same view as its discussion: the proposed change, and
+              <p class="disc-body">{m.body}</p>
+            </div>
+          {/each}
+          {#if noteProposal}
+            <!-- The note's current PR, in the same view as its discussion: the proposed change, and
                    Accept/Reject. Refine it by continuing the conversation above (@name /research or
                    /propose again revises this same proposal). Not a separate discussion. -->
-              <div class="disc-pr">
-                <p class="disc-pr-head">Proposed change · reply above to refine, then:</p>
-                <ProposalReview id={noteProposal} onaccepted={onProposalAccepted} onrejected={onProposalRejected} />
-              </div>
-            {/if}
-            {#if agentWorking}
-              <!-- The turning wheel: shows the whole pipeline is at work (not only the LLM), names
-                   the current stage, and shows elapsed seconds so "slow" reads differently from
-                   "hung". It disappears the instant the reply lands or a timeout clears the status. -->
-              <div class="disc-working" role="status" aria-live="polite">
-                <span class="disc-spinner" aria-hidden="true"></span>
-                <span class="disc-working-text">{agentWorking.stage}…</span>
-                {#if agentWorking.elapsed >= 3}
-                  <span class="disc-working-elapsed">{agentWorking.elapsed}s</span>
-                {/if}
-              </div>
-            {/if}
-            <div class="disc-compose">
-              {#if replyTo && replyTo !== note?.id}
-                <p class="disc-replying">
-                  Replying to a message ·
-                  <button class="disc-cancel" onclick={() => (replyTo = note?.id ?? '')}>to the note instead</button>
-                </p>
-              {/if}
-              <div class="disc-compose-box">
-                <textarea
-                  class="disc-input"
-                  bind:this={discInputEl}
-                  bind:value={replyDraft}
-                  onkeydown={onReplyKeydown}
-                  oninput={onReplyInput}
-                  onblur={() => setTimeout(() => (atMenu = { ...atMenu, open: false }), 120)}
-                  placeholder="Add to the discussion… type @ to call an assistant"
-                  aria-label="write a message"
-                ></textarea>
-                {#if atMenu.open}
-                  <ul class="at-menu" role="listbox">
-                    {#each atMenu.results as name, i (name)}
-                      <li>
-                        <button
-                          class="at-option"
-                          class:active={i === atMenu.index}
-                          role="option"
-                          aria-selected={i === atMenu.index}
-                          onmousedown={(e) => {
-                            e.preventDefault();
-                            chooseAtMention(name);
-                          }}
-                        ><span
-                            class="at-dot"
-                            class:online={agentsOnline.some((n) => n.toLowerCase() === name.toLowerCase())}
-                            title={agentsOnline.some((n) => n.toLowerCase() === name.toLowerCase())
-                              ? 'active — ready to reply'
-                              : 'not running'}
-                          ></span>@{name}</button>
-                      </li>
-                    {/each}
-                  </ul>
-                {/if}
-              </div>
-              <div class="disc-commands" role="group" aria-label="assistant commands">
-                {#each AGENT_COMMANDS as c (c.cmd)}
-                  <button type="button" class="disc-cmd" title={c.hint} onclick={() => insertCommand(c.cmd)}>
-                    {c.cmd}
-                  </button>
-                {/each}
-              </div>
-              {#if agentNotice}<p class="disc-agent-notice">{agentNotice}</p>{/if}
-              <div class="disc-actions">
-                {#if discError}<span class="disc-error">{discError}</span>{/if}
-                <button class="disc-send" disabled={!replyDraft.trim() || discBusy} onclick={sendReply}>
-                  {discBusy ? 'Posting…' : 'Reply'}
-                </button>
-              </div>
+            <div class="disc-pr">
+              <p class="disc-pr-head">Proposed change · reply above to refine, then:</p>
+              <ProposalReview
+                id={noteProposal}
+                onaccepted={onProposalAccepted}
+                onrejected={onProposalRejected}
+              />
             </div>
           {/if}
-        </section>
-      {/if}
-    {:else if !error}
-      <p class="loading">Loading…</p>
+          {#if agentWorking}
+            <!-- The turning wheel: shows the whole pipeline is at work (not only the LLM), names
+                   the current stage, and shows elapsed seconds so "slow" reads differently from
+                   "hung". It disappears the instant the reply lands or a timeout clears the status. -->
+            <div class="disc-working" role="status" aria-live="polite">
+              <span class="disc-spinner" aria-hidden="true"></span>
+              <span class="disc-working-text">{agentWorking.stage}…</span>
+              {#if agentWorking.elapsed >= 3}
+                <span class="disc-working-elapsed">{agentWorking.elapsed}s</span>
+              {/if}
+            </div>
+          {/if}
+          <div class="disc-compose">
+            {#if replyTo && replyTo !== note?.id}
+              <p class="disc-replying">
+                Replying to a message ·
+                <button class="disc-cancel" onclick={() => (replyTo = note?.id ?? '')}
+                  >to the note instead</button
+                >
+              </p>
+            {/if}
+            <div class="disc-compose-box">
+              <textarea
+                class="disc-input"
+                bind:this={discInputEl}
+                bind:value={replyDraft}
+                onkeydown={onReplyKeydown}
+                oninput={onReplyInput}
+                onblur={() => setTimeout(() => (atMenu = { ...atMenu, open: false }), 120)}
+                placeholder="Add to the discussion… type @ to call an assistant"
+                aria-label="write a message"></textarea>
+              {#if atMenu.open}
+                <ul class="at-menu" role="listbox">
+                  {#each atMenu.results as name, i (name)}
+                    <li>
+                      <button
+                        class="at-option"
+                        class:active={i === atMenu.index}
+                        role="option"
+                        aria-selected={i === atMenu.index}
+                        onmousedown={(e) => {
+                          e.preventDefault();
+                          chooseAtMention(name);
+                        }}
+                        ><span
+                          class="at-dot"
+                          class:online={agentsOnline.some(
+                            (n) => n.toLowerCase() === name.toLowerCase(),
+                          )}
+                          title={agentsOnline.some((n) => n.toLowerCase() === name.toLowerCase())
+                            ? 'active — ready to reply'
+                            : 'not running'}
+                        ></span>@{name}</button
+                      >
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+            <div class="disc-commands" role="group" aria-label="assistant commands">
+              {#each AGENT_COMMANDS as c (c.cmd)}
+                <button
+                  type="button"
+                  class="disc-cmd"
+                  title={c.hint}
+                  onclick={() => insertCommand(c.cmd)}
+                >
+                  {c.cmd}
+                </button>
+              {/each}
+            </div>
+            {#if agentNotice}<p class="disc-agent-notice">{agentNotice}</p>{/if}
+            <div class="disc-actions">
+              {#if discError}<span class="disc-error">{discError}</span>{/if}
+              <button
+                class="disc-send"
+                disabled={!replyDraft.trim() || discBusy}
+                onclick={sendReply}
+              >
+                {discBusy ? 'Posting…' : 'Reply'}
+              </button>
+            </div>
+          </div>
+        {/if}
+      </section>
     {/if}
-    {#if cellEdit}
-      <!-- Tap-to-edit a table cell: a single-line input overlaid on the cell, prefilled with its
+  {:else if !error}
+    <p class="loading">Loading…</p>
+  {/if}
+  {#if cellEdit}
+    <!-- Tap-to-edit a table cell: a single-line input overlaid on the cell, prefilled with its
            *source* text. Enter or blur commits (patching just that cell); Escape cancels. -->
-      <input
-        class="cell-input"
-        style="top: {cellEdit.top}px; left: {cellEdit.left}px; width: {cellEdit.width}px; height: {cellEdit.height}px"
-        bind:value={cellEdit.value}
-        aria-label="edit cell"
-        onkeydown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commitCell();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            cellEdit = null;
-          }
-        }}
-        onblur={commitCell}
-        use:autofocus
-      />
-    {/if}
-    {#if calloutPick}
-      <!-- Tap a callout's type badge to change its kind. A small menu of the closed callout
+    <input
+      class="cell-input"
+      style="top: {cellEdit.top}px; left: {cellEdit.left}px; width: {cellEdit.width}px; height: {cellEdit.height}px"
+      bind:value={cellEdit.value}
+      aria-label="edit cell"
+      onkeydown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitCell();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          cellEdit = null;
+        }
+      }}
+      onblur={commitCell}
+      use:autofocus
+    />
+  {/if}
+  {#if calloutPick}
+    <!-- Tap a callout's type badge to change its kind. A small menu of the closed callout
            vocabulary, anchored under the badge; dismissed by tapping outside or Escape. -->
-      <ul
-        class="callout-picker"
-        role="listbox"
-        aria-label="callout type"
-        style="top: {calloutPick.top}px; left: {calloutPick.left}px"
-        use:clickOutside={() => (calloutPick = null)}
-      >
-        {#each CALLOUT_OPTIONS as t (t)}
-          <li>
-            <button type="button" class="callout-opt callout-{t}" onclick={() => pickCallout(t)}>{t}</button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+    <ul
+      class="callout-picker"
+      role="listbox"
+      aria-label="callout type"
+      style="top: {calloutPick.top}px; left: {calloutPick.left}px"
+      use:clickOutside={() => (calloutPick = null)}
+    >
+      {#each CALLOUT_OPTIONS as t (t)}
+        <li>
+          <button type="button" class="callout-opt callout-{t}" onclick={() => pickCallout(t)}
+            >{t}</button
+          >
+        </li>
+      {/each}
+    </ul>
+  {/if}
 </article>
 
 <style>

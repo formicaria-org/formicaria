@@ -126,11 +126,7 @@ export function clearSync(vault: string): void {
  * have sailed past it and reported `synced` over a vault that had stopped recording
  * anything. Reaching a terminal, nameable state is this module's whole reason to exist.
  */
-async function commitStep(
-  vault: string,
-  message: string,
-  ops: SyncOps,
-): Promise<SyncPhase | null> {
+async function commitStep(vault: string, message: string, ops: SyncOps): Promise<SyncPhase | null> {
   let result: CommitResult;
   try {
     result = await ops.commit(message, vault);

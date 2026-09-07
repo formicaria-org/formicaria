@@ -200,9 +200,9 @@ describe('the app, driven end to end as a user', () => {
     await fireEvent.click(chip);
     await waitFor(() => expect(panes()).toHaveLength(2));
     await waitFor(() =>
-      expect(screen.getAllByRole('heading', { name: /GAE and inner-loop adaptation/ })).toHaveLength(
-        2,
-      ),
+      expect(
+        screen.getAllByRole('heading', { name: /GAE and inner-loop adaptation/ }),
+      ).toHaveLength(2),
     );
 
     // Closing the second pane truncates the trail back to the first.

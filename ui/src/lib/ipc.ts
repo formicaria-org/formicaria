@@ -165,8 +165,7 @@ export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
 export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
 // `vault` is the audience the new note joins — empty means the default vault, an
 // unknown name is refused server-side (the create-side twin of `ingestFile`).
-export const capture = (body: string, vault = '') =>
-  invoke<ObjectMeta>('capture', { body, vault });
+export const capture = (body: string, vault = '') => invoke<ObjectMeta>('capture', { body, vault });
 export const setProperty = (id: string, key: string, value: string) =>
   invoke<void>('set_property', { id, key, value });
 // `base` is the **`version`** — the content hash of the body you last saw (`ObjectMeta.version`),
@@ -198,8 +197,7 @@ export const activity = () => invoke<EditEvent[]>('activity');
 // `reply` takes the note OR another message: replying to a message re-roots to the same
 // discussion server-side, so the natural "reply to this comment" gesture cannot create a
 // thread nothing can reach.
-export const reply = (id: string, body: string) =>
-  invoke<ObjectMeta>('reply', { id, body });
+export const reply = (id: string, body: string) => invoke<ObjectMeta>('reply', { id, body });
 export const thread = (id: string) => invoke<ThreadView>('thread', { id });
 
 // **Every thread's message count, in one pass.** The feed needs to say "3 replies" per post, and
@@ -238,10 +236,13 @@ export const templates = () => invoke<ObjectMeta[]>('templates');
  *  The fourth verb the vault list needed: three commands created a vault and none removed one, which
  *  on the phone left an auto-created empty vault nobody could get rid of from inside the app. */
 export const forgetVault = (name: string) =>
-  invoke<{ forgotten: string; path: string; notes: number; remote: string | null; vaults: VaultInfo[] }>(
-    'forget_vault',
-    { name },
-  );
+  invoke<{
+    forgotten: string;
+    path: string;
+    notes: number;
+    remote: string | null;
+    vaults: VaultInfo[];
+  }>('forget_vault', { name });
 
 /** Notes that came back from a merge in conflict, **each with its kind**.
  *
@@ -341,8 +342,7 @@ export const setAgent = (enabled: boolean, model?: string, vision = false) =>
 /** Delete the downloaded model and runtime, freeing the disk they use. Turns the assistant off
  *  first — deleting files under a running model leaves it serving from unlinked inodes. Answers how
  *  many bytes it freed; refuses (409) on a source checkout, where those files are the developer's. */
-export const removeAgentModel = () =>
-  invoke<{ freed: number }>('remove_agent_model');
+export const removeAgentModel = () => invoke<{ freed: number }>('remove_agent_model');
 
 /** What the first-enable screen offers: every catalogued model, its download size and licence. */
 export const agentModels = () =>
@@ -359,7 +359,8 @@ export const agentModels = () =>
 /** The "Audio transcription" sub-setting: when on, the assistant loads a local whisper runtime so
  *  `/transcribe` (and the Transcribe-audio action) work. Like the on/off above, it takes effect at the
  *  next assistant start, and needs the runtime staged (`pixi run fetch-whisper`). */
-export const setTranscribe = (transcribe: boolean) => invoke<{ ok: boolean }>('set_transcribe', { transcribe });
+export const setTranscribe = (transcribe: boolean) =>
+  invoke<{ ok: boolean }>('set_transcribe', { transcribe });
 
 /** What the study agent is doing *right now* in a discussion — a transient, in-memory status served
  *  by fm-serve (not a vault command), so the discussion view can show a live "working…" wheel with
@@ -414,7 +415,8 @@ export const proposalDiff = (id: string) => invoke<ProposalDiff>('proposal_diff'
 
 /** The id of a note's current OPEN proposal (its PR), or null. Lets a note's own view show its PR —
  *  the diff + Accept/Reject — beside the discussion, since a proposal has no separate discussion. */
-export const proposalFor = (noteId: string) => invoke<string | null>('proposal_for', { id: noteId });
+export const proposalFor = (noteId: string) =>
+  invoke<string | null>('proposal_for', { id: noteId });
 
 /** The proposed note behind a proposal — host id, title, and the proposed body on the branch — so the
  *  review can SHOW and EDIT it. Saving an edit goes back through `create_proposal` (rebasing the branch
@@ -549,9 +551,11 @@ async function post<T>(path: string, args: unknown): Promise<T> {
 
 /** The derivation above, wired to whatever Tauri put on `window`. */
 function assetBase(): string {
-  const internals = (window as unknown as {
-    __TAURI_INTERNALS__?: { convertFileSrc?: (path: string, protocol: string) => string };
-  }).__TAURI_INTERNALS__;
+  const internals = (
+    window as unknown as {
+      __TAURI_INTERNALS__?: { convertFileSrc?: (path: string, protocol: string) => string };
+    }
+  ).__TAURI_INTERNALS__;
   return blobBase(internals?.convertFileSrc);
 }
 
@@ -582,8 +586,7 @@ export const setGitAssetsMax = (vault: string, max: string) =>
 
 export const assetStatus = (reference: string) =>
   invoke<AssetStatus>('asset_status', { reference });
-export const openExternal = (reference: string) =>
-  invoke<void>('open_external', { reference });
+export const openExternal = (reference: string) => invoke<void>('open_external', { reference });
 
 // Ingest an uploaded file (drag-drop / picker): stores a content-addressed blob,
 // extracts text, creates an asset note, and returns its meta so the editor can
@@ -765,8 +768,7 @@ export const backupStatus = () => invoke<BackupStatus>('backup_status');
  *  someone opens the panel rather than on a timer. `unavailable` carries the reason when there is
  *  no answer to be had — which is not the same as `id: null`, meaning the repo opened and has
  *  never been written to. */
-export const backupLatest = (vault = '') =>
-  invoke<LatestBackup>('backup_latest', { vault });
+export const backupLatest = (vault = '') => invoke<LatestBackup>('backup_latest', { vault });
 
 /** Point one vault's media backup at a restic repository — a path, or an `s3:`/`sftp:` URL.
  *
@@ -793,11 +795,8 @@ export const clearResticPassword = () => invoke<BackupStatus>('clear_restic_pass
 /** Point the vault at a remote. `name`/`email` are sent only when the vault has no
  *  identity yet — sharing a vault is what makes the committer name matter, so it is
  *  the one moment worth asking. */
-export const setGitRemote = (
-  url: string,
-  identity?: { name: string; email: string },
-  vault = '',
-) => invoke<void>('set_git_remote', { url, vault, ...identity });
+export const setGitRemote = (url: string, identity?: { name: string; email: string }, vault = '') =>
+  invoke<void>('set_git_remote', { url, vault, ...identity });
 /** Who is committing, with no remote involved. `setGitRemote` can also set this, but only
  *  alongside a URL — and git refuses to commit *anything* without a committer, so a user who
  *  never shares still needs it. Asked once on first run; skippable, because notes on disk do
@@ -906,8 +905,7 @@ export const cloneVault = (
 /** Can we reach this repo, and if not, why not — asked before a clone commits to a folder.
  *  Never throws: every outcome is a state the form renders, because this runs while the user
  *  is still typing and an error banner per keystroke would be worse than useless. */
-export const probeRemote = (url: string) =>
-  invoke<RemoteProbe>('probe_remote', { url });
+export const probeRemote = (url: string) => invoke<RemoteProbe>('probe_remote', { url });
 
 /** Where this machine keeps git credentials, and whether it has one for this URL. */
 export const gitAuth = (url = '') => invoke<GitAuth>('git_auth', { url });
@@ -924,8 +922,7 @@ export const setGitCredential = (url: string, token: string, username = '') =>
   invoke<GitAuth>('set_git_credential', { url, token, username });
 
 /** Forget the token this device holds. Only meaningful where storage is `app`. */
-export const clearGitCredential = (url = '') =>
-  invoke<GitAuth>('clear_git_credential', { url });
+export const clearGitCredential = (url = '') => invoke<GitAuth>('clear_git_credential', { url });
 
 /** Restore a vault from a restic backup and register it — the third way a vault comes into
  *  being, and the one for a machine that is not the machine the vault was on.

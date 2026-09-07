@@ -60,7 +60,8 @@
   /// One sentence per kind, because what to *do* differs. Written as consequences, not categories.
   const meaning: Record<string, string> = {
     new: 'Never committed. If this vault has no remote, these exist in one place only.',
-    modified: 'Changed since they were committed. A large number here suggests something is rewriting notes.',
+    modified:
+      'Changed since they were committed. A large number here suggests something is rewriting notes.',
     deleted: 'Deleted here, and the deletion has not been recorded.',
   };
 
@@ -111,26 +112,26 @@
       {#if u.notes.length}
         <details>
           <summary>Show {u.notes.length} of {u.count}</summary>
-        <ul class="notes">
-          {#each u.notes as n (n.path)}
-            <li>
-              <span class="kind" data-kind={n.kind}>{n.kind}</span>
-              <span class="role">{n.role}</span>
-              <span class="title">{n.title ?? n.id}</span>
-              <!-- **The duplicate count is the diagnosis.** "147 notes" says nothing; "one note
+          <ul class="notes">
+            {#each u.notes as n (n.path)}
+              <li>
+                <span class="kind" data-kind={n.kind}>{n.kind}</span>
+                <span class="role">{n.role}</span>
+                <span class="title">{n.title ?? n.id}</span>
+                <!-- **The duplicate count is the diagnosis.** "147 notes" says nothing; "one note
                    written 138 times" names a loop. -->
-              {#if n.copies > 1}<span class="copies">×{n.copies}</span>{/if}
-              <!-- **Both times, and labelled**, because they answer different questions: a copy or a
+                {#if n.copies > 1}<span class="copies">×{n.copies}</span>{/if}
+                <!-- **Both times, and labelled**, because they answer different questions: a copy or a
                    restore resets every file's mtime at once, which makes an old set look like a fresh
                    burst. `created` is the note's own. -->
-              <span class="meta">
-                {size(n.bytes)}
-                {#if n.created}· made {when(n.created)}{/if}
-                {#if n.modified && n.created !== n.modified}· written {when(n.modified)}{/if}
-              </span>
-            </li>
-          {/each}
-        </ul>
+                <span class="meta">
+                  {size(n.bytes)}
+                  {#if n.created}· made {when(n.created)}{/if}
+                  {#if n.modified && n.created !== n.modified}· written {when(n.modified)}{/if}
+                </span>
+              </li>
+            {/each}
+          </ul>
         </details>
       {/if}
     </article>
@@ -162,11 +163,14 @@
         <!-- The refusal, said before it is hit: the backend will decline, and an action that cannot
              work should not look available. -->
         <p class="more">
-          Record the outstanding notes above first — until then, removing a copy could not be undone.
+          Record the outstanding notes above first — until then, removing a copy could not be
+          undone.
         </p>
       {:else}
         <button type="button" disabled={pruning === v.vault} onclick={() => prune(v.vault)}>
-          {pruning === v.vault ? 'Removing…' : `Remove ${v.extras} extra cop${v.extras === 1 ? 'y' : 'ies'}`}
+          {pruning === v.vault
+            ? 'Removing…'
+            : `Remove ${v.extras} extra cop${v.extras === 1 ? 'y' : 'ies'}`}
         </button>
         <p class="after">They stay in git history, so this can be undone.</p>
       {/if}

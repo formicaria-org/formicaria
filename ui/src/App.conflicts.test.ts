@@ -15,7 +15,13 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App.svelte';
-import { clearFaults, setConflicts, setDuplicates, setUnopenedVaults, setUnrecorded } from './lib/mock';
+import {
+  clearFaults,
+  setConflicts,
+  setDuplicates,
+  setUnopenedVaults,
+  setUnrecorded,
+} from './lib/mock';
 import type { ConflictInfo } from './lib/types';
 
 const DELETE_MODIFY: ConflictInfo = {
@@ -105,15 +111,18 @@ describe('a conflict with no markers', () => {
     // The mock drops a resolved path, exactly as the server stops reporting it as unmerged — so an
     // emptying list is the real signal, not merely that a call was made.
     await vi.waitFor(() =>
-      expect(
-        screen.queryByRole('button', { name: /Keep the other device's version/i }),
-      ).toBeNull(),
+      expect(screen.queryByRole('button', { name: /Keep the other device's version/i })).toBeNull(),
     );
   });
 
   it('offers "Mark resolved" for a marker conflict — editing alone settles nothing in git', async () => {
     setConflicts([
-      { ...DELETE_MODIFY, code: 'UU', has_markers: true, what: 'Both sides edited this note; both versions are marked in the text.' },
+      {
+        ...DELETE_MODIFY,
+        code: 'UU',
+        has_markers: true,
+        what: 'Both sides edited this note; both versions are marked in the text.',
+      },
     ]);
     await openCollaboration();
 
@@ -128,7 +137,12 @@ describe('a conflict with no markers', () => {
 
   it('still points a marker conflict at the note, where the markers are', async () => {
     setConflicts([
-      { ...DELETE_MODIFY, code: 'UU', has_markers: true, what: 'Both sides edited this note; both versions are marked in the text.' },
+      {
+        ...DELETE_MODIFY,
+        code: 'UU',
+        has_markers: true,
+        what: 'Both sides edited this note; both versions are marked in the text.',
+      },
     ]);
     await openCollaboration();
 

@@ -11,7 +11,14 @@
   import EmptyState from '../lib/EmptyState.svelte';
   import type { Board } from '../lib/types';
 
-  let { board, onmove, onreorder, onopen, statuses = [], onstatus }: {
+  let {
+    board,
+    onmove,
+    onreorder,
+    onopen,
+    statuses = [],
+    onstatus,
+  }: {
     board: Board;
     /**
      * Drop a card into a column: set the grouped property to `value`, and place
@@ -118,45 +125,45 @@
   <EmptyState
     icon="board"
     title="Nothing to group yet"
-    hint="A board makes a column for each value it finds. Give a note a status and it appears here." />
+    hint="A board makes a column for each value it finds. Give a note a status and it appears here."
+  />
 {:else}
-<div class="board-wrap">
-  <div class="board">
-  {#each board.columns as col (col.value)}
-    <section class="column" class:over={over === col.value} use:column={col.value}>
-      <header
-        class="column-head"
-        data-value={col.value}
-        style="--hash-hue:{hashHue(col.value)}"
-        use:columnDrag={col.value}
-        title="Drag to reorder"
-      >
-        <span class="column-label">{col.label}</span>
-        <span class="count">{col.cards.length}</span>
-      </header>
-      <div class="column-body">
-        {#each col.cards as card (card.id)}
-          <!-- `columns`/`onmoveto` are the touch stand-in for dragging: the element adapter
+  <div class="board-wrap">
+    <div class="board">
+      {#each board.columns as col (col.value)}
+        <section class="column" class:over={over === col.value} use:column={col.value}>
+          <header
+            class="column-head"
+            data-value={col.value}
+            style="--hash-hue:{hashHue(col.value)}"
+            use:columnDrag={col.value}
+            title="Drag to reorder"
+          >
+            <span class="column-label">{col.label}</span>
+            <span class="count">{col.cards.length}</span>
+          </header>
+          <div class="column-body">
+            {#each col.cards as card (card.id)}
+              <!-- `columns`/`onmoveto` are the touch stand-in for dragging: the element adapter
                above is HTML5 drag, which never fires on touch, and the package ships no
                pointer adapter to swap in. The menu reuses this very `onmove` — appending
                (`beforeId: null`), since a tap expresses a column, not a position — so a
                phone move and a desktop drop are the same write. -->
-          <Card
-            {card}
-            {onopen}
-            {statuses}
-            {onstatus}
-            columns={board.columns.map((c) => ({ value: c.value, label: c.label }))}
-            column={col.value}
-            onmoveto={(id, value) => onmove(id, value, null)}
-          />
-        {/each}
-      </div>
-    </section>
-  {/each}
+              <Card
+                {card}
+                {onopen}
+                {statuses}
+                {onstatus}
+                columns={board.columns.map((c) => ({ value: c.value, label: c.label }))}
+                column={col.value}
+                onmoveto={(id, value) => onmove(id, value, null)}
+              />
+            {/each}
+          </div>
+        </section>
+      {/each}
+    </div>
   </div>
-
-</div>
 {/if}
 
 <style>

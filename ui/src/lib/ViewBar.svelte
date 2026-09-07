@@ -50,7 +50,8 @@
       class:active={i === active}
       aria-current={i === active ? 'page' : undefined}
       onclick={() => onselect(i)}
-      title={paneTitle(pane)}>
+      title={paneTitle(pane)}
+    >
       {#if ICONS[pane.kind]}
         <Icon name={ICONS[pane.kind]} size={18} />
       {:else}
@@ -81,7 +82,8 @@
       class="tab close"
       onclick={() => onclose(panes[active].id)}
       aria-label="close this view"
-      title="Close this view">
+      title="Close this view"
+    >
       <Icon name="close" size={16} />
     </button>
   {/if}

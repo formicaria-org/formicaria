@@ -91,15 +91,59 @@ function dayInThisMonth(offset: number): string {
 }
 
 const notes: ObjectMeta[] = [
-  makeNote({ preview: 'GAE lambda interacts badly with inner-loop adaptation', status: 'doing', tags: ['meta-rl'], props: { project: 'alpha' } }),
-  makeNote({ preview: 'Draft the trust-region clipping ablation', status: 'todo', start: dayInThisMonth(-1), due: dayInThisMonth(4), hard: true, props: { project: 'alpha' } }),
-  makeNote({ preview: 'Reply to reviewer 2', status: 'todo', due: dayInThisMonth(-3), hard: true, tags: ['neurips'], vault: 'lab' }),
-  makeNote({ preview: 'Read the Muesli paper', status: 'todo', tags: ['reading'], props: { project: 'beta' } }),
+  makeNote({
+    preview: 'GAE lambda interacts badly with inner-loop adaptation',
+    status: 'doing',
+    tags: ['meta-rl'],
+    props: { project: 'alpha' },
+  }),
+  makeNote({
+    preview: 'Draft the trust-region clipping ablation',
+    status: 'todo',
+    start: dayInThisMonth(-1),
+    due: dayInThisMonth(4),
+    hard: true,
+    props: { project: 'alpha' },
+  }),
+  makeNote({
+    preview: 'Reply to reviewer 2',
+    status: 'todo',
+    due: dayInThisMonth(-3),
+    hard: true,
+    tags: ['neurips'],
+    vault: 'lab',
+  }),
+  makeNote({
+    preview: 'Read the Muesli paper',
+    status: 'todo',
+    tags: ['reading'],
+    props: { project: 'beta' },
+  }),
   makeNote({ preview: 'Ship the second renderer', status: 'done', props: { project: 'beta' } }),
-  makeNote({ preview: 'Weekly sync notes', start: `${dayInThisMonth(0)}T14:30`, due: `${dayInThisMonth(0)}T15:00`, tags: ['meeting'], vault: 'lab' }),
-  makeNote({ preview: 'figure_3_final.pdf', type: 'asset', assets: ['sha256:deadbeef'], props: { project: 'alpha' } }),
-  makeNote({ preview: 'poster_v2.png', type: 'asset', assets: ['sha256:cafebabe'], props: { project: 'beta' } }),
-  makeNote({ preview: 'Architecture sketch', title: 'Architecture sketch', props: { view: 'board', project: 'alpha' } }),
+  makeNote({
+    preview: 'Weekly sync notes',
+    start: `${dayInThisMonth(0)}T14:30`,
+    due: `${dayInThisMonth(0)}T15:00`,
+    tags: ['meeting'],
+    vault: 'lab',
+  }),
+  makeNote({
+    preview: 'figure_3_final.pdf',
+    type: 'asset',
+    assets: ['sha256:deadbeef'],
+    props: { project: 'alpha' },
+  }),
+  makeNote({
+    preview: 'poster_v2.png',
+    type: 'asset',
+    assets: ['sha256:cafebabe'],
+    props: { project: 'beta' },
+  }),
+  makeNote({
+    preview: 'Architecture sketch',
+    title: 'Architecture sketch',
+    props: { view: 'board', project: 'alpha' },
+  }),
 ];
 
 // A deterministic 64-hex string from a name, so re-ingesting the same file name
@@ -172,8 +216,7 @@ const isMessage = (n: ObjectMeta) =>
  *  internal whitespace, surrounding whitespace tolerated — so a stray word in `proposes` leaves
  *  the note ordinary. */
 const isProposal = (n: ObjectMeta) =>
-  typeof n.props?.proposes === 'string' &&
-  /^branch:\s*\S+\s*$/.test(n.props.proposes as string);
+  typeof n.props?.proposes === 'string' && /^branch:\s*\S+\s*$/.test(n.props.proposes as string);
 
 /** A first-class discussion: a note that is the root of its own thread (`thread_of` points at
  *  itself). Mirrors `fm_app::thread::is_discussion_root`. Being a well-formed `thread_of`, it is
@@ -234,7 +277,12 @@ function setProp(id: string, key: string, value: string): void {
       // what the Rust refuses, or the UI suite passes against a backend that does not exist. When
       // tags became comma-separated so a tag could contain a space, this arm was left behind and
       // every UI test kept splitting on whitespace.
-      n.tags = value ? value.split(',').map((t) => t.trim()).filter(Boolean) : [];
+      n.tags = value
+        ? value
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [];
       break;
     default:
       if (value) n.props[key] = value;
@@ -375,10 +423,19 @@ function parseSize(text: string): number | null {
   const t = text.trim().toLowerCase();
   if (!t || t === 'off' || t === 'none') return null;
   const m = /^([0-9]*\.?[0-9]+)\s*(b|kb|mb|gb|kib|mib|gib)?$/.exec(t);
-  if (!m) throw new Error(`${JSON.stringify(text)} is not a size — try 2MB, 500kB, or leave it empty for none`);
+  if (!m)
+    throw new Error(
+      `${JSON.stringify(text)} is not a size — try 2MB, 500kB, or leave it empty for none`,
+    );
   const mult: Record<string, number> = {
-    '': 1, b: 1, kb: 1e3, mb: 1e6, gb: 1e9,
-    kib: 1024, mib: 1024 ** 2, gib: 1024 ** 3,
+    '': 1,
+    b: 1,
+    kb: 1e3,
+    mb: 1e6,
+    gb: 1e9,
+    kib: 1024,
+    mib: 1024 ** 2,
+    gib: 1024 ** 3,
   };
   const n = Math.round(parseFloat(m[1]) * mult[m[2] ?? '']);
   // The backend refuses above the ceiling (`Descriptor::set_git_assets_max`), so the mock must
@@ -682,7 +739,12 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       if (mockAgentEnabled && !mockProvisioned) {
         mockProvisioning = { stage: 'model', done: 0, total: 2_497_281_664, error: null };
         setTimeout(() => {
-          mockProvisioning = { stage: 'model', done: 1_200_000_000, total: 2_497_281_664, error: null };
+          mockProvisioning = {
+            stage: 'model',
+            done: 1_200_000_000,
+            total: 2_497_281_664,
+            error: null,
+          };
         }, 400);
         setTimeout(() => {
           mockProvisioned = true;
@@ -821,7 +883,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const left = notes.filter((n) => n.vault === name).length;
       mockVaults = mockVaults.filter((v) => v.name !== name);
       if (mockVaults.length === before) throw new Error(`no vault named '${name}'`);
-      return { forgotten: name, path: `/vaults/${name}`, notes: left, remote: null, vaults: mockVaults } as T;
+      return {
+        forgotten: name,
+        path: `/vaults/${name}`,
+        notes: left,
+        remote: null,
+        vaults: mockVaults,
+      } as T;
     }
     case 'duplicates':
       return mockDuplicates as T;
@@ -848,7 +916,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         return {
           committed: false,
           notes: hit.count,
-          reason: '1 note(s) in this vault are mid-merge. Git refuses to commit anything until those are resolved — open Conflicts and settle them first.',
+          reason:
+            '1 note(s) in this vault are mid-merge. Git refuses to commit anything until those are resolved — open Conflicts and settle them first.',
         } as T;
       }
       mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== String(args.vault));
@@ -960,8 +1029,16 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         return existing as T;
       }
       const title = target.title ?? 'note';
-      const p = makeNote({ preview: `Proposed change to ${title}`, title: `Proposal: ${title}`, vault: target.vault });
-      p.props = { proposes: `branch:proposal/${p.id}`, targets: target.id, proposedBody: String(args.body ?? '') };
+      const p = makeNote({
+        preview: `Proposed change to ${title}`,
+        title: `Proposal: ${title}`,
+        vault: target.vault,
+      });
+      p.props = {
+        proposes: `branch:proposal/${p.id}`,
+        targets: target.id,
+        proposedBody: String(args.body ?? ''),
+      };
       notes.unshift(p);
       return p as T;
     }
@@ -969,7 +1046,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // The proposed note (host + title + body) — the mock stores the proposed body on the note; the
       // real backend reads it off the `proposal/<id>` branch.
       const prop = notes.find((n) => n.id === String(args.id) && isProposal(n));
-      if (!prop || acceptedProposals.has(prop.id) || prop.props?.declined === 'true') return null as T;
+      if (!prop || acceptedProposals.has(prop.id) || prop.props?.declined === 'true')
+        return null as T;
       const host = prop.props?.targets ?? '';
       const target = notes.find((n) => n.id === host);
       return { host, title: target?.title ?? 'note', body: prop.props?.proposedBody ?? '' } as T;
@@ -1066,7 +1144,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // body (first non-empty line, minus a leading Markdown heading marker). A
         // board's body is scene JSON — never surface that, it keeps its title.
         if (n.props.view !== 'board') {
-          const firstLine = body.split('\n').map((l) => l.trim()).find((l) => l) ?? '';
+          const firstLine =
+            body
+              .split('\n')
+              .map((l) => l.trim())
+              .find((l) => l) ?? '';
           n.preview = firstLine.replace(/^#+\s+/, '') || n.preview;
         }
       }
@@ -1115,7 +1197,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return undefined as T;
     }
     case 'search': {
-      const q = String(args.query ?? '').trim().toLowerCase();
+      const q = String(args.query ?? '')
+        .trim()
+        .toLowerCase();
       if (!q) return [] as T;
       return notes
         .filter((n) =>
@@ -1378,9 +1462,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // so a mock that let a test be `platform: 'android'` with `vault_root: null` would let it
         // assert against a state that cannot exist. It did, once, and the test that caught nothing
         // looked like a failing feature.
-        vault_root: mockPlatform === 'ios' || mockPlatform === 'android'
-          ? '/data/app/dev.formicaria.notes/vaults'
-          : null,
+        vault_root:
+          mockPlatform === 'ios' || mockPlatform === 'android'
+            ? '/data/app/dev.formicaria.notes/vaults'
+            : null,
         platform: mockPlatform,
         ca_bundle: null, // the desktop shape: the system store is used, none is built
       } as T;
@@ -1450,7 +1535,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // Registers exactly like `create_vault` — the clone itself is git, which the mock does
       // not model. It *does* enforce the identity, because that rule is the point of the
       // command and a mock that skipped it would let the form ship a state the server refuses.
-      if (!String(args.url ?? '').trim()) throw new Error('a shared vault needs the URL of the repo to clone');
+      if (!String(args.url ?? '').trim())
+        throw new Error('a shared vault needs the URL of the repo to clone');
       if (!String(args.gitName ?? '').trim() || !String(args.gitEmail ?? '').trim())
         throw new Error('a shared vault needs your name and email');
       if (!String(args.gitEmail ?? '').includes('@'))
@@ -1463,12 +1549,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
         supervision: { collect: true, publish: false },
         // A clone *does* have a remote, so it gets the repository's name as its label.
-        label: String(args.url ?? '')
-          .trim()
-          .replace(/\/$/, '')
-          .split(/[/:]/)
-          .pop()
-          ?.replace(/\.git$/, '') || null,
+        label:
+          String(args.url ?? '')
+            .trim()
+            .replace(/\/$/, '')
+            .split(/[/:]/)
+            .pop()
+            ?.replace(/\.git$/, '') || null,
         // A clone names its committer as part of the form, which is why this one is never null.
         identity: {
           name: String(args.gitName ?? ''),
@@ -1515,7 +1602,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const input = String(args.input ?? '').trim();
       const bib = /title\s*=\s*[{"]([^}"]+)[}"]/i.exec(input);
       const doi = /\b(10\.\d{4,9}\/\S+)/.exec(input);
-      const arx = /arxiv\.org\/(?:abs|pdf)\/([\w.\/]+?)(?:\.pdf)?$|arxiv:\s*([\w.\/]+)/i.exec(input);
+      const arx = /arxiv\.org\/(?:abs|pdf)\/([\w.\/]+?)(?:\.pdf)?$|arxiv:\s*([\w.\/]+)/i.exec(
+        input,
+      );
       const props: Record<string, unknown> = {};
       if (doi) props.doi = doi[1];
       if (arx) props.arxiv = arx[1] ?? arx[2];
@@ -1576,7 +1665,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const css = String(args.css ?? '');
       if (!name) throw new Error('a theme needs a name');
       // The same ceiling the backend enforces, so a test can exercise the refusal.
-      if (css.length > 128 * 1024) throw new Error('this theme is too big, and the limit is 128 KB');
+      if (css.length > 128 * 1024)
+        throw new Error('this theme is too big, and the limit is 128 KB');
       mockThemes = mockThemes.filter((t) => t.name !== name);
       mockThemes.push({ name, vault: 'personal', bytes: css.length });
       mockThemeCss.set(name, css);
@@ -1587,7 +1677,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const to = String(args.to ?? '');
       const t = mockThemes.find((x) => x.name === from);
       if (!t) throw new Error(`there is no theme called '${from}'`);
-      if (mockThemes.some((x) => x.name === to)) throw new Error('there is already a theme called ' + to);
+      if (mockThemes.some((x) => x.name === to))
+        throw new Error('there is already a theme called ' + to);
       mockThemeCss.set(to, mockThemeCss.get(from) ?? '');
       mockThemeCss.delete(from);
       mockThemes = mockThemes.map((x) => (x.name === from ? { ...x, name: to } : x));
@@ -1602,7 +1693,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'rename_view': {
       const from = String(args.from ?? '');
       const to = String(args.to ?? '');
-      if (mockSavedViews.some((v) => v.name === to)) throw new Error('there is already a view called ' + to);
+      if (mockSavedViews.some((v) => v.name === to))
+        throw new Error('there is already a view called ' + to);
       mockSavedViews = mockSavedViews.map((v) => (v.name === from ? { ...v, name: to } : v));
       return mockSavedViews.slice() as T;
     }
@@ -1796,7 +1888,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // someone real owns it. Mirrored here so the mock cannot drift into
       // promising a flow the real backend refuses.
       if (!v.identity) {
-        throw new Error('tell us who you are first — your name and email sign every commit you share');
+        throw new Error(
+          'tell us who you are first — your name and email sign every commit you share',
+        );
       }
       v.remote = String(args.url ?? '').trim() || null;
       return undefined as T;

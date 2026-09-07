@@ -59,9 +59,15 @@ test('storage that throws still gives a working panel', async () => {
   // A private window, or a WebView with site data blocked. The panel is a convenience; failing to
   // remember it must never be why the app will not start.
   vi.stubGlobal('localStorage', {
-    getItem: () => { throw new Error('denied'); },
-    setItem: () => { throw new Error('denied'); },
-    removeItem: () => { throw new Error('denied'); },
+    getItem: () => {
+      throw new Error('denied');
+    },
+    setItem: () => {
+      throw new Error('denied');
+    },
+    removeItem: () => {
+      throw new Error('denied');
+    },
   });
   render(App);
   const btn = await screen.findByRole('button', { name: 'collapse the panel' });
@@ -123,12 +129,16 @@ test('every label in the chrome is wrapped in something CSS can hide', async () 
   })) as HTMLElement;
 
   for (const chip of Array.from(header.querySelectorAll('.vault-chip'))) {
-    expect(chip.querySelector('.lbl'), `a filter chip's name is not wrapped: ${chip.textContent}`)
-      .toBeTruthy();
+    expect(
+      chip.querySelector('.lbl'),
+      `a filter chip's name is not wrapped: ${chip.textContent}`,
+    ).toBeTruthy();
   }
   for (const item of Array.from(header.querySelectorAll('.view-item'))) {
-    expect(item.querySelector('.lbl'), `a rail label is not wrapped: ${item.textContent}`)
-      .toBeTruthy();
+    expect(
+      item.querySelector('.lbl'),
+      `a rail label is not wrapped: ${item.textContent}`,
+    ).toBeTruthy();
   }
 });
 
@@ -148,7 +158,9 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   render(App);
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
   const menu = await screen.findByRole('menu');
-  const names = Array.from(menu.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
+  const names = Array.from(menu.querySelectorAll('button')).map((b) =>
+    (b.textContent ?? '').trim(),
+  );
   expect(names).toContain('Timeline');
   expect(names).toContain('Active'); // a saved view, not just the built-ins
   expect(names).not.toContain('Search'); // nowhere offers an empty search pane
@@ -298,7 +310,9 @@ test('the ＋ menu chooses where a new note lands, and stays open while you choo
 test('a saved view still lists and opens, with no way to author one anywhere', async () => {
   render(App);
   const rail = (await screen.findByRole('navigation', { name: 'views' })) as HTMLElement;
-  const names = Array.from(rail.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim());
+  const names = Array.from(rail.querySelectorAll('button')).map((b) =>
+    (b.textContent ?? '').trim(),
+  );
   expect(names, 'a .view in the vault is still offered').toContain('Active');
 
   const before = document.querySelectorAll('.pane').length;
@@ -306,7 +320,12 @@ test('a saved view still lists and opens, with no way to author one anywhere', a
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
 
   // And nothing anywhere in the chrome offers to make, rename or remove one.
-  for (const gone of [/save this view/i, /rename this view/i, /delete this view/i, /keep this arrangement/i]) {
+  for (const gone of [
+    /save this view/i,
+    /rename this view/i,
+    /delete this view/i,
+    /keep this arrangement/i,
+  ]) {
     expect(screen.queryByRole('button', { name: gone }), `${gone} should be gone`).toBeNull();
   }
   expect(screen.queryByLabelText('group by'), 'grouping is no longer editable').toBeNull();

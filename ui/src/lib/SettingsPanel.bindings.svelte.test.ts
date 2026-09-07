@@ -49,7 +49,14 @@ describe('the action list shows what each action is bound to', () => {
   it('a command with no key says so instead of showing nothing', async () => {
     // `newView` ships unbound. A blank space would read as "there is no shortcut for this",
     // which is a different claim from "you have not set one yet".
-    panel([{ group: 'This view', label: 'Keep this arrangement as a view', run: () => {}, command: 'newView' }]);
+    panel([
+      {
+        group: 'This view',
+        label: 'Keep this arrangement as a view',
+        run: () => {},
+        command: 'newView',
+      },
+    ]);
     const btn = await screen.findByRole('button', { name: /Keep this arrangement/ });
     expect(btn.textContent).toMatch(/not set/i);
   });

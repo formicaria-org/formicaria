@@ -110,7 +110,12 @@ describe('the sequence Pane performs when a column is dragged', () => {
   // server's order — otherwise it moves the wrong column.
   it('a second drag composes with the first', () => {
     const server = columns('a', 'b', 'c');
-    let saved = moveValue(server.map((c) => c.value), 'c', 'a', true); // c a b
+    let saved = moveValue(
+      server.map((c) => c.value),
+      'c',
+      'a',
+      true,
+    ); // c a b
     const visible = orderColumns(server, saved).map((c) => c.value);
     saved = moveValue(visible, 'a', 'b', false); // c b a
 

@@ -249,7 +249,13 @@ describe('the reply count', () => {
 
   it('offers no discussion at all in the compact list', () => {
     const el = render(Timeline, {
-      props: { cards: [note({ id: 'a' })], onopen: () => {}, counts: { a: 3 }, ontoggle: () => {}, mode: 'compact' },
+      props: {
+        cards: [note({ id: 'a' })],
+        onopen: () => {},
+        counts: { a: 3 },
+        ontoggle: () => {},
+        mode: 'compact',
+      },
     });
     expect(el.container.querySelector('.comments')).toBeNull();
     cleanup();

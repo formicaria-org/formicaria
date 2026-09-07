@@ -162,7 +162,11 @@ export function asDesktop(): void {
 /// store is content-addressed, so a test that cannot tell two payloads apart cannot tell whether
 /// the right one arrived. jsdom's `File` has no `arrayBuffer()` worth trusting, so the bytes are
 /// kept alongside for the assertion.
-export function fakeFile(name: string, size: number, type = 'image/jpeg'): {
+export function fakeFile(
+  name: string,
+  size: number,
+  type = 'image/jpeg',
+): {
   file: File;
   bytes: Uint8Array;
 } {

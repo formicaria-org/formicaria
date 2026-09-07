@@ -65,6 +65,6 @@ export function describe(c: PathCheck | null): Described {
  *  capability flag, not a guess. */
 export function historyNote(git: boolean): string {
   return git
-    ? "Your notes will be versioned from the first one you write — nothing to set up."
+    ? 'Your notes will be versioned from the first one you write — nothing to set up.'
     : "git isn't installed, so nothing here will be versioned. Your notes are still files on disk and are safe; you just won't have history until you install it.";
 }

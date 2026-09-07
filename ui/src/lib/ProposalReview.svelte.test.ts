@@ -46,7 +46,10 @@ describe('ProposalReview', () => {
 
   it('shows the proposed note and lets the reviewer edit and save it', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'the proposed body' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'the proposed body',
+    });
 
     render(ProposalReview, { id: prop.id });
     const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
@@ -104,7 +107,10 @@ describe('ProposalReview', () => {
 
   it('sends the reviewer reason with a save, and treats a blank one as a genuine skip', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
 
     const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
@@ -127,7 +133,10 @@ describe('ProposalReview', () => {
 
   it('lets a reason be skipped entirely — the field is optional, not a gate', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
 
     const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
@@ -142,7 +151,10 @@ describe('ProposalReview', () => {
 
   it('asks a different question when a reject is armed, and keeps the answer', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
     await screen.findByText(/the real diff appears against a live backend/);
 
@@ -164,7 +176,10 @@ describe('ProposalReview', () => {
     // component still says "Accept & merge" and "main" from before — deliberately not touched here,
     // but not added to either.
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
     const label = (await screen.findByText(/What did you change/)).textContent ?? '';
     const placeholder =
@@ -176,7 +191,10 @@ describe('ProposalReview', () => {
 
   it('records what kind of correction it was, single-select and optional', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
     const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
     await fireEvent.input(box, { target: { value: 'corrected' } });
@@ -184,8 +202,12 @@ describe('ProposalReview', () => {
     // Single-select: picking a second kind replaces the first rather than adding to it.
     await fireEvent.click(screen.getByRole('button', { name: 'style' }));
     await fireEvent.click(screen.getByRole('button', { name: 'factual' }));
-    expect(screen.getByRole('button', { name: 'factual' }).getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('button', { name: 'style' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'factual' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'style' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    );
 
     await fireEvent.click(screen.getByRole('button', { name: /Save changes/ }));
     expect(await screen.findByText(/Saved/)).toBeTruthy();
@@ -195,7 +217,10 @@ describe('ProposalReview', () => {
 
   it('leaves the kind unset when nobody picks one', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
     render(ProposalReview, { id: prop.id });
     const box = (await screen.findByLabelText('proposed note body')) as HTMLTextAreaElement;
     await fireEvent.input(box, { target: { value: 'a typo fix' } });
@@ -207,7 +232,10 @@ describe('ProposalReview', () => {
 
   it('records that the proposal was actually put in front of someone', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'model text' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'model text',
+    });
 
     const before = await mock.handle<{ props: Record<string, string> }>('get', { id: prop.id });
     expect(before.props.shown).toBeUndefined();

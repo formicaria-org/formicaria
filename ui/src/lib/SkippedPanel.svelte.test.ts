@@ -61,7 +61,9 @@ describe('SkippedPanel in-app editor', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     // Still unresolved: the editor stays open and says so, rather than silently "succeeding".
-    expect(await screen.findByText(/still has conflict markers — remove them and save again/)).toBeTruthy();
+    expect(
+      await screen.findByText(/still has conflict markers — remove them and save again/),
+    ).toBeTruthy();
     expect(screen.getByLabelText(/raw text of broken.md/)).toBeTruthy();
   });
 });

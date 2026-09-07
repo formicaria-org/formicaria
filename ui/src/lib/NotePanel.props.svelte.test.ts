@@ -12,17 +12,25 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getNote, setProperty, thread, discussions, proposalFor, agentActivity, onlineAgents, backlinks } =
-  vi.hoisted(() => ({
-    getNote: vi.fn(),
-    setProperty: vi.fn(),
-    thread: vi.fn(),
-    discussions: vi.fn(),
-    proposalFor: vi.fn(),
-    agentActivity: vi.fn(),
-    onlineAgents: vi.fn(),
-    backlinks: vi.fn(),
-  }));
+const {
+  getNote,
+  setProperty,
+  thread,
+  discussions,
+  proposalFor,
+  agentActivity,
+  onlineAgents,
+  backlinks,
+} = vi.hoisted(() => ({
+  getNote: vi.fn(),
+  setProperty: vi.fn(),
+  thread: vi.fn(),
+  discussions: vi.fn(),
+  proposalFor: vi.fn(),
+  agentActivity: vi.fn(),
+  onlineAgents: vi.fn(),
+  backlinks: vi.fn(),
+}));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   getNote,

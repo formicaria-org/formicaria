@@ -202,9 +202,9 @@
 <section>
   <h3>Appearance</h3>
   <p class="muted">
-    Colours and type. Unlike the settings around it, this one <strong>is kept in your vault</strong>,
-    so it travels with your notes — but which one is switched on stays on this device, the same as
-    dark and light.
+    Colours and type. Unlike the settings around it, this one <strong>is kept in your vault</strong
+    >, so it travels with your notes — but which one is switched on stays on this device, the same
+    as dark and light.
   </p>
 
   {#if handWritten}
@@ -225,14 +225,16 @@
             disabled={handWritten || busy}
             aria-label="accent {c}"
             aria-pressed={prefs.accent === c}
-            onclick={() => put({ ...prefs, accent: c })}></button>
+            onclick={() => put({ ...prefs, accent: c })}
+          ></button>
         {/each}
         <input
           type="color"
           aria-label="a colour of your own"
           disabled={handWritten || busy}
           value={prefs.accent ?? '#dc2626'}
-          onchange={(e) => put({ ...prefs, accent: e.currentTarget.value })} />
+          onchange={(e) => put({ ...prefs, accent: e.currentTarget.value })}
+        />
       </span>
     </li>
     <li>
@@ -243,7 +245,8 @@
             class="binding"
             disabled={handWritten || busy}
             aria-pressed={prefs.textBase === value}
-            onclick={() => put({ ...prefs, textBase: value })}>{label}</button>
+            onclick={() => put({ ...prefs, textBase: value })}>{label}</button
+          >
         {/each}
       </span>
     </li>
@@ -255,7 +258,8 @@
             class="binding"
             disabled={handWritten || busy}
             aria-pressed={prefs.fontSans === stack}
-            onclick={() => put({ ...prefs, fontSans: stack })}>{label}</button>
+            onclick={() => put({ ...prefs, fontSans: stack })}>{label}</button
+          >
         {/each}
       </span>
     </li>
@@ -278,7 +282,8 @@
             name="theme-file"
             disabled={!!t.error}
             checked={selected?.name === t.name && selected?.vault === (t.vault ?? '')}
-            onchange={() => onselect({ vault: t.vault ?? '', name: t.name })} />
+            onchange={() => onselect({ vault: t.vault ?? '', name: t.name })}
+          />
           {#if renaming === t.name}
             <!-- svelte-ignore a11y_autofocus -->
             <input
@@ -290,7 +295,8 @@
                 if (e.key === 'Enter') commitRename(t);
                 else if (e.key === 'Escape') renaming = null;
               }}
-              onblur={() => commitRename(t)} />
+              onblur={() => commitRename(t)}
+            />
           {:else}
             <span class="k">{t.name}</span>
           {/if}
@@ -327,8 +333,8 @@
         Set any of the app's own names — <code>--bg</code>, <code>--surface</code>,
         <code>--text</code>, <code>--accent</code>, <code>--font-sans</code>,
         <code>--radius-md</code>, <code>--space-4</code> and the rest ({appearance.SUPPORTED.length}
-        in all). Those names are a promise and will not move under you; anything else you target
-        inside the app is not, and may change.
+        in all). Those names are a promise and will not move under you; anything else you target inside
+        the app is not, and may change.
       </p>
       <span class="row">
         <button class="binding" disabled={busy} onclick={keep}>Keep</button>

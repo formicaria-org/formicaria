@@ -113,10 +113,10 @@
     </div>
 
     <p class="lede">
-      These files are on disk but their frontmatter does not parse, so they are missing
-      from every view until that is fixed. The usual cause is a merge where two people
-      changed the same field — the disagreement is kept rather than resolved by fiat, and
-      the conflict markers landed inside the YAML.
+      These files are on disk but their frontmatter does not parse, so they are missing from every
+      view until that is fixed. The usual cause is a merge where two people changed the same field —
+      the disagreement is kept rather than resolved by fiat, and the conflict markers landed inside
+      the YAML.
     </p>
 
     {#each byVault as [vault, notes] (vault)}
@@ -149,10 +149,13 @@
                   bind:value={draft}
                   spellcheck="false"
                   rows="14"
-                  aria-label="raw text of {s.name}"
-                ></textarea>
+                  aria-label="raw text of {s.name}"></textarea>
                 <div class="editor-foot">
-                  <span class="marker-state" class:bad={stillConflicted} class:ok={!stillConflicted}>
+                  <span
+                    class="marker-state"
+                    class:bad={stillConflicted}
+                    class:ok={!stillConflicted}
+                  >
                     {stillConflicted ? '● still has conflict markers' : '● no conflict markers'}
                   </span>
                   <span class="spacer"></span>
@@ -178,8 +181,8 @@
     <p class="hint">
       Press <strong>Fix here</strong> to edit the raw file: delete the
       <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code>=======</code> and
-      <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> lines, keep the value you want, and save. The note
-      reappears on the next poll.
+      <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> lines, keep the value you want, and save. The note reappears
+      on the next poll.
     </p>
 
     <div class="actions">

@@ -56,7 +56,9 @@ describe('removing a vault', () => {
     render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
 
     // One click arms it; it must not remove on the first click, in a list of several vaults.
-    const [first] = await screen.findAllByRole('button', { name: /Remove this vault from the list/i });
+    const [first] = await screen.findAllByRole('button', {
+      name: /Remove this vault from the list/i,
+    });
     await fireEvent.click(first);
     expect(forgetVault).not.toHaveBeenCalled();
     expect(screen.getByText(/Its files stay where they are/i)).toBeTruthy();
@@ -64,7 +66,9 @@ describe('removing a vault', () => {
     await fireEvent.click(screen.getByRole('button', { name: /Yes, remove it/i }));
     await vi.waitFor(() => expect(forgetVault).toHaveBeenCalledOnce());
     // An empty vault says so plainly — this is the phone's dummy-vault case.
-    await vi.waitFor(() => expect(document.body.textContent).toMatch(/it was empty\. Nothing was deleted/i));
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toMatch(/it was empty\. Nothing was deleted/i),
+    );
   });
 
   it('names how many notes were left behind, and where', async () => {
@@ -76,19 +80,25 @@ describe('removing a vault', () => {
       vaults: [],
     });
     render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
-    const [first] = await screen.findAllByRole('button', { name: /Remove this vault from the list/i });
+    const [first] = await screen.findAllByRole('button', {
+      name: /Remove this vault from the list/i,
+    });
     await fireEvent.click(first);
     await fireEvent.click(screen.getByRole('button', { name: /Yes, remove it/i }));
 
     // The count and the path are the whole point: nobody should have to wonder whether removing a
     // vault from a list deleted 209 notes.
-    await vi.waitFor(() => expect(document.body.textContent).toMatch(/209 notes are still on disk/i));
+    await vi.waitFor(() =>
+      expect(document.body.textContent).toMatch(/209 notes are still on disk/i),
+    );
     expect(document.body.textContent).toMatch(/\/home\/you\/notes/);
   });
 
   it('can be cancelled', async () => {
     render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
-    const [first] = await screen.findAllByRole('button', { name: /Remove this vault from the list/i });
+    const [first] = await screen.findAllByRole('button', {
+      name: /Remove this vault from the list/i,
+    });
     await fireEvent.click(first);
     await fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
     expect(forgetVault).not.toHaveBeenCalled();

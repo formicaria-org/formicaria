@@ -16,7 +16,10 @@ import { assetUrl } from './ipc';
 const HEX = '9f2c8a1b3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8';
 const REF = `asset:sha256-${HEX}`;
 
-const resolver = async (reference: string) => ({ url: assetUrl(reference), mime: 'application/pdf' });
+const resolver = async (reference: string) => ({
+  url: assetUrl(reference),
+  mime: 'application/pdf',
+});
 
 describe('assetUrl', () => {
   it('keeps an anchor as a real URL fragment', () => {
@@ -50,7 +53,9 @@ describe('an anchored link in a note body', () => {
 
   it('says what is missing when the blob is not here', async () => {
     const el = document.createElement('div');
-    await renderInto(el, `See [p. 4](${REF}#page=4).`, async () => ({ reason: 'in another vault' }));
+    await renderInto(el, `See [p. 4](${REF}#page=4).`, async () => ({
+      reason: 'in another vault',
+    }));
     expect(el.querySelector('a.asset-link')).toBeNull();
     const ph = el.querySelector('.asset-missing-inline');
     expect(ph?.textContent).toContain('in another vault');
@@ -61,6 +66,9 @@ describe('an anchored link in a note body', () => {
   it('an anchored image reference still embeds', async () => {
     const el = document.createElement('div');
     await renderInto(el, `![Figure 1](${REF}#page=3)`, resolver);
-    expect(el.querySelector('.asset-missing-inline'), 'must not be a broken placeholder').toBeNull();
+    expect(
+      el.querySelector('.asset-missing-inline'),
+      'must not be a broken placeholder',
+    ).toBeNull();
   });
 });

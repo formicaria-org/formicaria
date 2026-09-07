@@ -9,7 +9,10 @@ import type { ObjectMeta } from './types';
 describe('create_proposal in the mock backend', () => {
   it('creates a proposal note the Collaboration feed lists, leaving the original', async () => {
     const note = await mock.handle<ObjectMeta>('capture', { body: 'a note to improve' });
-    const prop = await mock.handle<ObjectMeta>('create_proposal', { id: note.id, body: 'improved' });
+    const prop = await mock.handle<ObjectMeta>('create_proposal', {
+      id: note.id,
+      body: 'improved',
+    });
 
     expect(prop.props?.proposes).toMatch(/^branch:proposal\//);
     expect(prop.id).not.toBe(note.id);

@@ -18,7 +18,15 @@
   //
   // Nothing here knows what the columns *mean*: `label` is whatever the grouped property's
   // values happen to be, so this stays as generic as the drag it stands in for.
-  let { card, onopen, statuses = [], onstatus, columns = [], column = '', onmoveto }: {
+  let {
+    card,
+    onopen,
+    statuses = [],
+    onstatus,
+    columns = [],
+    column = '',
+    onmoveto,
+  }: {
     card: ObjectMeta;
     onopen: (id: string) => void;
     statuses?: string[];
@@ -96,11 +104,7 @@
   {/if}
   <footer class="meta">
     {#if onstatus}
-      <StatusChip
-        status={card.status}
-        {statuses}
-        onchange={(next) => onstatus?.(card.id, next)}
-      />
+      <StatusChip status={card.status} {statuses} onchange={(next) => onstatus?.(card.id, next)} />
     {/if}
     {#if card.due}
       <span class="due" class:hard={card.hard} title={card.due}>{formatStamp(card.due)}</span>
@@ -128,8 +132,8 @@
       aria-expanded={menuOpen}
       aria-label="Move this card to another column"
       onclick={(e) => (swallow(e), (menuOpen = !menuOpen))}
-      onkeydown={swallow}
-    >⇄</button>
+      onkeydown={swallow}>⇄</button
+    >
   {/if}
   {#if menuOpen}
     <!-- Plain buttons in a labelled group rather than a listbox: a real button is already
@@ -141,13 +145,12 @@
           class="move-option"
           aria-current={col.value === column}
           disabled={col.value === column}
-          onclick={(e) => (swallow(e), moveTo(col.value))}
-        >{col.label}</button>
+          onclick={(e) => (swallow(e), moveTo(col.value))}>{col.label}</button
+        >
       {/each}
-      <button
-        class="move-option cancel"
-        onclick={(e) => (swallow(e), (menuOpen = false))}
-      >Cancel</button>
+      <button class="move-option cancel" onclick={(e) => (swallow(e), (menuOpen = false))}
+        >Cancel</button
+      >
     </div>
   {/if}
 </div>

@@ -49,7 +49,9 @@ test('picking a colour makes a theme and switches to it', async () => {
   expect(css).toContain('--link: #2563eb;');
   // A first-timer who picks a colour must *see* it — creating the file without wearing it would
   // look like the click did nothing.
-  await waitFor(() => expect(onselect).toHaveBeenCalledWith({ vault: 'personal', name: 'my-appearance' }));
+  await waitFor(() =>
+    expect(onselect).toHaveBeenCalledWith({ vault: 'personal', name: 'my-appearance' }),
+  );
 });
 
 test('a theme with more in it than the form can say switches the form off', async () => {
@@ -105,7 +107,12 @@ test('keeping writes the file and wears it', async () => {
 
 test('a theme that cannot be applied is listed with its reason and cannot be chosen', async () => {
   listThemes.mockResolvedValue([
-    { name: 'broken', vault: 'personal', bytes: 3, error: 'this file is not text, so it cannot be a theme' },
+    {
+      name: 'broken',
+      vault: 'personal',
+      bytes: 3,
+      error: 'this file is not text, so it cannot be a theme',
+    },
   ]);
   render(Appearance, { selected: null, onselect: vi.fn() });
 

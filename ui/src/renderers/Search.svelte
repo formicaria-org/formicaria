@@ -29,10 +29,15 @@
     <EmptyState
       icon="search"
       title="Search your notes"
-      hint="Every word of every note, and the names of the files you have added." />
+      hint="Every word of every note, and the names of the files you have added."
+    />
   {:else if cards.length === 0}
     {#if searching}
-      <EmptyState icon="search" title="No matches for “{query}”" hint="Try fewer words, or a different spelling." />
+      <EmptyState
+        icon="search"
+        title="No matches for “{query}”"
+        hint="Try fewer words, or a different spelling."
+      />
     {:else}
       <EmptyState icon="search" title="Nothing here yet" hint="This view has no notes in it." />
     {/if}

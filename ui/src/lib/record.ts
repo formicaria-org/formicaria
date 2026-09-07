@@ -35,7 +35,8 @@ export async function startRecording(): Promise<Recording> {
   }
   const stream = await md.getUserMedia({ audio: true });
   const Ctor: AudioCtor =
-    window.AudioContext ?? (window as unknown as { webkitAudioContext: AudioCtor }).webkitAudioContext;
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext: AudioCtor }).webkitAudioContext;
   // Native rate — forcing 16 kHz throws in some engines. We resample on stop instead.
   const ctx = new Ctor();
   // A context created after an await can be suspended; without resuming, no audio is ever processed.

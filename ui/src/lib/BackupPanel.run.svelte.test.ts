@@ -106,7 +106,9 @@ describe('pressing Back up', () => {
   it('does not report a git outcome when no vault has a remote', async () => {
     show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
 
-    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    await fireEvent.click(
+      await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }),
+    );
     const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
     // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
     await waitFor(() => expect(button.disabled).toBe(false));
@@ -125,7 +127,9 @@ describe('pressing Back up', () => {
     backup.mockRejectedValue(new Error('repository is locked'));
     show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
 
-    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    await fireEvent.click(
+      await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }),
+    );
     const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
     // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
     await waitFor(() => expect(button.disabled).toBe(false));
@@ -158,7 +162,9 @@ describe('pressing Back up', () => {
     });
     show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
 
-    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    await fireEvent.click(
+      await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }),
+    );
     const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
     // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
     await waitFor(() => expect(button.disabled).toBe(false));
@@ -184,7 +190,9 @@ describe('pressing Back up', () => {
     });
     show([vault('notes', { restic_repo: '/backup/notes', restic_ready: true })]);
 
-    await fireEvent.click(await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }));
+    await fireEvent.click(
+      await screen.findByRole('checkbox', { name: /snapshot|attachments|media/i }),
+    );
     const button = (await screen.findByRole('button', { name: /^Back up/i })) as HTMLButtonElement;
     // The house idiom: the DOM property, not a jest-dom matcher — this project does not load them.
     await waitFor(() => expect(button.disabled).toBe(false));

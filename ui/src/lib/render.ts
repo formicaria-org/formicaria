@@ -45,7 +45,12 @@ marked.use({
       tokenizer(src: string) {
         const m = /^\[([^\]\n]+)\]\{\.([a-z]+)\}/.exec(src);
         if (m && (TEXT_TOKENS as readonly string[]).includes(m[2])) {
-          return { type: 'coloredText', raw: m[0], token: m[2], tokens: this.lexer.inlineTokens(m[1]) };
+          return {
+            type: 'coloredText',
+            raw: m[0],
+            token: m[2],
+            tokens: this.lexer.inlineTokens(m[1]),
+          };
         }
       },
       renderer(token) {
@@ -64,7 +69,11 @@ marked.use({
       tokenizer(src: string) {
         const m = /^> \[!([a-z]+)\]([^\n]*)((?:\n>[^\n]*)*)/.exec(src);
         if (!m || !(CALLOUT_TYPES as readonly string[]).includes(m[1])) return;
-        const inner = m[3].replace(/^\n/, '').split('\n').map((l) => l.replace(/^>\s?/, '')).join('\n');
+        const inner = m[3]
+          .replace(/^\n/, '')
+          .split('\n')
+          .map((l) => l.replace(/^>\s?/, ''))
+          .join('\n');
         return {
           type: 'callout',
           raw: m[0],
@@ -234,7 +243,15 @@ async function resolveEmbeds(
     wrap.appendChild(bodyEl);
     const nextSeen = new Set(seen);
     nextSeen.add(id);
-    await renderInto(bodyEl, embed.body, resolveAsset, resolveNote, resolveEmbed, depth + 1, nextSeen);
+    await renderInto(
+      bodyEl,
+      embed.body,
+      resolveAsset,
+      resolveNote,
+      resolveEmbed,
+      depth + 1,
+      nextSeen,
+    );
     img.replaceWith(wrap);
   }
 }
@@ -291,8 +308,14 @@ export function extractMath(src: string): { text: string; math: MathSpan[] } {
         let j = i + 1;
         for (; j < src.length; j++) {
           const c = src[j];
-          if (c === '\n' && src[j + 1] === '\n') { j = -1; break; } // never span a blank line
-          if (c === '$' && src[j + 1] === '$') { j = -1; break; } // never cross a $$ display
+          if (c === '\n' && src[j + 1] === '\n') {
+            j = -1;
+            break;
+          } // never span a blank line
+          if (c === '$' && src[j + 1] === '$') {
+            j = -1;
+            break;
+          } // never cross a $$ display
           if (c === '$' && !/\s/.test(src[j - 1]) && !/\d/.test(src[j + 1] ?? '')) break;
         }
         if (j > i && j < src.length) {

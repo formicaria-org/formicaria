@@ -66,8 +66,9 @@
     {:else}
       <h1>Connect to your notes</h1>
       <p class="lede">
-        On the computer sharing this vault, open <strong>Settings → Share with another
-        device</strong> and start a code. Then type it here.
+        On the computer sharing this vault, open <strong
+          >Settings → Share with another device</strong
+        > and start a code. Then type it here.
       </p>
 
       <form onsubmit={submit}>
@@ -99,8 +100,8 @@
       {/if}
 
       <p class="foot">
-        Codes last a few minutes and work once. Your notes stay on the computer — this device
-        reads and writes them over your own network, and nothing is sent anywhere else.
+        Codes last a few minutes and work once. Your notes stay on the computer — this device reads
+        and writes them over your own network, and nothing is sent anywhere else.
       </p>
     {/if}
   </div>
