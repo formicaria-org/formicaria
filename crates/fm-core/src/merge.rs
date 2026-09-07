@@ -165,6 +165,10 @@ fn merge_objects(base: &Object, ours: &Object, theirs: &Object) -> Option<Object
     m.extra.clear();
     for key in ours.extra.keys().chain(theirs.extra.keys()) {
         let (b, o, t) = (base.extra.get(key), ours.extra.get(key), theirs.extra.get(key));
+        // `clippy::single_match` wants an `if let` here. Kept as a `match` so the `None` arm has
+        // somewhere to say what it means: dropping a key is a *decision* the three-way merge made,
+        // not an absence of one, and an `if let` leaves nowhere to write that down.
+        #[allow(clippy::single_match)]
         match three_way(&b.cloned(), &o.cloned(), &t.cloned())? {
             Some(v) => {
                 m.extra.insert(key.clone(), v);

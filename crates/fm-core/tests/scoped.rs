@@ -125,6 +125,10 @@ fn writing_into_an_unshared_vault_is_refused() {
 
     let mut scoped = Scoped::new(&mut store, Some(&lab));
     assert!(matches!(scoped.put(&note), Err(StoreError::Io(_))), "refused, not redirected");
+    // **Not a no-op, despite `Scoped` having no `Drop`.** It holds `&mut store`, so this ends
+    // the borrow and lets the assertion below read the store directly. `clippy::drop_non_drop`
+    // flags the shape because it is usually a mistake; here it is the mechanism.
+    #[allow(clippy::drop_non_drop)]
     drop(scoped);
 
     assert!(store.get(id).unwrap().is_none(), "and nothing was written anywhere");

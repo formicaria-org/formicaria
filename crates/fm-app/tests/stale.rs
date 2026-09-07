@@ -8,7 +8,7 @@
 //! Real git, because the thing under test is a read of `git log`.
 
 use fm_app::commands::{capture, reply, set_property, stale};
-use fm_core::{git, FileStore, Store};
+use fm_core::{git, FileStore};
 use tempfile::tempdir;
 
 fn have_git() -> bool {

@@ -333,6 +333,17 @@ check-ui = "pnpm -C ui install && pnpm -C ui check"
 seam = "cargo test -p fm-query"                  # the zero-I/O seam suite
 perf = "cargo test -p fm-query --test perf -- --nocapture"   # search < 100ms @ 10k budget
 deny = "cargo deny --all-features check"         # license / advisory gate (permissive-only)
+# **Both feature sets, because they compile different code.** `--features native-git` swaps in
+# `git_native.rs` and gates `write_vault_files` — which sat dead in every default build, with
+# `cargo check` saying so on every run and nothing reading it, because there was no clippy and no
+# `-D warnings` anywhere in this project until 2026-09-07. A warning nobody is shown is not a
+# warning. Kept at `-D warnings`: a lint backlog that is allowed to grow is one nobody ever clears
+# (this one was 39 across 235k lines, which is what made adopting it cheap — do not let it become
+# expensive again).
+# `--check` only: the gate reports, it never rewrites your tree mid-run. Run `cargo fmt --all`
+# yourself when it complains. Settings and their reasoning are in `rustfmt.toml`.
+fmt = "cargo fmt --all -- --check"
+clippy = { cmd = "cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p fm-core -p fm-cli -p fm-app --features native-git --all-targets -- -D warnings" }
 checks = "sh ci/checks.sh"                       # architectural greps: seam + generic renderers
 # The notices that must ship WITH a binary — MIT and Apache-2.0 both require it, and ~87
 # crates under them are linked in. Generated from the real dependency tree (a hand-kept
@@ -409,4 +420,4 @@ ios-package = "sh ci/ios-package.sh"
 # nothing warm. That is well inside what a gate may ask for. `ci/checks.sh` now fails on any
 # `test-*` task that is neither here nor marked `# not-in-ci: <reason>`, so leaving one out is a
 # decision somebody makes rather than one that happens.
-depends-on = ["test", "test-native-git", "test-agent-download", "test-ui", "check-ui", "deny", "checks", "third-party-check", "docs"]
+depends-on = ["test", "test-native-git", "test-agent-download", "test-ui", "check-ui", "fmt", "clippy", "deny", "checks", "third-party-check", "docs"]

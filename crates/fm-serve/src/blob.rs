@@ -195,9 +195,6 @@ mod tests {
     use crate::AppState;
     use std::io::{BufRead, BufReader, Read};
     use std::net::{TcpListener, TcpStream};
-    use std::sync::atomic::AtomicBool;
-    use std::sync::Mutex;
-    use std::time::Instant;
 
     /// Drive the real route over a real socket. `fm-serve` had no HTTP-layer test at all
     /// before this one, and a `Range` implementation is precisely the code that is right
@@ -260,7 +257,7 @@ mod tests {
     fn a_whole_blob_comes_back_with_its_sniffed_type_and_range_support() {
         // A real PNG signature, so `sniff_mime` has something to find.
         let mut png = b"\x89PNG\r\n\x1a\n".to_vec();
-        png.extend(std::iter::repeat(b'x').take(500));
+        png.extend(std::iter::repeat_n(b'x', 500));
 
         let (status, headers, body) = get(&png, "", None);
 

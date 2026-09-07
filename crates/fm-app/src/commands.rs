@@ -1383,7 +1383,7 @@ pub fn duplicates(store: &dyn Store) -> Result<Vec<DuplicateFamily>, StoreError>
         })
         .collect();
     // Biggest family first: that is the one that names the loop.
-    out.sort_by(|a, b| b.extras.len().cmp(&a.extras.len()));
+    out.sort_by_key(|f| std::cmp::Reverse(f.extras.len()));
     Ok(out)
 }
 

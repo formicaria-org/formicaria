@@ -196,7 +196,7 @@ fn a_deleted_root_leaves_its_messages_readable() {
 /// Real git, real commits — the thing under test is a contract with `git log`, not a function.
 #[test]
 fn a_thread_does_not_flood_the_activity_feed() {
-    use fm_core::{FileStore, Store as _};
+    use fm_core::FileStore;
     if std::process::Command::new("git").arg("--version").output().is_err() {
         eprintln!("skipping: git not on PATH");
         return;

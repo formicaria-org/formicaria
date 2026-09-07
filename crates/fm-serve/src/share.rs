@@ -587,7 +587,7 @@ mod tests {
     /// be in it at all — not merely "unlikely".
     #[test]
     fn the_code_alphabet_has_no_confusable_glyphs() {
-        for bad in [b'O', b'0', b'I', b'1', b'L'] {
+        for bad in *b"O0I1L" {
             assert!(!ALPHABET.contains(&bad), "{} is confusable", bad as char);
         }
     }

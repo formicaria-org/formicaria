@@ -18,7 +18,7 @@ use fm_core::MultiStore;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 
 struct NoHost;
@@ -60,6 +60,11 @@ fn app() -> (TempDir, App) {
     (home, app)
 }
 
+/// **Only for arms that answer text.** The reply goes through `String::from_utf8().unwrap()`,
+/// which is right for every JSON arm and panics on one that answers bytes — `resolve_asset`
+/// hands back a JPEG. If a test here needs those, call `dispatch` directly and take
+/// `o.into_bytes()`; a helper for it existed, was never used, and was deleted on 2026-09-07
+/// rather than left as dead code with a live warning attached to it.
 fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<String, String> {
     dispatch(cmd, &args, &[], app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
 }
@@ -71,12 +76,6 @@ fn with_bytes(
     body: &[u8],
 ) -> Result<String, String> {
     dispatch(cmd, &args, body, app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
-}
-
-/// For arms that answer with raw bytes. `call` runs the reply through `String::from_utf8`, which
-/// is right for every JSON arm and panics on `resolve_asset` — a JPEG is not UTF-8.
-fn call_raw(app: &App, cmd: &str, args: serde_json::Value) -> Result<Vec<u8>, String> {
-    dispatch(cmd, &args, &[], app, &NoHost).map(|o| o.into_bytes())
 }
 
 /// A vault registered through the command surface, as the app itself would.

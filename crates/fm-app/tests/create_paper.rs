@@ -2,7 +2,7 @@
 
 use fm_app::commands;
 use fm_core::{MemoryStore, Store};
-use fm_model::{Kind, PropertyValue};
+use fm_model::PropertyValue;
 
 fn store() -> MemoryStore {
     MemoryStore::default()

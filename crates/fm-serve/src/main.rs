@@ -1440,7 +1440,7 @@ pub(crate) fn write_response_full(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{BufRead as _, BufReader as _BufReader, Read as _Read};
+    use std::io::{BufReader as _BufReader, Read as _Read};
     use std::net::TcpStream;
 
     /// Drive the **real** `handle` over a real socket with a raw request, and return the

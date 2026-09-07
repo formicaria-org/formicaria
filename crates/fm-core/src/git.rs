@@ -111,6 +111,16 @@ pub(crate) fn check_clone_dest(url: &str, dest: &Path) -> Result<(), StoreError>
 /// The files that make a repo a *vault*: the ignore rules and the merge attribute. Append-never-
 /// skip, because a repo you already own has both files and "skip if present" meant neither rule
 /// ever landed.
+///
+/// **The native backend's path only** — `ensure_repo` above does the same three writes inline for
+/// the subprocess backend, and does *not* swallow the driver's error. The difference is deliberate
+/// and is why this is a separate function: there is no `fm` binary beside a phone app to point a
+/// driver at, and libgit2 could not invoke it anyway.
+///
+/// `#[cfg]`-gated since 2026-09-07. It was ungated, so `cargo check` reported it dead in every
+/// default build and nothing read the warning — there was no clippy and no `-D warnings` until
+/// then. Its doc also read as the general vault-creation path, which it has never been.
+#[cfg(feature = "native-git")]
 pub(crate) fn write_vault_files(vault: &Path) -> Result<(), StoreError> {
     write_gitignore(vault)?;
     write_gitattributes(vault)?;
@@ -586,7 +596,7 @@ fn install_merge_driver(vault: &Path) -> Result<(), StoreError> {
         // No %L: a union has no conflict to mark.
         ("merge.fm-manifest.driver", format!("'{exe}' merge-manifest %O %A %B")),
     ] {
-        let out = git(vault).args(["config", &key, &value]).output().map_err(spawn)?;
+        let out = git(vault).args(["config", key, &value]).output().map_err(spawn)?;
         if !out.status.success() {
             return Err(failed("git config", &out));
         }
@@ -2127,11 +2137,10 @@ fn unmerged_paths(vault: &Path) -> Result<Option<Vec<String>>, StoreError> {
 /// are `DD AU UD UA DU AA UU` — every one has a `U`, except the two doubles.
 fn unmerged(line: &str) -> bool {
     let mut c = line.chars();
-    match (c.next(), c.next()) {
-        (Some('U'), _) | (Some(_), Some('U')) => true,
-        (Some('A'), Some('A')) | (Some('D'), Some('D')) => true,
-        _ => false,
-    }
+    matches!(
+        (c.next(), c.next()),
+        (Some('U'), _) | (Some(_), Some('U')) | (Some('A'), Some('A')) | (Some('D'), Some('D'))
+    )
 }
 
 fn spawn(e: std::io::Error) -> StoreError {

@@ -999,7 +999,7 @@ pub fn convert(
 
     // ── stubs, only if asked ───────────────────────────────────────────────────
     if opts.create_stubs {
-        for (name, _) in &dangling {
+        for name in dangling.keys() {
             if graph.page(name).is_some() {
                 continue;
             }

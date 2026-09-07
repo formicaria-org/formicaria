@@ -162,7 +162,7 @@ mod tests {
     fn an_all_day_item_sorts_before_a_timed_one_on_the_same_day() {
         // The reason Stamp is one type instead of two PropertyValue variants: a
         // mixed vault must still sort by real chronology.
-        let mut v = vec![
+        let mut v = [
             Stamp::at(date!(2026 - 07 - 20), time!(14:30)),
             Stamp::day(date!(2026 - 07 - 21)),
             Stamp::day(date!(2026 - 07 - 20)),

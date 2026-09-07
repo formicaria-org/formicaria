@@ -17,7 +17,7 @@
 
 use fm_app::{dispatch, vaults::VaultConfig, App, Host};
 use fm_core::MultiStore;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use tempfile::{tempdir, TempDir};
 

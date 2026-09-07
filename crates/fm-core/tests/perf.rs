@@ -183,7 +183,7 @@ fn a_full_rebuild_stays_linear_in_the_note_count() {
 /// `ingest` puts a PDF's extracted text in the **body of its asset note**
 /// (`commands::asset_note`), which measures 1.7–2.2 KB per page, so a few thousand papers is
 /// >100 MB of body. `board`/`agenda`/`recent`/`timeline` all filter `Kind(Note)` and never want
-/// any of it.
+/// > any of it.
 ///
 /// Until 2026-08-29 `FileStore::candidates` pushed only `Predicate::Text` into SQL and answered
 /// everything else with `load_all()`, so each of those views hydrated — YAML-parsed, then copied

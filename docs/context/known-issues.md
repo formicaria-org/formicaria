@@ -695,6 +695,24 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **`pixi run ci` still flakes under load, and raising the timeout again is not the answer.**
+  Observed 2026-09-07: a full gate run failed with two UI tests timing out at 20 s
+  (`ingest.phone.test.ts`'s oversized-file case and `App.features.test.ts`'s editor open), and the
+  run reported **280 s of test time against ~100 s** for the green runs either side of it. Both
+  files passed alone; `pixi run test-ui` passed clean; the next full gate passed. So it is
+  contention, not logic.
+
+  **The project has already been round this loop.** `ui/vitest.config.ts` records the first pass:
+  both budgets sat at 5000, a `findBy*` that needed to retry consumed the whole test budget, and
+  the failure read `Test timed out in 5000ms` at the `it(...)` line with no element name and no
+  DOM. That was fixed by ordering the two budgets and raising `testTimeout` to 20 s. **It has now
+  been exceeded too**, which says the budget was never the variable — machine load is, and there
+  is no number that outruns it.
+  What would actually help is bounding the concurrency (vitest's `poolOptions`/`maxWorkers`) so a
+  gate run costs wall-clock instead of a coin toss, or splitting the two `App.*` suites that mount
+  the whole app. **Do not simply raise 20 s to 40 s**: that is the treadmill this entry exists to
+  stop, and a gate that fails on a train is a gate people learn to ignore (`fetch.rs`).
+
 - **The app has no URL routing, so a screenshot tool cannot ask for a view.** Which view is open
   lives in `localStorage`, and the app correctly sets `frame-ancestors 'none'` — so
   `chromium --screenshot` reaches the default view and nothing else, and the obvious iframe trick is

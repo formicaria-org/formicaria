@@ -132,11 +132,10 @@ fn fragment_len(after_hash: &str) -> usize {
     if !after_hash.starts_with('#') {
         return 0;
     }
-    let end = after_hash[1..]
+    after_hash[1..]
         .find(|c: char| c.is_whitespace() || matches!(c, ')' | ']' | ',' | ';' | '"' | '\''))
         .map(|i| i + 1)
-        .unwrap_or(after_hash.len());
-    end
+        .unwrap_or(after_hash.len())
 }
 
 fn is_note(u: &str) -> bool {

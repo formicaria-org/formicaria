@@ -30,16 +30,19 @@ pub use verify::{verify, Report, Severity};
 pub mod acquire; // the one step every way of getting a vault from elsewhere shares
 pub mod backup;
 pub mod git;
-pub mod import; // Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes
+// Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes.
+pub mod import;
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.
 #[cfg(feature = "native-git")]
 pub mod git_native;
-// Which git backend the app talks to. **Always call through this, never `git`/`git_native`
+// Frontmatter-aware 3-way merge for note bodies.
+pub mod merge;
+// Element-level 3-way merge for whiteboard bodies (see `merge::merge_body`).
+pub mod scene;
+// **Which git backend the app talks to. Always call through this, never `git`/`git_native`
 // directly** — naming a backend at a call site is what left the phone reporting "git not
 // installed" while carrying a working libgit2.
-pub mod merge;
-pub mod scene;
-pub mod vcs; // element-level 3-way merge for whiteboard bodies (see merge::merge_body)
+pub mod vcs;
 
 #[derive(Debug, Error)]
 pub enum StoreError {

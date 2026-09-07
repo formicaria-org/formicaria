@@ -489,7 +489,7 @@ fn persist_path(path: &Path) -> String {
             // An empty tail would mean "the root is the vault", which `contained_path` cannot
             // produce; writing `@root/` for it would round-trip to the root itself, so refuse
             // to be clever and keep the absolute form.
-            if rel.as_os_str().len() > 0 {
+            if !rel.as_os_str().is_empty() {
                 return format!("{ROOT_MARKER}{}", rel.to_string_lossy());
             }
         }
