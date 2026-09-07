@@ -51,6 +51,17 @@ fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<serde_json::Val
 /// An app over one vault — built fresh each time, which is the point: a new `App` has no memory of
 /// what an earlier one wrote, exactly like a relaunched phone.
 fn open_app(home: &TempDir, vault: &Path) -> App {
+    // **Run the phone's backend when the feature is on** (2026-09-07). Every assertion in this file
+    // is about a failure first seen on a phone, and until now not one of them had ever executed
+    // against libgit2 — the file was absent from `test-native-git`, so it only ever ran the
+    // subprocess backend the phone does not have. That is the same blind spot that let the
+    // `git merge-file` shell-out ship: green everywhere, on a path the device could not take.
+    //
+    // The `git()` helper below still uses the real binary for *setup*, which is right: it stands in
+    // for the other device, and what is under test is what the app does, not how the fixture is
+    // built.
+    #[cfg(feature = "native-git")]
+    fm_core::vcs::force_native(true);
     let store = MultiStore::open(&[("v".to_string(), vault.to_path_buf())]).unwrap();
     App::new(
         store,
