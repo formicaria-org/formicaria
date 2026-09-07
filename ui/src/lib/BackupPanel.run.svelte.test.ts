@@ -18,18 +18,29 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { backupStatus, backupLatest, gitAuth, backup } = vi.hoisted(() => ({
-  backupStatus: vi.fn(),
-  backupLatest: vi.fn(),
-  gitAuth: vi.fn(),
-  backup: vi.fn(),
-}));
+const { backupStatus, backupLatest, gitAuth, backup, commit, pull, push, getNote, lastCommits } =
+  vi.hoisted(() => ({
+    backupStatus: vi.fn(),
+    backupLatest: vi.fn(),
+    gitAuth: vi.fn(),
+    backup: vi.fn(),
+    commit: vi.fn(),
+    pull: vi.fn(),
+    push: vi.fn(),
+    getNote: vi.fn(),
+    lastCommits: vi.fn(),
+  }));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   backupStatus,
   backupLatest,
   gitAuth,
   backup,
+  commit,
+  pull,
+  push,
+  getNote,
+  lastCommits,
 }));
 
 import BackupPanel from './BackupPanel.svelte';
@@ -58,6 +69,13 @@ const show = (
 beforeEach(() => {
   vi.clearAllMocks();
   gitAuth.mockResolvedValue({ storage: 'system', have_credential: true, helper: null });
+  commit.mockResolvedValue({ committed: true, conflicts: [] });
+  pull.mockResolvedValue({ merged: 0, conflicts: [], kept: [] });
+  push.mockResolvedValue(undefined);
+  getNote.mockResolvedValue(null);
+  // Default: nothing known about when anything was saved, which renders as the "nothing saved
+  // here yet" line. Tests that care about the elapsed line set their own.
+  lastCommits.mockResolvedValue([]);
   // The shape the command actually answers. It returned `void` until 2026-09-05, and a default
   // of `undefined` here would let a test pass against a panel that reads nothing back.
   backup.mockResolvedValue({
@@ -288,5 +306,82 @@ describe('how many commits are waiting', () => {
     });
     expect(document.body.textContent).not.toContain('Everything here is pushed');
     expect(document.body.textContent).not.toContain('not pushed');
+  });
+});
+
+// **An unfinished merge stops the sync, and the commit succeeding does not mean it is finished.**
+//
+// The panel used to gate on `!committed && conflicts.length`, which was sound while a mid-merge
+// commit committed *nothing*. Since 2026-09-07 `commit_all` commits everything except the
+// conflicted paths (`decisions.md`, *a conflict blocks its own notes and nothing else*), so the
+// ordinary mid-merge outcome is `committed: true` with notes still stuck — and the old gate would
+// sail past into a `pull` that refuses, reporting git's words instead of ours.
+//
+// Red proof: put `!c.committed &&` back into `blocked` in `BackupPanel.svelte` and this fails.
+describe('a vault that is still mid-merge', () => {
+  const withRemote = () => vault('notes', { remote: 'git@github.com:you/notes.git', unpushed: 1 });
+
+  it('names the stuck notes and does not try to pull past them', async () => {
+    commit.mockResolvedValue({
+      committed: true,
+      conflicts: ['notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md'],
+    });
+    show([withRemote()]);
+
+    // "Get their changes" — the pull door. The Back up door goes through `syncVault`, whose own
+    // half of this is pinned in `sync.svelte.test.ts`.
+    const button = await screen.findByRole('button', { name: /Get their changes/i });
+    await fireEvent.click(button);
+
+    await waitFor(() => expect(commit).toHaveBeenCalled());
+    expect(pull).not.toHaveBeenCalled();
+
+    const body = document.body.textContent ?? '';
+    expect(body).toContain('still need you');
+    // The two halves that must both be said: history keeps working, sync does not.
+    expect(body).toContain('being saved to history as usual');
+    expect(body).toContain('cannot sync');
+  });
+});
+
+// **How long it has been since this vault saved anything** — the panel half of the toolbar chip.
+//
+// The absence this pins: for thirty-nine days a vault could not commit, and this panel showed a
+// remote, an identity and an unpushed count that all looked ordinary. None of them subtract
+// themselves from today. The elapsed line is the one that does.
+describe('when the vault last saved anything', () => {
+  it('says how long ago, in days, beside the rest of the vault status', async () => {
+    const days = 39;
+    lastCommits.mockResolvedValue([
+      { vault: 'notes', last_commit: Math.floor((Date.now() - days * 86_400_000) / 1000) },
+    ]);
+    show([vault('notes')]);
+
+    await waitFor(() => expect(document.body.textContent).toContain('Last saved'));
+    expect(document.body.textContent).toContain(`${days} days ago`);
+  });
+
+  it('says a vault has no history rather than inventing a date for it', async () => {
+    // `null` is a third state. Rendered as an epoch it would read as twenty thousand days of
+    // silence — an alarm aimed at somebody who has done nothing wrong.
+    lastCommits.mockResolvedValue([{ vault: 'notes', last_commit: null }]);
+    show([vault('notes')]);
+
+    await waitFor(() => expect(document.body.textContent).toContain('Nothing saved here yet'));
+    expect(document.body.textContent).not.toContain('days ago');
+  });
+
+  it('still says it for a vault with no remote at all', async () => {
+    // Its own `<li>`, outside the remote branch: a vault with nowhere to push is exactly the one
+    // whose silence nobody would otherwise notice.
+    lastCommits.mockResolvedValue([
+      { vault: 'notes', last_commit: Math.floor((Date.now() - 90 * 86_400_000) / 1000) },
+    ]);
+    show([vault('notes', { remote: null })]);
+
+    // Wait on the elapsed line, not on the remote line: `load()` renders the status first and
+    // fetches the saves after, so the remote line is on screen a tick before this one is.
+    await waitFor(() => expect(document.body.textContent).toContain('90 days ago'));
+    expect(document.body.textContent).toContain('No remote set');
   });
 });

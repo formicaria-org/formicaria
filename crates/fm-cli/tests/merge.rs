@@ -2,6 +2,7 @@
 //! because the thing being tested is a contract with git, not a function.
 
 use fm_core::git;
+use fm_model::PropertyValue;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -180,25 +181,22 @@ fn task(updated: &str, status: &str, body: &str) -> String {
     )
 }
 
-/// **Characterization test — this locks behaviour we chose to keep, not behaviour we like.**
+/// **The card-drag case: two people drag one card to two columns, and neither loses.**
 ///
-/// Two people drag the same card to different columns. `status` genuinely diverges, so
-/// `merge_objects` returns `None` (`merge.rs`) and the whole file — YAML fence included —
-/// goes through the text merge. The markers therefore land *inside* the frontmatter, and
-/// `from_file` rightly refuses it: the note drops out of every view until a human fixes it.
+/// This test replaced a characterization test that locked the opposite behaviour, and the doc
+/// comment that stood here is worth knowing about before changing anything: until 2026-09-07
+/// `merge_objects` returned `None` on a divergent field, the whole file — YAML fence included —
+/// went through the text merge, and the markers landed *inside* the frontmatter, so `from_file`
+/// refused the note and it disappeared from every view. That was ruled deliberate on 2026-07-19
+/// ("loud-and-absent beats quiet-and-wrong") on the grounds that the only alternative was letting
+/// ours win, which is silent loss.
 ///
-/// That is ugly, and it is **deliberate**. The alternative — letting ours win the field —
-/// is forbidden in writing (`merge.rs`: *"silently dropping one side's status change is the
-/// same data loss this whole phase exists to stop"*), and it would be strictly worse here:
-/// the bodies are identical in the card-drag case, so the merge would come back **Clean**,
-/// auto-commit would fire, and the sync loop would push one person's column over the
-/// other's with nothing shown to anyone. Loud-and-absent beats quiet-and-wrong.
-///
-/// So the ruling is: keep this, and build the surface that lists skipped notes
-/// (`decisions.md`, 2026-07-19). **If this test fails, someone has reversed that ruling** —
-/// go read the decision before "fixing" the test.
+/// It is neither now. The loser is demoted into `conflict-status` beside the winner: both values
+/// are in the file, the file **parses**, and the note keeps working. The reversal, the winner rule
+/// and the acceptance clause it answers are in `decisions.md`, 2026-09-07 — **read it before
+/// "fixing" this test in either direction.**
 #[test]
-fn a_divergent_status_field_breaks_the_fence_and_keeps_both_values() {
+fn a_divergent_status_field_keeps_both_values_and_the_note_still_parses() {
     if !have_git() {
         eprintln!("skipping merge test: git not on PATH");
         return;
@@ -218,31 +216,154 @@ fn a_divergent_status_field_breaks_the_fence_and_keeps_both_values() {
     g(ours.path(), &["remote", "add", "them", theirs.path().to_str().unwrap()]);
     g(ours.path(), &["fetch", "them"]);
     let merge = g(ours.path(), &["merge", "them/main", "-m", "merge"]);
-    assert!(!merge.status.success(), "a divergent status really does conflict");
+    assert!(
+        merge.status.success(),
+        "a divergent field no longer stops the merge:\n{}",
+        String::from_utf8_lossy(&merge.stderr)
+    );
 
     let merged = fs::read_to_string(ours.path().join(rel)).unwrap();
 
-    // The property that must never regress: nothing was resolved by fiat.
-    assert!(merged.contains("doing"), "our value survives:\n{merged}");
-    assert!(merged.contains("done"), "their value survives too:\n{merged}");
-    assert!(merged.contains("<<<<<<<"), "and the disagreement is shown:\n{merged}");
-
-    // The documented cost of that guarantee: unlike a body conflict, this one is *not*
-    // readable, because the markers are inside the YAML. The note is absent from every
-    // view until a human resolves it — and is surfaced by name as skipped, not lost.
-    assert!(
-        fm_core::frontmatter::from_file(&merged).is_err(),
-        "a fence-broken note does not parse — this is the known cost, see the doc comment:\n{merged}"
+    // The property that must never regress: nothing was resolved by fiat. Both values are here,
+    // and now they are here in a file a person and a parser can both read.
+    let obj = fm_core::frontmatter::from_file(&merged)
+        .expect("the fence survives a divergent field — this is the change:\n");
+    assert_eq!(obj.status.as_deref(), Some("done"), "the later `updated` wins:\n{merged}");
+    assert_eq!(
+        obj.extra.get("conflict-status"),
+        Some(&PropertyValue::List(vec![PropertyValue::Text("doing".into())])),
+        "and the loser is kept beside it, not discarded:\n{merged}"
     );
+    assert!(!merged.contains("<<<<<<<"), "no markers anywhere near the YAML:\n{merged}");
 
-    // Whatever a human ends up reading, it must not be our scratch files or git's. The
-    // whole-file fallback used to hand `git merge-file` the real paths and let it label the
-    // markers with them; it now goes through the same labelled text merge as a body
-    // conflict, so the labels are git's own vocabulary either way.
-    for leak in ["fm-merge-", ".merge_file", "/tmp/"] {
-        assert!(!merged.contains(leak), "conflict markers leak {leak}:\n{merged}");
+    // Nothing about the note's own content moved.
+    assert_eq!(obj.body.trim(), "Ship the thing.", "the body is untouched:\n{merged}");
+
+    // **The merge is a fixed point.** This is what replaces the old "never Clean" acceptance
+    // condition: a merge that settles a field must settle it the same way next time, or the two
+    // devices re-derive the disagreement on every pull for ever.
+    let (again, outcome) = fm_core::merge::merge_texts(&merged, &merged, &merged, 7).unwrap();
+    assert_eq!(outcome, fm_core::merge::Merged::Clean, "re-merging the result is a non-event");
+    assert_eq!(again, merged, "and changes nothing:\n{again}");
+}
+
+/// **The other device must reach the same file, byte for byte.** The winner rule reads only
+/// content — later `updated`, then `Ord` — so which side is "ours" cannot enter into it. A rule
+/// that preferred ours would pass the test above unchanged and would have the two devices trading
+/// the same card back and forth for ever, which is the failure the 2026-07-19 acceptance clause
+/// named.
+///
+/// Red proof: make the winner `ours.clone()` unconditionally in `Demote::settle` and this fails
+/// while every other merge test still passes.
+#[test]
+fn both_devices_merge_a_divergent_field_to_the_same_bytes() {
+    if !have_git() {
+        eprintln!("skipping merge test: git not on PATH");
+        return;
     }
-    assert!(merged.contains("ours") && merged.contains("theirs"), "labelled:\n{merged}");
+    let base = task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n");
+    let a = task("2026-07-17T11:00:00Z", "doing", "Ship the thing.\n");
+    let b = task("2026-07-17T12:00:00Z", "done", "Ship the thing.\n");
+
+    let (from_a, _) = fm_core::merge::merge_texts(&base, &a, &b, 7).unwrap();
+    let (from_b, _) = fm_core::merge::merge_texts(&base, &b, &a, 7).unwrap();
+    assert_eq!(from_a, from_b, "the two devices disagree about their own merge");
+}
+
+/// **The sorted set, which is the other half of byte identity.** When *each* side already carries a
+/// demoted value the other has not seen, "ours first, then theirs" is a different order on the two
+/// devices — same set, different bytes, and a merge that is not a fixed point. The test above cannot
+/// see this: there the carried sets are empty and there is only one fresh loser to order.
+///
+/// Red proof: drop `losers.sort()` from `merge_demoted` and this fails alone.
+#[test]
+fn two_devices_carrying_different_demoted_values_still_agree_byte_for_byte() {
+    let with = |updated: &str, demoted: &str| {
+        format!(
+            "---\nid: 01JQ0000000000000000000000\ntype: task\ntitle: shared task\n\
+             created: 2026-07-17T10:00:00Z\nupdated: {updated}\nstatus: done\n\
+             conflict-status:\n  - {demoted}\n---\n\nShip the thing.\n"
+        )
+    };
+    let base = with("2026-07-17T10:00:00Z", "todo");
+    let a = with("2026-07-17T11:00:00Z", "doing");
+    let b = with("2026-07-17T12:00:00Z", "blocked");
+
+    let (from_a, _) = fm_core::merge::merge_texts(&base, &a, &b, 7).unwrap();
+    let (from_b, _) = fm_core::merge::merge_texts(&base, &b, &a, 7).unwrap();
+    assert_eq!(from_a, from_b, "the two devices order the same set differently");
+
+    // And the base's own value, which both sides dropped, stays dropped.
+    let obj = fm_core::frontmatter::from_file(&from_a).expect("parses:\n");
+    assert_eq!(
+        obj.extra.get("conflict-status"),
+        Some(&PropertyValue::List(vec![
+            PropertyValue::Text("blocked".into()),
+            PropertyValue::Text("doing".into()),
+        ])),
+        "both sides' records survive, and `todo` — deleted by both — does not:\n{from_a}"
+    );
+}
+
+/// A second disagreement **adds** to the record; it does not overwrite the first. Overwriting
+/// would be exactly the silent loss the whole mechanism exists to prevent, one level in.
+#[test]
+fn a_second_divergence_keeps_the_first_loser_too() {
+    let base = task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n");
+    let a = task("2026-07-17T11:00:00Z", "doing", "Ship the thing.\n");
+    let b = task("2026-07-17T12:00:00Z", "done", "Ship the thing.\n");
+    let (once, _) = fm_core::merge::merge_texts(&base, &a, &b, 7).unwrap();
+
+    // From that shared state, the two devices disagree again.
+    let c = once.replace("status: done", "status: review").replace("T12:00:00Z", "T13:00:00Z");
+    let d = once.replace("status: done", "status: blocked").replace("T12:00:00Z", "T14:00:00Z");
+    let (twice, _) = fm_core::merge::merge_texts(&once, &c, &d, 7).unwrap();
+
+    let obj = fm_core::frontmatter::from_file(&twice).expect("still parses:\n");
+    assert_eq!(obj.status.as_deref(), Some("blocked"), "later `updated` again:\n{twice}");
+    assert_eq!(
+        obj.extra.get("conflict-status"),
+        Some(&PropertyValue::List(vec![
+            PropertyValue::Text("doing".into()),
+            PropertyValue::Text("review".into()),
+        ])),
+        "both earlier values are still there, sorted:\n{twice}"
+    );
+}
+
+/// **Deleting the line is the user's undo, and it has to stick.** A plain union would re-add the
+/// value from whichever device has not looked at it yet — and then from the one that has, for ever,
+/// with no way to dismiss it. So the set honours a removal by a side that had it.
+///
+/// The companion half: once the user *promotes* the loser, it stops being a loser everywhere,
+/// because a demoted value equal to the winner is dropped.
+#[test]
+fn a_demoted_value_can_be_dismissed_and_promoted() {
+    let base = task("2026-07-17T10:00:00Z", "todo", "Ship the thing.\n");
+    let a = task("2026-07-17T11:00:00Z", "doing", "Ship the thing.\n");
+    let b = task("2026-07-17T12:00:00Z", "done", "Ship the thing.\n");
+    let (settled, _) = fm_core::merge::merge_texts(&base, &a, &b, 7).unwrap();
+    assert!(settled.contains("conflict-status"), "precondition:\n{settled}");
+
+    // One device dismisses it; the other has not looked. The dismissal survives the pull.
+    let dismissed: String = settled
+        .lines()
+        .filter(|l| !l.contains("conflict-status") && *l != "- doing")
+        .fold(String::new(), |mut acc, l| {
+            acc.push_str(l);
+            acc.push('\n');
+            acc
+        });
+    assert!(!dismissed.contains("doing"), "the line really is gone:\n{dismissed}");
+    let (after, _) = fm_core::merge::merge_texts(&settled, &dismissed, &settled, 7).unwrap();
+    assert!(!after.contains("conflict-status"), "a dismissal is not undone by a pull:\n{after}");
+
+    // And promoting it clears the record on every device, not only the one that promoted.
+    let promoted = settled.replace("status: done", "status: doing");
+    let (after, _) = fm_core::merge::merge_texts(&settled, &promoted, &settled, 7).unwrap();
+    let obj = fm_core::frontmatter::from_file(&after).expect("parses:\n");
+    assert_eq!(obj.status.as_deref(), Some("doing"), "{after}");
+    assert_eq!(obj.extra.get("conflict-status"), None, "no longer a disagreement:\n{after}");
 }
 
 /// `pull` is the whole point of the guards that came before it: it is the thing that

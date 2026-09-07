@@ -821,15 +821,20 @@ fn commit_all_inner(
     if status.stdout.is_empty() {
         return Ok(false);
     }
-    // Never commit during a conflicted merge. `add -A` would stage the conflict
-    // markers, which git reads as "the human resolved it", and the commit would
-    // enshrine `<<<<<<<` as the note's content and push it. The auto-commit is
-    // debounced 5s after any write, so a pull that conflicts hits this within
-    // seconds — it is the default path, not an edge case. Not an error: "nothing
-    // committed" is exactly what the caller already handles.
-    if String::from_utf8_lossy(&status.stdout).lines().any(unmerged) {
-        return Ok(false);
-    }
+    // **A conflicted path is never staged, and it never stops the rest.**
+    //
+    // Staging one would be the disaster: `add` on an unmerged path is how git is told "the human
+    // resolved it", so the commit would enshrine `<<<<<<<` as the note's content and push it to a
+    // collaborator. That has always been guarded here. What the guard *also* did — return early and
+    // commit nothing at all — is the failure the owner hit: two stuck notes stopped 202 from being
+    // committed or pushed for 39 days, 196 of them brand new and no part of any merge
+    // (`decisions.md`, 2026-09-07). The auto-commit is debounced 5 s after any write, so every
+    // keystroke after a conflicting pull lands in that hole.
+    //
+    // So: drop the conflicted paths from what we commit, and commit the rest. Their conflict is
+    // untouched and still waits for a human — that is the owner's ruling and it is deliberate — but
+    // it waits for a human about *those notes*, not about the vault.
+    let blocked: Vec<String> = unmerged_paths(vault)?.unwrap_or_default();
     // **Stage exactly the files we wrote, never `-A` and never a directory.**
     //
     // A vault is increasingly *a repo you already have* — notes beside the code or
@@ -871,6 +876,7 @@ fn commit_all_inner(
             .collect();
         owned.retain(|o| tracked.contains(o.as_str()) || vault.join(o).exists());
     }
+    owned.retain(|o| !blocked.contains(o));
     if owned.is_empty() {
         return Ok(false); // nothing of ours changed
     }
@@ -929,6 +935,13 @@ fn commit_all_inner(
     // auto-commit run — failed on every attempt with that fatal error, so the vault stayed
     // mid-merge and every later commit refused too. Found by the differential test against the
     // libgit2 backend (2026-07-31), which had the opposite bug on the same path.
+    // Mid-merge with conflicts still standing, git will not commit at all: it cannot write a tree
+    // from an index holding a conflict entry, and that is absolute. So the tree is assembled
+    // elsewhere — see [`commit_around_a_conflict`], which is the whole of "a conflict blocks its own
+    // notes and nothing else".
+    if !blocked.is_empty() {
+        return commit_around_a_conflict(vault, message, &ours, author);
+    }
     let finishing_merge = vault.join(".git/MERGE_HEAD").exists();
     let mut commit = git(vault);
     commit.arg("commit").arg("-m").arg(message);
@@ -949,6 +962,127 @@ fn commit_all_inner(
         return Err(failed("git commit", &out));
     }
     Ok(true)
+}
+
+/// Commit `ours` **around** an unfinished merge, leaving every conflicted path exactly where it is.
+///
+/// **Why this cannot go through `git commit`.** Git will not write a tree from an index that holds
+/// a conflict entry — `git commit` refuses outright mid-conflict, and `--only <paths>` is refused
+/// during *any* merge ("cannot do a partial commit during a merge"). Both refusals are correct for
+/// what they guard and both produce the same outcome here: nothing is committed, for as long as the
+/// conflict stands. On a phone that lasted 39 days.
+///
+/// So the tree is assembled in a **temporary index** seeded from `HEAD` — the same `GIT_INDEX_FILE`
+/// trick [`write_proposal_branch`] uses, and for the same reason: the real index is not ours to
+/// disturb, and here it is holding a merge in progress. The entries are copied from the real index
+/// by their blob ids rather than re-read from the working tree, so what is committed is exactly what
+/// was staged a moment ago and no `.gitignore` rule or concurrent edit can change the answer in
+/// between. The result is a **single-parent** commit on our branch: the merge has not happened yet,
+/// and claiming it had by writing a second parent would drop the incoming side from history.
+///
+/// **The hazard this is written around** (`decisions.md`, 2026-09-07): the real index must move in
+/// lockstep with `HEAD`. `finish_merge_if_resolved` builds the merge commit from the *real* index,
+/// so a path committed here but left at its old content there would be silently reverted by the
+/// merge commit — every note saved during the conflict, deleted at the moment it was resolved.
+///
+/// **On this backend that is structural rather than a rule to remember, and it is worth keeping so.**
+/// `ours` is derived from `git diff --cached`, so a path can only reach here if the real index
+/// already holds it; the tree is then built from *those same index entries* by blob id. The two
+/// cannot disagree because they are the same data. The libgit2 twin has no such luck — there the
+/// staging and the tree are two separate steps, and `git_differential.rs` is what holds it honest.
+fn commit_around_a_conflict(
+    vault: &Path,
+    message: &str,
+    ours: &[String],
+    author: Option<(&str, &str)>,
+) -> Result<bool, StoreError> {
+    let parent = git(vault).args(["rev-parse", "HEAD"]).output().map_err(spawn)?;
+    if !parent.status.success() {
+        // No commit yet, so there is no merge in flight either — nothing this path can do.
+        return Ok(false);
+    }
+    let parent = String::from_utf8_lossy(&parent.stdout).trim().to_string();
+
+    // What the real index holds for our paths, at stage 0. A path missing from this list is one we
+    // staged as a *deletion*; a path at stage 1/2/3 is conflicted and was filtered out already.
+    let ls = git(vault).args(["ls-files", "-s", "-z", "--"]).args(ours).output().map_err(spawn)?;
+    if !ls.status.success() {
+        return Err(failed("git ls-files", &ls));
+    }
+    let listing = String::from_utf8_lossy(&ls.stdout);
+    let mut present: Vec<(String, String, String)> = Vec::new(); // (mode, blob, path)
+    for entry in listing.split('\0').filter(|s| !s.is_empty()) {
+        let Some((meta, path)) = entry.split_once('\t') else { continue };
+        let mut f = meta.split_whitespace();
+        let (Some(mode), Some(blob), Some("0")) = (f.next(), f.next(), f.next()) else { continue };
+        present.push((mode.to_string(), blob.to_string(), path.to_string()));
+    }
+
+    let git_dir = std::fs::canonicalize(vault.join(".git")).unwrap_or_else(|_| vault.join(".git"));
+    let temp_index = git_dir.join(format!("fm-around-conflict-{}.index", std::process::id()));
+    let with_index = |args: &[&str]| -> Result<Output, StoreError> {
+        git(vault).env("GIT_INDEX_FILE", &temp_index).args(args).output().map_err(spawn)
+    };
+    let step = |label: &str, out: Output| -> Result<Output, StoreError> {
+        if out.status.success() {
+            Ok(out)
+        } else {
+            Err(failed(label, &out))
+        }
+    };
+
+    let result = (|| {
+        step("git read-tree", with_index(&["read-tree", &parent])?)?;
+        for (mode, blob, path) in &present {
+            step(
+                "git update-index",
+                with_index(&[
+                    "update-index",
+                    "--add",
+                    "--cacheinfo",
+                    &format!("{mode},{blob},{path}"),
+                ])?,
+            )?;
+        }
+        for path in ours.iter().filter(|p| !present.iter().any(|(_, _, q)| q == *p)) {
+            // Staged as a deletion. `--force-remove` drops it whether or not the file is on disk.
+            step("git update-index", with_index(&["update-index", "--force-remove", "--", path])?)?;
+        }
+        let tree = step("git write-tree", with_index(&["write-tree"])?)?;
+        let tree = String::from_utf8_lossy(&tree.stdout).trim().to_string();
+
+        // Nothing of ours actually differs from HEAD — the debounced auto-commit's common case, and
+        // it must not accrete an empty commit every five seconds for the length of a conflict.
+        let head_tree = git(vault)
+            .args(["rev-parse", &format!("{parent}^{{tree}}")])
+            .output()
+            .map_err(spawn)?;
+        if String::from_utf8_lossy(&head_tree.stdout).trim() == tree {
+            return Ok(false);
+        }
+
+        let mut commit_cmd = git(vault);
+        commit_cmd.args(["commit-tree", &tree, "-p", &parent, "-m", message]);
+        if let Some((name, email)) = author {
+            commit_cmd
+                .env("GIT_AUTHOR_NAME", name)
+                .env("GIT_AUTHOR_EMAIL", email)
+                .env("GIT_COMMITTER_NAME", name)
+                .env("GIT_COMMITTER_EMAIL", email);
+        }
+        let commit = step("git commit-tree", commit_cmd.output().map_err(spawn)?)?;
+        let commit = String::from_utf8_lossy(&commit.stdout).trim().to_string();
+
+        // The old value is passed so a HEAD that moved under us fails the update rather than being
+        // overwritten — the same fail-closed shape as the proposal path.
+        step(
+            "git update-ref",
+            git(vault).args(["update-ref", "HEAD", &commit, &parent]).output().map_err(spawn)?,
+        )?;
+        Ok(true)
+    })();
+    let _ = std::fs::remove_file(&temp_index);
+    result
 }
 
 /// Create a **proposal branch**: a new branch off the current `HEAD` whose *only* difference is one
@@ -1465,6 +1599,32 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
         None => Ok(None),
         Some(base) => Ok(Some(count_ahead(vault, &base)?)),
     }
+}
+
+/// **When this vault's history last moved** — the committer time of `HEAD`, in seconds since the
+/// epoch. `None` when there is no repo or no commits yet, which is not an error: a vault that has
+/// never been committed has no elapsed time to report, only a first commit to make.
+///
+/// Committer time rather than author time, and that is the point: this answers "when did anything
+/// last get *saved here*", so a pulled commit written last month but merged today counts as today.
+/// The libgit2 twin reads `Commit::time()`, which is the same clock — `git_differential` grades
+/// them against each other.
+///
+/// Exists because nothing in the app could say it. Two notes froze a vault for **thirty-nine
+/// days** (2026-07/08) and every specific detector was either absent or itself blocked by the
+/// freeze; what nobody had was the crude liveness fact that would have caught it without knowing
+/// the cause. So this deliberately does not look at *why* history stopped — that is the whole
+/// value of it.
+pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(None);
+    }
+    let out = git(vault).args(["log", "-1", "--format=%ct"]).output().map_err(spawn)?;
+    // A repo with no commits exits non-zero here. That is a state, not a failure.
+    if !out.status.success() {
+        return Ok(None);
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().parse().ok())
 }
 
 /// One note's most-recent edit, exactly as git records it: who touched it, and when. This is the

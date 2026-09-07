@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 85 of them are below**, grouped by what they are for. If you add an arm to
+**All 87 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -108,6 +108,7 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `resolve_conflict` | `vault`, `path`, `keep`    | `{resolved}`           | `keep` = `theirs` \| `mine` \| `edited`. `edited` means "I reconciled both in the editor" and is refused while markers remain |
 | `read_skipped` / `resolve_skipped` | `vault`, `name`, `text` (resolve only) | the raw text / `{parses}` | the in-app raw editor for a note that will not parse. Works **on any device**, unlike `open_skipped` |
 | `open_skipped`   | `vault`, `name`              | —                      | hands the same file to the OS editor. Desktop only, by nature |
+| `demoted`        | —                            | `DemotedField[]`       | fields two devices set differently, where the merge kept both: what the note shows now and what the other device said. A read, and stateless — the loser is a `conflict-<field>` key in the note's own frontmatter, so this is correct after a restart and readable in any text editor |
 
 ### Vaults
 
@@ -133,6 +134,7 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
 | `backup_status`  | —                            | `BackupStatus`         | `{vaults, git, restic, restic_password_set}`; each vault carries `{name, remote, unpushed, identity, remote_moved, conflicts, restic_repo, restic_ready, git_assets_max}` — the password only ever as a bool, never by value |
+| `last_commits`   | —                            | `LastCommit[]`         | **when each vault last saved anything**, as epoch seconds — `null` for a vault that has never been committed, which is a state and not a zero. Its own answer rather than a field on `backup_status` for the same reason `backup_latest` is: one `git log -1` per vault, local and offline, so a phone can be told at first paint that nothing has been saved in five weeks. Scoped like `list_vaults` — how stale a vault is is itself a disclosure. No threshold: when silence is worth mentioning is a display policy |
 | `backup_latest`  | `vault`                      | `LatestBackup`         | **when this vault was last snapshotted.** Deliberately *not* a field on `backup_status`, which polls every 45 s and already spawns a process per vault. Three distinct answers: a snapshot (`id` + `time` + the source `paths` it recorded), `id: null` with no `unavailable` — the repository opened and has **never** been written to — and `unavailable` with a reason, meaning this machine cannot tell you. An unreadable repository is *reported*, not raised |
 | `backup`         | `vault`                      | `BackupRun`            | restic snapshot of the vault's notes directory **and** `blobs/` — never the vault root, so no `.git`, `views/`, `themes/` or `vault.json`; repo per vault, password from `RESTIC_PASSWORD` or the stored one. **Answers what the snapshot held**: `{vault, notes_dir, blobs, contents}`, where `notes_dir` is the directory it actually took (`docs` for a vault that moved it) and `blobs` says whether there were any — a vault with no attachments yet must not be described as carrying them. `contents` is restic's own summary (`{id, files_new, files_changed, files_unmodified, bytes_processed, bytes_added}`) and is `null` when restic wrote the snapshot without describing it, which is **not** the same as a snapshot that held nothing |
 | `set_restic_repo` | `vault`, `repo`             | `BackupStatus`         | point one vault's snapshot (notes + attachments) at a repository; empty `repo` clears it |

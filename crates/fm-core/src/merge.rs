@@ -31,14 +31,21 @@
 //! "there are two paragraphs here, pick one" — and it is why the conflict-surfacing UI
 //! can exist at all.
 //!
-//! Only a genuinely divergent *field* (both sides set `status` differently) falls back
-//! to a whole-file `git merge-file`, marking the file conflicted exactly as git would
-//! today. We never resolve that by fiat: silently dropping one side's status change is
-//! the same data loss this whole phase exists to stop.
+//! **A genuinely divergent *field* — both sides set `status` differently — keeps both, by
+//! demoting the loser into a `conflict-<field>` key beside it** (`decisions.md`, 2026-09-07).
+//! Until then it dropped the whole file into a text merge, which put markers *inside* the YAML
+//! fence and made the note vanish from every view; that was ruled loud-and-absent on 2026-07-19
+//! and reversed once it became clear how quiet "absent" actually is — a phone sat on two of them
+//! for 39 days. This is still not resolution by fiat, and the distinction is the whole point:
+//! fiat picks between two pieces of content by **destroying one**, and nothing here is destroyed.
+//! `status: done` with `conflict-status: [doing]` beside it has lost nothing, parses, indexes and
+//! commits. The rule that keeps the two devices agreeing is that the winner is chosen from
+//! **content only** — later `updated`, then `Ord` — so both compute the same file and the merge is
+//! a fixed point.
 
 use crate::frontmatter;
 use crate::StoreError;
-use fm_model::Object;
+use fm_model::{Object, PropertyValue};
 use std::path::Path;
 use std::process::Command;
 
@@ -118,7 +125,10 @@ pub fn merge_texts(
     };
 
     let Some(mut merged) = merge_objects(&bo, &oo, &to) else {
-        // A real disagreement about a field's value. Not ours to resolve.
+        // The two sides are not the same note — different `id`s under one path. Nothing about
+        // that is a merge, so it goes to the text engine and comes back with markers, which is
+        // the honest answer. A *field* disagreement no longer reaches here: it is kept beside
+        // the winner (`DEMOTED_PREFIX`), so the fence stays valid and the note stays readable.
         return text_3way(base, ours, theirs, marker_size);
     };
 
@@ -129,8 +139,16 @@ pub fn merge_texts(
     Ok((text, outcome))
 }
 
-/// Merge everything except the body. `None` means the two sides disagree about a field
-/// in a way no rule can settle — the caller falls back rather than picking a winner.
+/// The reserved frontmatter prefix that holds a value the merge demoted: `conflict-status` is
+/// what the *other* device said `status` was, when the two disagreed and no rule could settle it.
+///
+/// **Public because it is a contract, not an implementation detail.** The UI lists these, a query
+/// can group by one, and `ci/checks.sh` has no way to notice a second spelling appearing somewhere
+/// else. One constant is what stops the app and the merge disagreeing about which keys are ours.
+pub const DEMOTED_PREFIX: &str = "conflict-";
+
+/// Merge everything except the body. `None` only when the two sides are not the same note at all —
+/// every field-level disagreement is settled here, never escalated to the caller.
 fn merge_objects(base: &Object, ours: &Object, theirs: &Object) -> Option<Object> {
     let mut m = ours.clone();
 
@@ -154,22 +172,33 @@ fn merge_objects(base: &Object, ours: &Object, theirs: &Object) -> Option<Object
     m.assets = union(&ours.assets, &theirs.assets);
     m.code = union(&ours.code, &theirs.code);
 
-    m.kind = three_way(&base.kind, &ours.kind, &theirs.kind)?;
-    m.title = three_way(&base.title, &ours.title, &theirs.title)?;
-    m.status = three_way(&base.status, &ours.status, &theirs.status)?;
-    m.due = three_way(&base.due, &ours.due, &theirs.due)?;
-    m.start = three_way(&base.start, &ours.start, &theirs.start)?;
-    m.hard = three_way(&base.hard, &ours.hard, &theirs.hard)?;
+    // Every field that could not be settled by the three-way rule, as `field -> the loser`.
+    // Collected rather than written straight into `m.extra`, because the winner has to exist
+    // before a demoted value can be compared against it (see the end of this function).
+    let mut d = Demote { ours, theirs, out: Vec::new() };
+
+    m.kind = d.settle("type", &base.kind, &ours.kind, &theirs.kind);
+    m.title = d.settle("title", &base.title, &ours.title, &theirs.title);
+    m.status = d.settle("status", &base.status, &ours.status, &theirs.status);
+    m.due = d.settle("due", &base.due, &ours.due, &theirs.due);
+    m.start = d.settle("start", &base.start, &ours.start, &theirs.start);
+    m.hard = d.settle("hard", &base.hard, &ours.hard, &theirs.hard);
 
     // Custom properties, by the same rule — including the ones only one side has.
     m.extra.clear();
     for key in ours.extra.keys().chain(theirs.extra.keys()) {
+        // The record of a disagreement is a set, and merges as one — see `merge_demoted` below.
+        // Running the scalar rule over it would let a divergence *in the record* demote itself
+        // into `conflict-conflict-status`, unboundedly.
+        if key.starts_with(DEMOTED_PREFIX) {
+            continue;
+        }
         let (b, o, t) = (base.extra.get(key), ours.extra.get(key), theirs.extra.get(key));
         // `clippy::single_match` wants an `if let` here. Kept as a `match` so the `None` arm has
         // somewhere to say what it means: dropping a key is a *decision* the three-way merge made,
         // not an absence of one, and an `if let` leaves nowhere to write that down.
         #[allow(clippy::single_match)]
-        match three_way(&b.cloned(), &o.cloned(), &t.cloned())? {
+        match d.settle(key, &b.cloned(), &o.cloned(), &t.cloned()) {
             Some(v) => {
                 m.extra.insert(key.clone(), v);
             }
@@ -177,12 +206,125 @@ fn merge_objects(base: &Object, ours: &Object, theirs: &Object) -> Option<Object
             None => {}
         }
     }
+
+    merge_demoted(&mut m, base, ours, theirs, d.out);
     Some(m)
+}
+
+/// The two sides, plus the losers collected so far. It exists so [`Demote::settle`] can stay
+/// generic over each field's own type while still reading that same field out of both objects as a
+/// `PropertyValue` — which is what a demoted value has to be, since it lands in `extra`.
+struct Demote<'a> {
+    ours: &'a Object,
+    theirs: &'a Object,
+    out: Vec<(String, PropertyValue)>,
+}
+
+impl Demote<'_> {
+    /// The three-way rule, and — when it cannot answer — a winner plus a record of the loser.
+    ///
+    /// `key` is the **frontmatter** spelling of the field: `type`, not `kind`, because it becomes
+    /// the second half of a key a user reads and types.
+    ///
+    /// **The winner is computed from content alone.** Later `updated` first, then `PropertyValue`'s
+    /// own `Ord` to break a tie. Neither half can see which side is "ours", which is the property
+    /// that matters: the same two commits merged on two devices produce the same winner, the same
+    /// loser and the same bytes, so the merge is a fixed point and nothing is re-derived on the next
+    /// pull. A rule that preferred "ours" would look identical in a single-device test and would
+    /// leave the two devices trading the same edit forever.
+    fn settle<T: PartialEq + Clone>(&mut self, key: &str, base: &T, ours: &T, theirs: &T) -> T {
+        if let Some(v) = three_way(base, ours, theirs) {
+            return v;
+        }
+        let (o, t) = (self.ours.get(key), self.theirs.get(key));
+        let theirs_wins = (self.theirs.updated, &t) > (self.ours.updated, &o);
+        let (winner, loser) = if theirs_wins { (theirs.clone(), o) } else { (ours.clone(), t) };
+        self.out.push((format!("{DEMOTED_PREFIX}{key}"), crate::frontmatter::as_written(&loser)));
+        winner
+    }
+}
+
+/// Fold every demoted value — the ones already in either side's file, and the ones this merge just
+/// produced — into `m.extra` as one sorted set per field.
+///
+/// **A set, merged as a set**, by the rule that governs `tags` and `manifest.json`: the key is the
+/// content, so agreement is structural and duplication is idempotent. Running the scalar
+/// [`three_way`] over these would be a category error that bites twice — a divergence *in the record
+/// of a divergence* would demote itself into `conflict-conflict-status`, unboundedly.
+///
+/// **But a plain union would make the key immortal, and the key is the user's undo.** Removing a
+/// `conflict-status` line is how someone says "I have looked at this". Under a union that removal is
+/// re-added by the first pull from a device that has not looked yet, and then re-added by that
+/// device pulling back — for ever, with no way out. So it is the three-way *set* merge: an element
+/// survives if either side still has it and **neither side that had it in the base deleted it**.
+/// That is the one place this deliberately differs from `tags`, where the cost of resurrection is a
+/// tag you re-delete in a second rather than a warning you cannot dismiss.
+///
+/// **Sorted**, because ours-then-theirs order is the last remaining thing that would differ between
+/// two devices merging the same pair of commits, and a merge that is not byte-identical on both
+/// sides is not a fixed point.
+///
+/// A demoted value equal to the winning one is dropped: that is agreement, and leaving it would show
+/// a disagreement that no longer exists. That rule is also what makes *promoting* the loser stick —
+/// once the user sets the field to it, it stops being a loser everywhere, on every device.
+fn merge_demoted(
+    m: &mut Object,
+    base: &Object,
+    ours: &Object,
+    theirs: &Object,
+    fresh: Vec<(String, PropertyValue)>,
+) {
+    let mut sets: std::collections::BTreeMap<String, Vec<PropertyValue>> = Default::default();
+    let keys = base.extra.keys().chain(ours.extra.keys()).chain(theirs.extra.keys());
+    for key in keys.filter(|k| k.starts_with(DEMOTED_PREFIX)).cloned().collect::<Vec<_>>() {
+        let (b, o, t) = (set_at(base, &key), set_at(ours, &key), set_at(theirs, &key));
+        let kept = o
+            .iter()
+            .chain(t.iter())
+            .filter(|v| {
+                // Deleted by a side that had it: that side has seen it, and said so.
+                let deleted_by_us = b.contains(v) && !o.contains(v);
+                let deleted_by_them = b.contains(v) && !t.contains(v);
+                !deleted_by_us && !deleted_by_them
+            })
+            .cloned()
+            .collect();
+        sets.insert(key, kept);
+    }
+    // A value this very merge demoted was never in the base, so it cannot have been "deleted".
+    for (k, v) in fresh {
+        sets.entry(k).or_default().push(v);
+    }
+
+    for (key, mut losers) in sets {
+        let field = key.strip_prefix(DEMOTED_PREFIX).unwrap_or(&key);
+        let winner = crate::frontmatter::as_written(&m.get(field));
+        losers.retain(|v| *v != winner);
+        losers.sort();
+        losers.dedup();
+        if losers.is_empty() {
+            m.extra.remove(&key);
+        } else {
+            m.extra.insert(key, PropertyValue::List(losers));
+        }
+    }
+}
+
+/// One side's demoted set for one key. A hand-typed `conflict-status: doing` is a set of one —
+/// tolerated rather than ignored, because this is a plain-text file and a human is allowed to have
+/// edited it.
+fn set_at(o: &Object, key: &str) -> Vec<PropertyValue> {
+    match o.extra.get(key) {
+        Some(PropertyValue::List(items)) => items.clone(),
+        Some(scalar) => vec![scalar.clone()],
+        None => Vec::new(),
+    }
 }
 
 /// The ordinary 3-way rule for a single value: whoever changed it wins, and if both
 /// changed it to the same thing there was never a disagreement. `None` when both moved
-/// it somewhere different — the one case a merge cannot invent an answer for.
+/// it somewhere different — the one case a merge cannot invent an answer for, and the one
+/// [`settle`] answers by keeping both.
 fn three_way<T: PartialEq + Clone>(base: &T, ours: &T, theirs: &T) -> Option<T> {
     if ours == theirs {
         return Some(ours.clone());

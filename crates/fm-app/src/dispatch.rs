@@ -521,6 +521,12 @@ const READ_ONLY: &[&str] = &[
     "unrecorded",
     // Also a read — it groups notes by body and names what pruning *would* remove.
     "duplicates",
+    // A scan for `conflict-*` keys. Changes nothing; bumping the generation for it would tell every
+    // connected client the vault moved because a chip refreshed — the `paper_bibtex` lesson.
+    "demoted",
+    // One `git log -1` per vault. Same reasoning as `demoted`: a chip refreshing is not the vault
+    // moving, and saying it did would make every connected client refetch its workspace.
+    "last_commits",
     "activity",
     "stale",
     "thread",
@@ -713,6 +719,35 @@ fn dispatch_inner(
             let mut g = lock()?;
             json(commands::duplicates(&g.store(scope)).map_err(err)?)
         }
+        // **Where a merge kept both sides of a disagreement, so a person can see it.** The condition
+        // the demotion ruling attaches to itself (`decisions.md`, 2026-09-07): the loser is only not
+        // "resolution by fiat" for as long as it is visible and one tap from winning.
+        "demoted" => {
+            let mut g = lock()?;
+            json(commands::demoted(&g.store(scope)).map_err(err)?)
+        }
+        // **How long each vault has been quiet.** The crude liveness fact, deliberately incurious
+        // about *why* history stopped: two notes froze a vault for thirty-nine days and every
+        // specific detector was either absent or blocked by the same freeze that caused it. A
+        // signal that depends on no other signal working is the one that catches the next one.
+        //
+        // Scoped like `list_vaults`, and for the identical reason: a vault the caller may not read
+        // must not be nameable here either, and "how stale is it" is itself a disclosure.
+        "last_commits" => {
+            let vaults: Vec<VaultConfig> =
+                lock()?.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+            json(
+                vaults
+                    .iter()
+                    .map(|v| LastCommit {
+                        vault: v.name.clone(),
+                        // Best-effort per vault: one unreadable repo must not blank the chip for
+                        // every other vault, which is the failure this whole surface is against.
+                        last_commit: vcs::last_commit(&v.path).unwrap_or(None),
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        }
         // **Remove the extra copies — but only ones git already has.**
         //
         // Deleting an *untracked* note is unrecoverable: there is no commit to restore it from, and
@@ -882,16 +917,30 @@ fn dispatch_inner(
             // this is the only caller that needs to explain itself (a debounced auto-commit returning
             // `false` is the normal, quiet case), and the checks are the same two conditions the
             // backend tested, read back after the fact.
+            //
+            // **A conflict is now reported whether or not the commit succeeded**, which is the
+            // other half of `commit_all` no longer refusing wholesale (`decisions.md`,
+            // 2026-09-07). Since it commits everything except the conflicted paths, the common
+            // case is `made == true` *with* notes still stuck — and saying nothing then is how
+            // two notes sit unnoticed for 39 days while the count reassuringly drops to zero.
+            let unmerged = vcs::conflicted(&cfg.path).map_err(err)?;
+            let stuck = |n: usize| {
+                format!(
+                    "{n} note{} still mid-merge and left out — git cannot commit a note while \
+                     both versions are in it. Open Conflicts to settle {}.",
+                    if n == 1 { " is" } else { "s are" },
+                    if n == 1 { "it" } else { "them" }
+                )
+            };
             let reason = if made {
-                String::new()
+                if unmerged.is_empty() {
+                    String::new()
+                } else {
+                    format!("Recorded what could be recorded; {}", stuck(unmerged.len()))
+                }
             } else {
-                let unmerged = vcs::conflicted(&cfg.path).map_err(err)?;
                 if !unmerged.is_empty() {
-                    format!(
-                        "{} note(s) in this vault are mid-merge. Git refuses to commit anything \
-                         until those are resolved — open Conflicts and settle them first.",
-                        unmerged.len()
-                    )
+                    format!("Nothing new to record here: the {}", stuck(unmerged.len()))
                 } else if vcs::identity(&cfg.path).is_none() {
                     "This vault has no git identity, so nothing can be committed. Set your name \
                      and email in Backup settings."
@@ -2332,9 +2381,13 @@ impl From<&fm_core::SkippedNote> for SkippedOut {
     }
 }
 
-/// What a commit did. `committed: false` with a non-empty `conflicts` is the case worth
-/// distinguishing: the vault is mid-merge, so **nothing will be committed until a human
-/// settles it** — not "there was nothing to commit".
+/// What a commit did. **`conflicts` is worth reporting whichever way `committed` went**, and since
+/// 2026-09-07 the interesting case is both at once: `commit_all` commits every path except the
+/// conflicted ones, so the ordinary outcome mid-merge is `committed: true` with notes still stuck.
+/// Those notes are not in history and will not be until a human settles them — but the vault is no
+/// longer frozen behind them, which is the whole of `decisions.md`'s *a conflict blocks its own
+/// notes and nothing else*. A caller that only speaks up when `committed` is false says nothing at
+/// all in the case that actually happens.
 #[derive(serde::Serialize)]
 struct CommitResult {
     committed: bool,
@@ -2513,6 +2566,23 @@ struct PathCheck {
     /// vault that vanishes on restart, so the form must not offer it.
     config_writable: bool,
     ok: bool,
+}
+
+/// **When each vault last saved anything**, in seconds since the epoch — `None` for a vault that
+/// has never been committed.
+///
+/// Its own answer rather than a field on [`VaultStatus`], and the reason is the same one that put
+/// `identity` on `VaultInfo` instead: `backup_status` runs a network `git ls-remote` per vault and
+/// is polled on a slow timer, in production only. This is one local `git log -1` and it feeds a
+/// chip that has to be right the moment the app opens — on a phone, offline, on the device that
+/// most needs to be told its notes have not gone anywhere in five weeks.
+///
+/// No threshold here. *When* silence becomes worth mentioning is a display policy — it belongs
+/// beside the wording, in the UI, where it can be tested against the sentence it produces.
+#[derive(serde::Serialize)]
+struct LastCommit {
+    vault: String,
+    last_commit: Option<i64>,
 }
 
 /// One vault's git standing. **Per vault, not per app** — one vault is one repo, one
@@ -3762,6 +3832,37 @@ mod tests {
         // **All three conditions, so "ready" means "will work".** With the password gone it must
         // be false even though restic may well be installed and the repo is still configured.
         assert!(out.contains("\"restic_ready\":false"), "{out}");
+    }
+
+    /// **A vault that has never been committed says so, and one that has says when.**
+    ///
+    /// The arm exists because nothing in the app could answer "how long has this been quiet"; the
+    /// two states it has to distinguish are the two a chip would get wrong. `None` must survive the
+    /// wire as `null` rather than as a zero or a missing key — a client that reads a missing field
+    /// as `0` renders "never saved" as *fifty-six years since a save*.
+    #[test]
+    fn last_commits_reports_never_as_null_and_a_real_commit_as_an_instant() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (_home, vault, app) = app_with_vault(None);
+
+        // A vault with no history at all. Not an error, and not a number.
+        let out = call(&app, "last_commits", serde_json::json!({})).unwrap();
+        assert_eq!(out, r#"[{"vault":"notes","last_commit":null}]"#, "{out}");
+
+        // Now give it one commit, through the same routed backend the app uses.
+        let note = vault.path().join("notes/01.md");
+        std::fs::create_dir_all(note.parent().unwrap()).unwrap();
+        std::fs::write(&note, "---\nid: x\n---\n\nhi\n").unwrap();
+        if !fm_core::vcs::commit_all(vault.path(), "seed", &[note]).unwrap_or(false) {
+            eprintln!("skipping: no usable git here");
+            return;
+        }
+        let out = call(&app, "last_commits", serde_json::json!({})).unwrap();
+        let rows: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let at = rows[0]["last_commit"].as_i64().expect("an instant, not null");
+        // Epoch seconds, not milliseconds and not a git date string: a millisecond value here
+        // would read as the year 57000 and a date string would not parse at all.
+        assert!(at > 1_700_000_000 && at < 4_000_000_000, "epoch seconds, got {at}");
     }
 
     /// The `backup` arm's two refusals, which had never been driven.

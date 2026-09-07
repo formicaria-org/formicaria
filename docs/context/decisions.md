@@ -33,7 +33,24 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   exception is now "any device with no git binary" — read before touching `deny.toml`'s scope or
   `fm-serve`'s target-gated dependency) · ***A backend that cannot finish a merge must
   refuse to commit*** (read before touching either `commit_all` — the two backends had opposite bugs
-  here) · *The in-process sync path: the app merges* ·
+  here) · ***A prose conflict is not turned into two notes*** (read before proposing conflict
+  copies — the field survey, the withdrawal, and the two things it would have cost) ·
+  ***A conflict blocks its own notes and nothing else*** (read before touching either
+  `commit_all`, and before writing any UI message about a mid-merge vault — four were conditioned on
+  a proxy that stopped being true) ·
+  ***The phone re-merges what libgit2 already merged*** (read before touching
+  `git_native::pull` — and before trusting any two-device test, because the harness bug that hid
+  this one is recorded there) ·
+  ***A divergent field keeps both, by demoting the loser into a field beside it*** (read
+  before touching `merge_objects`, the `conflict-` prefix, or the characterization test that locks
+  the old behaviour — it reverses a July ruling that named its own reversal conditions, and it is
+  conditional on a surface that is not built yet) ·
+  ***A merge never stalls on a question whose safe answer is a note*** (read before touching
+  `keep_notes_the_other_side_deleted` or either backend's conflict loop) ·
+  ***The app says how long a vault has been quiet*** (read before adding another alert to the
+  toolbar, or before folding `last_commit` into `backup_status` — it is the one signal that does not
+  depend on a detector working, and why committer time is the right clock) ·
+  *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
   *Collaboration is git, exposed* · *Squash-on-push — a deliberate reversal* · *A commit that
@@ -1815,6 +1832,12 @@ open; the receipts for each are in `sessions/2026-07-19-mobile-drift-review.md`.
    alternative is forbidden in writing at `merge.rs:32-35`. *Consequence:* a characterization test
    locks the behaviour, and a "needs attention" place lists skipped notes with a raw editor. Any
    future semantic change is **its own ruling with its own adversarial pass**.
+
+   > **SUPERSEDED 2026-09-07** — *a divergent field keeps both, by demoting the loser into a field
+   > beside it*. The reasoning below stands for the two options it had: with nowhere to put the
+   > loser, letting ours win was silent loss. A third option existed unnoticed (`extra` round-trips
+   > unknown keys), and the "own ruling with its own adversarial pass" this clause asks for is the
+   > 2026-09-07 entry at the end of this file.
 5. **The MVP cut line is steps 0–5** of the corrected sequence — everything that needs no git
    backend and no NDK. *Why:* it is demoable in days, fixes real bugs, and stakes nothing on a
    decision whose consequences are not yet observed. *Consequence:* re-cut the line **after step
@@ -2483,6 +2506,13 @@ silent loss this phase exists to stop.
 > Any change to this behaviour is **its own ruling with its own adversarial pass**. Acceptance:
 > both values survive in the file, the file parses, and the result is `Conflicted` — never Clean,
 > or each machine keeps its own value by fiat and re-derives the conflict forever.
+>
+> **SUPERSEDED IN PART, 2026-09-07** — *a divergent field keeps both, by demoting the loser into a
+> field beside it* (end of file). The diagnosis above is exact and still worth reading; the two
+> acceptance conditions about the *file* are now met for the first time. The third — `Conflicted`,
+> never Clean — is deliberately not met, and that entry argues why: it was a proxy for the "re-derives
+> the conflict forever" failure named in the same sentence, and a winner rule that reads only content
+> makes the merge a fixed point, which is what actually prevents that failure.
 
 **Two traps, both load-bearing.** (1) The
 `merge.fm.driver` definition lives in `.git/config` and deliberately does **not** travel —
@@ -5947,3 +5977,340 @@ a tree assembled by hand has no mid-merge check at all. So `commit_all` commits 
 conflicted paths rather than refusing wholesale. The hazard that governs the implementation: **the
 real index must move to stage 0 in lockstep with HEAD**, or `finish_merge_if_resolved` later writes a
 merge commit that deletes every note committed this way.
+
+## 2026-09-07 — a divergent field keeps both, by demoting the loser into a field beside it `#git` `#sync` `#data`
+
+**This reverses ruling 4 of 2026-07-19** (*"a divergent frontmatter field keeps its current
+loud-and-absent behaviour; the fix is the missing UI surface, not a semantic change"*) **and is the
+"own ruling with its own adversarial pass" that both that ruling and the ⛔ block above demand.**
+Read the acceptance clause they attach to any reversal before reading this — *"both values survive in
+the file, the file parses, and the result is `Conflicted` — never Clean, or each machine keeps its
+own value by fiat and re-derives the conflict forever"* — because this entry answers it clause by
+clause, including the one clause it does not meet.
+
+**Decision.** When `merge_objects` finds a field that both sides moved to different values, it no
+longer returns `None` and drop the whole file into a text merge. It picks a winner by a stated rule
+and writes the loser into `extra` under a reserved `conflict-<field>` key, as a set. A card dragged
+to two columns merges to `status: done` with `conflict-status:\n  - doing` beside it. The note
+parses, indexes, opens, renders and commits — and both values are in it, in plain sight, in the file
+the user already knows how to edit.
+
+**The winner rule, and why it has to be exactly this one.** Later `updated` wins; on a tie the
+greater `PropertyValue` wins (`fm_model::PropertyValue` derives `Ord`, variant before value, and both
+sides of one field share a variant). Both halves read **only content** — never "ours" — so two
+devices merging the same pair of commits compute the same winner, the same loser and the same bytes.
+The demoted set is **sorted** for that same reason: ours-then-theirs order is the one thing about
+this that would otherwise differ between the two devices. This matters more than it looks. *"Each
+machine keeps its own value by fiat and re-derives the conflict forever"* is the failure the July
+acceptance clause was written to prevent, and **determinism is what prevents it, not `Conflicted`.**
+A symmetric merge is a fixed point: merge the same pair again and nothing moves.
+
+**This is not last-write-wins.** LWW is defined by what happens to the loser: it is gone. Here the
+loser is a line in the file, one the user can read, grep, query, group a board by, and promote back
+in a tap. The whole distinction is that nothing is discarded, and that is exactly why it does not
+touch `merge.rs`'s *"we never resolve that by fiat"*. Fiat is **choosing between two pieces of
+content by destroying one**; this chooses which one the field displays while keeping both. If the
+companion key were ever dropped instead of shown — by a merge that overwrites it rather than uniting
+it, by a serializer that skips reserved keys, by a UI that hides them — this would become fiat that
+day, and the tests named below are what would fail.
+
+**What the July ruling got right, and what changed underneath it.** It was right that the *then*
+available alternative was worse: with nowhere to put the loser, "let ours win" meant a Clean merge,
+an auto-commit at 5s, a push, and one person's column silently overwriting another's. It ruled
+against that, correctly. What it did not have was a third option. `extra` already round-trips unknown
+keys losslessly (`frontmatter.rs`), so a place to keep the loser has existed the whole time and was
+simply not used. The ruling also priced "loud-and-absent" as loud. It is not: a fence-broken note
+disappears from every view, and the 39-day phone freeze (above) is what that costs in practice.
+
+**Clause by clause.** *Both values survive in the file* — yes, and demonstrably: the winner in the
+field, the loser in `conflict-<field>`. *The file parses* — yes, and this is the change: today it
+**does not**, because the markers land inside the YAML fence. *`Conflicted`, never Clean* — **no.
+This is the clause deliberately not met.** It was a proxy for the reason stated in the same sentence,
+and the reason is met by determinism. Keeping it would keep the note unmerged, which under the
+principle this project now works to (*a disagreement never stops anything else*) is the failure, not
+the safeguard: it is the shape that froze 202 notes for 39 days.
+
+**The costs, stated rather than argued away.** (1) **A demoted value is quieter than a frozen note.**
+A note that vanishes is eventually noticed; a `conflict-status` line can sit in a file for months. (2)
+**The losing device's user sees their card move.** That is real — though it moved before too, by
+vanishing from the board entirely. (3) **The keys accumulate** if nobody resolves them, which is the
+documented failure of every conflict-copy system (Syncthing capped its own at 10). Nothing here caps
+them; the mitigation is a surface, not a promise that people tidy up.
+
+**So this ruling is conditional on the surface, and the condition is not satisfied yet.** What ships
+with it: the note is readable, so the demoted key is visible wherever properties are — the note's own
+frontmatter, the editor, a board grouped by it. What is owed: the persistent chip listing notes with
+a demoted value, alongside *unrecorded* and *unreadable*, and the one-tap promote. That is the same
+debt `outstanding.md` §2.12 already carries for auto-kept notes, and it is now the same debt. **If
+that surface is not built, this ruling should be revisited rather than left standing** — a demotion
+nobody can see is the fiat this entry spends its length denying.
+
+**Tests that hold it** (`crates/fm-cli/tests/merge.rs`, `conflict_resolution_both_devices.rs`, both
+backends): the card-drag case keeps both values and **parses**; the merge is a fixed point (merging
+the result again changes nothing); the two devices produce byte-identical files from the same pair of
+commits; a second, later divergence **adds** to the set rather than replacing it; and a demoted value
+that equals the winner is dropped, because that is agreement, not disagreement.
+
+**One structural rule falls out and is load-bearing: `conflict-*` keys merge as a *set*, never as a
+scalar.** The key is its content, so agreement is structural — the same rule that governs `tags`,
+`assets`, `code` and `manifest.json`. Running the scalar rule over them would let a divergence *in
+the record of a divergence* demote itself into `conflict-conflict-status`, which is both absurd and
+unbounded.
+
+**And it is a three-way set merge, not a plain union — this is the one place that deliberately
+differs from `tags`.** Deleting the line is how a user says "I have looked at this", so it is the
+undo, and under a union the undo does not exist: the first pull from a device that has not looked yet
+re-adds the value, that device pulls back and re-adds it again, for ever. A union is right for tags
+because the cost of resurrection is a tag you re-delete in a second; here it is a warning you cannot
+dismiss. So an element survives only if a side still has it **and neither side that had it in the
+base deleted it** — symmetric in ours/theirs, so both devices still compute the same bytes. The
+companion rule does the rest: a demoted value equal to the winner is dropped, which is what makes
+*promoting* the loser stick everywhere rather than only on the device that did it.
+
+## 2026-09-07 — the phone re-merges what libgit2 already merged, and a stale test binary hid why `#git` `#sync` `#track-m`
+
+**Decision.** After `repo.merge`, `git_native::pull` runs `merged_text` over every path **both sides
+changed** — not only the ones libgit2 left conflicted. `settle_the_paths_libgit2_merged_itself`.
+
+**Why: the two devices were producing different bytes from the same pair of commits.** On a desktop
+`git merge` invokes `fm merge-md` for every path both sides changed, so `merge_texts` reparses the
+note and re-emits its frontmatter whole. The phone only revisited *conflicted* paths, so a note
+libgit2 could line-merge never passed through our rules. That is harmless while the two answers
+agree — and they stop agreeing the moment a note's frontmatter is not already what `to_file` writes:
+a different key order, a two-space list indent, a missing `schema:`. Anything an external editor, an
+import, or an older version of this app left behind. The desktop then commits the canonical form,
+the phone commits the original, and **the two devices conflict with each other for ever over a note
+neither of them edited.** `merged_text`'s own doc comment already promised the opposite: *"a phone
+and a desktop cannot disagree about what a merged note is."* This makes that true.
+
+**The trigger is narrow and the consequence is not.** Both sides must have changed the file *and*
+their `updated:` lines must agree — otherwise the path conflicts and the existing loop already
+handles it. Since the app rewrites `updated` on every save, that means two saves in the same second,
+or an edit made outside the app. Rare. Permanent when it happens, and invisible: both devices
+report a clean merge.
+
+**The reason it was invisible for months is worth more than the fix.** `crates/fm-cli/tests/*`
+copy the built `fm` beside the test binary so `git::ensure_repo` can find it — otherwise
+`install_merge_driver` *clears* the driver and the "desktop" half of every two-device test silently
+measures bare git. The copy was guarded by `if !dst.exists()`, so whatever a previous run left there
+answered for ever: on 2026-09-07 it was a **six-week-old `fm`**, and three suites had been grading a
+build nobody had made since. `conflict_resolution_both_devices.rs` did not install it at all, so its
+desktop half was never our code. Both are fixed — copy when missing **or stale**, atomically — and
+`a_clean_merge_is_byte_identical_on_both_devices` carried a doc comment confidently explaining that
+a `merge_texts` mutation leaving it green was *correct rather than a gap*. It was the gap.
+
+**The general lesson, for the traps list: a test fixture that is cached by existence is a test
+fixture that expires silently.** The assertion still passes, the name still reads true, and what it
+grades is whatever was there first.
+
+## 2026-09-07 — a conflict blocks its own notes and nothing else, and this is what it took `#git` `#sync` `#track-m`
+
+**This implements a ruling that was written the same day and shipped as prose only.** The entry *a
+merge never stalls on a question whose safe answer is a note* ends with: *"So `commit_all` commits
+`owned` minus the conflicted paths rather than refusing wholesale."* It did not. **Both** backends
+still returned early on any unmerged path, and nothing anywhere recorded the gap — so the ruling read
+as shipped for as long as nobody checked. That is the drift this file exists to catch, and finding it
+inside a day was luck rather than process.
+
+**What the owner actually asked for**, after resolving the phone by hand: *"this is not a nice failure
+mode: the user does not know about merge conflicts and so on, so all the rest should be committable
+and synchable."* Two stuck notes had kept 202 out of history for 39 days, 196 of them brand new.
+Auto-settling delete/modify removed *that* trigger; it did nothing about the next one. A single
+`BothModified` still froze everything.
+
+**The decision, restated so it is testable:** a conflicted path is never staged — that is absolute,
+since staging one is how git is told a human resolved it and would publish `<<<<<<<` as a note's
+content — and every *other* path commits normally. The conflict still waits for a person, which is
+the owner's ruling that marker conflicts keep blocking; it waits about those notes, not about the
+vault.
+
+**Git will not write a tree from an index holding a conflict entry.** That is not a policy, it is
+`GIT_EUNMERGED`, and `git commit --only <paths>` is refused during *any* merge besides. So the tree is
+assembled outside the real index, and the two backends do it differently enough to be worth naming:
+
+- **Subprocess:** a temporary index seeded from `HEAD` via `GIT_INDEX_FILE` — the same trick
+  `write_proposal_branch` already used — filled from the *real index's* blob ids with
+  `update-index --cacheinfo`, then `write-tree`, `commit-tree -p HEAD`, `update-ref`.
+- **libgit2:** an in-memory `Index::new` + `read_tree(HEAD)`, entries added by blob id, then
+  `write_tree_to`. `add_path` is unavailable on an index with no repository behind it, which is the
+  same constraint `merged_text` already documents.
+
+Both write a **single-parent** commit. Writing `MERGE_HEAD` as a second parent would end the merge
+with conflicts still in the index, and `finish_merge_if_resolved` — the thing that actually completes
+it — would then never run.
+
+**The hazard, and the asymmetry in how it is defended.** `finish_merge_if_resolved` builds the merge
+commit from the **real** index, so a path committed around the conflict but left at its old content
+there is silently reverted the moment the merge completes: every note written during the conflict,
+deleted at the exact moment the user fixes the thing that was blocking them. On the subprocess
+backend this cannot happen — the committed set is *derived from* `git diff --cached`, and the tree is
+built from those same index entries, so the two are the same data. On libgit2 they are two separate
+steps and it is a real hazard; the test mutation that skips the index write fails there and only
+there. **Stated rather than smoothed over**, because "both backends are safe" would hide that only one
+of them is safe by construction.
+
+**Four user-facing claims were false the moment this landed, and all four were live.** They were
+written when a mid-merge commit committed nothing, so `!committed` was a sound proxy for "mid-merge".
+It is now the *rare* case, and each of these was conditioned on it:
+
+1. `App.svelte`'s auto-commit banner — *"Nothing in this vault is being committed until they are
+   settled"* — would have gone silent in the case that now happens, and was untrue when it did fire.
+2. `record_unrecorded`'s reason — the same, on the one button whose job is to rescue unrecorded
+   notes, and the count would have dropped to zero as if all were well.
+3. `sync.svelte.ts`'s `commitStep` gate would have **pushed past an unfinished merge**, surfacing
+   git's refusal instead of a named phase.
+4. `BackupPanel`'s `bringDown` gate would have pulled into the same refusal.
+
+The pattern is worth more than the four fixes: **a message conditioned on a failure disappears when
+the failure stops happening**, and it disappears quietly. Every one of these is now keyed on the
+conflict list itself, which is what actually says a merge is unfinished.
+
+**What is still blocked, said plainly, because the win is narrower than it sounds.** Commits go
+through; **sync does not.** `pull` and `push_squashed` both refuse over an unfinished merge, and that
+is unchanged and correct. So the honest sentence for a user is *"everything else here is being saved
+to history as usual, but this vault cannot sync with the other device until these are settled"* —
+which is what the panel now says. The gain is real and specific: notes stop existing only as
+untracked files on one device, and the *unrecorded* count stops climbing.
+
+## 2026-09-07 — a prose conflict is not turned into two notes; the plan item is withdrawn `#git` `#sync` `#ui`
+
+**Decision.** A body two people wrote differently keeps both versions **in the body**, with markers,
+and waits for a person. It is not split into a second note with its own id. The approved conflict
+plan's Pass 2 — *"a divergent body becomes two notes"*, the `.sync-conflict-*`-style copy that
+`MASTERPLAN.md:68` and `:404` have described for months — is **withdrawn**, by the owner, on being
+shown what it contradicted.
+
+**Why it was proposed.** It is the one mechanism in the surveyed field (2026-09-07) that loses
+nothing *and* never blocks: family #5, the in-app conflict item — Joplin's `Conflicts` notebook,
+Evernote, Bear, Standard Notes. It follows from the same idempotence rule everything else here
+follows: prose is not idempotent, two paragraphs concatenated are not the note, so "keep both" for a
+body cannot mean one file and has to mean two things a person can read.
+
+**Why it is not being built.** Three reasons, in the order that decided it.
+
+1. **It reverses a ruling the owner made the same day**: auto-settle the kinds with a safe answer,
+   and *keep blocking marker conflicts*. The plan did not flag that, which is exactly the accidental
+   contradiction `CLAUDE.md`'s four questions exist to catch — and it was caught by asking, not by
+   the process.
+2. **Most of its motivation was the freeze, and the freeze is fixed.** Pass 2's headline was *"the
+   vault never freezes"*. That is now true without it: a conflict blocks its own notes and nothing
+   else (above). What remains blocked is *sync*, and a conflict copy would not unblock that either —
+   `pull` refuses over an unfinished merge whatever the working tree looks like.
+3. **It is insurance against a case that has never happened here.** The owner's vault has **zero**
+   notes with conflict markers and no note has ever been touched by a merge commit. The case that
+   actually bit was delete/modify, settled; the second was a frozen vault, settled.
+
+**What it would have cost, recorded because a future proposal will hit the same wall.** The new
+note needs a **content-derived** id — a ULID whose timestamp is the losing side's `updated` and whose
+random half is a hash of the losing body — or two devices merging the same pair of commits mint two
+different copies and the merge stops being a fixed point, which is the property Pass 1 was built to
+establish. And the copy cannot be made in the merge driver (git stages nothing it did not ask for),
+so it belongs in both backends' `pull`, beside `keep_notes_the_other_side_deleted`. Neither is hard;
+both are more machinery than a case with no occurrences deserves.
+
+**The cheap thing that is *not* withdrawn**, because it reduces how often the question arises at
+all: `merge.conflictStyle = zdiff3` and a paragraph-oriented diff cut spurious prose conflicts. That
+is a change to how a conflict is *presented*, not to what one means, and it stays on the queue.
+
+**What would reopen this:** prose conflicts actually happening — a vault where notes acquire markers
+and sit with them. Then the argument changes from insurance to evidence, and this entry is the
+starting point rather than the answer.
+
+## 2026-09-07 — the demotion's condition is met: a chip, a panel, and two writes `#ui` `#sync` `#data`
+
+**Not a new decision — the discharge of one.** *A divergent field keeps both, by demoting the loser
+into a field beside it* (above) made itself conditional in writing: *"a demotion nobody can see is
+the fiat this entry spends its length denying"*, and *"if that surface is not built, this ruling
+should be revisited rather than left standing."* It is built, so the ruling stands, and this entry is
+the receipt — because a condition attached to a ruling and then quietly not met is the same drift as
+a ruling written and not implemented, which happened twice in this file today.
+
+**What it is.** A `demoted` read arm scanning for `conflict-*` keys, a **both answers** chip beside
+*unreadable* and *not in history*, and `DemotedPanel` — *"`status` is **done** here; the other device
+said **doing**"* — with **Keep "doing"** and **Dismiss**.
+
+**Three things it deliberately does not have.**
+
+- **No state of its own.** The disagreement is a key in the note's own frontmatter, so the list is a
+  scan: right after a restart, right on the other device, and readable in any text editor. This is
+  the half the kept-note chip cannot copy, and why that one is still owed.
+- **No new way to write a property.** Both buttons call `set_property` — promoting sets the field
+  and clears the record, dismissing clears the record alone. Handing the panel typed values would
+  mean a second set of rules about what a value means.
+- **No new query predicate.** A full scan, the same shape as `duplicates`. Nothing about `extra`
+  reaches SQL — `objects` denormalises only `kind` — so even a `Prop`/`Exists` predicate would be
+  evaluated in Rust over hydrated candidates. A prefix filter costs exactly what a predicate would
+  and says what it means, and `fm-query`'s DSL does not grow for one chip.
+
+**Dismiss sticks, and that is the merge's doing rather than the panel's.** `merge_demoted` honours a
+removal by a side that had the value, specifically so this button is not undone by the next pull —
+under a plain union the record would come back from whichever device had not looked yet, for ever.
+The two halves were designed together and only work together.
+
+**The chip counts notes, not rows.** Two diverged fields on one note is one thing to look at; a chip
+reading "2" for a single note would misstate the size of the problem, which is the whole job of a
+chip.
+
+**Deliberately the quietest of the three chips** (no `moved` class): *unreadable* means a note is
+missing from every view and *not in history* means a note exists in one place only. This one means
+everything is fine and there is a choice waiting. Ranking them the same would flatten exactly the
+distinction the surfaces exist to draw.
+
+## 2026-09-07 — the app says how long a vault has been quiet, and that is the alert that depends on nothing `#ui` `#sync` `#git`
+
+**The last item of the conflicts plan, and the one that is not about conflicts.** Two notes froze a
+vault for thirty-nine days. The cause is fixed (`47750fb`), the conflict *kinds* are surfaced, a
+blocked merge no longer stops the other two hundred notes committing — and none of that answers the
+question the incident actually raises: **why did it take thirty-nine days to notice?**
+
+Because every surface in the app reports something a detector *found*. "Unreadable" needs the marker
+scan to find a note. "Not in history" needs `unrecorded` to run. "Both answers" needs a merge to have
+demoted something. Each is silent when its own detector is missing or blocked — and during those
+thirty-nine days the detectors were exactly that: the conflict kinds were not listed anywhere yet,
+and `commit_all` refused before `unrecorded` was consulted. A vault that cannot save looked identical
+to a vault nobody had written in.
+
+**So: one signal that is incurious about the cause.** `last_commit` — the committer time of `HEAD` —
+and the app says *"lab: 39 days since a save"*. It cannot be blocked by what it would report, because
+it asks git one question and git always answers it.
+
+**Committer time, not author time.** A commit pulled from the other device was authored whenever they
+wrote it and committed here today; "nothing has been saved *here* in N days" means the latter. The
+subprocess backend reads `--format=%ct` and libgit2 reads `Commit::time()`, which is the same clock —
+`git_differential` pins them to the same integer against a commit whose author and committer dates
+are seven weeks apart, so the two cannot be confused by accident.
+
+**Fourteen days, and the size is the argument.** A week off is a holiday. A chip that fires on one is
+noise, and noise is read past — which is how thirty-nine days would have passed anyway. Fourteen also
+makes *"in weeks"* true of everything this ever reports, so the plural wording stays honest without a
+number in it.
+
+**Never-committed is a third state, not a large number.** `null` read as `0` is 1970, which renders
+as twenty thousand days of silence aimed at the one person who has done nothing wrong yet. A vault
+that has never saved has not *stopped* doing anything; the welcome screen and *not in history* own
+that case. A commit dated in the future — two devices, two clocks — is likewise not quiet.
+
+**Its own command rather than a field on `backup_status`.** Same reasoning that put `identity` on
+`VaultInfo` and `backup_latest` beside it: `backup_status` spawns a network `ls-remote` per vault and
+is polled on a timer, in production only. This is one local `git log -1`, so the answer is there
+offline, at first paint, on the phone — which is the device whose vault this actually happened to.
+The threshold is deliberately **not** in the backend: when silence is worth mentioning is a display
+policy, and it belongs beside the sentence it produces, where a test can read that sentence.
+
+**Loud, unlike the demotion chip.** `both answers` deliberately has no `moved` class because it means
+everything is fine and a choice is waiting. This one means something may be wrong and nobody has been
+told, so it is filled like *"someone pushed"* — and it opens the Backup panel rather than committing
+on the click, because weeks of silence has more than one cause (a merge waiting on a person, a remote
+never set, or simply nobody writing) and the panel is where those are told apart. The panel states
+the same fact for **every** vault, remote or not, in its own list item outside the remote branch: a
+vault with nowhere to push is precisely the one whose silence nobody would otherwise notice.
+
+**It is re-read after a backup**, which is the 2026-08-24 lesson applied before it can be reported
+again: the *not in history* count was loaded once per vault-list change, so backing up recorded the
+notes and left the chip showing the old number — indistinguishable, from the only screen the owner
+uses, from a backup that did not work. An alert that survives the act that answers it stops being
+read.
+
+**What would reopen this:** a vault the owner genuinely uses twice a year, nagging forever. The
+honest fix then is not a higher threshold but a per-vault "this one is an archive" — and that is a
+setting, so it waits until there is a real vault asking for it rather than a hypothetical one.

@@ -129,12 +129,17 @@ export function clearSync(vault: string): void {
 /**
  * Run the commit step, and report whether the sequence may continue.
  *
- * **A commit that committed nothing is not automatically fine.** `commit_all` refuses
- * outright while the vault is mid-merge — right, because staging conflict markers would
- * publish them as content — and every write after that is silently never committed for as
- * long as the conflict sits there. Both callers below start with a commit, so both would
- * have sailed past it and reported `synced` over a vault that had stopped recording
- * anything. Reaching a terminal, nameable state is this module's whole reason to exist.
+ * **An unfinished merge stops the sequence here**, so it reaches a terminal, nameable state
+ * instead of failing two steps later in git's words. Staging a conflicted path would publish
+ * `<<<<<<<` as a note's content, so `commit_all` never does — and `pull` and `push_squashed`
+ * both refuse outright while a merge is in flight.
+ *
+ * **Keyed on `conflicts`, not on `!committed`** (corrected 2026-09-07). It used to require both,
+ * which was sound while a mid-merge commit committed *nothing*: `!committed` was then a reliable
+ * proxy for "mid-merge". `commit_all` now commits every path except the conflicted ones
+ * (`decisions.md`, *a conflict blocks its own notes and nothing else*), so the ordinary outcome
+ * is `committed: true` with notes still stuck — and the old test would sail straight past into a
+ * push that cannot work. The conflict list is the thing that actually says a merge is unfinished.
  */
 async function commitStep(vault: string, message: string, ops: SyncOps): Promise<SyncPhase | null> {
   let result: CommitResult;
@@ -146,7 +151,7 @@ async function commitStep(vault: string, message: string, ops: SyncOps): Promise
     set(vault, { phase: 'failed', error: String(e) });
     return 'failed';
   }
-  if (!result?.committed && result?.conflicts?.length) {
+  if (result?.conflicts?.length) {
     set(vault, { phase: 'conflicts', conflicts: result.conflicts });
     return 'conflicts';
   }

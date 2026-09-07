@@ -689,6 +689,28 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **A test fixture cached by *existence* expires silently, and the test keeps passing.** Three
+  `fm-cli` suites copy the built `fm` beside the test binary so `git::ensure_repo` can find the merge
+  driver — without it `install_merge_driver` *clears* the driver and the "desktop" half of every
+  two-device test measures **bare git**, not our code. The copy was `if !dst.exists()`, so whatever a
+  previous run left in `target/debug/deps/fm` answered for ever: found 2026-09-07 to be **six weeks
+  old**. Nothing failed. `a_clean_merge_is_byte_identical_on_both_devices` even carried a doc comment
+  explaining that a `merge_texts` mutation leaving it green was *correct rather than a gap* — and
+  once the fixture was fresh, that mutation failed it, and so did a real cross-device divergence
+  (`decisions.md`, 2026-09-07). Anywhere a test writes a fixture into `target/`, ask what happens on
+  the thousandth run rather than the first.
+
+  **And "stale" cannot be decided by mtime here, which is the second half of the same trap.**
+  `pixi run ci` runs `test` (no `native-git`) and `test-native-git` as separate tasks, so cargo
+  alternates two different `fm` builds through `target/debug/fm` — and restoring a *cached* artifact
+  moves its mtime **backwards**. Measured the same day: a 102 MB native build stamped 18:59 sitting
+  beside the 57 MB plain one stamped 18:57, in that order. An "older than the source" test therefore
+  reports fresh for ever. The fix is a **stamp** of (length, mtime) compared for *equality*, plus
+  executing the new copy before renaming it into place — the two tasks can also be mid-swap on the
+  source while a test reads it, and a truncated driver is the quietest failure in the tree: git takes
+  the failed exec as "conflict" and hands back `%A` untouched, so the merge yields one side, no
+  markers, and no error anywhere.
+
 - **`pixi run ci` still flakes under load, and raising the timeout again is not the answer.**
   Observed 2026-09-07: a full gate run failed with two UI tests timing out at 20 s
   (`ingest.phone.test.ts`'s oversized-file case and `App.features.test.ts`'s editor open), and the

@@ -32,9 +32,76 @@ fn g(repo: &Path, args: &[&str]) -> std::process::Output {
 
 /// `force_native` is process-global (it stands in for a property of a *device*), so no two
 /// scenarios may be mid-flight at once.
+///
+/// It also puts the built `fm` beside the test binary, which is not housekeeping: `git::ensure_repo`
+/// runs inside every `commit_all` and `pull` and resolves the driver as `current_exe().parent()/fm`
+/// — the same way the product finds `fm` beside `fm-serve`. Without it `ensure_repo` *clears* the
+/// driver (there is no `fm` in `deps/`) and the "desktop" half of every test here silently measures
+/// **bare git** rather than anything of ours, which for a file whose whole subject is "both devices
+/// agree" is the difference between a grading harness and a decoration. It lives behind the lock so
+/// it happens once, before any test body, rather than racing between threads. The same helper, for
+/// the same reason, is in `collaboration_pipeline.rs` and `mixed_device_collaboration.rs`.
 fn serial() -> MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner())
+    let guard = LOCK.get_or_init(|| Mutex::new(())).lock().unwrap_or_else(|e| e.into_inner());
+    ensure_fm_beside_test_binary();
+    guard
+}
+
+/// Put the built `fm` **beside the test binary**, because `git::ensure_repo` — which runs inside
+/// every `commit_all` and `pull` — resolves the merge driver as `current_exe().parent()/fm`, the
+/// same way the product finds `fm` beside `fm-serve`. Without it `ensure_repo` *clears* the driver
+/// (there is no `fm` in `deps/`) and the desktop half of every test here silently measures **bare
+/// git** rather than anything of ours.
+///
+/// **Copied when missing *or stale*, which is the half that was wrong.** The original guard was
+/// `if !dst.exists()`, so whatever a previous run left there answered as the merge driver for ever:
+/// on 2026-09-07 that was a six-week-old `fm`, and three suites were grading a build nobody had
+/// made since. Renamed into place rather than written in place, so a second test binary doing this
+/// concurrently never sees a half-copied driver.
+/// Put the built `fm` **beside the test binary**, because `git::ensure_repo` — which runs inside
+/// every `commit_all` and `pull` — resolves the merge driver as `current_exe().parent()/fm`, the
+/// same way the product finds `fm` beside `fm-serve`. Without it `ensure_repo` *clears* the driver
+/// (there is no `fm` in `deps/`) and the desktop half of every test here silently measures **bare
+/// git** rather than anything of ours.
+///
+/// **Two ways to get this wrong, both found on 2026-09-07, both by their symptoms rather than by
+/// reading the code.**
+///
+/// 1. The original guard was `if !dst.exists()`, so whatever a previous run left there answered for
+///    ever — a **six-week-old `fm`**, and three suites were grading a build nobody had made since.
+/// 2. Replacing that with an mtime comparison is *also* wrong, and worse because it looks right.
+///    `pixi run ci` runs `test` (no `native-git`) and `test-native-git` as separate tasks, so cargo
+///    alternates two different `fm` builds through the same path — and restoring a cached artifact
+///    moves its mtime **backwards**. "Older than the source" is then simply not what "stale" means
+///    here. Measured: a 102 MB native build at 18:59 and a 57 MB plain one at 18:57, in that order.
+///
+/// So the copy is keyed on a **stamp** of the source's (length, mtime) — an equality, not an
+/// ordering — and the new binary is verified to execute *before* it is renamed into place, because
+/// the two tasks can also be mid-swap on the source while this reads it. A driver git cannot run is
+/// silent: git takes the failed exec as "conflict" and hands back `%A` untouched, so the merge
+/// yields one side with no markers and no error anywhere. That is what the flake looked like.
+fn ensure_fm_beside_test_binary() {
+    let src = Path::new(env!("CARGO_BIN_EXE_fm"));
+    let dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
+    let (dst, stamp_path) = (dir.join("fm"), dir.join("fm.stamp"));
+
+    let Ok(meta) = std::fs::metadata(src) else { return };
+    let stamp = format!("{:?}:{}", meta.modified().ok(), meta.len());
+    if std::fs::read_to_string(&stamp_path).is_ok_and(|s| s == stamp) && dst.exists() {
+        return;
+    }
+
+    let tmp = dir.join(format!("fm.{}.tmp", std::process::id()));
+    let copied = std::fs::copy(src, &tmp).is_ok();
+    // Does it actually run? Any exit status will do — `fm` with no arguments prints its usage and
+    // fails, which still proves the OS could execute the file. What this rejects is a truncated or
+    // half-written copy, which is the only failure mode that matters and the only silent one.
+    if copied && std::process::Command::new(&tmp).output().is_ok() {
+        let _ = std::fs::rename(&tmp, &dst);
+        let _ = std::fs::write(&stamp_path, &stamp);
+    }
+    let _ = std::fs::remove_file(&tmp);
 }
 
 const ID: &str = "01KY1TK571KRCB5PKAH3FCGCYE";
@@ -262,35 +329,92 @@ fn head(vault: &Path) -> String {
     String::from_utf8_lossy(&g(vault, &["rev-parse", "HEAD"]).stdout).trim().to_string()
 }
 
-/// **Editing the note is not a resolution, and the commit path must say so by refusing.**
+/// **Editing the note is not a resolution — that note stays out of history, and nothing else does.**
 ///
-/// Verified against real git: writing clean text over a `UU` path leaves all three index stages in
-/// place, so the path is still unmerged. Both backends must therefore report "nothing committed"
-/// rather than committing — the subprocess one already does, and the phone must not diverge, because
-/// libgit2 will happily build a tree from a *resolved-looking* index and lose the second parent.
+/// Two contracts in one place, because they are the same decision seen from both sides.
+///
+/// 1. **The conflicted note is not committed.** Verified against real git: writing clean text over a
+///    `UU` path leaves all three index stages in place, so the path is still unmerged. Staging it is
+///    how git is told "the human resolved it", and the commit would then enshrine whatever is on
+///    disk as the note's content and push it. Both backends must refuse it — libgit2 will otherwise
+///    happily build a tree from a resolved-looking index and lose the merge's second parent.
+///
+/// 2. **Every other note is.** This half was missing until 2026-09-07 and it is what the incident
+///    was: `commit_all` returned early on *any* unmerged path, so two stuck notes stopped 202 from
+///    reaching history for 39 days — 196 of them brand new and no part of the merge. The owner's
+///    verdict was that a user who has never heard of a merge conflict should not lose their whole
+///    vault's history to one: *"all the rest should be committable and synchable."*
+///
+/// This test used to assert `!made` — "no commit at all" — which was the behaviour and is now the
+/// bug. Read `decisions.md` (2026-09-07) before changing it back.
 #[test]
-fn editing_a_marker_conflict_does_not_commit_on_either_device() {
+fn a_marker_conflict_blocks_its_own_note_and_nothing_else_on_either_device() {
     if !have_git() {
         eprintln!("skipped: no git");
         return;
     }
     let _lock = serial();
-    let dir = tempfile::tempdir().unwrap();
-    let vault = mid_merge_markers(dir.path());
-    let rel = format!("notes/{ID}.md");
-    let abs = vec![vault.join(&rel)];
-    // The user edits the markers out in the app's editor and it saves.
-    std::fs::write(vault.join(&rel), note("our paragraph\n\ntheir paragraph")).unwrap();
-    let before = head(&vault);
+    let other_rel = "notes/01M1WXF2FW4SSXJVKX3J81BMSW.md";
 
     for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = mid_merge_markers(dir.path());
+        let rel = format!("notes/{ID}.md");
+
+        // The user edits the markers out in the app's editor and it saves — which settles nothing,
+        // and they have no way to know that. Meanwhile they keep working on a different note.
+        std::fs::write(vault.join(&rel), note("our paragraph\n\ntheir paragraph")).unwrap();
+        std::fs::write(vault.join(other_rel), note("written while the conflict stood")).unwrap();
+        let before = head(&vault);
+
         vcs::force_native(native);
-        let made = vcs::commit_all(&vault, "auto", &abs);
+        let made = vcs::commit_all(&vault, "auto", &[vault.join(&rel), vault.join(other_rel)]);
         vcs::force_native(false);
         let made = made.unwrap_or_else(|e| panic!("native={native}: commit_all errored: {e}"));
-        assert!(!made, "native={native}: must not commit while the path is still unmerged");
-        assert_eq!(head(&vault), before, "native={native}: and must create no commit");
+
+        assert!(made, "native={native}: the unrelated note must reach history, conflict or not");
+        assert_ne!(head(&vault), before, "native={native}: and that means a commit");
+        let landed = g(&vault, &["show", "--name-only", "--format=", "HEAD"]);
+        let landed = String::from_utf8_lossy(&landed.stdout);
+        assert!(landed.contains(other_rel), "native={native}: the other note is in it:\n{landed}");
+        assert!(
+            !landed.contains(rel.as_str()),
+            "native={native}: the conflicted note must NOT be — staging it publishes the markers \
+             as content:\n{landed}"
+        );
+
+        // The conflict is exactly where it was: still unmerged, still mid-merge, still a person's
+        // decision. Committing around it must not look like resolving it.
         assert!(vault.join(".git/MERGE_HEAD").exists(), "native={native}: still mid-merge");
+        let porcelain = g(&vault, &["status", "--porcelain"]);
+        assert!(
+            String::from_utf8_lossy(&porcelain.stdout)
+                .lines()
+                .any(|l| l.contains(rel.as_str()) && l.starts_with("UU")),
+            "native={native}: the path is still unmerged:\n{}",
+            String::from_utf8_lossy(&porcelain.stdout)
+        );
+
+        // **The hazard the ruling names, and the only reason this is safe.**
+        // `finish_merge_if_resolved` builds the merge commit from the *real* index. A note committed
+        // around the conflict but left at its old content there would be silently reverted the
+        // moment the merge completed — deleted at exactly the moment the user fixed the thing that
+        // was blocking them, which is the worst possible time to lose a day's writing.
+        g(&vault, &["add", "--", &rel]);
+        vcs::force_native(native);
+        vcs::commit_all(&vault, "auto: resolved", &[vault.join(&rel)])
+            .unwrap_or_else(|e| panic!("native={native}: finishing: {e}"));
+        vcs::force_native(false);
+        assert!(
+            !vault.join(".git/MERGE_HEAD").exists(),
+            "native={native}: the merge finished, so the vault is not frozen"
+        );
+        let survived = g(&vault, &["show", &format!("HEAD:{other_rel}")]);
+        assert!(
+            String::from_utf8_lossy(&survived.stdout).contains("written while the conflict stood"),
+            "native={native}: finishing the merge deleted the note written during it — the \
+             lockstep hazard in `decisions.md`, 2026-09-07"
+        );
     }
 }
 
@@ -526,6 +650,86 @@ fn a_note_the_other_device_deleted_is_kept_and_the_vault_keeps_committing() {
     }
 }
 
+/// **A field two devices disagree about must not stop the vault either.**
+///
+/// The sibling of the delete/modify test above, for the other shape that used to freeze things.
+/// Until 2026-09-07 a divergent `status` dropped the whole file into a text merge, so the markers
+/// landed inside the YAML fence: the note stopped parsing, stopped appearing in every view, and the
+/// path stayed unmerged — the same freeze, from a different cause. Now the loser is demoted into
+/// `conflict-status` and the merge completes.
+///
+/// What this pins, on **both backends** (the phone runs the one a dev machine never does):
+///
+/// 1. The pull **finishes** — no `MERGE_HEAD` left standing, nothing unmerged.
+/// 2. Both values are in the file and **the file parses**, which is the whole reversal.
+/// 3. **The vault commits afterwards**, which is what the 39-day incident was actually about.
+///
+/// Proven red by restoring the old escalation — `return None` from `merge_objects` when
+/// `Demote::settle` cannot use the three-way rule: the pull comes back `Conflicted`, the note no
+/// longer parses, and the follow-up `commit_all` leaves the new note stranded.
+#[test]
+fn a_divergent_field_settles_itself_and_the_vault_keeps_committing() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_remote, ours, theirs) = two_clones(dir.path());
+        let rel = format!("notes/{ID}.md");
+
+        // Two people drag one card to two columns. Identical bodies: nothing else is in dispute.
+        let body = "the body nobody touched";
+        std::fs::write(theirs.join(&rel), note_with("done", "2026-07-22T09:00:00Z", body)).unwrap();
+        g(&theirs, &["commit", "-qam", "their status"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+
+        std::fs::write(ours.join(&rel), note_with("doing", "2026-07-22T08:00:00Z", body)).unwrap();
+        g(&ours, &["commit", "-qam", "our status"]);
+
+        // The desktop reaches `merge.rs` **through git's driver**; `ensure_repo` (inside `pull`)
+        // installs it, and `serial()` is what makes that possible here. The phone needs neither:
+        // `git_native::pull` calls `merge_texts` itself, having no driver to invoke.
+        vcs::force_native(native);
+        let outcome = vcs::pull(&ours).unwrap_or_else(|e| panic!("native={native}: pull: {e}"));
+        assert!(
+            matches!(outcome, git::Pulled::Merged { .. }),
+            "native={native}: a divergent field must no longer stall the pull: {outcome:?}"
+        );
+        assert!(
+            !ours.join(".git/MERGE_HEAD").exists(),
+            "native={native}: the merge is finished, so nothing is left to freeze the vault"
+        );
+
+        let disk = std::fs::read_to_string(ours.join(&rel)).unwrap();
+        let obj = fm_core::frontmatter::from_file(&disk)
+            .unwrap_or_else(|e| panic!("native={native}: the note must still parse: {e}\n{disk}"));
+        assert_eq!(
+            obj.status.as_deref(),
+            Some("done"),
+            "native={native}: later `updated`:\n{disk}"
+        );
+        assert_eq!(
+            obj.extra.get("conflict-status"),
+            Some(&fm_model::PropertyValue::List(vec![fm_model::PropertyValue::Text(
+                "doing".into()
+            )])),
+            "native={native}: and the loser is beside it, not discarded:\n{disk}"
+        );
+
+        // Absolute, for the reason spelled out in the delete/modify test above.
+        let after = ours.join("notes/01M1WXF2FW4SSXJVKX3J81BMSW.md");
+        std::fs::write(&after, note("written after the disagreement")).unwrap();
+        let made = vcs::commit_all(&ours, "auto: after the disagreement", &[after])
+            .unwrap_or_else(|e| panic!("native={native}: commit_all: {e}"));
+        assert!(made, "native={native}: the vault must keep committing through a disagreement");
+
+        vcs::force_native(false);
+    }
+}
+
 /// The same note with a chosen `status` and `updated`, for the divergent-scalar case.
 fn note_with(status: &str, updated: &str, body: &str) -> String {
     format!(
@@ -603,8 +807,11 @@ fn neither_side_of_a_conflict_becomes_unreachable() {
         }
 
         // --- Case 2: both devices set the same scalar field differently. ---
-        // `status` holds one value, so "keep both" is not expressible in the field's own type. What
-        // must still hold is that neither answer disappears from the repository.
+        // The field holds one value, so "keep both" is not expressible in the *field's* type — but
+        // it is expressible in the note's, and since 2026-09-07 the loser is demoted into
+        // `conflict-status` beside the winner. Either way the assertion here is the durable one:
+        // neither answer disappears. `a_divergent_field_settles_itself_and_the_vault_keeps_
+        // committing` below is what pins the newer, stronger behaviour.
         {
             let dir = tempfile::tempdir().unwrap();
             let (_r, ours, theirs) = two_clones(dir.path());
@@ -676,12 +883,11 @@ fn both_survive_or_it_said_so(
 /// `merge_differential.rs` grades our `text_3way` across 400 generated triples. It does **not**
 /// cover this path, because this one never reaches `text_3way`.
 ///
-/// **What this actually compares, stated precisely.** The `fm merge-md` driver is not installed in
-/// these vaults — `install_merge_driver` refuses when it cannot resolve a real `fm` binary, which a
-/// test process never can — so *both* sides fall back to their built-in text merges. That is the
-/// comparison worth having here: git's xdiff against libgit2's vendored copy of it, which is where
-/// a diff-algorithm divergence would show up. It is **not** a test of driver-versus-libgit2; a
-/// mutation inside `merge_texts` leaves it green, and that is correct rather than a gap.
+/// **What this compares, and the correction it needed.** It used to say the `fm merge-md` driver was
+/// not installed here, so both sides fell back to their built-in text merges and a mutation inside
+/// `merge_texts` "correctly" left it green. That was true and it was the bug: `serial()` now puts a
+/// **fresh** `fm` beside the test binary, so the desktop half runs the real driver, and this is a
+/// test of driver-versus-libgit2 after all. A `merge_texts` mutation now fails it.
 ///
 /// Proven red by perturbing one backend's output directly (an extra line appended in
 /// `git_native::pull` after the merge): the byte comparison fails, naming the divergence.
@@ -737,5 +943,77 @@ fn a_clean_merge_is_byte_identical_on_both_devices() {
         results[0], results[1],
         "the two backends produced different bytes from identical inputs — the devices would then \
          disagree with each other forever, from a merge that both of them called clean"
+    );
+}
+
+/// **The same guarantee for a note whose frontmatter is not already canonical — which is where it
+/// actually broke.**
+///
+/// A real divergence, found on 2026-09-07 the moment the harness above started installing the
+/// driver. The desktop's `git merge` invokes `fm merge-md` for **every** path both sides changed,
+/// so `merge_texts` reparses the note and re-emits its frontmatter whole. `git_native::pull` only
+/// revisited what libgit2 left *conflicted* — so a note libgit2 merged cleanly never passed
+/// through our rules, and the phone committed the file's original frontmatter while the desktop
+/// committed the canonical form. **Different bytes, same pair of commits**, and then the two
+/// devices conflict with each other for ever over a note nobody edited.
+///
+/// The note here is deliberately not what `to_file` writes: keys out of order, a two-space list
+/// indent, no `schema:` — every one of which an external editor, an import or an older version of
+/// this app leaves behind. The pair of edits is far apart with a matching `updated:`, which is what
+/// lets libgit2 settle it without asking us.
+///
+/// Fixed by `settle_the_paths_libgit2_merged_itself`. Red proof: delete that call from
+/// `git_native::pull` and this fails alone, naming both spellings.
+#[test]
+fn the_two_devices_agree_even_when_the_note_was_not_written_by_this_app() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    let rel = format!("notes/{ID}.md");
+    let hand_written = |body: &str| {
+        format!(
+            "---\ntitle: Meeting\ntype: note\nid: {ID}\ntags:\n  - a\nstatus: todo\n\
+             updated: 2026-07-21T08:07:08Z\ncreated: 2026-07-21T07:52:36Z\n---\n{body}\n"
+        )
+    };
+    let base = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n";
+    let mut results = Vec::new();
+
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_r, ours, theirs) = two_clones(dir.path());
+
+        std::fs::write(ours.join(&rel), hand_written(base)).unwrap();
+        g(&ours, &["commit", "-qam", "a note some other editor wrote"]);
+        g(&ours, &["push", "-q", "origin", "main"]);
+        g(&theirs, &["pull", "-q", "--no-rebase", "origin", "main"]);
+
+        std::fs::write(theirs.join(&rel), hand_written(&base.replace("one\n", "ONE (theirs)\n")))
+            .unwrap();
+        g(&theirs, &["commit", "-qam", "their end"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+
+        std::fs::write(ours.join(&rel), hand_written(&base.replace("eight\n", "EIGHT (ours)\n")))
+            .unwrap();
+        g(&ours, &["commit", "-qam", "our end"]);
+
+        vcs::force_native(native);
+        let outcome = vcs::pull(&ours);
+        vcs::force_native(false);
+        assert!(
+            matches!(outcome, Ok(git::Pulled::Merged { .. })),
+            "native={native}: this must still be a clean merge: {outcome:?}"
+        );
+        let merged = std::fs::read_to_string(ours.join(&rel)).unwrap();
+        assert!(merged.contains("ONE (theirs)") && merged.contains("EIGHT (ours)"), "{merged}");
+        results.push(merged);
+    }
+
+    assert_eq!(
+        results[0], results[1],
+        "the phone kept the note's original frontmatter and the desktop rewrote it — the devices \\
+         would now conflict for ever over a note neither of them edited"
     );
 }

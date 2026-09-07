@@ -1387,6 +1387,74 @@ pub fn duplicates(store: &dyn Store) -> Result<Vec<DuplicateFamily>, StoreError>
     Ok(out)
 }
 
+/// **Every note where the two devices disagreed about a field, and what each said.**
+///
+/// The surface the demotion ruling is conditional on (`decisions.md`, 2026-09-07, *a divergent field
+/// keeps both, by demoting the loser into a field beside it*). That entry says so in as many words:
+/// *"a demotion nobody can see is the fiat this entry spends its length denying"*, and *"if that
+/// surface is not built, this ruling should be revisited rather than left standing."* This is it.
+///
+/// **No new state to keep, which is the whole reason it is cheap.** Unlike the kept-note list, this
+/// does not have to survive a sync run in memory — the disagreement is a `conflict-<field>` key in
+/// the note's own frontmatter, so the list is a scan and it is correct after a restart, on a second
+/// device, and in a text editor.
+///
+/// **A full scan, deliberately, and the same shape as [`duplicates`].** A demoted key can sit on any
+/// field of any kind, and nothing about it reaches SQL — `objects` denormalises only `kind`, so even
+/// a `Prop`/`Exists` predicate is evaluated in Rust over hydrated candidates. Filtering by prefix
+/// here costs exactly what filtering by predicate would and says what it means. Callers should ask
+/// on a generation change, not per render, for the same reason `unrecorded` is not on the hot path.
+pub fn demoted(store: &dyn Store) -> Result<Vec<DemotedField>, StoreError> {
+    let q = Query { filter: Filter::new(), ..Default::default() };
+    let mut out: Vec<DemotedField> = Vec::new();
+    for o in store.query(&q)?.rows {
+        for (key, value) in &o.extra {
+            let Some(field) = key.strip_prefix(fm_core::merge::DEMOTED_PREFIX) else { continue };
+            // A hand-typed scalar is a set of one — the same tolerance `merge::merge_demoted` has,
+            // because this is a plain-text file and a human is allowed to have edited it.
+            let other: Vec<String> = match value {
+                fm_model::PropertyValue::List(items) => items.iter().map(|i| i.display()).collect(),
+                one => vec![one.display()],
+            };
+            if other.is_empty() {
+                continue;
+            }
+            out.push(DemotedField {
+                id: o.id.to_string(),
+                vault: o.vault.clone(),
+                title: o.title.clone().unwrap_or_else(|| {
+                    o.body.lines().find(|l| !l.trim().is_empty()).unwrap_or("").trim().to_string()
+                }),
+                field: field.to_string(),
+                kept: o.get(field).display(),
+                other,
+            });
+        }
+    }
+    // Stable and by note, so a list of them reads as "these notes" rather than a shuffle.
+    out.sort_by(|a, b| a.vault.cmp(&b.vault).then(a.id.cmp(&b.id)).then(a.field.cmp(&b.field)));
+    Ok(out)
+}
+
+/// One field two devices set differently: what the note shows now, and what the other device said.
+///
+/// **`kept` and `other` are both display strings, on purpose.** The panel's job is to let a person
+/// read the disagreement; promoting a value goes through `set_property` with the text, which is the
+/// same path a user typing it takes. Handing the UI typed values would mean a second way to write a
+/// property and a second set of rules about what a value means.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct DemotedField {
+    pub id: String,
+    pub vault: String,
+    pub title: String,
+    /// The frontmatter spelling — `status`, `type`, or a custom property's own name.
+    pub field: String,
+    /// What the field holds now: the value the merge kept.
+    pub kept: String,
+    /// What the other device said. More than one after a second disagreement on the same field.
+    pub other: Vec<String>,
+}
+
 /// One family of identical notes: which copy is kept, and which are extras.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DuplicateFamily {

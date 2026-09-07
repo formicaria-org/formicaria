@@ -220,6 +220,66 @@ fn commit_all_agrees_on_what_is_committed_and_what_is_left_alone() {
     }
 }
 
+/// **Both backends agree on when a vault last saved anything — including when it never has.**
+///
+/// This is the elapsed-time signal the app draws its "N days since a save" chip from, and it is
+/// read on the phone, which is the device that never runs the subprocess backend. So the two
+/// numbers have to be the same number, not merely both plausible.
+///
+/// Three states, and the two boring ones are the ones that would break a chip: **no repo** and
+/// **a repo with no commits** must both be `None`, not an error — a vault that has never been
+/// committed has nothing to report and is not broken.
+///
+/// The commit is pinned to a **non-UTC** committer date on purpose. `--format=%ct` and libgit2's
+/// `Commit::time().seconds()` are both epoch seconds, so a `+0530` offset must not shift either;
+/// reading `%cd` or `Time::offset_minutes()` by mistake would show up here and nowhere else.
+///
+/// And the author date is pinned to a **different, earlier** instant, because the two are not
+/// interchangeable and the doc comment on `last_commit` commits to one of them: a commit pulled
+/// from the other device was *authored* whenever they wrote it and *committed* here today, and
+/// "this vault has not saved anything in N days" means the latter.
+#[test]
+fn last_commit_agrees_on_the_moment_and_on_never() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    for v in [a.path(), b.path()] {
+        assert_eq!(git::last_commit(v).unwrap(), None, "no repo at all is not an error");
+        assert_eq!(git_native::last_commit(v).unwrap(), None);
+    }
+
+    git::ensure_repo(a.path()).unwrap();
+    no_identity(a.path());
+    assert_eq!(git::last_commit(a.path()).unwrap(), None, "a repo with no commits: never saved");
+    assert_eq!(git_native::last_commit(a.path()).unwrap(), None);
+
+    // Read the *same* repo with both, which is the sharper comparison: two repos committed a
+    // moment apart would agree to the second by luck rather than by construction.
+    fs::create_dir_all(a.path().join("notes")).unwrap();
+    fs::write(a.path().join("notes/01.md"), NOTE).unwrap();
+    Command::new("git").arg("-C").arg(a.path()).args(["add", "-A"]).output().unwrap();
+    Command::new("git")
+        .arg("-C")
+        .arg(a.path())
+        .args(["commit", "-m", "seed"])
+        .env("GIT_COMMITTER_DATE", "2026-01-02T03:04:05+0530")
+        .env("GIT_AUTHOR_DATE", "2025-11-11T11:11:11+0000")
+        .output()
+        .unwrap();
+
+    let oracle: i64 = g(a.path(), &["log", "-1", "--format=%ct"]).parse().unwrap();
+    assert_eq!(oracle, 1767303245, "the pinned instant, in epoch seconds and no offset");
+    assert_eq!(
+        g(a.path(), &["log", "-1", "--format=%at"]),
+        "1762859471",
+        "…and the author wrote it seven weeks earlier, so the two cannot be confused"
+    );
+    assert_eq!(git::last_commit(a.path()).unwrap(), Some(oracle));
+    assert_eq!(git_native::last_commit(a.path()).unwrap(), Some(oracle));
+}
+
 /// **The agent's own identity survives on both backends.**
 ///
 /// `commit_all_as` is how a study-assistant reply is attributed to the *model* rather than to

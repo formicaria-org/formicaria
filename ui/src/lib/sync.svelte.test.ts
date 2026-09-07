@@ -118,6 +118,26 @@ describe('syncVault', () => {
     expect(calls.pull).toBe(1);
   });
 
+  // **The commit now succeeds while the merge is still unfinished, and the sync must still stop.**
+  // Regression guard for the proxy this file used to rely on: `!committed && conflicts.length`.
+  // Since 2026-09-07 `commit_all` commits everything except the conflicted paths, so `committed`
+  // is `true` in exactly the case that must not proceed — `pull` and `push` both refuse over an
+  // unfinished merge, and the user would get git's wording instead of a named phase.
+  it('stops at conflicts even when the commit succeeded', async () => {
+    clearSync('v');
+    const { calls, ops: o } = ops();
+    o.commit = async () => {
+      calls.commit++;
+      return { committed: true, conflicts: ['notes/01AAAAAAAAAAAAAAAAAAAAAAAA.md'] };
+    };
+
+    expect(await syncVault('v', 'msg', undefined, o)).toBe('conflicts');
+
+    expect(calls.pull).toBe(0);
+    expect(calls.push).toBe(0);
+    expect(syncFor('v').conflicts).toHaveLength(1);
+  });
+
   // A vault mid-merge refuses to commit. Pushing past that would publish a half-merge.
   it('does not push when the commit refused', async () => {
     clearSync('v');

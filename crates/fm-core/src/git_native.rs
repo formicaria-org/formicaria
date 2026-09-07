@@ -193,39 +193,49 @@ fn commit_all_inner(
     author: Option<(&str, &str)>,
 ) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
-    // **Never commit while anything is unmerged**, mirroring the subprocess backend's early return.
+    // **A conflicted path is never staged, and it never stops the rest.** Mirrors the subprocess
+    // backend, which is the only reason both halves of this are here.
     //
-    // Not a symmetry nicety — without it this function *silently resolved conflicts by publishing
-    // them*. `index.add_path` below stages whatever is on disk and clears that path's conflict
-    // stages, so a debounced auto-commit five seconds after a conflicting pull would commit the note
-    // **with its `<<<<<<<` markers as content**, drop the merge's second parent, and push it. The
-    // subprocess backend's refusal has always documented this ("staging the conflict markers, which
-    // git reads as 'the human resolved it'"); the phone had no such guard. Found by the differential
-    // test, 2026-07-31 — the two backends were wrong in opposite directions on the same path.
-    if !conflicted(vault)?.is_empty() {
-        return Ok(false);
-    }
+    // Staging one would be the disaster: `index.add_path` below stages whatever is on disk and
+    // clears that path's conflict stages, so a debounced auto-commit five seconds after a
+    // conflicting pull would commit the note **with its `<<<<<<<` markers as content**, drop the
+    // merge's second parent, and push it. This backend had no such guard until the differential test
+    // found it (2026-07-31) — the two backends were wrong in opposite directions on the same path.
+    //
+    // Refusing *wholesale* was the other half of the same mistake, and it is the one that cost 39
+    // days on the owner's phone: two stuck notes stopped 202 from being committed, 196 of them brand
+    // new and no part of any merge (`decisions.md`, 2026-09-07). So the conflicted paths are dropped
+    // from what we commit and the rest goes through.
+    let blocked: std::collections::HashSet<String> =
+        conflicted(vault)?.into_iter().map(|c| c.path).collect();
     let repo = Repository::open(vault).map_err(map)?;
 
     let mut index = repo.index().map_err(map)?;
     let mut staged = 0usize;
+    let mut ours: Vec<std::path::PathBuf> = Vec::new();
     for p in paths {
         // Index paths are repo-relative; an absolute path silently matches nothing.
         let rel = p.strip_prefix(vault).unwrap_or(p);
+        if blocked.contains(rel.to_string_lossy().as_ref()) {
+            continue;
+        }
         if p.exists() {
             index.add_path(rel).map_err(map)?;
             staged += 1;
+            ours.push(rel.to_path_buf());
         } else if index.get_path(rel, 0).is_some() {
             // Deleted by us since the last commit — the removal is the change.
             index.remove_path(rel).map_err(map)?;
             staged += 1;
+            ours.push(rel.to_path_buf());
         }
     }
     // The vault files `ensure_repo` writes travel with the repo and must be committed, or a
     // collaborator's clone arrives without the merge attribute.
     for f in [".gitignore", ".gitattributes"] {
-        if vault.join(f).exists() {
+        if vault.join(f).exists() && !blocked.contains(f) {
             index.add_path(Path::new(f)).map_err(map)?;
+            ours.push(Path::new(f).to_path_buf());
         }
     }
     if staged == 0 && repo.head().is_ok() {
@@ -234,6 +244,12 @@ fn commit_all_inner(
         return Ok(false);
     }
     index.write().map_err(map)?;
+    if !blocked.is_empty() {
+        // A conflict entry makes `write_tree` fail outright — that is libgit2's `GIT_EUNMERGED` and
+        // it is not negotiable. The tree is assembled elsewhere instead; the index write above is
+        // what keeps the real index in lockstep with the `HEAD` that call moves.
+        return commit_around_a_conflict(&repo, vault, message, &ours, author);
+    }
     let tree_id = index.write_tree().map_err(map)?;
     let tree = repo.find_tree(tree_id).map_err(map)?;
 
@@ -265,6 +281,81 @@ fn commit_all_inner(
     if merging.is_some() {
         repo.cleanup_state().map_err(map)?;
     }
+    Ok(true)
+}
+
+/// Commit `ours` **around** an unfinished merge, leaving every conflicted path exactly where it is.
+///
+/// The twin of `crate::git::commit_around_a_conflict`, and held to it by `tests/git_differential.rs`.
+/// Read that one first: it carries the argument, and this carries only what libgit2 does differently.
+///
+/// **Which is: there is no temporary index file, there is a scratch index in memory.** `Index::new`
+/// makes one that belongs to no repository, `read_tree` fills it from `HEAD`, and entries are added
+/// by blob id — `add_path` is unavailable on an index with no repository behind it (libgit2 says so
+/// in as many words: *"Index is not backed up by an existing repository"*), which is the same
+/// constraint `merged_text` documents for a `merge_trees` index. `write_tree_to` then writes the
+/// tree into the real object database. The real index is never touched here; the caller already
+/// staged these paths into it, which is what keeps it in lockstep with the `HEAD` this moves.
+///
+/// **Single-parent, deliberately.** `commit_all_inner`'s ordinary path writes `MERGE_HEAD` as a
+/// second parent and calls `cleanup_state`, because reaching it means the merge is *finished*.
+/// Reaching here means it is not: claiming otherwise would end the merge with conflicts still in the
+/// index, and `finish_merge_if_resolved` — which is what actually completes it — would never run.
+fn commit_around_a_conflict(
+    repo: &Repository,
+    vault: &Path,
+    message: &str,
+    ours: &[std::path::PathBuf],
+    author: Option<(&str, &str)>,
+) -> Result<bool, StoreError> {
+    let Ok(head) = repo.head().and_then(|h| h.peel_to_commit()) else {
+        // No commit yet, so there is no merge in flight either — nothing this path can do.
+        return Ok(false);
+    };
+    let head_tree = head.tree().map_err(map)?;
+
+    let mut scratch = git2::Index::new().map_err(map)?;
+    scratch.read_tree(&head_tree).map_err(map)?;
+    for rel in ours {
+        let full = vault.join(rel);
+        if !full.exists() {
+            let _ = scratch.remove_path(rel);
+            continue;
+        }
+        let id = repo.blob_path(&full).map_err(map)?;
+        // Keep the mode git already recorded for this path, so an executable file does not quietly
+        // become a regular one; a path `HEAD` has never seen is an ordinary file.
+        let mode = head_tree.get_path(rel).map(|e| e.filemode() as u32).unwrap_or(0o100644);
+        let size = std::fs::metadata(&full).map(|m| m.len() as u32).unwrap_or(0);
+        scratch
+            .add(&git2::IndexEntry {
+                // The stat fields are what git uses to skip re-hashing an unchanged file. This index
+                // is written once and thrown away, so zeros cost nothing and invent nothing.
+                ctime: git2::IndexTime::new(0, 0),
+                mtime: git2::IndexTime::new(0, 0),
+                dev: 0,
+                ino: 0,
+                mode,
+                uid: 0,
+                gid: 0,
+                file_size: size,
+                id,
+                flags: 0,
+                flags_extended: 0,
+                path: rel.to_string_lossy().into_owned().into_bytes(),
+            })
+            .map_err(map)?;
+    }
+
+    let tree_id = scratch.write_tree_to(repo).map_err(map)?;
+    if tree_id == head_tree.id() {
+        // Nothing of ours actually differs from HEAD — the debounced auto-commit's common case, and
+        // it must not accrete an empty commit every five seconds for the length of a conflict.
+        return Ok(false);
+    }
+    let tree = repo.find_tree(tree_id).map_err(map)?;
+    let sig = signature(repo, author)?;
+    repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&head]).map_err(map)?;
     Ok(true)
 }
 
@@ -791,6 +882,20 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
     Ok(Some(ahead as u32))
 }
 
+/// Mirrors [`crate::git::last_commit`]: the committer time of `HEAD` in seconds since the epoch,
+/// or `None` when there is no repo and no commits.
+///
+/// `Commit::time()` is git's *committer* time — the same clock `--format=%ct` prints — so the two
+/// backends answer with the same number for the same repo, which `git_differential` checks. Every
+/// step degrades to `None` rather than erroring: on the phone this is read to draw a chip, and a
+/// vault that has never been committed must render as "never saved", not as a failure.
+pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
+    let Ok(repo) = Repository::open(vault) else { return Ok(None) };
+    let Ok(head) = repo.head() else { return Ok(None) };
+    let Ok(commit) = head.peel_to_commit() else { return Ok(None) };
+    Ok(Some(commit.time().seconds()))
+}
+
 /// **What a merged file is, for one conflicted path — the decision, and nothing else.**
 ///
 /// This is the piece [`pull`] and [`merge_proposal_branch`] must never disagree about, so it is
@@ -974,6 +1079,15 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
         index.write().map_err(map)?;
     }
 
+    settle_the_paths_libgit2_merged_itself(
+        &repo,
+        vault,
+        &mut index,
+        our_oid,
+        their_oid,
+        &mut unresolved,
+    )?;
+
     if !unresolved.is_empty() {
         unresolved.sort();
         // MERGE_HEAD is deliberately left in place, exactly as an interrupted `git merge` does:
@@ -1000,6 +1114,82 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
     kept.sort();
     Ok(Pulled::Merged { incoming, kept })
+}
+
+/// **Run our merge over the paths libgit2 settled on its own, because the desktop's driver does.**
+///
+/// The asymmetry this closes, found 2026-09-07 and reproducible: on a desktop `git merge` invokes
+/// `fm merge-md` for **every** path both sides changed, so `merge_texts` reparses the note and
+/// re-emits its frontmatter whole. Here, `repo.merge` line-merges the file itself and [`pull`] only
+/// revisits what it left *conflicted* — so a note libgit2 could merge never passed through our
+/// rules at all.
+///
+/// That is fine while the two answers agree, and they stop agreeing the moment a note's frontmatter
+/// is not already what `to_file` would write: a different key order, a different list indent, a
+/// missing `schema:` — anything an external editor, an import or an older version left behind. Then
+/// the desktop commits the canonical form and the phone commits the original, **from the same pair
+/// of commits**, and the two devices conflict with each other for ever afterwards over a note
+/// nobody edited. The trigger is narrow (both sides must have changed the file, and their `updated:`
+/// lines must agree, or the path conflicts and the loop above already handles it) and the
+/// consequence is not.
+///
+/// Which paths: those changed **on both sides** relative to the merge base — precisely the set git
+/// hands to a merge driver. A path only one side touched is not a merge, and re-emitting it would
+/// rewrite a file nobody asked us to touch.
+fn settle_the_paths_libgit2_merged_itself(
+    repo: &Repository,
+    vault: &Path,
+    index: &mut git2::Index,
+    our_oid: git2::Oid,
+    their_oid: git2::Oid,
+    unresolved: &mut Vec<String>,
+) -> Result<(), StoreError> {
+    let base_oid = repo.merge_base(our_oid, their_oid).map_err(map)?;
+    let tree = |oid: git2::Oid| repo.find_commit(oid).and_then(|c| c.tree()).map_err(map);
+    let (base_tree, our_tree, their_tree) = (tree(base_oid)?, tree(our_oid)?, tree(their_oid)?);
+
+    let changed = |against: &git2::Tree| -> Result<Vec<String>, StoreError> {
+        let diff = repo.diff_tree_to_tree(Some(&base_tree), Some(against), None).map_err(map)?;
+        Ok(diff
+            .deltas()
+            .filter_map(|d| d.new_file().path().or_else(|| d.old_file().path()))
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect())
+    };
+    let theirs: std::collections::HashSet<String> = changed(&their_tree)?.into_iter().collect();
+
+    for path in changed(&our_tree)? {
+        if !theirs.contains(&path) || index.get_path(Path::new(&path), 0).is_none() {
+            // Only one side touched it, or it is still conflicted — the loop above owns that.
+            continue;
+        }
+        let text = |t: &git2::Tree| -> Option<String> {
+            let entry = t.get_path(Path::new(&path)).ok()?;
+            let blob = repo.find_blob(entry.id()).ok()?;
+            Some(String::from_utf8_lossy(blob.content()).into_owned())
+        };
+        // A side with no blob here is a delete/modify, which reaches the index as a conflict and
+        // never gets this far. If one is missing anyway, leave the path exactly as libgit2 left it.
+        let (Some(b), Some(o), Some(t)) = (text(&base_tree), text(&our_tree), text(&their_tree))
+        else {
+            continue;
+        };
+
+        let (merged, outcome) = merged_text(&path, &b, &o, &t)?;
+        let full = vault.join(&path);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).map_err(io)?;
+        }
+        std::fs::write(&full, &merged).map_err(io)?;
+        index.add_path(Path::new(&path)).map_err(map)?;
+        if outcome != crate::merge::Merged::Clean {
+            // Our engine conflicted where libgit2's whole-file merge did not — the same answer a
+            // desktop would give, so it is reported the same way rather than quietly accepted.
+            unresolved.push(path);
+        }
+    }
+    index.write().map_err(map)?;
+    Ok(())
 }
 
 /// The raw push, with no squash — the primitive [`push_squashed`] is built on.

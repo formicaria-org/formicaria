@@ -377,7 +377,7 @@ fn duplicates_are_counted_by_body_and_the_role_names_the_code_path() {
     assert_eq!(plain["title"], "An ordinary note");
 }
 
-/// **A refusal must not be reported as "nothing to do".**
+/// **A refusal must not be reported as "nothing to do" — and a partial success must not be either.**
 ///
 /// `commit_all` answers `bool`, and it returns `false` for reasons that are worlds apart: nothing of
 /// ours moved (the quiet, correct case for a debounced auto-commit) and *git refuses* because a path is
@@ -386,11 +386,14 @@ fn duplicates_are_counted_by_body_and_the_role_names_the_code_path() {
 /// button that rescues unrecorded notes reported success and did nothing, indefinitely. The owner hit
 /// exactly this on the phone with 147 outstanding (2026-07-31).
 ///
-/// What is pinned: with notes found and a merge in flight, `committed` is false, `notes` is **not**
-/// zero — that difference is what lets the UI tell a refusal from an empty vault — and `reason` names
-/// the merge, so the message on screen points at the action that unblocks it.
+/// What is pinned, **restated 2026-09-07 when `commit_all` stopped refusing wholesale**: with notes
+/// found and a merge in flight, the recordable notes are *recorded* (`committed` is now true, and the
+/// note is verifiably in the commit), `notes` is not zero, the conflicted note stays out, and `reason`
+/// still names the merge. That last one matters more than it did: the reason used to appear only on a
+/// refusal, and a refusal is now the rare case — so a message conditioned on failure would be silent
+/// exactly when the user needs it, with the outstanding count dropping to zero as if all were well.
 #[test]
-fn a_refused_recording_reports_a_reason_and_not_an_empty_vault() {
+fn recording_gets_past_a_merge_and_still_names_what_it_left_behind() {
     if !have_git() {
         eprintln!("skipped: no git");
         return;
@@ -438,12 +441,32 @@ fn a_refused_recording_reports_a_reason_and_not_an_empty_vault() {
 
     let app = open_app(&home, &vault);
     let rec = call(&app, "record_unrecorded", serde_json::json!({ "vault": "v" })).unwrap();
-    assert_eq!(rec["committed"], false, "git refuses over an unmerged path: {rec}");
+    // **The forgotten note is recorded, conflict or no conflict.** Until 2026-09-07 this asserted
+    // the opposite — `committed: false`, "git refuses over an unmerged path" — which was the
+    // behaviour and was the 39-day freeze: one stuck note held every other note out of history.
+    assert_eq!(rec["committed"], true, "the notes that can be recorded are: {rec}");
     // The load-bearing pair: it *found* notes. `notes: 0` is what the UI reads as "nothing to record",
     // and reporting zero here is the lie that hid the problem.
     assert!(rec["notes"].as_u64().is_some_and(|n| n > 0), "it found work to do: {rec}");
+    assert!(
+        String::from_utf8_lossy(&git(&vault, &["show", "--name-only", "--format=", "HEAD"]).stdout)
+            .contains("01BBBBBBBBBBBBBBBBBBBBBBBB"),
+        "and the forgotten note is actually in the commit, not merely claimed"
+    );
+
+    // **And the conflict is still named, precisely because the commit succeeded.** A message that
+    // only appears when nothing was committed says nothing in the case that now happens, and the
+    // count dropping to zero would read as "all clear" while two notes sit stuck for ever.
     let reason = rec["reason"].as_str().unwrap_or_default();
     assert!(reason.contains("mid-merge"), "the reason names the merge: {reason:?}");
     // And it points at the surface that can actually clear it, rather than merely declining.
     assert!(reason.contains("Conflicts"), "and at the way out: {reason:?}");
+    // The conflicted note itself is *not* in history — committing it would publish the merge.
+    assert!(
+        !String::from_utf8_lossy(
+            &git(&vault, &["show", "--name-only", "--format=", "HEAD"]).stdout
+        )
+        .contains(rel.trim_start_matches("notes/")),
+        "the conflicted note must stay out until a human settles it"
+    );
 }

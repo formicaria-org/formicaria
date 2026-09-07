@@ -278,6 +278,31 @@ export interface DuplicateFamily {
   extras: string[];
 }
 
+/** One field two devices set differently, where the merge kept both.
+ *
+ *  The note shows `kept`; `other` is what the other device said, still in the file as a
+ *  `conflict-<field>` key. Mirrors `fm_app::commands::DemotedField`. Both values are display
+ *  strings: promoting one goes through `set_property`, the same path a person typing it takes. */
+export interface DemotedField {
+  id: string;
+  vault: string;
+  title: string;
+  field: string;
+  kept: string;
+  other: string[];
+}
+
+/** When each vault last saved anything — seconds since the epoch, `null` for a vault that has
+ *  never been committed. Mirrors `fm_app::dispatch::LastCommit`.
+ *
+ *  **Seconds, not milliseconds**, because that is what git records; the UI multiplies. And `null`
+ *  is a third state, not a zero: a vault with no history has nothing to nag about, and treating a
+ *  missing value as `0` would announce fifty-six years of silence to someone on their first run. */
+export interface LastCommit {
+  vault: string;
+  last_commit: number | null;
+}
+
 /** Notes on disk that git does not have, per vault — what the app forgot it wrote.
  *  Mirrors `fm_app::dto::Unrecorded`. */
 export interface Unrecorded {

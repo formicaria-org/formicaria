@@ -126,6 +126,10 @@ route!(conflicted(vault: &Path) -> Result<Vec<crate::git::Conflict>, StoreError>
 route!(resolve_conflict(vault: &Path, rel: &str, keep: crate::git::Keep) -> Result<(), StoreError>);
 route!(unrecorded(vault: &Path, notes_rel: &str) -> Result<Vec<crate::git::UnrecordedNote>, StoreError>);
 route!(unpushed(vault: &Path) -> Result<Option<u32>, StoreError>);
+// **How long this vault has been quiet.** Routed from the start rather than reached for directly:
+// the device that most needs the answer is the phone, and the phone is the one that never runs the
+// subprocess backend.
+route!(last_commit(vault: &Path) -> Result<Option<i64>, StoreError>);
 route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);

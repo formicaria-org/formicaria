@@ -709,6 +709,40 @@ of every run by design, so a chip needs its own state, fed the same way `unrecor
 **Done looks like:** a chip that says how many notes came back and opens a list with a one-tap
 "delete it again", and that survives an app restart the way the unrecorded chip does.
 
+**~~It is now two debts in one~~ — the second half shipped the same day; only the kept-note chip is
+still owed.** Since 2026-09-07 a field two devices disagree about keeps both, with the loser demoted
+into a `conflict-<field>` key beside the winner, and that ruling is **conditional on being seen**:
+*"if that surface is not built, this ruling should be revisited rather than left standing."* It is
+built — the `both answers` chip, `DemotedPanel`, the `demoted` command — so the ruling stands. Unlike
+a kept note it needed no new state: the disagreement is in the note's own frontmatter, so the list is
+a scan and it is correct after a restart, on the other device, and in a text editor.
+
+**What is still open here is the original half only:** the *kept-note* chip, which does need state,
+because `VaultSync.kept` is cleared at the start of every run by design.
+
+---
+
+### 2.13 Fewer prose conflicts in the first place — `zdiff3` and a paragraph-oriented diff
+
+Named in the conflicts plan and kept when its Pass 2 (a divergent body becomes two notes) was
+**withdrawn** on the owner's ruling — `decisions.md`, 2026-09-07, *a prose conflict is not turned
+into two notes*. That entry says this "stays on the queue"; it was not written down at the time,
+which is the drift the entry above it is about.
+
+**What it is:** `merge.conflictStyle = zdiff3` shows the common ancestor's text in the marked
+region, so a reader can see what each side changed rather than only what each side ended with. A
+paragraph-oriented diff reduces the *number* of regions that conflict at all — two people editing
+different sentences of one paragraph is the ordinary case, and a line-based merge makes it a
+conflict.
+
+**Why it is worth doing anyway:** everything the app now does about a conflicting body — keep both
+texts with markers, block only that note, say so accurately — is damage control on an event that
+mostly does not need to happen. This is the half that reduces the event.
+
+**Done looks like:** measured, not asserted — a corpus of real two-device edits where the count of
+conflicting notes goes down and no merge that was clean becomes conflicted. Both backends, since
+`merge_texts` is the shared engine and the phone is the device that merges most.
+
 ---
 
 ### 2.11 Before anyone sideloads the iOS `.ipa` — making the first device test safe

@@ -555,6 +555,27 @@ export function setUnrecorded(list: Unrecorded[]): void {
   mockUnrecorded = list.map((u) => ({ ...u }));
 }
 
+/// **When each vault last saved anything**, as epoch seconds — the elapsed-time signal.
+///
+/// Two vaults, two states, because one of each is the only way the rule is visible in a `pnpm dev`
+/// session: `personal` saved minutes ago and must stay silent, `lab` has not saved in **thirty-nine
+/// days**, the real number from the freeze that put this surface in the plan.
+///
+/// Mutable, and `commit` moves it: a chip that says "39 days since a save" and then goes on saying
+/// it after you press Back up is the same false alarm the "not in history" count was (2026-08-24),
+/// and a mock that cannot express the *clearing* is one no test can pin it against.
+/// Recomputed rather than snapshotted, so `reset()` restores *"39 days before now"* and not
+/// "39 days before whenever this module was imported" — the ages are the whole point of it.
+const freshLastCommits = (): Record<string, number | null> => ({
+  personal: Math.floor(Date.now() / 1000) - 300,
+  lab: Math.floor(Date.now() / 1000) - 39 * 86_400,
+});
+let mockLastCommits: Record<string, number | null> = freshLastCommits();
+/// Test-only: say when each vault last saved, or `null` for "never".
+export function setLastCommits(saves: Record<string, number | null>): void {
+  mockLastCommits = { ...saves };
+}
+
 /// Set (or clear) the **default** vault's committer — what the welcome screen gates on.
 ///
 /// The fixtures describe a notebook already in use, so `personal` carries an identity and the
@@ -627,6 +648,9 @@ export function reset(): void {
   mockAgentEnabled = false;
   mockTranscribeEnabled = false;
   mockVaults = JSON.parse(JSON.stringify(FIXTURE_VAULTS)) as typeof mockVaults;
+  // `commit` moves these, so a test that backs up leaks a freshly-saved `lab` into every later
+  // test in the file — which would silently disarm the elapsed-time chip for all of them.
+  mockLastCommits = freshLastCommits();
   mockPlatform = 'linux';
 }
 
@@ -908,6 +932,25 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'unrecorded':
       return mockUnrecorded as T;
+    // A card two devices dragged to different columns. One row, so the chip and the panel both have
+    // something real to render in the browser mock — and so the shape stays honest: `other` is a
+    // list because a field can diverge twice.
+    case 'demoted':
+      return [
+        {
+          id: '01JQ0000000000000000000000',
+          vault: 'home',
+          title: 'Ship the thing',
+          field: 'status',
+          kept: 'done',
+          other: ['doing'],
+        },
+      ] as T;
+    case 'last_commits':
+      return mockVaults.map((v) => ({
+        vault: v.name,
+        last_commit: mockLastCommits[v.name] ?? null,
+      })) as T;
     case 'record_unrecorded': {
       const hit = mockUnrecorded.find((u) => u.vault === String(args.vault));
       // **The refusal is reachable here too.** The server can find notes and still be declined by git
@@ -918,7 +961,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           committed: false,
           notes: hit.count,
           reason:
-            '1 note(s) in this vault are mid-merge. Git refuses to commit anything until those are resolved — open Conflicts and settle them first.',
+            'Recorded what could be recorded; 1 note is still mid-merge and left out — git cannot commit a note while both versions are in it. Open Conflicts to settle it.',
         } as T;
       }
       mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== String(args.vault));
@@ -1780,6 +1823,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const vault = String(args.vault);
       const had = mockUnrecorded.find((u) => u.vault === vault);
       mockUnrecorded = mockUnrecorded.filter((u) => u.vault !== vault);
+      // A commit is exactly the event "how long since this vault saved anything" measures, so it
+      // has to move here — otherwise the elapsed chip could only ever be developed against a
+      // number that never changes, which is the state that hides a stale one.
+      if (had) mockLastCommits[vault] = Math.floor(Date.now() / 1000);
       return { committed: !!had, conflicts: [] } as T;
     }
     case 'backup': {

@@ -25,6 +25,7 @@
   import {
     backup,
     backupStatus,
+    lastCommits,
     backupLatest,
     commit,
     forgetVault,
@@ -40,7 +41,14 @@
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
   import { labelFor } from './vaultLabels.svelte';
-  import type { BackupRun, BackupStatus, GitAuth, LatestBackup, VaultStatus } from './types';
+  import type {
+    BackupRun,
+    BackupStatus,
+    GitAuth,
+    LastCommit,
+    LatestBackup,
+    VaultStatus,
+  } from './types';
 
   // `onnewvault` because this panel is already "a list, not a form" — the one surface in
   // the app that is *about the set of vaults*, which makes it where you add one. (The
@@ -72,6 +80,15 @@
   let auth = $state<Record<string, GitAuth | null>>({});
   /// Per vault, and `null` when the call itself failed — see `loadLatest`.
   let latest = $state<Record<string, LatestBackup | null>>({});
+
+  /// **When each vault last saved anything to git.** The panel half of the toolbar's quiet chip:
+  /// the chip says *which* vault has gone silent and this says it per vault, beside the remote and
+  /// the unpushed count, where somebody who came here to find out can read all three together.
+  ///
+  /// Stated for every vault, not only the quiet ones. A threshold decides when to *interrupt*
+  /// someone; a panel they opened on purpose should answer the question it was opened with.
+  let saves = $state<LastCommit[]>([]);
+  const savedAt = (name: string) => saves.find((s) => s.vault === name)?.last_commit ?? null;
   let authSaved = $state<Record<string, boolean>>({});
   // **The media tier, configurable at last.** Both halves of it used to live outside the app: the
   // repo was a key you hand-edited into `vaults.json` (Settings said so, verbatim: *"there is no
@@ -224,6 +241,9 @@
       }
       await loadAuth();
       await loadLatest();
+      // Cheap and local (one `git log -1` per vault), so unlike `loadLatest` it is not conditional
+      // on anything and cannot fail the panel: an empty answer just leaves the line off.
+      saves = await lastCommits().catch(() => []);
     } catch (e) {
       error = msg(e);
     }
@@ -250,6 +270,21 @@
   function when(iso: string): string {
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  }
+
+  /// Git's stamp, rendered for a person: the moment, and how long ago it was.
+  ///
+  /// **Both halves, because they answer different questions.** The date says *what* the last save
+  /// was — you recognise the afternoon you wrote it — and the elapsed count says whether anything
+  /// is wrong, which is the one nobody could ask before: a vault that had not saved in thirty-nine
+  /// days displayed a date like any other, and a date on its own does not subtract itself.
+  ///
+  /// Days, not hours: the threshold this panel's chip fires on is measured in weeks, and "4 hours
+  /// ago" is precision about a question nobody has.
+  function saved(at: number): string {
+    const days = Math.floor((Date.now() - at * 1000) / 86_400_000);
+    const ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+    return `${new Date(at * 1000).toLocaleString()} — ${ago}`;
   }
 
   /// Where credentials would come from for each HTTPS remote. Failures are left as `null`,
@@ -324,16 +359,23 @@
     verdict = null;
     error = null;
     try {
-      // Commit first (git will not merge over uncommitted edits) — but a commit that
-      // committed *nothing* because the vault is mid-merge must stop us here rather than fall
-      // into a pull that will only refuse, with git's wording instead of ours.
+      // Commit first (git will not merge over uncommitted edits) — but an unfinished merge must
+      // stop us here rather than fall into a pull that will only refuse, with git's wording
+      // instead of ours.
+      //
+      // **Keyed on the conflicts, not on `committed`.** Until 2026-09-07 a mid-merge commit
+      // committed nothing, so `!committed` was a reliable proxy for "mid-merge". It is not any
+      // more: `commit_all` now commits every path except the conflicted ones, so the ordinary
+      // outcome here is `committed: true` **with** notes still stuck — and the old test would
+      // have sailed past into a pull that refuses. What blocks a *sync* is the unfinished merge
+      // itself, which is exactly what `conflicts` reports.
       const c = await commit(`auto: ${new Date().toISOString()}`, v.name).catch(() => null);
-      const blocked = !!c && !c.committed && c.conflicts.length > 0;
+      const blocked = !!c && c.conflicts.length > 0;
       if (blocked) {
         // Not an early return: `busy = false` lives after this block, not in a `finally`,
         // so returning here would leave the panel frozen.
         steps.push({
-          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Nothing is being committed until they are settled — see “Needs resolution” in the Collaboration view, which says what to do for each one.`,
+          text: `${c!.conflicts.length} note${c!.conflicts.length === 1 ? '' : 's'} in ${v.name} still need you: ${(await conflictLabels(c!.conflicts)).join(', ')}. Everything else here is being saved to history as usual, but this vault cannot sync with the other device until ${c!.conflicts.length === 1 ? 'it is' : 'they are'} settled — see “Needs resolution” in the Collaboration view, which says what to do for each one.`,
           ok: false,
         });
       }
@@ -765,6 +807,19 @@
                 {#if v.identity}
                   <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
                 {/if}
+              {/if}
+            </li>
+            <!-- **When this vault last saved anything** — stated for every vault, remote or not,
+                 because it is the one fact that is true independently of everything above it. A
+                 vault whose commits are blocked has a remote, an identity and a plausible unpushed
+                 count; what it does not have is a recent save, and until now no screen said so.
+                 Its own `<li>`, outside the remote branch, for exactly that reason: it must still
+                 be there when there is no remote to talk about. -->
+            <li>
+              {#if savedAt(v.name) === null}
+                <strong>Nothing saved here yet</strong> — this vault has no history at all.
+              {:else}
+                Last saved <strong>{saved(savedAt(v.name)!)}</strong>.
               {/if}
             </li>
           </ul>

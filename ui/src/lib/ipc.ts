@@ -1,4 +1,5 @@
 import type {
+  DemotedField,
   Config,
   AssetStatus,
   BackupStatus,
@@ -8,6 +9,7 @@ import type {
   GitAuth,
   ImportCheck,
   ImportReport,
+  LastCommit,
   DiscussionSummary,
   NoteDetail,
   ObjectMeta,
@@ -270,6 +272,26 @@ export const duplicates = () => invoke<DuplicateFamily[]>('duplicates');
  *  the backend enforces that order rather than trusting a caller to remember it. */
 export const pruneDuplicates = (vault: string) =>
   invoke<{ removed: number; kept: number }>('prune_duplicates', { vault });
+
+/** Fields two devices set differently, where the merge kept both — the winner in the field and the
+ *  loser in a `conflict-<field>` key beside it.
+ *
+ *  **The surface the demotion ruling is conditional on** (`decisions.md`, 2026-09-07): keeping the
+ *  loser is only *not* resolution by fiat for as long as a person can see it and promote it in a
+ *  tap. Stateless, so it is right after a restart and on the other device: the disagreement lives in
+ *  the note's own frontmatter, not in anything this app remembers. */
+export const demoted = () => invoke<DemotedField[]>('demoted');
+export type { DemotedField };
+
+/** When each vault last saved anything, in epoch **seconds** — `null` where nothing ever has.
+ *
+ *  **Its own call, and cheap on purpose.** `backupStatus` carries the rest of a vault's git
+ *  standing but costs a network `ls-remote` per vault and is polled in production only; this is a
+ *  local `git log -1`, so the answer is there offline, on a phone, the moment the app opens. Which
+ *  matters because the thing it reports is *silence*: two notes froze a vault for thirty-nine days
+ *  and no surface anywhere said how long it had been. */
+export const lastCommits = () => invoke<LastCommit[]>('last_commits');
+export type { LastCommit };
 
 /** Notes on disk that git does not have, per vault — what the app forgot it wrote.
  *

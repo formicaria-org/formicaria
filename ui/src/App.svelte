@@ -49,6 +49,8 @@
     pruneDuplicates,
     resolveConflict,
     unrecorded,
+    demoted,
+    lastCommits,
     recordUnrecorded,
   } from './lib/ipc';
   import { setActivity, lastEditFor } from './lib/activity.svelte';
@@ -72,6 +74,7 @@
   import { isRemote } from './lib/remote';
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
+  import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import * as ipc from './lib/ipc';
   import ViewBar from './lib/ViewBar.svelte';
   import * as keys from './lib/keys';
@@ -459,6 +462,7 @@
   // the list flicker.
   let skippedOpen = $state(false);
   let unrecordedOpen = $state(false);
+  let demotedOpen = $state(false);
   /// The last-reported set of unopenable vaults, so the notice fires on change and not per beat.
   let lastUnopened = '';
   let skippedNotes = $state<import('./lib/ipc').SkippedNote[]>([]);
@@ -1154,6 +1158,8 @@
     if (!vaults) return;
     void loadUnrecorded();
     void loadDuplicates();
+    void loadDemoted();
+    void loadLastSaves();
   });
 
   $effect(() => {
@@ -1441,22 +1447,23 @@
       const runs: Promise<unknown>[] = [];
       for (const v of vaults ?? []) {
         const run = commit(`auto: ${stamp}`, v.name)
-          .then((r) => {
-            // **A commit that committed nothing is not automatically fine.** `commit_all`
-            // refuses outright while the vault is mid-merge — correctly, since staging
-            // conflict markers would publish them as content — but it does not *throw*, so
-            // this used to fall through the `.catch` and say nothing at all. Every write
-            // after the conflict is then saved to disk and never committed, for as long as
-            // the conflict sits there. This is the path that matters: `git.rs::commit_all`
-            // notes the auto-commit is debounced 5s after any write, "so a pull that
-            // conflicts hits this within seconds — it is the default path, not an edge case".
-            if (r?.committed || !r?.conflicts?.length || saidCommitFailed) return;
+          .then(async (r) => {
+            // **A conflicted note is announced whether or not the commit succeeded.** This used
+            // to fire only on `!r.committed`, because `commit_all` refused outright while the
+            // vault was mid-merge and said so by committing nothing at all. Since 2026-09-07 it
+            // commits everything *except* the conflicted paths (`decisions.md`, *a conflict
+            // blocks its own notes and nothing else*), so the usual outcome is a successful
+            // commit with notes still stuck — and a message conditioned on failure would be
+            // silent in exactly that case, which is how two notes went unnoticed for 39 days.
+            if (!r?.conflicts?.length || saidCommitFailed) return;
             saidCommitFailed = true;
+            const n = r.conflicts.length;
+            const names = (await conflictLabels(r.conflicts)).join(', ');
             notice =
-              `'${v.name}' has ${r.conflicts.length} note${r.conflicts.length === 1 ? '' : 's'} ` +
-              `waiting on you: ${r.conflicts.join(', ')}. Nothing in this vault is being ` +
-              `committed until they are settled — open each one, both versions are marked in ` +
-              `the text.`;
+              `'${v.name}': ${n} note${n === 1 ? '' : 's'} ${n === 1 ? 'is' : 'are'} waiting on ` +
+              `you — ${names}. ${n === 1 ? 'It has' : 'They have'} both versions in the text and ` +
+              `git will not record ${n === 1 ? 'it' : 'them'} until you pick one. Everything ` +
+              `else in this vault is being committed as usual.`;
           })
           .catch((e) => {
             if (saidCommitFailed) return;
@@ -1523,6 +1530,42 @@
   async function loadUnrecorded() {
     unrecordedList = await unrecorded().catch(() => []);
   }
+
+  /// Fields the two devices set differently, where the merge kept both.
+  ///
+  /// **The condition the demotion ruling attaches to itself** (`decisions.md`, 2026-09-07): the
+  /// loser is only *not* resolution by fiat for as long as it is visible and one tap from winning.
+  /// Loaded on the same cadence as the outstanding list — it is a scan, not a per-render read — and
+  /// stateless, so it is right after a restart and on the other device.
+  let demotedList = $state<import('./lib/ipc').DemotedField[]>([]);
+  async function loadDemoted() {
+    demotedList = await demoted().catch(() => []);
+  }
+  /// Counted by **note**, not by row: two diverged fields on one note is one thing to look at, and a
+  /// chip that says "2" for one note reads as two notes.
+  const demotedNotes = $derived(new Set(demotedList.map((d) => d.id)).size);
+
+  /// **How long each vault has been quiet** — the one alert that reports an absence.
+  ///
+  /// Every other chip here names something it found: a note that will not parse, a note git does
+  /// not have, a field two devices disagree about. Each of those depends on a detector working.
+  /// This one depends on nothing: it asks git when the vault last saved anything and says so, which
+  /// is why it is the one that would have caught the thirty-nine-day freeze — where every specific
+  /// detector was either missing or blocked by the very conflict it existed to report.
+  ///
+  /// Local and cheap (`git log -1` per vault), so unlike `movedVaults` it is **not** behind the
+  /// production-only network poll: the device that most needs to be told its notes have not gone
+  /// anywhere is a phone that is often offline, and this must be right at the first paint.
+  let lastSaves = $state<import('./lib/ipc').LastCommit[]>([]);
+  async function loadLastSaves() {
+    lastSaves = await lastCommits().catch(() => []);
+  }
+  /// The ages are derived from the instants rather than sent as numbers, so the backend never has
+  /// to have an opinion about "now" — and so a reload is all it takes to be current. `Date.now()`
+  /// is not a reactive dependency, so this is as fresh as `lastSaves` is: the vault-list cadence,
+  /// plus after every backup. At a threshold measured in weeks that is ample, and the alternative
+  /// — a ticking clock behind a chip — is a re-render every second to change nothing.
+  const quiet = $derived(quietVaults(lastSaves, Date.now()));
   const unrecordedTotal = $derived(unrecordedList.reduce((n, u) => n + u.count, 0));
   /// Record every vault's forgotten notes. One click, because the answer is never "some of them".
   ///
@@ -1642,6 +1685,11 @@
       // clear them" (reported 2026-08-24 with a count of 1). The count is a fact about git, and
       // this is the moment git changed.
       await loadUnrecorded();
+      // Same argument, and the chip it feeds is the one that says "nothing has been saved here in
+      // N days": a backup is precisely the event that answers it, so leaving the old number on
+      // screen would have the alert survive the act that resolved it — which is how an alert stops
+      // being read at all.
+      await loadLastSaves();
     }
   }
 
@@ -2008,6 +2056,40 @@
         </button>
       {/if}
 
+      {#if quiet.length}
+        <!-- **Nothing has been saved here in weeks.** The only chip that reports an *absence*, and
+           the reason it exists: for thirty-nine days a vault could not commit, and the screen it
+           was on looked exactly like a notebook nobody had opened. Every other alert here names
+           something a detector found, so every other alert is silent when the detector is the
+           thing that broke. This one asks git one question — when did this vault last save
+           anything — and cannot be blocked by the answer.
+           **Filled like the "someone pushed" chip**, because unlike "both answers" this is an
+           invitation to act, and the action is one button to its right.
+           It opens the panel rather than backing up on the click: weeks of silence has more than
+           one cause — a merge waiting on a person, a remote that never got set, or simply nobody
+           writing — and the panel is where those are told apart. -->
+        <button class="tb-chip moved" onclick={onBackup} title={quietTitle(quiet)}>
+          <Icon name="clock" size={14} />
+          <span class="lbl">{quietLabel(quiet)}</span>
+        </button>
+      {/if}
+
+      {#if demotedNotes}
+        <!-- **Where a merge kept both answers.** A chip for the same reason "unreadable" and "not in
+           history" are chips: the condition is not transient and its whole failure mode is silence.
+           `decisions.md` (2026-09-07) makes this surface a *condition* of the rule that demotes a
+           losing value rather than dropping it — unseen, the demotion would be the fiat that entry
+           spends its length denying. Nothing here is blocking anything, so it is deliberately the
+           quietest of the three. -->
+        <button
+          class="tb-chip"
+          onclick={() => (demotedOpen = true)}
+          title="Notes where the two devices set a field differently — both answers were kept"
+        >
+          {demotedNotes}{' '}<span class="lbl">both answers</span>
+        </button>
+      {/if}
+
       <!-- **Back up is a split button**, because "save" had become a question nobody could answer
          from the screen. The wide half does the ordinary thing — commit and push **notes** — and
          the narrow half opens the variants. That keeps one obvious action at one click while the
@@ -2266,6 +2348,19 @@
     {#if skippedOpen}
       {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
         <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
+      {/await}
+    {/if}
+
+    {#if demotedOpen}
+      {#await import('./lib/DemotedPanel.svelte') then { default: DemotedPanel }}
+        <DemotedPanel
+          rows={demotedList}
+          onclose={() => (demotedOpen = false)}
+          onchanged={async () => {
+            await loadDemoted();
+            await refresh();
+          }}
+        />
       {/await}
     {/if}
 

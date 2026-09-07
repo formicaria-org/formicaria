@@ -70,11 +70,60 @@ fn backends() -> Vec<(&'static str, Pull)> {
 /// *clear* the driver (no `fm` in `deps/`), and a plain merge would conflict on every `updated:` line —
 /// the exact failure the driver exists to prevent. This makes the real driver path work unmodified,
 /// rather than side-stepping it with a raw `git merge`.
+/// Put the built `fm` **beside the test binary**, because `git::ensure_repo` — which runs inside
+/// every `commit_all` and `pull` — resolves the merge driver as `current_exe().parent()/fm`, the
+/// same way the product finds `fm` beside `fm-serve`. Without it `ensure_repo` *clears* the driver
+/// (there is no `fm` in `deps/`) and the desktop half of every test here silently measures **bare
+/// git** rather than anything of ours.
+///
+/// **Copied when missing *or stale*, which is the half that was wrong.** The original guard was
+/// `if !dst.exists()`, so whatever a previous run left there answered as the merge driver for ever:
+/// on 2026-09-07 that was a six-week-old `fm`, and three suites were grading a build nobody had
+/// made since. Renamed into place rather than written in place, so a second test binary doing this
+/// concurrently never sees a half-copied driver.
+/// Put the built `fm` **beside the test binary**, because `git::ensure_repo` — which runs inside
+/// every `commit_all` and `pull` — resolves the merge driver as `current_exe().parent()/fm`, the
+/// same way the product finds `fm` beside `fm-serve`. Without it `ensure_repo` *clears* the driver
+/// (there is no `fm` in `deps/`) and the desktop half of every test here silently measures **bare
+/// git** rather than anything of ours.
+///
+/// **Two ways to get this wrong, both found on 2026-09-07, both by their symptoms rather than by
+/// reading the code.**
+///
+/// 1. The original guard was `if !dst.exists()`, so whatever a previous run left there answered for
+///    ever — a **six-week-old `fm`**, and three suites were grading a build nobody had made since.
+/// 2. Replacing that with an mtime comparison is *also* wrong, and worse because it looks right.
+///    `pixi run ci` runs `test` (no `native-git`) and `test-native-git` as separate tasks, so cargo
+///    alternates two different `fm` builds through the same path — and restoring a cached artifact
+///    moves its mtime **backwards**. "Older than the source" is then simply not what "stale" means
+///    here. Measured: a 102 MB native build at 18:59 and a 57 MB plain one at 18:57, in that order.
+///
+/// So the copy is keyed on a **stamp** of the source's (length, mtime) — an equality, not an
+/// ordering — and the new binary is verified to execute *before* it is renamed into place, because
+/// the two tasks can also be mid-swap on the source while this reads it. A driver git cannot run is
+/// silent: git takes the failed exec as "conflict" and hands back `%A` untouched, so the merge
+/// yields one side with no markers and no error anywhere. That is what the flake looked like.
 fn ensure_fm_beside_test_binary() {
-    let dst = std::env::current_exe().unwrap().parent().unwrap().join("fm");
-    if !dst.exists() {
-        let _ = std::fs::copy(env!("CARGO_BIN_EXE_fm"), &dst);
+    let src = Path::new(env!("CARGO_BIN_EXE_fm"));
+    let dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
+    let (dst, stamp_path) = (dir.join("fm"), dir.join("fm.stamp"));
+
+    let Ok(meta) = std::fs::metadata(src) else { return };
+    let stamp = format!("{:?}:{}", meta.modified().ok(), meta.len());
+    if std::fs::read_to_string(&stamp_path).is_ok_and(|s| s == stamp) && dst.exists() {
+        return;
     }
+
+    let tmp = dir.join(format!("fm.{}.tmp", std::process::id()));
+    let copied = std::fs::copy(src, &tmp).is_ok();
+    // Does it actually run? Any exit status will do — `fm` with no arguments prints its usage and
+    // fails, which still proves the OS could execute the file. What this rejects is a truncated or
+    // half-written copy, which is the only failure mode that matters and the only silent one.
+    if copied && std::process::Command::new(&tmp).output().is_ok() {
+        let _ = std::fs::rename(&tmp, &dst);
+        let _ = std::fs::write(&stamp_path, &stamp);
+    }
+    let _ = std::fs::remove_file(&tmp);
 }
 
 /// A bare remote plus two clones of it, both carrying the `fm` driver and tracking `main`.

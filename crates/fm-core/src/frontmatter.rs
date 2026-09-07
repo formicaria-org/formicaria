@@ -274,6 +274,18 @@ fn as_string_seq(v: Value) -> Vec<String> {
 
 /// PropertyValue -> YAML for a custom key. No float variant exists in the model,
 /// so dates/datetimes serialize as their ISO strings (they come back as `Text`).
+/// The value this one becomes after a round trip through a file — `to_file` then `from_file`.
+///
+/// **Only the merge needs this, and it needs it to be exact.** A demoted conflict value
+/// (`merge::merge_objects`) is written into `extra` and read back on the next merge, so if the
+/// in-memory value and its on-disk reading differ, the two are unequal and the set of demoted
+/// values grows a second copy of the same disagreement on every pull. They *do* differ for two
+/// variants: a `Stamp` and a `DateTime` both serialise to a string and come back as `Text`.
+/// Normalising once at the point of demotion is what makes the merge a fixed point.
+pub(crate) fn as_written(p: &PropertyValue) -> PropertyValue {
+    yaml_to_prop(&prop_to_yaml(p))
+}
+
 fn prop_to_yaml(p: &PropertyValue) -> Value {
     match p {
         PropertyValue::Null => Value::Null,
