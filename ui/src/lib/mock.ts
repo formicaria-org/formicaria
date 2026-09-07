@@ -1915,7 +1915,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return 2 as T;
     case 'pull':
       // Nothing to pull from: there is no vault and no remote here.
-      return { merged: 0, conflicts: [] } satisfies PullResult as T;
+      return { merged: 0, conflicts: [], kept: [] } satisfies PullResult as T;
     default:
       throw new Error(`mock: unknown command ${cmd}`);
   }

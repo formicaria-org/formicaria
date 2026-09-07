@@ -83,18 +83,28 @@ export interface VaultSync {
   error?: string;
   /** Commits pulled in on the way, so the UI can say "3 changes arrived". */
   merged: number;
+  /** Notes a pull **kept** because the other device had deleted them while this one edited them
+   *  (`decisions.md`, 2026-09-07). Carried here rather than reported only inside the Backup panel:
+   *  a pull also happens from the "someone pushed" chip, and a decision the app made on the user's
+   *  behalf must not depend on which door they came through. */
+  kept: string[];
 }
 
 const state = $state<{ byVault: Record<string, VaultSync> }>({ byVault: {} });
 
 function set(vault: string, patch: Partial<VaultSync>): void {
-  const prev = state.byVault[vault] ?? { phase: 'idle' as SyncPhase, conflicts: [], merged: 0 };
+  const prev = state.byVault[vault] ?? {
+    phase: 'idle' as SyncPhase,
+    conflicts: [],
+    merged: 0,
+    kept: [],
+  };
   state.byVault[vault] = { ...prev, ...patch };
 }
 
 /** This vault's sync state. Reactive. */
 export function syncFor(vault: string): VaultSync {
-  return state.byVault[vault] ?? { phase: 'idle', conflicts: [], merged: 0 };
+  return state.byVault[vault] ?? { phase: 'idle', conflicts: [], merged: 0, kept: [] };
 }
 
 /** Every vault currently mid-flight — what a global "syncing…" indicator reads. */
@@ -113,7 +123,7 @@ export function needsAttention(): { vault: string; state: VaultSync }[] {
 
 /** Forget a terminal state once the user has seen it (or once a later sync supersedes it). */
 export function clearSync(vault: string): void {
-  set(vault, { phase: 'idle', conflicts: [], error: undefined, merged: 0 });
+  set(vault, { phase: 'idle', conflicts: [], error: undefined, merged: 0, kept: [] });
 }
 
 /**
@@ -159,7 +169,7 @@ export async function syncVault(
   onChanged?: () => void | Promise<void>,
   ops: SyncOps = realOps,
 ): Promise<SyncPhase> {
-  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0 });
+  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0, kept: [] });
   const stopped = await commitStep(vault, message, ops);
   if (stopped) return stopped;
 
@@ -187,6 +197,10 @@ export async function syncVault(
       set(vault, { phase: 'failed', error: String(pushErr) });
       return 'failed';
     }
+
+    // Recorded before the conflict branch returns, so a pull that both kept a note *and* left a
+    // marker conflict still reports the keep. They are independent outcomes of one merge.
+    if (pulled.kept.length > 0) set(vault, { kept: pulled.kept });
 
     if (pulled.conflicts.length > 0) {
       // A result, not an error — the notes still open, with markers in the body. But the
@@ -239,7 +253,7 @@ export async function pullVault(
   // means the tree is dirty exactly when the user has just been typing, which is exactly
   // when they reach for "get changes". This policy already existed in the backup panel and
   // not in the top-bar nudge; two spellings of one rule is how they drift.
-  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0 });
+  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0, kept: [] });
   const stopped = await commitStep(vault, `auto: ${new Date().toISOString()}`, ops);
   if (stopped) return stopped;
 
@@ -247,6 +261,7 @@ export async function pullVault(
   try {
     const pulled = await ops.pull(vault);
     if (pulled.merged > 0) await onChanged?.();
+    if (pulled.kept.length > 0) set(vault, { kept: pulled.kept });
     if (pulled.conflicts.length > 0) {
       await onChanged?.();
       set(vault, { phase: 'conflicts', conflicts: pulled.conflicts });

@@ -416,3 +416,112 @@ fn marking_resolved_is_refused_while_markers_remain_on_either_device() {
         assert!(vault.join(".git/MERGE_HEAD").exists(), "native={native}: still mid-merge");
     }
 }
+
+/// A vault with a real remote and a second clone, so `pull` genuinely runs. `mid_merge` above
+/// builds its conflict with `git merge` directly, which is right for testing *resolution* — but
+/// the auto-settle under test lives in `pull`, so it needs the real thing.
+///
+/// Returns `(remote, ours, theirs)`. `ours` is the device that will edit; `theirs` deletes.
+fn two_clones(dir: &Path) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    let remote = dir.join("remote.git");
+    g(dir, &["init", "-q", "--bare", "-b", "main", remote.to_str().unwrap()]);
+
+    let seed = dir.join("seed");
+    let rel = format!("notes/{ID}.md");
+    std::fs::create_dir_all(seed.join("notes")).unwrap();
+    g(&seed, &["init", "-q", "-b", "main"]);
+    g(&seed, &["config", "user.name", "Tester"]);
+    g(&seed, &["config", "user.email", "t@example.com"]);
+    std::fs::write(seed.join(&rel), note("the original")).unwrap();
+    g(&seed, &["add", "-A"]);
+    g(&seed, &["commit", "-qm", "add"]);
+    g(&seed, &["remote", "add", "origin", remote.to_str().unwrap()]);
+    g(&seed, &["push", "-q", "-u", "origin", "main"]);
+
+    let mut out = Vec::new();
+    for name in ["ours", "theirs"] {
+        let path = dir.join(name);
+        g(dir, &["clone", "-q", remote.to_str().unwrap(), path.to_str().unwrap()]);
+        g(&path, &["config", "user.name", "Tester"]);
+        g(&path, &["config", "user.email", "t@example.com"]);
+        out.push(path);
+    }
+    (remote, out.remove(0), out.remove(0))
+}
+
+/// **Two stuck notes must not freeze two hundred — the incident, reproduced.**
+///
+/// On a real phone, one delete/modify conflict left the index unmerged and `commit_all` refuses
+/// while anything is unmerged — so **202 unrelated notes could not be committed or pushed for 39
+/// days**, 196 of them brand new and no part of the merge. The count was visible; the cause was
+/// not; and the vault never recovered on its own.
+///
+/// What this pins, on **both backends**, because the phone runs the one a dev machine never does:
+///
+/// 1. A pull that hits a delete/modify **finishes** — no `MERGE_HEAD` left standing.
+/// 2. The note is **kept**, and `Pulled::Merged` **names it**. A resolution nobody is told about is
+///    the silence this replaced (`decisions.md`, 2026-09-07).
+/// 3. **The vault commits afterwards.** This is the assertion the incident is about: notes written
+///    after the conflict reach history instead of piling up behind it.
+///
+/// Proven red by removing the auto-settle branch from either backend's `pull`: the pull returns
+/// `Conflicted`, `MERGE_HEAD` stands, and the follow-up `commit_all` answers `false` with the new
+/// note stranded — which is exactly the phone's state on the day this was written.
+#[test]
+fn a_note_the_other_device_deleted_is_kept_and_the_vault_keeps_committing() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_remote, ours, theirs) = two_clones(dir.path());
+        let rel = format!("notes/{ID}.md");
+
+        // The other device deletes the note and pushes.
+        g(&theirs, &["rm", "-q", &rel]);
+        g(&theirs, &["commit", "-qm", "delete it there"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+
+        // This device edits the same note and commits, then pulls their deletion.
+        std::fs::write(ours.join(&rel), note("edited here, deleted there")).unwrap();
+        g(&ours, &["add", "-A"]);
+        g(&ours, &["commit", "-qm", "edit it here"]);
+
+        vcs::force_native(native);
+        let outcome = vcs::pull(&ours).unwrap_or_else(|e| panic!("native={native}: pull: {e}"));
+
+        match outcome {
+            git::Pulled::Merged { kept, .. } => assert_eq!(
+                kept,
+                vec![rel.clone()],
+                "native={native}: the kept note must be named, not silently resurrected"
+            ),
+            other => panic!("native={native}: a delete/modify must not stall the pull: {other:?}"),
+        }
+
+        assert!(
+            !ours.join(".git/MERGE_HEAD").exists(),
+            "native={native}: the merge is finished, so nothing is left to freeze the vault"
+        );
+        assert!(
+            ours.join(&rel).exists(),
+            "native={native}: the note is kept — deleting it here would be the unrecoverable answer"
+        );
+
+        // **The assertion the whole incident is about.** A note written after the conflict must
+        // reach history rather than pile up behind it.
+        // Absolute, as `adoptable` and the write-record both hand them over: `commit_all` tests
+        // `p.exists()` on the path as given, so a relative one resolves against the *process*
+        // working directory and stages nothing on the native backend.
+        let after = ours.join("notes/01M1WXF2FW4SSXJVKX3J81BMSW.md");
+        std::fs::write(&after, note("written after the conflict")).unwrap();
+        let made = vcs::commit_all(&ours, "auto: after the conflict", std::slice::from_ref(&after))
+            .unwrap_or_else(|e| panic!("native={native}: commit_all: {e}"));
+        assert!(made, "native={native}: the vault must commit again once the merge is settled");
+
+        vcs::force_native(false);
+    }
+}

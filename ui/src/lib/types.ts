@@ -333,6 +333,15 @@ export interface CommitResult {
 export interface PullResult {
   merged: number;
   conflicts: string[];
+  /** Notes the other device had **deleted** while this one edited them, kept rather than left to
+   *  freeze the vault (`decisions.md`, 2026-09-07). There is no text to merge in that case, and an
+   *  unmerged index refuses every commit in the vault — which is how two notes stopped two hundred
+   *  for thirty-nine days.
+   *
+   *  **The caller must say so.** This is a decision the app made on the user's behalf: it discards
+   *  a deletion, and the undo is "keep this device's version" in Needs resolution. Empty in the
+   *  ordinary case. */
+  kept: string[];
 }
 
 /** A vault, as the sidebar and the first-run screen need it. Deliberately not

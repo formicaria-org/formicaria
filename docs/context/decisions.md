@@ -5886,3 +5886,64 @@ blame would step over that change too.
 bundle, and `ci/third-party.sh` reads `pnpm licenses --prod`, so the licence notice is unaffected.
 The gate grows by four tasks (`fmt`, `fmt-ui`, `clippy`, and `test-native-git` alongside them) and
 about 30 seconds.
+
+## 2026-09-07 — a merge never stalls on a question whose safe answer is a note `#git` `#sync` `#data`
+
+**Two notes froze two hundred, for thirty-nine days, on a real phone.** A `DU` delete/modify
+conflict — a note deleted on one device and edited on the other — left the index unmerged.
+`commit_all` refuses while anything is unmerged, so **202 unrelated notes could not be committed or
+pushed**, 196 of them brand new and no part of the merge at all. The owner's verdict: *"the user does
+not know about merge conflicts and so on, so all the rest should be committable and synchable."*
+
+**The ruling.** When a pull leaves a conflict whose kinds are `DeletedByUs` or `DeletedByThem`, the
+app resolves it automatically **in favour of keeping the note**, finishes the merge, and says so
+persistently. Marker kinds (`BothModified`, `BothAdded`) and `BothDeleted` are untouched and still
+wait for a human.
+
+**What this costs, stated plainly rather than argued away: it discards a deletion.** Somebody deleted
+that note on one device and we are bringing it back. That is a real user action being overridden, and
+calling it "safe" without saying so would be the overstatement this project keeps correcting.
+
+**Why it is still right.** The two outcomes are not symmetric. A resurrected note is *visible* and one
+tap from being deleted again — `resolve_conflict(…, Keep::Mine)` already exists on both backends. A
+note deleted by fiat is gone from the working tree and recoverable only from history, and **on a phone
+there is no shell**, so in practice it is not recoverable at all. This is the same trade
+`decisions.md`'s blob-manifest rule already made one level down — *"visible and recoverable, versus
+silent and permanent"* — and the same asymmetry behind *"deleting an untracked note is unrecoverable,
+while deleting a tracked one is one `git checkout` away."*
+
+**What this is NOT, because a reader will reach for the wrong neighbour.** It does **not** touch
+`merge.rs`'s *"we never resolve that by fiat"*. That rule governs the **merge engine** choosing
+between two pieces of surviving content — a divergent frontmatter field, where picking a winner
+silently destroys the loser. A delete/modify has one piece of content and one *absence*; keeping the
+content discards no text that git does not still hold on the merge's other parent. The engine is
+unchanged, and an auto-resolve attempt on a *frontmatter field* would still be the mistake that was
+built and reverted on 2026-07-22.
+
+**Addressing the acceptance clause by name.** *"Any change to this behaviour is its own ruling with
+its own adversarial pass. Acceptance: both values survive in the file, the file parses, and the result
+is `Conflicted` — never Clean."* That clause is scoped to the frontmatter/body merge, and its test —
+*both values survive in the file* — is meaningless where one side has no file. It is not satisfiable
+here and it is not meant to be. This is the separate ruling it asks for.
+
+**It must not be silent**, which is where *"explicit, never silent"* still binds. `Pulled::Merged`
+carries the kept paths, `PullResult` and `VaultSync` carry them to the UI, and **both doors onto a
+pull report them** — the Backup panel's step list and the "someone pushed" chip — each naming the
+notes and saying the deletion can be re-applied in a tap. The undo is
+`resolve_conflict(…, Keep::Mine)`, which already existed.
+
+**What shipped is weaker than the sentence this entry first carried, and the gap is recorded rather
+than glossed.** That sentence promised a *persistent* surface. What is built is a step line (per run)
+and a dismissible banner — better than silence, and not the same thing. A persistent surface would
+mean a chip like *unrecorded* and *unreadable*, which needs the kept set to live in app state beyond
+one sync run. **That is owed**, and it is in `outstanding.md`. Writing the stronger claim and
+shipping the weaker one is precisely the drift this file exists to catch, so it is corrected here
+rather than left standing.
+
+**Also ruled, and separately:** a conflict that *does* block must not block everything else. Git will
+not write a tree from an index holding any conflict entry — that is absolute — but staging an
+unrelated path into a conflicted index is legal, `Index::write()` with conflicts present is legal, and
+a tree assembled by hand has no mid-merge check at all. So `commit_all` commits `owned` minus the
+conflicted paths rather than refusing wholesale. The hazard that governs the implementation: **the
+real index must move to stage 0 in lockstep with HEAD**, or `finish_merge_if_resolved` later writes a
+merge commit that deletes every note committed this way.

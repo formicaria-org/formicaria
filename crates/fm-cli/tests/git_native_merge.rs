@@ -161,11 +161,11 @@ fn a_concurrent_edit_merges_the_same_way_on_both_backends() {
     let (_, nat_pulled, nat_text) = &results[1];
 
     assert!(
-        matches!(sub_pulled, git::Pulled::Merged(_)),
+        matches!(sub_pulled, git::Pulled::Merged { .. }),
         "subprocess merged cleanly: {sub_pulled:?}"
     );
     assert!(
-        matches!(nat_pulled, git::Pulled::Merged(_)),
+        matches!(nat_pulled, git::Pulled::Merged { .. }),
         "native must too, or the driver gap is real: {nat_pulled:?}"
     );
 

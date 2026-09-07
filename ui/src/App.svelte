@@ -844,6 +844,18 @@
       } else if (phase === 'failed') {
         report(syncFor(v).error ?? `could not pull '${v}'`);
       }
+      // **Independent of the phase**: a pull can keep a note *and* still conflict on another, and
+      // the keep is a decision the app made on the user's behalf. Said here as well as in the
+      // Backup panel, because this chip is the other door onto the same operation.
+      const kept = syncFor(v).kept;
+      if (kept.length) {
+        const names = (await conflictLabels(kept)).join(', ');
+        notice =
+          `'${v}': ${kept.length} note(s) came back — the other device had deleted ` +
+          `${kept.length === 1 ? 'it' : 'them'} while this one was editing, and there was no text ` +
+          `to merge. Kept rather than leaving this vault unable to record anything: ${names}. ` +
+          `Delete ${kept.length === 1 ? 'it' : 'them'} again here if that is what you meant.`;
+      }
     }
   }
   $effect(() => {

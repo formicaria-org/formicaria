@@ -139,7 +139,7 @@ fn a_note_one_user_creates_reaches_the_other_after_a_sync() {
         // Ravi, who had nothing, pulls and now has it — byte-identical, and readable through the store.
         let outcome = pull(ravi.path()).unwrap();
         assert!(
-            matches!(outcome, git::Pulled::Merged(_)),
+            matches!(outcome, git::Pulled::Merged { .. }),
             "[{backend}] Ravi should merge Ada's note: {outcome:?}"
         );
         let ravi_store = open(ravi.path());
@@ -195,7 +195,7 @@ fn concurrent_edits_to_different_lines_of_one_note_merge_cleanly() {
         // Different lines → the driver merges it to a non-event: both edits present, no markers, and
         // the manufactured `updated:` collision never surfaces.
         assert!(
-            matches!(outcome, git::Pulled::Merged(_)),
+            matches!(outcome, git::Pulled::Merged { .. }),
             "[{backend}] a different-line edit must merge clean: {outcome:?}"
         );
         let body = fm_app::commands::get(&open(ravi.path()), &id).unwrap().unwrap().body;

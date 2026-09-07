@@ -696,6 +696,21 @@ what the snapshot held. The *why* is four entries in `decisions.md` under `#vaul
 `known-issues.md`. Seventeen comments in the source cite this file by section number, which is why
 the heading stays.
 
+### 2.12 A kept note needs a persistent surface, not a banner
+When a pull keeps a note the other device deleted (`decisions.md`, 2026-09-07, *a merge never stalls
+on a question whose safe answer is a note*), it is reported in the Backup panel's step list and in
+the "someone pushed" banner. Both are **per-run or dismissible**. The ruling asks for a persistent
+surface — a chip beside *unrecorded* and *unreadable* — because this is a decision the app made on
+the user's behalf and a dismissal should not be the end of it.
+
+**What it needs:** the kept set has to outlive one sync run. `VaultSync.kept` is cleared at the start
+of every run by design, so a chip needs its own state, fed the same way `unrecordedList` is.
+
+**Done looks like:** a chip that says how many notes came back and opens a list with a one-tap
+"delete it again", and that survives an app restart the way the unrecorded chip does.
+
+---
+
 ### 2.11 Before anyone sideloads the iOS `.ipa` — making the first device test safe
 
 Rung 5 is green: `formicaria.ipa` exists, is device-platform, arm64, unsigned and free-team-signable

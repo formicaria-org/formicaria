@@ -889,7 +889,7 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
         r.set_target(their_oid, "pull: fast-forward").map_err(map)?;
         repo.set_head(&format!("refs/heads/{branch}")).map_err(map)?;
         repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
-        return Ok(Pulled::Merged(0));
+        return Ok(Pulled::Merged { incoming: 0, kept: Vec::new() });
     }
 
     // A real merge.
@@ -904,6 +904,8 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
 
     let mut index = repo.index().map_err(map)?;
     let mut unresolved: Vec<String> = Vec::new();
+    // Notes kept because the other side had deleted them — reported, never silent.
+    let mut kept: Vec<String> = Vec::new();
 
     if index.has_conflicts() {
         let items: Vec<_> = index.conflicts().map_err(map)?.flatten().collect();
@@ -923,13 +925,38 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
             };
             let (base_txt, our_txt, their_txt) = (blob(&c.ancestor), blob(&c.our), blob(&c.their));
 
-            // THE call — see [`merged_text`], which is this decision and nothing else.
-            let (merged, outcome) = merged_text(&path, &base_txt, &our_txt, &their_txt)?;
-
             let full = vault.join(&path);
             if let Some(parent) = full.parent() {
                 std::fs::create_dir_all(parent).map_err(io)?;
             }
+
+            // **A deletion on one side and an edit on the other has no text to merge — so keep
+            // the note and let the vault carry on.** One side has no blob at all, so
+            // `merged_text` can only wrap markers around an empty half; the note stays
+            // conflicted, and a conflicted index refuses *every* commit in the vault. That is
+            // how two notes froze two hundred for thirty-nine days on a real phone.
+            //
+            // It discards a deletion, deliberately: somebody removed this note on one device and
+            // it is coming back. The trade is stated in `decisions.md` (2026-09-07, *a merge
+            // never stalls on a question whose safe answer is a note*) — a resurrected note is
+            // visible and one tap from being deleted again, while a note deleted by fiat is gone
+            // from the worktree and, on a phone with no shell, gone for good.
+            //
+            // **Narrow on purpose.** An ancestor plus exactly one missing side is a delete/modify
+            // and nothing else: two present sides is a real text conflict and still waits for a
+            // human, and no ancestor is an add/add, which this must not touch.
+            if c.ancestor.is_some() && c.our.is_none() != c.their.is_none() {
+                let keep = if c.our.is_some() { &our_txt } else { &their_txt };
+                std::fs::write(&full, keep).map_err(io)?;
+                index.conflict_remove(Path::new(&path)).map_err(map)?;
+                index.add_path(Path::new(&path)).map_err(map)?;
+                kept.push(path);
+                continue;
+            }
+
+            // THE call — see [`merged_text`], which is this decision and nothing else.
+            let (merged, outcome) = merged_text(&path, &base_txt, &our_txt, &their_txt)?;
+
             std::fs::write(&full, &merged).map_err(io)?;
 
             if outcome == crate::merge::Merged::Clean {
@@ -971,7 +998,8 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
     // refuses.
     repo.cleanup_state().map_err(map)?;
     repo.checkout_head(Some(git2::build::CheckoutBuilder::default().force())).map_err(map)?;
-    Ok(Pulled::Merged(incoming))
+    kept.sort();
+    Ok(Pulled::Merged { incoming, kept })
 }
 
 /// The raw push, with no squash — the primitive [`push_squashed`] is built on.

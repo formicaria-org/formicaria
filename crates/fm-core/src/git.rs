@@ -1707,11 +1707,20 @@ fn remote_head(vault: &Path, branch: &str) -> Result<Option<String>, StoreError>
 pub enum Pulled {
     /// The remote had nothing we don't. The overwhelmingly common case.
     UpToDate,
-    /// Their work arrived and merged, cleanly. `0` when we simply fast-forwarded.
-    Merged(u32),
+    /// Their work arrived and merged. `incoming` is `0` when we simply fast-forwarded.
+    ///
+    /// `kept` names notes the other device had **deleted** while this one edited them. There is
+    /// no text to merge in that case, so rather than freeze every commit in the vault the note
+    /// is kept and named here — see `decisions.md` (2026-09-07). Empty in the ordinary case.
+    /// The caller must say so: a resolution nobody is told about is the silence this replaced.
+    Merged { incoming: u32, kept: Vec<String> },
     /// Their work arrived and genuinely disagrees with ours. The named notes have
     /// conflict markers in them and are waiting for a human. Thanks to the `.md` merge
     /// driver those markers are in the *body*, so the notes still open in the editor.
+    ///
+    /// **Only marker conflicts reach here now.** Before 2026-09-07 a delete/modify landed in this
+    /// variant too, and the sentence above was then false of it — there were no markers to open,
+    /// which is exactly what made the advice impossible to follow.
     Conflicted(Vec<String>),
 }
 
@@ -1778,14 +1787,51 @@ pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
 
     let out = git(vault).args(["merge", "--no-edit", &track]).output().map_err(spawn)?;
     if out.status.success() {
-        return Ok(Pulled::Merged(incoming));
+        return Ok(Pulled::Merged { incoming, kept: Vec::new() });
     }
     // A merge that stopped is either a real conflict — which is a *result*, not a
     // failure — or something else entirely, which is.
     match unmerged_paths(vault)? {
-        Some(files) => Ok(Pulled::Conflicted(files)),
+        Some(_) => {
+            // Settle the kinds that have a safe answer before reporting. `resolve_conflict`
+            // finishes the merge itself once the last path is settled, so if only delete/modify
+            // conflicts stood in the way the vault is already merged by the time this returns.
+            let kept = keep_notes_the_other_side_deleted(vault)?;
+            match unmerged_paths(vault)? {
+                Some(files) => Ok(Pulled::Conflicted(files)),
+                None => Ok(Pulled::Merged { incoming, kept }),
+            }
+        }
         None => Err(failed("git merge", &out)),
     }
+}
+
+/// Settle every delete/modify conflict by **keeping the note**, and name what was kept.
+///
+/// The twin of the branch inside `git_native::pull`, and held to it by `git_differential.rs`.
+/// A note deleted on one device and edited on the other has no text to merge — `git merge` leaves
+/// it unmerged with no markers, and an unmerged index refuses *every* commit in the vault, not
+/// just that note's. Two of these froze two hundred notes for thirty-nine days on a real phone.
+///
+/// It discards a deletion, deliberately; the argument is in `decisions.md` (2026-09-07). Marker
+/// conflicts and `BothDeleted` are left alone — there the two sides are both content, and picking
+/// one by fiat is the data loss `merge.rs` forbids.
+fn keep_notes_the_other_side_deleted(vault: &Path) -> Result<Vec<String>, StoreError> {
+    let mut kept = Vec::new();
+    for c in conflicted(vault)? {
+        // `Keep` is expressed from *our* side, so the verb flips with the kind: when we deleted,
+        // theirs is the note; when they deleted, ours is. The truth table this mirrors is
+        // `keep_file` below — both arms there are `true`, which is the point.
+        let keep = match c.kind {
+            ConflictKind::DeletedByUs => Keep::Theirs,
+            ConflictKind::DeletedByThem => Keep::Mine,
+            _ => continue,
+        };
+        resolve_conflict(vault, &c.path, keep)?;
+        kept.push(c.path);
+    }
+    kept.sort();
+    Ok(kept)
 }
 
 /// The newest unpushed commit this app did **not** write, or `None` when every unpushed

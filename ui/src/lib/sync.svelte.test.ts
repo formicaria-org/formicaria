@@ -22,7 +22,7 @@ function ops(over: Partial<SyncOps> = {}) {
     push: async () => void calls.push++,
     pull: async () => {
       calls.pull++;
-      return { merged: 0, conflicts: [] };
+      return { merged: 0, conflicts: [], kept: [] };
     },
   };
   return { calls, ops: { ...base, ...over } as SyncOps };
@@ -54,7 +54,7 @@ describe('syncVault', () => {
     o.push = rejectingPush(1, calls);
     o.pull = async () => {
       calls.pull++;
-      return { merged: 3, conflicts: [] };
+      return { merged: 3, conflicts: [], kept: [] };
     };
     const onChanged = vi.fn();
 
@@ -73,7 +73,7 @@ describe('syncVault', () => {
     o.push = rejectingPush(1, calls);
     o.pull = async () => {
       calls.pull++;
-      return { merged: 0, conflicts: ['01AAA.md', '01BBB.md'] };
+      return { merged: 0, conflicts: ['01AAA.md', '01BBB.md'], kept: [] };
     };
 
     expect(await syncVault('v', 'msg', undefined, o)).toBe('conflicts');
@@ -108,7 +108,7 @@ describe('syncVault', () => {
     o.push = rejectingPush(99, calls);
     o.pull = async () => {
       calls.pull++;
-      return { merged: 1, conflicts: [] };
+      return { merged: 1, conflicts: [], kept: [] };
     };
 
     expect(await syncVault('v', 'msg', undefined, o)).toBe('failed');
@@ -191,7 +191,7 @@ describe('pullVault', () => {
     const { calls, ops: o } = ops();
     o.pull = async () => {
       calls.pull++;
-      return { merged: 2, conflicts: [] };
+      return { merged: 2, conflicts: [], kept: [] };
     };
 
     expect(await pullVault('v', undefined, o)).toBe('synced');
@@ -212,7 +212,7 @@ describe('pullVault', () => {
     };
     o.pull = async () => {
       order.push('pull');
-      return { merged: 1, conflicts: [] };
+      return { merged: 1, conflicts: [], kept: [] };
     };
 
     await pullVault('v', undefined, o);
@@ -236,7 +236,7 @@ describe('pullVault', () => {
   it('surfaces conflicts by name', async () => {
     clearSync('v');
     const { ops: o } = ops();
-    o.pull = async () => ({ merged: 0, conflicts: ['01CCC.md'] });
+    o.pull = async () => ({ merged: 0, conflicts: ['01CCC.md'], kept: [] });
 
     expect(await pullVault('v', undefined, o)).toBe('conflicts');
 
@@ -315,5 +315,36 @@ describe('a vault with no remote', () => {
     // `backup_status` shells out `git ls-remote` per vault; paying that on every successful backup
     // would make the common case the slow one.
     expect(asked).toBe(0);
+  });
+});
+
+// **A note the app brought back must reach the surface, whichever door the pull came through.**
+//
+// Auto-settling a delete/modify keeps the vault committing (`decisions.md`, 2026-09-07) — but it
+// discards a deletion to do it, so the user has to be told or the app has quietly overruled them.
+// The keep is recorded independently of the phase because one merge can do both: keep one note and
+// still leave a marker conflict on another. Asserting only the happy path would pass on an
+// implementation that dropped the keep whenever anything else went wrong.
+//
+// Proven red by moving the `kept` record inside the `merged` branch: the second case then reports
+// nothing, because the pull it describes ended in `conflicts`.
+describe('a note kept because the other device deleted it', () => {
+  it('is recorded when the pull otherwise merges cleanly', async () => {
+    clearSync('v');
+    const { ops: o } = ops();
+    o.pull = async () => ({ merged: 1, conflicts: [], kept: ['01KEPT.md'] });
+
+    expect(await pullVault('v', undefined, o)).toBe('synced');
+    expect(syncFor('v').kept).toEqual(['01KEPT.md']);
+  });
+
+  it('is still recorded when another note in the same merge conflicts', async () => {
+    clearSync('v');
+    const { ops: o } = ops();
+    o.pull = async () => ({ merged: 0, conflicts: ['01CONFLICT.md'], kept: ['01KEPT.md'] });
+
+    expect(await pullVault('v', undefined, o)).toBe('conflicts');
+    expect(syncFor('v').conflicts).toEqual(['01CONFLICT.md']);
+    expect(syncFor('v').kept).toEqual(['01KEPT.md']);
   });
 });

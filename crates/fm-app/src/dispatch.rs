@@ -1476,9 +1476,15 @@ fn dispatch_inner(
             // than leave the user staring at pre-pull content until the next heartbeat.
             g.store(scope).reindex(Reindex::Incremental).map_err(err)?;
             json(match outcome {
-                git::Pulled::UpToDate => PullResult { merged: 0, conflicts: Vec::new() },
-                git::Pulled::Merged(n) => PullResult { merged: n, conflicts: Vec::new() },
-                git::Pulled::Conflicted(f) => PullResult { merged: 0, conflicts: f },
+                git::Pulled::UpToDate => {
+                    PullResult { merged: 0, conflicts: Vec::new(), kept: Vec::new() }
+                }
+                git::Pulled::Merged { incoming, kept } => {
+                    PullResult { merged: incoming, conflicts: Vec::new(), kept }
+                }
+                git::Pulled::Conflicted(f) => {
+                    PullResult { merged: 0, conflicts: f, kept: Vec::new() }
+                }
             })
         }
         // The browser heartbeat, which doubles as **the local poll**. Liveness is the
@@ -2342,6 +2348,11 @@ struct CommitResult {
 struct PullResult {
     merged: u32,
     conflicts: Vec<String>,
+    /// Notes the other device had deleted while this one edited them, kept rather than left to
+    /// freeze the vault (`decisions.md`, 2026-09-07). **The caller must say so**: this is a
+    /// decision the app made on the user's behalf, and one it can undo in a tap — "keep this
+    /// device's version" in Needs resolution honours the deletion after all.
+    kept: Vec<String>,
 }
 
 /// A vault, as the sidebar and the first-run screen need it. Deliberately **not**

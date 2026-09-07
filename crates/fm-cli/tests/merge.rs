@@ -283,7 +283,9 @@ fn pull_brings_their_work_home_and_says_so() {
     assert_eq!(git::remote_moved(ours.path()).unwrap(), Some(true), "ls-remote sees their push");
 
     match git::pull(ours.path()).unwrap() {
-        git::Pulled::Merged(n) => assert_eq!(n, 1, "one commit of theirs arrived"),
+        git::Pulled::Merged { incoming, .. } => {
+            assert_eq!(incoming, 1, "one commit of theirs arrived")
+        }
         other => panic!("expected a clean merge, got {other:?}"),
     }
     assert!(ours.path().join("notes/theirs.md").exists(), "their note is on our disk now");

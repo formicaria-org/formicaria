@@ -337,7 +337,7 @@
           ok: false,
         });
       }
-      const r = blocked ? { merged: 0, conflicts: [] } : await pull(v.name);
+      const r = blocked ? { merged: 0, conflicts: [], kept: [] } : await pull(v.name);
       if (blocked) {
         // nothing further to report; the line above is the answer
       } else if (r.conflicts.length) {
@@ -352,6 +352,19 @@
         });
       } else {
         steps.push({ text: `Already up to date${of(v)}.`, ok: true });
+      }
+      // **Said whichever way the pull went**, and outside the else-if chain on purpose: a note the
+      // app brought back is a decision it made for you, and it must not be the thing that gets
+      // dropped because some other branch reported first.
+      if (r.kept.length) {
+        steps.push({
+          text:
+            `Kept ${r.kept.length} note${r.kept.length === 1 ? '' : 's'}${of(v)} the other device had deleted: ` +
+            `${(await conflictLabels(r.kept)).join(', ')}. There was no text to merge, and leaving it ` +
+            `unsettled would have stopped this vault committing anything at all. If the deletion was ` +
+            `deliberate, delete ${r.kept.length === 1 ? 'it' : 'them'} again here.`,
+          ok: true,
+        });
       }
     } catch (e) {
       steps.push({ text: `Could not pull${of(v)}: ${msg(e)}`, ok: false });
