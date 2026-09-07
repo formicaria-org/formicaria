@@ -7,7 +7,7 @@
 //! command while it runs.**
 //!
 //! That last one is the load-bearing test in this file. `dispatch.rs` documents a lock discipline
-//! — five arms deliberately drop the vault lock before slow I/O — and it was a *comment*. On the
+//! — several arms deliberately drop the vault lock before slow I/O — and it was a *comment*. On the
 //! desktop `fm-serve` is thread-per-connection, so a regression there would show up as one stalled
 //! browser tab; on the phone every command is serialised through one bridge, so a held lock is the
 //! whole app stopping. A discipline nothing checks lasts exactly one refactor.
@@ -163,7 +163,7 @@ fn a_two_megabyte_body_round_trips_through_dispatch() {
 
 /// **A slow command must not stop every other command — asserted, not timed.**
 ///
-/// `dispatch.rs`'s module doc says five arms deliberately drop the vault lock before slow I/O, and
+/// `dispatch.rs`'s module doc says several arms deliberately drop the vault lock before slow I/O, and
 /// nothing checked it. On the desktop a regression there stalls one browser tab; on the phone every
 /// command is serialised through one bridge, so a held guard is the whole app stopping.
 ///

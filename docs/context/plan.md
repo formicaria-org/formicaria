@@ -1,7 +1,17 @@
 # Plan — formicaria, one sequenced program
 
+> ### ⚠️ Dated: last reconciled 2026-07-18. The ranked queue is now [`outstanding.md`](./outstanding.md).
+>
+> Seven weeks of work landed after this file was last reconciled, and it says *"when a line ships,
+> delete it here"* — which did not happen. Its **sequencing and its why-nots are still worth
+> reading**; its **status markers are not**, and several of the loudest (⛔ REJECTED, ⛔ BLOCKED)
+> were reversed by work that shipped. Every one found on 2026-09-05 carries a dated correction
+> inline. For what is actually next, read [`outstanding.md`](./outstanding.md); for what is built,
+> [`features.md`](./features.md); for the rulings that superseded these,
+> [`decisions.md`](./decisions.md).
+
 The single **forward** document: what we intend to build next, in order, and *why not
-the obvious alternative*. It supersedes and folds in the old `roadmap.md` (near-term
+the obvious alternative*. It supersedes and folds in the old `archive/roadmap.md` (near-term
 single-user work) and sits above [`collaboration-design.md`](./collaboration-design.md),
 which stays as the line-by-line **code audit** behind Track C — this file carries the
 sequence and the rulings; that file carries the receipts.
@@ -41,6 +51,11 @@ when you cite or edit it). V1–V3 have shipped, so V4 is the largest unbuilt it
 the UI track is independent; Track M's host-side band is done and M0–M8 are blocked on the
 Android toolchain *and* on a git backend the `git2` rejection deliberately leaves open.
 Everything not marked SHIPPED still describes things that do not exist._
+
+> **(corrected 2026-09-05)** Neither blocker survives: the NDK is pinned in `pixi.toml` and
+> `ci/android-smoke.sh` runs on the emulator, and the backend was chosen — libgit2, behind
+> `fm-core/native-git`. formicaria has been installed and used on a real phone. **Track V4
+> adoption is still the largest unbuilt item here**, and that part of the sentence holds.
 
 ## The vision — *formicaria*
 
@@ -157,7 +172,7 @@ cross-tie: Ruling B lands before Track C Phase 3 shares boards.
 > V2 is the same shape**: four live bugs that earn their place even if you never convert a
 > repo, and two of them are silent.
 
-### Track S — single-user near-term (from the old roadmap.md)
+### Track S — single-user near-term (from the old `archive/roadmap.md`)
 
 1. **Time on `start`/`due`** — **DONE** (`decisions.md`; `sessions/2026-07-15-time-on-dates.md`).
 2. **Calendar import (ICS → notes, one-way).** `fm ics pull <url|path>` → one note per
@@ -278,7 +293,9 @@ vanishing.
   claim was wrong, and boards sync un-stripped today.
 - **Backlinks → anchored comments → discussion.** The forward half of references shipped
   (`[Title](note:<ulid>)` + sliding panes, 2026-07-16); the **reverse index** (body scan on
-  reindex, or a `links` table) is still open. A comment is a note linking to a target → the
+  reindex, or a `links` table) is still open. **(corrected 2026-09-05: it shipped —
+  `commands::backlinks`, the `backlinks` dispatch arm, `fm-app/tests/backlinks.rs` and
+  `ui/src/lib/backlinks.svelte.test.ts`.)** A comment is a note linking to a target → the
   **comments panel *is* the backlinks panel** (one mechanism, two features). Discussion =
   **one file per message, ULID-named** (Maildir: nobody touches the same file, git merges
   trivially, ULIDs order for free), living in the vault it's about. A message is a
@@ -378,6 +395,9 @@ each note's path and `put` writes back where it found it**, falling back to `{id
 notes we create — which is also what makes a recursive walk safe (`reindex`'s `read_dir` is
 flat today, so nested Markdown is invisible). **`FileStore::skipped()` must reach the GUI
 first** (it is stderr-only) or a failed adoption is indistinguishable from an empty vault.
+**(corrected 2026-09-05: it does — `SkippedPanel.svelte`, fed by `read_skipped`/`resolve_skipped`.
+This is the second copy of that claim in this file; the one at the Phase 1 entry above was struck
+and this one was missed, which is how a fix applied to one copy leaves the other standing.)**
 
 **Rulings carried:** formicaria never "owns" a repo — every repo it touches is the user's,
 local and writable, and multiple writers is what git is *for*; it always acts as though it
@@ -412,8 +432,13 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
    *door*); sharing `commands::asset_note` is the intended end state, not a down payment. Detail in
    [`mobile-design.md`](./mobile-design.md#ruling-1--one-command-surface-the-load-bearing-correction).
 2. **`git.rs`: subprocess `git` → in-process `git2` (libgit2), HTTPS-only. — ⛔ REJECTED, and the
-   backend is deliberately left open (audited 2026-07-18; re-confirmed 2026-07-19).** Three
-   premises are wrong or unweighed:
+   backend is deliberately left open (audited 2026-07-18; re-confirmed 2026-07-19).**
+   **(corrected 2026-09-05: reversed and shipped as `fm-core/native-git`, scoped to devices with
+   no git binary — Android, iOS, Windows. The three objections below were not wrong; they are
+   what bounded the exception, and `ci/checks.sh` now holds it to that scope. The licence point in
+   particular was acted on: `ci/third-party.sh` hand-overrides `libgit2-sys`'s under-declared
+   field so the notice is correct. Read the rejection and its reversal as a chain in
+   `decisions.md`.)** Three premises are wrong or unweighed:
    - **libgit2 cannot invoke external merge drivers.** Only text/union/binary are registered and
      it contains no process-spawn at all. Porting `pull()` would **silently disable the `.md`
      frontmatter merge** — the whole Phase 1 achievement — while a collaborator's terminal `git
@@ -429,7 +454,10 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
      (`libgit2-sys` builds via `cc`, no cmake needed).
    `gix` remains the documented pure-Rust future swap; its push still is not shipped.
 3. **Merge body: `git2::merge_file`/`MergeFileOptions`. — ⛔ BLOCKED as written: that function does
-   not exist** (audited 2026-07-18). git2 0.20.4 exposes only
+   not exist** (audited 2026-07-18). **(corrected 2026-09-05: built exactly the way the last
+   sentence of this item prescribes — a direct `libgit2-sys` dependency and unsafe FFI to the
+   buffer API, in `merge.rs`'s `text_3way_native`, with `merge_differential.rs` as the gating
+   differential test. The analysis was right; only the status marker is stale.)** git2 0.20.4 exposes only
    `Repository::merge_file_from_index`, which needs `IndexEntry`s and would pollute the ODB —
    contradicting `merge.rs`'s own design. The buffer API `git_merge_file` *is* bound in
    `libgit2-sys`, but git2 imports that crate **privately**, so this needs a direct `libgit2-sys`
@@ -455,7 +483,9 @@ Full design, code audit, and staged sequence (spikes → M0–M8) in
    backend. It also turned out to be a **security** change — a blob is now at a navigable
    same-origin URL and blobs come from collaborators — hence `nosniff` plus
    `Content-Disposition: attachment` outside an inline-safe allowlist. Mobile's `blob://`
-   protocol handler is still to build, but now against a working reference.
+   protocol handler is still to build, but now against a working reference. **(corrected
+   2026-09-05: built as `fmblob`, answering `Range` with 206 — though it buffers rather than
+   streams, which that seam cannot do; see `decisions.md#track-m`.)**
 6. **Efficiency — ✅ SHIPPED 2026-07-18, with one deliberate deviation.** Liveness and reindex are
    two beats now: `POST /api/alive` (transport-level, no lock, no filesystem) at 15 s, and the
    `ping` reindex at 15 s **only while the tab is visible**, plus an unconditional refresh on

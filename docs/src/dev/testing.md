@@ -61,12 +61,22 @@ because they are slow, need a toolchain the gate does not, or are for one platfo
 
 ## The architectural greps (`ci/checks.sh`)
 
-Two invariants are enforced as build-failing greps:
+**Around forty-five** invariants are enforced as build-failing greps — run
+`pixi run checks` and read the `[check]` lines, which are the list. (No number here on
+purpose: this page said "two" long after there were dozens. A count in prose is a claim
+nothing verifies.)
+
+The two the seams rest on:
 
 1. **Seam 1** — `fm-query` must not reference a database crate, `std::fs`,
    `std::path`, or `File`. The query engine physically cannot do I/O.
 2. **Generic renderers** — no `todo|doing|done` literal may appear under
    `ui/src/renderers/**`. Status names live only in data and CSS.
+
+The rest cover the two git backends staying in step, the release archive's contents, the
+iOS and Android shells, licence and font notices, the workflow triggers, and the
+documentation this manual is part of — including a check that every dispatch arm has a row
+in [the command reference](../reference/commands.md).
 
 Run `pixi run checks` before committing a renderer or a query-engine change.
 

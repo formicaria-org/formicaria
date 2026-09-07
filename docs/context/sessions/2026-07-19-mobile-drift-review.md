@@ -24,7 +24,7 @@ the `mobile-design.md` repairs of the same date.
 
 # TRACK M — FINAL SYNTHESIS
 
-*Verification basis: working tree `/home/baljinder/formicaria`, clean, HEAD `a7b34ce`. Every anchor below re-checked directly in this session or by at least two independent lenses that corrected each other. Where a claim rests on external fact I say so; where I could not verify, I write UNVERIFIED.*
+*Verification basis: the working tree, clean, HEAD `a7b34ce`. Every anchor below re-checked directly in this session or by at least two independent lenses that corrected each other. Where a claim rests on external fact I say so; where I could not verify, I write UNVERIFIED.*
 
 ---
 
@@ -350,7 +350,7 @@ All verified. Here is the completeness audit.
 
 # GAPS THE REVIEW MISSED — ranked
 
-**Verification basis:** tree at `/home/baljinder/formicaria`, HEAD `a7b34ce`, clean. Every anchor below re-checked directly.
+**Verification basis:** the working tree at HEAD `a7b34ce`, clean. Every anchor below re-checked directly.
 
 ---
 

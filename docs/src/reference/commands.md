@@ -12,9 +12,12 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 81 of them are below**, grouped by what they are for. If you add an arm to
+**All 85 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
-because a reference that is *nearly* complete is one a reader stops trusting.
+because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
+itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
+said 81 while there were 85. It now checks the count and both directions, so a documented command
+dispatch no longer has fails too.)
 
 ### Reading the vault
 
@@ -29,8 +32,8 @@ because a reference that is *nearly* complete is one a reader stops trusting.
 | `backlinks`      | `id`                         | `ObjectMeta[]`         | every note whose body carries a `note:` link to this one |
 | `templates`      | —                            | `ObjectMeta[]`         | the notes tagged as templates, for the new-note picker |
 | `stale`          | `since`                      | `ObjectMeta[]`         | notes untouched in git since `since` (a `--since` value, default `90 days ago`), oldest first. **Derived from git, stored nowhere**; a vault with no history is skipped, not reported as wholly stale |
-| `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log |
-| `duplicates`     | —                            | `DuplicateFamily[]`    | notes grouped by identical body, and what pruning them would remove. A read: it changes nothing |
+| `activity`       | `since`                      | `EditEvent[]`          | who last edited what, straight from git log. `since` defaults to `1 year ago` |
+| `duplicates` (also documented with `prune_duplicates` under **Vaults**) | — | `DuplicateFamily[]` | notes grouped by identical body, and what pruning them would remove. A read: it changes nothing |
 | `config`         | —                            | `Config`               | version, the vault list's path and whether it is writable, every vault, each vault's restic repo, and which `FM_*` variables are set. The one call a support question can start from |
 | `ping`           | `since`                      | `{changed, git}`       | the 15 s visible-tab reindex poll |
 
@@ -42,7 +45,7 @@ because a reference that is *nearly* complete is one a reader stops trusting.
 | `set_property`   | `id`, `key`, `value`         | —                      | writes one frontmatter field (see the table below) |
 | `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
 | `delete`         | `id`                         | —                      | unlinks the file and both index rows |
-| `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted citation, DOI or arXiv id — parsed locally, never looked up online |
+| `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
 | `paper_bibtex`   | `id`                         | `String`               | that note's frontmatter rendered back as a BibTeX entry |
 
 ### Discussions
@@ -66,9 +69,9 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `create_proposal` | `id`, `body`, `why`, `kind`, `tool`, `query`, `authorName`, `authorEmail` | `ObjectMeta` | write the draft to a review branch and the proposal note beside it. `kind`/`tool`/`query` record *how* it was produced — a model's `/propose`, `/research` or `/transcribe`, and what it searched for |
 | `proposal_for`   | `id`                         | `ObjectMeta \| null`   | the open proposal against this note, if there is one |
 | `proposal_diff`  | `id`                         | a unified diff         | what accepting would change, read off the branch |
-| `proposal_content` | `id`                       | `{body, …}`            | the proposed body itself, for the side-by-side review |
+| `proposal_content` | `id`                       | `{body, …}` or `null`  | the proposed body itself, for the side-by-side review. `null` when the id does not resolve |
 | `proposal_shown` | `id`                         | —                      | records that a human actually looked at it. Idempotent, fire-and-forget: it must never fail the screen it is reporting about, and it is what separates *left alone* from *never displayed* |
-| `accept_proposal` | `id`                        | `ObjectMeta`           | apply the branch's body to the note and close the proposal |
+| `accept_proposal` | `id`                        | `{outcome}`            | **merge** the proposal's branch and close it — not a body copy. `outcome` is `merged`, `conflicted` or `already_gone`; a proposal its author declined is refused |
 | `reject_proposal` | `id`, `why`                 | —                      | close it with a reason. The outgoing commit is kept, so the *accepted*/*rejected* label stays true later |
 
 ### Assets and media
@@ -115,7 +118,7 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `clone_vault`    | `url`, `name`, `path`, `gitName`, `gitEmail` | `VaultInfo[]` | clone a collaborator's vault and register it |
 | `forget_vault`   | `name`                       | `VaultInfo[]`          | removes it from the list. **The files are left alone** — forgetting is not deleting |
 | `restore_vault`  | `name`, `path`, `repo`       | `VaultInfo[]`          | rebuild a vault from a restic repository |
-| `copy_note` / `copy_status` / `uncopy_note` | `id`, `vault` | see `dto.rs` | cross-vault copy, its pre-check, and its undo |
+| `copy_note` / `copy_status` / `uncopy_note` | `id`, `vault`; `with_assets` (copy) ; `blobs` (uncopy) | `CopyResult` / `CopyStatus` / `CopyResult` | cross-vault copy, its pre-check, and its undo. `with_assets` opts in to carrying the note's first-degree blobs; `blobs` names the ones an undo may take back |
 | `set_supervision` | `vault`, `collect`, `publish` | `VaultInfo[]`         | the two supervision-corpus consents, always written together — an absent key and a deliberate *no* must not look the same to whoever answers for it later |
 
 ### Import

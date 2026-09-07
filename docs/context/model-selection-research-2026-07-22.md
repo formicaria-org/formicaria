@@ -1,5 +1,8 @@
 # Best on-device research model — evidence-based pick
 
+> **Dated research, 2026-07-22 — a snapshot, not maintained.** Superseded by
+> `model-selection-research-2026-07-24-grounded.md`, which is the one the router names.
+
 *Grounded in our measured llama-bench envelope (Dimensity 7300 phone; i7-11800H + RTX 3050 laptop), Q4_K_M, 2026-07-22. Vendor-neutral. Only models with a real Q4_K_M GGUF are considered.*
 
 ## 1. Which scores decided it

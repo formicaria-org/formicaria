@@ -3,7 +3,15 @@
 Condensed, load-bearing decisions and reversals. Each entry is: **decision —
 why — consequence**. The canonical, fuller spec is
 [`formicaria/MASTERPLAN.md`](../../formicaria/MASTERPLAN.md); this is the
-quick-recall version. Newest first.
+quick-recall version.
+
+**Not sorted, and do not try to read it in order.** The file uses two heading conventions that grew
+up at different times — `## Title (date, #tags)` and `## date — title #tags` — and they interleave,
+so the newest entry is at the **bottom**, not the top. It said "newest first" until 2026-09-05, and
+a reader who believed it stopped in early September and missed everything after. **Retrieval is by
+subject, never by position: grep a `#tag`.** Every heading carries at least one, and `ci/checks.sh`
+fails if one does not — because a third of this file had no tag at all, which made the documented
+retrieval path silently miss it.
 
 **This is an append-only log — a decision is superseded, never edited away.** A reversal is added
 as a new dated entry and the old one gets a `> SUPERSEDED …` banner pointing to it, so the *chain*
@@ -949,7 +957,7 @@ search, backup, collaboration and the assistant, plus a full command and frontma
 rendered it on every single run — `pixi run docs` is in `[tasks.ci]`, and `docs.yml` exists for
 nothing else. **Nobody ever received it.** `docs.yml` uploads no artifact and deploys no site, so
 the HTML died with the runner; `release.yml` copied five files and none came from `docs/`; and
-`packaging/README-release.md`, which ships as the archive's `README.md`, is an install sheet that
+`packaging/README-release.txt`, which ships as the archive's `README.txt`, is an install sheet that
 did not even link to it. Someone who downloaded a release got the whole application and no
 instructions for using it.
 
@@ -1349,11 +1357,11 @@ name — and **both** the contributor chips and the note filter use it. `contrib
 `{key, label}` so the key travels with the label and the two cannot drift.
 
 **Why.** They had drifted. The chips already deduplicated by email, with a comment naming the exact
-case (*"a vault signed `singhbal-baljinder` on one machine and `Baljinder Singh` on another is still
-one human"*), while `shown()` hid notes by comparing the author **name**. So one chip represented one
+case (*"a vault signed with a username on one machine and the same person's full name on another is
+still one human"*), while `shown()` hid notes by comparing the author **name**. So one chip represented one
 person and hid only the spelling it happened to be labelled with. Measured in the owner's own vault:
-**534 commits as `singhbal-baljinder`, 77 as `Baljinder`, 3 as `baljinder` in another vault — one
-email.** Clicking the chip left 77 notes on screen while reporting "hidden".
+**534 commits under a username, 77 under the same person's full name, 3 under a lowercased variant
+in another vault — one email.** Clicking the chip left 77 notes on screen while reporting "hidden".
 
 **Which name counts, since three things are called one:** the **email** is the identity — it is what
 git carries as the stable half, what GitHub attributes commits by, and now what this app groups by. A
@@ -1459,7 +1467,7 @@ second time" was the whole signature and a one-launch test would have gone green
 is `vips deviate` over a screenshot (a flat surface is ~0, a real screen is tens), with every measured
 number written to `stats.txt` so the threshold stays grounded rather than guessed.
 
-## The TLS exception: a self-signed **leaf**, share-only, and only for the microphone (2026-07-26)
+## The TLS exception: a self-signed **leaf**, share-only, and only for the microphone (2026-07-26, `#vault` `#sync`)
 
 **Decision.** `fm-serve` links `rustls` + `rcgen` behind a `tls` feature (default on;
 `--no-default-features` still builds the std-only server, now CI-enforced). The shared listener
@@ -1507,7 +1515,7 @@ error they cannot clear) and **fetching the certificate over the connection it a
 plain-HTTP fallback, because a long-lived bearer token in clear on a LAN is precisely the
 `userpass_plaintext`-over-an-unauthenticated-connection shape the Android entry refuses.
 
-## A caller is a member of some audiences, not all of them: `Scope` (2026-07-26)
+## A caller is a member of some audiences, not all of them: `Scope` (2026-07-26, `#vault` `#seams`)
 
 **Decision.** `dispatch_as(.., &Scope)` narrows a caller to named vaults; `dispatch` keeps its old
 signature and means `Scope::All`, so `fm-cli`, the phone, the study agent and the desktop's own
@@ -1542,7 +1550,7 @@ no roles, no verbs. Location is the permission, exactly as on disk. Tests:
 `fm-core/tests/scoped.rs` (mechanism), `fm-app/tests/scoped_dispatch.rs` (wiring — the half that
 rots, since a new read path reaching `Vaults::all` would leave every mechanism test passing).
 
-## The poll answers a comparison, not a report: `ping` carries a generation (2026-07-26)
+## The poll answers a comparison, not a report: `ping` carries a generation (2026-07-26, `#seams` `#sync`)
 
 **Decision.** `ping` takes the `since` the client last saw and answers `changed = generation >
 since`, where `generation` is a monotonic per-process counter on `App`. It is bumped by any
@@ -1577,7 +1585,7 @@ re-query out to every client on every keystroke.
 **Consequence for the reader:** `ping` is no longer "is this vault dirty?" — it is "have I fallen
 behind?", and those differ the moment there are two clients. Tests: `tests/poll_generation.rs`.
 
-## The in-process sync path: the app merges, because libgit2 cannot (2026-07-19)
+## The in-process sync path: the app merges, because libgit2 cannot (2026-07-19, `#sync` `#git`)
 
 **Decision.** `git_native` now covers the whole collaboration loop — `clone`, `commit_all`,
 `pull`, `push`, `unpushed`, `conflicts` — so a phone can share a vault with a desktop.
@@ -1638,7 +1646,7 @@ text merge and conflicts — so the comparison would grade two broken things aga
 **Reversal condition:** the differential test cannot stay green → stop, because that is the
 signal that a phone and a desktop have started disagreeing about what a merged note is.
 
-## One shell, two arrangements — layout adapts by space, never by platform (2026-07-19)
+## One shell, two arrangements — layout adapts by space, never by platform (2026-07-19, `#ui`)
 
 > **SUPERSEDED in part, 2026-08-31** (*one view at a time is the default, `auto` is gone*). This
 > entry's **"hard stop at two" survives and is what finally shipped**; everything below about
@@ -1697,7 +1705,7 @@ dedupe by `feedKey`, so it would trade instant switching for a loading flash.
 the moment to check whether this has become the customisation system it refuses to be, not to
 add a fourth.
 
-## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19)
+## The libgit2 exception, and the discovery that `cargo deny` cannot enforce it (2026-07-19, `#git` `#toolchain`)
 
 > **WIDENED (`#git`)** by *"libgit2 ships on Windows too"* (2026-08-28, above): the exception is no
 > longer "mobile only" but **"any device with no git binary"**, which is the property this entry's
@@ -1750,7 +1758,7 @@ than implying it does a job it cannot do.
 move the assertion back and delete the `checks.sh` entry. A maintained permissive pure-Rust
 git with working push appears → drop libgit2 entirely.
 
-## The owner's five Track M rulings (2026-07-19)
+## The owner's five Track M rulings (2026-07-19, `#track-m`)
 
 Taken by the owner after the drift review, and binding. They close the questions the review left
 open; the receipts for each are in `sessions/2026-07-19-mobile-drift-review.md`.
@@ -1812,7 +1820,7 @@ open; the receipts for each are in `sessions/2026-07-19-mobile-drift-review.md`.
    decision whose consequences are not yet observed. *Consequence:* re-cut the line **after step
    0** puts the real UI on real glass.
 
-## The Track M record drifted from the Track M rulings — and the body-merge engine is its own decision (2026-07-19)
+## The Track M record drifted from the Track M rulings — and the body-merge engine is its own decision (2026-07-19, `#track-m` `#git`)
 
 **Decision — five rulings, from an adversarial drift review** (receipts:
 `sessions/2026-07-19-mobile-drift-review.md`; four rulings were each attacked by three skeptics
@@ -1863,7 +1871,7 @@ itself. So: **before any ruling ships, grep this file for the thing it is about,
 you find.** Cite rulings **by subject, never by number** — `mobile-design.md` and `plan.md` number
 them differently, and the hybrid propagated a wrong number into this file.
 
-## Mobile is the app on the phone, not a thin client — one core, git-coordinated (2026-07-18)
+## Mobile is the app on the phone, not a thin client — one core, git-coordinated (2026-07-18, `#track-m`)
 **Why:** the owner overrode `MASTERPLAN:57`, which deferred mobile as *"a server + auth
 decision"* (the phone as a thin client to the laptop's `fm-serve`). The goal is an app that runs
 **on the phone itself** — collaborate with yourself/others across devices over the *same* git-repo
@@ -1942,7 +1950,7 @@ low-risk *early demo*, not where Track M lands. **Top risk carried:** the Androi
 conda-packaged, so the toolchain escapes the pixi-only house rule — pin the whole matrix in CI
 (≠ `pixi.lock` reproducibility).
 
-## The auto-commit stages what we wrote, not where we wrote it (2026-07-18)
+## The auto-commit stages what we wrote, not where we wrote it (2026-07-18, `#git`)
 
 **Why:** `commit_all` ran `git add -A` every five seconds. In a vault that is also a project
 repo — the direction Track V is heading — that is a second author: it staged half-written code
@@ -1965,7 +1973,7 @@ is the intent — it is your edit, in your repo, and yours to commit — and it 
 we did not write, on the reasoning that "it rides along anyway"; riding along is exactly how a
 half-finished sentence becomes a commit.
 
-## The lost-update token is a content hash, not a timestamp (2026-07-18)
+## The lost-update token is a content hash, not a timestamp (2026-07-18, `#data` `#seams`)
 
 **Why:** `update_body`'s `base` was the `updated` stamp, which only moves for writers that bump
 it. The app does. The `.md` merge driver does. **Vim does not** — and `FileStore::put`'s mtime
@@ -1985,7 +1993,7 @@ to catch an algorithmic regression rather than to police the constant factor.
 localhost, but it makes every save path async for no gain when the server is already holding
 the bytes.
 
-## `fm-cli` shares the command library; it does not route through `dispatch` (2026-07-18)
+## `fm-cli` shares the command library; it does not route through `dispatch` (2026-07-18, `#seams`)
 
 **Why:** the standing debt was recorded as *"migrate `fm-cli` onto `fm_app::dispatch`"*, and
 that turns out to be the wrong shape. `dispatch` is a **wire** surface — JSON in, JSON out —
@@ -2006,7 +2014,7 @@ an upload — that difference is real and kept; the note is not.
 `dispatch` is the one *door* for frontends that speak a wire; `commands` is the one *library*
 for everything.
 
-## `git2` is rejected; git stays a subprocess capability (2026-07-18)
+## `git2` is rejected; git stays a subprocess capability (2026-07-18, `#git`)
 
 > **PARTIALLY SUPERSEDED (`#git`)** by *The libgit2 exception* (2026-07-19, above): the rejection
 > **stands for the desktop** (still shells out to `git`), but the phone — which has no `git` binary —
@@ -2044,7 +2052,7 @@ does not exist is how the wrong backend gets built. When it is live, the options
 git binary with the app, revisit `gix` once its push ships (the documented pure-Rust escape),
 or the transport-only Path A. **Rejected:** doing it now "so mobile is ready".
 
-## Whiteboard images: git-track them, and do not strip yet (2026-07-18)
+## Whiteboard images: git-track them, and do not strip yet (2026-07-18, `#data` `#git`)
 
 Two questions, answered separately.
 
@@ -2068,7 +2076,7 @@ or an asset note per screenshot), and **a canvas cannot be verified without eyes
 Shipping a blind change to the one view whose failure mode is "your drawing is gone" fails
 *do not ruin what works*. It lands when someone can watch it happen.
 
-## Collaboration is git, *exposed* — not reimplemented (2026-07-18)
+## Collaboration is git, *exposed* — not reimplemented (2026-07-18, `#git`)
 **Why:** the machinery (per-vault git, `.md` merge driver, push/pull, signed identity) already
 shipped; git knows who changed what and when, but nothing surfaced it. The user's framing: *use
 git and expose it*, don't build features on top. **Consequence:** one read-only
@@ -2089,7 +2097,7 @@ author is the merger). That single command powers **all** collaboration visualis
 deferred backlinks index); live presence (needs the descoped peer — git knows only *pushed*
 state). The placeholder committer (`formicaria@localhost`) displays as "you".
 
-## Every entity shows its vault, as a name-coloured badge, in every view (2026-07-18)
+## Every entity shows its vault, as a name-coloured badge, in every view (2026-07-18, `#ui` `#vault`)
 **Why:** with a set of vaults, "who can see this?" is a property you must be able to read off any
 note, board or asset at a glance — but the badge existed only on board cards, and was a neutral
 outlined chip whose colour the *theme* was meant to assign per vault (keyed off a `data-vault`
@@ -2103,7 +2111,7 @@ tooltip. Still shown only when `vault` is set (a single-vault install has no bou
 colour still tells the truth about audience because `vault` is derived from location, never from
 the file's content. No vault name lives in a renderer — the colour is derived generically.
 
-## Cross-vault copy is restrictive by default; create picks a vault (2026-07-18)
+## Cross-vault copy is restrictive by default; create picks a vault (2026-07-18, `#vault`)
 **Why:** with multiple vaults you couldn't choose where a new note was born, and porting a
 note to another audience had no path. Files-as-truth makes the copy "just a copy" — but a
 naive one leaks: a copied note keeping its `note:`/`asset:` references would, once its new
@@ -2136,7 +2144,7 @@ not**:
   make a copy self-describing (re-couples a note to a location — the same rejection `.view`
   and the blob store already made). `Object.vault` stays derived-from-location, never a field.
 
-## `.view` files are parsed server-side; the wire carries a name, never a query (2026-07-17)
+## `.view` files are parsed server-side; the wire carries a name, never a query (2026-07-17, `#seams` `#ui`)
 **Why:** the user asked for a customizable multi-pane workspace; three designs + an
 adversarial critic found the ask was already `MASTERPLAN.md:323` — *"five generic renderers =
 query + a renderer, `.view` config files remain planned"* — and that the tempting route
@@ -2174,7 +2182,7 @@ de-modalize entry); `Query` on the wire (both traps above); a query-builder UI /
 (the file *is* the language, and it is already YAML); moving presets to the client (re-opens
 the "filtering forgotten per view" bug `decisions.md` closed).
 
-## The read view sanitizes untrusted note bodies (2026-07-17)
+## The read view sanitizes untrusted note bodies (2026-07-17, `#ui`)
 **Why:** `render.ts` assigns `marked.parse()` straight to `innerHTML`, and a note body is no
 longer only the author's own text — collaboration made bodies arrive from other people through
 the `.md` merge driver. `fm-serve`'s CSRF guard allows no-Origin requests, so a hostile
@@ -2195,7 +2203,7 @@ it risks dropping the `foreignObject` it uses for text, a regression headless CI
 **Rejected:** hand-rolling a sanitizer (the one thing worse than none); sanitizing Mermaid's
 output (its strict mode is the designed control).
 
-## The note trail is a peer column, not a modal overlay (2026-07-17)
+## The note trail is a peer column, not a modal overlay (2026-07-17, `#ui`)
 **Why:** the trail (`openIds` + `NotePanel`) was `position:fixed; z-index:50` with a backdrop
 that closed it on an outside click — i.e. reading a note was a **mode**. That contradicts the
 founding thesis that a note *is* the task *is* the board card (`plan.md`): if a note is just
@@ -2232,7 +2240,7 @@ is the load-bearing part — REVERSED 2026-07-18; the pane grid shipped:** a **p
 split tree. A pane still cannot contain a pane — the part of the original ruling that
 survived, because the split tree is the one shape with no natural stopping point.
 
-## A vault is created, not invented; the vault list gains its first writer (2026-07-17)
+## A vault is created, not invented; the vault list gains its first writer (2026-07-17, `#vault`)
 **Why:** `load_vaults()` read `vaults.json` and **nothing wrote it** — hand-edited JSON, so
 there was no path from "I want a vault" to a configured, opened, listed one. And it could
 never return empty: `FM_VAULT` defaulted to the *relative* `"vault"`, so a typo, or the
@@ -2294,7 +2302,7 @@ definition, and `fm-app/src/vaults.rs:3` already rules that fm-core stays free o
 configuration concerns); an `open_lossy` for the startup panic (real, but pre-existing and
 uncoupled — see `known-issues.md`).
 
-## formicaria: three pillars, one atom; renamed when the plural became true (2026-07-17)
+## formicaria: three pillars, one atom; renamed when the plural became true (2026-07-17, `#data`)
 **Why:** the tool grows into *knowledge management + task scheduling + collaboration*
 without becoming three products. **Consequence:** those are three **views of one Markdown
 file** — a task is a note with a `due`, a message a note with a target, a shared note a
@@ -2312,7 +2320,7 @@ matched **by value**, and a vault's `.git/config` is per-machine, so changing it
 hands every vault still on the old value a "real" identity and reopens the hole Phase 0
 closed. Safe once, while every vault was the author's. Not twice.
 
-## The core ships as one file; pixi is the only package manager; deps come from wherever (2026-07-17)
+## The core ships as one file; pixi is the only package manager; deps come from wherever (2026-07-17, `#toolchain`)
 **Why:** the owner's ruling. *pixi is the only package manager, including for generating
 the executables. CI emits a binary per OS as an artifact, and those binaries work with the
 optional deps installed however the user prefers — pixi being one way.* **Consequence:**
@@ -2337,7 +2345,7 @@ user's choice, not ours); baking the pixi env's path into the launcher (re-coupl
 thing this removed); musl-static (the binary already runs with no pixi env; glibc 2.34 is
 met by any 2021+ distro).
 
-## Every external tool is an optional feature that declares itself (2026-07-17)
+## Every external tool is an optional feature that declares itself (2026-07-17, `#toolchain`)
 **Why:** the owner's ruling, and it settles a class of question rather than one case: *the
 core should let you take notes and schedule tasks on a local PC with nothing installed. If
 you want PDFs rendered nicely, you install that dependency. A missing dep means that
@@ -2362,7 +2370,7 @@ feature silently doesn't is how you discover on the day you need it. **Rejected:
 any of these as hard requirements (the core demonstrably needs none); bundling them into
 the binary (they are subprocesses — see the packaging note in `plan.md`).
 
-## Git is a capability, not a dependency (2026-07-17)
+## Git is a capability, not a dependency (2026-07-17, `#git` `#toolchain`)
 **Why:** the owner pushed back that formicaria runs on vaults on a single PC and should not
 be tightly coupled to git — git is for backup and collaboration. Tested: **true, and the
 code already agreed.** With no git on the machine at all (empty `PATH`), the server starts
@@ -2382,7 +2390,7 @@ So: optional, and worth having. Which is exactly why its absence must be stated 
 swallowed. **Rejected:** making git a hard requirement (the notebook demonstrably doesn't
 need it); reimplementing versioning (that is what shelling out to git buys us).
 
-## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17)
+## Vaults are audiences: git is per-vault, blobs are searched, hiding is only a view (2026-07-17, `#vault`)
 **Why:** multi-vault forced three questions the plan had collapsed into "wiring", and each
 has a wrong answer that loses data quietly. **Consequences, in order of how badly the
 wrong answer bites:**
@@ -2437,7 +2445,7 @@ screen and nothing else; who can see a note is decided by which repo holds the f
 nothing in a browser can change that. The chips are styled quiet so they never read like
 an access control.
 
-## Notes merge through a driver that shells out for the body — and is never installed unless it can run (2026-07-17)
+## Notes merge through a driver that shells out for the body — and is never installed unless it can run (2026-07-17, `#git` `#sync`)
 **Why:** `updated:` is rewritten on every save, so *any* two concurrent edits to one note
 collide on that line even when the two people touched different paragraphs — and git's
 markers land inside the YAML fence, where `from_file` rightly refuses them and the note
@@ -2494,7 +2502,7 @@ builds both and says why. **Rejected:** a bare `fm` on PATH (PATH at `git pull` 
 not PATH now, and being wrong is data loss); resolving field conflicts by `updated`
 last-writer-wins (fiat, i.e. the CRDT mistake decision 1 rules out).
 
-## A vault gains an identity when it gains an audience, not before (2026-07-17)
+## A vault gains an identity when it gains an audience, not before (2026-07-17, `#vault` `#git`)
 **Why:** `ensure_identity` wrote a placeholder committer (`formicaria@localhost`) whenever
 `user.email` was unset — the default state of a researcher who never configured git. In a
 shared vault that attributes *everyone's* commits to the same fake name, gutting the
@@ -2518,7 +2526,7 @@ Enforced at `set_remote` only: `commit_all` cannot refuse (a silent stop is wors
 fake name on a private commit), so an already-remote'd vault is nudged by the panel, which
 shows the question whenever `backup_status.identity` is null.
 
-## Inline meeting actions become their own note, never a per-block atom (2026-07-17)
+## Inline meeting actions become their own note, never a per-block atom (2026-07-17, `#data`)
 **Why:** an owner types `- [ ] Ravi to send the draft` mid-meeting and wants it to show up
 in the agenda — but making inline checkboxes first-class agenda items needs **per-block
 identity**, which *the atom is the file* forbids (`MASTERPLAN.md:456`: it "voids this
@@ -2532,7 +2540,7 @@ at "type `- [ ]`"; scheduling is an explicit promotion. **Rejected:** a body-sca
 re-pollutes the exact views the assets decision below cleaned up. **Rejected:** per-block
 ids/timestamps — voids the plan.
 
-## Board images strip to the content-addressed blob store on save (2026-07-17)
+## Board images strip to the content-addressed blob store on save (2026-07-17, `#data`)
 **Why:** Excalidraw's `serializeAsJSON(…, 'local')` embeds a pasted image as a **base64
 data URL inside the note body** (`BinaryFileData.dataURL`), and `Whiteboard.svelte`
 re-serializes the whole scene on every debounced `onChange` — so a 2 MB screenshot becomes
@@ -2553,7 +2561,7 @@ traps found while auditing: `onDestroy` flushes *synchronously*, so an async upl
 the last stroke (upload eagerly on paste instead), and `lastSerialized` compares the **raw**
 serialization, so it must switch to the stripped text or the no-op-save guard breaks.
 
-## Assets are query-layer-excluded from the planning views (2026-07-16)
+## Assets are query-layer-excluded from the planning views (2026-07-16, `#seams` `#data`)
 **Why:** an asset is a blob a note *references*, not a thing you plan; a PDF
 getting its own board card and timeline entry was noise. Filtering in each
 renderer was rejected — it must be repeated per view and silently forgotten by
@@ -2568,7 +2576,7 @@ grouped by `type` can now only answer `note` (the old
 group-by claim still lives in `board_by_a_custom_property_…`), and the timeline's
 type pill became dead — the status chip took its slot.
 
-## Status rotates through the vault's own values; card order is a view preference (2026-07-16)
+## Status rotates through the vault's own values; card order is a view preference (2026-07-16, `#ui` `#data`)
 **Why:** setting a status meant entering edit mode and *typing* it. The obvious
 fix — a `<select>` of `todo/doing/done` — would hardcode one workflow's enum into
 the UI, which "generic, literal-free renderers" exists to prevent.
@@ -2583,7 +2591,7 @@ property in frontmatter — it would rewrite a note file on every drag, and wher
 card sits on your board is a view preference, not knowledge. Same reasoning, and
 the same per-browser no-sync caveat, as the existing column order.
 
-## `start`/`due` are a `Stamp` (day + OPTIONAL time), not a Date/DateTime pair (2026-07-15)
+## `start`/`due` are a `Stamp` (day + OPTIONAL time), not a Date/DateTime pair (2026-07-15, `#data`)
 **Why:** the owner needs meeting times ("a time option beyond the date"), but an
 all-day deadline must stay expressible and must not churn on disk. Two obvious
 designs were rejected:
@@ -2607,7 +2615,7 @@ crates. **Urgency stays day-granular** — a time is presentation, not priority.
 `OffsetDateTime`/RFC 3339, and the UI's `parseStamp` is anchored so it can never
 match one and hand back a UTC day.
 
-## Whiteboard = embedded Excalidraw, lazy-loaded (2026-07-15)
+## Whiteboard = embedded Excalidraw, lazy-loaded (2026-07-15, `#ui`)
 **Why:** the owner wanted a real "drawio but simpler" freeform canvas, not a
 diagrams-as-code stand-in, and chose full-featured-fast over build-it-minimal.
 **Consequence:** a deliberate reversal of "no new UI runtime dependency" —
@@ -2623,7 +2631,7 @@ text on disk). **Caveats:** Excalidraw fetches fonts from a CDN unless
 bundling deferred); and the canvas only renders in a real browser, so it's
 **unverified in headless CI** (build + code-split + round-trip are verified).
 
-## Browser is the product; the native window is removed (2026-07-15)
+## Browser is the product; the native window is removed (2026-07-15, `#ui` `#toolchain`)
 **Why:** the Tauri/WebKitGTK window never painted reliably on the developer's
 box (blank/gray; mutter/X11 with no compositor). The same SPA rendered correctly
 in a real browser, so the UI logic was sound — the webview was the problem.
@@ -2633,61 +2641,61 @@ pixi `gui` env, the `e2e/` WebDriver tree, and the deny.toml Tauri-RUSTSEC
 waivers are gone. Modern CSS is now fine (real browser, not WebKitGTK). The old
 "WebKitGTK blank-window" risk is retired.
 
-## Files-as-truth; the atom is the file (foundational)
+## Files-as-truth; the atom is the file (foundational) `#seams` `#data`
 **Why:** durability and ownership — a note must survive as plain text without
 this app. **Consequence:** one Markdown note = one file; frontmatter is a
 generic YAML mapping so unknown/custom props survive read→edit→write with no
 silent loss; key order is fixed so `to_file` is byte-idempotent. No per-block
 ids/timestamps — block-level structure is explicitly out of scope.
 
-## `fm-query` may never touch fs/db (the insurance policy)
+## `fm-query` may never touch fs/db (the insurance policy) `#seams`
 **Why:** a pure query engine is what keeps the whole system testable, portable,
 and honest about the seam between "data" and "storage." **Consequence:**
 enforced by a compile-time boundary *and* a CI grep. Do not add `rusqlite`/
 `std::fs`/path handling to `fm-query`, ever. Search works by: `Text` predicate →
 FTS5 prefix `MATCH` loads only the hit ids → the pure engine applies the rest.
 
-## Generic, literal-free renderers
+## Generic, literal-free renderers `#seams` `#ui`
 **Why:** a theme/renderer must not encode a specific workflow's enum values, so
 arbitrary property values (any status, any type) render + tint without code
 changes. **Consequence:** no `todo/doing/done` in `ui/src/renderers/`; column
 tints keyed by `[data-value]`, urgency by `[data-urgency]`, labels sourced from
 helpers (`urgency.ts`). CI greps enforce it.
 
-## v1 editor = plain `<textarea>` + rendered read view
+## v1 editor = plain `<textarea>` + rendered read view `#ui`
 **Why:** a live-preview CodeMirror 6 editor was assessed as the single biggest
 build risk. **Consequence:** editing is a textarea over the literal bytes
 (`update_body`, byte round-trip tested) with a separate rendered read view
 (`render.ts`, `marked`→HTML, lazy KaTeX/Mermaid). CM6 live-preview is **deferred
 to v2**.
 
-## Content-addressed blobs, extracted text in the note body
+## Content-addressed blobs, extracted text in the note body `#data`
 **Why:** dedup + integrity (bit-rot = a blob no longer hashing to its filename),
 and searchability before the git-ignored blob syncs. **Consequence:** blobs are
 sha256 with `ab/cd` fan-out; ingest sniffs MIME (`infer`), runs `pdftotext` →
 the **asset note's body** (git-tracked, FTS-indexed), and makes a thumbnail.
 `put_bytes` dedups before writing.
 
-## Markdown→HTML is JS `marked`, not Rust pulldown-cmark
+## Markdown→HTML is JS `marked`, not Rust pulldown-cmark `#ui` `#toolchain`
 **Why:** it shipped that way; the MASTERPLAN's "pulldown-cmark→HTML" line never
 materialized (the crate is absent). **Consequence:** the only HTML assembly is
 one `marked.parse()` in `render.ts`. *(That output is now sanitized with DOMPurify before the DOM sees it — see the sanitize entry.)* The then-unsanitized-innerHTML gap in
 [known-issues.md](./known-issues.md).
 
-## No plugin API
+## No plugin API `#seams`
 **Why:** plugin APIs rot and become a compatibility burden. **Consequence:**
 extend via modular Rust (add a renderer / store / extractor), declarative
 declarative `.view` files, a one-file theme (design tokens), and an optional mlua
 hatch — never a stable plugin surface.
 
-## Tauri was the light choice; a native-GUI rewrite is rejected
+## Tauri was the light choice; a native-GUI rewrite is rejected `#toolchain` `#ui`
 **Why:** even before removal, Tauri used the system webview (no bundled
 Chromium; ~9.6 MB release binary) — lighter than Electron (Logseq/Obsidian run
 1–2 GB). **Consequence:** the only genuinely-lighter path (egui/Slint/iced) would
 mean rewriting the entire Svelte + KaTeX + Mermaid read view — not worth it.
 Now moot (browser), but do not propose a framework rewrite.
 
-## Which attachments travel is a per-vault size limit, in `vault.json`
+## Which attachments travel is a per-vault size limit, in `vault.json` `#vault` `#git`
 **Why:** the two-tier split below is right by default and too absolute in practice — a screenshot
 in a note is part of the note, and a 200 KB PNG has nothing in common with a 60 MB video except
 living in `blobs/`. So `git_assets_max` opts a vault in: blobs at or under it are committed and
@@ -2707,7 +2715,7 @@ limit does not untrack what already travelled; the bytes are already in history,
 what travels next. `Descriptor::set_git_assets_max` is the one narrow exception to `write_new`'s
 never-overwrite rule, and preserves unknown keys.
 
-## Backup is two tiers: git push (default) + restic (opt-in)
+## Backup is two tiers: git push (default) + restic (opt-in) `#vault` `#git`
 **Why:** the vault holds two data classes with nothing in common. Notes are
 small, plain, mergeable → git carries them anywhere, authenticated by the user's
 own ssh-agent/credential-helper, so **the app stores no secret**. Blobs are heavy
@@ -2751,7 +2759,7 @@ write keeps ours. Android has no driver at all (libgit2 cannot spawn one), so
 a local path is a legitimate destination but must never be reported as "off this
 machine".
 
-## Squash-on-push — a deliberate reversal of "don't build commit management"
+## Squash-on-push — a deliberate reversal of "don't build commit management" `#git`
 > **Reversal (`#git`), current.** Reverses `MASTERPLAN.md`'s *don't build commit management* — for
 > the **remote** only; the local repo still keeps every `auto:` commit for undo.
 
@@ -2780,7 +2788,7 @@ load-bearing:
 **Accepted cost:** granular undo only reaches back to the last push; before that
 each push is one step. This narrows (does not remove) the undo auto-commit buys.
 
-## Acquiring a vault: `naturalise` is the seam, not a transport trait
+## Acquiring a vault: `naturalise` is the seam, not a transport trait `#vault` `#seams`
 *(2026-07-19, `sessions/2026-07-19-acquiring-a-vault.md`)*
 
 **Why:** the owner wants vaults acquirable from elsewhere by several methods —
@@ -2812,7 +2820,7 @@ because `backup` snapshots the vault's own directories and not its root. It is a
 widening what restic snapshots.
 
 
-## Android TLS: the trust store is loaded from memory, never from a file
+## Android TLS: the trust store is loaded from memory, never from a file `#track-m`
 *(2026-07-19, `sessions/2026-07-19-git-on-the-phone.md`)*
 
 **Why:** `openssl-src` passes `no-stdio` to OpenSSL's configure on **every** Android target, so
@@ -2844,7 +2852,7 @@ GitSync does, and it skips hostname verification while sending `userpass_plainte
 unauthenticated connection. The leaf certificate libgit2 hands the callback has no chain, so real
 verification is not possible there either.
 
-## `fm-serve` sends a Content-Security-Policy, and it is the "nothing phones home" guard
+## `fm-serve` sends a Content-Security-Policy, and it is the "nothing phones home" guard `#ui` `#seams`
 **Why:** a note is Markdown, and Markdown renders remote images. A single
 `![](https://attacker/p.png?leak=…)` in a note that arrived by merge, by copy, or in a shared
 vault fetches the attacker's URL **on render, from the user's machine**. That is not an XSS
@@ -2875,7 +2883,7 @@ is what stops a sanitiser bypass from being code execution. `style-src 'unsafe-i
 unavoidable and low-risk: Mermaid injects `<style>` and KaTeX/Excalidraw set `style=` on
 everything they draw. The Android shell serves through its own custom scheme and is unaffected.
 
-## A commit that committed nothing must say *why*
+## A commit that committed nothing must say *why* `#git`
 **Why:** `commit_all` returns `Ok(false)` both for "clean tree, nothing to do" and for "this
 vault is mid-merge, so I refuse" — and those are opposites. The refusal is right (staging
 conflict markers would publish them as content), but read as success it means **every write
@@ -5798,3 +5806,37 @@ nothing else, cost another round trip against a network repo, and still not said
 Closes `outstanding.md` §2.10's last residue. Proven red four ways: `summary()` forced to `None`,
 `blobs` hardcoded true, the dispatch arm restored to `nothing()`, and the panel's fixed phrase put
 back — that last one failing with the old sentence printed verbatim.
+
+## 2026-09-05 — a closed section in the queue leaves a tombstone, because the code cites it by number `#toolchain`
+
+`outstanding.md` opens with a rule it means: *"This file is a queue, not a log. When an entry is
+fixed, **delete it** — the first version kept its fixed entries struck through, and within a day it
+had become a changelog with nothing to do in it."* Correct, and it has been followed: §2.6 and §2.9
+were deleted when they closed.
+
+**And 17 comments in the source cite this file by section number.** `dispatch.rs`, four UI tests,
+`backup_cli.rs`, `agent.rs`, `papers-plan.md` — `§2.6b` six times, `§2.10` seven, `§2.6` and `§2.9`
+twice each. Four of those already point at nothing: the sections they name were deleted, correctly,
+by the rule. Nobody noticed, because deleting a heading breaks a reference silently and in another
+crate.
+
+So the two rules were in direct conflict, and each was being followed by someone who could not see
+the other. `decisions.md` already ruled on exactly this failure, one file over — *"cite rulings by
+subject, never by number — `mobile-design.md` and `plan.md` number them differently, and the hybrid
+propagated a wrong number into this file."* The same mistake, made against a different document.
+
+**The ruling: a closed section is replaced by a one-line tombstone, not removed.** It names what
+the section was, that it is closed, and where the record went — `decisions.md` for the why,
+`features.md` for the status. Three lines, not seventy-six.
+
+**Why a tombstone and not the obvious fix.** Rewriting seventeen comments to cite by subject is the
+*better* end state and it is not free: a comment that says *"this is `outstanding.md` §2.10's last
+residue"* is doing real work for the next reader, and the subject-shaped version of it is longer and
+vaguer. A tombstone keeps every existing citation resolvable at the cost of one line per closed
+section, and it makes the closure visible at the place someone looks it up — which deletion does
+not. New citations should still prefer the subject; this is about the ones already written.
+
+**What a tombstone is not.** It is not the struck-through entry the rule forbids. The distinction is
+length and intent: a tombstone says *this is closed, look here* and stops. A changelog entry
+re-litigates the fix. §2.10 had grown to 76 lines of solved problem sitting in a work queue, which
+is precisely the failure mode the file's opening paragraph describes.

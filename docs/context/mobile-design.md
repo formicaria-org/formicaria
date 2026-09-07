@@ -1,5 +1,15 @@
 # Mobile design — the receipts behind Track M
 
+> ### ⚠️ Dated receipts. Where this disagrees with the durable layer, the durable layer wins.
+>
+> The *rulings* and the *why-not* below are durable and still worth reading — that is what this
+> file is for. Its **status claims are not**: several were falsified by work that shipped after
+> 2026-07-19, including the two biggest, and this file is reached from `overview.md`'s router, so a
+> reader is *sent* here. Every falsified claim carries a dated correction inline (2026-09-05).
+> For current fact: [`features.md`](./features.md) for status,
+> [`known-issues.md`](./known-issues.md) for gaps, [`outstanding.md`](./outstanding.md) for the
+> queue, and `decisions.md#track-m` for the rulings that superseded these.
+
 The line-by-line design + code audit behind [`plan.md`](./plan.md)'s **Track M** (formicaria
 on the phone), the same way [`collaboration-design.md`](./collaboration-design.md) sits behind
 Track C. `plan.md` carries the sequence-defining *rulings*; this file carries the *why*, the
@@ -16,6 +26,14 @@ is not coming back): the **`git2` backend** and the **`git2::merge_file` body en
 **transport ruling — Tauri bridge primary, `fm-serve`-on-device as the documented retreat — is
 untouched, not rejected.**
 
+> **⛔ Both rejections were reversed, and both shipped (corrected 2026-09-05).** libgit2 *is* the
+> in-process backend, behind the `native-git` feature (`crates/fm-core/src/git_native.rs`), and the
+> body-merge engine calls `git_merge_file` through `libgit2-sys`
+> (`crates/fm-core/src/merge.rs`, `text_3way_native`). Grep `decisions.md` for `#track-m` — *the
+> libgit2 exception* and *the body merge stops shelling out where there is no shell* are the
+> entries that reversed them. **Read the paragraph above as a record of 2026-07-19, not as
+> current fact.**
+
 **Four things block a phone build, not one:**
 
 1. **Toolchain** — the Android NDK + SDK are not conda-packaged (the four
@@ -26,8 +44,19 @@ untouched, not rejected.**
    is the one nobody had named.
 4. **Transport** — decided in principle, unbuilt.
 
+> **All four are resolved, and the app has run on a real device (corrected 2026-09-05).**
+> (1) The NDK is pinned in `pixi.toml`'s `android` feature, and `ci/android-smoke.sh` builds,
+> installs, launches and screenshots on the emulator. (2) The backend was chosen — libgit2, above.
+> (3) The engine exists — `text_3way_native`. (4) The transport is Tauri IPC
+> (`mobile/src-tauri/src/lib.rs`). What is *still* open on the phone is in
+> [`known-issues.md`](./known-issues.md) and [`outstanding.md`](./outstanding.md) §1.1.
+
 **`git.rs` has no `clone`.** M1 is new code on every possible backend, not a port. Nothing in the
 sequence below should be read as "port the existing primitive."
+
+> **(corrected 2026-09-05)** It has one — `git.rs`'s `pub fn clone(url, dest)` — and `vcs` routes
+> it to both backends. The *reasoning* still holds for whatever a clone has to do on a phone; the
+> premise that no primitive exists does not.
 
 This file supersedes the owner's first mobile draft, which an adversarial
 review (three code audits + a pass against `decisions.md`) found to rest on one false premise,
@@ -157,6 +186,11 @@ download direction goes over `blob://` (ruling 7), not an IPC byte-array.
 
 ## Ruling 3 — merge: `git2::merge_file`, not `diffy` (⛔ **refuted 2026-07-18 — that function does not exist**)
 
+> **The refutation was right about `git2`, and the ruling shipped anyway (corrected 2026-09-05).**
+> The paragraph below already names the way through — the buffer-shaped `git_merge_file` bound in
+> `libgit2-sys` — and that is exactly what `merge.rs`'s `text_3way_native` now calls. So the
+> heading's ⛔ is true of the *`git2` crate* and false as a statement about the project.
+
 > **Audited against the real crate, not the docs.** `git2` 0.20.4 exposes only
 > `Repository::merge_file_from_index(&IndexEntry, &IndexEntry, &IndexEntry, …)` — which needs
 > index entries and so would pollute the ODB, contradicting `merge.rs`'s own design. The
@@ -267,6 +301,13 @@ provenance hole reopened, precisely in the multi-user case the owner cares about
 
 ## Ruling 6 — `git2` becomes the single in-process backend (⛔ **REJECTED 2026-07-18**, not merely blocked — see `decisions.md`, "`git2` is rejected; git stays a subprocess capability")
 
+> **The rejection was reversed (corrected 2026-09-05).** libgit2 ships as `fm-core`'s `native-git`
+> feature — on Android, on iOS, and on Windows, where the OS provides no git binary. The
+> objections below were not wrong, and they are what *scoped* the reversal: the exception is
+> "devices with no git binary", `ci/checks.sh` holds it to that scope, and the merge-driver
+> problem is answered by `text_3way_native` rather than by registering a driver. Read the pair in
+> `decisions.md` — a rejection and its reversal are a chain, and the chain is the point.
+
 > **1. libgit2 cannot invoke external merge drivers.** Verified in the vendored C: only
 > text/union/binary are registered, and libgit2 contains no process-spawn anywhere.
 > `git_merge_driver_register` is unbound in both `libgit2-sys` and `git2`, and even wired up it
@@ -333,7 +374,10 @@ reversing *"git is a capability, not a dependency."* The one-backend call is del
 `fm-serve/src/blob.rs`: streamed from disk in 64 KB chunks, sniffed `Content-Type`,
 `Accept-Ranges`, real `Range` (206/416), and the UI's inline media points at it instead of
 minting object URLs. The mobile `blob://` protocol handler is still to build, but it now has
-a working reference rather than an imagined one. What remains of the original finding, for
+a working reference rather than an imagined one. **(corrected 2026-09-05: it was built —
+`fmblob` in `mobile/src-tauri/src/lib.rs`, answering `Range` with 206 and `Content-Range`. It
+does not *stream*, and cannot at that seam; see `decisions.md#track-m`, *the phone's blob route
+answers a `Range`, and stops lying about it*.)** What remains of the original finding, for
 the record:
 
 **(corrected — the draft mis-cited it as "planned/existing.")** Audited: there was **no** `GET

@@ -1,5 +1,8 @@
 # Study-agent adversarial review — 2026-07-22
 
+> **Dated review, 2026-07-22 — a snapshot, not maintained.** Its structural verdict shaped what
+> shipped; its findings describe the tree of that day. Current rulings: `decisions.md#agent`.
+
 Four lenses (portability/Android, seam-modularity, efficiency, philosophy/boilerplate) converged on one structural verdict: the *brain* of the agent is already portable (`StudyAssistant<L,S>` is pure, generic over `LlmStep`/`WebSearch`, needs no disk or network), but every *layer that runs it* is hard-bound to three localhost HTTP ports, a spawned x86 subprocess, a Python sidecar, and the git CLI — none of which exist on a phone. The findings below are deduplicated (the six-endpoint presence/activity channel, for instance, was independently flagged by three lenses and is merged) and ranked by impact × how much each unblocks Android.
 
 ## Executive summary

@@ -43,11 +43,13 @@ editor. This app is not needed to read them.
 
 ## What else is in the folder
 
-Only three things are for you:
+Only four things are for you:
 
 - **`Start formicaria.sh`** — starts it.
 - **`Manual.html`** — this manual.
 - **`vault`** — your notes.
+- **`Update from an older folder.sh`** — run this only when you download a newer
+  version; it copies your old notes across. See [Updating](./updating.md).
 
 `program` holds the application itself and `manual` holds this manual's pages. You never need to
 open either.

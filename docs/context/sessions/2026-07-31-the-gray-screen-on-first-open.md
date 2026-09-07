@@ -131,7 +131,7 @@ file.)*
 
 The owner reported *"I have a conflict on the meeting template but I see nothing, no option to solve
 it"*. Diagnosed on the real vault: a `DU` (deleted-here, edited-there) conflict on the Meeting
-template had left `/home/baljinder/formicaria/vault` **mid-merge for 7 days**, with **95 notes never
+template had left the development vault **mid-merge for 7 days**, with **95 notes never
 committed**, because `commit_all` refuses while a vault is mid-merge. Resolved by accepting the
 incoming version, committing the backlog and pushing (local and `origin/main` both `e44751d`).
 

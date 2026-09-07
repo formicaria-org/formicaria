@@ -50,8 +50,8 @@ checked before writing "not built". **Half of Track C Phase 0 is already done:**
   replace the roadmap row), `overview.md` (Last-verified line), `decisions.md` (3 new
   entries), `known-issues.md` (3 forward links repointed to `plan.md`).
 - **CLAUDE.md:** new Git house rule — *remote (claude.ai) sessions cannot open PRs/push;
-  finish with a patch to apply locally*. (Owner uses a non-`nazeer` GitHub identity in
-  remote runs; the durable home is the global `~/.claude/CLAUDE.md`, which a remote
+  finish with a patch to apply locally*. (The GitHub account that owns the remotes is not the one
+  authenticated in a remote run; the durable home is the global `~/.claude/CLAUDE.md`, which a remote
   session can't edit, so it's restated per-repo.)
 - **`collaboration-design.md`:** left as-is — it's the referenced code-audit appendix.
 

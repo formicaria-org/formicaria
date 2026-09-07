@@ -304,10 +304,10 @@ lint     = "cargo deny check && cargo clippy -- -D warnings"
 seam     = "cargo test -p fm-query"          # the zero-I/O seam suite
 ```
 
-**Runtime, not just build.** Because pixi pins the subprocess tools, `pixi run dev` (or `pixi shell`) puts the *exact* `pdftotext`/`vipsthumbnail`/`restic` on `PATH` regardless of what apt has — so "search inside every paper" and the bit-rot scrub behave identically on every machine and in CI. For a distributable `.deb`, declare these as Debian runtime deps instead; for the single owned machine that is v1, the pixi environment *is* the runtime.
+**Runtime, not just build.** Because pixi pins the subprocess tools, `pixi run serve` (or `pixi shell`) puts the *exact* `pdftotext`/`vipsthumbnail`/`restic` on `PATH` regardless of what apt has — so "search inside every paper" and the bit-rot scrub behave identically on every machine and in CI. For a distributable `.deb`, declare these as Debian runtime deps instead; for the single owned machine that is v1, the pixi environment *is* the runtime.
 
 **Consequences woven into the rest of the plan:**
-- **First three commits** gain a step: commit `pixi.toml` + `pixi.lock` alongside the workspace scaffolding, and make CI run `pixi run test` / `pixi run seam` / `pixi run lint` so the perf-budget, seam, and `cargo-deny` gates all execute inside the locked environment.
+- **First three commits** gain a step: commit `pixi.toml` + `pixi.lock` alongside the workspace scaffolding, and make CI run `pixi run test` / `pixi run seam` / `pixi run deny` / `pixi run checks` so the perf-budget, seam, licence and architectural gates all execute inside the locked environment. *(This line originally named two tasks, `dev` and `lint`, that were never created; they shipped as `serve`, `deny` and `checks`. Corrected 2026-09-05 — `ci/checks.sh` now fails on a documented task that does not exist, which is what found it.)*
 - **`cargo-deny`** (license gate) and the two CI greps run as pixi tasks — one `pixi install` reproduces the entire dev/CI toolchain.
 - **Longevity:** three lockfiles committed to the app repo mean a 2031 checkout resolves to the same toolchain and the same `pdftotext`. With the webview gone there is no GUI native surface to pin — the lean default env builds and runs everything.
 

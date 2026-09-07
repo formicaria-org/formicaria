@@ -1,5 +1,8 @@
 # Forward-plan adversarial review — FFI vs. the alternatives
 
+> **Dated review, 2026-07-22 — a snapshot, not maintained.** Read for the argument, not for
+> status. Current rulings: `decisions.md#agent`.
+
 *Adversarial multi-agent review (4 lenses + synthesis, 2026-07-22) pressure-testing the
 "one path = in-process FFI llama.cpp, delete the subprocess path" migration against the owner's
 principles. Supersedes the FFI-single-path decision recorded in

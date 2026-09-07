@@ -1,7 +1,8 @@
 # Views
 
 Every view is the same data seen a different way — "a query plus a renderer".
-Open a view into a **pane** from the top bar; each pane has its own picker, so several
+Open a view into a **pane** from the sidebar — down the left of a wide window, along the bottom of
+a narrow one; each pane has its own picker, so several
 views can be on screen at once, side by side.
 
 ![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due
@@ -25,16 +26,28 @@ date and who last touched it](../images/board.png)
   days](../images/agenda.png)
 - **Timeline** — a journal: every note grouped under the day it was created,
   newest first.
-- **Activity** — who changed what, and when, read straight out of each vault's git
-  log. Nothing is stored for it: git already knows, so this is a view of history
-  rather than a record of its own. It is also where the contributor filter comes
-  from — hiding a person there hides their notes everywhere.
 - **Collaboration** — the open [proposals](./collaboration.md#proposals) across
   your vaults: notes that propose a change to a git branch, newest first. Open one
   to read it and its discussion. (Conflicts awaiting resolution are surfaced by the
   backup panel, not here.)
+- **Discussions** — every discussion across your vaults in one place, so a thread
+  you replied to last week is not lost inside the note it hangs off.
+
+Two more are real views but are **not** in the sidebar, and that is deliberate:
+
+- **Activity** — who changed what, and when, read straight out of each vault's git
+  log. Nothing is stored for it: git already knows, so this is a view of history
+  rather than a record of its own. It is genuinely useful and genuinely rare, so it
+  lives in the **command palette** rather than costing a permanent row of attention.
+  It is *not* the same as the Timeline: the Timeline is your notes by the day you
+  wrote them; Activity is every edit, including other people's.
+
+  ![The command palette open over the Board, listing Open Board, Open Agenda, Open Timeline,
+  Open Activity, Open Collaboration and Open Discussions under a filter box](../images/settings.png)
 - **Search** — full-text search across every note (and the extracted text of
-  ingested PDFs). Type to filter; click a result to open it.
+  ingested PDFs). Reached by typing into the **search box** at the top of the
+  sidebar, never from the list: clicking an empty search view produces a blank pane,
+  so there is nothing to click.
 
 The Board, Agenda and Timeline show **notes only** — which excludes three kinds of
 note that are not things you plan. An [asset](./assets.md) is a file a note refers
@@ -53,7 +66,7 @@ nudging a note's `due` date is the whole reprioritization gesture.
 
 A **view** is an arrangement you keep — *"my board grouped by status"*, *"this week's lab
 agenda"*. It is a small file in your vault, at `<vault>/views/<name>.view`, and every one of them
-appears alongside Board / Agenda / Timeline in the top bar and in each pane's view picker.
+appears alongside Board / Agenda / Timeline in the sidebar and in each pane's view picker.
 Because it lives in the vault it is **git-tracked and travels to collaborators** — a shared view
 is shared exactly like a note.
 
@@ -101,8 +114,8 @@ view for `reading`. `filter` is a list; a note must satisfy **every** entry. Eac
 | `any:` + a list of entries | at least one of them (an OR) |
 
 > **Use `board`, `agenda` or `timeline`.** Those are the three that draw differently. A view
-> asking for `search` or `gallery` is accepted but renders as a timeline. Full-text search is in
-> the top bar, and images are reached from the notes that use them.
+> asking for `search` or `gallery` is accepted but renders as a timeline. Full-text search is the
+> box at the top of the sidebar, and images are reached from the notes that use them.
 
 ```yaml
 name: Lab, due this fortnight, still open

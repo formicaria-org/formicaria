@@ -60,8 +60,8 @@ afterwards is how a project stops being what it said it was, one reasonable step
 - **Git**: solo repo, work on `main`, no branch/PR ceremony — but commit **only
   when the user asks**.
 - **Remote (claude.ai / web) sessions cannot open PRs or push here.** The GitHub
-  account authenticated in a remote run is **not** the `nazeer` account that owns
-  this repo, so `gh pr create` and any push will fail. In a remote session: do
+  account authenticated in a remote run is **not** the account that owns this
+  repo, so `gh pr create` and any push will fail. In a remote session: do
   **not** attempt a PR or a push. Commit locally if useful, then **finish by
   producing a patch to apply on the owner's machine** — e.g.
   `git format-patch origin/main -o <scratchpad>` or `git diff > <scratchpad>/changes.patch`

@@ -205,8 +205,9 @@ own collaborators.
 |---|---|---|
 | `FM_VAULT` | *(none — the app asks on first run)* | Vault directory, when no vault list is configured |
 | `FM_VAULTS` | per-OS config path | Location of the vault list |
+| `FM_CONFIG_DIR` | per-OS config path | Directory the vault list and the restic password live in |
 | `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
-| `FM_OPEN` | unset | Open the browser on start |
+| `FM_OPEN` | **on** | Open the browser on start. Set to `0` to keep it closed |
 | `FM_UI_DIST` | unset (uses the embedded interface) | Serve the interface from a directory instead |
 | `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app. Set to `0` to keep it running |
 | `FM_RESTIC_REPO` | unset | Restic repository for a single-vault install (a vault list uses its own `restic` field) |

@@ -8,10 +8,16 @@ fail=0
 
 echo "[check] the gate has the tools its tests need (or it silently proves nothing)..."
 # ---------------------------------------------------------------------------------------------
-# **97 tests in this repo skip rather than fail when a tool is missing**, and a run that skipped
-# them reports `ok` in exactly the same words as one that ran them. 72 of those turn on `git`, 7 on
-# `restic`, and `fm-core/tests/backup.rs` opens by quoting the module's own rule — *"an untested
-# backup is not a backup"* — while skipping seven of its own without it.
+# **Well over a hundred tests in this repo skip rather than fail when a tool is missing**, and a
+# run that skipped them reports `ok` in exactly the same words as one that ran them. Most turn on
+# `git`; the rest on `restic`. `fm-core/tests/backup.rs` opens by quoting the module's own rule —
+# *"an untested backup is not a backup"* — and every one of its tests skips without restic.
+#
+# **No figures here on purpose** (2026-09-05). This comment used to say "97 … 72 … 7", which was
+# wrong on the day it was written (143 and 9), does not add up, and had rotted further by the time
+# anyone checked. A number in a comment is a claim nothing verifies; see `known-issues.md`'s trap,
+# *a count in a comment is a claim, and it rots*. What matters is the shape, and the shape does not
+# change: a gate that can silently cover a large fraction of the suite is not a gate.
 #
 # The skipping itself is deliberate and right: `fetch.rs` states the reason plainly, *"a gate that
 # fails on a train is a gate people learn to ignore"*, and a contributor with no restic should still
@@ -881,6 +887,158 @@ for subj in $(grep -hoE 'decisions\.md#[a-z-]+' docs/context/overview.md docs/co
     fi
 done
 
+echo "[check] no personal identifiers in tracked files (this repo is public)..."
+# **Irreversible the moment the repo is public**, which is why it is a guard and not a review note.
+# Found on 2026-09-05, all of it in `docs/context/`: a session file linked the maintainer's Claude
+# account to the GitHub account that owns the remotes; `device-resources.md` and a session carried
+# the owner's phone by exact retail model number and its RAM in kB — a per-unit fingerprint, not a
+# hardware class; and four files carried `/home/<user>` paths.
+#
+# The SoC, core count and RAM in GB stayed: they are the measurement every benchmark rests on, and
+# they describe millions of devices. What goes is anything identifying a *unit* or a *person*.
+# `ci/checks.sh` itself is exempt for the one string it must grep for, and the git author name is
+# not covered here because every commit already carries it.
+#
+# `/home/you`, `/home/ada`, `/home/user` and friends are the documentation placeholders this repo
+# writes by convention — they are the *right* thing to publish, so they are allowed by name. What
+# is caught is a `/home/<anything-else>`, i.e. somebody's actual login leaking through a path.
+leaks=$(git grep -nIE '/home/[a-z][a-z0-9_-]*|24095PCADG|[a-zA-Z0-9._%+-]+@(gmail|outlook|hotmail|yahoo|icloud)\.[a-z]+' \
+        -- . ':!ci/checks.sh' ':!ui/pnpm-lock.yaml' ':!Cargo.lock' 2>/dev/null \
+        | grep -vE '/home/(you|ada|alice|bob|user|username|me|someone|USER|x)([^a-z0-9_-]|$)')
+if [ -n "$leaks" ]; then
+    echo "  FAIL: personal identifier(s) in tracked files:"
+    echo "$leaks" | head -20 | sed 's/^/        /'
+    echo "        Replace with a role — \"the owner's Android device\", \"the owner's home"
+    echo "        directory\". Every technical point these make survives redaction."
+    fail=1
+fi
+
+echo "[check] every 'pixi run <task>' in the docs is a task that exists..."
+# The toolchain is pixi-only, so a documented command is the *only* way in — and a reader who types
+# one that does not exist has no way to tell a typo from a missing dependency. `MASTERPLAN.md` sent
+# people to `pixi run dev` and `pixi run lint`, neither of which has ever existed.
+# `pixi run cargo …` and friends are not tasks: pixi also runs a binary from the environment.
+known_bins="cargo pnpm npm node python3 python sh bash git restic mdbook adb"
+pixi_tasks=$(grep -oE '^[a-z][a-z0-9_-]* = |^\[tasks\.[a-z0-9_-]+\]' pixi.toml \
+             | sed 's/ = //; s/\[tasks\.//; s/\]//' | sort -u)
+badtask=
+for t in $(git grep -ohE 'pixi run (-e [a-z]+ )?[a-z][a-z0-9_-]*' -- '*.md' | awk '{print $NF}' | sort -u); do
+    echo "$pixi_tasks" | grep -qx "$t" && continue
+    echo "$known_bins" | grep -qw "$t" && continue
+    badtask="$badtask $t"
+done
+if [ -n "$badtask" ]; then
+    echo "  FAIL: the docs tell a reader to run pixi task(s) that do not exist:$badtask"
+    echo "        Add the task to pixi.toml, or fix the doc. A pixi-only project has no fallback."
+    fail=1
+fi
+
+echo "[check] every test-* task is in the gate, or says why not..."
+# `pixi run ci` is the single gate. `test-native-git` — nine suites over the libgit2 backend that
+# Android, iOS and Windows actually ship, including the regression test for a bug that **froze
+# vaults** — was not in it, and nothing said so. A task can be left out for a good reason (build
+# cost); what it may not be is left out silently. Mark it with `# not-in-ci: <reason>` on the line
+# above and the omission becomes a decision somebody made.
+# Read the whole `[tasks.ci]` section, not a fixed number of lines after the header: the section
+# carries a comment explaining why `test-native-git` is in it, and an `-A 2` window missed the
+# `depends-on` line entirely — reporting every task as absent, including the ones present.
+ci_deps=$(awk '/^\[tasks\.ci\]/{p=1;next} /^\[/{p=0} p' pixi.toml | grep 'depends-on')
+notin=
+for t in $(grep -oE '^test-[a-z0-9-]+' pixi.toml | sort -u); do
+    echo "$ci_deps" | grep -q "\"$t\"" && continue
+    grep -B 1 "^$t = " pixi.toml | grep -q '# not-in-ci:' && continue
+    notin="$notin $t"
+done
+if [ -n "$notin" ]; then
+    echo "  FAIL: test task(s) neither in [tasks.ci] nor marked '# not-in-ci: <reason>':$notin"
+    echo "        A suite the single gate never runs is a suite nobody runs."
+    fail=1
+fi
+
+echo "[check] every dispatch arm has a mock, so a UI test cannot pass for the wrong reason..."
+# `ui/src/lib/mock.ts` answers the Rust backend for `pnpm dev` and for every UI test. An arm with no
+# `case` there does not fail loudly — the mock's fallthrough answers, so a feature is undevelopable
+# and untestable in the UI and nothing says which. The chunked-ingest arms (`ingest_chunk`,
+# `ingest_finish`, `ingest_cancel`, 2026-09-04) shipped this way: the path built to lift the phone's
+# size limit had no mock at all.
+arms=$(awk 'NR>=505 && /^        "[a-z_0-9]+"( \| "[a-z_0-9]+")* =>/' crates/fm-app/src/dispatch.rs \
+       | sed 's/=>.*//' | grep -oE '"[a-z_0-9]+"' | tr -d '"' | LC_ALL=C sort -u)
+nomock=
+for a in $arms; do
+    grep -qE "case '$a'|case \"$a\"" ui/src/lib/mock.ts || nomock="$nomock $a"
+done
+if [ -n "$nomock" ]; then
+    echo "  FAIL: dispatch arm(s) with no case in ui/src/lib/mock.ts:$nomock"
+    echo "        Add one. Without it the arm is unreachable under 'pnpm dev' and invisible to"
+    echo "        every UI test, which is how a shipped feature stays undeveloped in the UI."
+    fail=1
+fi
+
+echo "[check] every manual image is referenced, and every reference exists..."
+# A committed screenshot nobody prints is a file that rots unseen — `settings.png` was regenerated
+# by `pixi run shots` on every run and referenced by no page. The reverse is worse: a reference to a
+# missing image renders as a broken box in a manual someone is reading to learn the app.
+for f in docs/src/images/*.png; do
+    b=$(basename "$f")
+    grep -rqF "images/$b" docs/src/ || { echo "  FAIL: docs/src/images/$b is referenced by no page."; fail=1; }
+done
+for ref in $(grep -rhoE '\(\.\./images/[a-z0-9_-]+\.png\)|\(images/[a-z0-9_-]+\.png\)' docs/src/ | grep -oE '[a-z0-9_-]+\.png' | sort -u); do
+    [ -f "docs/src/images/$ref" ] || { echo "  FAIL: the manual references images/$ref, which does not exist."; fail=1; }
+done
+
+echo "[check] every decision carries a subject tag (the only way anyone finds it)..."
+# `overview.md`'s router and `CLAUDE.md`'s four questions both say the same thing: find a decision by
+# grepping its `#subject`. That is the documented retrieval path and the only one — the file is 5,800
+# lines, uses two heading conventions that interleave, and is **not** in date order, so position tells
+# a reader nothing.
+#
+# **Fifty of its 156 headings carried no tag** (found 2026-09-05), including foundational ones —
+# *files-as-truth*, *`git2` is rejected*, *Backup is two tiers*, *Collaboration is git, exposed*.
+# A third of the log was unreachable by the method the project tells everyone to use, and nothing
+# said so: grep finds what it finds, and silence reads like absence.
+#
+# Tags are also the file's only cross-document handle. `README.md`: "cite rulings by subject
+# (`decisions.md#tag`), never by number" — a rule that cannot be kept for an entry with no subject.
+untagged=$(grep -n '^## ' docs/context/decisions.md \
+    | grep -vE '#(seams|git|sync|track-m|ui|vault|data|toolchain|agent)' \
+    | grep -v 'Subject index')
+if [ -n "$untagged" ]; then
+    echo "  FAIL: decision heading(s) with no #subject tag:"
+    echo "$untagged" | sed 's/^/        /'
+    echo "        Add one of #seams #git #sync #track-m #ui #vault #data #toolchain #agent to the"
+    echo "        heading. Without it the entry is reachable only by reading 5,800 lines in order,"
+    echo "        which is the one thing this file's own header tells you not to do."
+    fail=1
+fi
+
+echo "[check] every on-demand context doc is reachable from the router..."
+# The forward direction has been checked since the layer was built: a pointer in overview.md or
+# features.md must resolve. **The reverse was never checked**, and it is the direction that hides
+# things (added 2026-09-05). README.md says the always-read layer is the only entry point and the
+# rest is "pulled on demand via the router" — so a doc no row names is, by the layer's own rules,
+# invisible. Seven were: 1,680 lines, including plan.md (which calls itself "the single forward
+# document") and collaboration-design.md. Two of them carried roughly half the false status claims
+# in the whole layer, which is not a coincidence — nobody reads what nobody is sent to, so nobody
+# corrects it either.
+#
+# Exact match, not substring: `grep -qF plan.md` is satisfied by "papers-plan.md", which is how
+# this stayed invisible to a first attempt at the same check.
+unrouted=""
+for f in docs/context/*.md; do
+    b=$(basename "$f")
+    case "$b" in README.md|overview.md|features.md) continue ;; esac
+    esc=$(printf '%s' "$b" | sed 's/[.[\*^$]/\\&/g')
+    grep -qE "(^|[^A-Za-z0-9._-])$esc" docs/context/overview.md docs/context/features.md \
+        || unrouted="$unrouted $b"
+done
+if [ -n "$unrouted" ]; then
+    echo "  FAIL: on-demand doc(s) no router row names:$unrouted"
+    echo "        Add a router row in overview.md (or a features.md pointer), or move the file to"
+    echo "        docs/context/archive/ if it is no longer current. A doc nobody is sent to is one"
+    echo "        nobody corrects."
+    fail=1
+fi
+
 echo "[check] the always-read context layer stays under its size budget..."
 # The always-read layer (overview.md + features.md) is loaded every session, and the whole reason
 # this structure exists is that an ever-growing always-loaded file is what makes an agent skim and
@@ -894,15 +1052,38 @@ if [ "$always_read_lines" -gt "$always_read_budget" ]; then
     echo "        Move detail to an on-demand doc + add a router row; do not raise the cap."
     fail=1
 fi
+# **And in bytes, because the line cap was being bypassed by wrapping less** (added 2026-09-05).
+# The layer sat at 269 lines — comfortably inside a 420-line cap — and 34 KB, because features.md
+# averages ~470 bytes per line against overview.md's ~77, with one row over 3,000 characters. What
+# costs an agent its attention is the bytes; the line count only ever approximated them. Both stay:
+# they measure different failure modes (one enormous row, versus a hundred small ones), and a cap
+# that can be evaded by pressing a different key is not a cap.
+always_read_bytes_budget=36000
+always_read_bytes=$(cat docs/context/overview.md docs/context/features.md | wc -c)
+if [ "$always_read_bytes" -gt "$always_read_bytes_budget" ]; then
+    echo "  FAIL: overview.md + features.md = ${always_read_bytes} bytes, over the ${always_read_bytes_budget} budget."
+    echo "        This is the cap the line count could not enforce. Move detail to an on-demand doc"
+    echo "        and add a router row; do not raise the cap."
+    fail=1
+fi
 
-echo "[check] known-issues.md has no zombie 'FIXED' entries (delete when fixed)..."
-# The file's own rule is "when you fix something, delete its entry." A struck-through '~~…~~ — FIXED'
-# bullet is a fix that never got deleted — pure bloat, and the single biggest source of it here. The
-# story of a fix lives in git + sessions/; a durable lesson belongs in known-issues' traps or in
-# decisions.md, not in a strikethrough. Enforce the delete.
-if grep -nE '~~.*~~[^*]*FIXED' docs/context/known-issues.md; then
-    echo "  FAIL: delete the struck-through FIXED entr(y/ies) above — keep only the durable lesson,"
-    echo "        in the traps section or decisions.md. The fix's story is in git + sessions/."
+echo "[check] no zombie 'fixed' entries in the two queues (delete when fixed)..."
+# Both files state this rule for themselves. known-issues.md: "when you fix something, delete its
+# entry." outstanding.md, more sharply: "This file is a queue, not a log. When an entry is fixed,
+# delete it — the first version kept its fixed entries struck through, and within a day it had
+# become a changelog with nothing to do in it." The story of a fix lives in git + sessions/; a
+# durable lesson belongs in known-issues' traps or in decisions.md, not in a strikethrough.
+#
+# **This check caught nothing for its whole life** (repaired 2026-09-05). It was `FIXED` — upper
+# case only, while every real entry writes `**Fixed 2026-09-04**` — and `[^*]*`, which cannot cross
+# the bold markers those entries all use. Nought for 24. It also read known-issues.md alone, so
+# outstanding.md, the file with the stricter rule and 15 of the 24, was never looked at.
+# A guard that greps for a shape nothing in the tree has is the thing `ci/checks.sh:22` warns
+# about, wearing a different hat: it is not disarmed by a comment, it was never armed.
+if grep -niE '~~.*~~.*(fixed|closed|done|resolved)' docs/context/known-issues.md docs/context/outstanding.md; then
+    echo "  FAIL: delete the struck-through fixed entr(y/ies) above — keep only the durable lesson,"
+    echo "        in known-issues' traps or decisions.md. The fix's story is in git + sessions/."
+    echo "        Both files carry this rule in their own opening lines."
     fail=1
 fi
 
@@ -1297,19 +1478,61 @@ echo "[check] the command reference documents every dispatch arm..."
 # it got there is the ordinary way — each new command was justified locally and nothing checked
 # the sum. So the sum is checked here.
 #
-# Matched on the arm name appearing anywhere in backticks in the document, not on a table row:
-# several commands are documented in a shared row (`set_restic_password` / `clear_restic_password`),
-# and forcing one row each would be a formatting rule pretending to be a correctness one.
+# **Both directions, and the count** (2026-09-05). This used to test membership only — "does the
+# arm name appear anywhere in backticks in the document" — which let three things through:
+#   * a *documented* command that no longer exists, since nothing looked the other way;
+#   * an arm mentioned only in prose, never given a row;
+#   * the prose count itself, which said "All 81 of them are below" while there were 85. The doc
+#     asserted, in the same sentence, that "`ci/checks.sh` counts the two and fails when they
+#     disagree" — and the check did not count. It was wrong about the code *and* wrong about the
+#     guard that was supposed to keep it right, which is the failure this whole file exists to
+#     prevent.
+# Read from the first column of the tables headed "| Command", so a command name in a Notes cell
+# or a property name in some other table is not mistaken for a row. A shared row
+# (`set_restic_password` / `clear_restic_password`) is still one row, because forcing one each
+# would be a formatting rule pretending to be a correctness one.
 arms=$(awk 'NR>=505 && /^        "[a-z_0-9]+"( \| "[a-z_0-9]+")* =>/' crates/fm-app/src/dispatch.rs \
-       | sed 's/=>.*//' | grep -oE '"[a-z_0-9]+"' | tr -d '"' | sort -u)
+       | sed 's/=>.*//' | grep -oE '"[a-z_0-9]+"' | tr -d '"' | LC_ALL=C sort -u)
+documented=$(awk '
+    /^\| *Command/ { intable=1; next }
+    /^\|[-| ]+\|$/ { next }
+    /^\|/          { if (intable) print; next }
+                   { intable=0 }
+  ' docs/src/reference/commands.md \
+  | grep -oE '^\| *`[a-z_0-9]+`( */ *`[a-z_0-9]+`)*' | grep -oE '`[a-z_0-9]+`' | tr -d '`' \
+  | LC_ALL=C sort -u)
+
 missing=
 for arm in $arms; do
-    grep -qF "\`$arm\`" docs/src/reference/commands.md || missing="$missing $arm"
+    echo "$documented" | grep -qx "$arm" || missing="$missing $arm"
 done
 if [ -n "$missing" ]; then
-    echo "  FAIL: dispatch has arms the command reference never mentions:$missing"
+    echo "  FAIL: dispatch has arms the command reference gives no row:$missing"
     echo "        docs/src/reference/commands.md says it is the full list. Add a row (or fold the"
     echo "        command into an existing row) so that stays true."
+    fail=1
+fi
+
+phantom=
+for cmd in $documented; do
+    echo "$arms" | grep -qx "$cmd" || phantom="$phantom $cmd"
+done
+if [ -n "$phantom" ]; then
+    echo "  FAIL: the command reference documents command(s) dispatch does not have:$phantom"
+    echo "        A reference that answers for a command nobody can call is worse than a missing"
+    echo "        row — the reader has no way to find out."
+    fail=1
+fi
+
+# The prose count, which is the part a reader actually believes.
+arm_count=$(echo "$arms" | grep -c .)
+claimed=$(grep -oE 'All [0-9]+ of them are below' docs/src/reference/commands.md | grep -oE '[0-9]+')
+if [ -z "$claimed" ]; then
+    echo "  FAIL: commands.md no longer says 'All N of them are below'."
+    echo "        Keep the sentence (and the number) — this check reads it."
+    fail=1
+elif [ "$claimed" != "$arm_count" ]; then
+    echo "  FAIL: commands.md says 'All $claimed of them are below'; dispatch has $arm_count arms."
     fail=1
 fi
 

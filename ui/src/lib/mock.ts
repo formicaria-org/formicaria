@@ -130,6 +130,10 @@ function fakeHashBytes(bytes: Uint8Array): string {
 /// `sha256:deadbeef` placeholders rely on.
 const blobs = new Map<string, number>();
 
+/// Bytes received per chunked-upload session, so `ingest_chunk`'s running total is real rather
+/// than invented and `ingest_finish` can address the assembled file by what actually arrived.
+const mockChunkSessions = new Map<string, number>();
+
 function valueOf(n: ObjectMeta, key: string): string {
   switch (key) {
     case 'type':
@@ -1183,6 +1187,48 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       notes.unshift(n);
       return n as T;
     }
+    // **The chunked upload path** — `ingest_chunk` → `ingest_finish`, with `ingest_cancel` to
+    // abandon one. Added 2026-09-05: these three arms shipped on 2026-09-04 with **no mock at
+    // all**, so the path built to lift the phone's size limit was unreachable under `pnpm dev`
+    // and invisible to every `mock.ts`-backed test. The phone exercises them through
+    // `harness.ts`'s bridge instead, which is why nobody noticed — a second route hid the hole
+    // in the first. `ci/checks.sh` now fails on any arm with no case here.
+    case 'ingest_chunk': {
+      // The running total is the caller's progress bar *and* its correctness check: a frontend
+      // that has sent more than the file weighs knows something is wrong before the finish.
+      const session = String(args.session ?? '');
+      const sent = (args.bytes as Uint8Array | undefined)?.length ?? 0;
+      const received = (mockChunkSessions.get(session) ?? 0) + sent;
+      mockChunkSessions.set(session, received);
+      return { session, received } as T;
+    }
+    case 'ingest_finish': {
+      // The same note `ingest` writes, because the only real difference between the two paths is
+      // how the bytes arrived. Addressed by the session's byte count so a truncated upload gets a
+      // *different* reference — the property the `ingest` case above is careful about.
+      const name = String(args.name ?? 'asset');
+      const vault = mockVault(args.vault).name;
+      const session = String(args.session ?? '');
+      const received = mockChunkSessions.get(session) ?? 0;
+      mockChunkSessions.delete(session);
+      const hash = fakeHash(`${name}:${received}`);
+      blobs.set(`sha256:${hash}`, received);
+      const n = makeNote({
+        preview: name,
+        type: 'asset',
+        title: name,
+        assets: [`sha256:${hash}`],
+        vault,
+      });
+      notes.unshift(n);
+      return n as T;
+    }
+    case 'ingest_cancel':
+      // Reclaims the bytes. Not required for correctness — the real backend's boot sweep gets an
+      // abandoned session by age — and offered anyway, because a "cancel" that leaves a gigabyte
+      // on a phone until tomorrow is not a cancel.
+      mockChunkSessions.delete(String(args.session ?? ''));
+      return undefined as T;
     // No vault in the browser/test: assets can't be resolved (callers fall back
     // to the missing placeholder), and durability commands are inert no-ops.
     case 'resolve_asset':

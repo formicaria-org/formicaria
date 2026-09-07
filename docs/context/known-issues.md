@@ -131,17 +131,6 @@ The gray-screen fix and its tests are in
   (`GlobalMemoryStatusEx` / `host_statistics64`), not by relaxing the gate. **Residual:** the
   capability check covers the OS, the stack and the tools it shells out to, but **not the weights** —
   a machine with `agents/` and no GGUF still turns the assistant on and fails at the model server.
-- ~~**A poisoned vault mutex bricks every command for the life of the process.**~~
-  **Fixed 2026-09-04** (`decisions.md`, *a poisoned lock is recovered, not propagated*): `App::lock`
-  recovers with `into_inner()` and logs once, with the argument for why the poisoning was not
-  load-bearing written down. Original entry: `lock().map_err(...)` with no recovery — and the agent
-  thread and the webview both `dispatch`, so a panic in either poisoned both.
-- ~~**`activity` holds the vault mutex across a per-vault revwalk.**~~ **Fixed 2026-09-04**
-  (`decisions.md`, *the vault lock is not held across a subprocess or a revwalk*): the git half runs
-  with the guard dropped, and `commands::activity` split into `resolve_touches` + `activity` so the
-  two halves can run at different times. Original entry: it is among the first things the first
-  `refresh()` fires, so every other command queued behind a year of git history — the one arm the
-  module's own "five arms drop the lock before slow I/O" note did not cover.
 - **Android reclaiming the WebView renderer kills the app, silently**, because `RustWebViewClient`
   has no `onRenderProcessGone` override and the framework default is to kill the process. So a
   memory-tight phone can make formicaria vanish with nothing saying why. **A logging override cannot
@@ -326,8 +315,8 @@ The gray-screen fix and its tests are in
   mtime against `ui/src`, never `ui/dist`'s.** The failure is silent in both directions — nothing
   warns, and the result looks like a broken change rather than an old one.
 
-- **~~The phone has no diagnostic channel except its own UI~~ — half-closed 2026-09-03.** The
-  original finding stands and is why the fix exists: `eprintln!`/stdout never reaches logcat from a
+- **The phone's only reliable diagnostic channel is the one the shell forwards** (half-closed
+  2026-09-03; the finding below is not history — it is why the forwarding exists): `eprintln!`/stdout never reaches logcat from a
   Tauri Android shell, and — found the hard way on 2026-07-20 — the WebView routed **no `console.*`
   output there either**: a signed, installed, MD5-verified build full of `console.warn` produced
   zero lines while the native `ca-bundle:` log from the same run came through fine. **That cost a
@@ -706,6 +695,24 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **The app has no URL routing, so a screenshot tool cannot ask for a view.** Which view is open
+  lives in `localStorage`, and the app correctly sets `frame-ancestors 'none'` — so
+  `chromium --screenshot` reaches the default view and nothing else, and the obvious iframe trick is
+  closed. That is why `ci/shots.py` is a ~150-line CDP driver rather than a one-line invocation. Its
+  own trap, which ate three attempts: **`--virtual-time-budget` does not survive a redirect.**
+
+- **A count in a comment is a claim, and it rots silently.** `dispatch.rs` said *"five arms exist
+  precisely to drop the lock before doing slow I/O"* and named them. It was true when written. Then
+  `activity` turned out to be a sixth that did **not** drop it — and the comment's confident count
+  is part of why nobody looked, because a list that names five reads as exhaustive. `ingest_unlocked`
+  later became a seventh, and by 2026-09-05 the same sentence had been copied verbatim into two
+  test files, so the wrong number was asserted in prose in three places and matched by none of them.
+  The same shape bit `ci/checks.sh`, whose header claimed *"97 tests skip … 72 on git, 7 on restic"*
+  when the real figures were 143 and 9 on the day it was written — and 72 + 7 is not 97.
+  **Describe the discipline, not the tally.** If a number is genuinely load-bearing, make CI count
+  it: `commands.md`'s arm count is checked against `dispatch.rs` for exactly this reason, after
+  saying 81 for as long as there were 85.
+
 - **A test that does not touch a process-global still races on it.** `fm-core/tests/backup.rs` had
   one test setting `RESTIC_CACHE_DIR` to a `TempDir` and four that set nothing — which was fine,
   because with a single setter there was no race and the other four quietly used the real
@@ -758,7 +765,11 @@ The gray-screen fix and its tests are in
   overridable with `FM_TEST_PUBLIC_REPO`.
 
 
-- **`ci/ios-smoke.sh` has never executed anywhere, and its first run is a billed job.** It was
+- **`ci/ios-smoke.sh` was written blind, and rung 3 has still never been dispatched.** Rungs 2 and
+  4 *have* run (2026-09-03: built, installed, launched, painted — `decisions.md` carries the job
+  number), so this entry's original *"never executed anywhere"* no longer holds; what does hold is
+  everything below about why a first run of any new rung is a coin toss, and rung 3 — the one that
+  would prove the editor, the whiteboard and `fmblob:` — is that first run. It was
   written on Linux against the pinned tauri-cli v2.11.4 source, not against a run: there is no Mac
   here, and `mobile/src-tauri` cannot even be `cargo check`ed on this machine (a Linux check dies in
   `libdbus-sys`, and an iOS target needs Xcode for the vendored C). `sh -n`, a read-through, and the
@@ -858,14 +869,13 @@ The gray-screen fix and its tests are in
   ever answer:** whether the `.ipa` re-signs under a free Apple ID, installs, launches, or syncs on
   a physical iPhone. Do not let "rung 5 is green" become "iOS works" — it means the file is the
   right shape. Three consequences follow, and none of them is fixed:
-  - ~~**G5 (container-relative vault paths) is now blocking**~~ — **fixed 2026-09-03.** A managed
+  - **G5 — container-relative vault paths. Fixed 2026-09-03, hardware-unverified.** A managed
     vault persists as `@root/<name>` and resolves against the current root at read time, and a
     stale absolute container path is healed on read for anyone on a pre-marker build
     (`decisions.md`, *a managed vault persists as `@root/<name>`*). **Still unverified on hardware
     like everything else here** — the tests prove the resolution, not that iOS moves a container
     the way this assumes.
-  - ~~**LAN pairing will fail silently on a device**~~ — **key added 2026-09-03, and the entry it
-    replaces was partly wrong.** It claimed `NSBonjourServices` was needed too. Reading the code says
+  - **LAN pairing — key added 2026-09-03, and the entry it replaced was partly wrong.** It claimed `NSBonjourServices` was needed too. Reading the code says
     otherwise: `fm-serve/src/share.rs:357-370` advertises `<hostname>.local` and the phone
     **resolves** that name. `NSBonjourServices` is required for *browsing* services
     (`NWBrowser`/`NSNetServiceBrowser`), which nothing here does — and inventing a service type to
@@ -1078,7 +1088,7 @@ The gray-screen fix and its tests are in
   because they're the only ones reading committed fixtures rather than writing their own).
 
 - **`.desktop` has no relative `Exec`** — it must be absolute, so the entry cannot be a
-  static file in the repo. It was one, carrying `/home/baljinder/...`, which meant every
+  static file in the repo. It was one, carrying `/home/<the author>/...`, which meant every
   clone got a launcher into a stranger's home *and* a rename silently rewrote the path to
   somewhere that didn't exist (the file looked right and launched nothing).
   `packaging/install.sh` now **generates** it from the real checkout path. Moving the repo

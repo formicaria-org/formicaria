@@ -11,7 +11,7 @@ had become a changelog with nothing to do in it. That is the failure mode to avo
 _Last reconciled: 2026-07-21 — **§2.5 corrected**: the discussion/proposal backend + its UI were
 rebuilt and committed (green under `cargo test --workspace`), so §2.5 no longer says "reverted"; only
 the **proposal create/diff seam** remains (which is also the AI-agent plan's Phase-2 dependency). A
-local study-assistant agent was researched and planned (`ai-agents-plan.md` Part III) — **plan-only,
+local study-assistant agent was researched and planned (`archive/ai-agents-plan-superseded-2026-09-02.md` Part III) — **plan-only,
 gated behind MASTERPLAN's "core boring & stable".** Prior: 2026-07-20 (evening), after four defects were fixed, **re-reviewed
 adversarially, and four of the fixes found incomplete and repaired**
 (`sessions/2026-07-20-four-bugs-a-review-found.md`) — frontmatter leaking on copy (still leaking
@@ -33,11 +33,11 @@ one copy, in app-private storage an uninstall erases. Prior: 2026-07-18, after t
 ### 1.0 One person, several name spellings, in existing history
 The **identity** half is done (2026-07-31, `decisions.md#ui` — "A contributor is an email,
 everywhere"): the chips and the filter now key on the email, so one human is one contributor
-whatever the commits are signed, and all three vaults sign `singhbal-baljinder` going forward.
+whatever the commits are signed, and all three vaults sign one identity going forward.
 
-What remains is **display of the history already written**: the owner's vault holds 534 commits as
-`singhbal-baljinder` and 77 as `Baljinder`, one email, and the Activity pane shows each commit's raw
-`%an`. Deferred by the owner ("keep it in future features"), so it is a queue item and not a gap.
+What remains is **display of the history already written**: the owner's vault holds 534 commits
+signed with a username and 77 with the same person's full name — one email — and the Activity pane
+shows each commit's raw `%an`. Deferred by the owner ("keep it in future features"), so it is a queue item and not a gap.
 
 **Done looks like:** a `.mailmap` at the vault root maps every spelling of one email to one name, and
 **both git backends honour it** — `git log --use-mailmap` on the subprocess side (`log.mailmap`
@@ -93,19 +93,16 @@ leave the app and come back. Those are the three reported symptoms and none is p
 
 ### 1.2 Where a phone's media actually survives
 **Video attaches and plays on a real phone (owner-confirmed, 2026-07-20).** Two questions stood
-behind it, and **the second is now closed**:
+behind it. The second — chunked ingest, so a file's size stops being a memory limit — was
+built on 2026-09-04 (`decisions.md`). **The first is still open, and it is the one that matters:**
 
-1. **Where the bytes live — the one that matters, and it is still open.** A phone vault is
+1. **Where the bytes live.** A phone vault is
    app-private storage, wiped on uninstall; `blobs/` is gitignored so a push does not carry it;
    restic is a binary Android does not have. A video attached on a phone has **exactly one copy,
    in the place a single uninstall erases.** The app now *says* so (Settings, gated on
    `vault_root`, 2026-09-03) — which is what the "done looks like" below asked for, and it is not
    the same as the bytes being safe. A real answer is a destination the phone can reach: git LFS,
    a restic build for Android, or an explicit "send my media to the desktop" step. None exists.
-2. ~~**Chunked ingest**~~ — **done 2026-09-04** (`decisions.md`, *a file is sliced, so its size
-   stops being a memory limit*). The `do not do 2 before 1` rule was honoured: the warning in (1)
-   shipped first, on 2026-09-03, and was checked before this was built rather than after.
-
 **Done looks like:** the bytes having somewhere to go — not merely the app admitting they do not.
 The honest statement is shipped; the destination is not.
 
@@ -172,11 +169,25 @@ Moving it to `derived/<hash>/text.txt` would fix git size, launch time, and sear
 own design and its own entry.
 
 
-### 2.0c Supervision signal — the datasheet is written; nothing is captured yet
-The corpus this app could produce — *the AI proposed X, the human made it Y* — is currently
-**destroyed on the two paths that matter**, and a datasheet now exists for the corpus that does not
-exist yet: [`supervision-datasheet.md`](./supervision-datasheet.md). Read it before adding any
-capture; it is written as a contract, including what the corpus may **not** be used for.
+### 2.0c Supervision signal — captured and retained; **no exporter ships**
+The corpus this app produces — *the AI proposed X, the human made it Y* — is now written and kept.
+Read [`supervision-datasheet.md`](./supervision-datasheet.md) before touching any of it; it is a
+contract, including what the corpus may **not** be used for.
+
+**What shipped, against the paragraphs below that predate it.** The record rides on
+`create_proposal` (`dispatch.rs`, `commands::Record` — `why`, `tool`, `query`, `sources`, `kind`,
+every field optional and none reconstructable later). The signal that *revise* and *reject* used to
+destroy is retained at `refs/fm/review/<id>/<tip>`, outside `refs/heads/*` on purpose, in **both**
+git backends. And `fm-app/tests/supervision_roundtrip.rs` proves the thing that actually matters:
+a whole review event, written through the real command door, comes back out **using the `git`
+binary alone** — because the tool that consumes this will not link `fm-app`, and asking an
+implementation to grade itself proves nothing.
+
+**What is still open is the exporter.** The 2026-08-30 prototype was a throwaway. Nothing in
+`fm-cli` or `dispatch` turns the retained refs into a dataset, so the corpus is reachable only by
+someone who already knows the ref layout. **The paragraphs below are the record of why the design
+is shaped this way** — several describe a state that no longer holds, and are kept because they are
+the argument that produced the fix, not a description of today.
 
 **Done 2026-08-30:** ten model-authored `propose:`/`revise:` commits were found **unreachable and 37
 days old** against a 14-day prune window, and rescued to `refs/fm/rescue/<sha>` in the owner's vault.
@@ -420,11 +431,18 @@ boards sync un-stripped today, so what remains is churn rather than correctness;
 felt on a phone that does not exist yet; and it touches the one view whose failure mode is
 "your drawing is gone", which cannot be verified without eyes on a canvas — see 1.1.
 
-### 2.3 Track M — M0–M8
-Blocked on the Android toolchain, **and now also on choosing a git backend**: `git2` is
-rejected (`decisions.md`) and a phone has no `git` binary to shell out to. The options are
-recorded and deliberately not chosen, because pre-committing a backend for a platform that
-does not exist is how the wrong one gets built.
+### 2.3 Track M — shipped; what is left is device work, not a track
+**Neither blocker survived, and this entry described them for months after they fell.** The Android
+NDK is pinned in `pixi.toml` and `ci/android-smoke.sh` builds, installs, launches and screenshots on
+the emulator. The git backend was chosen — libgit2 behind `fm-core/native-git`, scoped by
+`ci/checks.sh` to devices with no `git` binary — reversing the `git2` rejection this entry rested
+on. formicaria has been installed and used on the owner's phone, v0.3.1 onward.
+
+**What remains is not a track.** The open phone-side work is in **§1.1** (the three reported
+symptoms only a finger can confirm) and **§1.2** (where a phone's media actually survives — still
+the real one), with the traps in `known-issues.md` and the rulings under `decisions.md#track-m`.
+M8's second half — *generating* a derivative on Android, where `vipsthumbnail` does not exist — is
+the one M-numbered item still genuinely open, and it is recorded with the read view's fallback.
 
 ---
 
@@ -481,7 +499,7 @@ stale}.rs`. All seven findings that sank the first attempt — don't-call-it-`th
 ship-with-UI — are addressed.
 
 **What actually remains — the create/diff seam** (and this *is* the agent plan's Phase-2 dependency,
-`ai-agents-plan.md` §17):
+`archive/ai-agents-plan-superseded-2026-09-02.md` §17):
 - **Create a proposal in-app.** Today a proposal is created **out of band** — a note carrying
   `proposes: branch:<name>` dropped in the vault by hand (or by an agent). There is no
   `create_proposal`/`propose_branch` command that makes the branch + note from a note or whiteboard.
@@ -490,15 +508,8 @@ ship-with-UI — are addressed.
   *exposed*", `decisions.md:460`).
 - **Merge/delete** — corruption-path writes; their own decision and **both** backends (`git.rs` *and*
   `git_native.rs`, or the phone regresses to the bug that seam exists to prevent).
-- ~~**Minor:** a `perf.rs` budget for `thread()`~~ — **done 2026-08-31**, and the comments panel it
-  was meant to precede landed with it (`crates/fm-app/tests/perf.rs`). Measured: 56.7 µs/note at
-  2k, 51.5 µs/note at 8k — **linear in the corpus, growth 0.91x**. The budget asserts that shape
-  rather than a duration, because the honest finding is that `thread()` is corpus-linear *by
-  design* (a bare `NoteRef` with no `Kind` conjunct cannot push down), which is precisely why the
-  feed reads counts from `thread_roots` and calls `thread()` only when a reader opens one.
-
 **Not doing (v1):** cloud LLM agents reviewing notes — `MASTERPLAN.md:63`. A *local, contained*
-study-assistant agent is planned but **gated** (`ai-agents-plan.md` Part III); its `propose_branch`
+study-assistant agent is planned but **gated** (`archive/ai-agents-plan-superseded-2026-09-02.md` Part III); its `propose_branch`
 lands on exactly the create-seam above, so building that seam serves both.
 
 ---
@@ -522,6 +533,12 @@ question this has to answer is: what is the small, sentence-shaped question a pe
 ("show me everything tagged X, grouped by Y"), and can that be offered without becoming the builder?
 
 Not started. Do not treat the rejected query builder as the only shape this could take.
+
+### 2.6 Restraint in the first-run form — CLOSED
+**Tombstone** (`decisions.md`, *a closed section in the queue leaves a tombstone*). Deleted when it
+closed, before that ruling existed — and `ui/src/App.welcome.test.ts` and `Welcome.svelte.test.ts`
+still cite it. The *why* is in `decisions.md` (*the welcome screen asks the one question git asks at
+the worst moment*); the tests are the record of what it decided.
 
 ### 2.6b Features a user asks for are still not *delivered* — only declared
 **Closed 2026-08-28** (`decisions.md#agent`): nothing now claims a capability it lacks, and saved
@@ -591,25 +608,11 @@ depth; and the introduction routes beginners at beginners.
 What the 2026-08-28 audit found and this did **not** fix (three usability defects found on
 2026-08-29 *were* fixed — see the note at the end of this section):
 
-- ~~**Zero screenshots** in a manual for a GUI.~~ **Closed 2026-09-04.** Nine of them, in
-  `docs/src/images/`, placed in `views.md`, `first-note.md`, `assets.md` and `backup.md` — and
-  **regenerable**: `pixi run shots` builds a throwaway demo vault in a temp directory, serves it on
-  a spare port, drives a headless Chromium over CDP and throws it all away. Nothing touches the
-  owner's vault, config or port 8765; a screenshot script that *could* photograph somebody's real
-  notes is one nobody should run.
-  **Two things the capture path taught, worth keeping:** the app has **no URL routing** (which view
-  is open lives in `localStorage`), and it correctly sets `frame-ancestors 'none'` — so
-  `chromium --screenshot` cannot reach any view but the default and the obvious iframe trick is
-  closed. Hence `ci/shots.py`, a ~150-line CDP driver. `--virtual-time-budget` does **not** survive
-  a redirect, which is the trap that ate the first three attempts.
 - **`user/notes.md` is 2,576 words unsplit** — it is the first chapter under *Going further*, so it
   is the first wall a curious beginner hits. *(Still open. It grew slightly, being the chapter
   everything lands in.)*
-- ~~**No glossary.**~~ **Closed 2026-09-04**: `reference/glossary.md`, covering *asset*, *audience*,
-  *blob*, *content-addressed*, *discussion*, *frontmatter*, *FTS*, *merge driver*, *note*,
-  *proposal*, *remote*, *snapshot*, *ULID*, *vault* and *view*.
-- ~~**`user/assistant.md` is 100% checkout/pixi/Android-SDK** — unusable from a release, and nothing
-  on the page says so.~~ **Said, 2026-08-29:** the page now opens with a block quote stating that
+- **`user/assistant.md` is still 100% checkout/pixi/Android-SDK** — unusable from a release. The
+  *misleading* half was closed on 2026-08-29: the page now opens with a block quote stating that
   every step below needs the source, that the release archive carries no assistant, and that it runs
   on Linux and Android only. The content is still checkout-only; the reader is no longer misled
   about who it is for.
@@ -621,7 +624,7 @@ What the 2026-08-28 audit found and this did **not** fix (three usability defect
 **Fixed 2026-08-29, found by an adversarial review of the packaging plan** — all three were
 actively misleading a first-time reader, and none was in the audit above:
 
-- **`README.md`'s download link pointed at `singhbal-baljinder/formicaria`** after the move to
+- **`README.md`'s download link still pointed at the owner's personal account** after the move to
   `formicaria-org` — a 404 on the front page's own download button, and step one of the journey. It
   also still told the reader to run `./fm-serve`, which moved into `program/` in August, and
   mentioned an `xattr` command that exists nowhere else. `ci/checks.sh` now guards all three.
@@ -665,83 +668,7 @@ runner. Android's graph is byte-identical.
 **Still unverified:** whether the Windows job now *completes*. This fixes the failure that was
 observed; it cannot prove the next one does not exist.
 
-### 2.10 Backup says the right things now; three of them it still cannot say
-Opened 2026-09-02 out of the review that produced `decisions.md`'s *A backup surface names what its
-tier carries*. The wording is fixed; these are the gaps behind it, in the order they are worth
-doing.
-
-~~**A "last backed up at", per vault.**~~ **Done 2026-09-04.** `backup_latest` sits beside
-`backup_status` — its own command, not a `VaultStatus` field, because that one polls every 45 s and
-already spawns per vault. It answers **three** distinct states and the panel renders all three:
-a snapshot (time + the source paths it recorded), *never backed up* (the repo opened and holds
-nothing — the state that should worry somebody), and *cannot tell you* with the reason. An
-unreadable repository is reported, not raised.
-
-~~**Still open, one level down:** `run_backup` returns unit.~~ **Closed 2026-09-05.** `backup`
-answers `BackupRun`: the directories that actually went in (`notes_dir` by its own name, so a
-vault keeping notes in `docs/` says `docs`; `blobs` true only if there were any) and, nested
-under one nullable `contents`, restic's own summary — short id, files new/changed/unmodified,
-bytes read and bytes the repository grew by. Parsed from `restic backup --json`, whose `summary`
-line is the whole reason for the flag.
-
-**Three things this was shaped by.** *(1)* The panel's step line was a **fixed phrase** — "notes
-and attachments" — printed over every vault including the ordinary one with no `blobs/` yet, so
-the gap was not merely a missing number but a small standing overstatement. *(2)* `contents` is
-nullable **as a whole**, not six nullable numbers: null means *restic did not describe it*, which
-is not *it held nothing*, and one null says that once instead of leaving a reader to guess which
-zero was real. Same discipline as `backup_latest`'s `id: null` vs `unavailable`, and as
-`unpushed`. *(3)* A summary that will not parse must never fail the backup — the snapshot is
-already written by then, and turning it into a reported failure is the worst answer available.
-
-`--json` also moves restic's errors into JSON objects on stderr, so a `failed_json` was needed
-beside `failed`; without it a locked repository would have reached the user as a serialized
-struct where a sentence used to be.
-
-Proven red four ways: `summary()` forced to `None`, `blobs` hardcoded true, the arm restored to
-`nothing()`, and the panel's fixed phrase put back — the last failing with the old sentence
-printed verbatim in the diff.
-
-~~**A restic-only vault cannot run a backup.**~~ **Fixed 2026-09-04.** `canRun` is now
-`(git && a remote) || (heavy && anyRestic)`, so the snapshot tier runs alone — the two tiers were
-already independent inside `run()`; only the gate assumed one. The verdict no longer reports a git
-outcome that never ran, which mattered more than it sounds: with no remote every vault landed in
-`stuck`, so the panel said *"your notes are still on this machine"* at the exact moment a snapshot
-had just carried them off it (a snapshot covers the notes directory as well as `blobs/`).
-
-**The dispatch layer for both tiers was untested; most of that is now closed (2026-09-04).**
-`dispatch.rs` had **zero** `#[test]`. It now has ten; seven of them cover `backup_status`'s shape
-(all three `restic_ready` conditions, and that the password never crosses the wire — asserted over
-the whole
-serialized response, so a *new* field somebody adds without thinking is caught too), the `backup`
-arm's two refusals, `set_restic_repo`'s round-trip and its refuse-before-writing order, and
-`backup_latest` and what a snapshot contained — the other three being the poisoned-lock recovery
-and the two restore arms below. Each was proven red first. **A UI test now presses Back up** as well
-(`BackupPanel.run.svelte.test.ts`, eleven cases in three groups — pressing Back up, what
-"last backed up" says in each of its three states, and the `unpushed` 0-vs-`null` rendering).
-
-~~**Still open here:** `restore_vault` has no dispatch-level test.~~ **Closed 2026-09-04** —
-two tests in `dispatch.rs`'s own module. One drives the refusals and asserts not the wording but
-the **absence of the destination directory**, which is what the function's doc comment promises
-and nothing checked. The other is the round trip, and it covers the one line only this layer has:
-`fm-core`'s custom-notes-dir test writes the descriptor back *inside the test*, so the production
-write-back had never run. Proven red by deleting it — the restore still reports success,
-`vaults.json` is still correct, and `recent` comes back `[]`: every note on disk, every view
-empty, nothing on screen to say why. ~~`fm backup` / `fm restore` /
-`fm check` have no CLI test~~ — **added 2026-09-04** (`crates/fm-cli/tests/backup_cli.rs`): the
-three commands drive the real binary against a real restic repo, back up → check `--read-data` →
-restore → read the note back, plus a wrong-password refusal. It found on its first run that `repo`
-is **positional**, not `--repo` — which is exactly the class of thing a three-line untested CLI arm
-hides — and it reproduced the `RESTIC_CACHE_DIR` race within minutes of that race being written up.
-
-**MASTERPLAN's S6 acceptance is now kept (2026-09-04).**
-`fm-core/tests/backup.rs::the_whole_vault_survives_a_round_trip_and_verifies_scrubbed` snapshots a
-vault holding a note, a blob and a custom layout, restores it, **diffs the whole tree** — path sets
-first, then bytes — and runs `verify --scrub` on the result. Proven red by making `backup` silently
-stop carrying `blobs/`: the pre-existing single-note test stayed **green** while the new one
-failed, which is exactly why a whole-tree diff was owed. *(It also surfaced a latent race: see
-`known-issues.md` on `RESTIC_CACHE_DIR`.)*
-
-### 2.8 The Windows and macOS launchers have never been executed
+### 2.8b The Windows and macOS launchers have never been executed
 `packaging/launcher/formicaria.sh` is verified end-to-end: unpacked from a real archive, launched
 from an unrelated working directory, from a path containing a space, and the note landed beside the
 app with `~/.config/formicaria/vaults.json` untouched. `Formicaria.command` is byte-identical below
@@ -752,6 +679,72 @@ its header, so its *logic* is covered — its Finder behaviour is not. `formicar
 environments, and `.vbs` launchers are a malware idiom that AV heuristics flag — on an unsigned
 binary that is two strikes. `formicaria.bat` ships beside it as the visible-console fallback for
 exactly that reason. **Done looks like** one run of each on a real machine of each kind.
+
+### 2.9 A backup with no git reported success and recorded nothing — CLOSED
+**Tombstone** (`decisions.md`, *a closed section in the queue leaves a tombstone*). Deleted when it
+closed, before that ruling existed — and `dispatch.rs` and `fm-app/tests/backup_records_everything.rs`
+still cite it. The fix is `ensure_repo` before the unrecorded sweep, so the first backup of a new
+vault records the notes instead of reporting success over an empty history; the *why* is in
+`decisions.md`.
+
+### 2.10 Backup says the right things now — CLOSED 2026-09-05
+**Tombstone, not an entry** (`decisions.md`, *a closed section in the queue leaves a tombstone,
+because the code cites it by number*). Every item is done: *last backed up at*, a restic-only vault
+that can run, `unpushed: 0` vs `null`, the dispatch and CLI tests, and — last — `backup` answering
+what the snapshot held. The *why* is four entries in `decisions.md` under `#vault`; the status is
+`features.md`; the traps it produced (`RESTIC_CACHE_DIR` is process-global) are in
+`known-issues.md`. Seventeen comments in the source cite this file by section number, which is why
+the heading stays.
+
+### 2.11 Before anyone sideloads the iOS `.ipa` — making the first device test safe
+
+Rung 5 is green: `formicaria.ipa` exists, is device-platform, arm64, unsigned and free-team-signable
+(2026-09-03). **That is a statement about the file, not about the app.** Nothing here can install it,
+and **two** things make handing it to a user unsafe rather than merely unproven. In priority
+order. *(A third — G5, container-relative vault paths — was the blocker here and was fixed on
+2026-09-03; the reasoning it removed is kept because it is what made this blocking:)*
+
+> **G5, for the record — fixed 2026-09-03, and it was the blocker.** `vaults.json` persisted
+> **absolute** paths, while a sideloaded app is re-signed on a **7-day cycle** and the container
+> UUID changes each time. The vault would not have corrupted, it would have *disappeared*: the app
+> opens to a first-run screen and the notes are still on disk under a path nothing refers to. That
+> alone disqualified distribution. A managed vault now persists as `@root/<name>`, resolved against
+> the current root at read time, and a stale absolute path is healed on read. **Still unverified on
+> hardware, like everything else in this section** — the tests prove the resolution, not that iOS
+> moves a container the way this assumes.
+
+**1. The blast radius reaches the desktop, through git.** The phone is a git peer that pushes. An
+untested client with a bug in the merge or commit path does not damage a phone — it writes to the
+**shared remote**, and the next desktop pull brings it home. So the first device run must use a
+**scratch vault and a scratch remote**, never one holding real work, and that is a protocol, not a
+preference. (The body-merge engine that froze Android vaults mid-merge is the precedent: same class,
+already seen once.)
+
+**2. The three seams a user touches first have still never executed on iOS.** `rung=3` seeds and
+drives rather than photographing (`decisions.md`, *rung 3 drives instead of photographing*), and a
+`fmblob:` failure fails the job automatically — so **the editor and blobs are covered by the test as
+built; the whiteboard is not.** The Excalidraw chunk needs navigation, i.e. real input injection,
+i.e. XCUITest and a test target injected into a `gen/apple` that is regenerated every run.
+
+**And the rung has not been dispatched.** Rung 2 proved the *welcome screen* renders; nothing has
+proved anything past it. The three seams still unproven on a real iOS runtime are the editor
+(`100dvh` with the keyboard up), the whiteboard, and `fmblob:` (any attachment). Until `rung=3`
+actually runs, "the test exists" is a statement about `ci/ios-smoke.sh`, not about the app.
+
+**Also true and worth stating to whoever installs it:** app-private storage is wiped on uninstall,
+and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
+(`known-issues.md`). Media should reach a remote before the app is refreshed.
+
+**The order, then:** three of the four are built — G5, the drive-it-don't-photograph smoke test,
+and the permanent 7-day notice (in Settings rather than first-run, because the fact recurs weekly).
+What is left is **dispatching `rung=3` so the test says something**, and then **the user-manual
+install page, which cannot be written from here** — it needs one person with an iPhone to confirm
+the `.ipa` re-signs and opens. Until then,
+the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
+exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,
+launches or syncs on a physical iPhone."*
+
+---
 
 ## 3. Known and accepted — do not "fix" without deciding
 
@@ -774,38 +767,3 @@ Recorded so nobody spends a session on these thinking they are bugs.
   and `Search.svelte` takes no `query` when a view supplies it. `gallery` is reported as an **error**
   by `list_views` (its renderer was deliberately removed) instead of silently drawing a timeline,
   and `save_view` refuses to author one.
-
-### 2.11 Before anyone sideloads the iOS `.ipa` — making the first device test safe
-
-Rung 5 is green: `formicaria.ipa` exists, is device-platform, arm64, unsigned and free-team-signable
-(2026-09-03). **That is a statement about the file, not about the app.** Nothing here can install it,
-and three things make handing it to a user unsafe rather than merely unproven. In priority order:
-
-**1. ~~G5 is now a data-loss bug~~ — DONE 2026-09-03.** A managed vault persists as `@root/<name>`, resolved against the current root at read time; a stale absolute path is healed on read. The reasoning it removes, kept because it is what made this blocking: `vaults.json` persists **absolute** paths; a
-sideloaded app is re-signed on a **7-day cycle** and the container UUID changes each time. The user's
-vault does not corrupt, it *disappears* — the app opens to a first-run screen and their notes are
-still on disk under a path nothing refers to. **This alone disqualifies distribution.** It is the one
-item that must land before anyone but the author installs the file.
-
-**2. The blast radius reaches the desktop, through git.** The phone is a git peer that pushes. An
-untested client with a bug in the merge or commit path does not damage a phone — it writes to the
-**shared remote**, and the next desktop pull brings it home. So the first device run must use a
-**scratch vault and a scratch remote**, never one holding real work, and that is a protocol, not a
-preference. (The body-merge engine that froze Android vaults mid-merge is the precedent: same class,
-already seen once.)
-
-**3. ~~The three seams a user touches first have never executed on iOS~~ — the test now exists, unrun.** `rung=3` seeds and drives (`decisions.md`, *rung 3 drives instead of photographing*), and a `fmblob:` failure fails the job automatically. **The editor and blobs are covered; the whiteboard is not** — the Excalidraw chunk needs navigation, i.e. real input injection, i.e. XCUITest and a test target injected into a `gen/apple` that is regenerated every run. The original reasoning, which still holds until the rung is actually dispatched: The editor (`100dvh` with the
-keyboard up), the whiteboard (the Excalidraw chunk), and `fmblob:` (any attachment). Rung 2 proved
-the *welcome screen* renders; nothing has proved anything past it, and rung 3 as built would not have
-— it photographs, it does not drive (`decisions.md`, 2026-09-03). **A `simctl` run that creates a
-note, focuses the editor, opens the board and loads one blob is the missing test**, via XCUITest or a
-debug hook into the WebView. It is real work in `ci/ios-smoke.sh`, not a dispatch.
-
-**Also true and worth stating to whoever installs it:** app-private storage is wiped on uninstall,
-and this route reinstalls often — so a phone vault that holds the only copy of its media loses it
-(`known-issues.md`). Media should reach a remote before the app is refreshed.
-
-**The order, then:** ~~G5~~ (done) → ~~the drive-it-don't-photograph smoke test~~ (built; **dispatch `rung=3` to actually learn anything**) → ~~a notice stating the 7-day reality~~ (done, and permanent in Settings rather than first-run: the fact recurs weekly) → **only the user-manual install page is left, and it is the one that cannot be written from here** — it needs one person with an iPhone to confirm the `.ipa` re-signs and opens. Until then,
-the `.ipa` is a CI artifact that proves the toolchain, and the honest thing to say about it is
-exactly what `ci/ios-package.sh` already prints: *"NOT PROVEN … that this `.ipa` re-signs, installs,
-launches or syncs on a physical iPhone."*

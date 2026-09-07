@@ -1,5 +1,8 @@
 # On-device model benchmarks — picking the best model per device (2026-07-22)
 
+> **Dated measurements, 2026-07-22 — a snapshot, not maintained.** Superseded for *choosing* by
+> `model-selection-research-2026-07-24-grounded.md`; the hardware is `device-resources.md`.
+
 Real `llama-bench` (b10081 arm64 / b10076 x64) measurements of the three LFM2.5 candidates on both
 target devices, to choose a default that is *good* without blocking the interactive system.
 

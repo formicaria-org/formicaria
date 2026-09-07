@@ -1,5 +1,14 @@
 # Collaboration — design (Phases 0–2 shipped; Phase 3 partly)
 
+> ### ⚠️ Dated receipts, audited against commit `c9cd1ad` (2026-07-17).
+>
+> This file is the **code audit** behind Track C, and it says so — the audit is its value, and an
+> audit is a statement about the tree it was run on. Where it disagrees with
+> [`features.md`](./features.md), [`known-issues.md`](./known-issues.md) or
+> [`decisions.md`](./decisions.md), those win. The findings falsified since are marked inline
+> (2026-09-05); the reasoning around them is left standing, because a finding that was true and
+> got fixed is still the reason the fix exists.
+
 _Written 2026-07-17; **revised the same day after a line-by-line re-audit** of every
 claim against `c9cd1ad` — see [What the code actually says](#what-the-code-actually-says).
 **Read with its status in mind:** Phases 0–2 have shipped, as has Phase 3's whiteboard scene merge. Per this file's own rule their detail is folded up into `overview.md`/`decisions.md`; what stays here is the **audit** that produced them — the receipts, including the findings that turned out to be wrong. Sections still describing unbuilt work say so in place. It is
@@ -72,7 +81,8 @@ stand as written.
 
 What did **not** survive is "~100% of the value is in the UI." Every defect the
 audit found is in Rust, not Svelte. There is no staleness guard on *any* write; no
-`pull`; a `push` that silently deletes a collaborator's work the moment anything
+`pull`; **(corrected 2026-09-05: both shipped — `file.rs`'s `refuse_if_stale`, called from
+`put`, and `pull` is a dispatch arm with a UI behind it.)** a `push` that silently deletes a collaborator's work the moment anything
 fetches (see 19); and — the one that reframes the whole doc — **the file format
 manufactures the conflicts and the loader treats them as fatal**. `updated:` is
 rewritten on every save (`frontmatter.rs:67`), so *any* two concurrent edits to one
@@ -168,7 +178,7 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
    addressed + immutable = a static file server keyed by hash (`GET /sha256/ab/cd/
    <hash>`). ~~Several tried in order~~ — one mirror; a fallback chain is ceremony.
    The existing rule *media absence is a warning, never an error* already makes
-   partial blob availability work everywhere. **This is the same idea roadmap.md
+   partial blob availability work everywhere. **This is the same idea `archive/roadmap.md`
    already reasons through** under "An append-only blob mirror" (`rclone copy`,
    idempotent by hash) — decide it there, once, not twice.
 10. **Blackboards are the differentiator — but `reconcileElements` is the wrong
@@ -230,7 +240,9 @@ Re-audited against `c9cd1ad`. Every row was checked in the source, not recalled.
     panel** (one mechanism, two features). That elegance is real, but it inverts the
     dependency: **backlinks do not exist.** The forward half shipped 2026-07-16; the
     reverse index is still an open roadmap item needing a body scan on reindex or a
-    `links` table. So this feature *is* backlinks, plus a panel. Budget it as such —
+    `links` table. **(corrected 2026-09-05: backlinks shipped — `commands::backlinks`, the
+    `backlinks` arm, and tests on both sides. The dependency this paragraph identifies was
+    real, and it is now satisfied.)** So this feature *is* backlinks, plus a panel. Budget it as such —
     and note it lands the anchor for free on boards, since Excalidraw elements have ids
     (Figma behaviour).
 14. **Awareness over enforcement.** Humans coordinate socially; the tool's job is

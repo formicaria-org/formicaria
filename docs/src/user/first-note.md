@@ -15,7 +15,7 @@ and you will be asked again the first time it actually matters.
 
 ## Write a note
 
-Click the **＋** button in the top left — *make something new* — and choose **New note**. Or just
+Click the **＋** button at the start of the sidebar — *make something new* — and choose **New note**. Or just
 press **Ctrl+K** (**⌘K** on a Mac).
 
 ![The ＋ menu open, offering New note, a whiteboard, a discussion and the other things you can
@@ -33,7 +33,7 @@ again; a note called *Untitled* is one you will not.
 
 Two ways, and you will use both:
 
-**Search** — the magnifying glass in the top bar. It looks inside every note, not just titles, so
+**Search** — the box at the top of the **sidebar**. It looks inside every note, not just titles, so
 searching for a phrase you half-remember works.
 
 ![Search results for "paper": the matching notes, each with the line the match came
@@ -61,7 +61,8 @@ copy that folder somewhere else.
 
 formicaria can also keep a **history** of every change, so you can go back to how a note was last
 week. That needs a program called **git** installed on your computer. If you have it, click the
-**back up** button in the top bar and formicaria records everything. If you do not, nothing breaks —
+**back up** button — the cloud, near the bottom of the sidebar — and formicaria records
+everything. If you do not, nothing breaks —
 you just have no history to step back through.
 
 Setting up backup to another computer, and sharing a notebook with someone else, are covered in
@@ -69,10 +70,14 @@ Setting up backup to another computer, and sharing a notebook with someone else,
 
 ## Where things are
 
-- **＋** top left — make a note, a board, anything new.
-- **Search** — find any note by what is inside it.
-- **?** top right — this manual, at any time.
-- **⚙** top right — settings.
+Everything lives in the **sidebar**: down the left of a wide window, and along the bottom when the
+window is narrow (a phone, or a split screen). Same buttons, same order, wherever it is.
+
+- **＋** at the start — make a note, a board, anything new.
+- **Search**, just below it — find any note by what is inside it.
+- **☁** near the end — back up.
+- **?** — this manual, at any time.
+- **⚙** — settings.
 
 ## Coming back tomorrow
 

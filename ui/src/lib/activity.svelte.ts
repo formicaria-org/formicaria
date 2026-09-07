@@ -35,8 +35,8 @@ export function activityEvents(): EditEvent[] {
 /// **The contributor filter was removed on 2026-08-31**, and `contributors()`/`authorKey()` went
 /// with it — the filter was their only caller. The ruling they encoded is not lost: *a contributor
 /// is an email, everywhere; the name is only a label* stays in `decisions.md#ui` (2026-07-31),
-/// together with the measurement that produced it — one vault, 534 commits as `singhbal-baljinder`
-/// and 77 as `Baljinder`, one person. Anything that groups people again must key on the email, not
+/// together with the measurement that produced it — one vault, 534 commits signed with a username
+/// and 77 with the same person's full name, one email. Anything that groups people again must key on the email, not
 /// the spelling. `lastEditFor` is untouched: attributing *a note* is a different question from
 /// enumerating *people*, and it is still wanted.
 

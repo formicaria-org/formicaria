@@ -6,7 +6,8 @@ Here are the common recipes.
 ## Add a command (backend function the UI can call)
 
 A command is a pure function over the `Store` seam, fronted over HTTP. It touches
-**four** places — keep them in sync:
+**five** places — keep them in sync. The fifth is the one that fails your build if you forget
+it, and it was missing from this list until 2026-09-05:
 
 1. **The pure function** — `crates/fm-app/src/commands.rs`:
    ```rust
@@ -25,8 +26,11 @@ A command is a pure function over the `Store` seam, fronted over HTTP. It touche
 
 2. **The dispatch arm** — `crates/fm-app/src/dispatch.rs`, in `dispatch()`:
    ```rust
-   "tagged" => json(commands::tagged(&lock()?.store, &s("tag")).map_err(err)?),
+   "tagged" => json(commands::tagged(&lock()?.store(scope), &s("tag")).map_err(err)?),
    ```
+   `store(scope)`, not `store` — the scope decides which vaults this caller may read, and all
+   85 arms take it. This sample said `&lock()?.store` until 2026-09-05, which does not compile.
+
    **Not in `fm-serve`.** `dispatch` is the single command surface; the server is a
    transport shell over it, so an arm added here is reachable from every frontend rather
    than only over HTTP. `lock()` takes the vault mutex for exactly as long as the arm
@@ -40,6 +44,12 @@ A command is a pure function over the `Store` seam, fronted over HTTP. It touche
    ```ts
    export const tagged = (tag: string) => invoke<ObjectMeta[]>('tagged', { tag });
    ```
+
+5. **The command reference** — `docs/src/reference/commands.md`: one row, in the table for
+   the group it belongs to. **This is the CI-enforced step.** `ci/checks.sh` checks both
+   directions and the count, so an arm with no row fails the build, and so does a documented
+   command that no longer exists. `CONTRIBUTING.md` says the same thing; this page did not, which
+   is how a contributor met the guard without having been told about it.
 
 Args are camelCase in `ipc.ts` and map to the Rust snake_case params. That's it —
 no Tauri, no codegen.

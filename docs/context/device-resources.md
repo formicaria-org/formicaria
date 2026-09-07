@@ -13,9 +13,9 @@ the live GPU/VRAM readings are from this session's `/proc` + `nvidia-smi`._
 
 | | **Phone** | **Laptop** |
 |---|---|---|
-| Model | Redmi `24095PCADG` | (this machine) |
+| Model | a Redmi phone | the development laptop |
 | SoC / CPU | MediaTek **MT6878** = Dimensity 7300, **8 cores (4 big + 4 little)** | Intel **i7-11800H**, 8C / 16T @ 2.30 GHz |
-| RAM total | **7.4 GB** (7,607,064 kB) | **14.9 GB** (15,581,864 kB) |
+| RAM total | **7.4 GB** | **14.9 GB** |
 | RAM free (typical) | ~2.9–3.4 GB | ~5–10 GB |
 | GPU | none (CPU inference) | **RTX 3050 Laptop, 4 GB VRAM**, via **Vulkan** (`libvulkan.so.1`, no CUDA toolkit) |
 | Optimal threads | **`-t 4`** (big cores only — using all 8 makes big cores wait on little) | **`-t 8`** (physical cores) |

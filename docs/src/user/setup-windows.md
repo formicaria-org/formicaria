@@ -50,11 +50,16 @@ any editor. This app is not needed to read them.
 
 ## What else is in the folder
 
-Only three things are for you:
+Only four things are for you:
 
 - **`Start formicaria.vbs`** — starts it.
 - **`Manual.html`** — this manual.
 - **`vault`** — your notes.
+- **`Update from an older folder.bat`** — run this only when you download a newer
+  version; it copies your old notes across. See [Updating](./updating.md).
+
+There is also **`Start formicaria (show messages).bat`**, which starts it the same way but in a
+window that shows what it is doing — for when something goes wrong (see below).
 
 `program` holds the application itself and `manual` holds this manual's pages. You never need to
 open either.

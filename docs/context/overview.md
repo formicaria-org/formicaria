@@ -7,7 +7,7 @@ are the **always-read** layer; everything else is pulled on demand via the route
 
 _Last verified 2026-07-24. The running "what shipped when" narrative that used to live here has
 moved to [archive/overview-last-verified-narrative-through-2026-07-24.md](./archive/overview-last-verified-narrative-through-2026-07-24.md);
-current per-feature status is [features.md](./features.md), the dated log is [sessions/](./sessions/)._
+current per-feature status is [features.md](./features.md), the dated log is [sessions/](./sessions/) (snapshots, never updated)._
 
 ## Router — read this BEFORE you touch a hot area
 
@@ -29,6 +29,7 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | **Papers, PDFs, annotations** (`fm-app/src/paper.rs`, the anchored `asset:` reference, the reader) | `papers-plan.md` — the direction, the four adversarial reviews it survived, and the owner's *separate app* ruling; then `decisions.md#data` |
 | **Supervision / training data** — recording what a human did with an AI proposal, the retention refs, the export | `supervision-datasheet.md` — written *before* collection and meant as a contract: what the corpus is, what it may **not** be used for, and the quality apparatus it commits us to |
 | **formicaria on an iPhone / iOS** — before answering "can we", before spending a macOS CI minute | `ios-plan-2026-09-02.md` — **no longer a survey**: the app boots and syncs on a Simulator, and `## Distribution` carries the chosen route (an unsigned `.ipa` each user signs with their own free Apple ID). Also the standing constraints (no Mac, **still no iPhone**, private repo), the CI ladder with its kill criteria, and why the cheapest answer is already shipped (the LAN share listener) · `decisions.md#track-m` for the rulings it forced |
+| **An earlier decision's receipts** — dated, superseded, kept for the *why* | `plan.md` · `collaboration-design.md` · `agent-review-2026-07-22.md` · `forward-plan-review-2026-07-22.md` · `agent-backed-apps-runtime-2026-07-22.md` · `model-benchmarks-2026-07-22.md` · `model-selection-research-2026-07-22.md`. **Each opens with a dated banner; where one disagrees with the code, the code wins.** Reachable on purpose: seven of these were named by no row at all, and two of them carried half the false status claims in the layer |
 | Anything, before you assume it works | `known-issues.md` (durable traps) · `outstanding.md` (the work queue) |
 | **A topic doc with a findings table** — `papers-plan.md` (B1–B6), `ios-plan-2026-09-02.md` (A1–A2, G1–G5) | Those tables are **issue sources**, and a finding in one belongs in `known-issues.md` **as well**. Learned the hard way (2026-09-04): B4 and B5 were real, open defects that sat in a survey document for weeks because the router pointed nowhere near them — and `ios-plan` had *written down* that its own findings were mis-filed, which nobody acted on. If you add a findings table anywhere, copy its live rows here |
 
@@ -232,4 +233,4 @@ uses `[profile.release]` in `Cargo.toml` (strip + thin-LTO → ~3 MB, vs ~34 MB 
 Per-feature status lives in [features.md](./features.md) (the always-read index) — shipped vs.
 partial vs. planned, one line each, with a pointer to the detail. What is **not** working / deferred
 is in [known-issues.md](./known-issues.md); the ranked work queue is [outstanding.md](./outstanding.md);
-the dated log of how we got here is [sessions/](./sessions/).
+the dated log of how we got here is [sessions/](./sessions/) — **snapshots, never updated**.

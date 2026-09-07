@@ -1,5 +1,8 @@
 # How agent-backed apps run the model — evidence for formicaria's runtime
 
+> **Dated research, 2026-07-22 — a snapshot, not maintained.** An evidence layer about other
+> people's apps, which move. Current rulings: `decisions.md#agent`.
+
 *Research pass (4 clusters + synthesis, 2026-07-22): among real, popular, actively-maintained apps
 shaped like formicaria — a **primary notes/knowledge app plus an opt-in LLM agent**, NOT a pure
 chatbot — how do they run the model relative to their own process? This is the evidence layer under

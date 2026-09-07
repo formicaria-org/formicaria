@@ -54,8 +54,12 @@ pub struct Vaults {
 ///
 /// The lock lives **inside** here rather than around the whole thing on purpose. Taking a
 /// `&mut Vaults` would read as the simpler signature, but it would hold the lock for the
-/// entire command — and five arms exist precisely to *drop* it before doing slow I/O
-/// (`asset_status`, `resolve_asset`, `open_external`, `backup`, `backup_status`).
+/// entire command — and **several arms exist precisely to *drop* it before doing slow I/O**
+/// (`asset_status`, `resolve_asset`, `open_external`, `backup`, `backup_status`,
+/// `ingest_unlocked`, `activity`, and more). Deliberately not a count: this sentence said
+/// "five arms" and named five, `activity` turned out to be a sixth that did **not** drop the
+/// lock, and the confident tally is part of why nobody looked — a list that names five reads as
+/// exhaustive. See `known-issues.md`'s trap, *a count in a comment is a claim, and it rots*.
 /// `backup_status` is the sharpest: it shells out to `git ls-remote` per vault, and holding
 /// the lock across that network round trip would stall every `ping` behind it. So each
 /// arm still takes the lock for exactly as long as it needs it, exactly as it did when this

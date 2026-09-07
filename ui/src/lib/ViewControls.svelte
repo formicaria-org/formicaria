@@ -1,6 +1,8 @@
 <script lang="ts">
   /// **What belongs to the view you are looking at** — its name, the one knob that tunes it, and
-  /// (for a saved view) what it hides and how to rename or remove it.
+  /// (for a saved view) what it leaves out. **Not how to rename or remove it**: that went with the
+  /// authoring surface on 2026-08-31, as the paragraph below says. This line said otherwise until
+  /// 2026-09-05, which is one file asserting two opposite things about itself.
   ///
   /// Extracted from `Pane.svelte`'s header on 2026-08-31 so it can be rendered in **two places
   /// from one definition**: at the right-hand end of the top view bar when one view fills the

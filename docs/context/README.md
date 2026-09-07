@@ -30,7 +30,7 @@ Codex / Cline actually manage agent memory) is **two layers**:
 | [known-issues.md](./known-issues.md) | on-demand | before assuming something works — durable traps + open gaps. |
 | [outstanding.md](./outstanding.md) | on-demand | picking up work — the ranked queue, each naming the file and what "done" means. |
 | topic docs (`mobile-design.md`, `*-research-*.md`) | on-demand | the router sends you there for a specific area's receipts. |
-| [sessions/](./sessions/) | log | the dated narrative — how we got here. Not always-read; distil durable facts up. |
+| [sessions/](./sessions/) | log | the dated narrative — how we got here. **Snapshots, never updated: where one disagrees with the code, the code wins** ([the contract](./sessions/README.md)). Not always-read; distil durable facts up. |
 | [archive/](./archive/) | cold | retired docs kept one `ls` away rather than only in `git log`. |
 
 **Two rules keep it from re-exploding, and `ci/checks.sh` enforces the first:**
