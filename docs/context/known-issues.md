@@ -608,12 +608,6 @@ The gray-screen fix and its tests are in
   be a path/`file://`, and `FM_RESTIC_REPO` is a bare path when local. `reachOf`
   (`destination.ts`) classifies both; the panel must keep saying which. Never
   report a local destination as "off this machine".
-- **`mock.ts`'s `config` arm contradicts its own `backup_status`.** It hardcodes
-  `restic: [{repo: null}]` and `restic_password_set: false` (`mock.ts:1167,1173`) while
-  `set_restic_repo`/`set_restic_password` mutate `mockRestic`/`mockResticPassword` — so under
-  `pnpm dev` you can save a repo in the backup panel and have Settings still report none. It is a
-  bare `as T`, which is exactly the drift the entry above describes; `backup_status` and
-  `git_assets_max` are read from the shared `mockVaults`/`mockRestic` state and do not have it.
 - **Updating is a manual step, and three parts of it are only as good as the user's care.**
   The archive ships `Update from an older folder.{sh,command,bat}` (`decisions.md#toolchain`), and
   what it cannot do is worth knowing. **The sibling search is a convenience, not a guarantee**: it
@@ -718,6 +712,16 @@ The gray-screen fix and its tests are in
   `chromium --screenshot` reaches the default view and nothing else, and the obvious iframe trick is
   closed. That is why `ci/shots.py` is a ~150-line CDP driver rather than a one-line invocation. Its
   own trap, which ate three attempts: **`--virtual-time-budget` does not survive a redirect.**
+
+- **A hand-written mock can contradict itself, and `tsc` will not say a word.** `ui/src/lib/mock.ts`
+  answers ninety-odd arms through a bare `as T`, so two arms may report different values for one
+  fact and still typecheck. It happened: the `config` arm hardcoded `repo: null` and
+  `restic_password_set: false` while `set_restic_repo`/`set_restic_password` wrote the mock's state
+  and `backup_status` read it — you could save a repository in the backup panel under `pnpm dev`
+  and watch Settings go on reporting none. **A type annotation would not have caught it**: both
+  shapes are `string | null`, so `satisfies Config` is satisfied by the wrong answer. What catches
+  it is asserting two arms answer the same question the same way after a write
+  (`mock.contract.test.ts`). Fixed 2026-09-07; the shape is what to watch for, not the instance.
 
 - **A count in a comment is a claim, and it rots silently.** `dispatch.rs` said *"five arms exist
   precisely to drop the lock before doing slow I/O"* and named them. It was true when written. Then

@@ -1254,3 +1254,54 @@ fn a_vault_asking_for_more_than_the_ceiling_only_sends_what_the_ceiling_allows()
         "and the staging walk is what declines to honour it"
     );
 }
+
+/// **"I could not ask" is not "you are up to date."**
+///
+/// `remote_moved` answers `Option<bool>` for one reason: a laptop that is asleep, on a train, or
+/// pointed at a remote that has moved must produce `None`, and the two happy answers are covered
+/// elsewhere (`fm-cli/tests/merge.rs` pins `Some(true)` and `Some(false)`). Nothing covered the
+/// third, which is the one that runs most often — this is polled on a 45-second timer, so *most*
+/// calls on a disconnected machine take this path.
+///
+/// **What `Some(false)` would mean to a user:** the backup panel says the remote has nothing new,
+/// so there is nothing to pull. Act on that while a collaborator has actually pushed, and the next
+/// local commit diverges history — the exact situation the panel exists to warn about, inverted.
+/// A `None` renders as silence instead, which is the honest answer to a question nobody could ask.
+///
+/// The remote is deleted rather than made unreachable over a network: no sockets, no timeouts, no
+/// flakes, and `git ls-remote` fails the same way it does when a host is unreachable.
+///
+/// Proven red by changing the `!out.status.success()` arm to `Ok(Some(false))` — the test then
+/// reports that a vault pointed at a remote that no longer exists is up to date with it.
+#[test]
+fn a_remote_it_cannot_reach_is_unknown_not_unchanged() {
+    if !have_git() {
+        eprintln!("skipping git test: git not on PATH");
+        return;
+    }
+    let bare = tempdir().unwrap();
+    Command::new("git").args(["init", "--bare"]).arg(bare.path()).output().unwrap();
+
+    let vault = tempdir().unwrap();
+    write_and_commit(vault.path(), "01.md", "one\n");
+    identify(vault.path());
+    git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
+    git::push_squashed(vault.path(), "backup: first").unwrap();
+
+    // While it is reachable, the question has an answer.
+    assert_eq!(
+        git::remote_moved(vault.path()).unwrap(),
+        Some(false),
+        "a reachable remote nobody has pushed to has not moved"
+    );
+
+    // Now it is gone — a drive unmounted, a host renamed, a laptop off the network.
+    std::fs::remove_dir_all(bare.path()).unwrap();
+
+    assert_eq!(
+        git::remote_moved(vault.path()).unwrap(),
+        None,
+        "an unreachable remote is unknown; reporting Some(false) tells the user they are level \
+         with a remote nobody could reach"
+    );
+}

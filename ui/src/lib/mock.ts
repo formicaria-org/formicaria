@@ -13,6 +13,7 @@ import type {
   BackupRun,
   Board,
   Column,
+  Config,
   NoteDetail,
   ObjectMeta,
   ImportCheck,
@@ -1435,27 +1436,40 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       };
       return report satisfies ImportReport as T;
     }
-    case 'config':
+    case 'config': {
       // Shaped like the real thing, including the awkward parts — a null vault_list and an
       // unwritable one are exactly the states the panel must render honestly, and a mock that
       // only ever returns the happy case is how those go untested.
-      return {
+      //
+      // **`satisfies Config`, not a bare `as T`** (2026-09-07). This arm carried the drift the
+      // repo had already recorded: it hardcoded `repo: null` and `restic_password_set: false`
+      // while `set_restic_repo`/`set_restic_password` wrote to `mockRestic`/`mockResticPassword`
+      // and `backup_status` read them — so under `pnpm dev` you could save a repository in the
+      // backup panel and have Settings go on reporting none. A bare cast is what let two arms of
+      // one mock disagree about one fact without `tsc` noticing. `backup_status` below already
+      // states this rule for itself; `config` now keeps it.
+      const conf: Config = {
         // `dev` is what a local build genuinely reports (`option_env!("FM_VERSION")` unset), so
         // the mock says the same rather than inventing a release number that never existed.
         version: 'dev',
         vault_list: '~/.config/formicaria/vaults.json',
         vault_list_writable: true,
         vaults: mockVaults.map((v, i) => ({ ...v, default: i === 0 })),
-        restic: mockVaults.map((v) => ({ vault: v.name, repo: null })),
+        // Read from the same state `set_restic_repo` writes and `backup_status` reads. It starts
+        // empty, so the dev loop still opens on "no repository configured" — the default this
+        // used to hardcode — and now it *changes* when the user changes it.
+        restic: mockVaults.map((v) => ({ vault: v.name, repo: mockRestic[v.name] ?? null })),
         env: [{ name: 'FM_VAULT', value: 'vault' }],
         git: true,
         // Installed but not unlocked — the state that exercises the distinction between the
         // three restic questions rather than collapsing them into one happy case.
         restic_installed: true,
-        restic_password_set: false,
-        // **False on purpose.** The dev loop should show the not-available wording by default,
-        // because that is the state a released machine is most often in and the one that used to
-        // be invisible. A happy-path mock is how the silence lasted this long.
+        restic_password_set: mockResticPassword,
+        // **Starts false on purpose.** The dev loop should show the not-available wording by
+        // default, because that is the state a released machine is most often in and the one that
+        // used to be invisible. A happy-path mock is how the silence lasted this long. But
+        // `restic_password_set` is now the live value rather than a constant: "false until
+        // somebody sets one" is the default, not the whole answer.
         pdf_text: false,
         // **Derived from the platform, because the backend cannot produce any other combination.**
         // `vault_root()` is `Some` exactly where the shell sets `FM_VAULT_ROOT`, i.e. on a phone —
@@ -1468,7 +1482,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             : null,
         platform: mockPlatform,
         ca_bundle: null, // the desktop shape: the system store is used, none is built
-      } as T;
+      };
+      return conf as T;
+    }
     case 'create_vault': {
       mockVaults.push({
         name: String(args.name ?? ''),
