@@ -525,3 +525,136 @@ fn a_note_the_other_device_deleted_is_kept_and_the_vault_keeps_committing() {
         vcs::force_native(false);
     }
 }
+
+/// The same note with a chosen `status` and `updated`, for the divergent-scalar case.
+fn note_with(status: &str, updated: &str, body: &str) -> String {
+    format!(
+        "---\nschema: 1\nid: {ID}\ntype: note\ntitle: Meeting\nstatus: {status}\n\
+         created: 2026-07-21T07:52:36Z\nupdated: {updated}\n---\n{body}\n"
+    )
+}
+
+/// **Nothing a person wrote becomes unreachable after a merge.**
+///
+/// The owner's principle is *"do not lose data"*, and the honest reading of it here is durability:
+/// whatever each side typed is still retrievable afterwards — from the working tree, or from one of
+/// the merge's parents. That is already true, and it is true by accident unless something pins it.
+/// This is the test a future "simplification" has to argue with before it can start discarding a
+/// side, which is the entire reason for writing it.
+///
+/// **The surveyed field says this is the property that gets lost.** Of the seven documented
+/// families of conflict resolution (2026-09-07), only three lose nothing — markers, sidecar files,
+/// and an in-app conflict item — and every one of them works by *refusing to produce a single
+/// merged file*. Anything that yields one clean note is trading data for convenience: `merge=union`
+/// keeps the bytes and destroys the meaning with no signal at all, and CRDT text merges are proven
+/// to interleave concurrent insertions into, in Kleppmann's words, "an unreadable jumble of
+/// letters". So the durability we have is worth a test, not an assumption.
+///
+/// Both content-bearing shapes are covered, on both backends. Delete/modify is pinned separately by
+/// `a_note_the_other_device_deleted_is_kept_and_the_vault_keeps_committing`, where the surviving
+/// side is a note and the discarded side is a *deletion* — the one place this project knowingly
+/// drops an intention, and it says so in `decisions.md`.
+///
+/// **The first version of this test was vacuous, and the red proof is what caught it.** It asserted
+/// "each side is in the working tree *or* in a parent of HEAD" — but a clean merge writes a commit
+/// with *both* parents, so `HEAD^2` always holds the other side and the assertion could never fail.
+/// It passed against a mutation that discarded half the user's work.
+///
+/// So the property is stated the way it actually protects somebody: **you are never silently left
+/// with one side.** Either both survive in the file, or the merge said it conflicted. A merge that
+/// keeps one side and reports success is the failure — git having the other parent is no comfort to
+/// a person who was never told to go looking.
+///
+/// Proven red by making `merge_texts` return ours with `Merged::Clean`: the file then holds one
+/// side and the pull reports success, which is precisely what must not happen.
+#[test]
+fn neither_side_of_a_conflict_becomes_unreachable() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+
+    for native in [false, true] {
+        // --- Case 1: both devices rewrite the same line of the body. ---
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let (_r, ours, theirs) = two_clones(dir.path());
+            let rel = format!("notes/{ID}.md");
+
+            std::fs::write(theirs.join(&rel), note("the version written on the phone")).unwrap();
+            g(&theirs, &["commit", "-qam", "their edit"]);
+            g(&theirs, &["push", "-q", "origin", "main"]);
+
+            std::fs::write(ours.join(&rel), note("the version written on the laptop")).unwrap();
+            g(&ours, &["commit", "-qam", "our edit"]);
+
+            vcs::force_native(native);
+            let outcome = vcs::pull(&ours);
+            vcs::force_native(false);
+
+            let disk = std::fs::read_to_string(ours.join(&rel)).unwrap_or_default();
+            both_survive_or_it_said_so(
+                native,
+                &disk,
+                &outcome,
+                ["written on the phone", "written on the laptop"],
+            );
+        }
+
+        // --- Case 2: both devices set the same scalar field differently. ---
+        // `status` holds one value, so "keep both" is not expressible in the field's own type. What
+        // must still hold is that neither answer disappears from the repository.
+        {
+            let dir = tempfile::tempdir().unwrap();
+            let (_r, ours, theirs) = two_clones(dir.path());
+            let rel = format!("notes/{ID}.md");
+
+            std::fs::write(
+                theirs.join(&rel),
+                note_with("done", "2026-07-22T09:00:00Z", "the body nobody touched"),
+            )
+            .unwrap();
+            g(&theirs, &["commit", "-qam", "their status"]);
+            g(&theirs, &["push", "-q", "origin", "main"]);
+
+            std::fs::write(
+                ours.join(&rel),
+                note_with("doing", "2026-07-22T08:00:00Z", "the body nobody touched"),
+            )
+            .unwrap();
+            g(&ours, &["commit", "-qam", "our status"]);
+
+            vcs::force_native(native);
+            let outcome = vcs::pull(&ours);
+            vcs::force_native(false);
+
+            let disk = std::fs::read_to_string(ours.join(&rel)).unwrap_or_default();
+            both_survive_or_it_said_so(native, &disk, &outcome, ["done", "doing"]);
+        }
+    }
+}
+
+/// **Both sides are in the file, or the pull admitted it could not do that.**
+///
+/// Deliberately *not* "the bytes are somewhere in git". A merge commit keeps both parents by
+/// construction, so any assertion that accepts `HEAD^2` is satisfied by a merge that threw half the
+/// user's work out of the working tree — which is how the first version of this test passed a
+/// mutation that did exactly that. What matters is whether the person is left holding one side
+/// **without being told**.
+fn both_survive_or_it_said_so(
+    native: bool,
+    disk: &str,
+    outcome: &Result<git::Pulled, fm_core::StoreError>,
+    sides: [&str; 2],
+) {
+    if sides.iter().all(|s| disk.contains(s)) {
+        return; // both are in front of the user; nothing to report
+    }
+    let missing: Vec<&str> = sides.iter().copied().filter(|s| !disk.contains(s)).collect();
+    assert!(
+        matches!(outcome, Ok(git::Pulled::Conflicted(_))),
+        "native={native}: the merge dropped {missing:?} from the note and still reported \
+         {outcome:?} — a side may only go missing when the app says so"
+    );
+}
