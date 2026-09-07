@@ -501,3 +501,64 @@ fn a_snapshot_reports_what_went_into_it() {
     assert_eq!(plain.notes_dir.as_deref(), Some("notes"), "the default name, reported by name");
     assert!(!plain.blobs, "this vault has no `blobs/`, and the answer must not claim otherwise");
 }
+
+/// **What "refuses to overwrite" actually means: a name collision, not "the folder is not empty".**
+///
+/// [`backup::restore_vault`]'s doc said that pointing it at *"a directory with content in it fails
+/// before it clobbers anything"*. That is not what the code does, and it should not be: the check
+/// is per-entry, so a restore refuses when something it is about to write would land on a name that
+/// already exists. **That is what stops two vaults merging into one** — every vault has a notes
+/// directory, so two of them always collide — while a `README.md` or a `.git` already sitting in the
+/// destination is not another vault and does not make the destination unusable.
+///
+/// The pair is the point. Asserting only that the unrelated file survives would pass on an
+/// implementation that refused outright and wrote nothing; asserting only that the note arrived
+/// would pass on one that cleared the destination first. Both together pin the contract.
+///
+/// Also asserts the staging tree is gone after a **successful** restore. The existing refusal test
+/// checks that on the failure path; nothing checked it on the path that actually runs, and a
+/// `.fm-restoring` directory left behind holds a second copy of every blob.
+///
+/// Proven red by changing the entry loop to refuse on a non-empty `dest` instead of a per-name
+/// collision: the restore then fails with "already exists" and the note never arrives.
+#[test]
+fn a_restore_lands_beside_unrelated_files_and_refuses_only_on_a_collision() {
+    if !have("restic") {
+        eprintln!("skipping: restic not on PATH");
+        return;
+    }
+    let (_env, _cache) = restic_cache();
+    let vault = tempdir().unwrap();
+    let repo = tempdir().unwrap();
+    let password = "correct horse battery staple";
+
+    fs::create_dir_all(vault.path().join("notes")).unwrap();
+    fs::write(vault.path().join("notes/01JQ.md"), "---\nid: x\n---\nrecovered\n").unwrap();
+    backup::backup(vault.path(), repo.path(), password).unwrap();
+
+    // A destination that is *not empty*, and holds nothing the snapshot will land on. This is the
+    // ordinary case for adopting a repo you already have: a README, a licence, a `.git`.
+    let dest = tempdir().unwrap();
+    fs::write(dest.path().join("README.md"), "mine, and not a vault\n").unwrap();
+    fs::create_dir_all(dest.path().join(".git")).unwrap();
+
+    let restored = backup::restore_vault(repo.path(), password, dest.path())
+        .expect("a destination with unrelated content is not a reason to refuse");
+
+    assert_eq!(restored.notes_dir, "notes");
+    assert_eq!(
+        fs::read_to_string(dest.path().join("notes/01JQ.md")).unwrap(),
+        "---\nid: x\n---\nrecovered\n",
+        "the snapshot's note arrived"
+    );
+    assert_eq!(
+        fs::read_to_string(dest.path().join("README.md")).unwrap(),
+        "mine, and not a vault\n",
+        "and the file that was already there is untouched"
+    );
+    assert!(dest.path().join(".git").is_dir(), "as is the repo it was sitting in");
+    assert!(
+        !dest.path().join(".fm-restoring").exists(),
+        "the staging tree is removed on the success path too — it holds a second copy of every blob"
+    );
+}

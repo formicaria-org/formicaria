@@ -312,3 +312,63 @@ fn find_blob(vault: &Path, hash: &str) -> Option<PathBuf> {
     }
     walk(&vault.join("blobs"), hash)
 }
+
+/// **A refused chunk contributes no bytes**, and the upload can carry on from where it was.
+///
+/// `an_out_of_order_chunk_is_refused_rather_than_assembled` above proves the refusal happens and
+/// says the right thing. It stops there — and the refusal message is not the property that
+/// matters. **The harm is a file assembled from the wrong bytes behind a valid-looking
+/// `sha256:` reference**: content addressing makes a corrupt photo or PDF *look* verified, and
+/// nothing downstream can tell. So this drives the same two refusals and then finishes the upload
+/// correctly, comparing the stored blob byte for byte against what was sent.
+///
+/// The two refusals are the two real shapes: a **dropped** chunk (skip 1, send 2) and a **retried**
+/// one (send 0 again, after it already landed). A retry is the more dangerous of the pair, because
+/// it is what a flaky connection produces and its bytes are perfectly valid — just already there.
+///
+/// This is also the test that pins `append`'s stated ordering: it writes and `sync_all`s the part
+/// *before* moving the counter, so a death in between refuses the next chunk rather than accepting
+/// one whose bytes never landed. The recoverable direction is the one asserted here — after both
+/// refusals the session is still usable.
+///
+/// Proven red by moving the sequence check to *after* `f.write_all(bytes)`: both refused chunks are
+/// appended anyway, and the finished blob is 200 kB longer than the file that was sent.
+#[test]
+fn a_refused_chunk_leaves_the_upload_intact_and_the_file_correct() {
+    let (_home, vault, app) = app();
+    let bytes = payload(300_000);
+    let mut it = bytes.chunks(100_000);
+    let (c0, c1, c2) = (it.next().unwrap(), it.next().unwrap(), it.next().unwrap());
+
+    let sess = json!({ "session": "s9", "seq": 0, "vault": "notes" });
+    call(&app, "ingest_chunk", sess, c0).unwrap();
+
+    // A dropped chunk, then a retried one. Neither may leave a byte behind.
+    call(&app, "ingest_chunk", json!({ "session": "s9", "seq": 2, "vault": "notes" }), c2)
+        .unwrap_err();
+    call(&app, "ingest_chunk", json!({ "session": "s9", "seq": 0, "vault": "notes" }), c0)
+        .unwrap_err();
+
+    // The session survived both, and resumes exactly where it was.
+    let out =
+        call(&app, "ingest_chunk", json!({ "session": "s9", "seq": 1, "vault": "notes" }), c1)
+            .expect("a refusal must not break the upload it refused");
+    assert!(out.contains("\"received\":200000"), "only the two accepted chunks are there: {out}");
+
+    call(&app, "ingest_chunk", json!({ "session": "s9", "seq": 2, "vault": "notes" }), c2).unwrap();
+    let out = call(
+        &app,
+        "ingest_finish",
+        json!({ "session": "s9", "name": "scan.pdf", "vault": "notes" }),
+        &[],
+    )
+    .expect("the upload finishes");
+
+    let want = hash_from(&out);
+    let blob = find_blob(vault.path(), &want).expect("the blob is stored under its own hash");
+    assert_eq!(
+        std::fs::read(&blob).unwrap(),
+        bytes,
+        "a refused chunk left bytes behind: the stored blob is not the file that was sent"
+    );
+}

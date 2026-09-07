@@ -130,3 +130,79 @@ unsafe fn libc_geteuid() -> u32 {
     }
     unsafe { geteuid() }
 }
+
+/// **The vault list is never overwritten when it cannot be understood**, and nothing checked it.
+///
+/// `save`'s three refusals — not JSON, not an object, `"vaults"` not an array — are the only thing
+/// between a hand-edited `vaults.json` and losing every vault registration on this machine. The
+/// notes themselves are safe (they are files on disk), but a user whose list is gone opens the app
+/// to a first-run screen with their work sitting in directories nothing refers to any more. That is
+/// the failure `dispatch.rs` names: *overwriting a hand-edited file we could not parse.*
+///
+/// **Deliberately not a permissions test.** The suite's other write-refusal test skips as root,
+/// which is every container; these three branches need no permissions at all, so they always run.
+///
+/// The assertion is the file's **bytes**, before and after — not the error text. A refusal that
+/// still rewrote the file would satisfy any message-shaped check.
+///
+/// Proven red by replacing each `?` refusal with a fallback to an empty object: the malformed file
+/// is then silently replaced by a well-formed one holding only the vault being added.
+#[test]
+fn a_vault_list_that_will_not_parse_is_refused_and_left_byte_identical() {
+    use fm_app::vaults::{save, VaultConfig};
+
+    let d = tempdir().unwrap();
+    let one =
+        vec![VaultConfig { name: "notes".into(), path: d.path().join("notes"), restic: None }];
+
+    for (label, content) in [
+        ("truncated mid-object", "{\n  \"vaults\": [\n"),
+        ("a comment, which JSON has no such thing as", "{ // my vaults\n  \"vaults\": []\n}\n"),
+        ("valid JSON, but an array at the root", "[{\"name\":\"notes\"}]\n"),
+        ("valid JSON, but \"vaults\" is an object", "{\"vaults\": {\"notes\": \"/x\"}}\n"),
+    ] {
+        let list = d.path().join("vaults.json");
+        std::fs::write(&list, content).unwrap();
+
+        let err = save(&one, &list).expect_err(&format!("must refuse: {label}"));
+        assert!(err.contains("fix it first"), "the refusal must tell them what to do: {err}");
+        assert_eq!(
+            std::fs::read_to_string(&list).unwrap(),
+            content,
+            "the file must be byte-identical after a refusal ({label})"
+        );
+    }
+}
+
+/// **A key we do not know about survives a save.** `save`'s doc is explicit that it merges into the
+/// parsed tree rather than doing a typed round-trip, precisely so *"every entry we did not create
+/// keeps its own bytes, and unknown top-level keys survive"* — turning "I don't understand this"
+/// into "I silently dropped it" is the failure it was shaped to avoid.
+///
+/// Nothing asserted it. A future refactor to `#[derive(Serialize)]` over a typed struct would look
+/// tidier, pass every other test here, and quietly delete whatever the user had added.
+///
+/// Proven red by serializing a typed struct instead of merging: `theme` disappears and the
+/// hand-written entry is reformatted.
+#[test]
+fn a_save_keeps_keys_and_entries_it_did_not_write() {
+    use fm_app::vaults::{save, VaultConfig};
+
+    let d = tempdir().unwrap();
+    let list = d.path().join("vaults.json");
+    std::fs::write(
+        &list,
+        "{\n  \"theme\": \"solarized\",\n  \"vaults\": [\n    { \"name\": \"lab\", \
+         \"path\": \"/srv/lab\", \"note\": \"shared with the group\" }\n  ]\n}\n",
+    )
+    .unwrap();
+
+    save(&[VaultConfig { name: "personal".into(), path: d.path().join("p"), restic: None }], &list)
+        .unwrap();
+
+    let after = std::fs::read_to_string(&list).unwrap();
+    assert!(after.contains("solarized"), "an unknown top-level key survived: {after}");
+    assert!(after.contains("shared with the group"), "so did a key inside their entry: {after}");
+    assert!(after.contains("\"personal\""), "and the new vault was appended: {after}");
+    assert!(after.contains("\"lab\""), "beside the one that was already there: {after}");
+}

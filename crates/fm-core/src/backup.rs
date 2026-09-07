@@ -286,9 +286,16 @@ pub struct Restored {
 /// is the honest shape of restic as an acquisition method: it returns your notes and your
 /// media, not your history and not a collaboration. Anything that needs those needs git.
 ///
-/// Refuses to overwrite. Every entry is moved into `dest` only if nothing of that name is
-/// already there, so pointing this at a directory with content in it fails before it clobbers
-/// anything rather than merging two vaults into one.
+/// **Refuses to overwrite — on a name collision, not on a non-empty destination.** Every entry is
+/// moved into `dest` only if nothing of that name is already there, and the whole set is checked
+/// before anything moves, so a refusal leaves the destination exactly as it was. That is what stops
+/// two vaults merging into one: every vault has a notes directory, so two of them always collide.
+///
+/// A destination holding *unrelated* content — a `README.md`, a `.git`, the repo you are adopting
+/// as a vault — is not refused, and should not be. This sentence used to say that pointing it at
+/// "a directory with content in it" fails, which overstated the guard by enough to mislead someone
+/// deciding whether it was safe to run (corrected 2026-09-07;
+/// `a_restore_lands_beside_unrelated_files_and_refuses_only_on_a_collision` pins both halves).
 pub fn restore_vault(repo: &Path, password: &str, dest: &Path) -> Result<Restored, StoreError> {
     let snap = latest(repo, password)?.ok_or_else(|| {
         StoreError::Io(format!(
