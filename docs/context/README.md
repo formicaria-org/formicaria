@@ -65,7 +65,11 @@ each against the tree. **On 2026-07-19, six of seven answered wrong.** Record th
 treat any non-zero as work.
 
 1. Was the mobile **transport** ruling reversed? → *No.*
-2. Is the `.md` **merge in-process**? → *On the phone yes (`git_native`); the desktop shells out.*
+2. Is the `.md` **merge in-process**? → *Wherever there is no `git` binary: the phone, and the
+   **Windows desktop** (`fm-serve/Cargo.toml` enables `native-git` under `cfg(windows)`).
+   Linux and macOS shell out.* (This answer said "the desktop shells out" until 2026-09-07,
+   which stopped being true when libgit2 shipped on Windows — **the answer key had rotted**,
+   which is the failure this test exists to catch, arriving through the test itself.)
 3. Does **`fm-cli` owe a migration** onto `dispatch`? → *No — ruled the other way.*
 4. Can a **phone create/accept a proposal**? → *Yes, since 2026-07-24 (`git_native` + `vcs`).*
 5. What is **executable today** with no phone and no NDK?
