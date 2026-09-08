@@ -2059,9 +2059,12 @@
       {#if movedVaults.length}
         <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
         <button
-          class="tb-chip moved"
+          class="tb-chip moved alert"
           onclick={getTheirChanges}
           title="Someone pushed — get their changes"
+          aria-label={`${
+            movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`
+          }: get changes`}
         >
           <Icon name="inbox" size={14} />
           <span class="lbl"
@@ -2076,9 +2079,10 @@
            A chip rather than only a banner: the banner is dismissible and this condition
            is not transient — it persists until a human resolves the file. -->
         <button
-          class="tb-chip moved"
+          class="tb-chip moved alert"
           onclick={() => (skippedOpen = true)}
           title="Notes that could not be read — usually a conflicted merge"
+          aria-label={`${skippedNotes.length} unreadable`}
         >
           {skippedNotes.length}{' '}<span class="lbl">unreadable</span>
         </button>
@@ -2095,9 +2099,10 @@
            notes that exist nowhere else or notes something is rewriting, and those want opposite
            responses. The panel says which, then offers the button. -->
         <button
-          class="tb-chip moved"
+          class="tb-chip moved alert"
           onclick={() => (unrecordedOpen = true)}
           title="Notes on disk that git does not have yet — click to see which, and why"
+          aria-label={`${unrecordedTotal} not in history`}
         >
           {unrecordedTotal}{' '}<span class="lbl">not in history</span>
         </button>
@@ -2115,7 +2120,12 @@
            It opens the panel rather than backing up on the click: weeks of silence has more than
            one cause — a merge waiting on a person, a remote that never got set, or simply nobody
            writing — and the panel is where those are told apart. -->
-        <button class="tb-chip moved" onclick={onBackup} title={quietTitle(quiet, labelFor)}>
+        <button
+          class="tb-chip moved alert"
+          onclick={onBackup}
+          title={quietTitle(quiet, labelFor)}
+          aria-label={quietLabel(quiet, labelFor)}
+        >
           <Icon name="clock" size={14} />
           <span class="lbl">{quietLabel(quiet, labelFor)}</span>
         </button>
@@ -2135,9 +2145,10 @@
            missing from every view and "not in history" means a note exists in one place only. This
            one means everything is fine and a choice is waiting. -->
         <button
-          class="tb-chip"
+          class="tb-chip alert"
           onclick={() => (demotedOpen = true)}
           title="Notes the two devices disagreed about — the merge chose, and you can change it"
+          aria-label={`${settledNotes} decided for you`}
         >
           {settledNotes}{' '}<span class="lbl">decided for you</span>
         </button>
@@ -3292,6 +3303,18 @@
        `auto` was the default and a phone matched only the media query; with `auto` gone this is
        a fact about the window and one rule states it. */
     .save-label {
+      display: none;
+    }
+    /* **The alert chips shed their words at this width, and keep their counts.** Measured on the
+       owner's phone (2026-09-08): five chips of prose wrapped the toolbar and pushed the board
+       down, which is the same failure the four-row note above records — and the reason a sixth
+       chip was refused rather than added. The icon and the number are the alert; the sentence is
+       detail, and detail belongs in the panel each chip opens. Every one of them carries an
+       explicit `aria-label` with the full wording, so hiding the text costs the button no name —
+       to a screen reader, and to the tests, nothing here changed.
+       **`.alert` and not `.tb-chip`**: the vault filter is a `tb-chip` too, and it is *only* its
+       words. The rule above about `.vaults-wrap` is the same lesson, learned on the same bar. */
+    .tb-chip.alert .lbl {
       display: none;
     }
   }

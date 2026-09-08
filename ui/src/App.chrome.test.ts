@@ -330,3 +330,32 @@ test('a saved view still lists and opens, with no way to author one anywhere', a
   }
   expect(screen.queryByLabelText('group by'), 'grouping is no longer editable').toBeNull();
 });
+
+/// **Every alert chip names itself, so it can stop showing its words.**
+///
+/// At narrow widths the chips shed their labels and keep their icon and count — five chips of
+/// prose wrapped the toolbar on the owner's phone (2026-09-08) and pushed the board down, the same
+/// failure the four-row measurement records. The words moving out is only safe because each chip
+/// carries an explicit `aria-label`: without one, hiding the text leaves a button a screen reader
+/// cannot name and a test cannot find.
+///
+/// **This is the only half that can be tested here**, and the header above says why: jsdom applies
+/// no CSS, so nothing in this file can observe the label actually disappearing. What it pins is the
+/// thing that makes the disappearing safe.
+///
+/// Proven red by deleting any of the five `aria-label` attributes: the chip's name falls back to
+/// its visible text, which is exactly the dependency this removes.
+test('every alert chip carries a name of its own, not one borrowed from its label', async () => {
+  render(App);
+  // Anchored on a chip that must appear, so this cannot pass before the toolbar has rendered.
+  await screen.findByRole('button', { name: /days since a save/i });
+
+  const chips = [...document.querySelectorAll('.tb-chip.alert')];
+  expect(chips.length).toBeGreaterThan(0);
+  for (const chip of chips) {
+    const name = chip.getAttribute('aria-label');
+    expect(name, `${chip.textContent?.trim()} has no aria-label`).toBeTruthy();
+    // And it says something, rather than repeating the bare count the chip still shows.
+    expect(name!.trim().length).toBeGreaterThan(3);
+  }
+});
