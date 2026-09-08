@@ -43,7 +43,7 @@
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
   import type { Recoverable } from './types';
-  import { labelFor } from './vaultLabels.svelte';
+  import { labelFor } from './vaults.svelte';
   import type {
     BackupRun,
     BackupStatus,

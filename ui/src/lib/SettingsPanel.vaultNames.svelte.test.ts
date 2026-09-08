@@ -4,7 +4,7 @@
 // vault-taking command carries. Two devices that cloned one repository therefore call the same
 // audience different things — the owner's laptop says `vault` where the phone says `notes`. What
 // both devices agree about is the repository behind the remote, so that is what every surface
-// shows (`vaultLabels.svelte.ts`, and `list_vaults` derives it).
+// shows (`vaults.svelte.ts`, and `list_vaults` derives it).
 //
 // The Backup panel obeyed that rule; this one never imported the helper. Reported 2026-09-08 from
 // the phone: Settings listed `vault` and `notes` while the Backup panel, one tap away, headed the
@@ -14,7 +14,7 @@ import { render, screen } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as mock from './mock';
 import SettingsPanel from './SettingsPanel.svelte';
-import { setVaultLabels } from './vaultLabels.svelte';
+import { setVaults } from './vaults.svelte';
 import type { VaultInfo } from './types';
 
 beforeEach(() => mock.reset());
@@ -37,7 +37,7 @@ describe('SettingsPanel — what a vault is called', () => {
   it('lists a vault by its repository, not by the local folder name', async () => {
     // Exactly what `list_vaults` reports for a vault with a remote: the name stays the identity,
     // the label is the repository behind it.
-    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    setVaults([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
     panel();
 
     expect(await screen.findByText('lab-notes')).toBeTruthy();
@@ -51,7 +51,7 @@ describe('SettingsPanel — what a vault is called', () => {
     // at — so this screen, the one that answers "what am I operating with?", has to carry both.
     // Routing every surface through `labelFor` left the string needed to add a vault back
     // displayed nowhere, and the owner hit it within the hour.
-    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    setVaults([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
     panel();
 
     expect(await screen.findByText('lab-notes')).toBeTruthy();
@@ -61,7 +61,7 @@ describe('SettingsPanel — what a vault is called', () => {
   it('does not repeat itself when the two are the same', async () => {
     // `personal` carries no label, so `labelFor` returns the name — printing "name: personal"
     // beside "personal" would be noise on the screen this is meant to make legible.
-    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    setVaults([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
     panel();
     await screen.findByText('personal');
     expect(screen.queryByText('name: personal')).toBeNull();
@@ -70,7 +70,7 @@ describe('SettingsPanel — what a vault is called', () => {
   it('falls back to the name for a vault with no remote to name it after', async () => {
     // `personal` carries no label in the fixture, and a vault with no remote never will — there is
     // no shared repository to agree about, so the local name is the honest answer.
-    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    setVaults([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
     panel();
     expect(await screen.findByText('personal')).toBeTruthy();
   });

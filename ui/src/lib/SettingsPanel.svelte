@@ -38,8 +38,8 @@
   // the same audience differently — this machine says `vault` where the phone says `notes` — so
   // every surface shows the repository behind the remote instead. This panel was displaying the
   // raw name, so the same vault read as two different vaults depending on which screen you opened
-  // (reported 2026-09-08). See `vaultLabels.svelte.ts`.
-  import { labelFor } from './vaultLabels.svelte';
+  // (reported 2026-09-08). See `vaults.svelte.ts`.
+  import { labelFor } from './vaults.svelte';
   import * as keys from './keys';
   import { GIT_ASSETS_CEILING, GIT_ASSETS_WARN, humanSize } from './size';
 

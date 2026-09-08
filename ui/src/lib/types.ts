@@ -402,7 +402,7 @@ export interface VaultInfo {
   /** **What to show instead of `name`**: the repository behind this vault's remote
    *  (`…/formicarium-vault.git` → `formicarium-vault`), or `null` for a vault with no remote — or
    *  when two vaults would derive the same label. Display only; `name` stays the identity. See
-   *  `vaultLabels.svelte.ts`. */
+   *  `vaults.svelte.ts`. */
   label: string | null;
   /** The committer this vault signs with, or `null` when git has never been told who you are.
    *

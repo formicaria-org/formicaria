@@ -13,7 +13,7 @@
   /// `SkippedPanel`.
 
   import type { DuplicateFamily, Unrecorded } from './types';
-  import { labelFor } from './vaultLabels.svelte';
+  import { labelFor } from './vaults.svelte';
 
   interface Props {
     unrecorded: Unrecorded[];

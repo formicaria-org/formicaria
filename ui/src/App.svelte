@@ -58,7 +58,7 @@
   import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
-  import { labelFor, setVaultLabels } from './lib/vaultLabels.svelte';
+  import { labelFor, setVaults, vaultList } from './lib/vaults.svelte';
   import type {
     ObjectMeta,
     VaultInfo,
@@ -380,7 +380,19 @@
   // vault" and "no vault" looked identical. That is precisely the confusion the first-run
   // screen exists to end, and it must not inherit it: the vault you just made is the one
   // most likely to be empty.
-  let vaults = $state<VaultInfo[] | null>(null);
+  /// **Read from the one store, never held here.** This was `$state` local to `App`, and three
+  /// places assigned it — only one of which also told the label registry. So a vault created or
+  /// removed kept its old name on screen, and the vault filter and the "Create in" picker went on
+  /// describing the world before, until the app was relaunched. The list lives in
+  /// `lib/vaults.svelte.ts` now and `labelFor` is derived from it, so there is nowhere for the two
+  /// to disagree.
+  const vaults = $derived(vaultList());
+  // **A fresh app has not loaded its vaults yet.** The list is module state now, so without this a
+  // second `App` in one process starts holding the previous one's answer — skipping the boot gate,
+  // whose whole job is telling "still opening" apart from "no vaults" and from "the backend
+  // refused". That is every test after the first, and it is the trap `mock.ts`'s `reset()` records
+  // for its own module state.
+  setVaults(null);
 
   // **Has this person told git who they are?** Read from `list_vaults`, which already spawns git
   // locally for each vault's label — never from `backup_status`, which runs a network `ls-remote`
@@ -1156,10 +1168,7 @@
     bootAttempts = ++bootTries;
     void listVaults()
       .then((v) => {
-        vaults = v;
-        // What each vault is *called*, for display only. Fed here because this is where the answer
-        // lands; the rest of the app keeps passing names.
-        setVaultLabels(v);
+        setVaults(v);
         bootError = null;
         // Nothing left to watch: a boot that succeeded must not keep polling `list_vaults`
         // behind a working app for the rest of the session.
@@ -1839,7 +1848,7 @@
     git={gitAvailable}
     restic={resticAvailable}
     oncreated={(v) => {
-      vaults = v;
+      setVaults(v);
       void refresh();
     }}
   />
@@ -2049,7 +2058,7 @@
            on its face.
 
            Keyed and toggled on the vault **name** (the identity, and what `hiddenVaults`
-           persists), labelled with what the repository is called — see `vaultLabels.svelte.ts`. -->
+           persists), labelled with what the repository is called — see `vaults.svelte.ts`. -->
         <div class="create-wrap vaults-wrap">
           <button
             type="button"
@@ -2530,7 +2539,7 @@
           git={gitAvailable}
           restic={resticAvailable}
           oncreated={(v) => {
-            vaults = v;
+            setVaults(v);
             newVaultOpen = false;
             void refresh();
           }}

@@ -10,7 +10,7 @@
 ///
 /// **The chip says `lab-notes`, not `lab`.** A vault's name is local to a machine — two devices
 /// that cloned one repository call the same audience different things — so every surface shows the
-/// repository behind the remote (`vaultLabels.svelte.ts`). This chip did not, and neither did the
+/// repository behind the remote (`vaults.svelte.ts`). This chip did not, and neither did the
 /// backup summary or the Settings vault list: the same vault read as `notes` on one screen and
 /// `formicarium-vault` on another, on the owner's phone (reported 2026-09-08). The fixture already
 /// modelled it — `lab` carries the label `lab-notes` and `personal` carries none — so these tests
