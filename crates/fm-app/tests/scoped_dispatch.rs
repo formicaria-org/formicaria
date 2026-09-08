@@ -124,6 +124,71 @@ fn the_vault_list_shows_only_what_the_caller_can_reach() {
     assert_eq!(names, vec!["lab"], "a scoped client saw a vault it has no access to");
 }
 
+/// **The backup panel discloses more than the switcher does, and it was not scoped at all.**
+///
+/// `list_vaults` was filtered from the start because *a vault's name discloses* — and
+/// `backup_status` carries the name **plus** the remote URL, the committer's name and email, the
+/// unpushed count and the conflicted paths, for every vault on the machine. It reached
+/// `configs()` directly instead of taking the scope, so a paired device granted one audience could
+/// read where every other audience is hosted and who signs it.
+///
+/// Exactly the rot the header of this file predicts: a read path that reaches the vault list
+/// rather than `Vaults::store(scope)` leaves every `Scoped` mechanism test passing and still
+/// leaks. Found on 2026-09-08 while chasing an unrelated question, by noticing that its own
+/// sibling one line below — `backup_latest(app, scope, ..)` — does take the scope.
+#[test]
+fn the_backup_panel_shows_only_the_vaults_the_caller_can_reach() {
+    let (_h, _a, _b, app, _, _) = two_vaults();
+
+    let all = as_scope(&app, &Scope::All, "backup_status", json!({})).unwrap();
+    assert_eq!(
+        all["vaults"].as_array().unwrap().len(),
+        2,
+        "the machine's own user still sees both"
+    );
+
+    let mine = as_scope(&app, &lab(), "backup_status", json!({})).unwrap();
+    let names: Vec<&str> =
+        mine["vaults"].as_array().unwrap().iter().filter_map(|v| v["name"].as_str()).collect();
+    assert_eq!(names, vec!["lab"], "a scoped client saw a vault it has no access to");
+
+    // The names are the cheapest thing here to check and the least of what leaked, so the
+    // serialised answer is checked whole: a remote URL or a committer's email reaching a caller
+    // that cannot read the vault is the disclosure, whatever field it arrives in.
+    let text = serde_json::to_string(&mine).unwrap();
+    assert!(!text.contains("personal"), "the other audience appears somewhere in:\n{text}");
+}
+
+/// **Every arm that hands back a vault list, not just the one that was noticed.** `backup_status`
+/// was found by accident; the sweep that followed found eight more places returning the same shape
+/// unfiltered — `config` (which also lists each vault's backup repo, a path and often a host), the
+/// two settings writes that return the refreshed list, and the four vault-lifecycle commands.
+///
+/// They are asserted together because they failed together and for one reason: the filter was two
+/// lines duplicated per site rather than a function, so each was written correctly in isolation and
+/// nothing checked the sum. `scoped_infos` is that function now, and this is the test that notices
+/// when the ninth arm forgets to call it.
+#[test]
+fn no_arm_hands_back_a_vault_list_the_caller_may_not_see() {
+    let (_h, _a, _b, app, _, _) = two_vaults();
+
+    for (cmd, args) in [
+        ("list_vaults", json!({})),
+        ("backup_status", json!({})),
+        ("config", json!({})),
+        ("set_git_assets_max", json!({ "vault": "lab", "max": "" })),
+        ("set_supervision", json!({ "vault": "lab", "collect": true, "publish": false })),
+        ("forget_vault", json!({ "name": "lab" })),
+    ] {
+        let out = as_scope(&app, &lab(), cmd, args).unwrap_or_else(|e| panic!("{cmd}: {e}"));
+        let text = serde_json::to_string(&out).unwrap();
+        assert!(
+            !text.contains("personal"),
+            "`{cmd}` disclosed a vault outside the caller's scope:\n{text}"
+        );
+    }
+}
+
 /// Reaching a note by id, which is the shape every deep link and every `note:<ulid>` reference
 /// has. The id is not a secret and travels freely; membership of the audience is the check.
 #[test]

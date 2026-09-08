@@ -1496,7 +1496,7 @@ fn dispatch_inner(
         "backup" => json(run_backup(app, scope, &s("vault"))?),
         // What the two backup tiers would actually do right now — the panel needs
         // this to promise the user only what it can deliver.
-        "backup_status" => json(backup_status(app)?),
+        "backup_status" => json(backup_status(app, scope)?),
         // **"When did this last work?"** — deliberately separate from `backup_status`, which
         // polls. See `backup_latest`.
         "backup_latest" => json(backup_latest(app, scope, &s("vault"))?),
@@ -1521,7 +1521,7 @@ fn dispatch_inner(
             // Hand back the refreshed list, as `set_git_assets_max` does: the caller re-renders
             // from the truth on disk rather than from what it hoped it wrote.
             let g = lock()?;
-            json(infos(&g.configs(), &g.all.names()))
+            json(scoped_infos(&g, scope))
         }
         "set_git_remote" => {
             let (name, email) = (s("name"), s("email"));
@@ -1675,10 +1675,7 @@ fn dispatch_inner(
         // vault called "acquisition-2027" discloses whether it holds anything or not.
         "list_vaults" => {
             let g = lock()?;
-            let mine: Vec<VaultConfig> =
-                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
-            let names: Vec<&str> = g.all.names().into_iter().filter(|n| scope.allows(n)).collect();
-            json(infos(&mine, &names))
+            json(scoped_infos(&g, scope))
         }
         // **Which attachments travel with this vault's notes.** Written into the vault's own
         // `vault.json`, so the rule follows the vault to every device and every collaborator
@@ -1701,7 +1698,7 @@ fn dispatch_inner(
             fm_core::descriptor::Descriptor::set_git_assets_max(&path, max)
                 .map_err(|e| e.to_string())?;
             let g = lock()?;
-            json(infos(&g.configs(), &g.all.names()))
+            json(scoped_infos(&g, scope))
         }
         // What would happen if we created a vault here — the form asks on every keystroke.
         "check_path" => {
@@ -1710,7 +1707,7 @@ fn dispatch_inner(
             json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &path))
         }
         "create_vault" => {
-            json(create_vault(app, &s("name"), &resolve_path(&s("name"), &s("path"))?)?)
+            json(create_vault(app, scope, &s("name"), &resolve_path(&s("name"), &s("path"))?)?)
         }
         // What importing this folder would involve — asked on every keystroke, like `check_path`.
         // The guard is taken only for the destination question; the directory walk runs with it
@@ -1741,7 +1738,7 @@ fn dispatch_inner(
         // first launch — could never be got rid of from inside the product. For a user who only ever
         // sees the UI that is not a papercut, it is permanent (owner, 2026-07-31: "creates only
         // confusion").
-        "forget_vault" => json(forget_vault(app, &s("name"))?),
+        "forget_vault" => json(forget_vault(app, scope, &s("name"))?),
         // What this installation is actually configured as — the answer to "what am I
         // operating with?". Read-only by construction and by necessity: `vaults::save` is
         // append-only and never rewrites an existing entry, so a settings screen that offered
@@ -1757,10 +1754,13 @@ fn dispatch_inner(
                 version: option_env!("FM_VERSION").unwrap_or("dev").to_string(),
                 vault_list: app.config.as_ref().map(|p| p.display().to_string()),
                 vault_list_writable: app.config_writable,
-                vaults: infos(&g.configs(), &g.all.names()),
+                vaults: scoped_infos(&g, scope),
+                // Scoped for the same reason as `vaults` above: a backup repo is a path, often a
+                // host, and it names an audience this caller was not given.
                 restic: g
                     .configs()
                     .iter()
+                    .filter(|c| scope.allows(&c.name))
                     .map(|c| VaultRestic { vault: c.name.clone(), repo: c.restic.clone() })
                     .collect(),
                 env: [
@@ -1798,6 +1798,7 @@ fn dispatch_inner(
         // registration as `create_vault`, with a clone in front and an identity behind.
         "clone_vault" => json(clone_vault(
             app,
+            scope,
             &s("name"),
             &resolve_path(&s("name"), &s("path"))?,
             &s("url"),
@@ -1857,18 +1858,18 @@ fn dispatch_inner(
             vaults::set_restic(&cfg.name, repo.as_deref(), &config)?;
             g.set_restic(&cfg.name, repo);
             drop(g);
-            json(backup_status(app)?)
+            json(backup_status(app, scope)?)
         }
         // One password for every repo — a per-vault one would multiply the places a secret lives,
         // and it is deliberately not written into `vaults.json`, which is a file of paths a user
         // may reasonably open or send someone while debugging.
         "set_restic_password" => {
             crate::secrets::save_restic_password(&s("password"))?;
-            json(backup_status(app)?)
+            json(backup_status(app, scope)?)
         }
         "clear_restic_password" => {
             crate::secrets::clear_restic_password()?;
-            json(backup_status(app)?)
+            json(backup_status(app, scope)?)
         }
         "clear_git_credential" => {
             crate::secrets::clear_token()?;
@@ -1880,6 +1881,7 @@ fn dispatch_inner(
         // longer exists. Same registration as the other two, with a restic restore in front.
         "restore_vault" => json(restore_vault(
             app,
+            scope,
             &s("name"),
             &resolve_path(&s("name"), &s("path"))?,
             &s("repo"),
@@ -2819,7 +2821,7 @@ fn backup_latest(app: &App, scope: &Scope, vault: &str) -> Result<LatestBackup, 
     }
 }
 
-fn backup_status(app: &App) -> Result<BackupStatus, String> {
+fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
     // One password for every repo. A per-vault password would have to live somewhere,
     // and the one place it must never live is the config file next to the paths.
     let has_password = crate::secrets::has_restic_password();
@@ -2833,8 +2835,15 @@ fn backup_status(app: &App) -> Result<BackupStatus, String> {
     // claim: a transport refreshes liveness *before* dispatch, and the watchdog reads only
     // that — so a slow command cannot make the app quit under you.)
     let vaults = app.lock()?.configs();
+    // **Scoped, like `list_vaults` and for a stronger reason.** That one is filtered because a
+    // vault's *name* discloses; this carries the name plus the remote URL, the committer's name and
+    // email, the unpushed count and the conflicted paths. Reaching `configs()` unfiltered is the
+    // exact rot `scoped_dispatch.rs` warns about — a read path that goes to the vault list instead
+    // of through the scope leaves every `Scoped` mechanism test passing and still leaks. Its own
+    // sibling, `backup_latest`, has always taken the scope.
     let vaults = vaults
         .iter()
+        .filter(|v| scope.allows(&v.name))
         .map(|v| VaultStatus {
             name: v.name.clone(),
             remote: vcs::remote(&v.path).unwrap_or(None),
@@ -3025,7 +3034,12 @@ fn check_path(
 /// first auto-commit, gated by `ping.git`. Doing it here would buy an empty `.git` five
 /// seconds early — and if the path sits inside a repo the user owns, `ensure_repo` probes
 /// only `<path>/.git`, finds none, and `git init`s a **nested repo shadowing theirs**.
-fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, String> {
+fn create_vault(
+    app: &App,
+    scope: &Scope,
+    name: &str,
+    path: &str,
+) -> Result<Vec<VaultInfo>, String> {
     let mut g = app.lock()?;
 
     // Re-run the check under the guard. The UI already ran it, but this is TOCTOU
@@ -3069,8 +3083,7 @@ fn create_vault(app: &App, name: &str, path: &str) -> Result<Vec<VaultInfo>, Str
     })?;
 
     g.add(cfg, store);
-    let names = g.all.names();
-    Ok(infos(&g.configs(), &names))
+    Ok(scoped_infos(&g, scope))
 }
 
 // ── importing another app's notes ───────────────────────────────────────────────
@@ -3303,7 +3316,7 @@ fn record(g: &mut Vaults, name: &str, path: &Path, report: &mut commands::Import
 /// Removing the last vault is allowed. It lands on the first-run screen, which is the honest state
 /// for a machine with no vaults, and `list_vaults` returning `[]` is exactly how the UI already
 /// detects it.
-fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
+fn forget_vault(app: &App, scope: &Scope, name: &str) -> Result<serde_json::Value, String> {
     if name.is_empty() {
         return Err("which vault? forget_vault needs a name".into());
     }
@@ -3353,13 +3366,12 @@ fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
         format!("'{name}' could not be removed from the vault list: {e} — it is still listed")
     })?;
     g.remove(name);
-    let names = g.all.names();
     Ok(serde_json::json!({
         "forgotten": name,
         "path": cfg.path.to_string_lossy(),
         "notes": notes,
         "remote": remote,
-        "vaults": infos(&g.configs(), &names),
+        "vaults": scoped_infos(&g, scope),
     }))
 }
 
@@ -3380,6 +3392,7 @@ fn forget_vault(app: &App, name: &str) -> Result<serde_json::Value, String> {
 /// `create_vault` can reasonably leave it to the placeholder; this cannot.
 fn clone_vault(
     app: &App,
+    scope: &Scope,
     name: &str,
     path: &str,
     url: &str,
@@ -3453,8 +3466,7 @@ fn clone_vault(
     })?;
 
     g.add(cfg, store);
-    let names = g.all.names();
-    Ok(infos(&g.configs(), &names))
+    Ok(scoped_infos(&g, scope))
 }
 
 /// Restore a vault from a restic repo and register it — the third way a vault comes into
@@ -3477,7 +3489,13 @@ fn clone_vault(
 ///
 /// The password comes from `RESTIC_PASSWORD` and is never taken as an argument, stored, or
 /// echoed: the app holds no secret of its own, and a restore is not the place to start.
-fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<VaultInfo>, String> {
+fn restore_vault(
+    app: &App,
+    scope: &Scope,
+    name: &str,
+    path: &str,
+    repo: &str,
+) -> Result<Vec<VaultInfo>, String> {
     let mut g = app.lock()?;
 
     let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
@@ -3568,8 +3586,7 @@ fn restore_vault(app: &App, name: &str, path: &str, repo: &str) -> Result<Vec<Va
     })?;
 
     g.add(cfg, store);
-    let names = g.all.names();
-    Ok(infos(&g.configs(), &names))
+    Ok(scoped_infos(&g, scope))
 }
 
 /// Where this machine's git credentials live, and whether it has one for a given URL.
@@ -3744,6 +3761,22 @@ fn refusal(c: &PathCheck, name: &str) -> String {
 /// vault list has none to give. Config still wins when it has an opinion — that name is the
 /// one *this* user chose, and a repo must not rename their audience out from under them —
 /// so this only fills a blank. Without it, adopting a repo shows a vault called "".
+/// The vault list **as this caller is entitled to see it** — the only way any arm should return it.
+///
+/// *Vaults are audiences*, and a vault's name discloses: `list_vaults` has been filtered since
+/// `Scope` landed for exactly that reason. Five arms return this same shape and **four of them
+/// reached `configs()` unfiltered**, so a paired device granted one audience learned the names of
+/// all of them (2026-09-08) — and from `backup_status`, their remote URLs and the committer's name
+/// and email besides. Each was written correctly in isolation; nothing checked the sum, which is
+/// what a duplicated two-line filter buys you. One function now, so the next arm that returns a
+/// vault list cannot quietly not have it.
+fn scoped_infos(g: &Vaults, scope: &Scope) -> Vec<VaultInfo> {
+    let mine: Vec<VaultConfig> =
+        g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+    let names: Vec<&str> = g.all.names().into_iter().filter(|n| scope.allows(n)).collect();
+    infos(&mine, &names)
+}
+
 fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
     // Derived first for the whole list, because the collision rule needs to see all of them: two
     // vaults cloned from one repo would otherwise show the same label, and an ambiguous vault filter

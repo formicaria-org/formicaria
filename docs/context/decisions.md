@@ -1593,6 +1593,24 @@ no roles, no verbs. Location is the permission, exactly as on disk. Tests:
 `fm-core/tests/scoped.rs` (mechanism), `fm-app/tests/scoped_dispatch.rs` (wiring — the half that
 rots, since a new read path reaching `Vaults::all` would leave every mechanism test passing).
 
+**Nine arms were still handing back the whole vault list, closed 2026-09-08 — and the file above
+predicted exactly this.** `list_vaults` was filtered from the start, because *a vault's name
+discloses*. Every **other** arm that returned the same shape was not: `backup_status` (name, remote
+URL, committer name and email, unpushed count, conflicted paths), `config` (the list plus each
+vault's restic repo — a path, often a host), the two settings writes that hand back the refreshed
+list, and the four vault-lifecycle commands. A device paired to one audience could read where every
+other audience is hosted and who signs it.
+
+**The cause is worth more than the fix.** The filter was *two lines duplicated per site* rather than
+a function, so each site was written correctly in isolation and nothing checked the sum — which is
+`CLAUDE.md`'s four questions, failing in the one direction they cannot catch: nobody was *adding*
+anything. There is now a single `scoped_infos(&g, scope)` and no arm builds the list itself.
+
+**Found by accident**, chasing an unrelated phone question, by noticing that `backup_status(app)`
+takes no scope while its sibling one line below, `backup_latest(app, scope, ..)`, does. The sweep
+that followed found the other eight. `scoped_dispatch.rs` now asserts them together, because they
+failed together and for one reason.
+
 ## The poll answers a comparison, not a report: `ping` carries a generation (2026-07-26, `#seams` `#sync`)
 
 **Decision.** `ping` takes the `since` the client last saw and answers `changed = generation >
