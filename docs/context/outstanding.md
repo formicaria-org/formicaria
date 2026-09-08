@@ -749,29 +749,33 @@ boundary instead.
 
 ---
 
-### 2.14 A prose conflict marks the paragraph, when it could mark the sentence
+### 2.14 A prose conflict marks the paragraph, when it could mark the sentence — CLOSED 2026-09-08
 
-Surfaced by §2.13 and deliberately not built with it, because it is a third thing and changes a
-user-visible contract.
+Shipped, with a shape this section did not anticipate — see `decisions.md`, *a conflict marks the
+sentence, and only where narrowing is provably free*.
 
-**What it is.** After the sentence rescue, the conflicts that remain are the ones where two devices
-edited the *same* or *adjacent* sentences. Their markers still come from the **line** merge, so they
-wrap the whole paragraph: the user is shown two near-identical blocks of prose and has to find the
-one sentence that differs by eye. The rescue already computes a sentence-granular merge of exactly
-that text — its markers would wrap the disputed sentence and nothing else.
+**What it does.** The finer merge's *conflicted* output is returned, so the markers wrap the
+sentences in dispute instead of the paragraph around them — **unless** handing it over would
+restructure the note, in which case the line merge's answer stands byte for byte.
 
-**Why it was not just switched on.** Taking the finer merge's *conflicted* output means joining a
-text that has marker lines in it, and `join_sentences` deliberately glues a sentence back onto the
-line it came from — which would glue prose onto a `<<<<<<<`, and a marker that does not start a line
-is not a marker. The join would need a rule for marker lines, and that rule is only exercised on the
-one path that must never corrupt. It also changes the *shape* of a conflicted file: the paragraph
-comes back split across several lines. That is invisible in rendered Markdown (consecutive lines are
-one paragraph) but it is still the app rewriting someone's line structure, and files-as-truth means
-the file is the atom.
+**What this section got wrong, which is the part worth keeping.** It framed the cost as *"the
+paragraph comes back split across several lines … invisible in rendered Markdown"*. That was true of
+the line breaks and false of everything else: an adversarial audit found the transform inventing a
+**blank** line (splitting one paragraph into two, permanently, and compounding — every line it tears
+ends in `". "`, which is the trigger), turning two-space sentence spacing into hard breaks, reading
+ordinary `=======` content as a separator, tearing a fenced code line into invalid code, and
+promoting a torn sentence into a heading or a list. Three were fixed at the cause and two are now
+grounds to decline.
 
-**Done looks like:** the marker block covers the disputed sentence; `has_conflict_markers`,
-`conflictLabel` and the resolve guard are unchanged in behaviour; both backends produce identical
-bytes; and a resolved note's line structure is stated as a known consequence rather than discovered.
+**The lesson worth carrying, since it is the second time this week.** "The cost is X" was an
+assertion about a transform I had reasoned about but not attacked. The fix was not a longer list of
+rules inside the joiner — it was **validating the output and being willing to hand back nothing**,
+which restored the guarantee the previous section had bought by refusing conflicted results
+outright: this can improve a conflict or leave it exactly alone, and there is no third outcome.
+
+**Left open deliberately**, both recorded in `known-issues.md`: `has_conflict_markers` hardcodes a
+marker size of seven while a vault may ask git for fewer, and `git_native`'s second merge loop
+stages before it checks the outcome. Neither is §2.14's to fix.
 
 ---
 

@@ -13,10 +13,19 @@
 //! happening, and none of the ones that stop is a disagreement.
 //!
 //! **The risk is contained by control flow, not by these tests.** The ordinary line merge runs
-//! first and its answer stands unless it conflicted; the finer pass is consulted only then, and
-//! only its *clean* results are taken. So a merge that is clean today cannot change, and a
-//! conflict either becomes clean or stays byte-for-byte what it is now. The tests below pin the
-//! behaviour; the guarantee is that there is no third outcome to pin.
+//! first and its answer stands unless it conflicted; the finer pass is consulted only then. So a
+//! merge that is clean today cannot change. The tests below pin the behaviour; the guarantee is
+//! that there is no third path to pin.
+//!
+//! **And when the finer pass conflicts too, its answer is still the better one** (§2.14, shipped
+//! 2026-09-08). It has already worked out which sentence the two devices disagree about, so its
+//! markers wrap that sentence instead of the paragraph around it — where before, a one-line
+//! paragraph was printed twice, nearly identically, and spotting the difference was the reader's
+//! job. Two rules make that safe, and both are pinned below: a marker always owns its whole line
+//! (a marker that does not is invisible to `has_conflict_markers`, to the guard that refuses to
+//! commit marked-up text, and to the user), and a line with structure — a table row, an indented
+//! code line — is never cut, because a paragraph broken across lines still renders as one
+//! paragraph and a table broken across lines does not.
 
 use fm_core::merge::{merge_texts, Merged};
 
@@ -26,6 +35,18 @@ fn note(updated: &str, body: &str) -> String {
         "---\nid: 01JQ0000000000000000000000\ntype: note\ntitle: t\n\
          created: 2026-07-17T10:00:00Z\nupdated: {updated}\n---\n\n{body}\n"
     )
+}
+
+fn merge_sized(base: &str, ours: &str, theirs: &str, marker: usize) -> (String, Merged) {
+    let (text, verdict) = merge_texts(
+        &note("2026-07-17T10:00:00Z", base),
+        &note("2026-07-17T11:00:00Z", ours),
+        &note("2026-07-17T12:00:00Z", theirs),
+        marker,
+    )
+    .expect("a note merge");
+    let body = fm_core::frontmatter::from_file(&text).expect("a merged note still parses").body;
+    (body.trim_matches('\n').to_string(), verdict)
 }
 
 fn merge(base: &str, ours: &str, theirs: &str) -> (String, Merged) {
@@ -80,6 +101,139 @@ fn the_same_sentence_is_still_a_conflict() {
     assert!(fm_core::merge::has_conflict_markers(&body), "and it is marked:\n{body}");
     assert!(body.contains("one Markdown file"), "our text is there to choose:\n{body}");
     assert!(body.contains("a single file"), "and so is theirs:\n{body}");
+}
+
+/// **The marked region is the disagreement, not the paragraph it sits in** (`outstanding.md` §2.14).
+///
+/// Until 2026-09-08 the markers came from the *line* merge even when the finer pass had already
+/// worked out exactly which sentence was in dispute — so a one-line paragraph was printed twice,
+/// nearly identically, and finding the difference was the reader's job. The finer merge's
+/// conflicted output is now the one that is returned.
+///
+/// Proven red by having `sentence_merge` hand back `None` for a conflicted finer merge, which is
+/// the behaviour that shipped in `8ce2637`.
+#[test]
+fn a_conflict_marks_the_sentence_it_is_about_and_not_the_paragraph_around_it() {
+    let ours = PARA.replace("Every note is one file.", "Every note is one Markdown file.");
+    let theirs = PARA.replace("Every note is one file.", "Every note is a single file.");
+
+    let (body, verdict) = merge(PARA, &ours, &theirs);
+    assert_eq!(verdict, Merged::Conflicted);
+
+    // The sentences nobody argued about are outside the markers, and appear once — the whole
+    // point. Before this they appeared twice, once in each half of the block.
+    let marked: String = body
+        .lines()
+        .skip_while(|l| !l.starts_with("<<<<<<<"))
+        .take_while(|l| !l.starts_with(">>>>>>>"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !marked.contains("The vault syncs over git"),
+        "an agreed sentence must not be inside the conflict:\n{body}"
+    );
+    assert!(!marked.contains("The phone runs libgit2"), "nor the one after it:\n{body}");
+    assert_eq!(
+        body.matches("The vault syncs over git").count(),
+        1,
+        "and it is printed once, not once per side:\n{body}"
+    );
+    assert!(marked.contains("one Markdown file") && marked.contains("a single file"));
+}
+
+/// **A marker that does not start its own line is not a marker.** `has_conflict_markers` would not
+/// count it, the guard that refuses to commit marked-up text would not see it, and the user would
+/// be handed prose with `<<<<<<<` buried in the middle of it — markers committed as content, which
+/// is the failure `sync.svelte.ts` and both `commit_all`s are built around.
+///
+/// This is the one thing the conflicted joiner does that the exact one does not, so it is the one
+/// thing worth pinning. Proven red by joining a conflicted merge with `join_sentences`.
+#[test]
+fn every_marker_owns_its_whole_line() {
+    let ours = PARA.replace("Every note is one file.", "Every note is one Markdown file.");
+    let theirs = PARA.replace("Every note is one file.", "Every note is a single file.");
+    let (body, _) = merge(PARA, &ours, &theirs);
+
+    for marker in ["<<<<<<<", "=======", ">>>>>>>"] {
+        assert!(
+            body.lines().any(|l| l.starts_with(marker)),
+            "`{marker}` must begin a line of its own:\n{body}"
+        );
+        assert_eq!(
+            body.matches(marker).count(),
+            body.lines().filter(|l| l.starts_with(marker)).count(),
+            "no `{marker}` may appear anywhere but at the start of a line:\n{body}"
+        );
+    }
+    // The invariant everything else rests on: markers are in the body, so the note still parses.
+    assert!(fm_core::merge::has_conflict_markers(&body));
+}
+
+/// **A table row and an indented code line are never cut**, so a conflict cannot leave half a row
+/// on one side of a marker and half on the other. A paragraph broken across lines still renders as
+/// one paragraph; a table broken across lines stops being a table, and code stops being code.
+///
+/// Proven red by making `structured` return `false`.
+#[test]
+fn a_table_row_and_an_indented_code_line_are_left_whole() {
+    for base in [
+        "| Kind. Sort. | Meaning. Sense. |",
+        "    print(\"Hello. World. Bye.\")",
+        "\tprint(\"Hello. World. Bye.\")",
+    ] {
+        let ours = base.replace("Hello.", "Hi.").replace("Kind.", "Type.");
+        let theirs = base.replace("Hello.", "Hey.").replace("Kind.", "Class.");
+        let (body, verdict) = merge(base, &ours, &theirs);
+
+        assert_eq!(verdict, Merged::Conflicted, "one line, two answers:\n{body}");
+        // Each side is intact on its own line — never split at the sentence inside it.
+        assert!(
+            body.lines().any(|l| l == ours.as_str()),
+            "our whole row survives as one line:\n{body:?}"
+        );
+        assert!(body.lines().any(|l| l == theirs.as_str()), "and so does theirs:\n{body:?}");
+    }
+}
+
+/// **A resolved conflict is a note like any other.** The paragraph comes back split across lines —
+/// the stated cost of §2.14 — so the thing to prove is that the split *itself* changes nothing: a
+/// person who deletes the marker lines is left with a body that renders the same, parses, and
+/// merges cleanly against itself.
+#[test]
+fn a_resolved_body_merges_with_itself_and_is_a_fixed_point() {
+    let ours = PARA.replace("Every note is one file.", "Every note is one Markdown file.");
+    let theirs = PARA.replace("Every note is one file.", "Every note is a single file.");
+    let (body, _) = merge(PARA, &ours, &theirs);
+
+    // What a person does: keep one side, delete the three marker lines.
+    let mut resolved: Vec<&str> = Vec::new();
+    let mut dropping = false;
+    for l in body.lines() {
+        if l.starts_with("<<<<<<<") {
+            continue;
+        } else if l.starts_with("=======") {
+            dropping = true;
+        } else if l.starts_with(">>>>>>>") {
+            dropping = false;
+        } else if !dropping {
+            resolved.push(l);
+        }
+    }
+    let resolved = resolved.join("\n");
+    assert!(!fm_core::merge::has_conflict_markers(&resolved), "resolved:\n{resolved}");
+    assert!(resolved.contains("one Markdown file"), "our side kept:\n{resolved}");
+
+    // Rendered Markdown joins consecutive lines into one paragraph, so this is the same prose —
+    // and it is a fixed point, which is what stops two devices trading it back and forth.
+    assert_eq!(
+        resolved.replace('\n', " "),
+        PARA.replace("Every note is one file.", "Every note is one Markdown file."),
+        "each newline stands exactly where the sentence space was, so the rendered paragraph is \
+         character-for-character the one that went in:\n{resolved:?}"
+    );
+    let (again, verdict) = merge(&resolved, &resolved, &resolved);
+    assert_eq!(verdict, Merged::Clean);
+    assert_eq!(again, resolved, "merging a resolved body with itself returns it");
 }
 
 /// **Nothing that merges cleanly today may change.** The finer pass sits behind a verdict check,
@@ -198,4 +352,153 @@ fn over_a_corpus_of_two_device_edits_only_the_real_disagreements_are_left() {
          merge clean, {conflicted}/{touching_or_same} that touch still conflict",
         apart + touching_or_same
     );
+}
+
+/// **The marker test is pinned to the size this call asked for, not to seven.** `git merge-file`
+/// takes `--marker-size` and the driver is handed whatever git chose, so a joiner that hard-coded
+/// the default would silently stop recognising markers on any repo that set `conflict-marker-size`
+/// — and then glue prose onto them. The two backends would agree with each other while both being
+/// wrong, which is exactly the class of bug a differential cannot see.
+///
+/// Proven red by hard-coding `7` in `is_marker`.
+#[test]
+fn a_marker_of_any_size_still_owns_its_line() {
+    let ours = PARA.replace("Every note is one file.", "Every note is one Markdown file.");
+    let theirs = PARA.replace("Every note is one file.", "Every note is a single file.");
+
+    for marker in [7, 12, 32] {
+        let (body, verdict) = merge_sized(PARA, &ours, &theirs, marker);
+        assert_eq!(verdict, Merged::Conflicted, "marker size {marker}:\n{body}");
+        let open = "<".repeat(marker);
+        let close = ">".repeat(marker);
+        assert!(
+            body.lines().any(|l| l.starts_with(&open)),
+            "marker size {marker}: the opening marker begins a line of its own:\n{body}"
+        );
+        assert!(
+            body.lines().any(|l| l.starts_with(&close)),
+            "marker size {marker}: and so does the closing one:\n{body}"
+        );
+        assert!(
+            !body.contains(&format!("git. {open}")),
+            "marker size {marker}: prose must never be glued onto a marker:\n{body}"
+        );
+        assert!(fm_core::merge::has_conflict_markers(&body), "marker size {marker}:\n{body}");
+    }
+}
+
+/// **The narrower markers are offered only where they are provably free.** Every case below was
+/// found by trying to break the change, and each one survives the user resolving the conflict —
+/// which is what makes them worth a *fallback* rather than a paragraph in a document nobody reads.
+/// When `join_conflicted` declines, the line merge's whole-paragraph markers stand byte for byte,
+/// so the §2.13 guarantee is intact: this can improve a conflict or leave it exactly alone.
+mod when_narrowing_would_restructure_the_note {
+    use super::*;
+
+    /// The one that was blocking, and it compounds. A source line ending `<stop><space>` makes the
+    /// splitter emit an **empty** unit before the newline; the closing marker has already ended the
+    /// line, so keeping that unit's newline too invents a **blank** line — one paragraph becomes
+    /// two, in `marked`, permanently. It compounds because every line this transform tears ends in
+    /// `". "`, so a note that has had one conflict is primed to trigger it on the next.
+    ///
+    /// Proven red by keeping the empty line instead of dropping it.
+    #[test]
+    fn a_blank_line_is_never_invented_between_two_halves_of_one_paragraph() {
+        let base = "Aa bb. Cc dd. \nEe ff. Gg hh.";
+        let (body, verdict) = merge(
+            base,
+            "Aa bb. Cc dd ours. \nEe ff. Gg hh.",
+            "Aa bb. Cc dd theirs. \nEe ff. Gg hh.",
+        );
+        assert_eq!(verdict, Merged::Conflicted);
+        assert!(
+            !body.lines().any(|l| l.trim().is_empty()),
+            "a blank line here splits one paragraph into two, and it survives resolution:\n{body:?}"
+        );
+        assert!(body.contains(">>>>>>> theirs\nEe ff. Gg hh."), "{body:?}");
+    }
+
+    /// Two spaces at the end of a line is a Markdown hard break. Every tear lands right after a
+    /// sentence, so with two-space sentence spacing *every* tear would render a `<br>` the user
+    /// never typed — permanently. The newline supplies the spacing the trimmed spaces were for.
+    ///
+    /// Proven red by not trimming a torn line.
+    #[test]
+    fn a_tear_never_leaves_a_markdown_hard_break_behind_it() {
+        let base = "The vault syncs over git.  Every note is one file.  The phone runs libgit2.";
+        let (body, verdict) = merge(
+            base,
+            &base.replace("is one file.", "is one Markdown file."),
+            &base.replace("is one file.", "is a single file."),
+        );
+        assert_eq!(verdict, Merged::Conflicted);
+        assert!(
+            !body.lines().any(|l| l.ends_with("  ")),
+            "a line ending in two spaces renders as a forced <br>:\n{body:?}"
+        );
+    }
+
+    /// **Code is not prose and a torn line of it is not code.** `structured` guards indented code
+    /// and table rows, but it may only look at one line, and a ``` fence is not visible that way.
+    /// So the whole-output scan catches it and declines — and the line merge hands the user two
+    /// intact candidate lines, which for code is the better answer anyway. Under §2.13 this cost
+    /// was nil, because a torn line only ever existed inside a merge that came back clean.
+    ///
+    /// Proven red by dropping the fence rule from `narrowing_is_safe`.
+    #[test]
+    fn a_fenced_code_line_is_never_torn_across_a_marker() {
+        let base = "```c\nputs(\"Aa. Bb. Cc. Dd.\");\n```\n";
+        let (body, verdict) =
+            merge(base, &base.replace("Bb.", "Bee."), &base.replace("Cc.", "Cee."));
+        assert_eq!(verdict, Merged::Conflicted);
+        assert!(
+            body.contains("puts(\"Aa. Bee. Cc. Dd.\");"),
+            "our whole statement survives as one line:\n{body}"
+        );
+        assert!(body.contains("puts(\"Aa. Bb. Cee. Dd.\");"), "and so does theirs:\n{body}");
+    }
+
+    /// `A rule follows. =======` is a sentence somebody wrote. The same seven `=` are a separator
+    /// only *between* an opening marker and a closing one — which is why markers are found by
+    /// scanning the merge's output, not by asking each line about itself. Reading content as a
+    /// separator tears a paragraph around text nobody edited, and `=` under a line is a setext
+    /// heading, so the sentence above it would become an `<h1>`.
+    ///
+    /// Proven red by testing each line in isolation instead of tracking the open/close state.
+    #[test]
+    fn content_that_merely_looks_like_a_separator_is_not_one() {
+        let base = "Alpha edit here. A rule follows. =======";
+        let (body, verdict) = merge(
+            base,
+            &base.replace("Alpha edit here.", "Alpha edit here, ours."),
+            &base.replace("Alpha edit here.", "Alpha edit here, theirs."),
+        );
+        assert_eq!(verdict, Merged::Conflicted);
+        assert!(
+            body.contains("A rule follows. ======="),
+            "the sentence and the run of `=` stay on the one line they were written on:\n{body:?}"
+        );
+    }
+
+    /// A sentence beginning `# `, `- ` or `> ` is prose inside a paragraph and a heading, list item
+    /// or quote at the start of a line — so a tear that puts one there changes the document's block
+    /// structure. Declined rather than rendered.
+    ///
+    /// Proven red by dropping the block-prefix rule from `narrowing_is_safe`.
+    #[test]
+    fn a_tear_never_promotes_a_sentence_into_a_heading_or_a_list() {
+        for tail in ["# Not a heading.", "- not a list item.", "> not a quote."] {
+            let base = format!("Intro one. Intro two. {tail} Tail.");
+            let (body, verdict) = merge(
+                &base,
+                &base.replace("Intro two.", "Intro two, ours."),
+                &base.replace("Intro two.", "Intro two, theirs."),
+            );
+            assert_eq!(verdict, Merged::Conflicted, "{tail}:\n{body}");
+            assert!(
+                !body.lines().any(|l| l.trim_start().starts_with(tail)),
+                "`{tail}` must not be left starting a line:\n{body:?}"
+            );
+        }
+    }
 }

@@ -1125,3 +1125,99 @@ fn the_two_devices_agree_even_when_the_note_was_not_written_by_this_app() {
          would now conflict for ever over a note neither of them edited"
     );
 }
+
+/// **The narrower markers, on real disk, through a real pull, on both backends** —
+/// `outstanding.md` §2.14.
+///
+/// Everything else that pins §2.14 calls `merge_texts` in process. Every *on-disk* conflict fixture
+/// in this repo happens to use a body the sentence splitter cannot cut — `note()` above is used
+/// with "the original", "our paragraph", "the version written on the phone", and `merge.rs`'s is
+/// "The disputed line.\n", where the stop is followed by a newline rather than a space. So
+/// `split_sentences` is the identity in all of them, `sentence_merge` returns `None`, and the whole
+/// of §2.14 was invisible to every end-to-end test: a regression that glued `<<<<<<<` onto the end
+/// of a sentence would have left all fifteen of them green.
+///
+/// Proven red by having `join_conflicted` return `join_sentences`' answer, which glues the prose
+/// before the block onto the opening marker: the file then carries no marker at the start of any
+/// line, `has_conflict_markers` goes false, and `resolve_conflict` accepts a body full of `<<<<<<<`
+/// as a resolution.
+#[test]
+fn a_prose_conflict_marks_the_sentence_on_disk_on_either_device() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+    let para = "The vault syncs over git. Every note is one file. The phone runs libgit2.";
+    let mut wrote = Vec::new();
+
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_remote, ours, theirs) = two_clones(dir.path());
+        let rel = format!("notes/{ID}.md");
+        // Seed both clones with the multi-sentence paragraph, then have each device reword the
+        // *same* sentence — a real disagreement, which is what is left after the §2.13 rescue.
+        std::fs::write(theirs.join(&rel), note(para)).unwrap();
+        g(&theirs, &["add", "-A"]);
+        g(&theirs, &["commit", "-qm", "seed the paragraph"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+        g(&ours, &["pull", "-q", "--no-rebase", "origin", "main"]);
+
+        std::fs::write(theirs.join(&rel), note(&para.replace("one file", "a single file")))
+            .unwrap();
+        g(&theirs, &["add", "-A"]);
+        g(&theirs, &["commit", "-qm", "their wording"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+
+        std::fs::write(ours.join(&rel), note(&para.replace("one file", "one Markdown file")))
+            .unwrap();
+        g(&ours, &["add", "-A"]);
+        g(&ours, &["commit", "-qm", "our wording"]);
+
+        vcs::force_native(native);
+        let _ = vcs::pull(&ours).unwrap_or_else(|e| panic!("native={native}: pull: {e}"));
+        let on_disk = std::fs::read_to_string(ours.join(&rel)).unwrap();
+
+        // Still a note: the markers are in the body, so it parses, indexes and opens.
+        let parsed = fm_core::frontmatter::from_file(&on_disk)
+            .unwrap_or_else(|e| panic!("native={native}: a conflicted note must still parse: {e}"));
+        assert!(
+            fm_core::merge::has_conflict_markers(&parsed.body),
+            "native={native}: the one definition of 'still conflicted' must see it:\n{on_disk}"
+        );
+        for marker in ["<<<<<<<", "=======", ">>>>>>>"] {
+            assert!(
+                parsed.body.lines().any(|l| l.starts_with(marker)),
+                "native={native}: `{marker}` must begin a line of its own:\n{on_disk}"
+            );
+        }
+
+        // §2.14 itself: the sentences nobody argued about are outside the block, and printed once.
+        assert_eq!(
+            parsed.body.matches("The vault syncs over git.").count(),
+            1,
+            "native={native}: an agreed sentence is not printed once per side:\n{on_disk}"
+        );
+        assert_eq!(
+            parsed.body.matches("The phone runs libgit2.").count(),
+            1,
+            "native={native}: nor the one after the disagreement:\n{on_disk}"
+        );
+
+        // And the guard still refuses it, which is what stops markers being pushed as content.
+        let err = vcs::resolve_conflict(&ours, &rel, git::Keep::Edited)
+            .expect_err("native={native}: must refuse while markers remain");
+        assert!(
+            format!("{err}").contains("still has conflict markers"),
+            "native={native}: names the reason: {err}"
+        );
+        vcs::force_native(false);
+        wrote.push(on_disk);
+    }
+
+    assert_eq!(
+        wrote[0], wrote[1],
+        "the two backends write the same conflicted note, byte for byte — otherwise a phone and a \
+         desktop re-derive this conflict against each other forever"
+    );
+}

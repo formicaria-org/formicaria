@@ -297,10 +297,13 @@ fn the_native_engine_is_byte_identical_to_git_merge_file() {
     eprintln!("native differential: {clean} clean, {conflicted} conflicted");
 }
 
-/// **The sentence rescue, graded on both engines** (`outstanding.md` §2.13).
+/// **The sentence-granular merge, graded on both engines** (`outstanding.md` §2.13 and §2.14).
 ///
-/// `merge_body` re-runs the text merge with a sentence as the unit when a line merge conflicts,
-/// and takes the result only if it is clean. That extra pass goes through `text_3way` like every
+/// `merge_body` re-runs the text merge with a sentence as the unit when a line merge conflicts, and
+/// returns that finer answer whichever verdict it carries — clean means the conflict was not a
+/// disagreement, conflicted means the markers wrap the sentence rather than the paragraph. **Both
+/// outcomes are compared here**, so this covers the exact joiner and the conflicted one. That extra
+/// pass goes through `text_3way` like every
 /// other, so it is engine-routed too — and a desktop and a phone that rescued a paragraph
 /// *differently* would each commit their own answer and re-derive the conflict on every pull
 /// afterwards. The transform either side of the merge is shared code, so this is not expected to
@@ -359,11 +362,13 @@ fn the_sentence_rescue_is_byte_identical_on_both_engines() {
             note("2026-07-17T12:00:00Z", &reword(j, "theirs")),
         );
 
+        // Marker size varies, because the conflicted joiner's marker test is keyed to it.
+        let marker = [7, 7, 12, 32][case % 4];
         use_subprocess_engine();
-        let (want, want_verdict) = merge_texts(&base, &ours, &theirs, 7).expect("subprocess");
+        let (want, want_verdict) = merge_texts(&base, &ours, &theirs, marker).expect("subprocess");
 
         fm_core::vcs::force_native(true);
-        let got = merge_texts(&base, &ours, &theirs, 7);
+        let got = merge_texts(&base, &ours, &theirs, marker);
         fm_core::vcs::force_native(false);
         let (got, verdict) = got.expect("native");
 

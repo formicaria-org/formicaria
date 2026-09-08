@@ -403,8 +403,8 @@ fn merge_body(
     // This is not a third merge engine, which this module forbids by name: it is the same
     // `text_3way`, handed the same prose cut at a smaller seam.
     if verdict == Merged::Conflicted {
-        if let Some(rescued) = sentence_rescue(base, ours, theirs, marker_size) {
-            return Ok((rescued, Merged::Clean));
+        if let Some(finer) = sentence_merge(base, ours, theirs, marker_size) {
+            return Ok(finer);
         }
     }
     Ok((text, verdict))
@@ -417,7 +417,12 @@ fn merge_body(
 /// byte — which is what makes it safe on the one path that must never corrupt: a clean merge is
 /// a concatenation of whole units taken from the three inputs, so decoding it is the same
 /// operation as decoding an input.
-fn sentence_rescue(base: &str, ours: &str, theirs: &str, marker_size: usize) -> Option<String> {
+fn sentence_merge(
+    base: &str,
+    ours: &str,
+    theirs: &str,
+    marker_size: usize,
+) -> Option<(String, Merged)> {
     let (b, o, t) = (split_sentences(base), split_sentences(ours), split_sentences(theirs));
     // `split_sentences` adds exactly one byte per cut, so equal lengths mean no line held a
     // second sentence and the finer pass is the same merge that just failed.
@@ -425,7 +430,13 @@ fn sentence_rescue(base: &str, ours: &str, theirs: &str, marker_size: usize) -> 
         return None;
     }
     let (merged, verdict) = text_3way(&b, &o, &t, marker_size).ok()?;
-    (verdict == Merged::Clean).then(|| join_sentences(&merged))
+    Some(match verdict {
+        // Clean: the exact inverse, so the paragraph comes back as the one line it was.
+        Merged::Clean => (join_sentences(&merged), Merged::Clean),
+        // Conflicted: the same join, except that a marker line keeps its whole line to itself —
+        // and it may decline, in which case the line merge's answer stands untouched.
+        Merged::Conflicted => (join_conflicted(&merged, marker_size)?, Merged::Conflicted),
+    })
 }
 
 /// Put each sentence on its own line, so the text merge treats it as its own unit.
@@ -443,9 +454,19 @@ fn split_sentences(text: &str) -> String {
     let b = text.as_bytes();
     let mut out = String::with_capacity(text.len() + text.len() / 32);
     let mut cut = 0;
+    // Where the current *output* line starts, in source coordinates: after the last newline we
+    // passed, or the last cut we made, whichever is later. `structured` is asked about this and
+    // nothing else, because a line is exactly what the joiner gets to look at.
+    let mut line = 0;
     let mut i = 0;
     while i < b.len() {
-        if matches!(b[i], b'.' | b'!' | b'?') && words_before(b, i) >= 2 {
+        if b[i] == b'\n' {
+            line = i + 1;
+            i += 1;
+            continue;
+        }
+        if matches!(b[i], b'.' | b'!' | b'?') && words_before(b, i) >= 2 && !structured(&b[line..])
+        {
             let mut j = i + 1;
             while j < b.len() && b[j] == b' ' {
                 j += 1;
@@ -455,6 +476,7 @@ fn split_sentences(text: &str) -> String {
                 out.push_str(&text[cut..j]);
                 out.push('\n');
                 cut = j;
+                line = j;
                 i = j;
                 continue;
             }
@@ -463,6 +485,140 @@ fn split_sentences(text: &str) -> String {
     }
     out.push_str(&text[cut..]);
     out
+}
+
+/// Where a marker line sits in a conflicted merge, found by **scanning** rather than by asking each
+/// line about itself. `A rule follows. =======` is a sentence somebody wrote; the same seven `=`
+/// are a separator only *between* an opening marker and a closing one, and only git puts them
+/// there. Testing lines in isolation reads the first as the second and tears a paragraph in half
+/// around content nobody edited.
+#[derive(Clone, Copy, PartialEq)]
+enum Mark {
+    Open,
+    Sep,
+    Close,
+}
+
+fn marks(lines: &[&str], marker_size: usize) -> Vec<Option<Mark>> {
+    let run = |l: &str, c: u8| {
+        let b = l.as_bytes();
+        b.len() >= marker_size
+            && b[..marker_size].iter().all(|&x| x == c)
+            && (b.len() == marker_size || b[marker_size] == b' ')
+    };
+    let mut out = vec![None; lines.len()];
+    let mut open = false;
+    for (i, l) in lines.iter().enumerate() {
+        if !open && run(l, b'<') {
+            out[i] = Some(Mark::Open);
+            open = true;
+        } else if open && run(l, b'=') {
+            out[i] = Some(Mark::Sep);
+        } else if open && run(l, b'>') {
+            out[i] = Some(Mark::Close);
+            open = false;
+        }
+    }
+    out
+}
+
+/// Undo [`split_sentences`] for a merge that came back **conflicted** — or decline, and let the
+/// line merge's answer stand.
+///
+/// **`None` is a first-class answer here, and it is what keeps this change honest.** Narrower
+/// markers are an improvement offered only where it is provably free; everywhere else the caller
+/// falls back to the whole-paragraph markers that shipped before, byte for byte. So the guarantee
+/// stays what §2.13's was — the finer pass can improve a conflict or leave it exactly alone, and
+/// there is no third outcome — even though the conflicted output is now used.
+///
+/// Nothing is ever glued onto the front of a marker line: a marker that does not start its own line
+/// is not a marker, and `has_conflict_markers`, the guard that refuses to commit marked-up text and
+/// the user would all miss it.
+///
+/// **Three repairs, because a marker's own line break has to replace what the cut was carrying.**
+/// A tear line keeps its newline and gives up its trailing spaces — two of them at a line end is a
+/// Markdown hard break, and the sentence spacing they came from is what the newline now supplies.
+/// An empty line **immediately after** a marker contributes nothing: it is the source's own line
+/// ending, and the closing marker has already ended the line, so keeping both invents a blank line
+/// — which splits one paragraph into two, permanently, and compounds, because every line this
+/// transform tears ends in `". "` and so triggers it on the *next* conflict.
+///
+/// **A separate function from [`join_sentences`], not a flag.** That one is the exact inverse of the
+/// split and must stay so: a body may legitimately contain a line of `=` characters and the clean
+/// path must not read it as a marker. Here exactness is not required, because the text is already
+/// being restructured around a conflict.
+fn join_conflicted(text: &str, marker_size: usize) -> Option<String> {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let m = marks(&lines, marker_size);
+    if !narrowing_is_safe(&lines, &m, text) {
+        return None;
+    }
+    let mut out = String::with_capacity(text.len());
+    for (i, line) in lines.iter().enumerate() {
+        let last = i + 1 == lines.len();
+        // The source's own line ending, already supplied by the marker above it.
+        if !last && line.is_empty() && i > 0 && m[i - 1].is_some() {
+            continue;
+        }
+        let torn = !last && m[i + 1].is_some() && ends_where_split_cuts(line);
+        out.push_str(if torn { line.trim_end_matches(' ') } else { line });
+        if last {
+            break;
+        }
+        if torn || !ends_where_split_cuts(line) {
+            out.push('\n');
+        }
+    }
+    Some(out)
+}
+
+/// Whether the narrower markers can be handed over without restructuring the document around them.
+///
+/// Each rule is a shape somebody found by trying to break this, and every one of them survives the
+/// user resolving the conflict — which is what makes them worth a fallback rather than a comment.
+fn narrowing_is_safe(lines: &[&str], m: &[Option<Mark>], text: &str) -> bool {
+    if !m.iter().any(|x| x.is_some()) {
+        return false;
+    }
+    // A body whose line endings are CRLF would come back with bare-LF tears among them. Mixed
+    // endings are byte churn on the next Windows checkout, and this is not the change that
+    // relitigates `eol=lf`.
+    if text.contains('\r') {
+        return false;
+    }
+    let mut fenced = false;
+    for (i, line) in lines.iter().enumerate() {
+        if m[i].is_some() {
+            // A fenced code line torn across a marker is invalid code, and stays invalid after the
+            // conflict is resolved. `structured` cannot see a fence — it may only read one line —
+            // so the whole-output scan is where this is caught. The line merge hands the user two
+            // intact candidate lines instead, which is the better answer for code.
+            if fenced {
+                return false;
+            }
+            // A sentence that begins `# `, `- ` or `> ` is prose in the middle of a paragraph and a
+            // heading, list item or quote at the start of a line.
+            if lines.get(i + 1).is_some_and(|l| starts_a_block(l)) {
+                return false;
+            }
+            continue;
+        }
+        let t = line.trim_start();
+        if t.starts_with("```") || t.starts_with("~~~") {
+            fenced = !fenced;
+        }
+    }
+    true
+}
+
+/// A line that Markdown reads as opening a block rather than continuing a paragraph. `#tag` is
+/// prose — the space is what makes a heading — which is why every case here requires one.
+fn starts_a_block(line: &str) -> bool {
+    let t = line.trim_start();
+    let b = t.as_bytes();
+    matches!(b.first(), Some(b'#' | b'-' | b'+' | b'*' | b'>')) && matches!(b.get(1), Some(b' '))
+        || t.split_once(". ")
+            .is_some_and(|(n, _)| !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit()))
 }
 
 /// Undo [`split_sentences`]: drop the newline after any line this module cut, keep every other.
@@ -485,12 +641,33 @@ fn join_sentences(text: &str) -> String {
 /// the transform stops being reversible, so they are written to be read side by side.
 fn ends_where_split_cuts(line: &str) -> bool {
     let b = line.as_bytes();
+    if structured(b) {
+        return false;
+    }
     let mut k = b.len();
     while k > 0 && b[k - 1] == b' ' {
         k -= 1;
     }
     // No trailing space means no cut: the split always carries its spaces with it.
     k != b.len() && k > 0 && matches!(b[k - 1], b'.' | b'!' | b'?') && words_before(b, k - 1) >= 2
+}
+
+/// A line the split leaves whole: an indented code block, or a Markdown table row. Breaking either
+/// across a conflict marker turns a thing with structure into a thing without one — a table stops
+/// being a table — and unlike a paragraph, rejoining it is not something the renderer does for you.
+///
+/// **Decidable from the line's own first bytes, and that is the whole design constraint.** The
+/// splitter sees three inputs and the joiner sees one merged output; a guard that depended on
+/// context (*"am I inside a ``` fence?"*) could reach opposite verdicts on the two sides and stop
+/// them being inverses. Asking only about the bytes in front of it cannot. **The cost, stated:** a
+/// *fenced* code line is not recognisable this way, so it is not guarded — see the ruling.
+///
+/// It is asked about a **line**, never about a source line. `Intro. |ab. cd.` cuts once, and the
+/// `|ab. cd.` left behind is a table row as far as the joiner can tell — so the splitter has to ask
+/// the same question at the same place, which is the start of each *unit*, not of each source line.
+fn structured(line: &[u8]) -> bool {
+    // A short line's fourth byte is a newline, never a space, so this cannot read past its end.
+    line.starts_with(b"    ") || matches!(line.first(), Some(b'\t') | Some(b'|'))
 }
 
 /// How many word characters run backwards from `i`, counting no further than two — which is all
@@ -731,6 +908,18 @@ mod sentence_transform {
             // Not ASCII, so the byte scan must not cut inside a character.
             "Une phrase. Déjà vu. 日本語の文。 Fin.",
             "3.14 is not a sentence. 20. is a list marker.",
+            // The structural guard, and the fragment case that decides where it is asked:
+            // `Intro. ` cuts, and what is left begins with a pipe, so the joiner sees a table row
+            // where the *source line* was prose. Both sides must ask at the same place.
+            "Intro. |ab. cd.",
+            "Intro.     code. more.",
+            "| Kind. Sort. | Meaning. Sense. |",
+            "    print(\"Hello. World.\")",
+            "\tprint(\"Hello. World.\")",
+            "    trailing spaces after code. ",
+            // A setext heading underline is a line of `=`, which the *conflicted* joiner treats as
+            // a marker. The exact joiner must not: this is the clean path.
+            "A heading. Underlined.\n=======\nbody. More.",
             "Question? Yes! Really.  Three ways to end.",
             "\r\nCRLF. Two sentences.\r\nSecond line.\r\n",
             "...\n. \n.. \nheading\n",
@@ -753,7 +942,10 @@ mod sentence_transform {
             x.wrapping_mul(0x2545_F491_4F6C_DD1D)
         };
         // Weighted towards the characters the transform actually looks at.
-        let alphabet: Vec<char> = "aB1 ...!?.\n\r\t. é—".chars().collect();
+        // Weighted towards what the transform looks at, and it must include the bytes the
+        // structural guard and the marker test key on — `|`, tab, `=`, `<`, `>` — or those two
+        // rules are only ever exercised by cases somebody thought of.
+        let alphabet: Vec<char> = "aB1 ...!?.\n\r\t.|= <>é—".chars().collect();
         for _ in 0..2000 {
             let len = (next() % 60) as usize;
             let text: String =

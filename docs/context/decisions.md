@@ -57,6 +57,10 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before touching `merge_body`'s rescue, `split_sentences`/`join_sentences`, or before proposing a
   conflict-style change — it carries the vault measurement, why adjacent sentences still conflict
   on purpose, and why `merge.conflictStyle` is inert for notes) ·
+  ***A conflict marks the sentence, and only where narrowing is provably free*** (read before
+  touching `join_conflicted`, `marks`, `narrowing_is_safe` or `structured` — it carries the five
+  shapes an adversarial audit found, why the guard is asked per *unit* rather than per source line,
+  and why declining is a first-class answer there) ·
   *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
@@ -6448,6 +6452,14 @@ a second surface before it could be reported a second time.
 
 ## 2026-09-08 — the merge unit for prose is a sentence, and `zdiff3` is declined on measurement `#git` `#sync` `#data`
 
+> SUPERSEDED IN PART, same day, by *a conflict marks the sentence, and only where narrowing is
+> provably free* (below). The
+> measurement, the reasoning and the `zdiff3` refusal all stand. What changed is one clause: this
+> entry said the finer pass's answer is taken **only if it comes back clean**, so *"a conflict
+> either becomes clean or stays byte-for-byte what it is now"*. The conflicted answer is now taken
+> too — it is the one that knows which sentence is in dispute — so a conflicted body's bytes **do**
+> change, and its line structure with them.
+
 **Decision.** When a body merge conflicts, the text merge is **run a second time with a sentence as
 the unit instead of a line**, and its answer is taken only if it comes back clean. `merge.conflictStyle
 = zdiff3` is **not** adopted. Together these close `outstanding.md` §2.13, the half of the withdrawn
@@ -6529,3 +6541,90 @@ because "not expected to" is what the second engine exists to stop anyone saying
 **What would reopen this:** a corpus where paragraphs span several lines — someone importing
 hard-wrapped Markdown — which is where `zdiff3` earns its keep and where the sentence rescue matters
 less. Both halves are shape-dependent, and the shape was measured once, here, on 2026-09-08.
+
+## 2026-09-08 — a conflict marks the sentence, and only where narrowing is provably free `#git` `#sync` `#data` `#ui`
+
+**Decision.** When the sentence-granular merge conflicts too, **its** output is what the user gets,
+so the markers wrap the sentences actually in dispute rather than the paragraph containing them —
+**unless handing it over would restructure the note**, in which case the line merge's answer stands
+byte for byte. `outstanding.md` §2.14 is closed.
+
+**The problem.** After the sentence rescue shipped this morning, the conflicts that remain are the
+ones where two devices edited the *same* or *adjacent* sentences. Their markers still came from the
+**line** merge, so a one-line paragraph was printed twice, nearly identically, and finding the
+sentence that differed was the reader's job — on a phone, in a textarea. The finer merge had already
+worked out which sentence it was, and we were throwing that away.
+
+**The shape that makes this safe, and it is the decision.** A marker has to occupy a whole line, so
+narrowing tears the paragraph — and a tear can change *block structure*, not just where the line
+breaks fall. So the joined output is **validated**, and `join_conflicted` returns `None` when it
+would not be free. Then `merge_body` falls back to the line merge's output, unchanged. **The §2.13
+guarantee therefore survives intact: the finer pass can improve a conflict or leave it exactly
+alone, and there is no third outcome** — which is what I wrongly claimed by *restricting* the finer
+pass to clean results, and can now claim by checking instead.
+
+**What the audit found, because none of it was in my proposal.** Three agents, one adversarial:
+
+1. **An invented blank line — blocking, and self-compounding.** A source line ending
+   `<stop><space>` makes the splitter emit an *empty* unit before the newline. The closing marker
+   has already ended the line, so keeping that unit's newline too produces a **blank** line: one
+   paragraph becomes two, in the renderer, permanently. It compounds, because every line this
+   transform tears ends in `". "` — so a note that has had one conflict is primed to trigger it on
+   the next. Fixed at the cause: an empty line immediately after a marker contributes nothing.
+2. **Two-space sentence spacing became hard breaks.** Every tear lands just after a full stop, and
+   two spaces at a line end is a Markdown `<br>`. A torn line now gives up its trailing spaces —
+   the newline is what that spacing was for. The fixed-point test now asserts the stronger thing:
+   replacing each newline with a space returns the original paragraph, character for character.
+3. **`is_marker` read ordinary content as a separator.** `A rule follows. =======` is a sentence;
+   the same seven `=` are a separator only *between* an opening marker and a closing one. Markers
+   are now found by **scanning** the merge's output, not by asking each line about itself — and the
+   `join_conflicted` doc had named this exact hazard while committing it one function later.
+4. **A fenced code line was torn into invalid code, and stayed torn.** `structured` guards indented
+   code and table rows, but it may only read one line and a ``` fence is not visible that way. The
+   whole-output scan catches it and declines; the line merge hands the user two intact candidate
+   lines, which for code is the better answer. Under §2.13 this cost was nil, because a torn line
+   only ever existed inside a merge that came back *clean* and was rejoined exactly.
+5. **A torn sentence beginning `# `, `- ` or `> `** is prose inside a paragraph and a heading, list
+   item or quote at the start of a line. Declined.
+
+**Why a validator rather than five more rules in the joiner.** A whole-output scan is not part of
+the split/join inverse, so it can look at anything it likes without endangering the one property
+this rests on. And declining is cheap: the fallback is the behaviour that shipped this morning.
+
+**The guard is asked at each *unit*, never at each source line — and getting that wrong is a real
+bug.** `Intro. |ab. cd.` cuts once, and the `|ab. cd.` left behind is a table row as far as the
+joiner can tell. If the splitter asks about the source line (which begins `I`) it cuts again, the
+joiner declines to undo that cut, and the transform stops being an inverse. Found by hand before the
+code was written; **worth recording that 2000 generated strings did not catch it and the one
+hand-picked case did** — and that a later 400,000-string fuzz did not catch it either. Fuzzing
+covers the shapes you did not think of; it does not cover the shape you had to reason about to think
+of at all.
+
+**Two joiners, not one with a flag.** `join_sentences` is the exact inverse and stays that way,
+because a body may legitimately contain a line of `=` characters and the clean path must not read it
+as a marker. `join_conflicted` may, because that text is already being restructured. The marker test
+is pinned to the `marker_size` **this call passed to the engine**, not to seven — otherwise both
+backends would agree with each other while both were wrong, the class of bug a differential cannot
+see, which is why it has a behavioural test of its own.
+
+**The cost that is accepted, stated precisely.** A conflicted paragraph comes back split across
+lines and stays split after the user resolves it. Each newline stands exactly where a sentence space
+was, so the rendered paragraph is character-for-character the one that went in — that is now
+asserted, not asserted-about. What does change: the note's **card preview** is the first non-empty
+*line*, so a note that has had a prose conflict previews as its first sentence. Left alone
+deliberately; changing `preview` is a behaviour change to every card in the app, and this is not the
+change that makes it.
+
+**And it withdraws a sliver of §2.13.** Two edits to different sentences of one table row or
+indented code line merged cleanly this morning and now conflict, because `structured` will not cut
+those lines at all. That trade is right: the rescue was worth having because a paragraph tolerates
+being cut, and those lines do not.
+
+**Unchanged on purpose:** `has_conflict_markers` (still the one definition), the guard that refuses
+to commit marked-up text, and `merge_texts`' whole-file fallback — a note neither side can parse
+never reaches `merge_body` and keeps line-level markers, which is right, because there is no
+structure there to be finer about.
+
+**Not resolution by fiat.** Nothing is discarded and nothing is auto-settled that was not settled
+before. Only the **boundary** of the marked region moved, and only inwards, towards the
+disagreement.

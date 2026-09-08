@@ -1346,3 +1346,35 @@ All verified **2026-07-19**.
   hunt goes to the wrong place. `ui/src/test-setup.ts` sets `asyncUtilTimeout: 5000`. Suspect this
   first when a test fails only in a full run.
 
+### `has_conflict_markers` hardcodes seven, and a vault can ask git for fewer
+
+`merge::has_conflict_markers` — the **one** definition of "still conflicted", used by the conflict
+list and by the guard that refuses to stage marked-up text — tests `starts_with("<<<<<<<")`. Git
+takes `conflict-marker-size` from `.gitattributes` and honours it, and `write_gitattributes` only
+ever *appends*, by design, because Track V's whole case is a repo you already own. So on a vault
+carrying `* conflict-marker-size=3`, the driver is handed `%L=3`, git writes `<<< ours`, and
+`has_conflict_markers` answers **false**: `commands::conflicts` omits the note, and
+`resolve_conflict(_, _, Keep::Edited)` stages a body containing `<<< ours` as the note's content —
+the exact failure that definition exists to prevent.
+
+**Pre-existing**, found by the §2.14 audit (2026-09-08). Not fixed there because the honest fix is a
+run-length rule (`<{3,}`), and loosening the tolerance is a decision of its own: the doc on that
+function deliberately requires both an opening *and* a closing marker so that a note **writing
+about** merges is not flagged, and this repo's own notes do that. `>>> ` is also a Python prompt.
+Whoever fixes it should extend `sentence_merge.rs`'s `a_marker_of_any_size_still_owns_its_line` to a
+size **below** seven — it currently runs 7/12/32, so its closing assertion passes for the wrong
+reason.
+
+### `settle_the_paths_libgit2_merged_itself` stages before it checks the outcome
+
+`git_native.rs`'s second merge loop calls `index.add_path` unconditionally and only then tests the
+outcome, where its sibling 120 lines above puts the `add_path` inside the `Clean` branch. On a
+conflicted outcome the path is staged at stage 0 with its markers, so `conflicts()` — index-derived
+— reports nothing for it and the next auto-commit could commit `<<<<<<<` as a note's content.
+
+**Not simply the sibling's fix.** That loop handles paths libgit2 merged *itself*, so the index has
+no conflict stages to leave standing; skipping `add_path` would leave the index holding libgit2's
+answer while the working tree holds ours. Marking it unmerged means *creating* conflict stages,
+which is a merge-index change and not one to smuggle in beside a formatting feature. The audit could
+not construct a reaching input (a clean whole-file libgit2 merge implies a clean body merge on these
+inputs), which is why this is recorded rather than urgent.

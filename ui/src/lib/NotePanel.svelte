@@ -454,7 +454,13 @@
     const idx = boxes.indexOf(box);
     const positions = taskMarkerPositions(draft);
     // If the counts ever disagree (an edge the ordinal can't resolve), bail rather than mis-toggle.
-    if (idx < 0 || idx >= positions.length) return;
+    // **The count, not just the index** — an index in range says nothing when the two lists are
+    // different lengths, and then the Nth box is not the Nth marker and this writes the wrong byte
+    // and saves it. A conflicted note is exactly that edge: `=======` is a setext underline, so it
+    // swallows the task line above it into a heading and the box disappears from the read view
+    // while the marker is still there in the source. Sentence-granular markers put that shape on
+    // any task line long enough to hold two sentences, which is what made this worth fixing.
+    if (idx < 0 || boxes.length !== positions.length) return;
     const at = positions[idx];
     const checked = draft[at] !== ' ';
     draft = draft.slice(0, at) + (checked ? ' ' : 'x') + draft.slice(at + 1);
