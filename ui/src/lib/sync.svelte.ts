@@ -65,7 +65,9 @@ export type SyncPhase =
   | 'pulling'
   | 'synced'
   | 'conflicts'
-  /// **Committed here, and there is nowhere to send it**: this vault has no git remote yet. Not a
+  /// **This vault has no git remote yet**, so there is nowhere to send anything. Whether it also
+  /// *committed* is a separate fact, carried in `committed` — the summary sentence says "committed
+  /// here, but nowhere to send", and until 2026-09-08 nobody had checked that half of it. Not a
   /// failure — nothing is wrong and nothing the user can fix by retrying — but emphatically not
   /// `synced` either, because the notes have not left the device. A vault with no remote used to
   /// come back `failed` and be listed under "Backup needs you", which put a vault that is working
@@ -88,6 +90,12 @@ export interface VaultSync {
    *  a pull also happens from the "someone pushed" chip, and a decision the app made on the user's
    *  behalf must not depend on which door they came through. */
   kept: string[];
+  /** Whether the commit at the start of this run actually wrote anything. **Carried because the UI
+   *  says so out loud**: "committed here, but nowhere to send" is a claim, and `commitStep` had
+   *  `CommitResult.committed` in its hand and dropped it. Observed on a phone (2026-09-08) telling
+   *  the user a vault had just committed while the quiet-vault chip — which reads `git log` — said
+   *  nothing had been saved there in 38 days. Both cannot be true. */
+  committed: boolean;
 }
 
 const state = $state<{ byVault: Record<string, VaultSync> }>({ byVault: {} });
@@ -98,13 +106,16 @@ function set(vault: string, patch: Partial<VaultSync>): void {
     conflicts: [],
     merged: 0,
     kept: [],
+    committed: false,
   };
   state.byVault[vault] = { ...prev, ...patch };
 }
 
 /** This vault's sync state. Reactive. */
 export function syncFor(vault: string): VaultSync {
-  return state.byVault[vault] ?? { phase: 'idle', conflicts: [], merged: 0, kept: [] };
+  return (
+    state.byVault[vault] ?? { phase: 'idle', conflicts: [], merged: 0, kept: [], committed: false }
+  );
 }
 
 /** Every vault currently mid-flight — what a global "syncing…" indicator reads. */
@@ -151,6 +162,7 @@ async function commitStep(vault: string, message: string, ops: SyncOps): Promise
     set(vault, { phase: 'failed', error: String(e) });
     return 'failed';
   }
+  set(vault, { committed: !!result?.committed });
   if (result?.conflicts?.length) {
     set(vault, { phase: 'conflicts', conflicts: result.conflicts });
     return 'conflicts';
@@ -174,7 +186,14 @@ export async function syncVault(
   onChanged?: () => void | Promise<void>,
   ops: SyncOps = realOps,
 ): Promise<SyncPhase> {
-  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0, kept: [] });
+  set(vault, {
+    phase: 'committing',
+    conflicts: [],
+    error: undefined,
+    merged: 0,
+    kept: [],
+    committed: false,
+  });
   const stopped = await commitStep(vault, message, ops);
   if (stopped) return stopped;
 
@@ -258,7 +277,14 @@ export async function pullVault(
   // means the tree is dirty exactly when the user has just been typing, which is exactly
   // when they reach for "get changes". This policy already existed in the backup panel and
   // not in the top-bar nudge; two spellings of one rule is how they drift.
-  set(vault, { phase: 'committing', conflicts: [], error: undefined, merged: 0, kept: [] });
+  set(vault, {
+    phase: 'committing',
+    conflicts: [],
+    error: undefined,
+    merged: 0,
+    kept: [],
+    committed: false,
+  });
   const stopped = await commitStep(vault, `auto: ${new Date().toISOString()}`, ops);
   if (stopped) return stopped;
 

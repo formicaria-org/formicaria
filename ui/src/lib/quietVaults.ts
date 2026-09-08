@@ -54,13 +54,18 @@ export function quietVaults(rows: LastCommit[], now: number): QuietVault[] {
 /// for the same reason: with one vault the name *is* the useful half, and with several no single
 /// number is true of all of them. "in weeks" is safe at any length this function is called with,
 /// since `QUIET_AFTER_DAYS` is two of them.
-export function quietLabel(q: QuietVault[]): string {
+/// **`label` resolves what a vault is *called*, which is not its name.** Two devices that cloned
+/// one repository name the same audience differently — the owner's laptop says `vault` where the
+/// phone says `notes` — so every surface shows the repository behind the remote instead
+/// (`vaultLabels.svelte.ts`). Injected rather than imported so this module stays a pure function of
+/// its arguments, which is what lets its tests need no clock, no store and no render.
+export function quietLabel(q: QuietVault[], label: (v: string) => string = (v) => v): string {
   if (!q.length) return '';
-  if (q.length === 1) return `${q[0].vault}: ${q[0].days} days since a save`;
+  if (q.length === 1) return `${label(q[0].vault)}: ${q[0].days} days since a save`;
   return `${q.length} vaults: no save in weeks`;
 }
 
 /// The hover text, which is where the per-vault detail goes when the label had to be short.
-export function quietTitle(q: QuietVault[]): string {
-  return q.map((v) => `${v.vault}: ${v.days} days since a save`).join(' · ');
+export function quietTitle(q: QuietVault[], label: (v: string) => string = (v) => v): string {
+  return q.map((v) => `${label(v.vault)}: ${v.days} days since a save`).join(' · ');
 }

@@ -34,6 +34,12 @@
   } from './ipc';
   import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
+  // **A vault's name is not what it is called.** Two devices that cloned one repository name
+  // the same audience differently — this machine says `vault` where the phone says `notes` — so
+  // every surface shows the repository behind the remote instead. This panel was displaying the
+  // raw name, so the same vault read as two different vaults depending on which screen you opened
+  // (reported 2026-09-08). See `vaultLabels.svelte.ts`.
+  import { labelFor } from './vaultLabels.svelte';
   import * as keys from './keys';
   import { GIT_ASSETS_CEILING, GIT_ASSETS_WARN, humanSize } from './size';
 
@@ -766,7 +772,7 @@
                               ? [...chosen, v.name]
                               : chosen.filter((n) => n !== v.name))}
                         />
-                        <span class="k">{v.name}</span>
+                        <span class="k">{labelFor(v.name)}</span>
                       </label>
                     </li>
                   {/each}
@@ -918,7 +924,7 @@
         {#each cfg.vaults as v (v.name)}
           <div class="vault">
             <div class="line">
-              <strong>{v.name}</strong>
+              <strong>{labelFor(v.name)}</strong>
               {#if v.default}<span class="tag">default</span>{/if}
             </div>
             <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.
@@ -937,7 +943,7 @@
                 placeholder="off"
                 value={v.git_assets_max ? humanSize(v.git_assets_max) : ''}
                 onchange={(e) => setAssetMax(v.name, (e.currentTarget as HTMLInputElement).value)}
-                aria-label={`largest attachment to push for ${v.name}`}
+                aria-label={`largest attachment to push for ${labelFor(v.name)}`}
               />
             </label>
             <p class="muted small">

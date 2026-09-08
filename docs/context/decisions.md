@@ -1349,6 +1349,21 @@ Renaming to match the remote would silently reset all of those and break any com
 split is identity versus display — the same shape as `authorKey`/label for contributors, decided the
 same day, for the same reason.
 
+**Applied to three surfaces it had missed, 2026-09-08 — reported from the phone, as the exact symptom
+this entry was written to prevent.** The Settings vault list, the Backup summary sentence and the
+quiet-vault chip all still interpolated the raw `name`, so Settings listed `vault` and `notes` while
+the Backup panel — one tap away, and the only surface that had called `labelFor` — headed the very
+same two vaults `vault` and `formicarium-vault`. The app looked like it had four vaults, or two and a
+bug. **Neither screen was wrong on its own, which is what made it hard to see**, and the owner had to
+find it by reading both and disbelieving them.
+
+Worth stating plainly, because it is the second time this week: *a ruling that names its own symptom
+and is then only partly applied reads, from the outside, exactly like no ruling at all.* The mock had
+even modelled it correctly the whole time — `lab` carries the label `lab-notes` and `personal` carries
+none, so both paths were on screen under `pnpm dev` — and the chip's tests had been passing **because**
+the chip ignored labels. `quietLabel`/`quietTitle` now take the resolver as an argument rather than
+importing it, so that module stays a pure function of its inputs and its tests still need no store.
+
 **Consequence.** The hue follows the *label*, so one repository is one colour on every device; keying
 it on the folder name gave one audience two colours. **Two vaults cloned from the same remote fall
 back to their local names — both of them**, not just the second: two identical labels make the vault

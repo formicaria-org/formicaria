@@ -866,6 +866,16 @@
             deleted on one device and edited on the other has no text to merge, so it needs you to
             pick a side.
           </p>
+        {:else if syncFor(v.name).phase === 'failed' && syncFor(v.name).error}
+          <!-- **The detail the toolbar promised.** "…need you: open backup options for detail"
+               pointed here, and here had nothing to show: `steps` is only ever filled by this
+               panel's own buttons, so a backup started from the toolbar left this screen blank and
+               the reason sitting unread in the sync store. Reported from the phone, 2026-09-08 —
+               three unpushed commits, a vault named as needing attention, and no way to find out
+               why. Persistent, because the message that sends you here can arrive at any time. -->
+          <p class="error">
+            Notes did not go: {syncFor(v.name).error}
+          </p>
         {:else if v.remote_moved}
           <p class="moved">Someone has pushed work you don't have yet.</p>
         {/if}

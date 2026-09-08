@@ -302,6 +302,33 @@ describe('a vault with no remote', () => {
     expect(syncFor('personal').error).toBeUndefined();
   });
 
+  // **The summary says "committed here, but nowhere to send" — so somebody has to have checked.**
+  // `commitStep` had `CommitResult.committed` in its hand and dropped it, and the phase's own doc
+  // asserted the commit too. Observed on the phone, 2026-09-08: a vault with no remote and nothing
+  // new in it reported "committed here" in the same breath as the quiet-vault chip said "38 days
+  // since a save". Both cannot be true, and it was the chip that had read git.
+  it('does not claim to have committed when there was nothing to commit', async () => {
+    const { ops: o } = ops({
+      commit: async () => ({ committed: false, conflicts: [] }),
+      push: () => Promise.reject(new Error('no remote configured')),
+      pull: () => Promise.reject(new Error('no remote configured')),
+      hasRemote: async () => false,
+    });
+    expect(await syncVault('personal', 'backup', undefined, o)).toBe('local');
+    expect(syncFor('personal').committed).toBe(false);
+  });
+
+  it('says it did commit when it did', async () => {
+    const { ops: o } = ops({
+      commit: async () => ({ committed: true, conflicts: [] }),
+      push: () => Promise.reject(new Error('no remote configured')),
+      pull: () => Promise.reject(new Error('no remote configured')),
+      hasRemote: async () => false,
+    });
+    expect(await syncVault('personal', 'backup', undefined, o)).toBe('local');
+    expect(syncFor('personal').committed).toBe(true);
+  });
+
   it('still reports `failed` when the vault does have a remote', async () => {
     const { ops: o } = ops({
       push: () => Promise.reject(new Error('403 forbidden')),

@@ -7,10 +7,18 @@
 /// question — when did this vault last save anything — and cannot be blocked by the answer.
 ///
 /// The mock's fixture is the incident: `personal` saved minutes ago, `lab` thirty-nine days ago.
+///
+/// **The chip says `lab-notes`, not `lab`.** A vault's name is local to a machine — two devices
+/// that cloned one repository call the same audience different things — so every surface shows the
+/// repository behind the remote (`vaultLabels.svelte.ts`). This chip did not, and neither did the
+/// backup summary or the Settings vault list: the same vault read as `notes` on one screen and
+/// `formicarium-vault` on another, on the owner's phone (reported 2026-09-08). The fixture already
+/// modelled it — `lab` carries the label `lab-notes` and `personal` carries none — so these tests
+/// had been passing *because* the chip ignored labels.
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { clearFaults, reset, setLastCommits, setUnrecorded } from './lib/mock';
+import { clearFaults, faults, reset, setLastCommits, setUnrecorded } from './lib/mock';
 
 beforeEach(() => {
   reset();
@@ -23,9 +31,9 @@ afterEach(() => {
 
 test('a vault that has not saved in weeks says so, by name and by count', async () => {
   render(App);
-  const chip = await screen.findByRole('button', { name: /lab: 39 days since a save/i });
+  const chip = await screen.findByRole('button', { name: /lab-notes: 39 days since a save/i });
   // The per-vault detail the short label had to drop lives in the hover text.
-  expect(chip.getAttribute('title')).toContain('lab: 39 days since a save');
+  expect(chip.getAttribute('title')).toContain('lab-notes: 39 days since a save');
 });
 
 test('a vault saved this morning is not mentioned, even beside one that has gone quiet', async () => {
@@ -38,7 +46,7 @@ test('a vault saved this morning is not mentioned, even beside one that has gone
   const days = (n: number) => Math.floor((Date.now() - n * 86_400_000) / 1000);
   setLastCommits({ personal: days(0), lab: days(39) });
   render(App);
-  const chip = await screen.findByRole('button', { name: /lab: 39 days since a save/i });
+  const chip = await screen.findByRole('button', { name: /lab-notes: 39 days since a save/i });
   expect(chip.getAttribute('title')).not.toContain('personal');
 });
 
@@ -49,7 +57,7 @@ test('a vault that has never been committed is not accused of going quiet', asyn
   // weeks" and this `findByRole` is the assertion that fails.
   setLastCommits({ personal: null, lab: Math.floor((Date.now() - 39 * 86_400_000) / 1000) });
   render(App);
-  const chip = await screen.findByRole('button', { name: /lab: 39 days since a save/i });
+  const chip = await screen.findByRole('button', { name: /lab-notes: 39 days since a save/i });
   expect(chip.getAttribute('title')).not.toContain('personal');
 });
 
@@ -60,7 +68,7 @@ test('backing up clears it, so the alert does not outlive the act that answered 
   // did not work. A commit is exactly the event this chip measures.
   setUnrecorded([{ vault: 'lab', count: 1, new: 1, modified: 0, deleted: 0, notes: [] }]);
   render(App);
-  await screen.findByRole('button', { name: /lab: 39 days since a save/i });
+  await screen.findByRole('button', { name: /lab-notes: 39 days since a save/i });
 
   await fireEvent.click(screen.getByRole('button', { name: /back up notes/i }));
 
@@ -76,6 +84,60 @@ test('several quiet vaults are counted rather than listed', async () => {
   render(App);
   const chip = await screen.findByRole('button', { name: /2 vaults: no save in weeks/i });
   const title = chip.getAttribute('title') ?? '';
-  expect(title).toContain('lab: 39 days since a save');
+  expect(title).toContain('lab-notes: 39 days since a save');
   expect(title).toContain('personal: 20 days since a save');
+});
+
+/// **The chip and the backup sentence must never contradict each other**, and on a real phone they
+/// did (2026-09-08): "“vault” has no remote yet — committed here, but nowhere to send" printed in
+/// the same breath as "vault: 38 days since a save". Both cannot be true. The chip had asked
+/// `git log`; the sentence had asked nothing — `commitStep` held `CommitResult.committed` and
+/// dropped it, and the summary said "committed here" for every remoteless vault regardless.
+///
+/// Proven red by printing the old single sentence for every `local` vault.
+test('a vault with no remote and nothing new does not claim it just committed', async () => {
+  // No remote (both fixture vaults have `remote: null`) and both directions rejected: the shape a
+  // vault with nowhere to push actually has. Nothing unrecorded, so the commit writes nothing.
+  faults([
+    { cmd: 'push', mode: 'reject', message: 'no remote configured' },
+    { cmd: 'pull', mode: 'reject', message: 'no remote configured' },
+  ]);
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+
+  const notice = await screen.findByText(/nothing new to save/i);
+  expect(notice.textContent).not.toMatch(/committed here/i);
+});
+
+test('and it does say so when it really did commit', async () => {
+  // The other half, so the fix is not "never claim a commit" — which would be just as untrue.
+  setUnrecorded([{ vault: 'personal', count: 1, new: 1, modified: 0, deleted: 0, notes: [] }]);
+  faults([
+    { cmd: 'push', mode: 'reject', message: 'no remote configured' },
+    { cmd: 'pull', mode: 'reject', message: 'no remote configured' },
+  ]);
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+
+  const notice = await screen.findByText(/committed here, but nowhere to send/i);
+  expect(notice.textContent).toContain('“personal”');
+});
+
+/// **The message that started this**: `“notes” need you: open backup options for detail.` The
+/// summary interpolated the vault's *name*, so it announced a vault under a name that appeared on
+/// no other screen — the Backup panel, one tap away, called the same vault `formicarium-vault`.
+///
+/// Proven red by interpolating `v` instead of `labelFor(v)`.
+test('the backup summary names a vault the way every other surface does', async () => {
+  faults([
+    { cmd: 'push', mode: 'reject', message: 'no remote configured' },
+    { cmd: 'pull', mode: 'reject', message: 'no remote configured' },
+  ]);
+  setUnrecorded([{ vault: 'lab', count: 1, new: 1, modified: 0, deleted: 0, notes: [] }]);
+  render(App);
+  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+
+  const notice = await screen.findByText(/committed here, but nowhere to send/i);
+  expect(notice.textContent).toContain('“lab-notes”');
+  expect(notice.textContent).not.toContain('“lab”');
 });

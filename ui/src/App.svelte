@@ -1684,19 +1684,34 @@
             : `Notes backed up (${sent.length} of ${allVaults.length} vaults)`,
         );
       }
-      if (local.length) {
+      // **Split by whether anything was actually committed, because the sentence says so.**
+      // "committed here, but nowhere to send" was printed for every remoteless vault, including
+      // ones with nothing new in them — so a phone reported a vault as just-committed in the same
+      // breath as the quiet-vault chip said "38 days since a save" (2026-09-08). The chip had read
+      // `git log`; the sentence had read nothing.
+      const localSaved = local.filter((v) => syncFor(v).committed);
+      const localQuiet = local.filter((v) => !syncFor(v).committed);
+      if (localSaved.length) {
         // Stated as the fact it is, with the fix: no remote yet. Never "failed".
         parts.push(
-          `${local.map((v) => `“${v}”`).join(', ')} ${local.length === 1 ? 'has' : 'have'} no ` +
-            `remote yet — committed here, but nowhere to send. Add one in backup options.`,
+          `${localSaved.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
+            `${localSaved.length === 1 ? 'has' : 'have'} no remote yet — committed here, but ` +
+            `nowhere to send. Add one in backup options.`,
+        );
+      }
+      if (localQuiet.length) {
+        parts.push(
+          `${localQuiet.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
+            `${localQuiet.length === 1 ? 'has' : 'have'} nothing new to save, and no remote to ` +
+            `send it to. Add one in backup options.`,
         );
       }
       if (failed.length || conflicted.length) {
         // Named, and pointed at the panel that can actually resolve it — a toolbar button is the
         // wrong place to explain a merge conflict.
         parts.push(
-          `${[...failed, ...conflicted].map((v) => `“${v}”`).join(', ')} need you: open backup ` +
-            `options for detail.`,
+          `${[...failed, ...conflicted].map((v) => `“${labelFor(v)}”`).join(', ')} need you: ` +
+            `open backup options for detail.`,
         );
       }
       if (failed.length || conflicted.length) {
@@ -2100,9 +2115,9 @@
            It opens the panel rather than backing up on the click: weeks of silence has more than
            one cause — a merge waiting on a person, a remote that never got set, or simply nobody
            writing — and the panel is where those are told apart. -->
-        <button class="tb-chip moved" onclick={onBackup} title={quietTitle(quiet)}>
+        <button class="tb-chip moved" onclick={onBackup} title={quietTitle(quiet, labelFor)}>
           <Icon name="clock" size={14} />
-          <span class="lbl">{quietLabel(quiet)}</span>
+          <span class="lbl">{quietLabel(quiet, labelFor)}</span>
         </button>
       {/if}
 
