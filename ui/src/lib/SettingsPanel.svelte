@@ -1058,7 +1058,7 @@
 
       <section>
         <h3>This machine</h3>
-        <ul class="caps">
+        <ul class="caps facts">
           <!-- **Which build this is.** First on the list because it is the one fact you need
                before any of the others mean anything, and until now it was nowhere in the app.
                Each release unpacks into its own folder and the notes live inside it, so someone
@@ -1484,5 +1484,102 @@
   }
   .err {
     color: var(--danger, #b91c1c);
+  }
+  /* **The panel was never given a narrow layout at all.** Until 2026-09-08 this file held one
+     `@media`, and it was `(pointer: coarse)` — touch-target sizing, nothing about width. A phone
+     rendered the desktop layout, and the owner's complaint was exact: *"it is hard to understand
+     which line corresponds to which option."*
+
+     Measured at 390×844, the cause is `.k`'s `min-width: 9rem`: it reserves about 45% of a phone's
+     content width for the label, so the value is squeezed into the rest and wraps — and since the
+     item is inline flow rather than two columns, **the wrap lands at column 0, directly under the
+     label**. `version` / `dev — built from source, not a release` read as two separate settings,
+     one of them called "a release".
+
+     Deliberately last in the sheet. `.k`, `.line`, `.assets input` and `.vault` are all defined
+     *below* the file's first `@media`, at the same specificity as the overrides here, so a block
+     placed up there silently loses to them — which is exactly what the first attempt did. Same
+     breakpoint as `App.svelte`'s, which is where the app already decides it is on a phone. */
+  @media (max-width: 40rem) {
+    /* The label column goes away everywhere. `.caps` is the shared class of eight lists, only one
+       of which is key/value; in the rest `.k` is a flex item sitting next to its own explanation
+       ("Off" — "Not shared. Only this computer…"), and 9rem of reserved label was pushing that
+       explanation into a three-line ribbon down the right-hand edge. */
+    .k {
+      min-width: 0;
+    }
+    /* With every option now two lines tall, 8px between them is not enough to read as a break. */
+    .caps {
+      gap: var(--space-3);
+    }
+    /* A choice row gets the same treatment as a fact: control and name on one line, the sentence
+       explaining it on the next, indented past the control so it stays attached to the option
+       above rather than the one below.
+
+       `.choice .k`'s own `min-width: 5.5rem` is a third of a phone's content width held for the
+       word "Off", which squeezed "Not shared. Only this computer can open your notes." into a
+       ribbon down the right-hand edge. Dropping it alone is not enough and is actively worse: a
+       flex item with `min-width: 0` shrinks past its own longest word, and "Audio transcription
+       on" then printed *on top of* its description. Giving the description the whole next line is
+       what makes the reset safe — `.k` no longer shares a row with anything that can squeeze it. */
+    .choice {
+      flex-wrap: wrap;
+      /* `.choice`'s `gap` applies between the wrapped lines too, which put as much space between
+         an option and its own description as between the description and the next option — the
+         original complaint again, one level down. The list's own gap is what separates options. */
+      row-gap: 0;
+    }
+    .choice .k {
+      min-width: 0;
+    }
+    .choice input {
+      flex: none;
+    }
+    .choice .muted {
+      flex: 1 1 100%;
+      padding-left: calc(1rem + var(--space-2));
+    }
+    /* Only the machine facts are key/value, and only they need stacking: label above, value
+       indented under it, each fact bracketed by a rule. A value that wraps then stays visibly
+       inside the option it belongs to instead of starting what looks like a new one. */
+    .facts li {
+      display: block;
+      padding-left: var(--space-3);
+      border-left: 2px solid var(--border);
+    }
+    .facts .k {
+      display: block;
+      font-weight: 600;
+      color: var(--text);
+    }
+    /* A label and its control stop competing for one line: the control takes the next one whole.
+       `.line` had no `flex-wrap` at all, so "Send attachments under" and its 6rem box squashed
+       against each other. */
+    .line {
+      flex-wrap: wrap;
+    }
+    .assets input {
+      width: 100%;
+    }
+    /* **Except a checkbox, which must never leave its own label.** The consent rows are also
+       `.line`, and wrapping them put the box alone on one row with "Keep a record of what you
+       change in AI suggestions" underneath — reading as a tick belonging to the paragraph above
+       it. The two consent questions here are the ones where mis-reading which box is which has a
+       consequence that cannot be taken back, so the span wraps *inside* the row instead, and the
+       box aligns to its first line. */
+    .consent {
+      flex-wrap: nowrap;
+      align-items: flex-start;
+    }
+    .consent input {
+      flex: none;
+    }
+    /* `.vault` was `padding: var(--space-2) 0` — no separator of any kind, so with two vaults the
+       path, the attachment box and the two consent questions of one ran straight into the next
+       one's heading. */
+    .vault {
+      padding-left: var(--space-3);
+      border-left: 2px solid var(--border);
+    }
   }
 </style>

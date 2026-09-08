@@ -384,6 +384,23 @@ The gray-screen fix and its tests are in
   Reusing that class for anything that must stay visible on a phone makes it silently vanish
   there — nearly shipped for the collapsed search button on 2026-07-20.
 
+- **A width `@media` placed above the rules it overrides loses, silently.** Both settings sheets
+  define `.k`, `.line`, `.assets input`, `.vault` and `.row input` *below* their first `@media`
+  block, at equal specificity — so a narrow rule written next to the existing `(pointer: coarse)`
+  one compiles, warns nothing, and does nothing. Cost one full screenshot round on 2026-09-08.
+  Width blocks go last in the sheet.
+
+- **`.caps` is eight lists of two different kinds, and `.k` labels both.** Only *This machine* is
+  key/value; the other seven are choice rows where `.k` is the option's name. A rule written for
+  one shape hits all eight — the first narrow attempt drew a left border around every radio in
+  Settings. `.facts` now marks the key/value one.
+
+- **`min-width: 0` lets a flex item shrink past its own longest word.** Dropping `.choice .k`'s
+  5.5rem reserve to widen the description made "Audio transcription on" print *on top of* that
+  description at 390px. The fix is not a smaller reserve but taking the competitor off the row —
+  the description wraps to its own line, so the label has no one to be squeezed by. `svelte-check`
+  and the whole jsdom suite are blind to this; one screenshot at a stated width is not.
+
 - **"Save token" is a separate action from "Join".** Typing a token and pressing Join silently
   discards it; the token only reaches the backend via its own button. Reported from real use.
 

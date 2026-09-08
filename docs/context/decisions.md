@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -6724,3 +6724,40 @@ one `@media`, and it is `(pointer: coarse)`. Neither has a width-based rule, so 
 desktop layout — which is the likeliest cause of the complaint that started this (*"hard to
 understand which line corresponds to which option"*) and is untouched by any of it. Layout is the
 next stage, and it is a different kind of work.
+
+## A panel adapts to width too, not only to the pointer (2026-09-08, `#ui`)
+
+**Decision.** `SettingsPanel` and `BackupPanel` get a `@media (max-width: 40rem)` block — the same
+breakpoint `App.svelte` already uses — and it goes **last in each sheet**. This is the stage the
+entry above named and deferred.
+
+**Why.** Each panel held exactly one `@media`, and it was `(pointer: coarse)`: touch-target sizing,
+nothing about width. So a phone rendered the desktop layout, and the owner's complaint — *"it is
+hard to understand which line corresponds to which option"* — had a measurable cause. `.k`'s
+`min-width: 9rem` reserves about 45% of a 390px screen for the label, so the value is squeezed into
+what is left and wraps; the item is inline flow, not two columns, so **the wrap lands at column 0,
+directly under the label**. `version` / `dev — built from source, not a release` read as two
+separate settings, one of them called "a release". In Back up the git-remote field shared its row
+with Save and showed `https://github.com/exampl` — you could not read the URL you were editing.
+
+**This extends *one shell, two arrangements* (2026-07-19) rather than reversing it.** That entry's
+surviving half is *branch on space and input capability, never on platform*, and its test is that a
+narrow layout must be reachable by narrowing a desktop window. Both hold here: nothing added is
+platform-conditional, and every rule below was verified by resizing, not by a device.
+
+**Consequences and the shape that came out of it:**
+- **A fact stacks; a choice wraps.** Machine facts put the label above its value, indented, each
+  bracketed by a left rule. A choice row keeps control and name on one line and gives the sentence
+  explaining it the whole next line, indented past the control — so it stays attached to the option
+  above rather than the one below. Vault blocks in both panels get the same left rule, which is
+  the only grouping a **single**-vault panel has: its `<h3>` is `{#if plural}`.
+- **The order of the sheet is load-bearing.** The base `.k`, `.line`, `.assets input`, `.vault` and
+  `.row input` rules all sit *below* each file's first `@media`, at equal specificity. The first
+  attempt put the block up there beside its neighbour, compiled clean, warned nothing, and changed
+  nothing.
+- **Verified by screenshot, and it had to be.** jsdom applies no CSS, so nothing in the suite can
+  see any of this; `ci/checks.sh` guards architecture and says of itself that it is *not* a style
+  check, so a breakpoint grep does not belong there either. The evidence is a throwaway CDP harness
+  over `ci/shots.py` at 390×844 against a scratch vault, before and after. Three defects were found
+  **only** by looking at the result: a bordered radio in every list, a checkbox torn from its own
+  label, and "Audio transcription on" printed on top of its own description.

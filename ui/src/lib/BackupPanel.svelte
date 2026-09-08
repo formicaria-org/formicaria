@@ -1386,4 +1386,32 @@
     opacity: 0.5;
     cursor: default;
   }
+  /* **A narrow layout, which this panel also never had** — one `@media`, and it was
+     `(pointer: coarse)`. At 390×844 the remote field and its Save button share a row, and the
+     field is left showing `https://github.com/exampl` with the repository name off the end: you
+     cannot read the URL you are editing.
+
+     Last in the sheet on purpose. The base rule is `input[type='text'], .row input`, the same
+     specificity as the override — placed any earlier this block loses, which is exactly what the
+     first attempt did.
+
+     Same breakpoint as `App.svelte`'s and `SettingsPanel`'s. */
+  @media (max-width: 40rem) {
+    /* The field takes the row; Save takes the next one. Nothing here is narrow enough to hold
+       both and still show a URL. */
+    .row {
+      flex-wrap: wrap;
+    }
+    .row input {
+      flex: 1 1 100%;
+    }
+    /* Each vault becomes a block whose edges you can see. With a single vault the `<h3>` is not
+       rendered at all (`{#if plural}`), so without this the remote, the identity, the snapshot
+       repo and "Remove this vault" are a stack of unattached fragments — and "which line goes
+       with which option" is the question that started this work. */
+    .vault {
+      padding-left: var(--space-3);
+      border-left: 2px solid var(--border);
+    }
+  }
 </style>
