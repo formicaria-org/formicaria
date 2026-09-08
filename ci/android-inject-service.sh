@@ -134,12 +134,20 @@ class MainActivity : TauriActivity() {
   /// IPC bridge, so it is native to this stack rather than a new idea.
   /// **The device's own status-bar height, in CSS pixels** — the fallback, and not a guess.
   ///
-  /// `top` is 0 until the first inset dispatch, and there is a window before that in which the page
-  /// can lay itself out. The stylesheet's floor for that window was `1.75rem` = 28px, chosen before
-  /// anyone had measured one: this phone's camera cutout alone is `DisplayCutout insets=Rect(0, 130
-  /// - 0, 0)` = 130px / 3.25 = **40 CSS px**, so a 28px floor puts a tappable control 12px under the
-  /// lens. Reported 2026-09-08: *"you are continuing to use the top part of the screen which is
-  /// untouchable and passes through the frontal camera… we cannot use top pixels."*
+  /// **A zero here defeated the stylesheet's fallback rather than falling back to it**, which is
+  /// the whole bug and is worth stating exactly. `top` is 0 until the first inset dispatch, and
+  /// `addDocumentStartJavaScript` runs `APPLY_INSETS` at *document start* — so the page opened with
+  /// `--safe-top: 0px` written as an **inline style on `:root`**, and an inline style outranks the
+  /// `@media (pointer: coarse)` floor completely. The floor was therefore never in force on Android
+  /// at all: not 28px, but nothing. Confirmed against the shipped layout — the top control rendered
+  /// at `y = 0`, its full height inside a camera cutout that measures `DisplayCutout
+  /// insets=Rect(0, 130 - 0, 0)` / density 3.25 = **40 CSS px**. Reported 2026-09-08:
+  /// *"you are continuing to use the top part of the screen which is untouchable and passes through
+  /// the frontal camera… we cannot use top pixels."*
+  ///
+  /// The general shape, worth more than the instance: **a bridge that publishes a placeholder
+  /// overrides the fallback it was meant to complement.** Either report nothing until you know, or
+  /// report something true — never a zero that outranks a guess.
   ///
   /// Android has always known the real number, so ask it rather than picking one: `status_bar_height`
   /// is a platform dimen resource, available immediately and correct per device. A phone whose

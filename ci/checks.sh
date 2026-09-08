@@ -1177,9 +1177,13 @@ fi
 echo "[check] the touch floor for the top inset still clears a real camera cutout..."
 # **A number that was picked, then measured.** The coarse-pointer fallback for `--safe-top` was
 # 1.75rem = 28px, chosen before anyone held a device against it. The owner's phone reports
-# `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a cutout **40 CSS pixels** tall — so
-# 28px put a tappable control 12px under the lens whenever the shell's real insets had not arrived.
-# Reported 2026-09-08: "we cannot use top pixels."
+# `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a cutout **40 CSS pixels** tall, which
+# 28px does not clear.
+#
+# Note what this check is NOT: it is not the fix for the 2026-09-08 report. That was the Android
+# bridge writing `--safe-top: 0px` inline at document start, which outranks this block and so
+# disabled the floor rather than falling back to it (`decisions.md`). This guards the last ditch —
+# a touch device with no bridge and no working `env()`.
 #
 # This floor is only reached when the shell has not spoken, which is exactly when nothing else can
 # catch it: jsdom applies no CSS, and the failure is invisible on a desktop and on an emulator with

@@ -6933,29 +6933,47 @@ values.
 untouchable and passes through the frontal camera. This will be an issue for all phones, we cannot
 use top pixels."*
 
-**They were right, and the cause was a number somebody picked.** The inset bridge (2026-08-31) is
-correct and every surface consumes the tokens. But the *fallback* under it was `1.75rem` = 28px,
-written before there was a device to check it against. Measured on the owner's phone:
-`DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — the camera occupies the top **40 CSS
-pixels**. So at any moment the bridge had not delivered, the app laid itself out against 28px and
-the top control sat 12 pixels under the lens.
+**They were right. The cause, corrected the same day:** the bridge was writing a **zero that
+defeated the fallback** rather than falling back to it.
+
+> **Correction (2026-09-08, within hours).** This entry first said the cause was the 28px
+> coarse-pointer floor being too small for a 40px cutout. That is true of the number and false as
+> the diagnosis, and the difference matters. `addDocumentStartJavaScript` runs `APPLY_INSETS` at
+> *document start*, when `top` is still `0f` — so the page opened with `--safe-top: 0px` set as an
+> **inline property on `:root`**, and an inline property outranks the `@media (pointer: coarse)`
+> block completely. **The floor was never in force on Android at all: not 28px, but nothing.**
+> Confirmed twice — a probe of the shipped layout put the top control at `y = 0`, its whole height
+> inside the cutout, and the owner's *This machine* row now reads `top 52 · bottom 47`, so the
+> bridge does deliver once dispatched. The bug was only ever the window before that.
+
+The inset bridge (2026-08-31) is correct and every surface consumes the tokens. Measured on the
+owner's phone: `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — the camera occupies the
+top **40 CSS pixels**, and the app was laying out against 0 until the first inset dispatch.
 
 **Proven, not inferred.** At 390x844 with touch emulation, `--safe-top` at 28px puts the
 `Board · status` **button** at y=28 — inside the 0-40 cutout. At 2.75rem (44px), and at the shell's
 real 52px, nothing interactive is above the line. The device numbers came from
 `adb shell dumpsys window` — observation only, nothing written to the phone.
 
-**Why a bigger floor is not the real fix, and what is.** A floor is a guess wearing a default's
-clothes: 44px clears *this* cutout, and the next phone is not obliged to agree. So the floor is only
-the last ditch, and the mechanism that matters is that **Android now has no zero state** —
+**Why the bigger floor is not the fix, and what is.** The floor never applied here, and raising it
+changed nothing on Android — it is kept only for a touch device with no bridge and no working
+`env()`, and even there it is a guess wearing a default's clothes: 44px clears *this* cutout, and
+the next phone is not obliged to agree. The mechanism that matters is that **Android now has no zero
+state** —
 `fallbackTop()` reads `status_bar_height`, a platform dimen available immediately and correct per
 device, so the page is never laid out against an approximation even on its first frame.
 `requestApplyInsets` is also called as soon as the WebView exists, to shorten that frame further.
 
 **Consequences:**
-- **`ci/checks.sh` refuses a floor below 2.75rem.** Verified to fire. Nothing else can catch this:
-  jsdom applies no CSS, and the failure is invisible on a desktop and on an emulator without a
-  cutout — which is why the previous number survived from the day it was written.
+- **The general lesson, which outlives this bug: a bridge that publishes a placeholder overrides
+  the fallback it was meant to complement.** A layered design — real value, else floor — only holds
+  if the higher layer stays *silent* until it knows. Publishing `0` is not falling back; it is
+  overriding with the worst possible answer, and it does so in the mechanism (an inline property)
+  specifically chosen to win. Either say nothing until you know, or say something true.
+- **`ci/checks.sh` refuses a floor below 2.75rem.** Verified to fire. It guards the last ditch, not
+  the path that failed. Nothing can catch *either* by test: jsdom applies no CSS, and both failures
+  are invisible on a desktop and on an emulator without a cutout — which is why this survived from
+  the day it was written.
 - **The insets are now readable from the UI.** `known-issues.md` records that this phone's logs are
   unreadable (*"Rust's stderr is not routed to logcat on Android at all, and MIUI suppresses app
   logcat output besides"*), and a broken bridge and a too-short floor look identical on screen. The

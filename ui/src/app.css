@@ -109,13 +109,15 @@
     /* **2.75rem = 44px, and the number is measured rather than chosen.** The previous floor was
        1.75rem = 28px, picked before anyone had a device to check it against. The owner's phone
        reports `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a camera cutout **40 CSS
-       pixels** tall — so 28px put a tappable control 12px under the lens whenever the shell's real
-       values had not arrived. Reported 2026-09-08: *"we cannot use top pixels."*
-       Only ever reached when the shell has not spoken: on Android the bridge overwrites this with
-       the device's own number, and `MainActivity.fallbackTop()` now answers with
-       `status_bar_height` rather than zero even before the first inset dispatch. What remains here
-       is the last ditch — a touch device with no bridge and no working `env()` — where being
-       generous costs some space and being tight costs a control nobody can press. */
+       pixels** tall — so 28px does not clear it.
+       **But 28px was not what bit on Android, and this floor was not what fixed it.** The shell's
+       bridge writes `--safe-top` as an *inline* property on `:root`, which outranks this block
+       entirely — and until 2026-09-08 it wrote `0px` at document start, before the first inset
+       dispatch. The floor was never in force there at all. The fix is in `MainActivity`, which now
+       answers with the device's own `status_bar_height` instead of zero.
+       What remains here is the genuine last ditch — a touch device with no bridge and no working
+       `env()` — where being generous costs some space and being tight costs a control nobody can
+       press. `ci/checks.sh` keeps it from drifting back down. */
     --safe-top: max(env(safe-area-inset-top, 0px), 2.75rem);
     --safe-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
     /* A phone has no height to spare on a decorative gap above a dialog. The desktop keeps

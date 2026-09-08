@@ -341,16 +341,21 @@ The gray-screen fix and its tests are in
   `3.25rem` guess — and each was found on the owner's device, by a screenshot, never by a test.
   **Read the tokens.**
 
-  **And the floor beneath them was itself an invented number** (fixed 2026-09-08). It was
-  `1.75rem` = 28px, chosen before anyone measured a device. The owner's phone reports
-  `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a cutout **40 CSS px** tall — so
-  whenever the bridge had not yet delivered, the top control sat 12px under the lens; reported as
-  *"we cannot use top pixels."* Two changes: the floor is 2.75rem and `ci/checks.sh` refuses to let
-  it drop, and `MainActivity.fallbackTop()` now answers with the device's own `status_bar_height`
-  (unioned with `safeInsetTop`) instead of zero before the first inset dispatch, so on Android the
-  number is never guessed at all. **The general trap survives the fix**: a *fallback* for a
-  device-specific measurement is a guess wearing a default's clothes — prefer asking the platform,
-  and where a floor is unavoidable, make it larger than the largest thing it must clear.
+  **And the bridge published a zero that defeated the fallback** (fixed 2026-09-08). This is the
+  sharper trap, and it is not the one it first looked like. `addDocumentStartJavaScript` runs the
+  apply script at *document start*, when the inset listener has not fired and `top` is `0f` — so the
+  page opened with `--safe-top: 0px` set as an **inline property on `:root`**, which outranks the
+  `@media (pointer: coarse)` floor completely. The floor was not too small on Android; it was
+  **never in force there**. The owner's phone has a cutout of `DisplayCutout insets=Rect(0, 130 - 0,
+  0)` / density 3.25 = 40 CSS px, and the top control rendered at `y = 0`; reported as *"we cannot
+  use top pixels."*
+  **The lesson, which is general:** a layered design — real value, else fallback — only holds if the
+  upper layer stays *silent* until it knows. Publishing `0` is not falling back, it is overriding
+  with the worst answer through the very mechanism (an inline property) chosen to win. Either say
+  nothing until you know, or say something true: `MainActivity.fallbackTop()` now answers with the
+  device's own `status_bar_height` unioned with `safeInsetTop`, so there is no zero state. The CSS
+  floor was raised to 2.75rem and pinned by `ci/checks.sh` as well, but that guards only a touch
+  device with *no* bridge — it is not what fixed this.
   Settings → *This machine* now prints the resolved values, because on this phone
   (logcat suppressed, above) there was no other way to tell a broken bridge from a short floor.
 
