@@ -1174,6 +1174,29 @@ fi
 #
 # The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
 # one rule that knows about the inset.
+echo "[check] every icon a pane names exists in the icon set..."
+# `Icon.svelte` renders **nothing** for a name it does not know, and the bottom bar falls back to a
+# dot — so a typo in `panes.ts` is a silently blank control, not an error. The same class of failure
+# as the `gear` bug that file already records: "a path written without its `<path>` wrapper renders
+# nothing at all. Caught by screenshotting the emulator."
+#
+# Here rather than in `panes.test.ts` because reading `Icon.svelte` needs `node:fs`, and the UI's
+# tsconfig carries no node types; adding them to type one assertion is the wrong trade. Cross-file
+# agreement is what this script is for — the attachment ceiling is checked the same way. The two
+# halves that need no file read (the picker's icon differs from every pane's, and no two panes
+# share one) stay as unit tests.
+known_icons=$(grep -oE '^ {4}[A-Za-z][A-Za-z0-9]*:' ui/src/lib/Icon.svelte | tr -d ' :')
+named_icons=$(grep -oE "icon: '[a-zA-Z0-9-]+'" ui/src/lib/panes.ts | sed "s/icon: '//; s/'//"
+              grep -oE "VIEWS_MENU_ICON = '[a-zA-Z0-9-]+'" ui/src/lib/panes.ts | sed "s/.*= '//; s/'//")
+for icon in $named_icons; do
+    if ! echo "$known_icons" | grep -qx "$icon"; then
+        echo "  FAIL: panes.ts names the icon '$icon', which Icon.svelte's ICONS does not define."
+        echo "        Icon.svelte renders nothing for an unknown name, so this ships as a blank"
+        echo "        control rather than an error. Add the glyph, or fix the name."
+        fail=1
+    fi
+done
+
 echo "[check] a narrow-width hide outranks the utility class that shows it..."
 # **A media query adds no specificity.** So `.panel-toggle { display: none }` inside a width query
 # and `.icon-btn { display: grid }` at the top level TIE, and the winner is whichever sits later in

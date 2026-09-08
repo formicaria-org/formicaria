@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
-  newPane,
-  reidentify,
-  defaultWorkspace,
-  feedKey,
-  distinctFeeds,
-  reorder,
-  clampSpan,
-  paneTitle,
-  rendererKind,
+  BUILTIN_PANES,
+  SCHEMA,
+  VIEWS_MENU_ICON,
   autoCols,
+  clampSpan,
+  defaultWorkspace,
+  distinctFeeds,
+  feedKey,
   matchesTarget,
   migrateWorkspace,
-  SCHEMA,
+  newPane,
+  paneTitle,
+  reidentify,
+  rendererKind,
+  reorder,
   type Pane,
 } from './panes';
 
@@ -272,5 +274,32 @@ describe('default shortcuts are typeable on a non-US layout', () => {
       }) as KeyboardEvent;
     expect(k.matches(ev({}), b)).toBe(true);
     expect(k.matches(ev({ code: 'KeyZ' }), b)).toBe(false);
+  });
+});
+
+// ── Two things must never wear the same picture ──
+//
+// Reported 2026-09-08: *"the icon of open view and open board are the same, should be different."*
+// The bottom bar's view-picker hard-coded `board`, which is the Board view's own glyph — so on a
+// phone the button that opens the list and the Board tab directly above it were identical, and
+// nothing distinguished "go to Board" from "choose a view".
+//
+// An icon is a name in a string, so nothing in the type system objects when two of them match.
+// This file owns both halves — the pane registry and the picker's constant — which makes the
+// collision checkable in one place, and the only place it is visible at all.
+describe('icons', () => {
+  it('does not give the view-picker the same icon as any view it offers', () => {
+    expect(BUILTIN_PANES.map((p) => p.icon)).not.toContain(VIEWS_MENU_ICON);
+  });
+
+  // The third half of this — that every name here exists in `Icon.svelte` — is in `ci/checks.sh`,
+  // not here: reading a file needs `node:fs`, and the UI's tsconfig has no node types. Adding them
+  // to type one assertion is the wrong trade, and cross-file agreement is what that script is for
+  // (the attachment ceiling between Rust and the UI is checked the same way).
+  it('gives every built-in pane its own icon', () => {
+    // The same failure one level down, and just as invisible: two views sharing a glyph is two
+    // tabs that cannot be told apart in a bar that shows nothing else.
+    const icons = BUILTIN_PANES.map((p) => p.icon);
+    expect(new Set(icons).size).toBe(icons.length);
   });
 });

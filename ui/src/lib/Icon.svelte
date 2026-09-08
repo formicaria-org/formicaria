@@ -10,6 +10,13 @@
     board:
       '<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="10" rx="1"/><rect x="17" y="4" width="4" height="16" rx="1"/>',
     calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+    // **The picker, not a view.** Stacked sheets: "one of several to choose from". It used to
+    // borrow `board`, which is three vertical columns — so on a phone the button that opens the
+    // view list and the Board tab above it were the same picture (reported 2026-09-08). Anything
+    // built from horizontal lines would have edged toward `timeline`; a stack is unlike every
+    // glyph here.
+    views:
+      '<path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 12l10 5 10-5"/><path d="M2 17l10 5 10-5"/>',
     timeline:
       '<circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M5 8v8M10 6h9M10 18h9"/>',
     search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',

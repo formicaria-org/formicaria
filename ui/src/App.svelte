@@ -14,6 +14,7 @@
     BUILTIN_PANES,
     OPENABLE_PANES,
     RAIL_PANES,
+    VIEWS_MENU_ICON,
     MAX_PANES,
     type Workspace,
     type Layout,
@@ -2041,7 +2042,7 @@
           title="Open a view"
           aria-label="open a view"
         >
-          <Icon name="board" size={16} />
+          <Icon name={VIEWS_MENU_ICON} size={16} />
         </button>
         {#if viewsOpen}
           <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>

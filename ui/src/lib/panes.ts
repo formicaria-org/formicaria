@@ -322,6 +322,15 @@ export interface BuiltinPane {
   /** An `Icon.svelte` name; the bottom bar falls back to a dot for anything it does not know. */
   icon: string;
 }
+/** The icon for the control that *opens* this list, which is deliberately **not** any pane's own.
+ *
+ *  It lives here, beside them, because that is the only place the collision is visible: the button
+ *  hard-coded `board` and so wore the same picture as the Board view it offers — on a phone, the
+ *  bottom bar's picker and the Board tab directly above it were identical (reported 2026-09-08,
+ *  *"the icon of open view and open board are the same, should be different"*). A constant here,
+ *  and one test over this file, is what keeps the next icon choice from re-colliding. */
+export const VIEWS_MENU_ICON = 'views';
+
 export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'board', label: 'Board', icon: 'board' },
   { kind: 'agenda', label: 'Agenda', icon: 'calendar' },
