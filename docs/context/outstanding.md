@@ -696,52 +696,82 @@ what the snapshot held. The *why* is four entries in `decisions.md` under `#vaul
 `known-issues.md`. Seventeen comments in the source cite this file by section number, which is why
 the heading stays.
 
-### 2.12 A kept note needs a persistent surface, not a banner
-When a pull keeps a note the other device deleted (`decisions.md`, 2026-09-07, *a merge never stalls
-on a question whose safe answer is a note*), it is reported in the Backup panel's step list and in
-the "someone pushed" banner. Both are **per-run or dismissible**. The ruling asks for a persistent
-surface — a chip beside *unrecorded* and *unreadable* — because this is a decision the app made on
-the user's behalf and a dismissal should not be the end of it.
+### 2.12 A kept note needs a persistent surface — CLOSED 2026-09-07
 
-**What it needs:** the kept set has to outlive one sync run. `VaultSync.kept` is cleared at the start
-of every run by design, so a chip needs its own state, fed the same way `unrecordedList` is.
+A pull that keeps a note the other device deleted reported it in the Backup panel's step list and
+the "someone pushed" banner, both per-run or dismissible. Both halves of this section have now
+shipped and the section is kept only for the reasoning.
 
-**Done looks like:** a chip that says how many notes came back and opens a list with a one-tap
-"delete it again", and that survives an app restart the way the unrecorded chip does.
+**The demoted half** (a field the two devices set differently) shipped with the ruling that created
+it: a `conflict-<field>` key, the `demoted` command, and a panel.
 
-**~~It is now two debts in one~~ — the second half shipped the same day; only the kept-note chip is
-still owed.** Since 2026-09-07 a field two devices disagree about keeps both, with the loser demoted
-into a `conflict-<field>` key beside the winner, and that ruling is **conditional on being seen**:
-*"if that surface is not built, this ruling should be revisited rather than left standing."* It is
-built — the `both answers` chip, `DemotedPanel`, the `demoted` command — so the ruling stands. Unlike
-a kept note it needed no new state: the disagreement is in the note's own frontmatter, so the list is
-a scan and it is correct after a restart, on the other device, and in a text editor.
+**The kept-note half** shipped as `kept_notes` / `kept_seen` — see `decisions.md`, *a resurrection is
+a fact about the merge, so that is where it is recorded*.
 
-**What is still open here is the original half only:** the *kept-note* chip, which does need state,
-because `VaultSync.kept` is cleared at the start of every run by design.
+**What this section got wrong, which is the part worth keeping.** It said: *"the kept set has to
+outlive one sync run. `VaultSync.kept` is cleared at the start of every run by design, so a chip
+needs its own state."* It does not. The resurrection is recorded in the merge commit that caused it,
+so the chip is a derivation over history — exactly as *not in history* is a derivation over
+`git status` and *both answers* is one over frontmatter. `VaultSync.kept` was never the problem; it
+is correct as a per-run step line and is untouched. **No persistent surface in this app holds state,
+and it was a mistake to assume the next one would have to.**
+
+**And it did not get a chip of its own.** It shares one with the demoted half, because six chips is
+a toolbar this repo has already measured wrapping to four rows on a phone — see `decisions.md`,
+*one chip for everything the merge settled*.
 
 ---
 
-### 2.13 Fewer prose conflicts in the first place — `zdiff3` and a paragraph-oriented diff
+### 2.13 Fewer prose conflicts in the first place — CLOSED 2026-09-08
 
-Named in the conflicts plan and kept when its Pass 2 (a divergent body becomes two notes) was
-**withdrawn** on the owner's ruling — `decisions.md`, 2026-09-07, *a prose conflict is not turned
-into two notes*. That entry says this "stays on the queue"; it was not written down at the time,
-which is the drift the entry above it is about.
+Named in the conflicts plan and kept when its Pass 2 was **withdrawn**. Both halves are now ruled —
+see `decisions.md`, *the merge unit for prose is a sentence, and `zdiff3` is declined on
+measurement*. Kept for the reasoning, and because one of the two was declined.
 
-**What it is:** `merge.conflictStyle = zdiff3` shows the common ancestor's text in the marked
-region, so a reader can see what each side changed rather than only what each side ended with. A
-paragraph-oriented diff reduces the *number* of regions that conflict at all — two people editing
-different sentences of one paragraph is the ordinary case, and a line-based merge makes it a
-conflict.
+**The paragraph-oriented half shipped, as a sentence rescue.** When a body merge conflicts, the text
+merge runs a second time with a sentence as the unit, and its answer is taken only if it comes back
+clean — so a merge that is clean today cannot change, and a conflict either becomes clean or stays
+byte-for-byte what it is. Measured on this repo's vault: **roughly one prose conflict in three stops
+happening**, and none of the ones that stop is a disagreement.
 
-**Why it is worth doing anyway:** everything the app now does about a conflicting body — keep both
-texts with markers, block only that note, say so accurately — is damage control on an event that
-mostly does not need to happen. This is the half that reduces the event.
+**`zdiff3` was measured and declined.** Its benefit scales with how many lines a conflict region
+spans, and a Markdown paragraph is one line — so it hoists nothing and only adds a third copy of the
+paragraph for the user to recognise as not-an-answer. Both engines support the flag if the evidence
+ever turns.
 
-**Done looks like:** measured, not asserted — a corpus of real two-device edits where the count of
-conflicting notes goes down and no merge that was clean becomes conflicted. Both backends, since
-`merge_texts` is the shared engine and the phone is the device that merges most.
+**What this section got wrong, which is the part worth keeping.** It called `merge.conflictStyle` the
+mechanism. That setting is **inert** for notes: `.gitattributes` says `*.md merge=fm`, so git never
+runs its own text merge on a note and never reads it. The knob is a flag on our own two engines.
+Second, it asked for "a corpus of real two-device edits" as the bar — but the durable form of that is
+a *generated* corpus, because a test that reads the author's vault only passes on the author's
+machine. The real-vault numbers belong in the ruling, where they are dated; the test pins the
+boundary instead.
+
+---
+
+### 2.14 A prose conflict marks the paragraph, when it could mark the sentence
+
+Surfaced by §2.13 and deliberately not built with it, because it is a third thing and changes a
+user-visible contract.
+
+**What it is.** After the sentence rescue, the conflicts that remain are the ones where two devices
+edited the *same* or *adjacent* sentences. Their markers still come from the **line** merge, so they
+wrap the whole paragraph: the user is shown two near-identical blocks of prose and has to find the
+one sentence that differs by eye. The rescue already computes a sentence-granular merge of exactly
+that text — its markers would wrap the disputed sentence and nothing else.
+
+**Why it was not just switched on.** Taking the finer merge's *conflicted* output means joining a
+text that has marker lines in it, and `join_sentences` deliberately glues a sentence back onto the
+line it came from — which would glue prose onto a `<<<<<<<`, and a marker that does not start a line
+is not a marker. The join would need a rule for marker lines, and that rule is only exercised on the
+one path that must never corrupt. It also changes the *shape* of a conflicted file: the paragraph
+comes back split across several lines. That is invisible in rendered Markdown (consecutive lines are
+one paragraph) but it is still the app rewriting someone's line structure, and files-as-truth means
+the file is the atom.
+
+**Done looks like:** the marker block covers the disputed sentence; `has_conflict_markers`,
+`conflictLabel` and the resolve guard are unchanged in behaviour; both backends produce identical
+bytes; and a resolved note's line structure is stated as a known consequence rather than discovered.
 
 ---
 

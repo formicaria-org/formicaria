@@ -50,6 +50,7 @@
     resolveConflict,
     unrecorded,
     demoted,
+    keptNotes,
     lastCommits,
     recordUnrecorded,
   } from './lib/ipc';
@@ -861,6 +862,13 @@
           `Delete ${kept.length === 1 ? 'it' : 'them'} again here if that is what you meant.`;
       }
     }
+    // **A pull is the event that creates both of these, so it is the moment to re-read them.**
+    // Until now `loadDemoted` ran at boot and from its own panel and nowhere else, so the chip for
+    // a disagreement this very pull produced did not appear until the app restarted — a persistent
+    // surface that was, in practice, less prompt than the banner it was meant to outlast. The same
+    // 2026-08-24 lesson as the "not in history" count: the number is a fact about git, and this is
+    // the moment git changed.
+    await Promise.all([loadDemoted(), loadKept()]);
   }
   $effect(() => {
     if (!import.meta.env.PROD) return; // network poll: production only (the mock has no remote)
@@ -1159,6 +1167,7 @@
     void loadUnrecorded();
     void loadDuplicates();
     void loadDemoted();
+    void loadKept();
     void loadLastSaves();
   });
 
@@ -1545,6 +1554,26 @@
   /// chip that says "2" for one note reads as two notes.
   const demotedNotes = $derived(new Set(demotedList.map((d) => d.id)).size);
 
+  /// **Notes a merge brought back after the other device deleted them.**
+  ///
+  /// The second half of the same category as `demotedList`, and it shares the chip with it: both
+  /// mean *the two devices disagreed, the merge chose, nothing is blocked*. A separate chip would
+  /// have been the sixth in this toolbar, and the 2026-07-19 device note below records what six
+  /// costs on a phone — a bar wrapped to four rows with the board starting halfway down the screen.
+  ///
+  /// Stateless in the same way, and that is the part `outstanding.md` §2.12 got wrong when it said
+  /// a chip here "needs its own state": the resurrection is recorded in the merge commit that
+  /// caused it, so this is a read of history exactly as *not in history* is a read of `git status`.
+  let keptList = $state<import('./lib/ipc').KeptNote[]>([]);
+  async function loadKept() {
+    keptList = await keptNotes().catch(() => []);
+  }
+  /// Counted by note across both halves, because the chip opens one panel: two diverged fields and
+  /// a resurrection on the same note is one thing to go and look at.
+  const settledNotes = $derived(
+    new Set([...demotedList.map((d) => d.id), ...keptList.map((k) => k.id ?? k.path)]).size,
+  );
+
   /// **How long each vault has been quiet** — the one alert that reports an absence.
   ///
   /// Every other chip here names something it found: a note that will not parse, a note git does
@@ -1690,6 +1719,9 @@
       // screen would have the alert survive the act that resolved it — which is how an alert stops
       // being read at all.
       await loadLastSaves();
+      // Backing up goes through `syncVault`, which pulls before it pushes — so it too can be the
+      // thing that resurrects a note or demotes a field.
+      await Promise.all([loadDemoted(), loadKept()]);
     }
   }
 
@@ -2074,19 +2106,25 @@
         </button>
       {/if}
 
-      {#if demotedNotes}
-        <!-- **Where a merge kept both answers.** A chip for the same reason "unreadable" and "not in
-           history" are chips: the condition is not transient and its whole failure mode is silence.
-           `decisions.md` (2026-09-07) makes this surface a *condition* of the rule that demotes a
-           losing value rather than dropping it — unseen, the demotion would be the fiat that entry
-           spends its length denying. Nothing here is blocking anything, so it is deliberately the
-           quietest of the three. -->
+      {#if settledNotes}
+        <!-- **Everything the merge settled on your behalf**, in one chip and one panel: a field the
+           two devices set differently (both answers kept, `decisions.md` 2026-09-07) and a note one
+           device deleted while the other was editing it (the note kept, same date). Two shapes, one
+           category — *they disagreed, the merge chose, nothing is blocked* — and the panel keeps
+           them in separate sections because the answers differ.
+           **One chip and not two.** The kept-note surface was owed as a chip of its own
+           (`outstanding.md` §2.12); it would have been the sixth here, and the measured cost of that
+           is in the media query below — a toolbar wrapped to FOUR rows on a real phone, with the
+           board starting past halfway. The content is the product.
+           **Deliberately the quietest chip** (no `moved` class): "unreadable" means a note is
+           missing from every view and "not in history" means a note exists in one place only. This
+           one means everything is fine and a choice is waiting. -->
         <button
           class="tb-chip"
           onclick={() => (demotedOpen = true)}
-          title="Notes where the two devices set a field differently — both answers were kept"
+          title="Notes the two devices disagreed about — the merge chose, and you can change it"
         >
-          {demotedNotes}{' '}<span class="lbl">both answers</span>
+          {settledNotes}{' '}<span class="lbl">decided for you</span>
         </button>
       {/if}
 
@@ -2352,12 +2390,14 @@
     {/if}
 
     {#if demotedOpen}
-      {#await import('./lib/DemotedPanel.svelte') then { default: DemotedPanel }}
-        <DemotedPanel
+      {#await import('./lib/KeptPanel.svelte') then { default: KeptPanel }}
+        <KeptPanel
           rows={demotedList}
+          kept={keptList}
           onclose={() => (demotedOpen = false)}
           onchanged={async () => {
             await loadDemoted();
+            await loadKept();
             await refresh();
           }}
         />

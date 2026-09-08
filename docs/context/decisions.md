@@ -47,9 +47,16 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   conditional on a surface that is not built yet) ·
   ***A merge never stalls on a question whose safe answer is a note*** (read before touching
   `keep_notes_the_other_side_deleted` or either backend's conflict loop) ·
+  ***A resurrection is a fact about the merge, so that is where it is recorded*** (read before
+  touching either keep branch, `KEPT_TRAILER` or `refs/fm/kept-seen` — it carries why the obvious
+  frontmatter marker is a live bug, and why the ordering inside the keep branch is load-bearing) ·
   ***The app says how long a vault has been quiet*** (read before adding another alert to the
   toolbar, or before folding `last_commit` into `backup_status` — it is the one signal that does not
   depend on a detector working, and why committer time is the right clock) ·
+  ***The merge unit for prose is a sentence, and `zdiff3` is declined on measurement*** (read
+  before touching `merge_body`'s rescue, `split_sentences`/`join_sentences`, or before proposing a
+  conflict-style change — it carries the vault measurement, why adjacent sentences still conflict
+  on purpose, and why `merge.conflictStyle` is inert for notes) ·
   *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
@@ -6174,6 +6181,12 @@ untracked files on one device, and the *unrecorded* count stops climbing.
 
 ## 2026-09-07 — a prose conflict is not turned into two notes; the plan item is withdrawn `#git` `#sync` `#ui`
 
+> SUPERSEDED IN PART by *the merge unit for prose is a sentence, and `zdiff3` is declined on
+> measurement* (2026-09-08). The withdrawal of Pass 2 stands. What changed is the last section: the
+> paragraph-oriented half of the queued "cheap thing" shipped, and the `zdiff3` half was measured
+> against a real residual conflict and **declined** — on a one-line paragraph it hoists nothing and
+> only adds a third copy.
+
 **Decision.** A body two people wrote differently keeps both versions **in the body**, with markers,
 and waits for a person. It is not split into a second note with its own id. The approved conflict
 plan's Pass 2 — *"a divergent body becomes two notes"*, the `.sync-conflict-*`-style copy that
@@ -6217,6 +6230,10 @@ and sit with them. Then the argument changes from insurance to evidence, and thi
 starting point rather than the answer.
 
 ## 2026-09-07 — the demotion's condition is met: a chip, a panel, and two writes `#ui` `#sync` `#data`
+
+> SUPERSEDED IN PART by *one chip for everything the merge settled* (below): the chip is no longer
+> labelled **both answers** and `DemotedPanel` is now `KeptPanel`, shared with kept notes. Everything
+> here about why the surface must exist, and about its three deliberate abstentions, still stands.
 
 **Not a new decision — the discharge of one.** *A divergent field keeps both, by demoting the loser
 into a field beside it* (above) made itself conditional in writing: *"a demotion nobody can see is
@@ -6314,3 +6331,201 @@ read.
 **What would reopen this:** a vault the owner genuinely uses twice a year, nagging forever. The
 honest fix then is not a higher threshold but a per-vault "this one is an archive" — and that is a
 setting, so it waits until there is a real vault asking for it rather than a hypothetical one.
+
+## 2026-09-07 — a resurrection is a fact about the merge, so that is where it is recorded `#git` `#sync` `#ui`
+
+**The debt:** `outstanding.md` §2.12. When a pull keeps a note the other device deleted, the app
+said so in a step line and a dismissible banner — both gone by the next screen, for a decision the
+app made on the user's behalf. §2.12 asked for a persistent surface and assumed it would need state:
+*"`VaultSync.kept` is cleared at the start of every run by design, so a chip needs its own state."*
+
+**It does not, and that assumption is the interesting part of this entry.** Every persistent alert
+in this app is a derivation over on-disk truth — *not in history* reads `git status`, *both answers*
+reads frontmatter, *N days since a save* reads `HEAD`. This one reads the **merge commit that did
+it**: both backends append a `Kept: <path>` trailer to the merge message, and `kept_notes` walks
+merge commits and parses them back. Nothing is stored, so the answer is right after a restart, on a
+fresh clone, and — the decisive case — on the device that never ran the merge.
+
+**That decisive case is what killed the two tidier designs.** The ordinary sequence is: the phone
+deletes note N and pushes; the laptop had edited N, pulls, keeps it, pushes. **The phone then
+fast-forwards** (`git_native.rs`'s `Merged { incoming: 0, kept: [] }`) and N reappears on the device
+belonging to the person who deleted it, with no keep branch ever running there. So a `refs/fm/kept/…`
+ref per kept note — the tidiest mechanism on the table — reports nothing on the one device whose
+user is most owed the notification. A merge-commit trailer survives the fast-forward because the
+merge commit *is* what got fetched.
+
+**What was proposed first, and why it was wrong.** The obvious move was to generalise the demotion:
+a divergent *field* keeps both with the loser in `conflict-<field>`, so a divergent *existence*
+keeps both with `conflict-deleted: true`. Three defects, found by audit before any of it was
+written, and the first is a live bug:
+
+- **`merge_demoted` would silently erase it.** It computes `field = key.strip_prefix("conflict-")`
+  → `"deleted"`, then `winner = as_written(&m.get("deleted"))` and `losers.retain(|v| *v != winner)`.
+  `Object::get` falls through to `extra`, so a note carrying an ordinary user property `deleted: true`
+  — a common soft-delete convention — empties the loser list and `m.extra.remove("conflict-deleted")`
+  fires. The chip goes quiet on every device, with no user action, at the next merge touching that
+  note. That is precisely the failure *a divergent field keeps both* forbids by name.
+- **It requires the note to parse**, and the note that gets resurrected is exactly the one that might
+  not — an unparseable note is what the *unreadable* chip is for and what froze the phone.
+- **The keep branch has no path filter.** It settles every delete/modify path in the repo, so
+  `manifest.json`, a `.view` file and (where `git_assets_max` is set) a tracked binary would each
+  have had YAML written into them.
+
+The trailer has none of these: it works at the path level — the level the merge itself works at —
+and changes **zero note bytes**, so the load-bearing invariant that two devices produce byte-identical
+files from the same pair of commits is untouched rather than re-argued. It also reports the
+resurrections **already in the vault** from the 2026-09-07 keep, which a marker written from now on
+never could.
+
+**Ordering is load-bearing, and it is the one thing that had to change in the keep branch.**
+`resolve_conflict` finishes the merge itself once the last conflicted path is settled, so the paths
+are now collected *before* the resolve loop and the trailer written into `.git/MERGE_MSG` while the
+merge is still open. Written afterwards it lands in the worktree of an already-committed merge and
+is never recorded at all — proved red, not reasoned about.
+
+**Merge commits survive `push_squashed`, which is what makes the trailer durable.** `newest_foreign`
+classifies by message prefix, and a merge subject is neither `auto:` nor `backup:` — so a merge
+commit becomes the squash floor rather than being collapsed into one. Checked in both backends
+before this was built; had it gone the other way the whole design would have been unusable.
+
+**Acknowledgement is per device, and that is a decision rather than a limitation.**
+`refs/fm/kept-seen` is a watermark at the HEAD the user looked at, on the `retain_proposal_tip`
+precedent — outside `refs/heads/*`, so every history walk is unchanged, and unlike a retained
+proposal tip it points at a commit already reachable from HEAD, so it retains no objects and that
+ruling's accretion cost does not apply. It is per device because the two devices are not asking the
+same question: on the one that kept the note it is *"you edited this, they deleted it"*; on the one
+that deleted it, it is *"you deleted this and it is back"*. Both people are owed an answer.
+All-or-nothing rather than per row, because a watermark answers *"have you looked"* — and looking is
+not something you do to one row. The per-row action is deleting it again, which needs no record: the
+note is gone at HEAD everywhere, so the row cannot return.
+
+**What would reopen this:** the owner ruling that acknowledgement must be vault-wide. Then the
+repaired form of the rejected proposal wins — a reserved key **outside** the `conflict-` prefix,
+where the ordinary scalar `three_way` gives removal-sticks semantics for free — and it should be
+adopted with its costs (the note must parse; the marker is a visible pseudo-property) stated.
+
+**A defect caught on the way to the commit, and the asymmetry that caused it.** `kept_notes`
+degrades to "nothing was resurrected" for a vault with no repo and for one with no commits, on both
+backends, deliberately. `mark_kept_seen` did not — the subprocess arm ran `rev-parse HEAD` and the
+native arm peeled `HEAD`, and both propagated the failure. `dispatch`'s `kept_seen` walks **every
+vault in scope with `?`**, so a single vault that had never been backed up would have made the
+acknowledge button fail for all of them, including the vault the user was looking at when they
+pressed it. The two halves of a pair have to agree about what "nothing" is; the differential now
+pins it, in the shape `last_commit_agrees_on_the_moment_and_on_never` established.
+
+## 2026-09-07 — one chip for everything the merge settled, superseding the "both answers" chip in part `#ui`
+
+> Supersedes in part *the demotion's condition is met: a chip, a panel, and two writes* (above): the
+> chip is no longer labelled **both answers** and `DemotedPanel` is now `KeptPanel`. Everything that
+> entry says about *why* the surface must exist, and about its three abstentions, still stands.
+
+**Kept notes were owed a chip of their own. It would have been the sixth.** `App.svelte`'s own
+media query records what that costs, measured on a device: *"the toolbar wrapped to FOUR rows and
+the board began below the halfway mark of a 2400px screen"* — with `.topbar { flex-wrap: wrap }` and
+a 2.75rem minimum on every coarse-pointer chip, two chips per row is the honest ceiling on a 390px
+phone. The whole section exists to undo that, and adding a sixth chip would have re-earned it on the
+one device where delete/modify conflicts actually happen.
+
+**They are one category anyway**: *the two devices disagreed, the merge chose, nothing is blocked.*
+So one chip — **N decided for you**, counted by note across both halves — opening one panel with two
+sections, each keeping its own sentence and its own action. Still the quietest chip (no `moved`
+class): *unreadable* means a note is missing from every view, *not in history* means a note exists
+in one place only, and this one means everything is fine and a choice is waiting.
+
+**The sections do not share an action, and that is why they are sections rather than rows.** A
+demoted field goes through `set_property`, the path a person typing the value takes. A kept note's
+button is `delete` — a different risk class, irreversible from a phone with no shell, which is the
+asymmetry the keep ruling itself rests on. So it **arms before it fires**, matching `NotePanel`'s
+confirm strip and `BackupPanel`'s Remove/Cancel; a one-tap delete in a list somebody opened to read
+is the outlier a stray thumb finds. A kept path that is not a note gets no button at all.
+
+**A staleness bug was fixed on the way, and it was already shipped.** `loadDemoted` ran at boot and
+from its own panel and nowhere else — so the chip for a disagreement the current pull produced did
+not appear until the app restarted, making the *persistent* surface less prompt than the banner it
+was meant to outlast. Both loaders now run after `getTheirChanges` and after a backup, which is the
+2026-08-24 lesson (*"the count is a fact about git, and this is the moment git changed"*) applied to
+a second surface before it could be reported a second time.
+
+## 2026-09-08 — the merge unit for prose is a sentence, and `zdiff3` is declined on measurement `#git` `#sync` `#data`
+
+**Decision.** When a body merge conflicts, the text merge is **run a second time with a sentence as
+the unit instead of a line**, and its answer is taken only if it comes back clean. `merge.conflictStyle
+= zdiff3` is **not** adopted. Together these close `outstanding.md` §2.13, the half of the withdrawn
+Pass 2 that was kept as *"the cheap thing that is not withdrawn"*.
+
+**The problem, and it is one we create.** A line merge asks *"did you both change this line?"*, and a
+Markdown paragraph is one line — the editor is a textarea and nothing wraps. So two devices editing
+two different sentences of a paragraph collide over prose neither of them touched, and the note
+blocks on a disagreement that does not exist.
+
+**Measured before it was built, on this repo's own vault (2026-09-08, 771 body lines).** 26% of body
+lines carry more than one sentence. Of the collisions two independent edits can have on a line, 54%
+are between *different* sentences, and **30% are between sentences far enough apart that the merge
+settles them**. On a bullet-shaped corpus (a 336-note Logseq vault) the same figures are 67% and 48%.
+So: roughly one prose conflict in three stops happening, and not one of the ones that stops is a
+disagreement. The gap between 54% and 30% is the part worth knowing — see the boundary below.
+
+**Why this is not a third merge engine, which `merge.rs` forbids by name.** It is the same
+`text_3way`, handed the same prose cut at a smaller seam. Nothing new decides anything: a sentence
+that both sides changed still conflicts, and the winner of nothing is chosen by anybody here.
+
+**Why it cannot make anything worse, and this is control flow rather than a test.** The ordinary line
+merge runs **first** and its answer stands unless it conflicted; the finer pass is consulted only
+then, and only its *clean* results are taken. A merge that is clean today therefore cannot change,
+and a conflict either becomes clean or stays byte-for-byte what it is now. There is no third outcome
+to test for. (Recorded because it surprised me: moving the finer pass *in front* changes no test —
+a split only ever pushes two changes further apart, so a line-clean merge is sentence-clean and
+reconstructs the same bytes. The ordering is not what makes the answers right; it is what makes the
+blast radius nil without anyone having to trust that argument.)
+
+**The one property it rests on:** `join_sentences(split_sentences(x)) == x`, exactly, for every `x`.
+A clean merge is a concatenation of whole units taken from the three inputs, so decoding its result
+is the same operation as decoding an input. The cut is `[.!?]` plus at least one space, and only
+where two word characters precede the punctuation — which is what keeps `1. ` and `e.g. ` from
+becoming units of their own, tiny repeated units being exactly what makes a diff align two unrelated
+places. It is tested by round trip over hand-picked shapes *and* 2000 generated strings, because the
+hand-picked ones are the ones I thought of.
+
+**The boundary, and it is deliberate: two edits to *adjacent* sentences still conflict.** A 3-way
+merge will not merge two changed lines with nothing unchanged between them. Separating the units
+with blank scaffolding lines would make git merge them — and that would be this module overriding
+git's judgement about whether two touching edits interact, which is the thing it exists not to do. A
+conflict git would report is not ours to talk it out of. This is where the 54% becomes 30%.
+
+**`zdiff3` is declined, and the measurement is the reason.** Its benefit is proportional to how many
+lines a conflict region spans: it shows the base and *zealously* hoists common lines out of the
+region. A Markdown paragraph is one line, so there are no common lines to hoist, and on a real
+residual conflict it does exactly one thing — adds a third full copy of the paragraph:
+
+```
+<<<<<<< ours
+The vault syncs over git. Every note is one Markdown file. The phone runs libgit2.
+||||||| base
+The vault syncs over git. Every note is one file. The phone runs libgit2.
+=======
+The vault syncs over git. Every note is a single file. The phone runs libgit2.
+>>>>>>> theirs
+```
+
+The very property that made the sentence rescue necessary is what makes `zdiff3` useless here, and
+after the rescue the residual conflicts are *precisely* the one-line-paragraph cases where it helps
+least. Against that, the user of this app reads markers in a phone textarea and is told to delete
+them (`SkippedPanel`); a third block is one more version to recognise as not-an-answer. **Both
+engines do support it** — `--zdiff3` in git ≥ 2.35, `GIT_MERGE_FILE_STYLE_ZDIFF3` in libgit2 1.9.4,
+verified present in the `libgit2-sys` we link — so this is a one-flag change in two places if the
+evidence ever turns. It is declined on what it does to *this* file shape, not on principle.
+
+**A correction to §2.13's own premise, worth keeping.** `merge.conflictStyle` is **inert** for notes:
+`.gitattributes` says `*.md merge=fm`, so git never runs its own text merge on a note and never reads
+that setting. The equivalent knob is a flag on our two engines, which is where the paragraph above
+looked for it.
+
+**Graded on both backends**, because a desktop and a phone that rescued a paragraph differently would
+each commit their own answer and re-derive the conflict on every pull afterwards — 200 generated
+two-device rewordings, byte-for-byte and verdict-for-verdict, in `merge_differential.rs`. The
+transform is shared code either side of a routed call, so divergence was not expected; it is graded
+because "not expected to" is what the second engine exists to stop anyone saying.
+
+**What would reopen this:** a corpus where paragraphs span several lines — someone importing
+hard-wrapped Markdown — which is where `zdiff3` earns its keep and where the sentence rescue matters
+less. Both halves are shape-dependent, and the shape was measured once, here, on 2026-09-08.

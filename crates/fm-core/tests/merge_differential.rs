@@ -296,3 +296,95 @@ fn the_native_engine_is_byte_identical_to_git_merge_file() {
     assert!(conflicted > 100, "generator produced too few conflicts ({conflicted}/400)");
     eprintln!("native differential: {clean} clean, {conflicted} conflicted");
 }
+
+/// **The sentence rescue, graded on both engines** (`outstanding.md` §2.13).
+///
+/// `merge_body` re-runs the text merge with a sentence as the unit when a line merge conflicts,
+/// and takes the result only if it is clean. That extra pass goes through `text_3way` like every
+/// other, so it is engine-routed too — and a desktop and a phone that rescued a paragraph
+/// *differently* would each commit their own answer and re-derive the conflict on every pull
+/// afterwards. The transform either side of the merge is shared code, so this is not expected to
+/// diverge; it is graded because "not expected to" is exactly what the second engine exists to
+/// stop anyone saying.
+///
+/// Notes rather than plain text here, unlike the gates above: the rescue lives in `merge_body`,
+/// which is only reached when both sides parse as the same note.
+#[cfg(feature = "native-git")]
+#[test]
+fn the_sentence_rescue_is_byte_identical_on_both_engines() {
+    let _serial = serial();
+    if !have_git() {
+        eprintln!("skipping differential test: git not on PATH");
+        return;
+    }
+    const SEED: u64 = 0x5EED_1234_ABCD_0013;
+    let mut rng = Rng(SEED);
+    let sentences = [
+        "The vault syncs over git.",
+        "Every note is one file.",
+        "The phone runs libgit2.",
+        "A merge that loses a side is a bug.",
+        "Frontmatter is merged structurally.",
+        "The body is handed to a text merge.",
+        "Markers land in the body, never the fence.",
+    ];
+    let note = |updated: &str, body: &str| {
+        format!(
+            "---\nid: 01JQ0000000000000000000000\ntype: note\ntitle: t\n\
+             created: 2026-07-17T10:00:00Z\nupdated: {updated}\n---\n\n{body}\n"
+        )
+    };
+    let (mut clean, mut conflicted) = (0, 0);
+
+    for case in 0..200 {
+        // A paragraph of randomly chosen sentences on one line, and two devices each rewording
+        // one of them — the shape the rescue exists for, generated rather than hand-picked.
+        // Without repetition: two identical sentences in one paragraph are two identical units,
+        // and which of them a diff picks is a question about the diff, not about the rescue.
+        let mut pool: Vec<&str> = sentences.to_vec();
+        let n = 3 + (rng.next() % 5) as usize;
+        let picked: Vec<&str> =
+            (0..n).map(|_| pool.remove((rng.next() % pool.len() as u64) as usize)).collect();
+        let base = picked.join(" ");
+        let reword = |k: usize, who: &str| {
+            let mut out = picked.clone();
+            let edited = format!("{}, {who}.", picked[k].trim_end_matches('.'));
+            out[k] = &edited;
+            out.join(" ")
+        };
+        let (i, j) = ((rng.next() % n as u64) as usize, (rng.next() % n as u64) as usize);
+        let (base, ours, theirs) = (
+            note("2026-07-17T10:00:00Z", &base),
+            note("2026-07-17T11:00:00Z", &reword(i, "ours")),
+            note("2026-07-17T12:00:00Z", &reword(j, "theirs")),
+        );
+
+        use_subprocess_engine();
+        let (want, want_verdict) = merge_texts(&base, &ours, &theirs, 7).expect("subprocess");
+
+        fm_core::vcs::force_native(true);
+        let got = merge_texts(&base, &ours, &theirs, 7);
+        fm_core::vcs::force_native(false);
+        let (got, verdict) = got.expect("native");
+
+        assert_eq!(
+            verdict, want_verdict,
+            "seed {SEED:#x} case {case} (ours reworded #{i}, theirs #{j}): \
+             the two engines disagree about whether the rescue settled it"
+        );
+        assert_eq!(
+            got, want,
+            "seed {SEED:#x} case {case} (ours reworded #{i}, theirs #{j}): \
+             the two engines rescued the same paragraph into different bytes"
+        );
+        match verdict {
+            Merged::Clean => clean += 1,
+            Merged::Conflicted => conflicted += 1,
+        }
+    }
+
+    // Without both outcomes the assertions are vacuous — the same guard the gates above use.
+    assert!(clean > 30, "generator produced too few rescued merges ({clean}/200)");
+    assert!(conflicted > 30, "generator produced too few real conflicts ({conflicted}/200)");
+    eprintln!("sentence-rescue differential: {clean} rescued clean, {conflicted} still conflicted");
+}

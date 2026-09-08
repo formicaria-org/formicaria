@@ -882,6 +882,55 @@ pub fn unpushed(vault: &Path) -> Result<Option<u32>, StoreError> {
     Ok(Some(ahead as u32))
 }
 
+/// Mirrors [`crate::git::kept_notes`]: every path a merge resurrected, newest first, read out of
+/// the merge commits that did it.
+///
+/// A revwalk with `parent_count() > 1` is the libgit2 spelling of `git log --merges`; the trailer
+/// parsing is deliberately the same shape on both sides and pinned by `git_differential`.
+pub fn kept_notes(vault: &Path) -> Result<Vec<String>, StoreError> {
+    let Ok(repo) = Repository::open(vault) else { return Ok(Vec::new()) };
+    let Ok(mut walk) = repo.revwalk() else { return Ok(Vec::new()) };
+    if walk.push_head().is_err() {
+        // No HEAD yet — a vault with no commits has resurrected nothing.
+        return Ok(Vec::new());
+    }
+    // The watermark, when it exists. A ref that has gone missing is simply no watermark; it must
+    // not turn a chip into an error.
+    if let Ok(seen) = repo.refname_to_id(crate::git::KEPT_SEEN_REF) {
+        let _ = walk.hide(seen);
+    }
+    let _ = walk.set_sorting(git2::Sort::TOPOLOGICAL);
+    let mut paths: Vec<String> = Vec::new();
+    for oid in walk.flatten() {
+        let Ok(commit) = repo.find_commit(oid) else { continue };
+        if commit.parent_count() < 2 {
+            continue;
+        }
+        for line in commit.message().unwrap_or_default().lines() {
+            if let Some(path) = line.strip_prefix(crate::git::KEPT_TRAILER) {
+                let path = path.trim();
+                if !path.is_empty() && !paths.iter().any(|p| p == path) {
+                    paths.push(path.to_string());
+                }
+            }
+        }
+    }
+    Ok(paths)
+}
+
+/// Mirrors [`crate::git::mark_kept_seen`]: move the watermark to the current `HEAD` — including
+/// its two abstentions, which the differential pins. A vault with no repo or no commits has
+/// resurrected nothing, so acknowledging it is vacuously done rather than a failure.
+pub fn mark_kept_seen(vault: &Path) -> Result<(), StoreError> {
+    let Ok(repo) = Repository::open(vault) else { return Ok(()) };
+    let Ok(head) = repo.head().and_then(|h| h.peel_to_commit()).map(|c| c.id()) else {
+        return Ok(());
+    };
+    repo.reference(crate::git::KEPT_SEEN_REF, head, true, "kept notes acknowledged")
+        .map_err(map)?;
+    Ok(())
+}
+
 /// Mirrors [`crate::git::last_commit`]: the committer time of `HEAD` in seconds since the epoch,
 /// or `None` when there is no repo and no commits.
 ///
@@ -1103,7 +1152,18 @@ pub fn pull(vault: &Path) -> Result<crate::git::Pulled, StoreError> {
         Some("HEAD"),
         &sig,
         &sig,
-        &format!("merge {}/{branch}", crate::git::REMOTE),
+        // The kept block is appended by the same builder the subprocess backend uses, so the two
+        // write byte-identical trailers even though their subjects differ (and nothing compares
+        // the subjects — see `kept_trailers`).
+        &format!(
+            "merge {}/{branch}{}",
+            crate::git::REMOTE,
+            crate::git::kept_trailers(&{
+                let mut k = kept.clone();
+                k.sort();
+                k
+            })
+        ),
         &tree,
         &[&our_commit, &their_commit],
     )

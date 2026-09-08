@@ -1436,6 +1436,88 @@ pub fn demoted(store: &dyn Store) -> Result<Vec<DemotedField>, StoreError> {
     Ok(out)
 }
 
+/// **Every note a merge brought back, still present, per vault.**
+///
+/// The persistent half of `outstanding.md` §2.12 and of `decisions.md` (2026-09-07, *a merge never
+/// stalls on a question whose safe answer is a note*): the resurrection used to be reported in one
+/// step line and one dismissible banner, both gone by the next screen.
+///
+/// **Two joins, and each one is a terminator.**
+/// - *Still in history*: the paths come from the merge commits that resurrected them, so a note
+///   deleted again is simply absent from the store and drops out here — permanently, on every
+///   device, with nothing to record. That is why "delete it again" needs no write of its own.
+/// - *Still a note*: a kept path that is not `notes/<id>.md` (a saved view, `manifest.json`) is
+///   reported with no id and no title. It is not droppable — it is still worth saying it came back,
+///   and it is honest about being a file rather than pretending it is a note.
+pub fn kept_notes(
+    store: &dyn Store,
+    vault: &str,
+    paths: &[String],
+) -> Result<Vec<KeptNote>, StoreError> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let q = Query { filter: Filter::new(), ..Default::default() };
+    let rows = store.query(&q)?.rows;
+    let mut out: Vec<KeptNote> = Vec::new();
+    for path in paths {
+        let id = path
+            .strip_prefix("notes/")
+            .and_then(|p| p.strip_suffix(".md"))
+            .filter(|stem| !stem.is_empty() && !stem.contains('/'));
+        match id {
+            // A note: reported only while it is still there. Deleting it again is the answer, and
+            // the absence *is* the record of that answer.
+            Some(id) => {
+                let Some(o) = rows.iter().find(|o| o.id.to_string() == id && o.vault == vault)
+                else {
+                    continue;
+                };
+                out.push(KeptNote {
+                    path: path.clone(),
+                    id: Some(o.id.to_string()),
+                    vault: vault.to_string(),
+                    title: Some(o.title.clone().unwrap_or_else(|| {
+                        o.body
+                            .lines()
+                            .find(|l| !l.trim().is_empty())
+                            .unwrap_or("")
+                            .trim()
+                            .to_string()
+                    })),
+                });
+            }
+            // Not a note. The keep branch settles **every** delete/modify path in the repo, not
+            // only Markdown under `notes/`, so a saved view or the attachment manifest can be
+            // resurrected too. Saying so is the difference between a surface that covers the
+            // condition and one that covers the easy half of it.
+            None => out.push(KeptNote {
+                path: path.clone(),
+                id: None,
+                vault: vault.to_string(),
+                title: None,
+            }),
+        }
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out.dedup_by(|a, b| a.path == b.path);
+    Ok(out)
+}
+
+/// One thing a merge brought back after the other device had deleted it.
+///
+/// `id` and `title` are `None` for a kept path that is not a note — the surface says it came back
+/// and offers no button, because "delete it again" is the `delete` command and that command is
+/// about notes.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct KeptNote {
+    /// Repo-relative, exactly as the merge recorded it.
+    pub path: String,
+    pub id: Option<String>,
+    pub vault: String,
+    pub title: Option<String>,
+}
+
 /// One field two devices set differently: what the note shows now, and what the other device said.
 ///
 /// **`kept` and `other` are both display strings, on purpose.** The panel's job is to let a person

@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 87 of them are below**, grouped by what they are for. If you add an arm to
+**All 89 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -108,6 +108,7 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `resolve_conflict` | `vault`, `path`, `keep`    | `{resolved}`           | `keep` = `theirs` \| `mine` \| `edited`. `edited` means "I reconciled both in the editor" and is refused while markers remain |
 | `read_skipped` / `resolve_skipped` | `vault`, `name`, `text` (resolve only) | the raw text / `{parses}` | the in-app raw editor for a note that will not parse. Works **on any device**, unlike `open_skipped` |
 | `open_skipped`   | `vault`, `name`              | —                      | hands the same file to the OS editor. Desktop only, by nature |
+| `kept_notes` / `kept_seen` | —                  | `KeptNote[]` / `{seen}` | **notes a merge brought back** after the other device deleted them while this one was editing — read out of the merge commits that recorded it, so the answer outlives the sync run, a restart, and a fresh clone. `id`/`title` are `null` for a kept path that is not a note (a saved view, `manifest.json`): reported honestly, and given no button, because "delete it again" is `delete` and that is a note command. Two terminators, neither needing state: deleting the note again drops the row everywhere, and `kept_seen` moves a **per-device** watermark — the device that kept a note and the device that deleted it are not asking the same question, so acknowledging on one must not answer for the other |
 | `demoted`        | —                            | `DemotedField[]`       | fields two devices set differently, where the merge kept both: what the note shows now and what the other device said. A read, and stateless — the loser is a `conflict-<field>` key in the note's own frontmatter, so this is correct after a restart and readable in any text editor |
 
 ### Vaults

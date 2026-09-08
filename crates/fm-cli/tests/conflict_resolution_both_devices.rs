@@ -650,6 +650,114 @@ fn a_note_the_other_device_deleted_is_kept_and_the_vault_keeps_committing() {
     }
 }
 
+/// **The resurrection outlives the run that caused it, identically on both backends.**
+///
+/// The persistent half of `outstanding.md` §2.12: a kept note was reported in one step line and one
+/// dismissible banner, both gone by the next screen. `kept_notes` reads it back out of the merge
+/// commit that did it, so the answer survives a restart, a fresh clone, and the device that never
+/// ran the merge at all.
+///
+/// **The byte-agreement arm is the point.** `git_differential.rs` has no pull test — it says so at
+/// its own delete/modify comment — so until now nothing anywhere compared what the two backends
+/// *wrote* on this path. A trailer spelled differently by the two engines is a phone and a desktop
+/// disagreeing about what happened, months later, with no test to catch it.
+///
+/// Proven red four ways: dropping `record_kept_in_merge_message`; writing the trailer *after* the
+/// resolve loop (the subprocess side then has no `MERGE_MSG` left and the record never lands);
+/// omitting `kept_trailers` from the native merge message; and acknowledging without moving the
+/// ref.
+#[test]
+fn a_kept_note_is_still_reported_after_the_run_that_kept_it() {
+    if !have_git() {
+        eprintln!("skipped: no git");
+        return;
+    }
+    let _lock = serial();
+
+    let mut wrote: Vec<String> = Vec::new();
+    for native in [false, true] {
+        let dir = tempfile::tempdir().unwrap();
+        let (_remote, ours, theirs) = two_clones(dir.path());
+        let rel = format!("notes/{ID}.md");
+
+        g(&theirs, &["rm", "-q", &rel]);
+        g(&theirs, &["commit", "-qm", "delete it there"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+        std::fs::write(ours.join(&rel), note("edited here, deleted there")).unwrap();
+        g(&ours, &["add", "-A"]);
+        g(&ours, &["commit", "-qm", "edit it here"]);
+
+        vcs::force_native(native);
+        vcs::pull(&ours).unwrap_or_else(|e| panic!("native={native}: pull: {e}"));
+
+        // 1. It is still reported *after* the run — the whole debt.
+        let kept = vcs::kept_notes(&ours).unwrap();
+        assert_eq!(
+            kept,
+            vec![rel.clone()],
+            "native={native}: the resurrection must outlive the run"
+        );
+
+        // 2. Read back by real git, so the two backends are compared on what they WROTE, not on
+        //    what each of them can parse.
+        let msg = String::from_utf8(
+            std::process::Command::new("git")
+                .arg("-C")
+                .arg(&ours)
+                .args(["log", "-1", "--merges", "--format=%B"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+        let trailer: Vec<&str> = msg.lines().filter(|l| l.starts_with(git::KEPT_TRAILER)).collect();
+        assert_eq!(
+            trailer,
+            vec![format!("{}{rel}", git::KEPT_TRAILER)],
+            "native={native}: the merge commit records exactly the kept path"
+        );
+        wrote.push(trailer.join("\n"));
+
+        // 3. A second read is the same read: nothing here consumes what it reports.
+        assert_eq!(
+            vcs::kept_notes(&ours).unwrap(),
+            kept,
+            "native={native}: reading is not consuming"
+        );
+
+        // 4. Acknowledging silences it — and only up to the HEAD that was acknowledged.
+        vcs::mark_kept_seen(&ours).unwrap();
+        assert!(
+            vcs::kept_notes(&ours).unwrap().is_empty(),
+            "native={native}: once seen, it stops being reported"
+        );
+
+        // 5. A *later* resurrection is above the watermark, so it raises again rather than being
+        //    swallowed by an acknowledgement of an older one.
+        let second = "notes/01M1WXF2FW4SSXJVKX3J81BMSW.md";
+        std::fs::write(ours.join(second), note("a second note")).unwrap();
+        g(&ours, &["add", "-A"]);
+        g(&ours, &["commit", "-qm", "add a second note"]);
+        g(&ours, &["push", "-q", "origin", "main"]);
+        g(&theirs, &["pull", "-q", "--no-rebase", "origin", "main"]);
+        g(&theirs, &["rm", "-q", second]);
+        g(&theirs, &["commit", "-qm", "delete the second one there"]);
+        g(&theirs, &["push", "-q", "origin", "main"]);
+        std::fs::write(ours.join(second), note("edited again here")).unwrap();
+        g(&ours, &["add", "-A"]);
+        g(&ours, &["commit", "-qm", "edit the second one here"]);
+        vcs::pull(&ours).unwrap_or_else(|e| panic!("native={native}: second pull: {e}"));
+        assert_eq!(
+            vcs::kept_notes(&ours).unwrap(),
+            vec![second.to_string()],
+            "native={native}: a resurrection after the watermark must raise again"
+        );
+
+        vcs::force_native(false);
+    }
+    assert_eq!(wrote[0], wrote[1], "the two backends write the same trailer, byte for byte");
+}
+
 /// **A field two devices disagree about must not stop the vault either.**
 ///
 /// The sibling of the delete/modify test above, for the other shape that used to freeze things.

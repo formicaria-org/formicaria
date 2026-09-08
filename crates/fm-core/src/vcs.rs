@@ -130,6 +130,11 @@ route!(unpushed(vault: &Path) -> Result<Option<u32>, StoreError>);
 // the device that most needs the answer is the phone, and the phone is the one that never runs the
 // subprocess backend.
 route!(last_commit(vault: &Path) -> Result<Option<i64>, StoreError>);
+// **Which notes a merge brought back, and the mark that says they have been seen.** Routed like
+// everything else in the sync path: the device a resurrection is most likely to surprise is the
+// phone, and the phone is the one that never runs the subprocess backend.
+route!(kept_notes(vault: &Path) -> Result<Vec<String>, StoreError>);
+route!(mark_kept_seen(vault: &Path) -> Result<(), StoreError>);
 route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);

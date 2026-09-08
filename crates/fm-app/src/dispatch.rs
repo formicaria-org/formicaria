@@ -524,6 +524,9 @@ const READ_ONLY: &[&str] = &[
     // A scan for `conflict-*` keys. Changes nothing; bumping the generation for it would tell every
     // connected client the vault moved because a chip refreshed — the `paper_bibtex` lesson.
     "demoted",
+    // A revwalk over merge commits per vault. Same reasoning as `demoted`: a chip refreshing is not
+    // the vault moving.
+    "kept_notes",
     // One `git log -1` per vault. Same reasoning as `demoted`: a chip refreshing is not the vault
     // moving, and saying it did would make every connected client refetch its workspace.
     "last_commits",
@@ -725,6 +728,44 @@ fn dispatch_inner(
         "demoted" => {
             let mut g = lock()?;
             json(commands::demoted(&g.store(scope)).map_err(err)?)
+        }
+        // **Notes a merge brought back after the other device deleted them.** The persistent half of
+        // `outstanding.md` §2.12: this used to be one step line and one dismissible banner, both
+        // gone by the next screen, for a decision the app made on the user's behalf.
+        //
+        // Read out of the merge commits that did it — a derivation over history, like `unrecorded`
+        // is one over `git status` and `demoted` is one over frontmatter. No state of its own: the
+        // §2.12 framing ("a chip needs its own state") turned out to be avoidable, and every other
+        // persistent alert in this app is a read of on-disk truth.
+        "kept_notes" => {
+            let vaults: Vec<VaultConfig> =
+                lock()?.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+            let mut out: Vec<commands::KeptNote> = Vec::new();
+            for v in &vaults {
+                // Best-effort per vault, like every other per-vault git read here: one repo that
+                // will not answer must not blank the surface for the rest.
+                let paths = vcs::kept_notes(&v.path).unwrap_or_default();
+                if paths.is_empty() {
+                    continue;
+                }
+                let mut g = lock()?;
+                out.extend(commands::kept_notes(&g.store(scope), &v.name, &paths).map_err(err)?);
+            }
+            json(out)
+        }
+        // **"I have looked at these."** Moves the per-device watermark to the current HEAD.
+        //
+        // **Not in `READ_ONLY`, and not because it moves a note** — it does not. It writes a ref,
+        // which is durable state a later read depends on, and the generation bump is what tells a
+        // second window that the list it is showing has been answered. The alternative is two
+        // screens disagreeing about whether the user has looked.
+        "kept_seen" => {
+            let vaults: Vec<VaultConfig> =
+                lock()?.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
+            for v in &vaults {
+                vcs::mark_kept_seen(&v.path).map_err(err)?;
+            }
+            json(serde_json::json!({ "seen": true }))
         }
         // **How long each vault has been quiet.** The crude liveness fact, deliberately incurious
         // about *why* history stopped: two notes froze a vault for thirty-nine days and every

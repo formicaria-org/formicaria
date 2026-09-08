@@ -238,6 +238,72 @@ fn commit_all_agrees_on_what_is_committed_and_what_is_left_alone() {
 /// interchangeable and the doc comment on `last_commit` commits to one of them: a commit pulled
 /// from the other device was *authored* whenever they wrote it and *committed* here today, and
 /// "this vault has not saved anything in N days" means the latter.
+/// **Acknowledging nothing must not be an error, on either backend.**
+///
+/// `kept_notes` already degrades to "nothing was resurrected" for a vault with no repo and for one
+/// with no commits — both backends, deliberately. Its partner did not: the subprocess arm ran
+/// `rev-parse HEAD` and the native arm opened the repo and peeled `HEAD`, and both propagated the
+/// failure. `dispatch`'s `kept_seen` walks **every vault in scope** with `?`, so a single vault
+/// that had never been backed up made the acknowledge button fail for all of them — including the
+/// vault the user was actually looking at.
+///
+/// Proven red by restoring either backend's unguarded `HEAD` read.
+#[test]
+fn marking_kept_notes_seen_agrees_that_a_vault_with_nothing_to_see_is_not_an_error() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    for v in [a.path(), b.path()] {
+        assert!(git::mark_kept_seen(v).is_ok(), "no repo at all is nothing to acknowledge");
+        assert!(git_native::mark_kept_seen(v).is_ok());
+        // And the read agrees, which is what makes the pair coherent rather than merely quiet.
+        assert!(git::kept_notes(v).unwrap().is_empty());
+        assert!(git_native::kept_notes(v).unwrap().is_empty());
+    }
+
+    git::ensure_repo(a.path()).unwrap();
+    no_identity(a.path());
+    assert!(
+        git::mark_kept_seen(a.path()).is_ok(),
+        "a repo with no commits: nothing to acknowledge"
+    );
+    assert!(git_native::mark_kept_seen(a.path()).is_ok());
+    let no_ref = Command::new("git")
+        .arg("-C")
+        .arg(a.path())
+        .args(["rev-parse", "--verify", git::KEPT_SEEN_REF])
+        .output()
+        .unwrap();
+    assert!(
+        !no_ref.status.success(),
+        "and no watermark is written, because there is no commit to point one at"
+    );
+
+    // With a commit, both backends write the watermark and both write it to the same place.
+    fs::create_dir_all(a.path().join("notes")).unwrap();
+    fs::write(a.path().join("notes/01.md"), NOTE).unwrap();
+    Command::new("git").arg("-C").arg(a.path()).args(["add", "-A"]).output().unwrap();
+    Command::new("git").arg("-C").arg(a.path()).args(["commit", "-m", "seed"]).output().unwrap();
+    let head = g(a.path(), &["rev-parse", "HEAD"]);
+
+    git::mark_kept_seen(a.path()).unwrap();
+    assert_eq!(g(a.path(), &["rev-parse", git::KEPT_SEEN_REF]), head);
+    Command::new("git")
+        .arg("-C")
+        .arg(a.path())
+        .args(["update-ref", "-d", git::KEPT_SEEN_REF])
+        .output()
+        .unwrap();
+    git_native::mark_kept_seen(a.path()).unwrap();
+    assert_eq!(
+        g(a.path(), &["rev-parse", git::KEPT_SEEN_REF]),
+        head,
+        "the two backends acknowledge to the same ref at the same commit"
+    );
+}
+
 #[test]
 fn last_commit_agrees_on_the_moment_and_on_never() {
     if !have_git() {

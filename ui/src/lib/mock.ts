@@ -571,6 +571,14 @@ const freshLastCommits = (): Record<string, number | null> => ({
   lab: Math.floor(Date.now() / 1000) - 39 * 86_400,
 });
 let mockLastCommits: Record<string, number | null> = freshLastCommits();
+/// Notes a merge brought back. One row, on the note the fixtures already carry, so the panel's
+/// kept section has something true to render.
+let mockKept: Array<{ path: string; id: string | null; vault: string; title: string | null }> = [];
+/// Test-only: seed the kept list.
+export function setKept(list: typeof mockKept): void {
+  mockKept = list.map((k) => ({ ...k }));
+}
+
 /// Test-only: say when each vault last saved, or `null` for "never".
 export function setLastCommits(saves: Record<string, number | null>): void {
   mockLastCommits = { ...saves };
@@ -651,6 +659,7 @@ export function reset(): void {
   // `commit` moves these, so a test that backs up leaks a freshly-saved `lab` into every later
   // test in the file — which would silently disarm the elapsed-time chip for all of them.
   mockLastCommits = freshLastCommits();
+  mockKept = [];
   mockPlatform = 'linux';
 }
 
@@ -946,6 +955,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           other: ['doing'],
         },
       ] as T;
+    // A note that came back, so the shared panel's other half is visible in `pnpm dev`. Mutable,
+    // because both of its terminators have to be expressible: deleting the note again drops the
+    // row (the store no longer has it), and acknowledging clears the whole list.
+    case 'kept_notes':
+      return mockKept.filter((k) => !k.id || notes.some((n) => n.id === k.id)) as T;
+    case 'kept_seen':
+      mockKept = [];
+      return { seen: true } as T;
     case 'last_commits':
       return mockVaults.map((v) => ({
         vault: v.name,

@@ -1977,7 +1977,11 @@ pub fn pull(vault: &Path) -> Result<Pulled, StoreError> {
 /// conflicts and `BothDeleted` are left alone — there the two sides are both content, and picking
 /// one by fiat is the data loss `merge.rs` forbids.
 fn keep_notes_the_other_side_deleted(vault: &Path) -> Result<Vec<String>, StoreError> {
-    let mut kept = Vec::new();
+    // **Collected before anything is resolved, and that ordering is load-bearing.**
+    // `resolve_conflict` finishes the merge itself once the last conflicted path is settled — so
+    // by the end of the loop below there is no `MERGE_MSG` left to write into and no merge commit
+    // left to describe. The record has to be composed while the merge is still open.
+    let mut kept: Vec<(String, Keep)> = Vec::new();
     for c in conflicted(vault)? {
         // `Keep` is expressed from *our* side, so the verb flips with the kind: when we deleted,
         // theirs is the note; when they deleted, ours is. The truth table this mirrors is
@@ -1987,11 +1991,143 @@ fn keep_notes_the_other_side_deleted(vault: &Path) -> Result<Vec<String>, StoreE
             ConflictKind::DeletedByThem => Keep::Mine,
             _ => continue,
         };
-        resolve_conflict(vault, &c.path, keep)?;
-        kept.push(c.path);
+        kept.push((c.path, keep));
     }
-    kept.sort();
-    Ok(kept)
+    kept.sort_by(|a, b| a.0.cmp(&b.0));
+    let paths: Vec<String> = kept.iter().map(|(p, _)| p.clone()).collect();
+    // Into the message git is about to commit, before the loop that may commit it.
+    record_kept_in_merge_message(vault, &paths);
+    for (path, keep) in kept {
+        resolve_conflict(vault, &path, keep)?;
+    }
+    Ok(paths)
+}
+
+/// The line that records a resurrection in the merge commit that caused it.
+///
+/// **Public because it is a contract, not an implementation detail** — the same reason
+/// [`crate::merge::DEMOTED_PREFIX`] is. Two backends write it, two backends read it back, and
+/// nothing in CI can notice a second spelling appearing somewhere else. One constant is what stops
+/// the phone and the desktop disagreeing about what a merge said.
+pub const KEPT_TRAILER: &str = "Kept: ";
+
+/// The trailer block for a set of kept paths — empty when nothing was kept, so the ordinary merge
+/// message is untouched.
+///
+/// Sorted and one path per line, after a blank line: this is the **only** part of a merge message
+/// the two backends must agree on. Their subjects already differ (`git commit --no-edit` writes
+/// git's own "Merge branch …", the native side writes "merge origin/main") and nothing compares
+/// them, so harmonising the whole message is not required and would be a second contract to keep.
+pub fn kept_trailers(kept: &[String]) -> String {
+    if kept.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("\n");
+    for path in kept {
+        out.push_str(&format!("\n{KEPT_TRAILER}{path}"));
+    }
+    out.push('\n');
+    out
+}
+
+/// Append the kept-paths block to the message `git commit --no-edit` is about to use.
+///
+/// **Best-effort by contract**, like `retain_proposal_tip`: losing the record must never fail the
+/// merge the user asked for. A vault that keeps a note and cannot say so is still a vault that kept
+/// the note, and the per-run report in `Pulled::kept` still names it.
+fn record_kept_in_merge_message(vault: &Path, kept: &[String]) {
+    if kept.is_empty() {
+        return;
+    }
+    let msg = vault.join(".git/MERGE_MSG");
+    let Ok(existing) = std::fs::read_to_string(&msg) else { return };
+    let _ = std::fs::write(&msg, format!("{}{}", existing.trim_end(), kept_trailers(kept)));
+}
+
+/// **Every note a merge resurrected, newest first** — paths, read back out of the merge commits
+/// that did it.
+///
+/// The persistent half of `decisions.md` (2026-09-07, *a merge never stalls on a question whose
+/// safe answer is a note*), which asked for a surface that outlives one sync run. It is a
+/// derivation over history rather than state the app keeps, for the same reason *not in history* is
+/// a derivation over `git status` and *both answers* is one over frontmatter: every persistent
+/// alert in this app is a read of on-disk truth, and this one joins them instead of becoming the
+/// first to hold state of its own.
+///
+/// **Why the merge commit and not the note.** A resurrection is a fact about a merge, not a value
+/// of any field — and the note that gets resurrected is exactly the one that may not parse. Writing
+/// into it would also make the merge transform bytes it currently only passes through, which is the
+/// invariant `merge_differential` exists to defend. The commit message costs none of that, and it
+/// can describe a kept `.view` or `manifest.json` too, which a frontmatter key cannot.
+///
+/// **Bounded by `refs/fm/kept-seen`** when it exists — see [`mark_kept_seen`]. Without it the walk
+/// covers all history, which is deliberate: the resurrections that happened before this shipped are
+/// real and the owner has never been told about them.
+pub fn kept_notes(vault: &Path) -> Result<Vec<String>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let seen = rev_parse(vault, KEPT_SEEN_REF).ok();
+    let range = match &seen {
+        Some(oid) => format!("{oid}..HEAD"),
+        None => "HEAD".to_string(),
+    };
+    // `--merges` alone: only a merge can resurrect a note, and the trailer is only ever written
+    // onto one. `%B` is the raw body, so a trailer cannot be mangled by git's own trailer parsing.
+    let out =
+        git(vault).args(["log", "--merges", "--format=%x01%B", &range]).output().map_err(spawn)?;
+    // A range whose left side has been garbage-collected, or a repo with no commits: not an error,
+    // and certainly not a reason for a chip to take the app down with it.
+    if !out.status.success() {
+        return Ok(Vec::new());
+    }
+    let mut paths = Vec::new();
+    for line in String::from_utf8_lossy(&out.stdout).lines() {
+        let line = line.trim_start_matches('\u{1}');
+        if let Some(path) = line.strip_prefix(KEPT_TRAILER) {
+            let path = path.trim();
+            if !path.is_empty() && !paths.iter().any(|p| p == path) {
+                paths.push(path.to_string());
+            }
+        }
+    }
+    Ok(paths)
+}
+
+/// Where "I have looked at these" is remembered: a ref at the HEAD the user acknowledged.
+///
+/// **`refs/fm/*`, outside `refs/heads/*`, on the precedent `retain_proposal_tip` set** — every
+/// history walk in this crate pushes HEAD alone, so this ref changes no existing answer. Unlike a
+/// retained proposal tip it points at a commit already reachable from HEAD, so it retains no
+/// objects at all and the accretion cost that ruling priced does not apply here.
+///
+/// **Per device, deliberately.** The two devices are not asking the same question: on the one that
+/// kept the note it is *"you edited this; the other device deleted it"*, and on the one that
+/// deleted it — which fast-forwards onto the merge and never runs a keep branch of its own — it is
+/// *"you deleted this; it came back"*. Both people are owed an answer, so an acknowledgement on one
+/// must not silence the other.
+pub const KEPT_SEEN_REF: &str = "refs/fm/kept-seen";
+
+/// Acknowledge every resurrection up to the current `HEAD`.
+///
+/// All-or-nothing rather than per note, because the ref *is* a watermark: the question it answers
+/// is "have you looked", and looking is not something you do to one row. Deleting a note again is
+/// the per-row action, and it needs no record — the note is gone at HEAD, on every device, for good.
+pub fn mark_kept_seen(vault: &Path) -> Result<(), StoreError> {
+    // **A vault with nothing to acknowledge is not an error**, and it degrades exactly where
+    // [`kept_notes`] does — no repo, then no commits. The two halves have to agree about this:
+    // `dispatch`'s `kept_seen` walks *every* vault in scope with `?`, so one vault that had never
+    // been backed up would otherwise make the button fail for all of them, including the vault the
+    // user was looking at when they pressed it.
+    if !vault.join(".git").exists() {
+        return Ok(());
+    }
+    let Ok(head) = rev_parse(vault, "HEAD") else { return Ok(()) };
+    let out = git(vault).args(["update-ref", KEPT_SEEN_REF, &head]).output().map_err(spawn)?;
+    if !out.status.success() {
+        return Err(failed("git update-ref", &out));
+    }
+    Ok(())
 }
 
 /// The newest unpushed commit this app did **not** write, or `None` when every unpushed

@@ -292,6 +292,20 @@ export interface DemotedField {
   other: string[];
 }
 
+/** One thing a merge brought back after the other device had deleted it.
+ *  Mirrors `fm_app::commands::KeptNote`.
+ *
+ *  `id` and `title` are `null` for a kept path that is **not** a note — the keep branch settles
+ *  every delete/modify path in the repo, so a saved view or the attachment manifest can be
+ *  resurrected too. Those are reported and given no button: "delete it again" is the `delete`
+ *  command, and that command is about notes. */
+export interface KeptNote {
+  path: string;
+  id: string | null;
+  vault: string;
+  title: string | null;
+}
+
 /** When each vault last saved anything — seconds since the epoch, `null` for a vault that has
  *  never been committed. Mirrors `fm_app::dispatch::LastCommit`.
  *

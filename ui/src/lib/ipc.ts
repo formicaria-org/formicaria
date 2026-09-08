@@ -9,6 +9,7 @@ import type {
   GitAuth,
   ImportCheck,
   ImportReport,
+  KeptNote,
   LastCommit,
   DiscussionSummary,
   NoteDetail,
@@ -282,6 +283,25 @@ export const pruneDuplicates = (vault: string) =>
  *  the note's own frontmatter, not in anything this app remembers. */
 export const demoted = () => invoke<DemotedField[]>('demoted');
 export type { DemotedField };
+
+/** Notes a merge brought back after the other device deleted them — still present, per vault.
+ *
+ *  **The persistent half of `outstanding.md` §2.12.** A resurrection used to be reported in one
+ *  step line and one dismissible banner, both gone by the next screen, for a decision the app made
+ *  on the user's behalf. This reads it back out of the merge commits that did it, so the answer
+ *  survives a restart, a fresh clone, and the device that never ran the merge at all.
+ *
+ *  Derived, not stored — like `unrecorded` over `git status` and `demoted` over frontmatter. §2.12
+ *  assumed a chip here would need state of its own; it does not. */
+export const keptNotes = () => invoke<KeptNote[]>('kept_notes');
+
+/** "I have looked at these" — moves a **per-device** watermark to the current history.
+ *
+ *  Per device because the two devices are not asking the same question: one kept a note it was
+ *  editing, the other had deleted it and gets it back without ever running a merge. Acknowledging
+ *  on one must not answer for the other. */
+export const keptSeen = () => invoke<{ seen: boolean }>('kept_seen');
+export type { KeptNote };
 
 /** When each vault last saved anything, in epoch **seconds** — `null` where nothing ever has.
  *
