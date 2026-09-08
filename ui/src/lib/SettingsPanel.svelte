@@ -925,6 +925,17 @@
           <div class="vault">
             <div class="line">
               <strong>{labelFor(v.name)}</strong>
+              <!-- **The name too, wherever it differs from the label** — and only here, because this
+                   screen is the one that answers "what am I operating with?". Everywhere else the
+                   label is right: it is what two devices agree on. But the *name* is the identity —
+                   the argument every command takes, and on a phone the address a vault is created
+                   at (`resolve_path`) — so routing every surface through `labelFor` (2026-09-08)
+                   left the one string needed to add a vault back displayed nowhere at all. The
+                   owner hit exactly that within the hour: Settings said `formicarium-vault`, the
+                   new-vault form wanted `notes`, and nothing on screen connected them. -->
+              {#if labelFor(v.name) !== v.name}
+                <span class="muted small">name: {v.name}</span>
+              {/if}
               {#if v.default}<span class="tag">default</span>{/if}
             </div>
             <!-- Been on the wire since `list_vaults` existed and rendered nowhere until now.

@@ -5,7 +5,7 @@
 // 2026-07-31: "creates only confusion"). What is pinned here is the two-step and the wording: the
 // notes stay on disk, and the message has to say so, or "removed from the list" reads as "erased".
 
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { backupStatus, forgetVault } = vi.hoisted(() => ({
@@ -102,5 +102,24 @@ describe('removing a vault', () => {
     await fireEvent.click(first);
     await fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
     expect(forgetVault).not.toHaveBeenCalled();
+  });
+
+  // **Removing a vault changes which vaults exist, and the rest of the app has to hear about it.**
+  // Nothing refetched `list_vaults` after a removal, so the vault filter, the "Create in" picker
+  // and the label registry all still described the world before it until the app was relaunched.
+  // On a phone that is a long time — and it is what turned one mistaken removal into "my notes are
+  // gone" (2026-09-08), because the filter still listed a vault that had just left.
+  //
+  // Proven red by dropping the `onvaults?.()` call from `doForget`.
+  it('tells the app that the vault list changed', async () => {
+    const onvaults = vi.fn();
+    render(BackupPanel, { onclose: () => {}, onnewvault: () => {}, onvaults } as never);
+
+    // Two vaults in the fixture, so two remove buttons — the first one will do.
+    const buttons = await screen.findAllByRole('button', { name: /Remove this vault/i });
+    await fireEvent.click(buttons[0]);
+    await fireEvent.click(await screen.findByRole('button', { name: /Yes, remove it/i }));
+
+    await waitFor(() => expect(onvaults).toHaveBeenCalled());
   });
 });

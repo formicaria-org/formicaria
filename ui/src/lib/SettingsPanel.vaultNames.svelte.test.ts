@@ -45,6 +45,28 @@ describe('SettingsPanel — what a vault is called', () => {
     expect(screen.queryByText('lab', { exact: true })).toBeNull();
   });
 
+  it('shows the name as well, wherever it differs from the label', async () => {
+    // The label is what two devices agree on and is right everywhere else. The *name* is the
+    // identity — the argument every command takes, and on a phone the address a vault is created
+    // at — so this screen, the one that answers "what am I operating with?", has to carry both.
+    // Routing every surface through `labelFor` left the string needed to add a vault back
+    // displayed nowhere, and the owner hit it within the hour.
+    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    panel();
+
+    expect(await screen.findByText('lab-notes')).toBeTruthy();
+    expect(await screen.findByText('name: lab')).toBeTruthy();
+  });
+
+  it('does not repeat itself when the two are the same', async () => {
+    // `personal` carries no label, so `labelFor` returns the name — printing "name: personal"
+    // beside "personal" would be noise on the screen this is meant to make legible.
+    setVaultLabels([{ name: 'lab', label: 'lab-notes' } as VaultInfo]);
+    panel();
+    await screen.findByText('personal');
+    expect(screen.queryByText('name: personal')).toBeNull();
+  });
+
   it('falls back to the name for a vault with no remote to name it after', async () => {
     // `personal` carries no label in the fixture, and a vault with no remote never will — there is
     // no shared repository to agree about, so the local name is the honest answer.

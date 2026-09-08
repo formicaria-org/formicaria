@@ -159,6 +159,23 @@ pub fn format_size(bytes: u64) -> String {
     format!("{bytes}B")
 }
 
+/// **What a vault is called: caller > descriptor > directory.** One function, because it is asked in
+/// two places that must not drift — `FileStore::prepare`, which names the open store, and
+/// `fm_app::dispatch::infos`, which names the entry in the vault list. Those two answering
+/// differently is a vault that appears under one name in the switcher and another everywhere else.
+///
+/// `given` is the vault *list*'s name — the audience label this user chose — so a repo they cloned
+/// never renames it out from under them. The directory is the last resort: it is whatever git
+/// called the clone.
+pub fn vault_name(root: &std::path::Path, desc: Option<&Descriptor>, given: &str) -> String {
+    if !given.is_empty() {
+        return given.to_string();
+    }
+    desc.and_then(|d| d.name.clone())
+        .or_else(|| root.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "vault".to_string())
+}
+
 impl Descriptor {
     /// Read `<root>/vault.json`. **An absent file is `Ok(default)`, never an error** — the
     /// overwhelming majority of vaults will not have one, and a notebook that refused to

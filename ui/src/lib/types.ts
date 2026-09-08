@@ -599,3 +599,16 @@ export interface GitAuth {
     better: string | null;
   } | null;
 }
+
+/** A vault folder on this device that is **not** in the vault list — something to take back with
+ *  one tap. Only ever non-empty where there is a managed vault root (the phone, iOS): a desktop
+ *  puts vaults anywhere and has a file picker, so there is no closed set to offer.
+ *
+ *  `name` is the folder, which is also what to call the vault to land back on it — on a phone the
+ *  name *is* the address. `notes` is how many Markdown files are in it, because the question being
+ *  asked is never "which folder" but "which one has my work in it". */
+export interface Recoverable {
+  name: string;
+  path: string;
+  notes: number;
+}

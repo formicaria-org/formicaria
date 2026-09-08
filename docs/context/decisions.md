@@ -1611,6 +1611,20 @@ takes no scope while its sibling one line below, `backup_latest(app, scope, ..)`
 that followed found the other eight. `scoped_dispatch.rs` now asserts them together, because they
 failed together and for one reason.
 
+**Four more the same day, and one of them is a *write*.** A deliberate re-read found `forget_vault`
+looking its target up in the **unfiltered** list — so a device paired to one audience could
+*unregister* another one; the morning's fix had scoped only the value it hands back. With it:
+`check_path` (whose `overlaps` field returns a vault's **name**, from the new-vault form — exactly
+where a caller would go looking), and `conflicts` and `unrecorded`, which are scoped on their store
+half and were not on their git half. All four now go through the same filter, and the sweep covers
+them.
+
+**The sweep needed a repo to have anything to leak.** Adding `unrecorded` to it changed nothing at
+first: with no git in the fixture the arm answers `[]` whatever the filter does, so the assertion
+passed for the wrong reason — the trap that sweep exists to avoid, reintroduced by extending it. It
+now makes one fixture vault a repo and asserts the unscoped caller genuinely has something to
+disclose before asserting the scoped one does not.
+
 ## The poll answers a comparison, not a report: `ping` carries a generation (2026-07-26, `#seams` `#sync`)
 
 **Decision.** `ping` takes the `since` the client last saw and answers `changed = generation >

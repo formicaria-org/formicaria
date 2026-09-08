@@ -118,15 +118,7 @@ impl FileStore {
         // Caller > descriptor > directory. The caller is the vault *list* — the audience
         // label this user chose — so a repo they cloned never renames it out from under
         // them. The directory is the last resort: it is whatever git called the clone.
-        let name = if !given.is_empty() {
-            given
-        } else {
-            desc.name.clone().unwrap_or_else(|| {
-                root.file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| "vault".to_string())
-            })
-        };
+        let name = crate::descriptor::vault_name(root, Some(&desc), &given);
         fs::create_dir_all(&notes).map_err(io)?;
         let db = Connection::open(root.join("index.sqlite")).map_err(sql)?;
         Ok(FileStore {

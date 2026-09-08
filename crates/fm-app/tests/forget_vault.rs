@@ -137,3 +137,57 @@ fn a_missing_name_is_refused() {
     let err = call(&app, "forget_vault", serde_json::json!({})).unwrap_err();
     assert!(err.contains("needs a name"), "{err}");
 }
+
+/// **A vault removed by mistake comes back, with its notes, by creating it again under the same
+/// name.** The owner did exactly this on a phone (2026-09-08) — removed the wrong one of two — and
+/// nothing anywhere proved it was recoverable. `forgetting_never_deletes_a_file` above pins that the
+/// files survive, which is necessary and is not the same claim: what a person needs is that the app
+/// will take them back.
+///
+/// **Same name, and that is the load-bearing part on a phone.** `resolve_path` turns an empty path
+/// into `<vault root>/<name>`, so on a device with a managed root the name *is* the address —
+/// re-creating with a different spelling silently makes a new empty vault beside the notes instead
+/// of adopting them. `check_path` refuses a name already taken, a path already a vault and a path
+/// that overlaps one, but it does **not** refuse a directory that already holds notes: adopting an
+/// existing folder is a supported route in (`acquire.rs`), and this is the same route arrived at
+/// from the other direction.
+///
+/// Proven red by having `create_vault` refuse a non-empty directory.
+#[test]
+fn a_vault_removed_by_mistake_comes_back_with_its_notes() {
+    let home = tempdir().unwrap();
+    let real = vault_dir(home.path(), "vault", 3);
+    let app = app_over(&home, &[("vault".into(), real.clone())]);
+
+    call(&app, "forget_vault", serde_json::json!({ "name": "vault" })).unwrap();
+    let after: serde_json::Value =
+        serde_json::from_str(&call(&app, "list_vaults", serde_json::json!({})).unwrap()).unwrap();
+    assert!(after.as_array().unwrap().is_empty(), "precondition: it really is gone from the list");
+
+    // What a person does next: make a vault with the name they had, pointed at the folder that is
+    // still there. On a phone the path comes for free from the name.
+    let out = call(
+        &app,
+        "create_vault",
+        serde_json::json!({ "name": "vault", "path": real.to_string_lossy() }),
+    )
+    .expect("a folder that still holds notes must be adoptable again");
+
+    let names: Vec<String> = serde_json::from_str::<serde_json::Value>(&out)
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v["name"].as_str().map(str::to_string))
+        .collect();
+    assert_eq!(names, vec!["vault"], "it is in the list again");
+
+    // And the notes are *readable*, not merely present on disk — the whole point of coming back.
+    let recent: serde_json::Value =
+        serde_json::from_str(&call(&app, "recent", serde_json::json!({})).unwrap()).unwrap();
+    assert_eq!(
+        recent.as_array().unwrap().len(),
+        3,
+        "all three notes are back in the app, not just on the filesystem:\n{recent}"
+    );
+}

@@ -29,6 +29,8 @@
     backupLatest,
     commit,
     forgetVault,
+    recoverableVaults,
+    createVault,
     gitAuth,
     pull,
     setGitCredential,
@@ -40,6 +42,7 @@
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
+  import type { Recoverable } from './types';
   import { labelFor } from './vaultLabels.svelte';
   import type {
     BackupRun,
@@ -54,7 +57,16 @@
   // the app that is *about the set of vaults*, which makes it where you add one. (The
   // sidebar is search-first with New note / New board; those are note gestures, and a
   // vault is not a note.)
-  let { onclose, onnewvault }: { onclose: () => void; onnewvault: () => void } = $props();
+  /// `onvaults` fires whenever this panel changes **which vaults exist** — a removal or a recovery.
+  /// Without it nothing refetched `list_vaults`, so after a removal the vault filter, the "Create
+  /// in" picker and the label registry all still described the world before it, until the app was
+  /// relaunched. On a phone that is a long time, and it is what turned one mistaken removal into
+  /// "my notes are gone" (2026-09-08).
+  let {
+    onclose,
+    onnewvault,
+    onvaults,
+  }: { onclose: () => void; onnewvault: () => void; onvaults?: () => void } = $props();
 
   type Step = { text: string; ok: boolean };
 
@@ -223,6 +235,34 @@
   /// `verdict` line — that one only renders inside a backup run's step list, so a message put there
   /// is a message nobody sees.
   let forgetNote = $state<string | null>(null);
+  /// **Vault folders on this device that are not in the list.** The way back from a removal nobody
+  /// meant — and the reason it is a *list* rather than a name to retype: on a phone the name is the
+  /// address (`resolve_path`), and every other screen shows a vault's label rather than its name,
+  /// so the one identity needed to recover was the one nothing displayed. Reported 2026-09-08, by
+  /// someone who had just removed the wrong of two.
+  let recoverable = $state<Recoverable[]>([]);
+  /// Its own message, not `forgetNote`: that one is rendered inside the per-vault loop, so a single
+  /// sentence appears once per vault on the screen. Shown **outside** the section below, because
+  /// adding the last folder back empties the list and would take the confirmation with it — the
+  /// same trap `authSaved` exists to avoid one block up.
+  let recoveredNote = $state<string | null>(null);
+  async function loadRecoverable() {
+    recoverable = await recoverableVaults().catch(() => []);
+  }
+  async function takeBack(r: Recoverable) {
+    busy = true;
+    try {
+      await createVault(r.name, r.path);
+      onvaults?.();
+      recoveredNote = `Added “${r.name}” back with its ${r.notes} note${r.notes === 1 ? '' : 's'}.`;
+      error = null;
+      await load();
+    } catch (e) {
+      forgetNote = String(e);
+    } finally {
+      busy = false;
+    }
+  }
   async function doForget(name: string) {
     busy = true;
     try {
@@ -230,6 +270,7 @@
       confirmForget = null;
       // Says what stayed. The count is the whole point: nobody should have to wonder whether
       // removing a vault from a list deleted their notes.
+      onvaults?.();
       forgetNote =
         r.notes > 0
           ? `Removed “${r.forgotten}”. Its ${r.notes} note${r.notes === 1 ? '' : 's'} are still on disk at ${r.path}.`
@@ -237,7 +278,7 @@
       error = null;
       await load();
     } catch (e) {
-      forgetNote = String(e);
+      recoveredNote = String(e);
     } finally {
       busy = false;
     }
@@ -248,6 +289,7 @@
   async function load() {
     try {
       status = await backupStatus();
+      await loadRecoverable();
       for (const v of status.vaults) {
         remoteDrafts[v.name] ??= v.remote ?? '';
         nameDrafts[v.name] ??= '';
@@ -917,6 +959,33 @@
         {/if}
       </div>
     {/each}
+
+    {#if recoveredNote}
+      <p class="forget-note">{recoveredNote}</p>
+    {/if}
+
+    {#if recoverable.length}
+      <!-- Deliberately right after the vaults, next to the button that removes them, and worded as
+           what it is: folders already on this device, not a remote to fetch from. The note count is
+           the field that answers the question actually being asked — never "which folder" but
+           "which one has my work in it", since two folder names tell you nothing. -->
+      <section class="recoverable">
+        <h3>On this device, not in your list</h3>
+        <p class="muted small">
+          Removing a vault never deletes anything, so anything taken off the list by mistake is
+          here.
+        </p>
+        {#each recoverable as r (r.path)}
+          <div class="line">
+            <strong>{r.name}</strong>
+            <span class="muted">{r.notes} note{r.notes === 1 ? '' : 's'}</span>
+            <button type="button" onclick={() => void takeBack(r)} disabled={busy}>
+              Add it back
+            </button>
+          </div>
+        {/each}
+      </section>
+    {/if}
 
     {#if steps.length === 0}
       <ul class="promise">

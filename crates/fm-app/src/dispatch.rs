@@ -483,6 +483,15 @@ fn title_of(full: &std::path::Path) -> Option<String> {
 ///
 /// Asked of the descriptor rather than hardcoded: a vault may keep its notes in `docs/`, and
 /// hardcoding `notes/` is precisely the bug that had `verify` pass a vault it never opened.
+/// Where this vault keeps its notes — the descriptor's answer, falling back to `notes/`.
+///
+/// One function because four call sites had re-implemented it and one of them got it wrong.
+fn notes_dir_of(root: &std::path::Path) -> PathBuf {
+    fm_core::descriptor::Descriptor::read(root)
+        .map(|d| d.notes_dir(root))
+        .unwrap_or_else(|_| root.join("notes"))
+}
+
 fn notes_rel_of(root: &std::path::Path) -> String {
     fm_core::descriptor::Descriptor::read(root)
         .ok()
@@ -560,6 +569,9 @@ const READ_ONLY: &[&str] = &[
     "list_themes",
     "read_theme",
     "check_path",
+    // A directory listing of the managed root. Changes nothing, and bumping the generation for it
+    // would tell every connected client the vault moved because a settings screen opened.
+    "recoverable_vaults",
     // Asked on every keystroke while someone types a folder, exactly like `check_path`. Off this
     // list it would bump the generation each time and tell every connected client the vault had
     // changed — the `paper_bibtex` lesson, on a faster trigger.
@@ -607,7 +619,11 @@ fn dispatch_inner(
         "conflicts" => {
             let mut g = lock()?;
             let scanned = commands::conflicts(&g.store(scope)).map_err(err)?;
-            let configs = g.configs();
+            // The store half is scoped by `g.store(scope)`; the git half walks the vault list and
+            // was not — so a conflicted path in an audience the caller cannot read was reported to
+            // it, filename and all. Same rule, both halves.
+            let configs: Vec<VaultConfig> =
+                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
             let mut out: Vec<crate::dto::ConflictInfo> = Vec::new();
             let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
             for cfg in &configs {
@@ -850,7 +866,10 @@ fn dispatch_inner(
         }
         "unrecorded" => {
             let g = lock()?;
-            let configs = g.configs();
+            // Derived from `git status` over the vault list, so it needs the same filter every
+            // other list-walking read has.
+            let configs: Vec<VaultConfig> =
+                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
             let mut out: Vec<crate::dto::Unrecorded> = Vec::new();
             for cfg in &configs {
                 let notes_rel = notes_rel_of(&cfg.path);
@@ -1704,7 +1723,28 @@ fn dispatch_inner(
         "check_path" => {
             let path = resolve_path(&s("name"), &s("path"))?;
             let g = lock()?;
-            json(check_path(&g, app.config.as_deref(), app.config_writable, &s("name"), &path))
+            json(check_path(
+                &g,
+                scope,
+                app.config.as_deref(),
+                app.config_writable,
+                &s("name"),
+                &path,
+            ))
+        }
+        // **"Which vaults are on this device that I have not added?"** — the answer to a vault
+        // removed by mistake, and to a fresh install over an existing folder.
+        //
+        // **Nothing for a scoped caller.** These folders are not vaults yet, so `Scope` has no
+        // opinion about them and cannot be asked — which makes enumerating them a disclosure of
+        // the machine's contents to a paired device that could not add one anyway. `Scope::All` is
+        // the person at the keyboard, and this is a question only they get to ask.
+        "recoverable_vaults" => {
+            if !matches!(scope, Scope::All) {
+                return json(Vec::<Recoverable>::new());
+            }
+            let g = lock()?;
+            json(recoverable_vaults(&g))
         }
         "create_vault" => {
             json(create_vault(app, scope, &s("name"), &resolve_path(&s("name"), &s("path"))?)?)
@@ -2589,6 +2629,66 @@ struct Supervision {
 }
 
 /// What the create-vault form needs: the filesystem facts, plus the ones only the vault
+/// A vault folder sitting in the managed root that is **not** in the vault list — something to
+/// take back with one tap instead of a name typed from memory.
+///
+/// **Why this exists.** Removing a vault only unregisters it; the notes stay on disk, and every
+/// message says so. But *coming back* meant creating a vault whose name slugged to the same folder
+/// — and on a phone the name **is** the address (`resolve_path`), while the app shows labels rather
+/// than names everywhere else. So the one identity a person needed to recover was the one the UI
+/// had stopped showing them. The owner removed the wrong of two vaults on 2026-09-08 and had no way
+/// back from the screen they were on.
+///
+/// `notes` is the count of Markdown files, so the list can say which folder is the one with the
+/// work in it — the question actually being asked is never "which slug" but "which one is mine".
+#[derive(serde::Serialize)]
+struct Recoverable {
+    /// The folder name, which is also what to call the vault to land back on it.
+    name: String,
+    path: String,
+    notes: usize,
+}
+
+/// Every vault-shaped folder in the managed root that nothing in the list points at.
+///
+/// **Only where there is a managed root**, which is the phone and iOS — a desktop puts vaults
+/// wherever it likes and has a file picker, so there is no closed set to offer. Empty is the honest
+/// answer there, not an error.
+///
+/// **Vault-shaped means it has a `notes/` directory.** Deliberately not "is a git repo" (a fresh
+/// vault has no commits) and not "has a `vault.json`" (that is optional). Anything else in the root
+/// is not ours to offer.
+fn recoverable_vaults(g: &Vaults) -> Vec<Recoverable> {
+    let Some(root) = vaults::vault_root() else { return Vec::new() };
+    let taken: Vec<PathBuf> = g.configs().iter().map(|c| vaults::absolute(&c.path)).collect();
+    let mut out: Vec<Recoverable> = std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        // **The descriptor's notes directory, not `notes/`.** A vault may put its notes anywhere
+        // (`vault.json`'s `notes:`), and hardcoding the default made such a vault invisible here —
+        // neither detected nor counted, so the one screen that offers a vault back would silently
+        // not offer it. Same rule `inspect_path` and `forget_vault` use.
+        .filter(|p| notes_dir_of(p).is_dir())
+        .filter(|p| !taken.contains(&vaults::absolute(p)))
+        .filter_map(|p| {
+            let name = p.file_name()?.to_str()?.to_string();
+            let notes = std::fs::read_dir(notes_dir_of(&p))
+                .map(|rd| {
+                    rd.flatten()
+                        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
+                        .count()
+                })
+                .unwrap_or(0);
+            Some(Recoverable { name, path: p.to_string_lossy().into_owned(), notes })
+        })
+        .collect();
+    // Most notes first: the one someone is looking for is almost always the biggest.
+    out.sort_by(|a, b| b.notes.cmp(&a.notes).then_with(|| a.name.cmp(&b.name)));
+    out
+}
+
 /// list can answer, plus **the verdict**.
 ///
 /// `ok` is computed here and not in Svelte on purpose. Duplicating the policy in the
@@ -2981,11 +3081,18 @@ fn run_backup(app: &App, scope: &Scope, vault: &str) -> Result<BackupRun, String
 /// pass a check and both win.
 fn check_path(
     v: &Vaults,
+    scope: &Scope,
     config: Option<&Path>,
     config_writable: bool,
     name: &str,
     path: &str,
 ) -> PathCheck {
+    // **The caller's vaults, not the machine's.** `name_taken`, `path_taken` and above all
+    // `overlaps` — which returns a *name* — answer "does this already exist?" from the vault list,
+    // and the new-vault form is exactly where a paired device would go looking for one it was not
+    // granted. Same rule as `list_vaults`: an unknown vault and an out-of-scope vault must be
+    // indistinguishable, or the refusal is itself the disclosure.
+    let mine: Vec<&VaultConfig> = v.list.iter().filter(|e| scope.allows(&e.name)).collect();
     let path = PathBuf::from(vaults::expand_home(path));
     let facts = commands::inspect_path(&path);
 
@@ -2995,14 +3102,13 @@ fn check_path(
     // control characters (which would make a JSON entry unreadable to the human who has to
     // fix it).
     let name_ok = !name.trim().is_empty() && !name.chars().any(char::is_control);
-    let name_taken = v.list.iter().any(|e| e.name == name);
+    let name_taken = mine.iter().any(|e| e.name == name);
 
     // Canonical, because `~/notes` and `/home/you/notes/../notes` are the same directory
     // and only one of them may be a vault.
     let me = vaults::absolute(&path);
-    let path_taken = v.list.iter().any(|e| vaults::absolute(&e.path) == me);
-    let overlaps = v
-        .list
+    let path_taken = mine.iter().any(|e| vaults::absolute(&e.path) == me);
+    let overlaps = mine
         .iter()
         .find(|e| {
             let theirs = vaults::absolute(&e.path);
@@ -3044,7 +3150,7 @@ fn create_vault(
 
     // Re-run the check under the guard. The UI already ran it, but this is TOCTOU
     // territory and curl is a supported client.
-    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+    let check = check_path(&g, scope, app.config.as_deref(), app.config_writable, name, path);
     if !check.ok {
         return Err(refusal(&check, name));
     }
@@ -3125,7 +3231,7 @@ fn destination_problem(
         // An existing vault: it has to be one this caller can actually see.
         return g.config(scope, vault).err();
     }
-    let check = check_path(g, app.config.as_deref(), app.config_writable, name, path);
+    let check = check_path(g, scope, app.config.as_deref(), app.config_writable, name, path);
     (!check.ok).then(|| refusal(&check, name))
 }
 
@@ -3178,7 +3284,7 @@ fn run_import(
     let opts = fm_core::import::Options { create_stubs: stubs };
 
     if vault.is_empty() {
-        return import_into_new_vault(app, &source, name, path, opts);
+        return import_into_new_vault(app, scope, &source, name, path, opts);
     }
 
     // ── an existing vault ──────────────────────────────────────────────────────
@@ -3218,6 +3324,7 @@ fn run_import(
 /// outside the guard.
 fn import_into_new_vault(
     app: &App,
+    scope: &Scope,
     source: &Path,
     name: &str,
     path: &str,
@@ -3226,7 +3333,7 @@ fn import_into_new_vault(
     // 1. Validate and make the directory, under the guard.
     let (mut store, path, config) = {
         let g = app.lock()?;
-        let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+        let check = check_path(&g, scope, app.config.as_deref(), app.config_writable, name, path);
         if !check.ok {
             return Err(refusal(&check, name));
         }
@@ -3258,8 +3365,14 @@ fn import_into_new_vault(
     //    re-run rather than assumed — and `vaults::save` is still the commit point: JSON before
     //    memory, so a failed write never leaves a vault that vanishes on restart.
     let mut g = app.lock()?;
-    let check =
-        check_path(&g, app.config.as_deref(), app.config_writable, name, &path.to_string_lossy());
+    let check = check_path(
+        &g,
+        scope,
+        app.config.as_deref(),
+        app.config_writable,
+        name,
+        &path.to_string_lossy(),
+    );
     if !check.ok {
         return Err(format!(
             "the notes were imported into {}, but the vault could not be registered: {}.              Nothing was lost — the folder is there; add it with New vault once that is fixed.",
@@ -3321,9 +3434,13 @@ fn forget_vault(app: &App, scope: &Scope, name: &str) -> Result<serde_json::Valu
         return Err("which vault? forget_vault needs a name".into());
     }
     let mut g = app.lock()?;
+    // **Scoped, and this one is a write.** Every other leak closed on 2026-09-08 was a read; this
+    // is a caller *removing* an audience it was never granted. An out-of-scope vault gives the same
+    // "no vault named" as an unknown one, so the refusal cannot be used to probe for names.
     let cfg = g
         .configs()
         .into_iter()
+        .filter(|c| scope.allows(&c.name))
         .find(|c| c.name == name)
         .ok_or_else(|| format!("no vault named '{name}'"))?;
     let config = app.config.clone().ok_or(
@@ -3401,7 +3518,7 @@ fn clone_vault(
 ) -> Result<Vec<VaultInfo>, String> {
     let mut g = app.lock()?;
 
-    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+    let check = check_path(&g, scope, app.config.as_deref(), app.config_writable, name, path);
     if !check.ok {
         return Err(refusal(&check, name));
     }
@@ -3498,7 +3615,7 @@ fn restore_vault(
 ) -> Result<Vec<VaultInfo>, String> {
     let mut g = app.lock()?;
 
-    let check = check_path(&g, app.config.as_deref(), app.config_writable, name, path);
+    let check = check_path(&g, scope, app.config.as_deref(), app.config_writable, name, path);
     if !check.ok {
         return Err(refusal(&check, name));
     }
@@ -3773,11 +3890,10 @@ fn refusal(c: &PathCheck, name: &str) -> String {
 fn scoped_infos(g: &Vaults, scope: &Scope) -> Vec<VaultInfo> {
     let mine: Vec<VaultConfig> =
         g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
-    let names: Vec<&str> = g.all.names().into_iter().filter(|n| scope.allows(n)).collect();
-    infos(&mine, &names)
+    infos(&mine)
 }
 
-fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
+fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
     // Derived first for the whole list, because the collision rule needs to see all of them: two
     // vaults cloned from one repo would otherwise show the same label, and an ambiguous vault filter
     // hides notes from the wrong vault. When a label is not unique, **both** fall back to their local
@@ -3800,11 +3916,16 @@ fn infos(v: &[VaultConfig], store_names: &[&str]) -> Vec<VaultInfo> {
         .enumerate()
         .map(|(i, e)| VaultInfo {
             label: labels.get(i).cloned().flatten(),
-            name: if e.name.is_empty() {
-                store_names.get(i).map(|n| n.to_string()).unwrap_or_default()
-            } else {
-                e.name.clone()
-            },
+            // **Not `store_names[i]`.** That indexed the open stores positionally against the
+            // *config* list, and `MultiStore::open_with` skips a vault that fails to open — so the
+            // moment any vault was unopenable the two lists had different lengths and this named
+            // the wrong vault. Asked of the one function that decides it instead, from data this
+            // loop already has.
+            name: fm_core::descriptor::vault_name(
+                &e.path,
+                desc.get(i).and_then(|d| d.as_ref()),
+                &e.name,
+            ),
             path: e.path.to_string_lossy().into_owned(),
             default: i == 0,
             // Best-effort: a vault whose descriptor will not parse still belongs in the list, and

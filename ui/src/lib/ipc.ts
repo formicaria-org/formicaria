@@ -1,5 +1,6 @@
 import type {
   DemotedField,
+  Recoverable,
   Config,
   AssetStatus,
   BackupStatus,
@@ -238,6 +239,10 @@ export const templates = () => invoke<ObjectMeta[]>('templates');
  *
  *  The fourth verb the vault list needed: three commands created a vault and none removed one, which
  *  on the phone left an auto-created empty vault nobody could get rid of from inside the app. */
+/** Vault folders on this device that nothing in the list points at — the answer to a vault removed
+ *  by mistake, and to a fresh install over an existing folder. Empty on a desktop. */
+export const recoverableVaults = () => invoke<Recoverable[]>('recoverable_vaults', {});
+
 export const forgetVault = (name: string) =>
   invoke<{
     forgotten: string;

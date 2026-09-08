@@ -429,7 +429,12 @@
   ///
   /// Reads `hiddenVaults`, and is called from inside a `$derived`, so a pane's `.filter(shown)`
   /// re-runs when the filter changes.
-  const shown = (n: { id: string; vault: string }) => !(n.vault && hiddenVaults.includes(n.vault));
+  /// **Only names that still exist can hide anything.** A vault removed from the list leaves its
+  /// name behind in `localStorage`, where it is inert — and counting it made the "N of M" label lie
+  /// and kept a filter chip on screen for a vault nobody has. Derived, so the filter, the label and
+  /// the trigger's own visibility can never disagree about what "hidden" means.
+  const hidden = $derived(hiddenVaults.filter((n) => allVaults.includes(n)));
+  const shown = (n: { id: string; vault: string }) => !(n.vault && hidden.includes(n.vault));
 
   function toggleVault(name: string) {
     hiddenVaults = hiddenVaults.includes(name)
@@ -478,9 +483,9 @@
   /// is how a vault hidden weeks ago comes to read as notes that have gone missing. The trigger
   /// says how many of how many, so the answer to "where is that note?" is on the button.
   const vaultFilterLabel = $derived(
-    hiddenVaults.length === 0
+    hidden.length === 0
       ? 'All vaults'
-      : `${allVaults.length - hiddenVaults.length} of ${allVaults.length} vaults`,
+      : `${allVaults.length - hidden.length} of ${allVaults.length} vaults`,
   );
 
   /** Open the collapsed search and put the caret in it.
@@ -1997,7 +2002,13 @@
         {/each}
       </nav>
 
-      {#if allVaults.length > 1}
+      <!-- **Also whenever something is actually hidden, however few vaults there are.** This was
+         `allVaults.length > 1` alone, and the hazard the label's own comment names — "how a vault
+         hidden weeks ago comes to read as notes that have gone missing" — was reachable by exactly
+         that gate: hide one of two vaults, remove the other, and the control that undoes it stops
+         rendering while the filter keeps filtering. The app then looks like an empty notebook with
+         no way back. Reported by the owner, 2026-09-08. -->
+      {#if allVaults.length > 1 || hidden.length}
         <!-- **A menu, not a row of chips** (2026-08-31). One chip per vault does not survive a long
            list: it wrapped the bar onto extra rows and, collapsed, showed slivers of names. A menu
            costs one control whatever the list does.
@@ -2434,6 +2445,7 @@
       {#await import('./lib/BackupPanel.svelte') then { default: BackupPanel }}
         <BackupPanel
           onclose={() => (backupOpen = false)}
+          onvaults={() => void loadVaults()}
           onnewvault={() => {
             backupOpen = false;
             newVaultOpen = true;

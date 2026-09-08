@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 89 of them are below**, grouped by what they are for. If you add an arm to
+**All 90 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -119,6 +119,7 @@ change itself lives on that git branch. Nothing here writes to `main`.
 | `check_path` / `create_vault` | `name`, `path`  | `PathCheck` / `VaultInfo[]` | the surface owns the verdict, not the form |
 | `clone_vault`    | `url`, `name`, `path`, `gitName`, `gitEmail` | `VaultInfo[]` | clone a collaborator's vault and register it |
 | `forget_vault`   | `name`                       | `VaultInfo[]`          | removes it from the list. **The files are left alone** — forgetting is not deleting |
+| `recoverable_vaults` | —                        | `Recoverable[]`        | vault folders on this device that are not in the list, with a note count — the way back from a `forget_vault` nobody meant. Empty without a managed vault root, and empty for a scoped caller |
 | `restore_vault`  | `name`, `path`, `repo`       | `VaultInfo[]`          | rebuild a vault from a restic repository |
 | `copy_note` / `copy_status` / `uncopy_note` | `id`, `vault`; `with_assets` (copy) ; `blobs` (uncopy) | `CopyResult` / `CopyStatus` / `CopyResult` | cross-vault copy, its pre-check, and its undo. `with_assets` opts in to carrying the note's first-degree blobs; `blobs` names the ones an undo may take back |
 | `set_supervision` | `vault`, `collect`, `publish` | `VaultInfo[]`         | the two supervision-corpus consents, always written together — an absent key and a deliberate *no* must not look the same to whoever answers for it later |

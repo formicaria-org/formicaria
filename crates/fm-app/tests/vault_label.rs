@@ -115,3 +115,40 @@ fn two_clones_of_one_repo_fall_back_to_their_local_names() {
     assert_eq!(v[0]["name"], "mine");
     assert_eq!(v[1]["name"], "theirs");
 }
+
+/// **A vault with no name of its own is named the same way wherever it is asked.**
+///
+/// `infos` used to take the open stores' names and index them **positionally** against the config
+/// list — but `MultiStore::open_with` *skips* a vault it cannot open, so the two lists had different
+/// lengths the moment any vault was unopenable, and the fallback then named a vault after a
+/// different one. Both callers now ask `descriptor::vault_name`, which is the one place the rule
+/// (caller > descriptor > directory) lives.
+///
+/// Proven red by restoring `store_names.get(i)`: with an unopenable vault ahead of it in the list,
+/// the unnamed vault comes back under its neighbour's name.
+#[test]
+fn an_unnamed_vault_is_not_named_after_its_neighbour_when_one_fails_to_open() {
+    let home = tempdir().unwrap();
+
+    // A vault that cannot be opened: `vault.json` is not JSON, so `Descriptor::read` errors and
+    // `MultiStore` files it under `unopened` rather than opening it.
+    let broken = home.path().join("broken");
+    std::fs::create_dir_all(broken.join("notes")).unwrap();
+    std::fs::write(broken.join("vault.json"), "{ this is not json").unwrap();
+
+    // And one with an EMPTY name, so the fallback is what answers.
+    let unnamed = home.path().join("my-notes");
+    std::fs::create_dir_all(unnamed.join("notes")).unwrap();
+
+    let app =
+        app_over(&home, &[("broken".into(), broken.clone()), (String::new(), unnamed.clone())]);
+    let out = call(&app, "list_vaults");
+    let names: Vec<&str> =
+        out.as_array().unwrap().iter().filter_map(|v| v["name"].as_str()).collect();
+
+    assert!(
+        names.contains(&"my-notes"),
+        "the unnamed vault is named after its own directory, not the list position:\n{out}"
+    );
+    assert!(!names.contains(&""), "and it is not left nameless:\n{out}");
+}

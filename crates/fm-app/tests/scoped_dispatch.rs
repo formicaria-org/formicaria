@@ -170,7 +170,24 @@ fn the_backup_panel_shows_only_the_vaults_the_caller_can_reach() {
 /// when the ninth arm forgets to call it.
 #[test]
 fn no_arm_hands_back_a_vault_list_the_caller_may_not_see() {
-    let (_h, _a, _b, app, _, _) = two_vaults();
+    let (_h, a, _b, app, _, _) = two_vaults();
+
+    // **`unrecorded` needs a git repo to have anything to leak.** Without one it answers `[]`
+    // whatever the filter does, and the assertion below would pass for the wrong reason — the trap
+    // this sweep exists to avoid. `personal` becomes a repo whose note is untracked, so the
+    // unscoped caller genuinely has something to disclose.
+    let git = std::process::Command::new("git")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if git {
+        fm_core::git::ensure_repo(a.path()).expect("the fixture vault must become a repo");
+        let all = as_scope(&app, &Scope::All, "unrecorded", json!({})).unwrap();
+        assert!(
+            serde_json::to_string(&all).unwrap().contains("personal"),
+            "precondition: unscoped, there is something to disclose:\n{all}"
+        );
+    }
 
     for (cmd, args) in [
         ("list_vaults", json!({})),
@@ -178,6 +195,9 @@ fn no_arm_hands_back_a_vault_list_the_caller_may_not_see() {
         ("config", json!({})),
         ("set_git_assets_max", json!({ "vault": "lab", "max": "" })),
         ("set_supervision", json!({ "vault": "lab", "collect": true, "publish": false })),
+        ("conflicts", json!({})),
+        ("unrecorded", json!({})),
+        ("check_path", json!({ "name": "lab", "path": "/tmp/fm-scope-probe" })),
         ("forget_vault", json!({ "name": "lab" })),
     ] {
         let out = as_scope(&app, &lab(), cmd, args).unwrap_or_else(|e| panic!("{cmd}: {e}"));
@@ -187,6 +207,53 @@ fn no_arm_hands_back_a_vault_list_the_caller_may_not_see() {
             "`{cmd}` disclosed a vault outside the caller's scope:\n{text}"
         );
     }
+}
+
+/// **A vault a caller cannot see is a vault it cannot remove.** `forget_vault` looks its target up
+/// in the *unfiltered* list, so a device paired to one audience could unregister another one — a
+/// **write** across the boundary, where every other leak found on 2026-09-08 was a read. The fix
+/// that day scoped only the list the command hands *back*.
+///
+/// Refused the way `Scope` refuses everything else: an unknown vault and an out-of-scope vault give
+/// the identical error, so a caller cannot probe for names it was not given.
+///
+/// Proven red by looking the target up in `g.configs()` without `scope.allows`.
+#[test]
+fn a_vault_the_caller_cannot_see_cannot_be_removed() {
+    let (_h, _a, _b, app, _, _) = two_vaults();
+
+    let err = as_scope(&app, &lab(), "forget_vault", json!({ "name": "personal" }))
+        .expect_err("a scoped caller must not be able to forget another audience's vault");
+    assert!(
+        !err.contains("personal") || err.contains("no vault named"),
+        "and the refusal must not confirm the name exists: {err}"
+    );
+
+    // Still there, and still the machine's own user's to remove.
+    let all = as_scope(&app, &Scope::All, "list_vaults", json!({})).unwrap();
+    assert_eq!(all.as_array().unwrap().len(), 2, "nothing was removed");
+    assert!(as_scope(&app, &Scope::All, "forget_vault", json!({ "name": "personal" })).is_ok());
+}
+
+/// **`check_path` answers from the whole list**, so `name_taken` / `path_taken` / `overlaps` tell a
+/// scoped caller that a vault it cannot see exists — and `overlaps` names it outright. The
+/// new-vault form is exactly where a caller would go looking.
+///
+/// Proven red by reading `v.list` rather than the caller's slice.
+#[test]
+fn the_new_vault_form_does_not_confirm_vaults_the_caller_cannot_see() {
+    let (_h, a, _b, app, _, _) = two_vaults();
+
+    let out = as_scope(
+        &app,
+        &lab(),
+        "check_path",
+        json!({ "name": "personal", "path": a.path().to_string_lossy() }),
+    )
+    .unwrap();
+    assert_eq!(out["name_taken"], false, "the name of an unseen vault is not confirmed:\n{out}");
+    assert_eq!(out["path_taken"], false, "nor its folder:\n{out}");
+    assert!(out["overlaps"].is_null(), "and it is certainly not named:\n{out}");
 }
 
 /// Reaching a note by id, which is the shape every deep link and every `note:<ulid>` reference

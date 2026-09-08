@@ -547,6 +547,13 @@ export function setDuplicates(list: DuplicateFamily[]): void {
 }
 let mockUnopenedVaults: string[] = [];
 /// Configured vaults that would not open, as `name: why`. Test-only.
+/// Vault folders on this device that are not in the list. Empty by default, because a desktop —
+/// which is what every test renders — has no managed root and so never has any.
+let mockRecoverable: Array<{ name: string; path: string; notes: number }> = [];
+export function setRecoverable(list: Array<{ name: string; path: string; notes: number }>): void {
+  mockRecoverable = list.map((r) => ({ ...r }));
+}
+
 export function setUnopenedVaults(list: string[]): void {
   mockUnopenedVaults = [...list];
 }
@@ -649,6 +656,7 @@ export function reset(): void {
   notes.length = 0;
   notes.push(...FIXTURES.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta));
   bodyOverrides.clear();
+  mockRecoverable = [];
   blobs.clear();
   acceptedProposals.clear();
   seq = FIXTURE_SEQ;
@@ -909,6 +917,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       mockConflicts = mockConflicts.filter((c) => c.path !== String(args.path));
       return { resolved: String(args.path) } as T;
     }
+    case 'recoverable_vaults':
+      return mockRecoverable as T;
     case 'forget_vault': {
       // Mirrors the server: unregister, never delete. `notes` is what is being left behind.
       const name = String(args.name);
