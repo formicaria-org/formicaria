@@ -159,6 +159,32 @@ pub fn format_size(bytes: u64) -> String {
     format!("{bytes}B")
 }
 
+/// **Where a vault keeps its notes, without needing its descriptor first** — read it, fall back to
+/// `notes/`.
+///
+/// [`Descriptor::notes_dir`] is the rule; this is the *wrapper around a possibly-absent descriptor*,
+/// which four call sites had each written for themselves — and one of them (`recoverable_vaults`,
+/// 2026-09-08) skipped the descriptor entirely and hardcoded `notes/`, so a vault that keeps its
+/// notes elsewhere was invisible to the one screen that offers a vault back.
+///
+/// Absent and unparseable both fall back, deliberately: a vault whose `vault.json` has a typo still
+/// has notes, and this is asked by surfaces that must render rather than fail.
+pub fn notes_dir_of(root: &std::path::Path) -> PathBuf {
+    Descriptor::read(root).map(|d| d.notes_dir(root)).unwrap_or_else(|_| root.join("notes"))
+}
+
+/// How many notes are in that directory. Three call sites counted `*.md` for themselves, and two of
+/// them disagreed about *which* directory to count.
+pub fn note_count(root: &std::path::Path) -> usize {
+    std::fs::read_dir(notes_dir_of(root))
+        .map(|d| {
+            d.flatten()
+                .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
 /// **What a vault is called: caller > descriptor > directory.** One function, because it is asked in
 /// two places that must not drift — `FileStore::prepare`, which names the open store, and
 /// `fm_app::dispatch::infos`, which names the entry in the vault list. Those two answering

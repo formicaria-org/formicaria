@@ -206,3 +206,39 @@ fn a_save_keeps_keys_and_entries_it_did_not_write() {
     assert!(after.contains("\"personal\""), "and the new vault was appended: {after}");
     assert!(after.contains("\"lab\""), "beside the one that was already there: {after}");
 }
+
+/// **The form's note count follows the vault's own `notes:` setting.**
+///
+/// `inspect_path` is what draws "This folder already has N notes in it" — the line a person reads
+/// when pointing the app at a folder, and the one that says whether they are about to adopt work or
+/// start empty. A vault may keep its notes anywhere (`vault.json`'s `notes:`), and counting `notes/`
+/// regardless would tell someone their vault was empty while it holds two hundred.
+///
+/// Pinned here because the same wrapper was re-implemented four times and one copy
+/// (`recoverable_vaults`, 2026-09-08) did exactly that. All four now ask
+/// `fm_core::descriptor::note_count`, and this is the assertion that notices if one stops.
+///
+/// Proven red by counting `<root>/notes` instead of the descriptor's directory.
+#[test]
+fn the_note_count_follows_the_vaults_own_notes_directory() {
+    let d = tempdir().unwrap();
+    let v = d.path().join("elsewhere");
+    std::fs::create_dir_all(v.join("docs")).unwrap();
+    std::fs::write(v.join("vault.json"), r#"{"notes":"docs"}"#).unwrap();
+    for id in ["01KXJ6629KJCAYMYNWYMM9KM46", "01KXJPK8PPCNCPWGYTP0FR37VM"] {
+        std::fs::write(
+            v.join("docs").join(format!("{id}.md")),
+            format!(
+                "---\nschema: 1\nid: {id}\ntype: note\ntitle: t\n\
+                 created: 2026-07-15T06:07:19Z\nupdated: 2026-07-16T07:37:23Z\n---\nbody\n"
+            ),
+        )
+        .unwrap();
+    }
+    // An empty `notes/` beside it, which is what the hardcoded version would have counted.
+    std::fs::create_dir_all(v.join("notes")).unwrap();
+
+    let facts = inspect_path(&v);
+    assert_eq!(facts.notes, 2, "the two notes in `docs/` are found, not the empty `notes/`");
+    assert!(!facts.empty, "and the folder is not reported as empty");
+}

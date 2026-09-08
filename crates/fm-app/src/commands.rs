@@ -1704,16 +1704,7 @@ pub fn inspect_path(path: &Path) -> PathFacts {
     // `clone_vault` and `restore_vault` hand this), and one that puts its notes in `docs/`
     // would otherwise be previewed as "0 notes" right before the app opened it and found
     // hundreds — the preview contradicting the thing it is previewing.
-    let notes_dir = fm_core::descriptor::Descriptor::read(path)
-        .map(|d| d.notes_dir(path))
-        .unwrap_or_else(|_| path.join("notes"));
-    let notes = std::fs::read_dir(notes_dir)
-        .map(|d| {
-            d.flatten()
-                .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
-                .count()
-        })
-        .unwrap_or(0);
+    let notes = fm_core::descriptor::note_count(path);
 
     // The nearest existing ancestor is what we can actually probe: the path itself may
     // not exist yet, and "can I create it?" is a question about its parent.

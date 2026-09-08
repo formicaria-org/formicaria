@@ -483,21 +483,11 @@ fn title_of(full: &std::path::Path) -> Option<String> {
 ///
 /// Asked of the descriptor rather than hardcoded: a vault may keep its notes in `docs/`, and
 /// hardcoding `notes/` is precisely the bug that had `verify` pass a vault it never opened.
-/// Where this vault keeps its notes — the descriptor's answer, falling back to `notes/`.
-///
-/// One function because four call sites had re-implemented it and one of them got it wrong.
-fn notes_dir_of(root: &std::path::Path) -> PathBuf {
-    fm_core::descriptor::Descriptor::read(root)
-        .map(|d| d.notes_dir(root))
-        .unwrap_or_else(|_| root.join("notes"))
-}
-
 fn notes_rel_of(root: &std::path::Path) -> String {
-    fm_core::descriptor::Descriptor::read(root)
+    fm_core::descriptor::notes_dir_of(root)
+        .strip_prefix(root)
         .ok()
-        .and_then(|d| {
-            d.notes_dir(root).strip_prefix(root).ok().map(|p| p.to_string_lossy().into_owned())
-        })
+        .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| "notes".to_string())
 }
 
@@ -2712,17 +2702,11 @@ fn recoverable_vaults(g: &Vaults) -> Vec<Recoverable> {
         // (`vault.json`'s `notes:`), and hardcoding the default made such a vault invisible here —
         // neither detected nor counted, so the one screen that offers a vault back would silently
         // not offer it. Same rule `inspect_path` and `forget_vault` use.
-        .filter(|p| notes_dir_of(p).is_dir())
+        .filter(|p| fm_core::descriptor::notes_dir_of(p).is_dir())
         .filter(|p| !taken.contains(&vaults::absolute(p)))
         .filter_map(|p| {
             let name = p.file_name()?.to_str()?.to_string();
-            let notes = std::fs::read_dir(notes_dir_of(&p))
-                .map(|rd| {
-                    rd.flatten()
-                        .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
-                        .count()
-                })
-                .unwrap_or(0);
+            let notes = fm_core::descriptor::note_count(&p);
             Some(Recoverable { name, path: p.to_string_lossy().into_owned(), notes })
         })
         .collect();
@@ -3486,15 +3470,7 @@ fn forget_vault(app: &App, scope: &Scope, name: &str) -> Result<serde_json::Valu
     )?;
     // What is being left behind, counted *before* the vault leaves the live set — afterwards there
     // is nothing to ask. This is the number the UI shows so "removed" is never mistaken for "erased".
-    let notes = std::fs::read_dir(
-        fm_core::descriptor::Descriptor::read(&cfg.path)
-            .map(|d| d.notes_dir(&cfg.path))
-            .unwrap_or_else(|_| cfg.path.join("notes")),
-    )
-    .map(|rd| {
-        rd.flatten().filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md")).count()
-    })
-    .unwrap_or(0);
+    let notes = fm_core::descriptor::note_count(&cfg.path);
     let remote = vcs::remote(&cfg.path).ok().flatten();
 
     // The list is saved **first**: if that fails, nothing has changed and the vault is still there,
