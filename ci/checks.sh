@@ -1174,6 +1174,44 @@ fi
 #
 # The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
 # one rule that knows about the inset.
+echo "[check] a narrow-width hide outranks the utility class that shows it..."
+# **A media query adds no specificity.** So `.panel-toggle { display: none }` inside a width query
+# and `.icon-btn { display: grid }` at the top level TIE, and the winner is whichever sits later in
+# the file. `.icon-btn` is ~300 lines below, so it won: the collapse chevron rendered on every phone
+# and did nothing there, because a bar has no panel to collapse. Reported 2026-09-08 — "the right
+# most lower arrow in the lower bar after the wheel of settings is not doing anything."
+#
+# This is the *second* instance. `App.svelte` already carries a comment explaining the identical
+# failure for `.panel-views` — "at wide widths they tied and the later one won. The rail never
+# rendered, at any width, from the day it was added" — so the lesson was written down and not
+# applied to the button beside it. Hence a check rather than a third comment.
+#
+# Scoped to elements that carry `icon-btn`, because that is the class in this file which sets
+# `display` on something a width query also wants to hide. A bare hide on a class with no such
+# rival (`.save-label`) is fine and is not flagged: the rule is "outrank your rival", not "always
+# qualify". Nothing else can catch this — jsdom applies no CSS, so the tests that find these
+# buttons cannot tell you they are visible.
+util_classes=$(grep -o 'class="[^"]*icon-btn[^"]*"' ui/src/App.svelte \
+               | tr ' "' '\n\n' | grep -vE '^(class=|icon-btn|)$' | sort -u)
+for c in $util_classes; do
+    if awk -v cls=".$c" '
+        /@media/ { inmedia = 1; mdepth = depth }
+        {
+          line = $0; sub(/^[ \t]+/, "", line)
+          if (line ~ /\{[ \t]*$/ && line !~ /^@/) { sel = line; sub(/[ \t]*\{[ \t]*$/, "", sel) }
+          if (inmedia && line ~ /display:[ \t]*none/ && sel == cls) { print FNR; found = 1 }
+          n = gsub(/\{/, "{"); m = gsub(/\}/, "}"); depth += n - m
+          if (inmedia && depth <= mdepth) inmedia = 0
+        }
+        END { exit !found }' ui/src/App.svelte; then
+        echo "  FAIL: '.$c' is hidden by a bare one-class rule inside a @media, on an element that"
+        echo "        also carries .icon-btn — which sets 'display' at equal specificity. The two"
+        echo "        tie and source order decides, which is how the collapse chevron shipped"
+        echo "        visible-but-dead on every phone. Qualify it (e.g. '.topbar .$c')."
+        fail=1
+    fi
+done
+
 echo "[check] the touch floor for the top inset still clears a real camera cutout..."
 # **A number that was picked, then measured.** The coarse-pointer fallback for `--safe-top` was
 # 1.75rem = 28px, chosen before anyone held a device against it. The owner's phone reports

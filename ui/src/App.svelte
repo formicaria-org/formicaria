@@ -3031,12 +3031,28 @@
       grid-row: 1;
       min-height: 0;
     }
-    /* Only a panel can be collapsed; a bar is already as small as it gets. */
-    .panel-toggle {
+    /* Only a panel can be collapsed; a bar is already as small as it gets.
+
+       **`.topbar` is load-bearing here, and this is the second time.** A bare `.panel-toggle`
+       (0,1,0) ties with `.icon-btn { display: grid }` (0,1,0) — the utility class this button also
+       carries — and a media query adds no specificity, so the winner was decided by which came
+       later in the file. `.icon-btn` is declared ~300 lines below this block, so it won: the
+       collapse chevron was **visible on every phone and did nothing**, since there is no panel to
+       collapse there. Reported 2026-09-08: *"the right most lower arrow in the lower bar after the
+       wheel of settings is not doing anything."*
+
+       The comment above `.panel-views` already records this exact failure for the rail — *"a media
+       query adds no specificity, so at wide widths they tied and the later one won"* — and the
+       lesson was written down without being applied to its neighbour. So: qualify, and let
+       specificity decide rather than position. `ci/checks.sh` now refuses a bare one-class hide in
+       this block. */
+    .topbar .panel-toggle {
       display: none;
     }
-    /* No room for a rail along a bar — the Views button opens the same list instead. */
-    .panel-views {
+    /* No room for a rail along a bar — the Views button opens the same list instead. Qualified for
+       the same reason, though this one happened to work: its `display: flex` is declared *above*
+       this block, so source order was on its side. That is luck, not a rule. */
+    .topbar .panel-views {
       display: none;
     }
     /* **Help goes, Settings stays.** This used to hide every `.icon-btn`, which was survivable

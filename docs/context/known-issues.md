@@ -397,6 +397,19 @@ The gray-screen fix and its tests are in
   red plus shipped to the emulator as a visible ellipse on 2026-07-20. `svelte-check` cannot see
   this; one screenshot can.
 
+- **A media query adds no specificity, so a width-scoped hide can lose to a utility class.**
+  `.panel-toggle { display: none }` inside `@media (max-width: 59.999rem)` and
+  `.icon-btn { display: grid }` at the top level are both (0,1,0). They tie, and **source order
+  decides** — `.icon-btn` sits ~300 lines lower, so it won: the collapse chevron rendered on every
+  phone and did nothing there, because a bar has no panel to collapse. Reported 2026-09-08.
+  **This was the second instance**, and the first one's lesson was already written down three rules
+  above it (the `.panel-views` rail, invisible at every width from the day it was added) — which is
+  why it is now a check rather than a third comment: `ci/checks.sh` fails a bare one-class hide
+  inside a `@media` on any element that also carries `.icon-btn`. Qualify the selector
+  (`.topbar .panel-toggle`) so specificity decides rather than position. A bare hide on a class
+  with no rival (`.save-label`) is fine — the rule is *outrank your rival*, not *always qualify*.
+  jsdom applies no CSS, so the tests that find these buttons cannot tell you they are visible.
+
 - **Narrow layouts hide every `.icon-btn` in the top bar** (`[data-layout='single']` *and* the
   `auto` media query), because those controls live in the bottom `ViewBar` where the thumb is.
   Reusing that class for anything that must stay visible on a phone makes it silently vanish
