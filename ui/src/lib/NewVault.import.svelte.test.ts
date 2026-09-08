@@ -72,7 +72,6 @@ beforeEach(() => {
   config.mockResolvedValue({
     vault_list: '/home/x/.config/formicaria/vaults.json',
     vault_list_writable: true,
-    vaults: [{ name: 'personal', path: '/home/x/personal' }],
     restic: [],
     env: [],
     git: true,
@@ -83,7 +82,10 @@ beforeEach(() => {
   });
   checkPath.mockResolvedValue({ ok: true, name_ok: true, name_taken: false, path_taken: false });
   checkImport.mockResolvedValue(scan());
-  listVaults.mockResolvedValue([]);
+  // **The destination picker's vaults come from `list_vaults` now, not from `config`.** Both used
+  // to carry the list; the settings screen and this form kept private copies of it, and the copies
+  // drifted. One producer, so this is where the fixture belongs.
+  listVaults.mockResolvedValue([{ name: 'personal', path: '/home/x/personal' }]);
 });
 
 /** Switch to import mode and type a source folder, then wait for the debounced probe. */

@@ -16,6 +16,7 @@
 // they resolve the label here rather than every call site learning about labels. Same identity/display
 // split as `authorKey`/label for contributors — see `decisions.md#ui`.
 
+import { listVaults } from './ipc';
 import type { VaultInfo } from './types';
 
 /// **The vault list itself, not only its labels.**
@@ -52,4 +53,21 @@ export function vaultList(): VaultInfo[] | null {
 export function labelFor(vault: string | null | undefined): string {
   if (!vault) return '';
   return state.list?.find((v) => v.name === vault)?.label ?? vault;
+}
+
+/// Re-read the vault list. **The fetch lives here so a panel does not have to own one.**
+///
+/// Deliberately *not* "load it once if nobody has". A load-once left a panel showing whatever the
+/// list was when something else last fetched it — and the vault list changes underneath a panel
+/// every time one is created, removed or renamed. Opening a screen that lists vaults should show
+/// the vaults. `list_vaults` is the cheap arm (local `git config` reads, no network), which is why
+/// it can be asked on open at all; `backup_status` could not be.
+///
+/// A failure leaves whatever was there rather than blanking it: a refresh that could not happen is
+/// not evidence the vaults went away, and `null` means "still unknown", which is the distinction the
+/// boot gate turns on.
+export async function refreshVaults(): Promise<void> {
+  await listVaults()
+    .then(setVaults)
+    .catch(() => {});
 }

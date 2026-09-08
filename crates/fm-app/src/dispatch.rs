@@ -1776,25 +1776,17 @@ fn dispatch_inner(
         // to edit a vault's path or restic repo would silently no-op. Where something *is*
         // editable, it stays where it already is (the backup panel owns remotes and identity).
         //
-        // Deliberately cheap: vault list, config file, environment and capabilities, no
-        // shelling out. `backup_status` answers remotes and identities and is the slowest
-        // command in the app — a settings screen must not be a reason to run it.
+        // Deliberately cheap — and, since 2026-09-08, actually so. This comment claimed "no
+        // shelling out" while the arm carried a copy of the vault list, which spawns `git config`
+        // twice per vault to derive labels and identity. The list moved out to `list_vaults`, its
+        // one producer, and what is left here is true of the *machine*: the config file, the
+        // environment, and what is installed. No git at all, and no lock.
         "config" => {
-            let g = lock()?;
             let cap = capabilities();
             json(Config {
                 version: option_env!("FM_VERSION").unwrap_or("dev").to_string(),
                 vault_list: app.config.as_ref().map(|p| p.display().to_string()),
                 vault_list_writable: app.config_writable,
-                vaults: scoped_infos(&g, scope),
-                // Scoped for the same reason as `vaults` above: a backup repo is a path, often a
-                // host, and it names an audience this caller was not given.
-                restic: g
-                    .configs()
-                    .iter()
-                    .filter(|c| scope.allows(&c.name))
-                    .map(|c| VaultRestic { vault: c.name.clone(), repo: c.restic.clone() })
-                    .collect(),
                 env: [
                     "FM_VAULT",
                     "FM_VAULTS",
@@ -2511,8 +2503,10 @@ struct Config {
     /// False also means "we could not parse what is there", not merely "no permission" — and
     /// in that case we will never overwrite it. Both are worth showing.
     vault_list_writable: bool,
-    vaults: Vec<VaultInfo>,
-    restic: Vec<VaultRestic>,
+    // **The vault list is not here.** `list_vaults` produces it, and this carried a second copy —
+    // which the settings screen then joined back against a third, `restic`, by name. One fact, one
+    // producer: `restic_repo` is on `VaultInfo` now, and this arm answers only what is true of the
+    // *machine* rather than of any vault.
     env: Vec<EnvVar>,
     git: bool,
     /// Restic on this machine, distinct from `restic_password_set` (configured) and from
@@ -2549,15 +2543,6 @@ struct Config {
     platform: &'static str,
 }
 
-/// A vault's restic destination. Its own type rather than a field on `VaultInfo` because it
-/// comes from the config entry rather than the store — and because it is the one piece of
-/// backup configuration with no UI to edit it anywhere, which is precisely why it is shown.
-#[derive(serde::Serialize)]
-struct VaultRestic {
-    vault: String,
-    repo: Option<String>,
-}
-
 /// An `FM_*` override actually in effect. Only these are reported: they change where data
 /// lives or how the server binds, which is exactly what a confused user needs to see. No
 /// secret appears here — the restic password is reported as a bool and never by value.
@@ -2585,6 +2570,12 @@ struct VaultInfo {
     /// remote: `…/formicarium-vault.git` → `formicarium-vault`. `None` for a vault with no remote,
     /// which keeps its local name.
     ///
+    /// This vault's snapshot repository, straight from its config entry — **no cost at all**, which
+    /// is why it belongs on the cheap shape. It was reported twice instead: as `VaultStatus`'s
+    /// `restic_repo` on the slow network command, and again as `Config`'s separate `restic` list,
+    /// which the settings screen then had to join back against the vaults by name. One fact, one
+    /// producer.
+    pub restic_repo: Option<String>,
     /// **Display only; `name` remains the identity.** A vault's name is not a label — it is the write
     /// routing key (`MultiStore::route`), the argument seventeen dispatch arms take, and the key
     /// behind the UI's persisted view preferences (`hiddenVaults`, `fm-board-order`,
@@ -3940,6 +3931,7 @@ fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
                 &e.name,
             ),
             path: e.path.to_string_lossy().into_owned(),
+            restic_repo: e.restic.clone(),
             default: i == 0,
             // Best-effort: a vault whose descriptor will not parse still belongs in the list, and
             // reports "off" — the same as having no opinion. `Descriptor::read` is where a

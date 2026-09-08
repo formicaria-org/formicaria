@@ -18,24 +18,28 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { handle, reset } from './mock';
-import type { BackupStatus, Config } from './types';
+import type { BackupStatus, Config, VaultInfo } from './types';
 
 const config = () => handle<Config>('config', {});
 const status = () => handle<BackupStatus>('backup_status', {});
+const vaults = () => handle<VaultInfo[]>('list_vaults', {});
 
 beforeEach(() => reset());
 
 describe('the mock answers one fact the same way from every arm', () => {
-  it('config and backup_status agree about a repository after one is set', async () => {
-    const name = (await config()).vaults[0].name;
-    expect((await config()).restic[0].repo).toBeNull();
+  // **`config` no longer carries this.** It used to answer the vault list *and* a separate
+  // `restic` list, which the settings screen joined back by name — a third copy of a fact
+  // `backup_status` also reported. Since 2026-09-08 `restic_repo` lives on `VaultInfo`, so the two
+  // surfaces to hold together are `list_vaults` (which Settings reads) and `backup_status` (which
+  // the backup panel reads).
+  it('list_vaults and backup_status agree about a repository after one is set', async () => {
+    const name = (await vaults())[0].name;
+    expect((await vaults())[0].restic_repo).toBeNull();
 
     await handle('set_restic_repo', { vault: name, repo: '/backup/lab' });
 
-    // Settings reads `config`; the backup panel reads `backup_status`. They are the two surfaces
-    // that disagreed, so both are asserted rather than just the one that was wrong.
     expect((await status()).vaults.find((s) => s.name === name)?.restic_repo).toBe('/backup/lab');
-    expect((await config()).restic.find((r) => r.vault === name)?.repo).toBe('/backup/lab');
+    expect((await vaults()).find((v) => v.name === name)?.restic_repo).toBe('/backup/lab');
   });
 
   it('config and backup_status agree about the password after one is set', async () => {

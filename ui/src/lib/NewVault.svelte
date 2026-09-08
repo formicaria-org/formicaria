@@ -32,6 +32,7 @@
     VaultInfo,
   } from './types';
   import { describe, historyNote } from './vaultCheck';
+  import { vaultList, refreshVaults } from './vaults.svelte';
 
   interface Props {
     /** No vaults exist. The app is not usable until this succeeds. */
@@ -60,9 +61,10 @@
   const managed = $derived(vaultRoot !== null);
 
   onMount(async () => {
+    // The vault list, if this panel is the first thing to want it.
+    void refreshVaults();
     const cfg = await fetchConfig().catch(() => null);
     if (cfg) {
-      existing = cfg.vaults;
       vaultRoot = cfg.vault_root;
       // Nothing sensible to prefill on a phone, and the field is not shown there anyway.
       if (cfg.vault_root !== null) path = '';
@@ -103,7 +105,8 @@
   let importCheck = $state<ImportCheck | null>(null);
   let scanning = $state(false);
   let report = $state<ImportReport | null>(null);
-  let existing = $state<VaultInfo[]>([]);
+  /// The vaults that already exist, read from the one store rather than copied out of `config`.
+  const existing = $derived(vaultList() ?? []);
 
   // **Asked before the clone, not after it fails.** A typo, a private repo, and being offline
   // all come out of `git clone` as the same unusable sentence about usernames; these are three

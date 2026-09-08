@@ -39,7 +39,7 @@
   // every surface shows the repository behind the remote instead. This panel was displaying the
   // raw name, so the same vault read as two different vaults depending on which screen you opened
   // (reported 2026-09-08). See `vaults.svelte.ts`.
-  import { labelFor } from './vaults.svelte';
+  import { labelFor, setVaults, vaultList, refreshVaults } from './vaults.svelte';
   import * as keys from './keys';
   import { GIT_ASSETS_CEILING, GIT_ASSETS_WARN, humanSize } from './size';
 
@@ -55,8 +55,7 @@
   async function setConsent(vault: string, next: { collect?: boolean; publish?: boolean }) {
     consentError = null;
     try {
-      const vaults = await setSupervision(vault, next);
-      if (cfg) cfg = { ...cfg, vaults };
+      setVaults(await setSupervision(vault, next));
     } catch (e) {
       consentError = e instanceof Error ? e.message : String(e);
     }
@@ -67,8 +66,7 @@
   async function setAssetMax(vault: string, raw: string) {
     assetError = null;
     try {
-      const vaults = await setGitAssetsMax(vault, raw.trim());
-      if (cfg) cfg = { ...cfg, vaults };
+      setVaults(await setGitAssetsMax(vault, raw.trim()));
     } catch (e) {
       assetError = e instanceof Error ? e.message : String(e);
     }
@@ -156,6 +154,8 @@
   }
 
   onMount(async () => {
+    // The vault list, if this panel is the first thing to want it.
+    void refreshVaults();
     // Land on the requested heading, so a "+" button arrives where it meant to rather than at
     // the top of a long panel.
     if (section) queueMicrotask(() => document.getElementById(section)?.scrollIntoView());
@@ -397,7 +397,12 @@
     }
   }
 
-  const resticFor = (name: string) => cfg?.restic.find((r) => r.vault === name)?.repo ?? null;
+  /// **The vault list, read from the one store rather than out of `config`.** This panel used to
+  /// keep its own copy inside `cfg` and splice writers' return values into it — which left
+  /// `cfg.restic` stale, since only the `vaults` half was ever replaced. `mock.contract.test.ts`
+  /// exists because `config` and `backup_status` had already disagreed about exactly that field.
+  const vaults = $derived(vaultList() ?? []);
+  const resticFor = (name: string) => vaults.find((v) => v.name === name)?.restic_repo ?? null;
 
   function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -761,7 +766,7 @@
                   cannot see, search or open anything in the rest.
                 </span>
                 <ul class="caps">
-                  {#each cfg?.vaults ?? [] as v (v.name)}
+                  {#each vaults as v (v.name)}
                     <li>
                       <label class="choice">
                         <input
@@ -920,8 +925,8 @@
       </section>
 
       <section>
-        <h3>Vaults <span class="count">{cfg.vaults.length}</span></h3>
-        {#each cfg.vaults as v (v.name)}
+        <h3>Vaults <span class="count">{vaults.length}</span></h3>
+        {#each vaults as v (v.name)}
           <div class="vault">
             <div class="line">
               <strong>{labelFor(v.name)}</strong>

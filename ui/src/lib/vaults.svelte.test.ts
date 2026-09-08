@@ -16,6 +16,7 @@ const v = (name: string, label: string | null): VaultInfo => ({
   default: false,
   git_assets_max: null,
   supervision: { collect: true, publish: false },
+  restic_repo: null,
   label,
   identity: null,
 });

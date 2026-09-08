@@ -36,7 +36,7 @@ describe('SettingsPanel — how large an attachment may travel in git', () => {
   it('says nothing extra about a limit that is unremarkable', async () => {
     panel();
     // `lab` starts at 2MB in the mock — well under the warning line.
-    const input = await field('lab');
+    const input = await field('lab-notes');
     expect(input.value).toBe('2MB');
     expect(screen.queryByText(/That is large for git/)).toBeNull();
     expect(screen.queryByText(/more than will ever be sent/)).toBeNull();

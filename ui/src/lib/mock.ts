@@ -391,6 +391,7 @@ let mockVaults: Array<{
   path: string;
   git_assets_max: number | null;
   supervision: { collect: boolean; publish: boolean };
+  restic_repo: string | null;
   label: string | null;
   identity: { name: string; email: string } | null;
 }> = [
@@ -406,6 +407,7 @@ let mockVaults: Array<{
     path: '/home/you/notes',
     git_assets_max: null,
     supervision: { collect: true, publish: false },
+    restic_repo: null,
     label: null,
     identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
   },
@@ -414,6 +416,7 @@ let mockVaults: Array<{
     path: '/home/you/lab-notes',
     git_assets_max: 2_000_000,
     supervision: { collect: true, publish: false },
+    restic_repo: null,
     label: 'lab-notes',
     identity: { name: 'Ada Lovelace', email: 'ada@example.org' },
   },
@@ -1407,7 +1410,13 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // exercised (they only render above one). The first-run state — an empty list — is
     // reached for real, not here: `pnpm dev` should give you a working app.
     case 'list_vaults': {
-      const vaults: VaultInfo[] = mockVaults.map((v, i) => ({ ...v, default: i === 0 }));
+      const vaults: VaultInfo[] = mockVaults.map((v, i) => ({
+        ...v,
+        default: i === 0,
+        // The same state `set_restic_repo` writes and `backup_status` reads — the mock must not
+        // have a split the backend does not (`mock.contract.test.ts`).
+        restic_repo: mockRestic[v.name] ?? null,
+      }));
       return vaults as T;
     }
     case 'set_supervision': {
@@ -1424,7 +1433,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const target = String(args.vault ?? '');
       const v = mockVaults.find((x) => x.name === target) ?? mockVaults[0];
       v.git_assets_max = parseSize(String(args.max ?? ''));
-      const vaults: VaultInfo[] = mockVaults.map((x, i) => ({ ...x, default: i === 0 }));
+      const vaults: VaultInfo[] = mockVaults.map((x, i) => ({
+        ...x,
+        default: i === 0,
+        restic_repo: mockRestic[x.name] ?? null,
+      }));
       return vaults as T;
     }
     case 'check_path': {
@@ -1524,11 +1537,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         version: 'dev',
         vault_list: '~/.config/formicaria/vaults.json',
         vault_list_writable: true,
-        vaults: mockVaults.map((v, i) => ({ ...v, default: i === 0 })),
-        // Read from the same state `set_restic_repo` writes and `backup_status` reads. It starts
-        // empty, so the dev loop still opens on "no repository configured" — the default this
-        // used to hardcode — and now it *changes* when the user changes it.
-        restic: mockVaults.map((v) => ({ vault: v.name, repo: mockRestic[v.name] ?? null })),
         env: [{ name: 'FM_VAULT', value: 'vault' }],
         git: true,
         // Installed but not unlocked — the state that exercises the distinction between the
@@ -1563,6 +1571,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         git_assets_max: null,
         // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
         supervision: { collect: true, publish: false },
+        // A cloned vault has no snapshot repo yet — the backup panel is where one is set.
+        restic_repo: null,
         // A freshly created vault has no remote, so nothing to label it with — it keeps its name.
         label: null,
         // Nor a committer: git has not been told who you are, which is what the welcome screen asks.
@@ -1634,6 +1644,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         git_assets_max: null,
         // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
         supervision: { collect: true, publish: false },
+        // A cloned vault has no snapshot repo yet — the backup panel is where one is set.
+        restic_repo: null,
         // A clone *does* have a remote, so it gets the repository's name as its label.
         label:
           String(args.url ?? '')
@@ -1665,6 +1677,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         git_assets_max: null,
         // Collect locally, publish nothing: publication cannot be recalled, so it is never assumed.
         supervision: { collect: true, publish: false },
+        // A cloned vault has no snapshot repo yet — the backup panel is where one is set.
+        restic_repo: null,
         // A restored vault has no remote until one is set.
         label: null,
         // The restore brings back a repository whose commits already carry a committer, but this

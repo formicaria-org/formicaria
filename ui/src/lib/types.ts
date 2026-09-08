@@ -399,6 +399,11 @@ export interface VaultInfo {
   /** What may be done with this vault's review record. Two independent answers, never one flag:
    *  agreeing to record something locally is not agreeing to publish it. */
   supervision: { collect: boolean; publish: boolean };
+  /** This vault's snapshot repository, from its config entry. Here rather than only on
+   *  `VaultStatus` because it costs nothing to read and the settings screen needs it without
+   *  paying for a network round trip — it used to arrive as `Config.restic`, a separate list the
+   *  panel joined back by name. */
+  restic_repo: string | null;
   /** **What to show instead of `name`**: the repository behind this vault's remote
    *  (`…/formicarium-vault.git` → `formicarium-vault`), or `null` for a vault with no remote — or
    *  when two vaults would derive the same label. Display only; `name` stays the identity. See
@@ -544,8 +549,6 @@ export interface Config {
   vault_list: string | null;
   /** False also means "unparseable, so we will never overwrite it" — not merely "no permission". */
   vault_list_writable: boolean;
-  vaults: VaultInfo[];
-  restic: { vault: string; repo: string | null }[];
   /** `FM_*` overrides actually in effect. Never contains a secret. */
   env: { name: string; value: string }[];
   git: boolean;
