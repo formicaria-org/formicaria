@@ -769,8 +769,23 @@
       .catch(() => {});
     const keys = distinctFeeds(workspace.panes);
     try {
+      // **A feed that failed is not a feed that is empty.** This swallowed every error to `{}`, so
+      // `cards` became `[]` and the timeline drew "No notes yet" — the app telling someone their
+      // notebook was empty because a read had failed. There is no loading state either, so an
+      // unresolved feed looked identical. Reported 2026-09-08, after a vault filter emptied every
+      // view and the screen said exactly that.
+      const failed: string[] = [];
       const entries = await Promise.all(
-        keys.map(async (k) => [k, await loadFeed(k).catch(() => ({}) as Feed)] as const),
+        keys.map(
+          async (k) =>
+            [
+              k,
+              await loadFeed(k).catch((e) => {
+                failed.push(e instanceof Error ? e.message : String(e));
+                return {} as Feed;
+              }),
+            ] as const,
+        ),
       );
       feeds = Object.fromEntries(entries);
       // Clear only what *this* function put there. It used to clear unconditionally, which
@@ -778,6 +793,15 @@
       // activity — and `refresh()` runs on every pane change and every `changed` beat, so
       // "unrelated" was most of the time. A message about losing work has to outlive a poll.
       if (errorIsTransient) error = null;
+      // Left **transient**, unlike `report()`: the next successful refresh should clear it. A read
+      // that failed once is not news worth outliving the poll that fixes it — but a screen that
+      // says nothing at all is how "the backend is down" reads as "you have written nothing".
+      if (failed.length) {
+        error =
+          failed.length === 1
+            ? `Could not load this view: ${failed[0]}`
+            : `Could not load ${failed.length} views: ${failed[0]}`;
+      }
     } catch (e) {
       error = String(e);
       errorIsTransient = true;
