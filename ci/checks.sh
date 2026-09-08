@@ -1174,6 +1174,32 @@ fi
 #
 # The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
 # one rule that knows about the inset.
+echo "[check] the touch floor for the top inset still clears a real camera cutout..."
+# **A number that was picked, then measured.** The coarse-pointer fallback for `--safe-top` was
+# 1.75rem = 28px, chosen before anyone held a device against it. The owner's phone reports
+# `DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — a cutout **40 CSS pixels** tall — so
+# 28px put a tappable control 12px under the lens whenever the shell's real insets had not arrived.
+# Reported 2026-09-08: "we cannot use top pixels."
+#
+# This floor is only reached when the shell has not spoken, which is exactly when nothing else can
+# catch it: jsdom applies no CSS, and the failure is invisible on a desktop and on an emulator with
+# no cutout. So the one thing that can be checked — that the number is not quietly lowered again —
+# is checked here. Measured with a headless viewport at 390x844 with touch emulation on; below
+# 2.5rem the top control re-enters the cutout.
+floor=$(grep -oE '\-\-safe-top: max\(env\(safe-area-inset-top, 0px\), [0-9.]+rem\)' ui/src/app.css \
+        | grep -oE '[0-9.]+rem' | tr -d 'rem')
+if [ -z "$floor" ]; then
+    echo "  FAIL: could not find the coarse-pointer --safe-top floor in ui/src/app.css."
+    echo "        It is what keeps a control out of the camera cutout when the shell has not"
+    echo "        reported insets yet. If the shape changed, update this check with it."
+    fail=1
+elif [ "$(awk -v f="$floor" 'BEGIN { print (f < 2.75) ? 1 : 0 }')" -eq 1 ]; then
+    echo "  FAIL: the --safe-top touch floor is ${floor}rem, below the 2.75rem minimum."
+    echo "        A measured phone cutout is 40 CSS px; anything under 2.5rem puts a tappable"
+    echo "        control under the front camera whenever the shell's insets have not arrived."
+    fail=1
+fi
+
 echo "[check] the app speaks the user's words, not git's..."
 # The rule and the whole rationale live in `ci/plain-words.py`'s docstring and in `decisions.md`
 # (2026-09-08, `#ui`): no push/pull/commit/remote/branch in anything a person reads. Its own header

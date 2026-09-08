@@ -153,7 +153,42 @@
     onkeyschanged?.();
   }
 
+  /// **What the screen keeps for itself** — the camera cutout, the status bar, the home bar.
+  ///
+  /// Here because **it is the only way to see it**. A phone renders its layout against these four
+  /// numbers, and on the owner's device the app's own logs are unreadable — `known-issues.md`:
+  /// *"Rust's stderr is not routed to logcat on Android at all, and MIUI suppresses app logcat
+  /// output besides."* When they reported (2026-09-08) that the top strip was being used, neither
+  /// of us could tell whether the shell's inset bridge had delivered or the stylesheet's fallback
+  /// was in force — the difference between a bug and a too-small guess, and no surface said which.
+  ///
+  /// **Measured, not read.** `getPropertyValue('--safe-top')` hands back the *specified* token —
+  /// `max(env(safe-area-inset-top, 0px), 2.75rem)` — because a custom property is substituted
+  /// rather than computed. Only laying it out resolves it, so this puts the four values on a hidden
+  /// probe's padding and reads that back: whatever finally won, including the shell's inline
+  /// override, is what appears.
+  let insets = $state<{ top: number; right: number; bottom: number; left: number } | null>(null);
+  function measureInsets() {
+    if (typeof document === 'undefined') return;
+    const probe = document.createElement('div');
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;pointer-events:none;top:0;left:0;width:0;height:0;' +
+      'padding-top:var(--safe-top);padding-right:var(--safe-right);' +
+      'padding-bottom:var(--safe-bottom);padding-left:var(--safe-left);';
+    document.body.appendChild(probe);
+    const cs = getComputedStyle(probe);
+    const px = (v: string) => Math.round(parseFloat(v) || 0);
+    insets = {
+      top: px(cs.paddingTop),
+      right: px(cs.paddingRight),
+      bottom: px(cs.paddingBottom),
+      left: px(cs.paddingLeft),
+    };
+    probe.remove();
+  }
+
   onMount(async () => {
+    measureInsets();
     // The vault list, if this panel is the first thing to want it.
     void refreshVaults();
     // Land on the requested heading, so a "+" button arrives where it meant to rather than at
@@ -1099,6 +1134,26 @@
             {:else}
               <span class="none">not installed</span> — heavy media has nowhere to back up, and a vault
               cannot be restored from a backup on this machine.
+            {/if}
+          </li>
+          <!-- **The strip the app must not draw in.** Reported 2026-09-08 from a phone: *"you are
+               continuing to use the top part of the screen which is untouchable and passes through
+               the frontal camera… we cannot use top pixels."* Stated as a number because the two
+               ways it can go wrong look identical on screen — the shell's bridge not delivering,
+               and a fallback smaller than the device's cutout — and this is the only surface that
+               can tell them apart on a device whose logs are suppressed. -->
+          <li>
+            <span class="k">screen edges kept clear</span>
+            {#if insets && (insets.top || insets.bottom || insets.left || insets.right)}
+              <code>top {insets.top} · bottom {insets.bottom}</code>
+              {#if insets.left || insets.right}
+                <code>sides {insets.left} / {insets.right}</code>
+              {/if}
+              — nothing is drawn under the camera or the home bar.
+            {:else}
+              <span class="none">none</span> — this screen reports no camera cutout and no system bars,
+              so the app uses every pixel. Right on a desktop; on a phone it means the shell did not say,
+              and something may sit under the lens.
             {/if}
           </li>
           {#if cfg.platform === 'ios'}

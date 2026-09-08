@@ -132,9 +132,42 @@ class MainActivity : TauriActivity() {
   /// JavaScript interface is re-injected into every document Android loads, so it is present for
   /// the first page and survives every reload — and wry uses exactly this mechanism for its own
   /// IPC bridge, so it is native to this stack rather than a new idea.
+  /// **The device's own status-bar height, in CSS pixels** — the fallback, and not a guess.
+  ///
+  /// `top` is 0 until the first inset dispatch, and there is a window before that in which the page
+  /// can lay itself out. The stylesheet's floor for that window was `1.75rem` = 28px, chosen before
+  /// anyone had measured one: this phone's camera cutout alone is `DisplayCutout insets=Rect(0, 130
+  /// - 0, 0)` = 130px / 3.25 = **40 CSS px**, so a 28px floor puts a tappable control 12px under the
+  /// lens. Reported 2026-09-08: *"you are continuing to use the top part of the screen which is
+  /// untouchable and passes through the frontal camera… we cannot use top pixels."*
+  ///
+  /// Android has always known the real number, so ask it rather than picking one: `status_bar_height`
+  /// is a platform dimen resource, available immediately and correct per device. A phone whose
+  /// status bar is shorter than its cutout would still be wrong, so the cutout is unioned in where
+  /// the API exists — this returns the larger of the two, which is what `systemBars() or
+  /// displayCutout()` will report once it does dispatch.
+  private fun fallbackTop(): Float {
+    val d = resources.displayMetrics.density
+    val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+    val bar = if (id > 0) resources.getDimensionPixelSize(id) / d else 0f
+    val cut =
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        (window?.decorView?.rootWindowInsets?.displayCutout?.safeInsetTop ?: 0) / d
+      } else {
+        0f
+      }
+    return maxOf(bar, cut)
+  }
+
   inner class Insets {
     @JavascriptInterface
-    fun json(): String = "{\"top\":$top,\"right\":$right,\"bottom\":$bottom,\"left\":$left}"
+    fun json(): String {
+      // **Never report a zero top before the first dispatch.** Zero is indistinguishable from
+      // "this device has no status bar", and the page cannot tell the difference either — so the
+      // one reading that must never be guessed downwards is guessed from the device itself.
+      val t = if (top > 0f) top else fallbackTop()
+      return "{\"top\":$t,\"right\":$right,\"bottom\":$bottom,\"left\":$left}"
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
@@ -147,6 +180,11 @@ class MainActivity : TauriActivity() {
     if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
       WebViewCompat.addDocumentStartJavaScript(webView, APPLY_INSETS, setOf("*"))
     }
+
+    // Ask immediately rather than waiting for the system's own first dispatch: the sooner the real
+    // numbers replace `fallbackTop()`, the smaller the window in which the page is laid out against
+    // an approximation — even a good one.
+    ViewCompat.requestApplyInsets(webView)
 
     ViewCompat.setOnApplyWindowInsetsListener(webView) { v, insets ->
       val i = insets.getInsets(

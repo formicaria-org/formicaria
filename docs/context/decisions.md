@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -6919,3 +6919,49 @@ send."* It matches the *shape* of the sentence across both backends and several 
 friendly shrug throws away its only diagnosis, which is the worse failure. That is also how
 *the app speaks the user's words, not git's* stays satisfied without an allowlist — the exception
 was always meant to be the diagnostic, not the headline.
+
+## The top strip belongs to the device, and the number for it is never guessed (2026-09-08, `#ui` `#track-m`)
+
+**Decision.** The height the app keeps clear at the top of a phone is **asked of the device**, never
+chosen. Android's bridge answers with the live `WindowInsetsCompat` and, before the first dispatch,
+with the device's own `status_bar_height` unioned with `safeInsetTop`. The stylesheet's
+coarse-pointer floor — the last ditch, for a touch device with no bridge and no working `env()` — is
+raised to `2.75rem` and pinned by `ci/checks.sh`. Settings → *This machine* prints the resolved
+values.
+
+**The report:** *"On the phone you are continuing to use the top part of the screen which is
+untouchable and passes through the frontal camera. This will be an issue for all phones, we cannot
+use top pixels."*
+
+**They were right, and the cause was a number somebody picked.** The inset bridge (2026-08-31) is
+correct and every surface consumes the tokens. But the *fallback* under it was `1.75rem` = 28px,
+written before there was a device to check it against. Measured on the owner's phone:
+`DisplayCutout insets=Rect(0, 130 - 0, 0)` at density 3.25 — the camera occupies the top **40 CSS
+pixels**. So at any moment the bridge had not delivered, the app laid itself out against 28px and
+the top control sat 12 pixels under the lens.
+
+**Proven, not inferred.** At 390x844 with touch emulation, `--safe-top` at 28px puts the
+`Board · status` **button** at y=28 — inside the 0-40 cutout. At 2.75rem (44px), and at the shell's
+real 52px, nothing interactive is above the line. The device numbers came from
+`adb shell dumpsys window` — observation only, nothing written to the phone.
+
+**Why a bigger floor is not the real fix, and what is.** A floor is a guess wearing a default's
+clothes: 44px clears *this* cutout, and the next phone is not obliged to agree. So the floor is only
+the last ditch, and the mechanism that matters is that **Android now has no zero state** —
+`fallbackTop()` reads `status_bar_height`, a platform dimen available immediately and correct per
+device, so the page is never laid out against an approximation even on its first frame.
+`requestApplyInsets` is also called as soon as the WebView exists, to shorten that frame further.
+
+**Consequences:**
+- **`ci/checks.sh` refuses a floor below 2.75rem.** Verified to fire. Nothing else can catch this:
+  jsdom applies no CSS, and the failure is invisible on a desktop and on an emulator without a
+  cutout — which is why the previous number survived from the day it was written.
+- **The insets are now readable from the UI.** `known-issues.md` records that this phone's logs are
+  unreadable (*"Rust's stderr is not routed to logcat on Android at all, and MIUI suppresses app
+  logcat output besides"*), and a broken bridge and a too-short floor look identical on screen. The
+  row is **measured, not read**: `getPropertyValue('--safe-top')` returns the unresolved token,
+  because a custom property is substituted rather than computed, so a hidden probe's padding is
+  laid out and read back.
+- **The cost is accepted.** A `pointer: coarse` device with a working `env()` and no cutout gets a
+  larger top pad than it needs. That is the right side to err on: too much space wastes pixels, too
+  little makes a control unpressable.
