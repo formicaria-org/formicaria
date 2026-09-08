@@ -61,6 +61,9 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   touching `join_conflicted`, `marks`, `narrowing_is_safe` or `structured` — it carries the five
   shapes an adversarial audit found, why the guard is asked per *unit* rather than per source line,
   and why declining is a first-class answer there) ·
+  ***One producer per fact*** (read before adding a field to `VaultStatus` or `Config`, or a second
+  place that assembles a vault list — it carries why the three shapes are split by *cost* and why
+  merging the arms is ruled against) ·
   *The in-process sync path: the app merges* ·
   *Git is a capability, not a dependency* · *`git2` is rejected* **⟶ + The libgit2 exception**
   (read the pair — it is a reversal chain) · *Notes merge through a driver that shells out* ·
@@ -6675,3 +6678,49 @@ structure there to be finer about.
 **Not resolution by fiat.** Nothing is discarded and nothing is auto-settled that was not settled
 before. Only the **boundary** of the marked region moved, and only inwards, towards the
 disagreement.
+
+## 2026-09-08 — one producer per fact, and the settings screens read rather than assemble `#vault` `#seams` `#ui`
+
+**Decision.** Every fact about a vault has exactly one producer. `list_vaults` answers what a vault
+*is* — name, path, default, label, identity, attachment limit, supervision, restic repo: every cheap
+local read. `backup_status` answers only what it alone can, and pays a per-vault network
+`ls-remote` to do it. `config` answers about the **machine**. On the client the vault list lives in
+one store (`ui/src/lib/vaults.svelte.ts`) and the panels read it instead of keeping copies.
+
+**Why, in the owner's words:** *"you are just patching errors but not reconsidering that the
+settings are not all connected and disjoint. There should be a single place they come from"* — said
+after a day in which I fixed six symptoms one at a time. They were right, and every one of those
+symptoms was this: Settings and Backup options naming the same vault differently; a vault claiming
+*"committed here"* when nothing was committed; a refused token that could not be replaced; nine arms
+leaking vault names past a `Scope`. The last cost real anxiety — a vault removed by mistake, and
+nothing on screen able to say that two hundred notes were safe.
+
+**This extends two standing rulings rather than contradicting either.** *A caller is a member of some
+audiences* (2026-07-26) already said the vault list has one filtered accessor; *a vault is labelled
+by its remote* (2026-07-31) already split identity from display. Both were **written and then only
+partly applied**, which is the pattern this entry is really about.
+
+**What was actually duplicated — and it was not the endpoints.** The three shapes exist for a
+reason, and merging them is ruled against five times over: `backup_status` is the slowest command in
+the app, and `last_commits` and `backup_latest` were each split *out* of it, each with its own
+entry. **The split by cost stays.** What was duplicated was *facts with several producers* and
+*rules written several times*: restic readiness in five places, the default vault in four, the scope
+filter in eight, notes-directory resolution in four, note counting in three, the machine's
+capabilities probed by three separate commands under two different field names.
+
+**The cause, which is worth more than the list.** Each site was correct when it was written, and
+nothing checked the sum — `CLAUDE.md`'s four questions failing in the one direction they cannot
+catch, because nobody was *adding* anything. Two of the copies were already wrong when found: one
+counted `notes/` regardless of a vault's own setting (mine, the same afternoon), and one indexed the
+open stores positionally against a list that skips the ones that failed to open.
+
+**Two things left alone on purpose.** The restic *reason ladders* answer "which condition is
+missing", which is a different question from "will it run" — collapsing them would cost the messages
+that make the difference legible, which is the failure `restic_ready`'s own comment records. And the
+screens did not move: the owner chose one data source behind the existing two, not one screen.
+
+**What this does not fix, stated plainly.** `SettingsPanel` and `BackupPanel` each contain exactly
+one `@media`, and it is `(pointer: coarse)`. Neither has a width-based rule, so a phone renders the
+desktop layout — which is the likeliest cause of the complaint that started this (*"hard to
+understand which line corresponds to which option"*) and is untouched by any of it. Layout is the
+next stage, and it is a different kind of work.

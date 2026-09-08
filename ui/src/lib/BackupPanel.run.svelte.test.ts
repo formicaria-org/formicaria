@@ -18,18 +18,29 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { backupStatus, backupLatest, gitAuth, backup, commit, pull, push, getNote, lastCommits } =
-  vi.hoisted(() => ({
-    backupStatus: vi.fn(),
-    backupLatest: vi.fn(),
-    gitAuth: vi.fn(),
-    backup: vi.fn(),
-    commit: vi.fn(),
-    pull: vi.fn(),
-    push: vi.fn(),
-    getNote: vi.fn(),
-    lastCommits: vi.fn(),
-  }));
+const {
+  backupStatus,
+  backupLatest,
+  gitAuth,
+  backup,
+  commit,
+  pull,
+  push,
+  getNote,
+  lastCommits,
+  listVaults,
+} = vi.hoisted(() => ({
+  backupStatus: vi.fn(),
+  backupLatest: vi.fn(),
+  gitAuth: vi.fn(),
+  backup: vi.fn(),
+  commit: vi.fn(),
+  pull: vi.fn(),
+  push: vi.fn(),
+  getNote: vi.fn(),
+  lastCommits: vi.fn(),
+  listVaults: vi.fn(),
+}));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   backupStatus,
@@ -41,6 +52,7 @@ vi.mock('./ipc', async (importOriginal) => ({
   push,
   getNote,
   lastCommits,
+  listVaults,
 }));
 
 import BackupPanel from './BackupPanel.svelte';
@@ -63,6 +75,22 @@ const show = (
   { restic = true, password = true, git = true } = {},
 ) => {
   backupStatus.mockResolvedValue({ vaults, git, restic, restic_password_set: password });
+  // **The cheap half of a vault comes from the vault list now**, not from `backup_status` — a
+  // vault's committer, its attachment limit and its snapshot repo are local reads and were being
+  // reported by both. The fixtures still describe one vault in one place; this splits them the way
+  // the two commands do.
+  listVaults.mockResolvedValue(
+    vaults.map((v) => ({
+      name: v.name as string,
+      path: '',
+      default: false,
+      git_assets_max: (v.git_assets_max ?? null) as number | null,
+      supervision: { collect: true, publish: false },
+      restic_repo: (v.restic_repo ?? null) as string | null,
+      label: null,
+      identity: (v.identity ?? null) as { name: string; email: string } | null,
+    })),
+  );
   render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
 };
 

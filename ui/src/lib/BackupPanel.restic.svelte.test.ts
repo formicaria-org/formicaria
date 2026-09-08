@@ -12,11 +12,12 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { backupStatus, gitAuth, setResticRepo, setResticPassword } = vi.hoisted(() => ({
+const { backupStatus, gitAuth, setResticRepo, setResticPassword, listVaults } = vi.hoisted(() => ({
   backupStatus: vi.fn(),
   gitAuth: vi.fn(),
   setResticRepo: vi.fn(),
   setResticPassword: vi.fn(),
+  listVaults: vi.fn(),
 }));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
@@ -24,6 +25,7 @@ vi.mock('./ipc', async (importOriginal) => ({
   gitAuth,
   setResticRepo,
   setResticPassword,
+  listVaults,
 }));
 
 import BackupPanel from './BackupPanel.svelte';
@@ -42,6 +44,20 @@ const vault = (name: string, restic_repo: string | null) => ({
 
 const show = (vaults: ReturnType<typeof vault>[], { restic = true, password = false } = {}) => {
   backupStatus.mockResolvedValue({ vaults, git: true, restic, restic_password_set: password });
+  // The cheap half of a vault — its snapshot repo among them — is produced by the vault list now,
+  // not by `backup_status`. One fixture, split the way the two commands are.
+  listVaults.mockResolvedValue(
+    vaults.map((v) => ({
+      name: v.name as string,
+      path: '',
+      default: false,
+      git_assets_max: null,
+      supervision: { collect: true, publish: false },
+      restic_repo: (v.restic_repo ?? null) as string | null,
+      label: null,
+      identity: null,
+    })),
+  );
   render(BackupPanel, { onclose: () => {}, onnewvault: () => {} });
 };
 

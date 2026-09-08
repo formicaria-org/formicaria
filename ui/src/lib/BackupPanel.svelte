@@ -42,8 +42,13 @@
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
-  import type { Recoverable } from './types';
-  import { labelFor } from './vaults.svelte';
+  import type { VaultInfo, Recoverable } from './types';
+
+  /// A vault as this panel needs it: the network facts from `backup_status`, and the cheap ones
+  /// from the vault list. Both used to arrive on `VaultStatus`, which meant the slow command
+  /// re-described a vault it had no special knowledge of.
+  type PanelVault = VaultStatus & Pick<VaultInfo, 'identity' | 'git_assets_max' | 'restic_repo'>;
+  import { labelFor, refreshVaults, vaultList } from './vaults.svelte';
   import type {
     BackupRun,
     BackupStatus,
@@ -122,7 +127,24 @@
   // `remote: null, identity: null`, which looks exactly like "not set up yet" — so the
   // panel would cheerfully invite you to configure a tier that cannot run.
   const noGit = $derived(!!status && !status.git);
-  const vaults = $derived(status?.vaults ?? []);
+  /// **One vault, from its two producers.** `backup_status` answers what only it can — the remote,
+  /// what is unpushed, whether someone has pushed, which notes conflict — and pays a network
+  /// `ls-remote` per vault to do it. Everything else about a vault (its committer, its attachment
+  /// limit, its snapshot repo) is a cheap local read and belongs on the vault list, which is where
+  /// it is now produced. It used to be reported by *both*, refreshed at different moments, so the
+  /// two screens could disagree about the same field. Merged here, once, rather than at eighteen
+  /// call sites.
+  const vaults = $derived(
+    (status?.vaults ?? []).map((s): PanelVault => {
+      const info = vaultList()?.find((v) => v.name === s.name);
+      return {
+        ...s,
+        identity: info?.identity ?? null,
+        git_assets_max: info?.git_assets_max ?? null,
+        restic_repo: info?.restic_repo ?? null,
+      };
+    }),
+  );
   // Tickable if *anyone* can take media. Vaults without a restic repo are not a reason to
   // grey out the ones that have one — they are a reason to say their media stayed put.
   const anyRestic = $derived(vaults.some((v) => v.restic_ready));
@@ -143,15 +165,15 @@
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
-  const needsIdentity = (v: VaultStatus) => v.identity === null;
+  const needsIdentity = (v: PanelVault) => v.identity === null;
   // **Only an `https://` remote can use a token.** An `ssh://`/`git@` remote authenticates with
   // the key in your agent, and offering a token field for one would be inviting a user to solve
   // a problem they do not have with a credential that will never be consulted.
-  const usesToken = (v: VaultStatus) => !!v.remote && /^https?:\/\//i.test(v.remote);
+  const usesToken = (v: PanelVault) => !!v.remote && /^https?:\/\//i.test(v.remote);
   // Ask for a token only where pasting one would change something: an HTTPS remote, git present,
   // and nothing already stored for it. A machine whose helper already has the credential is
   // finished, and says so instead of showing an empty box.
-  const needsToken = (v: VaultStatus) =>
+  const needsToken = (v: PanelVault) =>
     usesToken(v) && !noGit && !!auth[v.name] && !auth[v.name]!.have_credential;
   /// **A stored credential that the remote rejects is not a credential.** `needsToken` asks only
   /// whether one is *present*, so a token that has expired or been revoked left the field hidden
@@ -159,7 +181,7 @@
   /// way to change it. Reported from the phone, 2026-09-08, with three commits stuck behind it.
   /// Session-scoped on purpose: this is the answer to a push that just failed, and it appears in
   /// the same breath as the reason.
-  const authRejected = (v: VaultStatus) => {
+  const authRejected = (v: PanelVault) => {
     const st = syncFor(v.name);
     return (
       usesToken(v) &&
@@ -168,7 +190,7 @@
       /authentication|auth failed|401|403/i.test(st.error ?? '')
     );
   };
-  const canSaveRemote = (v: VaultStatus) =>
+  const canSaveRemote = (v: PanelVault) =>
     !busy &&
     !noGit &&
     !!remoteDrafts[v.name]?.trim() &&
@@ -187,9 +209,9 @@
   // `GIT_ASSETS_CEILING`, and the staging walk clamps it — so quoting the raw value here would
   // promise a push that carries more than it does. That is the same class of overstatement this
   // line was written to remove.
-  const effectiveMax = (v: VaultStatus) =>
+  const effectiveMax = (v: PanelVault) =>
     v.git_assets_max ? Math.min(v.git_assets_max, GIT_ASSETS_CEILING) : null;
-  const carries = (v: VaultStatus) => {
+  const carries = (v: PanelVault) => {
     const max = effectiveMax(v);
     return max ? `notes, and attachments up to ${humanSize(max)}` : 'notes only';
   };
@@ -226,7 +248,7 @@
   const noPassword = 'no backup password is set on this machine';
   // A single vault has no boundary to talk about, so don't name it at every turn.
   const plural = $derived(vaults.length > 1);
-  const of = (v: VaultStatus) => (plural ? ` (${v.name})` : '');
+  const of = (v: PanelVault) => (plural ? ` (${v.name})` : '');
 
   /// Which vault has been clicked once. A two-step, because it changes what the app shows you and a
   /// single misclick in a list of vaults should not.
@@ -289,8 +311,10 @@
   async function load() {
     try {
       status = await backupStatus();
+      // The cheap half of a vault, from its own producer.
+      await refreshVaults();
       await loadRecoverable();
-      for (const v of status.vaults) {
+      for (const v of vaults) {
         remoteDrafts[v.name] ??= v.remote ?? '';
         nameDrafts[v.name] ??= '';
         emailDrafts[v.name] ??= '';
@@ -316,7 +340,7 @@
   /// entry absent — the line simply does not render. A panel that cannot answer must not invent
   /// one, and every other thing on this screen still works.
   async function loadLatest() {
-    for (const v of status?.vaults ?? []) {
+    for (const v of vaults) {
       if (!v.restic_repo) continue;
       latest[v.name] = await backupLatest(v.name).catch(() => null);
     }
@@ -348,13 +372,13 @@
   /// which renders as no token row at all — a panel that cannot answer the question must not
   /// invent an answer, and everything else here still works.
   async function loadAuth() {
-    for (const v of status?.vaults ?? []) {
+    for (const v of vaults) {
       if (!usesToken(v)) continue;
       auth[v.name] = await gitAuth(v.remote ?? '').catch(() => null);
     }
   }
 
-  async function saveToken(v: VaultStatus) {
+  async function saveToken(v: PanelVault) {
     const token = tokenDrafts[v.name]?.trim();
     if (!token || busy) return;
     error = null;
@@ -367,7 +391,7 @@
     }
   }
 
-  async function saveRestic(v: VaultStatus) {
+  async function saveRestic(v: PanelVault) {
     if (busy) return;
     error = null;
     try {
@@ -390,7 +414,7 @@
     }
   }
 
-  async function saveRemote(v: VaultStatus) {
+  async function saveRemote(v: PanelVault) {
     const url = remoteDrafts[v.name]?.trim();
     if (!url || busy) return;
     error = null;
@@ -409,7 +433,7 @@
   // different intentions, and a button that quietly did both would be a button nobody
   // could predict. Commit first for the same reason `run()` does — the 5s auto-commit
   // is best-effort, and git will not merge over uncommitted edits.
-  async function bringDown(v: VaultStatus) {
+  async function bringDown(v: PanelVault) {
     if (busy) return;
     busy = true;
     steps = [];
@@ -487,7 +511,7 @@
     // Every vault gets its own commit + push, and its own line in the report. A vault
     // that fails must not cancel the others — and must not be quietly folded into a
     // cheerful summary either.
-    for (const v of status.vaults) {
+    for (const v of vaults) {
       if (!v.remote) {
         stuck.push(v.name);
         steps.push({
@@ -535,7 +559,7 @@
     // failure this panel exists to prevent. Independent of the git tier: a failed push
     // must not cancel a snapshot.
     if (heavy) {
-      for (const v of status.vaults) {
+      for (const v of vaults) {
         if (!v.restic_ready) {
           noMedia.push(v.name);
           steps.push({
@@ -570,7 +594,7 @@
     // `stuck` and the git sentence would report a failure where there was no attempt — and
     // "your notes are still on this machine" is flatly wrong when the snapshot tier just sent
     // them somewhere, because a snapshot carries the notes directory as well as `blobs/`.
-    const gitRan = !noGit && status.vaults.some((v) => !!v.remote);
+    const gitRan = !noGit && vaults.some((v) => !!v.remote);
     verdict =
       (!gitRan
         ? 'No vault has a git remote, so nothing was pushed.'

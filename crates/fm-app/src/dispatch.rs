@@ -2757,11 +2757,6 @@ struct VaultStatus {
     remote: Option<String>,
     /// Commits made here but not on the remote; null when never pushed.
     unpushed: Option<u32>,
-    /// Who this vault's commits are signed by, or null when nobody real is — the panel
-    /// asks for a name only when this is null, so anyone whose git is already configured
-    /// never sees the question. Per vault on purpose: a vault is an audience, and the
-    /// name on a lab repo need not be the one on your personal notes.
-    identity: Option<git::Identity>,
     /// Someone else has pushed work we don't have. Null when unknowable (no remote,
     /// never pushed, or offline — a sleeping laptop is not an error). One `ls-remote`,
     /// which moves no refs: knowing must not itself be the thing that puts the vault
@@ -2769,23 +2764,11 @@ struct VaultStatus {
     remote_moved: Option<bool>,
     /// Notes with conflict markers sitting in them, waiting for a human.
     conflicts: Vec<String>,
-    /// Where this vault's media backs up to — a path or URL, so the UI can say whether
-    /// it would leave this machine. **Never the password.** Null when this vault has no
-    /// restic repo, which is not an error: a restic repo is per repository, so a set of
-    /// vaults needs one each, and you may well not want one for all of them.
-    restic_repo: Option<String>,
     /// This vault's media could actually be backed up **right now**: restic is installed,
     /// this vault has a repo, and a password is set. All three, because "ready"
     /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
     /// and then fails on a machine with no restic.
     restic_ready: bool,
-    /// The largest attachment this vault sends with its notes, or null for the default —
-    /// notes only. **Here because the git tier cannot otherwise state its own scope.** The
-    /// panel's promise line said "media is not included" unconditionally, which is false for
-    /// any vault with a limit set: `commit_all` `git add -f`s every blob at or under it. The
-    /// value is set in Settings and read here; a surface that says what a tier carries has to
-    /// be told what the tier carries.
-    git_assets_max: Option<u64>,
 }
 
 /// What each backup tier can do right now, per vault. fm-core stays free of environment
@@ -2960,18 +2943,9 @@ fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
             name: v.name.clone(),
             remote: vcs::remote(&v.path).unwrap_or(None),
             unpushed: vcs::unpushed(&v.path).unwrap_or(None),
-            identity: vcs::identity(&v.path),
             remote_moved: vcs::remote_moved(&v.path).unwrap_or(None),
             conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
             restic_ready: restic_ready(&cap, v.restic.as_ref()),
-            restic_repo: v.restic.clone(),
-            // Best-effort, exactly as the vault list treats it (`VaultInfo::git_assets_max`): a
-            // descriptor that will not parse reports "off", the same as having no opinion. One
-            // small JSON read per vault, beside the network `ls-remote` two lines up that
-            // dominates this whole call.
-            git_assets_max: fm_core::descriptor::Descriptor::read(&v.path)
-                .ok()
-                .and_then(|d| d.git_assets_max),
         })
         .collect();
     Ok(BackupStatus {
@@ -3933,10 +3907,10 @@ fn infos(v: &[VaultConfig]) -> Vec<VaultInfo> {
             path: e.path.to_string_lossy().into_owned(),
             restic_repo: e.restic.clone(),
             default: i == 0,
-            // Best-effort: a vault whose descriptor will not parse still belongs in the list, and
-            // reports "off" — the same as having no opinion. `Descriptor::read` is where a
-            // malformed file is loudly an error; this call is the vault *list*, which must not
-            // fail to render because one vault has a typo in a setting.
+            // Best-effort: a vault whose descriptor will not parse still belongs in the list and
+            // reports "off", the same as having no opinion. `Descriptor::read` is where a
+            // malformed file is loudly an error; the vault *list* must not fail to render because
+            // one vault has a typo in a setting.
             git_assets_max: desc.get(i).and_then(|d| d.as_ref().and_then(|d| d.git_assets_max)),
             supervision: {
                 let sup =
@@ -4023,8 +3997,11 @@ mod tests {
         let out = call(&app, "backup_status", serde_json::json!({})).unwrap();
         assert!(!out.contains(secret), "the restic password must never cross the wire: {out}");
         assert!(out.contains("\"restic_password_set\":true"), "{out}");
-        // Reported per vault, and separately from the machine-wide facts.
-        assert!(out.contains("\"restic_repo\":\"/tmp/no-such-restic-repo\""), "{out}");
+        // The repo itself is reported by the vault list, not here: it is a local read, and this
+        // command is the slow one. What `backup_status` still owns is whether the tier *will run*.
+        assert!(out.contains("\"restic_ready\":true"), "all three conditions are met: {out}");
+        let listed = call(&app, "list_vaults", serde_json::json!({})).unwrap();
+        assert!(listed.contains("\"restic_repo\":\"/tmp/no-such-restic-repo\""), "{listed}");
 
         crate::secrets::clear_restic_password().unwrap();
         let out = call(&app, "backup_status", serde_json::json!({})).unwrap();
@@ -4177,14 +4154,18 @@ mod tests {
             serde_json::json!({ "vault": "notes", "repo": "/tmp/lab-backup" }),
         )
         .unwrap();
-        assert!(out.contains("/tmp/lab-backup"), "{out}");
+        let _ = out;
         let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
         assert!(on_disk.contains("/tmp/lab-backup"), "not persisted: {on_disk}");
+        // **Read back from the arm that now produces it.** `backup_status` used to carry
+        // `restic_repo` too; it is a local read and belongs on the vault list, which is the one
+        // place it comes from since 2026-09-08.
+        let listed = call(&app, "list_vaults", serde_json::json!({})).unwrap();
+        assert!(listed.contains("/tmp/lab-backup"), "the vault list reports it: {listed}");
 
-        let out =
-            call(&app, "set_restic_repo", serde_json::json!({ "vault": "notes", "repo": "" }))
-                .unwrap();
-        assert!(out.contains("\"restic_repo\":null"), "empty must clear it: {out}");
+        call(&app, "set_restic_repo", serde_json::json!({ "vault": "notes", "repo": "" })).unwrap();
+        let listed = call(&app, "list_vaults", serde_json::json!({})).unwrap();
+        assert!(listed.contains("\"restic_repo\":null"), "empty must clear it: {listed}");
         let on_disk = std::fs::read_to_string(home.path().join("vaults.json")).unwrap();
         assert!(!on_disk.contains("/tmp/lab-backup"), "still on disk: {on_disk}");
     }

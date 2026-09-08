@@ -136,30 +136,16 @@ export interface VaultStatus {
   remote: string | null;
   /** Commits made here but not on the remote; null when never pushed. */
   unpushed: number | null;
-  /** Null when nobody real signs this vault's commits — either git has no identity
-   *  configured, or it still holds the placeholder. A remote cannot be set while
-   *  this is null, because git history is forever and an unattributed shared vault
-   *  cannot answer "who touched this?". */
-  identity: Identity | null;
   /** Someone else has pushed work we don't have. Null when unknowable: no remote,
    *  never pushed, or simply offline — a sleeping laptop is not an error. */
   remote_moved: boolean | null;
   /** Notes with conflict markers in them, waiting for a human. The `.md` merge driver
    *  keeps markers out of the frontmatter, so these still open in the editor. */
   conflicts: string[];
-  /** Where this vault's media backs up to — a path or URL, never the password. Null when
-   *  this vault has no restic repo, which is not an error: a restic repo is per
-   *  repository, so a set of vaults needs one each. */
-  restic_repo: string | null;
   /** This vault's media could actually be backed up **now**: restic is installed, this
    *  vault has a repo, and the password is set. All three — "ready" has to mean
    *  "will work", not "is configured". */
   restic_ready: boolean;
-  /** The largest attachment this vault sends with its notes; null is the default, notes
-   *  only. Here so the git tier can state its own scope: "media is not included" is false
-   *  for any vault with a limit, whose blobs at or under it are committed and pushed. Set
-   *  in Settings ("Send attachments under"), read here. */
-  git_assets_max: number | null;
 }
 
 /** What each backup tier could do right now (`backup_status`).

@@ -1929,21 +1929,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           name: v.name,
           remote: v.remote,
           unpushed: v.remote ? 2 : null,
-          identity: v.identity,
           remote_moved: v.remote ? false : null,
           conflicts: [],
-          // Per vault, like the real backend: a restic repo is per repository. Null here
-          // because the mock has no vault to snapshot, which also puts the "this vault's
-          // media has nowhere to go" wording on screen under `pnpm dev`.
-          restic_repo: mockRestic[v.name] ?? null,
           // The real rule: restic installed, this vault has a repo, and a password is set. All
           // three, because "ready" must mean the backup would actually run.
           restic_ready: !!mockRestic[v.name] && mockResticPassword,
-          // Read from `mockVaults`, never a second literal: Settings writes the limit there and
-          // the backup panel reads it here, so the two surfaces must not be able to disagree
-          // under `pnpm dev` — which is the whole defect this field exists to fix. `personal`
-          // starts off and `lab` starts on, so both sentences are on screen.
-          git_assets_max: mockVaults.find((m) => m.name === v.name)?.git_assets_max ?? null,
         })),
         git: true,
         restic: true,

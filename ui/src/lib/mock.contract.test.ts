@@ -27,18 +27,18 @@ const vaults = () => handle<VaultInfo[]>('list_vaults', {});
 beforeEach(() => reset());
 
 describe('the mock answers one fact the same way from every arm', () => {
-  // **`config` no longer carries this.** It used to answer the vault list *and* a separate
-  // `restic` list, which the settings screen joined back by name — a third copy of a fact
-  // `backup_status` also reported. Since 2026-09-08 `restic_repo` lives on `VaultInfo`, so the two
-  // surfaces to hold together are `list_vaults` (which Settings reads) and `backup_status` (which
-  // the backup panel reads).
-  it('list_vaults and backup_status agree about a repository after one is set', async () => {
+  // **Retired as a cross-arm test, because the duplication is gone.** This once held `config` and
+  // `backup_status` together over a vault's snapshot repo — they had drifted, and `config`
+  // hardcoded `null` while `backup_status` read real state. Since 2026-09-08 the repo is reported
+  // by `list_vaults` alone (`VaultInfo.restic_repo`) and by nothing else, so there is no second
+  // answer to disagree with. What is left worth asserting is that the one producer reflects the
+  // writer — a fact with one source can still be a fact nobody updated.
+  it('the one arm that reports a repository reflects the one that sets it', async () => {
     const name = (await vaults())[0].name;
     expect((await vaults())[0].restic_repo).toBeNull();
 
     await handle('set_restic_repo', { vault: name, repo: '/backup/lab' });
 
-    expect((await status()).vaults.find((s) => s.name === name)?.restic_repo).toBe('/backup/lab');
     expect((await vaults()).find((v) => v.name === name)?.restic_repo).toBe('/backup/lab');
   });
 
