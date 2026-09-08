@@ -148,7 +148,7 @@ test('back up is an icon like the controls beside it, and says so only while it 
   // Help and Settings next to it carry no words; one labelling rule per state is what makes the
   // column read as a column. The meaning lives in the tooltip.
   expect((btn.textContent ?? '').trim()).toBe('');
-  expect(btn.getAttribute('title')).toMatch(/commit and push/i);
+  expect(btn.getAttribute('title')).toMatch(/save and send/i);
 });
 
 test('a view can be opened when the chrome is a bar, where there is no rail', async () => {

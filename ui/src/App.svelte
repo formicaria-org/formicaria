@@ -894,7 +894,7 @@
           `'${v}': ${s.conflicts.length} note(s) came back with conflicting edits — ` +
           `they still open, with both versions marked in the body. Open ${names} and merge the two.`;
       } else if (phase === 'failed') {
-        report(syncFor(v).error ?? `could not pull '${v}'`);
+        report(syncFor(v).error ?? `could not get changes for '${v}'`);
       }
       // **Independent of the phase**: a pull can keep a note *and* still conflict on another, and
       // the keep is a decision the app made on the user's behalf. Said here as well as in the
@@ -1529,7 +1529,16 @@
       }
       // The same reason as the backup path: this commit is exactly what moves a note *into*
       // history, so the count of what is outside it is stale the moment this settles.
-      void Promise.allSettled(runs).then(loadUnrecorded);
+      // **Re-read both absences after a save, not just one.** `loadUnrecorded` was the whole tail
+      // here, and `loadLastSaves` ran only at boot and after a manual backup — so a session that
+      // saved for six hours never re-read either clock, and the chip that should have been
+      // appearing was reading numbers fetched before the work existed. Every auto-save moves both
+      // of them: it resets "since a save" and it adds one to what has not been sent. Both are
+      // local per-vault git reads on a path that already fires at most once every fifteen seconds.
+      void Promise.allSettled(runs).then(() => {
+        void loadUnrecorded();
+        void loadLastSaves();
+      });
     }
   }
 
@@ -1552,7 +1561,7 @@
       await loadUnrecorded();
       notice =
         keep === 'edited'
-          ? 'Resolved, and the merge is finished — this vault can commit again.'
+          ? 'Resolved, and the merge is finished — this vault can save again.'
           : `Resolved. Keeping the ${keep === 'theirs' ? "other device's" : "this device's"} version.`;
     } catch (e) {
       error = String(e);
@@ -1618,7 +1627,16 @@
     new Set([...demotedList.map((d) => d.id), ...keptList.map((k) => k.id ?? k.path)]).size,
   );
 
-  /// **How long each vault has been quiet** — the one alert that reports an absence.
+  /// **The one alert that reports an absence** — and since 2026-09-08 it reports two of them.
+  ///
+  /// It began as *"nothing has been saved here in N weeks"*. That question is blind to the failure
+  /// the owner actually hit: 125 changes that had never left the device, over six days, while the
+  /// auto-save loop kept this very number at *seconds ago*. Saving is not sending, and every
+  /// always-visible surface here measured the first — `unrecorded` is `git status`, which a
+  /// successful save empties, and the "someone sent changes" chip compares the remote against the
+  /// tracking ref and so is silent by construction about our own unsent work. So the same chip now
+  /// also asks *"has any of this reached a backup?"*, on a much tighter threshold
+  /// (`quietVaults.ts` argues the asymmetry), and the deeper fault wins when both are true.
   ///
   /// Every other chip here names something it found: a note that will not parse, a note git does
   /// not have, a field two devices disagree about. Each of those depends on a detector working.
@@ -1657,7 +1675,7 @@
       if (r.committed) {
         notice =
           `Recorded ${r.notes} note${r.notes === 1 ? '' : 's'} in “${labelFor(vault)}”. ` +
-          `They are in this device's history now — back up to send them to a remote.`;
+          `They are in this device's history now — back up to send them somewhere else.`;
       } else if (r.notes > 0) {
         // **A refusal is not a success.** This used to say "Nothing left to record" whenever the
         // backend answered `committed: false` — including when it had found notes and git had
@@ -1739,14 +1757,14 @@
         // Stated as the fact it is, with the fix: no remote yet. Never "failed".
         parts.push(
           `${localSaved.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
-            `${localSaved.length === 1 ? 'has' : 'have'} no remote yet — committed here, but ` +
+            `${localSaved.length === 1 ? 'has' : 'have'} no destination yet — saved here, but ` +
             `nowhere to send. Add one in backup options.`,
         );
       }
       if (localQuiet.length) {
         parts.push(
           `${localQuiet.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
-            `${localQuiet.length === 1 ? 'has' : 'have'} nothing new to save, and no remote to ` +
+            `${localQuiet.length === 1 ? 'has' : 'have'} nothing new to save, and nowhere to ` +
             `send it to. Add one in backup options.`,
         );
       }
@@ -2111,7 +2129,7 @@
         <button
           class="tb-chip moved alert"
           onclick={getTheirChanges}
-          title="Someone pushed — get their changes"
+          title="Someone sent changes — get them"
           aria-label={`${
             movedVaults.length === 1 ? movedVaults[0] : `${movedVaults.length} vaults`
           }: get changes`}
@@ -2216,7 +2234,7 @@
           class="save-btn"
           onclick={backUpNotes}
           disabled={savingLabel !== null}
-          title="Commit and push your notes"
+          title="Save and send your notes"
           aria-label="back up notes"
         >
           <Icon name="backup" size={14} />

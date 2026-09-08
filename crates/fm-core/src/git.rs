@@ -1627,6 +1627,43 @@ pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().parse().ok())
 }
 
+/// **When this vault's notes last left the device** — the committer time of the remote-tracking
+/// ref, in seconds since the epoch. The twin of [`last_commit`], and the fact the app could not
+/// state about itself.
+///
+/// `None` means **never sent**: no repo, no commits, or never pushed. That is a different sentence
+/// from "sent long ago" and the caller must not render it as an enormous age — a vault created
+/// this morning has not *stopped* sending, and [`unpushed`] returns `None` for the same states for
+/// the same reason.
+///
+/// **Why this exists.** [`last_commit`] answers "when did anything get saved here", and the app
+/// built its only absence-reporting alert on it. But the auto-commit loop *is* what keeps that
+/// number fresh, so a vault that saves every five minutes and has not sent anything in a week
+/// looks maximally healthy on every surface the app had: `unrecorded` is emptied by the same
+/// commit, and the "someone sent changes" alert compares the remote against this very ref and so
+/// is silent by construction about our own unsent work. On the owner's vault (2026-09-08) the two
+/// clocks were **six days and 125 commits apart** and nothing on screen could say so
+/// (`decisions.md`, *an alert that measures saving cannot see sending*).
+///
+/// **Local. No network.** It reads `refs/remotes/origin/<branch>`, which is on disk — the same
+/// ref [`unpushed`] counts against — so this belongs on a cheap, pollable arm and not beside
+/// `ls-remote`. The libgit2 twin peels the same ref to a commit and reads `Commit::time()`;
+/// `git_differential` grades them against each other.
+pub fn last_sent(vault: &Path) -> Result<Option<i64>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(None);
+    }
+    let Some(base) = tracking(vault)? else {
+        return Ok(None);
+    };
+    let out = git(vault).args(["log", "-1", "--format=%ct", &base]).output().map_err(spawn)?;
+    // Same reading as `last_commit`: a ref we cannot resolve is "no such moment", not a failure.
+    if !out.status.success() {
+        return Ok(None);
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().parse().ok())
+}
+
 /// One note's most-recent edit, exactly as git records it: who touched it, and when. This is the
 /// whole collaboration read-model — authorship labels, the activity stream, the contributor
 /// filter all come from here, because a note file is `notes/<ULID>.md`, so a changed path's stem

@@ -581,6 +581,14 @@ const freshLastCommits = (): Record<string, number | null> => ({
   lab: Math.floor(Date.now() / 1000) - 39 * 86_400,
 });
 let mockLastCommits: Record<string, number | null> = freshLastCommits();
+/// When each vault's notes last *left the device*, and how much has not.
+///
+/// Empty by default, which the `last_commits` arm reads as "as fresh as its last save" — i.e. a
+/// vault that is fully backed up. That is the right default for every test that is not about this:
+/// seeding it with an age instead would put the backup chip on screen in all of them, which is the
+/// mirror of the mistake `freshLastCommits` documents above.
+let mockLastSent: Record<string, number | null> = {};
+let mockUnsent: Record<string, number | null> = {};
 /// Notes a merge brought back. One row, on the note the fixtures already carry, so the panel's
 /// kept section has something true to render.
 let mockKept: Array<{ path: string; id: string | null; vault: string; title: string | null }> = [];
@@ -592,6 +600,19 @@ export function setKept(list: typeof mockKept): void {
 /// Test-only: say when each vault last saved, or `null` for "never".
 export function setLastCommits(saves: Record<string, number | null>): void {
   mockLastCommits = { ...saves };
+}
+
+/// Test-only: say when each vault's notes last left the device, and how much has not.
+///
+/// Two maps rather than one, because the states are independent and the interesting ones are the
+/// mismatches: sent long ago with nothing waiting is *fine*, and sent recently with work waiting
+/// is fine too. `null` in either means "no such moment / nothing to count" — never sent.
+export function setLastSent(
+  sent: Record<string, number | null>,
+  unsent: Record<string, number | null>,
+): void {
+  mockLastSent = { ...sent };
+  mockUnsent = { ...unsent };
 }
 
 /// Set (or clear) the **default** vault's committer — what the welcome screen gates on.
@@ -670,6 +691,8 @@ export function reset(): void {
   // `commit` moves these, so a test that backs up leaks a freshly-saved `lab` into every later
   // test in the file — which would silently disarm the elapsed-time chip for all of them.
   mockLastCommits = freshLastCommits();
+  mockLastSent = {};
+  mockUnsent = {};
   mockKept = [];
   mockPlatform = 'linux';
 }
@@ -980,6 +1003,11 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return mockVaults.map((v) => ({
         vault: v.name,
         last_commit: mockLastCommits[v.name] ?? null,
+        // The mock's vaults are up to date unless a fixture says otherwise: `mockLastSent`
+        // and `mockUnsent` are how a test drives the "nothing has reached a backup" chip,
+        // and defaulting them to null would make every mock vault look freshly created.
+        last_sent: mockLastSent[v.name] ?? mockLastCommits[v.name] ?? null,
+        unsent: mockUnsent[v.name] ?? 0,
       })) as T;
     case 'record_unrecorded': {
       const hit = mockUnrecorded.find((u) => u.vault === String(args.vault));

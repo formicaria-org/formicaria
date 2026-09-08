@@ -83,12 +83,12 @@ describe('setting up encrypted media backup', () => {
     expect(setResticRepo).toHaveBeenCalledWith('/backup/notes', 'notes');
   });
 
-  // The "panel has rendered" anchor is the remote field's own label, not a bare /git remote/:
-  // the panel also explains, in prose, that Back up needs a git remote when no vault has one —
+  // The "panel has rendered" anchor is the destination field's own label, not a loose phrase:
+  // the panel also explains, in prose, that Back up needs a destination when no vault has one —
   // and a loose substring matched both, so a true sentence broke three tests.
   it('offers nothing at all where restic is not installed', async () => {
     show([vault('notes', null)], { restic: false });
-    await screen.findByText(/your notes' git remote/i);
+    await screen.findByText(/where your notes are copied to/i);
     // A form that configures a tool the machine does not have is a form that cannot be completed;
     // the capability line elsewhere in the panel is what says why.
     expect(screen.queryByPlaceholderText(/\/backup\/notes/)).toBeNull();
@@ -118,13 +118,13 @@ describe('setting up encrypted media backup', () => {
 
   it('does not ask for a password while there is nothing for it to unlock', async () => {
     show([vault('notes', null)]);
-    await screen.findByText(/your notes' git remote/i);
+    await screen.findByText(/where your notes are copied to/i);
     expect(screen.queryByPlaceholderText(/a password you can find again/i)).toBeNull();
   });
 
   it('does not ask again once this machine has one', async () => {
     show([vault('notes', '/backup/notes')], { password: true });
-    await screen.findByText(/your notes' git remote/i);
+    await screen.findByText(/where your notes are copied to/i);
     expect(screen.queryByPlaceholderText(/a password you can find again/i)).toBeNull();
   });
 });

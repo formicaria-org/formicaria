@@ -945,6 +945,27 @@ pub fn last_commit(vault: &Path) -> Result<Option<i64>, StoreError> {
     Ok(Some(commit.time().seconds()))
 }
 
+/// Twin of [`crate::git::last_sent`] — when this vault's notes last left the device. Peels the
+/// remote-tracking ref rather than `HEAD`, and reads the same `Commit::time()` clock the
+/// subprocess arm gets from `--format=%ct`. Every "no such moment" state (no repo, no commits,
+/// never pushed) is `None`, matching its twin; `git_differential` holds the two together.
+///
+/// Mirrors [`unpushed`]'s way of naming the upstream deliberately: they answer two halves of one
+/// question — how much has not been sent, and since when — and must never disagree about whether
+/// an upstream exists at all.
+pub fn last_sent(vault: &Path) -> Result<Option<i64>, StoreError> {
+    let Ok(repo) = Repository::open(vault) else { return Ok(None) };
+    let Ok(head) = repo.head() else { return Ok(None) };
+    let Ok(name) = head.shorthand() else { return Ok(None) };
+    let Ok(upstream) =
+        repo.find_branch(&format!("{}/{name}", crate::git::REMOTE), git2::BranchType::Remote)
+    else {
+        return Ok(None);
+    };
+    let Ok(commit) = upstream.get().peel_to_commit() else { return Ok(None) };
+    Ok(Some(commit.time().seconds()))
+}
+
 /// **What a merged file is, for one conflicted path — the decision, and nothing else.**
 ///
 /// This is the piece [`pull`] and [`merge_proposal_branch`] must never disagree about, so it is

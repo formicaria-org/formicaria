@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -6761,3 +6761,112 @@ platform-conditional, and every rule below was verified by resizing, not by a de
   over `ci/shots.py` at 390×844 against a scratch vault, before and after. Three defects were found
   **only** by looking at the result: a bordered radio in every list, a checkbox torn from its own
   label, and "Audio transcription on" printed on top of its own description.
+
+## The app speaks the user's words, not git's (2026-09-08, `#ui` `#sync`)
+
+**Decision.** No text a person reads uses git's vocabulary — no *push*, *pull*, *commit*, *remote*,
+*branch*, *HEAD*, *origin*, *fetch*, *rebase*, *clone*, *upstream*. Say what the thing means to
+someone who keeps notes: **sent** / **not sent yet** / **saved here** / **their changes** /
+**where your notes are copied to** / **nowhere to send**. Enforced by `ci/plain-words.py` in the
+gate.
+
+**The owner's words**, 2026-09-08: *"for the user we do not use git terminology but a more
+intuitive one (unless it is a debug message)."*
+
+**Why.** git is the engine, not the product. This app is for someone who keeps notes and may never
+learn git, and the `files-as-truth` design exists so that person never has to — a label like
+*"125 commits not pushed"* hands them a sentence they cannot act on, and quietly reframes a
+notebook as a git client. It is the same principle as *the browser is the product*: the
+implementation is not the thing being offered.
+
+**The exception is diagnosis, and it is structural rather than a list.** An error detail, a log
+line or a debug pane may name the git thing, because there the literal word is the useful one. In
+practice those reach the screen through interpolated error values — `${msg(e)}`,
+`${syncFor(v).error}` — and the checker strips every `${...}` expression, so the exception needs no
+allowlist and cannot rot into one.
+
+**What it cost to apply, which is the argument for checking it.** 28 strings across five components
+were in git-speak, and 20 test assertions were pinned to them. The worst was `BackupPanel`'s
+**"Everything here is pushed." / "125 commits not pushed."** — the app's *only* report of work that
+has not left the device, written in the one vocabulary its reader does not have. The owner had 125
+unsent changes for six and a half hours on the day this was written.
+
+**Not on the list, deliberately: *merge* and *conflict*.** They are ordinary English for what
+actually happens to a note, the app has always used them in user text, and the owner uses them
+back. The banned list is what someone would have to learn *git* to understand, not every word git
+also happens to use.
+
+**Consequences:**
+- **`ci/plain-words.py` scans only what is rendered** — text nodes outside `<script>`/`<style>`,
+  the `title` / `aria-label` / `placeholder` attributes, and `text:` step strings — after stripping
+  comments and interpolations. Maintainer comments, variable names (`remoteDrafts`, `v.remote`),
+  API calls (`fetch`, `.push(`) and mode values (`'clone'`) are untouched, because a guard that
+  matched them would be noise, and noise gets switched off.
+- **It was verified to fire, not merely to pass**: four injected violations, one of each shape it
+  claims to cover, caught 4/4, with 0 false positives across every `.svelte` file. The repo's own
+  standing trap — *a guard that is disarmed by a comment is worse than no guard* — applies just as
+  much to a guard that has never been seen to fail at all.
+- **The user manual is not covered.** `docs/src/user/` still says *git remote*, and partly must:
+  the reader has to fetch a URL from GitHub, so the mapping has to be named somewhere once. The
+  app is where the rule binds; the manual is where the translation may be explicit.
+
+## An alert that measures saving cannot see sending (2026-09-08, `#ui` `#sync` `#git`)
+
+**Decision.** `last_commits` — the cheap, scoped, pollable arm behind the app's only
+absence-reporting chip — gains `last_sent` (when this vault's notes last left the device) and
+`unsent` (how much has not). The chip now reports **two** absences: nothing saved in
+`QUIET_AFTER_DAYS` (14), and nothing sent in `UNSENT_AFTER_DAYS` (3) with work waiting. The deeper
+fault wins when both are true.
+
+**The report.** The owner, after six days in which 125 changes never left their laptop: *"I had no
+icon saying that I had any uncommitted/unbacked notes."*
+
+**Nothing was broken, and that is the finding.** Every always-visible alert measured **local
+liveness**, and the auto-save loop is what keeps local liveness perfect — so the indicators were
+not merely blind to the failure, they were *anti-correlated* with it:
+
+| surface | reads | what a successful auto-save does to it |
+|---|---|---|
+| "not in history" | `git status` | empties it |
+| the quiet chip | `git log -1` | resets it to zero |
+| "someone sent changes" | remote vs. the tracking ref | silent by construction about **our own** unsent work |
+
+A vault saving every five minutes and sending nothing for a week therefore read as maximally
+healthy on every screen. **This is the same family as the 2026-07 thirty-nine-day freeze** — an
+alert that cannot see its own failure mode — and the same answer: ask a question the failure cannot
+suppress.
+
+**The fix is packaging, not new data.** `unpushed` never needed the network: it counts against
+`refs/remotes/origin/<branch>`, which is on disk. The count was computed hundreds of times a day and
+serialised into `backup_status` — the app's one `ls-remote` call — then rendered in exactly one
+place, inside a panel the owner had no reason to open *because nothing had told them to*. The new
+`last_sent` is the same shape: one local `git log -1` on a ref, one `peel_to_commit` natively, no
+transport on either backend. This is the argument `dispatch.rs` already makes verbatim for putting
+`identity` on `VaultInfo`, and it transfers word for word.
+
+**Why the two thresholds differ by a factor of five.** Silence is *suspicious* — it might be a
+holiday, which is why 14 days had to be long enough not to nag. Unsent work is a **single point of
+failure that grows**: those notes exist in exactly one place, and being wrong costs the writing
+itself rather than a late warning. Three days catches the gap that prompted this and stays silent
+for anyone who backs up twice a week.
+
+**And the number is now re-read when it changes.** `loadLastSaves()` ran at boot and after a manual
+backup only, so a session that saved for six hours never re-read either clock — the chip would have
+been reading numbers fetched before the work existed. `commitNow()`'s tail now refreshes both.
+
+**Established by the investigation and worth keeping:**
+- **No push was ever attempted.** Not a swallowed error: `push_squashed`'s squash-and-restore
+  signature is absent from the vault's reflog, and the pushed history contains no `backup:` commit
+  in the range. The app simply never tried, because nothing asks it to.
+- **The gap was six days, not the six and a half hours first reported.** The 125 commits span
+  2026-09-02 16:48 → 2026-09-08 10:43; the tracking ref had sat still since the 2026-09-02 push, so
+  the count stood at 108 before the owner sat down that day.
+- **The one alert plausibly on screen pointed the wrong way**: the other device's work reached the
+  remote that afternoon, so *"someone sent changes"* could fire — an invitation to pull while the
+  unsent 125 went unmentioned.
+
+**Known gap, deliberately left.** A vault that has a destination and has **never** sent still raises
+nothing: `unpushed` returns `None` in that state, so there is no count and no moment. That is the
+same ruling that keeps a never-saved vault out of the chip — *"never" is not an age*, and a first
+run must not meet the loudest alert in the app for having done nothing wrong. The Backup panel and
+the welcome screen own that case. Recorded in `known-issues.md`.

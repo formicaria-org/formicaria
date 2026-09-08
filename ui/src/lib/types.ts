@@ -300,7 +300,15 @@ export interface KeptNote {
  *  missing value as `0` would announce fifty-six years of silence to someone on their first run. */
 export interface LastCommit {
   vault: string;
+  /** When anything was last saved *here*, epoch seconds; `null` = never saved. */
   last_commit: number | null;
+  /** When this vault's notes last *left the device*, epoch seconds; `null` = never sent.
+   *  Not the same clock as `last_commit`, and the gap between them is the point: the
+   *  auto-save loop keeps the first fresh whether or not anything is reaching a backup. */
+  last_sent: number | null;
+  /** How much has been saved here and never sent. `null` — not `0` — when there is nothing
+   *  to count against, which is a different state from "all sent". */
+  unsent: number | null;
 }
 
 /** Notes on disk that git does not have, per vault — what the app forgot it wrote.

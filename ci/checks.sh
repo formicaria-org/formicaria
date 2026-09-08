@@ -1174,6 +1174,19 @@ fi
 #
 # The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
 # one rule that knows about the inset.
+echo "[check] the app speaks the user's words, not git's..."
+# The rule and the whole rationale live in `ci/plain-words.py`'s docstring and in `decisions.md`
+# (2026-09-08, `#ui`): no push/pull/commit/remote/branch in anything a person reads. Its own header
+# records that it was verified to FIRE, not merely to pass — 4 injected violations caught, 0 false
+# positives — because a wording rule with no check is a wording rule that lasts one session.
+if ! python3 ci/plain-words.py ui/src; then
+    echo "  FAIL: user-facing text above uses git's vocabulary."
+    echo "        Say what it means to someone who keeps notes: sent / not sent yet / saved here /"
+    echo "        their changes / where your notes are copied to. Diagnostic detail may keep the"
+    echo "        git word — it reaches the user through an interpolated error, which is not scanned."
+    fail=1
+fi
+
 echo "[check] a narrow .topbar rule must not reset the safe area with a padding shorthand..."
 if [ -f ui/src/App.svelte ]; then
     if awk '/@media \(max-width: 40rem\)/,/^  \}$/' ui/src/App.svelte \

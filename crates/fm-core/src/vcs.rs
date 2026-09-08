@@ -130,6 +130,7 @@ route!(unpushed(vault: &Path) -> Result<Option<u32>, StoreError>);
 // the device that most needs the answer is the phone, and the phone is the one that never runs the
 // subprocess backend.
 route!(last_commit(vault: &Path) -> Result<Option<i64>, StoreError>);
+route!(last_sent(vault: &Path) -> Result<Option<i64>, StoreError>);
 // **Which notes a merge brought back, and the mark that says they have been seen.** Routed like
 // everything else in the sync path: the device a resurrection is most likely to surprise is the
 // phone, and the phone is the one that never runs the subprocess backend.

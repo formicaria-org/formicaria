@@ -59,9 +59,9 @@
 
   /// One sentence per kind, because what to *do* differs. Written as consequences, not categories.
   const meaning: Record<string, string> = {
-    new: 'Never committed. If this vault has no remote, these exist in one place only.',
+    new: 'Never saved to history. If this vault has nowhere to send, these exist in one place only.',
     modified:
-      'Changed since they were committed. A large number here suggests something is rewriting notes.',
+      'Changed since they were last saved. A large number here suggests something is rewriting notes.',
     deleted: 'Deleted here, and the deletion has not been recorded.',
   };
 
@@ -107,7 +107,7 @@
       <button type="button" disabled={busy === u.vault} onclick={() => record(u.vault)}>
         {busy === u.vault ? 'Recording…' : `Record all ${u.count} in history`}
       </button>
-      <p class="after">Then back up, to send them to a remote.</p>
+      <p class="after">Then back up, to send them somewhere else.</p>
 
       {#if u.notes.length}
         <details>

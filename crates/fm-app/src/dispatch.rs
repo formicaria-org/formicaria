@@ -791,6 +791,8 @@ fn dispatch_inner(
                         // Best-effort per vault: one unreadable repo must not blank the chip for
                         // every other vault, which is the failure this whole surface is against.
                         last_commit: vcs::last_commit(&v.path).unwrap_or(None),
+                        last_sent: vcs::last_sent(&v.path).unwrap_or(None),
+                        unsent: vcs::unpushed(&v.path).unwrap_or(None),
                     })
                     .collect::<Vec<_>>(),
             )
@@ -2743,6 +2745,24 @@ struct PathCheck {
 struct LastCommit {
     vault: String,
     last_commit: Option<i64>,
+    /// **When this vault's notes last left the device**, epoch seconds; `null` = never sent.
+    ///
+    /// Here, beside `last_commit`, and not on `backup_status` where the same fact used to live
+    /// alone — because the two answer one question between them and only together. `last_commit`
+    /// is *local* liveness, and the auto-commit loop is what keeps it perfect: a vault saving
+    /// every five minutes and sending nothing for a week reads as maximally healthy on every
+    /// always-visible surface the app had. On the owner's vault (2026-09-08) the two clocks were
+    /// six days and 125 changes apart, and nothing on screen could say so.
+    ///
+    /// **It costs no network.** `vcs::last_sent` and `vcs::unpushed` both read
+    /// `refs/remotes/origin/<branch>`, which is on disk — the reason this belongs on the cheap,
+    /// pollable arm rather than behind the `ls-remote` in `backup_status`. Exactly the argument
+    /// this file already makes for putting `identity` on `VaultInfo`.
+    last_sent: Option<i64>,
+    /// How much has been saved here and never sent. `null` — not `0` — when there is nothing to
+    /// count against (no repo, no commits, never sent), which is a different sentence from "all
+    /// sent" and must not be rendered as one.
+    unsent: Option<u32>,
 }
 
 /// One vault's git standing. **Per vault, not per app** — one vault is one repo, one
@@ -4017,6 +4037,11 @@ mod tests {
     /// two states it has to distinguish are the two a chip would get wrong. `None` must survive the
     /// wire as `null` rather than as a zero or a missing key — a client that reads a missing field
     /// as `0` renders "never saved" as *fifty-six years since a save*.
+    ///
+    /// **The literal shape is asserted on purpose**, and it is why this test earns its keep: it is
+    /// what caught `last_sent` and `unsent` joining the row (2026-09-08). Those two carry the same
+    /// `null`-is-not-zero rule for the same reason — "never sent" rendered as an age would put the
+    /// loudest alert in the app in front of a vault created this morning.
     #[test]
     fn last_commits_reports_never_as_null_and_a_real_commit_as_an_instant() {
         let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
@@ -4024,7 +4049,10 @@ mod tests {
 
         // A vault with no history at all. Not an error, and not a number.
         let out = call(&app, "last_commits", serde_json::json!({})).unwrap();
-        assert_eq!(out, r#"[{"vault":"notes","last_commit":null}]"#, "{out}");
+        assert_eq!(
+            out, r#"[{"vault":"notes","last_commit":null,"last_sent":null,"unsent":null}]"#,
+            "{out}"
+        );
 
         // Now give it one commit, through the same routed backend the app uses.
         let note = vault.path().join("notes/01.md");

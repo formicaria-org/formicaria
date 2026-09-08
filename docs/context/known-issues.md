@@ -401,6 +401,22 @@ The gray-screen fix and its tests are in
   the description wraps to its own line, so the label has no one to be squeezed by. `svelte-check`
   and the whole jsdom suite are blind to this; one screenshot at a stated width is not.
 
+- **A vault that has a destination and has *never* sent raises nothing.** `unpushed` returns
+  `None` in that state (there is no tracking ref to count against) and `last_sent` is `None` for
+  the same reason, so the backup half of the quiet chip cannot fire — however many notes are
+  waiting. Deliberate, and the same ruling that keeps a never-saved vault out of it: *"never" is
+  not an age*, and a first run must not meet the loudest alert in the app for having done nothing
+  wrong. The Backup panel ("Nowhere to send yet") and the welcome screen own that case. The
+  reversal condition is a *count* without a moment — if a surface ever wants "200 notes have never
+  left this device", it needs `rev-list --count HEAD` and a different sentence, not this chip.
+
+- **An indicator that a successful auto-save also resets cannot report a backup failure.** The
+  standing trap behind `decisions.md`, *an alert that measures saving cannot see sending*: "not in
+  history" is `git status`, the quiet chip was `git log -1`, and both are *emptied* by the very
+  loop that runs every fifteen seconds. Before adding any alert here, ask what routine success does
+  to its input — an alert anti-correlated with its own failure mode is worse than none, because it
+  reads as coverage.
+
 - **"Save token" is a separate action from "Join".** Typing a token and pressing Join silently
   discards it; the token only reaches the backend via its own button. Reported from real use.
 

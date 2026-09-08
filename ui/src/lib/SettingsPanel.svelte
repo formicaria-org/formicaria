@@ -959,7 +959,7 @@
                 placeholder="off"
                 value={v.git_assets_max ? humanSize(v.git_assets_max) : ''}
                 onchange={(e) => setAssetMax(v.name, (e.currentTarget as HTMLInputElement).value)}
-                aria-label={`largest attachment to push for ${labelFor(v.name)}`}
+                aria-label={`largest attachment to send for ${labelFor(v.name)}`}
               />
             </label>
             <p class="muted small">
@@ -1125,7 +1125,7 @@
                    app's private storage is removed when the app is, and `blobs/` is gitignored, so
                    a push does not carry it. -->
               <span class="k">photos and files</span>
-              <span class="none">live only on this phone</span> until they reach a backup — a git push
+              <span class="none">live only on this phone</span> until they reach a backup — backing up
               carries your notes but not their media.
             </li>
           {/if}

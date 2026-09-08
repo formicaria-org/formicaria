@@ -302,10 +302,10 @@ describe('a vault with no remote', () => {
     expect(syncFor('personal').error).toBeUndefined();
   });
 
-  // **The summary says "committed here, but nowhere to send" — so somebody has to have checked.**
+  // **The summary says "saved here, but nowhere to send" — so somebody has to have checked.**
   // `commitStep` had `CommitResult.committed` in its hand and dropped it, and the phase's own doc
   // asserted the commit too. Observed on the phone, 2026-09-08: a vault with no remote and nothing
-  // new in it reported "committed here" in the same breath as the quiet-vault chip said "38 days
+  // new in it reported "saved here" in the same breath as the quiet-vault chip said "38 days
   // since a save". Both cannot be true, and it was the chip that had read git.
   it('does not claim to have committed when there was nothing to commit', async () => {
     const { ops: o } = ops({

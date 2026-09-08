@@ -470,7 +470,7 @@
         });
       } else if (r.merged) {
         steps.push({
-          text: `Pulled ${r.merged} commit${r.merged === 1 ? '' : 's'}${of(v)} — merged cleanly.`,
+          text: `Brought in ${r.merged} change${r.merged === 1 ? '' : 's'}${of(v)} — combined cleanly.`,
           ok: true,
         });
       } else {
@@ -490,7 +490,7 @@
         });
       }
     } catch (e) {
-      steps.push({ text: `Could not pull${of(v)}: ${msg(e)}`, ok: false });
+      steps.push({ text: `Could not get their changes${of(v)}: ${msg(e)}`, ok: false });
     }
     await load();
     busy = false;
@@ -515,7 +515,7 @@
       if (!v.remote) {
         stuck.push(v.name);
         steps.push({
-          text: `No remote set${of(v)} — those notes cannot leave this machine.`,
+          text: `Nowhere to send${of(v)} yet — those notes cannot leave this device.`,
           ok: false,
         });
         continue;
@@ -533,7 +533,7 @@
       }
       if (phase === 'synced') {
         steps.push({
-          text: `Notes${of(v)} pushed to ${shortDest(v.remote)} — ${left(reach)}.`,
+          text: `Notes${of(v)} sent to ${shortDest(v.remote)} — ${left(reach)}.`,
           ok: true,
         });
         (reach === 'remote' ? off : stuck).push(v.name);
@@ -542,13 +542,13 @@
         // publishing conflict markers as content is worse than not publishing.
         steps.push({
           text:
-            `Notes${of(v)} NOT pushed — ${s.conflicts.length} note(s) came back with ` +
+            `Notes${of(v)} NOT sent — ${s.conflicts.length} note(s) came back with ` +
             `conflicting edits and need you first: ${(await conflictLabels(s.conflicts)).join(', ')}`,
           ok: false,
         });
         stuck.push(v.name);
       } else {
-        steps.push({ text: `Notes${of(v)} NOT pushed: ${msg(s.error)}`, ok: false });
+        steps.push({ text: `Notes${of(v)} NOT sent: ${msg(s.error)}`, ok: false });
         stuck.push(v.name);
       }
     }
@@ -597,7 +597,7 @@
     const gitRan = !noGit && vaults.some((v) => !!v.remote);
     verdict =
       (!gitRan
-        ? 'No vault has a git remote, so nothing was pushed.'
+        ? 'No vault has anywhere to send to, so nothing was sent.'
         : stuck.length === 0
           ? 'Your notes are off this machine.'
           : off.length === 0
@@ -694,7 +694,11 @@
         {#if plural}<h3>{labelFor(v.name)}</h3>{/if}
 
         <label class="remote">
-          <span>{plural ? `The ${v.name} vault's` : "Your notes'"} git remote</span>
+          <span
+            >{plural
+              ? `Where the ${v.name} vault's notes are copied to`
+              : 'Where your notes are copied to'}</span
+          >
           <div class="row">
             <input
               bind:value={remoteDrafts[v.name]}
@@ -710,7 +714,7 @@
             <button
               onclick={() => saveRemote(v)}
               disabled={!canSaveRemote(v)}
-              aria-label={`Save the ${v.name} git remote`}>Save</button
+              aria-label={`Save where the ${v.name} vault's notes are copied to`}>Save</button
             >
           </div>
         </label>
@@ -723,7 +727,7 @@
                never sees this. -->
           <div class="identity">
             <p class="why">
-              Every commit you push is signed with a name. Yours isn't set{plural
+              Every change you send is signed with a name. Yours isn't set{plural
                 ? ` for ${v.name}`
                 : ''} — without it, your collaborators can't tell who changed what.
             </p>
@@ -880,7 +884,7 @@
           <ul class="promise">
             <li>
               {#if reachOf(v.remote) === 'unset'}
-                <strong>No remote set</strong> — these notes cannot leave this machine yet.
+                <strong>Nowhere to send yet</strong> — these notes cannot leave this device.
               {:else}
                 Notes → <strong>{shortDest(v.remote ?? '')}</strong> — {leaves(reachOf(v.remote))}.
                 <span class="muted">Carries {carries(v)}.</span>
@@ -892,10 +896,10 @@
                      sleeping laptop is not an error), so it stays silent deliberately; zero is a
                      positive answer and now says so. -->
                 {#if v.unpushed === 0}
-                  <span class="muted">Everything here is pushed.</span>
+                  <span class="muted">Everything here has been sent.</span>
                 {:else if v.unpushed}
                   <span class="muted"
-                    >{v.unpushed} commit{v.unpushed === 1 ? '' : 's'} not pushed.</span
+                    >{v.unpushed} change{v.unpushed === 1 ? '' : 's'} not sent yet.</span
                   >
                 {/if}
                 {#if v.identity}
@@ -971,7 +975,7 @@
             Notes did not go: {syncFor(v.name).error}
           </p>
         {:else if v.remote_moved}
-          <p class="moved">Someone has pushed work you don't have yet.</p>
+          <p class="moved">Someone has sent work you don't have yet.</p>
         {/if}
 
         {#if v.remote}

@@ -214,7 +214,7 @@ describe('notes that are not in history', () => {
     await fireEvent.click(screen.getByRole('button', { name: /Record all 146 in history/i }));
     await vi.waitFor(() => expect(document.body.textContent).toMatch(/Recorded 146 notes/i));
     // And it says what to do next: a commit is not a backup.
-    expect(document.body.textContent).toMatch(/back up to send them to a remote/i);
+    expect(document.body.textContent).toMatch(/back up to send them somewhere else/i);
   });
 
   it('shows no chip when git has everything', async () => {

@@ -30,7 +30,7 @@ function panel() {
 }
 
 const field = async (vault: string) =>
-  (await screen.findByLabelText(`largest attachment to push for ${vault}`)) as HTMLInputElement;
+  (await screen.findByLabelText(`largest attachment to send for ${vault}`)) as HTMLInputElement;
 
 describe('SettingsPanel — how large an attachment may travel in git', () => {
   it('says nothing extra about a limit that is unremarkable', async () => {

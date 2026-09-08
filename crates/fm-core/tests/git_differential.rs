@@ -346,6 +346,87 @@ fn last_commit_agrees_on_the_moment_and_on_never() {
     assert_eq!(git_native::last_commit(a.path()).unwrap(), Some(oracle));
 }
 
+/// **When this vault's notes last *left the device*** — the twin of `last_commit`, and the fact
+/// the app had no way to state.
+///
+/// The two are deliberately different clocks and this pins the difference: a vault that commits
+/// every five minutes and never sends has a `last_commit` of *seconds ago* and a `last_sent` of
+/// whenever the tracking ref last moved. On the owner's own vault (2026-09-08) that gap was six
+/// days and 125 commits wide, and every always-visible surface in the app read the first number.
+///
+/// `None` means **never sent**, not "sent long ago": a vault with no repo, a repo with no commits,
+/// and a repo that has never pushed are all "there is no such moment yet", which is a different
+/// sentence from an old one and must not be rendered as an enormous age.
+///
+/// The tracking ref is written with `update-ref` rather than by pushing to a scratch bare repo:
+/// what is under test is *reading the ref*, and a real push would drag transport, refspec defaults
+/// and a second repository into a test about a timestamp.
+#[test]
+fn last_sent_agrees_on_the_moment_and_on_never() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    for v in [a.path(), b.path()] {
+        assert_eq!(git::last_sent(v).unwrap(), None, "no repo at all is not an error");
+        assert_eq!(git_native::last_sent(v).unwrap(), None);
+    }
+
+    git::ensure_repo(a.path()).unwrap();
+    no_identity(a.path());
+    assert_eq!(git::last_sent(a.path()).unwrap(), None, "a repo with no commits: never sent");
+    assert_eq!(git_native::last_sent(a.path()).unwrap(), None);
+
+    let commit = |name: &str, when: &str| {
+        fs::create_dir_all(a.path().join("notes")).unwrap();
+        fs::write(a.path().join("notes").join(name), NOTE).unwrap();
+        Command::new("git").arg("-C").arg(a.path()).args(["add", "-A"]).output().unwrap();
+        Command::new("git")
+            .arg("-C")
+            .arg(a.path())
+            .args(["commit", "-m", name])
+            .env("GIT_COMMITTER_DATE", when)
+            .env("GIT_AUTHOR_DATE", when)
+            .output()
+            .unwrap();
+    };
+
+    commit("01.md", "2026-01-02T03:04:05+0530");
+    assert_eq!(
+        git::last_sent(a.path()).unwrap(),
+        None,
+        "committed but never pushed is still *never sent* — not an age"
+    );
+    assert_eq!(git_native::last_sent(a.path()).unwrap(), None);
+
+    // The moment of the send: the tracking ref is planted at this commit, and history moves on.
+    let sent_at = g(a.path(), &["rev-parse", "HEAD"]);
+    let branch = g(a.path(), &["rev-parse", "--abbrev-ref", "HEAD"]);
+    Command::new("git")
+        .arg("-C")
+        .arg(a.path())
+        .args(["update-ref", &format!("refs/remotes/origin/{branch}"), &sent_at])
+        .output()
+        .unwrap();
+
+    commit("02.md", "2026-03-04T05:06:07+0000");
+
+    let sent: i64 = g(a.path(), &["log", "-1", "--format=%ct", &sent_at]).parse().unwrap();
+    let saved: i64 = g(a.path(), &["log", "-1", "--format=%ct"]).parse().unwrap();
+    assert_eq!(sent, 1767303245, "the pinned send instant, epoch seconds, offset not applied");
+    assert_ne!(sent, saved, "the two clocks must be distinguishable, or this proves nothing");
+
+    assert_eq!(git::last_sent(a.path()).unwrap(), Some(sent));
+    assert_eq!(git_native::last_sent(a.path()).unwrap(), Some(sent));
+    assert_eq!(git::last_commit(a.path()).unwrap(), Some(saved), "…and it is not last_commit");
+    assert_eq!(git_native::last_commit(a.path()).unwrap(), Some(saved));
+
+    // The count and the moment must tell the same story: one commit made since the send.
+    assert_eq!(git::unpushed(a.path()).unwrap(), Some(1));
+    assert_eq!(git_native::unpushed(a.path()).unwrap(), Some(1));
+}
+
 /// **The agent's own identity survives on both backends.**
 ///
 /// `commit_all_as` is how a study-assistant reply is attributed to the *model* rather than to

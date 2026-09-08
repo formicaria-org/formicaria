@@ -8,10 +8,10 @@
 //
 // Two things are pinned here, and they are the two this panel exists for:
 //
-//   1. **A tier that did not run gets no verdict.** With no git remote anywhere, the git sentence
+//   1. **A tier that did not run gets no verdict.** With nowhere to send anywhere, the git sentence
 //      would otherwise report a failure where there was no attempt.
 //   2. **A restic-only machine can press the button at all** (fixed 2026-09-04). `canRun` used to
-//      require a git remote, so a machine with restic, a repository and a password had a tick box
+//      require a destination, so a machine with restic, a repository and a password had a tick box
 //      that ticked and a button that never enabled. The panel was made to *say* so, which was
 //      honesty rather than a fix.
 
@@ -162,7 +162,7 @@ describe('pressing Back up', () => {
 
     await waitFor(() => expect(backup).toHaveBeenCalled());
     const body = document.body.textContent ?? '';
-    expect(body).toContain('No vault has a git remote');
+    expect(body).toContain('No vault has anywhere to send to');
     expect(body).not.toContain('Your notes are still on this machine');
     expect(body).not.toContain('Your notes are off this machine');
   });
@@ -309,20 +309,20 @@ describe('how many commits are waiting', () => {
   const withRemote = (unpushed: number | null) =>
     vault('notes', { remote: 'git@github.com:you/notes.git', unpushed });
 
-  it('says so when everything is pushed', async () => {
+  it('says so when everything has been sent', async () => {
     show([withRemote(0)]);
     await waitFor(() => {
-      expect(document.body.textContent).toContain('Everything here is pushed');
+      expect(document.body.textContent).toContain('Everything here has been sent');
     });
-    expect(document.body.textContent).not.toContain('not pushed');
+    expect(document.body.textContent).not.toContain('not sent yet');
   });
 
   it('counts them when some are waiting', async () => {
     show([withRemote(3)]);
     await waitFor(() => {
-      expect(document.body.textContent).toContain('3 commits not pushed');
+      expect(document.body.textContent).toContain('3 changes not sent yet');
     });
-    expect(document.body.textContent).not.toContain('Everything here is pushed');
+    expect(document.body.textContent).not.toContain('Everything here has been sent');
   });
 
   // Null is "git could not say" — no remote, never pushed, or offline. A sleeping laptop is not an
@@ -332,8 +332,8 @@ describe('how many commits are waiting', () => {
     await waitFor(() => {
       expect(document.body.textContent).toContain('Notes →');
     });
-    expect(document.body.textContent).not.toContain('Everything here is pushed');
-    expect(document.body.textContent).not.toContain('not pushed');
+    expect(document.body.textContent).not.toContain('Everything here has been sent');
+    expect(document.body.textContent).not.toContain('not sent yet');
   });
 });
 
@@ -410,6 +410,6 @@ describe('when the vault last saved anything', () => {
     // Wait on the elapsed line, not on the remote line: `load()` renders the status first and
     // fetches the saves after, so the remote line is on screen a tick before this one is.
     await waitFor(() => expect(document.body.textContent).toContain('90 days ago'));
-    expect(document.body.textContent).toContain('No remote set');
+    expect(document.body.textContent).toContain('Nowhere to send yet');
   });
 });

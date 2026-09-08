@@ -502,7 +502,7 @@
         <label>
           <span>Your name</span>
           <input bind:value={gitName} placeholder="Ada Lovelace" autocomplete="off" />
-          <small>Signs every commit you make here.</small>
+          <small>Signs every change you make here.</small>
         </label>
 
         <label>
@@ -539,10 +539,9 @@
            than what a clone brings, and a user who expected their history would find it
            missing at the worst possible moment: after their old machine is gone. -->
         <p class="lede caveat">
-          Restoring brings back your <strong>notes and attachments</strong> — not your history.
-          Backups snapshot the vault's own folders, so there is no <code>.git</code> in them and nothing
-          to pull from or push to. You'll get a working vault you own outright; turn on history later
-          if you want one.
+          Restoring brings back your <strong>notes and attachments</strong> — not your history. Backups
+          snapshot the vault's own folders, so there is no history in them and nothing to send to or get
+          from. You'll get a working vault you own outright; turn on history later if you want one.
         </p>
       {/if}
 
@@ -554,8 +553,8 @@
            answer, even when the answer is somewhere you cannot browse to. -->
         <p class="lede caveat">
           Kept in formicaria's own storage on this device — <code>{vaultRoot}</code> — where no other
-          app can read or write. Uninstalling formicaria deletes it, so give a vault you care about a
-          remote or a backup.
+          app can read or write. Uninstalling formicaria deletes it, so give a vault you care about somewhere
+          to send to, or a backup.
         </p>
       {:else}
         <label>

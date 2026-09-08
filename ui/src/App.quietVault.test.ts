@@ -18,7 +18,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { clearFaults, faults, reset, setLastCommits, setUnrecorded } from './lib/mock';
+import { clearFaults, faults, reset, setLastCommits, setLastSent, setUnrecorded } from './lib/mock';
 
 beforeEach(() => {
   reset();
@@ -89,10 +89,10 @@ test('several quiet vaults are counted rather than listed', async () => {
 });
 
 /// **The chip and the backup sentence must never contradict each other**, and on a real phone they
-/// did (2026-09-08): "“vault” has no remote yet — committed here, but nowhere to send" printed in
+/// did (2026-09-08): "“vault” has no destination yet — saved here, but nowhere to send" printed in
 /// the same breath as "vault: 38 days since a save". Both cannot be true. The chip had asked
 /// `git log`; the sentence had asked nothing — `commitStep` held `CommitResult.committed` and
-/// dropped it, and the summary said "committed here" for every remoteless vault regardless.
+/// dropped it, and the summary said "saved here" for every destination-less vault regardless.
 ///
 /// Proven red by printing the old single sentence for every `local` vault.
 test('a vault with no remote and nothing new does not claim it just committed', async () => {
@@ -106,7 +106,7 @@ test('a vault with no remote and nothing new does not claim it just committed', 
   await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
 
   const notice = await screen.findByText(/nothing new to save/i);
-  expect(notice.textContent).not.toMatch(/committed here/i);
+  expect(notice.textContent).not.toMatch(/saved here/i);
 });
 
 test('and it does say so when it really did commit', async () => {
@@ -119,7 +119,7 @@ test('and it does say so when it really did commit', async () => {
   render(App);
   await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
 
-  const notice = await screen.findByText(/committed here, but nowhere to send/i);
+  const notice = await screen.findByText(/saved here, but nowhere to send/i);
   expect(notice.textContent).toContain('“personal”');
 });
 
@@ -137,7 +137,40 @@ test('the backup summary names a vault the way every other surface does', async 
   render(App);
   await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
 
-  const notice = await screen.findByText(/committed here, but nowhere to send/i);
+  const notice = await screen.findByText(/saved here, but nowhere to send/i);
   expect(notice.textContent).toContain('“lab-notes”');
   expect(notice.textContent).not.toContain('“lab”');
+});
+
+/// **The failure this chip could not see, wired end to end.**
+///
+/// Every test above drives the *saved* clock, and the owner's 2026-09-08 vault was perfect on that
+/// clock: saving every few minutes. What it had was 125 changes that had never left the device,
+/// across six days — and no chip. The policy for it is unit-tested in `quietVaults.test.ts`; this
+/// is the half that rots, which is whether the number ever reaches the toolbar.
+///
+/// `lab` is deliberately made *fresh* on the saved clock first, because the fixture has it quiet at
+/// 39 days: without that this would pass on the old chip and prove nothing.
+test('a vault saving happily but reaching no backup says so, and says how much', async () => {
+  const days = (n: number) => Math.floor((Date.now() - n * 86_400_000) / 1000);
+  setLastCommits({ personal: days(0), lab: days(0) });
+  setLastSent({ personal: days(0), lab: days(6) }, { personal: 0, lab: 125 });
+  render(App);
+
+  const chip = await screen.findByRole('button', { name: /lab-notes: 6 days without a backup/i });
+  // The count is what makes it worth clicking, and the label had no room for it.
+  expect(chip.getAttribute('title')).toContain('lab-notes: 125 changes not sent, 6 days ago');
+});
+
+/// **An old send with nothing waiting is not a problem**, and must not become a permanent alarm on
+/// a vault someone has finished writing in. The distinction is `unsent`, not the age.
+test('a vault sent long ago with nothing new to send is left alone', async () => {
+  const days = (n: number) => Math.floor((Date.now() - n * 86_400_000) / 1000);
+  setLastCommits({ personal: days(0), lab: days(0) });
+  setLastSent({ personal: days(0), lab: days(90) }, { personal: 0, lab: 0 });
+  render(App);
+
+  // Anchored on something that must render, so this cannot pass by the app failing to boot.
+  await screen.findByRole('button', { name: /settings/i });
+  expect(document.body.textContent).not.toMatch(/without a backup/i);
 });

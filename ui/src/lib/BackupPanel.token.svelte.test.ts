@@ -80,7 +80,7 @@ describe('a token for a private HTTPS remote', () => {
 
   it('is not offered for an ssh remote, which uses the key in your agent', async () => {
     show([vault('notes', 'git@github.com:you/notes.git')]);
-    await screen.findByText(/git remote/i);
+    await screen.findByText(/where your notes are copied to/i);
     expect(screen.queryByPlaceholderText(/github_pat_/i)).toBeNull();
     expect(gitAuth).not.toHaveBeenCalled();
   });
@@ -88,7 +88,7 @@ describe('a token for a private HTTPS remote', () => {
   it('is not offered once this machine already has the credential', async () => {
     gitAuth.mockResolvedValue({ storage: 'system', have_credential: true, helper });
     show([vault('notes', 'https://github.com/you/notes.git')]);
-    await screen.findByText(/git remote/i);
+    await screen.findByText(/where your notes are copied to/i);
     expect(screen.queryByPlaceholderText(/github_pat_/i)).toBeNull();
   });
 });
