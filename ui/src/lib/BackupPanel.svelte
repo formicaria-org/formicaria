@@ -38,7 +38,7 @@
     setResticPassword,
     setResticRepo,
   } from './ipc';
-  import { syncVault, syncFor } from './sync.svelte';
+  import { plainError, syncFor, syncVault } from './sync.svelte';
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
@@ -548,7 +548,7 @@
         });
         stuck.push(v.name);
       } else {
-        steps.push({ text: `Notes${of(v)} NOT sent: ${msg(s.error)}`, ok: false });
+        steps.push({ text: `Notes${of(v)} NOT sent: ${plainError(msg(s.error))}`, ok: false });
         stuck.push(v.name);
       }
     }
@@ -972,7 +972,7 @@
                three unpushed commits, a vault named as needing attention, and no way to find out
                why. Persistent, because the message that sends you here can arrive at any time. -->
           <p class="error">
-            Notes did not go: {syncFor(v.name).error}
+            Notes did not go: {plainError(syncFor(v.name).error ?? '')}
           </p>
         {:else if v.remote_moved}
           <p class="moved">Someone has sent work you don't have yet.</p>

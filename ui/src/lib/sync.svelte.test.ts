@@ -6,7 +6,16 @@
 // this module exists rather than a `commit().then(push)`.
 
 import { describe, expect, it, vi } from 'vitest';
-import { clearSync, pullVault, syncFor, syncVault, type SyncOps } from './sync.svelte';
+import {
+  busyLabel,
+  clearSync,
+  plainError,
+  pullVault,
+  syncFor,
+  syncVault,
+  syncingPhase,
+  type SyncOps,
+} from './sync.svelte';
 
 /** A fake git. `pushes` counts attempts, which is how "exactly one retry" is asserted. */
 function ops(over: Partial<SyncOps> = {}) {
@@ -393,5 +402,154 @@ describe('a note kept because the other device deleted it', () => {
     expect(await pullVault('v', undefined, o)).toBe('conflicts');
     expect(syncFor('v').conflicts).toEqual(['01CONFLICT.md']);
     expect(syncFor('v').kept).toEqual(['01KEPT.md']);
+  });
+});
+
+// ── The indicator that says "wait" ──
+//
+// **`syncing()` was written for this and never called.** Its own docstring says it is "what a
+// global 'syncing…' indicator reads"; a grep for consumers returned only the definition. So the
+// app did every slow thing — commit, pull over the network, push — with no sign on screen that
+// anything was happening.
+//
+// Reported 2026-09-08, from a phone: *"I pressed get their changes. But on timeline and agenda I
+// do not see what I see on my laptop… Ok, I see them only now (time issue with pull I guess). Some
+// icon rotating like a wheel should be visually present."* The data was never wrong — the pull was
+// simply still running, and the app's one clue that it had started (the "get changes" chip) is
+// **cleared at the start of the handler**, so pressing it made the only evidence disappear.
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+describe('the working indicator', () => {
+  it('names nothing when nothing is in flight', () => {
+    expect(syncingPhase()).toBeNull();
+    expect(busyLabel(null)).toBe('');
+  });
+
+  it('says what is happening while a pull runs, and stops when it ends', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { ops: o } = ops({
+      pull: async () => {
+        await gate;
+        return { merged: 0, conflicts: [], kept: [] };
+      },
+    });
+
+    const run = pullVault('slow-pull', undefined, o);
+    await tick();
+    expect(syncingPhase()).toBe('pulling');
+    expect(busyLabel(syncingPhase())).toBe('Getting changes…');
+
+    release();
+    await run;
+    expect(syncingPhase()).toBeNull();
+    clearSync('slow-pull');
+  });
+
+  it('says so while the slow half of a backup is running', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const { ops: o } = ops({ push: async () => void (await gate) });
+
+    const run = syncVault('slow-push', 'm', undefined, o);
+    await tick();
+    expect(busyLabel(syncingPhase())).toBe('Sending…');
+
+    release();
+    await run;
+    expect(syncingPhase()).toBeNull();
+    clearSync('slow-push');
+  });
+
+  it('names the step the user is actually waiting on when vaults are at different ones', async () => {
+    // Committing is local and quick; the network steps are the wait. With two vaults in flight the
+    // indicator has one line to spend, so it spends it on the slow one.
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const slow = ops({
+      pull: async () => {
+        await gate;
+        return { merged: 0, conflicts: [], kept: [] };
+      },
+    });
+    const stuck = ops({
+      commit: async () => {
+        await gate;
+        return { committed: true, conflicts: [] };
+      },
+    });
+
+    const a = pullVault('net', undefined, slow.ops);
+    const b = pullVault('local', undefined, stuck.ops);
+    await tick();
+    expect(syncingPhase()).toBe('pulling');
+
+    release();
+    await Promise.all([a, b]);
+    expect(syncingPhase()).toBeNull();
+    clearSync('net');
+    clearSync('local');
+  });
+
+  it('goes quiet when a sync fails, so the spinner never outlives the work', async () => {
+    const { ops: o } = ops({
+      pull: async () => {
+        throw new Error('no');
+      },
+    });
+    await pullVault('broken', undefined, o);
+    expect(syncingPhase()).toBeNull();
+    expect(syncFor('broken').phase).toBe('failed');
+    clearSync('broken');
+  });
+});
+
+// ── Saying why a send failed, in words the reader has ──
+//
+// What the owner saw on the phone, 2026-09-08, as the whole message:
+//
+//   io error cannot push because a reference that you are trying to update on the remote
+//   contains commits that are not present locally
+//
+// They worked out what it meant — *"(which makes sense)"* — and then did the right thing by hand.
+// That is the app handing its reader a puzzle it had already solved: this state has exactly one
+// remedy, the app knows it, and there is a button for it. `decisions.md` (*the app speaks the
+// user's words, not git's*) allows the git wording in a *diagnostic*; it was the headline.
+describe('why a send failed', () => {
+  it('turns the one error with an obvious remedy into that remedy', () => {
+    const said = plainError(
+      'io error cannot push because a reference that you are trying to update on the remote ' +
+        'contains commits that are not present locally',
+    );
+    expect(said).toBe(
+      "The other device has changes you don't have yet — get their changes first, then send.",
+    );
+  });
+
+  it("recognises the same refusal in git's other spellings of it", () => {
+    // Two backends and several git versions word this differently; the state is identical.
+    for (const raw of [
+      'failed to push some refs: non-fast-forward',
+      'Updates were rejected because the remote contains work that you do not have locally. ' +
+        'Integrate the remote changes (e.g. hint: git pull) before pushing again.',
+      'cannot push because a reference that you are trying to update on the remote contains ' +
+        'commits that are not present locally',
+    ]) {
+      expect(plainError(raw)).toMatch(/get their changes first/i);
+    }
+  });
+
+  it('leaves anything it does not recognise exactly as it was', () => {
+    // The deliberate escape hatch: an error nobody has written a sentence for must reach the user
+    // verbatim rather than be flattened into a reassuring shrug. Losing the only diagnosis of an
+    // unknown fault is a worse failure than showing an ugly one.
+    expect(plainError('io error: disk quota exceeded')).toBe('io error: disk quota exceeded');
+    expect(plainError('')).toBe('');
+  });
+
+  it('does not mistake an unrelated mention of the remote for this', () => {
+    expect(plainError('could not resolve host: github.com')).toBe(
+      'could not resolve host: github.com',
+    );
   });
 });

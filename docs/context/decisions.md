@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -6870,3 +6870,52 @@ nothing: `unpushed` returns `None` in that state, so there is no count and no mo
 same ruling that keeps a never-saved vault out of the chip — *"never" is not an age*, and a first
 run must not meet the loudest alert in the app for having done nothing wrong. The Backup panel and
 the welcome screen own that case. Recorded in `known-issues.md`.
+
+## Slow work says so, and a refused send says what to do about it (2026-09-08, `#ui` `#sync`)
+
+**Decision.** A single global indicator — a spinning ring plus a word — renders whenever any vault
+is `committing`, `pulling` or `pushing`, driven by `syncingPhase()`. And a send refused because the
+other device is ahead is reported as the remedy rather than as git's sentence.
+
+**The report**, from the phone: *"I pressed get their changes. But on timeline and agenda I do not
+see what I see on my laptop… I tried to back up on the laptop and press again get their changes but
+nothing… Ok, I see them only now (time issue with pull I guess). Some icon rotating like a wheel
+should be visually present on the devices to signal to the user that something is going on and she
+must wait."*
+
+**Nothing was wrong with the data, and that is what made it bad.** The pull was still running — over
+a phone's network, the slowest thing this app does — and the app said so nowhere. Worse,
+`getTheirChanges` **clears the "get changes" chip as its first act**, so pressing the button deleted
+the only evidence that anything had begun. A slow operation with no sign of life is
+indistinguishable from a dead button, and the honest response to a dead button is to press it again.
+
+**The state had been there the whole time.** `sync.svelte.ts` has tracked `committing` / `pulling` /
+`pushing` since it was written, and its `syncing()` helper says in its own docstring that it is
+*"what a global 'syncing…' indicator reads"*. A grep for consumers returned only the definition —
+the surface was designed, documented, and never built. Worth noting as a pattern: a helper with no
+callers is not dead code here, it is an unfinished feature that reads as a finished one.
+
+**Consequences:**
+- **Not a sixth chip.** The 2026-08-31 ruling refused a sixth *alert*; this is transient, is not a
+  button, and is gone the moment the work is, so the resting toolbar is unchanged.
+- **It sheds its word on a phone**, like the alert chips. Measured at 390px: keeping the text pushed
+  the bottom bar's collapse control onto a second row — the wrapped-toolbar failure the 2026-07-19
+  device note records. `role="status"` + `aria-live="polite"` carries the full sentence at every
+  width, so nothing is lost where the text is hidden, and the wheel is what was asked for.
+- **One line, so it names the step being waited on**: `pulling` and `pushing` before `committing`,
+  which is a moment's work on disk.
+- **`prefers-reduced-motion` gets a pulse, not a freeze.** Motion is the signal; a static ring would
+  say nothing at all.
+- **The backup button already said "Backing up…"** — so the gap was never the *backup* path, it was
+  everything else, and `getTheirChanges` above all.
+
+**And the refused send.** The owner saw, as the entire message: *"io error cannot push because a
+reference that you are trying to update on the remote contains commits that are not present
+locally"*. They decoded it — *"(which makes sense)"* — and then did by hand the one thing the app
+could have offered. This state has exactly one remedy and there is a button for it, so `plainError`
+now returns *"The other device has changes you don't have yet — get their changes first, then
+send."* It matches the *shape* of the sentence across both backends and several git versions.
+**Anything unrecognised is returned untouched**, deliberately: flattening an unknown fault into a
+friendly shrug throws away its only diagnosis, which is the worse failure. That is also how
+*the app speaks the user's words, not git's* stays satisfied without an allowlist — the exception
+was always meant to be the diagnostic, not the headline.

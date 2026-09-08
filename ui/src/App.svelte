@@ -55,7 +55,14 @@
     recordUnrecorded,
   } from './lib/ipc';
   import { setActivity, lastEditFor } from './lib/activity.svelte';
-  import { pullVault, syncFor, syncVault } from './lib/sync.svelte';
+  import {
+    busyLabel,
+    plainError,
+    pullVault,
+    syncFor,
+    syncVault,
+    syncingPhase,
+  } from './lib/sync.svelte';
   import { conflictLabels } from './lib/conflictLabel';
   import { hashHue } from './lib/vaultColor';
   import { labelFor, setVaults, vaultList } from './lib/vaults.svelte';
@@ -894,7 +901,7 @@
           `'${v}': ${s.conflicts.length} note(s) came back with conflicting edits — ` +
           `they still open, with both versions marked in the body. Open ${names} and merge the two.`;
       } else if (phase === 'failed') {
-        report(syncFor(v).error ?? `could not get changes for '${v}'`);
+        report(plainError(syncFor(v).error ?? `could not get changes for '${v}'`));
       }
       // **Independent of the phase**: a pull can keep a note *and* still conflict on another, and
       // the keep is a decision the app made on the user's behalf. Said here as well as in the
@@ -1657,6 +1664,18 @@
   /// plus after every backup. At a threshold measured in weeks that is ample, and the alternative
   /// — a ticking clock behind a chip — is a re-render every second to change nothing.
   const quiet = $derived(quietVaults(lastSaves, Date.now()));
+  /// **Something is happening and you should wait.** The app had no such surface at all: every
+  /// slow thing it does — commit, a pull over the network, a push — ran with nothing on screen.
+  ///
+  /// It is worst on a phone, and that is where it was reported (2026-09-08): a pull there is the
+  /// slowest operation in the app, and `getTheirChanges` **clears the "get changes" chip before it
+  /// starts**, so pressing the button removed the only evidence that anything had begun. The notes
+  /// arrived correctly minutes later — *"Ok, I see them only now"* — which is exactly the failure a
+  /// person cannot distinguish from a broken button.
+  ///
+  /// `syncing()` was written for this and never called (`sync.svelte.ts` says so in its own
+  /// docstring), so the state was there the whole time and only the surface was missing.
+  const busy = $derived(busyLabel(syncingPhase()));
   const unrecordedTotal = $derived(unrecordedList.reduce((n, u) => n + u.count, 0));
   /// Record every vault's forgotten notes. One click, because the answer is never "some of them".
   ///
@@ -2123,6 +2142,23 @@
       {/if}
 
       <span class="tb-spacer"></span>
+
+      <!-- **Not a button and not an alert.** It reports, it cannot be clicked, and it is gone the
+           moment the work is — so it is not the sixth chip the 2026-08-31 ruling refused: the
+           resting toolbar is unchanged. `role="status"` + `aria-live="polite"` so it is announced
+           rather than merely drawn, which is the same information for someone who cannot see it
+           spin — and `aria-live` carries the full sentence at every width, including the one where
+           the text is hidden. It sheds its word on a phone exactly like the alert chips do:
+           measured at 390px, keeping it pushed the bottom bar's collapse control onto a second
+           row, which is the wrapped-toolbar failure the 2026-07-19 device note records. The wheel
+           is what was actually asked for — *"some icon rotating like a wheel should be visually
+           present"* — and it is the half that survives the trim. -->
+      {#if busy}
+        <span class="tb-chip working" role="status" aria-live="polite">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="lbl">{busy}</span>
+        </span>
+      {/if}
 
       {#if movedVaults.length}
         <!-- Someone pushed work you don't have — a passive nudge with one-click pull. -->
@@ -3233,6 +3269,43 @@
     background: var(--surface-hover);
     color: var(--text);
   }
+  /* The one moving thing in the app, and it moves only while work is in flight. */
+  .working {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: default;
+    color: var(--text-muted);
+  }
+  .spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border);
+    /* One side in the text colour is what makes the rotation legible; a uniform ring appears
+       still however fast it turns. */
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: tb-spin 0.8s linear infinite;
+    flex: none;
+  }
+  @keyframes tb-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* **Motion is the signal, so what replaces it must also be one.** Removing the animation and
+     leaving a static ring would say nothing at all; a pulse carries the same "still working"
+     without the rotation that triggers vestibular symptoms. */
+  @media (prefers-reduced-motion: reduce) {
+    .spinner {
+      animation: tb-pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes tb-pulse {
+      50% {
+        opacity: 0.25;
+      }
+    }
+  }
   .tb-chip {
     font: inherit;
     font-size: var(--text-sm);
@@ -3383,7 +3456,8 @@
        to a screen reader, and to the tests, nothing here changed.
        **`.alert` and not `.tb-chip`**: the vault filter is a `tb-chip` too, and it is *only* its
        words. The rule above about `.vaults-wrap` is the same lesson, learned on the same bar. */
-    .tb-chip.alert .lbl {
+    .tb-chip.alert .lbl,
+    .working .lbl {
       display: none;
     }
   }

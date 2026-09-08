@@ -125,6 +125,76 @@ export function syncing(): string[] {
     .map(([v]) => v);
 }
 
+/** The steps a person actually waits through, slowest-to-explain first. */
+const IN_FLIGHT = ['pulling', 'pushing', 'committing'] as const;
+export type BusyPhase = (typeof IN_FLIGHT)[number];
+
+/**
+ * The one step a single global indicator should name, or `null` when nothing is running.
+ *
+ * **This is what `syncing()` was written for and never used to do.** That function's own docstring
+ * calls itself "what a global 'syncing…' indicator reads", and until 2026-09-08 a grep for its
+ * consumers returned only its definition: the app committed, pulled over the network and pushed
+ * with nothing on screen to say so. Reported from a phone — *"I pressed get their changes… Ok, I
+ * see them only now (time issue with pull I guess). Some icon rotating like a wheel should be
+ * visually present"* — where it is worst, because a phone's pull is the slowest one there is and
+ * `getTheirChanges` **clears the "get changes" chip before it starts**, so pressing the button
+ * deleted the only evidence that anything was happening.
+ *
+ * **Ordered, because there is one line to spend.** With two vaults in flight at different steps,
+ * naming the local one would describe the half the user is not waiting for; committing is a
+ * moment's work on disk and the network steps are the wait.
+ */
+export function syncingPhase(): BusyPhase | null {
+  const live = new Set(Object.values(state.byVault).map((s) => s.phase));
+  return IN_FLIGHT.find((p) => live.has(p)) ?? null;
+}
+
+/**
+ * What the indicator says. Pure, so the sentence can be tested without a render — the same reason
+ * `quietVaults` keeps its wording in a plain module.
+ *
+ * Plain words, per `decisions.md` (*the app speaks the user's words, not git's*): a person waiting
+ * on a spinner is the last person who should have to translate "pushing".
+ */
+export function busyLabel(phase: BusyPhase | null): string {
+  if (phase === 'committing') return 'Saving…';
+  if (phase === 'pulling') return 'Getting changes…';
+  if (phase === 'pushing') return 'Sending…';
+  return '';
+}
+
+/**
+ * A send refused because the other side is ahead — the one failure here with a single, obvious
+ * remedy, and a button that performs it.
+ *
+ * Matched on the *shape* of the sentence rather than on an exact string: the subprocess backend
+ * relays git's wording, libgit2 writes its own, and both change between versions. All three
+ * spellings say the same thing, and the remedy is the same for all of them.
+ */
+const AHEAD_OF_US =
+  /(non-fast-forward|not present locally|do not have locally|contains work that you do not have|fetch first)/i;
+
+/**
+ * The headline for a failed send, in words the reader already has.
+ *
+ * The owner's phone, 2026-09-08, showed this as the entire message: *"io error cannot push because
+ * a reference that you are trying to update on the remote contains commits that are not present
+ * locally"*. They decoded it themselves and then did by hand the one thing the app could have
+ * offered. `decisions.md` (*the app speaks the user's words, not git's*) permits git's vocabulary
+ * in a **diagnostic**; this was the headline, for a state with exactly one remedy.
+ *
+ * **Anything unrecognised is returned untouched, deliberately.** Flattening an unknown fault into a
+ * friendly shrug would throw away its only diagnosis, which is a worse failure than an ugly
+ * sentence — the same rule that keeps `restic did not say` from being rendered as success.
+ */
+export function plainError(raw: string): string {
+  if (AHEAD_OF_US.test(raw)) {
+    return "The other device has changes you don't have yet — get their changes first, then send.";
+  }
+  return raw;
+}
+
 /** Vaults whose last sync ended somewhere the user needs to look at. */
 export function needsAttention(): { vault: string; state: VaultSync }[] {
   return Object.entries(state.byVault)

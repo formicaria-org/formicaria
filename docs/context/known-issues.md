@@ -384,6 +384,17 @@ The gray-screen fix and its tests are in
   Reusing that class for anything that must stay visible on a phone makes it silently vanish
   there — nearly shipped for the collapsed search button on 2026-07-20.
 
+- **A handler that clears its own trigger removes the only sign it ran.** `getTheirChanges`
+  empties `movedVaults` as its first statement, so the "get changes" chip vanishes the instant it
+  is pressed — and before 2026-09-08 nothing replaced it for the seconds or minutes the pull then
+  took. The user cannot tell that from a dead button. Any control that starts slow work must leave
+  something behind that says it started.
+
+- **A helper with no callers here is usually an unfinished feature, not dead code.** `syncing()`
+  carried the docstring *"what a global 'syncing…' indicator reads"* and had zero consumers for as
+  long as it existed; `needsAttention()` still has none. Deleting such a function as unused loses
+  the design note attached to it — check what it was *for* before assuming nothing wants it.
+
 - **A width `@media` placed above the rules it overrides loses, silently.** Both settings sheets
   define `.k`, `.line`, `.assets input`, `.vault` and `.row input` *below* their first `@media`
   block, at equal specificity — so a narrow rule written next to the existing `(pointer: coarse)`
