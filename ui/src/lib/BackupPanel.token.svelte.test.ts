@@ -27,6 +27,7 @@ vi.mock('./ipc', async (importOriginal) => ({
 }));
 
 import BackupPanel from './BackupPanel.svelte';
+import { syncVault } from './sync.svelte';
 
 const vault = (name: string, remote: string | null) => ({
   name,
@@ -88,6 +89,49 @@ describe('a token for a private HTTPS remote', () => {
     gitAuth.mockResolvedValue({ storage: 'system', have_credential: true, helper });
     show([vault('notes', 'https://github.com/you/notes.git')]);
     await screen.findByText(/git remote/i);
+    expect(screen.queryByPlaceholderText(/github_pat_/i)).toBeNull();
+  });
+});
+
+// **A stored credential the remote refuses is not a credential.**
+//
+// The gate above asks only whether one is *present*, so a token that has expired, been revoked, or
+// was minted without the `repo` scope left the field hidden while every push failed on it: the
+// panel said "authentication failed — check the token for this remote" and offered nothing that
+// could change it. Reported from the owner's phone on 2026-09-08, with three commits stuck behind
+// it and no way forward from the only screen they use — the same dead end this file's header
+// describes for a *missing* credential, fixed then for that case only.
+//
+// A different vault name from the tests above, deliberately: `sync.svelte.ts`'s store is module
+// state and outlives a test, so marking `notes` as failed here would reach back into
+// "is not offered once this machine already has the credential" if the order ever changed.
+const failWith = (message: string) =>
+  syncVault('lab', 'backup', undefined, {
+    hasRemote: async () => true,
+    commit: async () => ({ committed: true, conflicts: [] }),
+    push: () => Promise.reject(new Error(message)),
+    pull: () => Promise.reject(new Error(message)),
+  });
+
+describe('a token the remote refuses', () => {
+  it('is offered again when the credential it already has was rejected', async () => {
+    gitAuth.mockResolvedValue({ storage: 'app', have_credential: true, helper: null });
+    await failWith('io error: authentication failed — check the token for this remote');
+    show([vault('lab', 'https://github.com/you/notes.git')]);
+
+    // The reason, and — the whole point — something to do about it in the same block.
+    expect(await screen.findByText(/authentication failed/i)).toBeTruthy();
+    expect(await screen.findByPlaceholderText(/github_pat_/i)).toBeTruthy();
+    expect(await screen.findByText(/was refused/i)).toBeTruthy();
+  });
+
+  it('stays hidden when the push failed for a reason a token cannot fix', async () => {
+    gitAuth.mockResolvedValue({ storage: 'app', have_credential: true, helper: null });
+    await failWith('could not resolve host github.com');
+    show([vault('lab', 'https://github.com/you/notes.git')]);
+
+    // Anchored on the reason, so this cannot pass before the panel has rendered anything.
+    expect(await screen.findByText(/could not resolve host/i)).toBeTruthy();
     expect(screen.queryByPlaceholderText(/github_pat_/i)).toBeNull();
   });
 });

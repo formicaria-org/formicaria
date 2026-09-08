@@ -141,6 +141,21 @@
   // finished, and says so instead of showing an empty box.
   const needsToken = (v: VaultStatus) =>
     usesToken(v) && !noGit && !!auth[v.name] && !auth[v.name]!.have_credential;
+  /// **A stored credential that the remote rejects is not a credential.** `needsToken` asks only
+  /// whether one is *present*, so a token that has expired or been revoked left the field hidden
+  /// while the push failed on it — the panel said "check the token for this remote" and offered no
+  /// way to change it. Reported from the phone, 2026-09-08, with three commits stuck behind it.
+  /// Session-scoped on purpose: this is the answer to a push that just failed, and it appears in
+  /// the same breath as the reason.
+  const authRejected = (v: VaultStatus) => {
+    const st = syncFor(v.name);
+    return (
+      usesToken(v) &&
+      !noGit &&
+      st.phase === 'failed' &&
+      /authentication|auth failed|401|403/i.test(st.error ?? '')
+    );
+  };
   const canSaveRemote = (v: VaultStatus) =>
     !busy &&
     !noGit &&
@@ -668,7 +683,7 @@
         <!-- `|| authSaved` so the confirmation is actually seen: storing the token flips
              `have_credential`, which makes `needsToken` false and would otherwise take the whole
              block — including the ✓ — off screen in the same frame. -->
-        {#if needsToken(v) || authSaved[v.name]}
+        {#if needsToken(v) || authRejected(v) || authSaved[v.name]}
           <!-- The credential, asked for where it is actually needed. The clone form has had this
                field all along; a vault created *here* and later pointed at a private HTTPS repo
                had no way to reach it, so Back up failed at the push with nothing to do about it.
@@ -678,10 +693,23 @@
             {#if authSaved[v.name]}
               <p class="why">✓ Saved. Back up will use it from now on.</p>
             {:else}
+              <!-- Only the wording varies. The input below is the whole point of the block, and
+                   putting the rejected case in a branch of its own once left it explaining the
+                   problem with no box to fix it in — the same shape as the bug being fixed. -->
               <p class="why">
-                {auth[v.name]?.storage === 'app'
-                  ? 'This repo is reached over HTTPS, which needs an access token. There is no system-wide git configuration on this device, so formicaria keeps it in its own private storage.'
-                  : "This repo is reached over HTTPS, which needs an access token. It goes to git's own credential helper — the terminal and every other tool get it too, and formicaria keeps nothing."}
+                {#if authRejected(v) && !needsToken(v)}
+                  The token stored for this repo was refused. Paste a new one to replace it — an
+                  access token can expire, be revoked, or have been created without the
+                  <code>repo</code> scope this needs.
+                {:else if auth[v.name]?.storage === 'app'}
+                  This repo is reached over HTTPS, which needs an access token. There is no
+                  system-wide git configuration on this device, so formicaria keeps it in its own
+                  private storage.
+                {:else}
+                  This repo is reached over HTTPS, which needs an access token. It goes to git's own
+                  credential helper — the terminal and every other tool get it too, and formicaria
+                  keeps nothing.
+                {/if}
               </p>
               <div class="row">
                 <input
