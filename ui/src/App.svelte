@@ -402,7 +402,13 @@
   // The create destination, clamped to a vault that still exists (a removed/renamed one
   // falls back to the default rather than erroring on the next capture). Empty = default vault.
   const createTarget = $derived(allVaults.includes(newVaultTarget) ? newVaultTarget : '');
-  const defaultVault = $derived((vaults ?? []).find((v) => v.default)?.name ?? allVaults[0] ?? '');
+  /// **List order, not alphabetical.** `allVaults` is sorted for display, and falling back to
+  /// `allVaults[0]` meant this disagreed with the backend, whose default is index 0 of the caller's
+  /// *config* list (`infos`). Latent rather than live — `infos` always marks one — but two places
+  /// deciding "which vault is default" by different rules is how they drift.
+  const defaultVault = $derived(
+    (vaults ?? []).find((v) => v.default)?.name ?? (vaults ?? [])[0]?.name ?? '',
+  );
 
   // Saved `.view` files (query + a renderer), authored in the vault. Each becomes a choice in
   // a pane's view picker; opening one adds/retargets a pane.

@@ -1627,11 +1627,12 @@ fn dispatch_inner(
             }
             let generation = app.generation.load(Ordering::Relaxed);
             let mut g = lock()?;
+            let cap = capabilities();
             json(Ping {
                 changed: generation > since,
                 generation,
-                git: vcs::available(),
-                restic: backup::available(),
+                git: cap.git,
+                restic: cap.restic,
                 // Taken from the store rather than from `changed`, because this is the
                 // *current* set across every vault, labelled by which one — not just what
                 // this pass happened to re-read.
@@ -1790,6 +1791,7 @@ fn dispatch_inner(
         // command in the app — a settings screen must not be a reason to run it.
         "config" => {
             let g = lock()?;
+            let cap = capabilities();
             json(Config {
                 version: option_env!("FM_VERSION").unwrap_or("dev").to_string(),
                 vault_list: app.config.as_ref().map(|p| p.display().to_string()),
@@ -1821,14 +1823,16 @@ fn dispatch_inner(
                 // change what the app can do and are the commonest source of "why is this
                 // greyed out". `RESTIC_PASSWORD` is reported as present/absent only — never
                 // its value, which is why it is a bool and not an `env` entry.
-                git: fm_core::vcs::available(),
-                restic_installed: backup::available(),
+                git: cap.git,
+                // `restic_installed` here and `restic` on `BackupStatus` — two names, one fact, and
+                // now one probe behind both.
+                restic_installed: cap.restic,
                 // Reported for the same reason git and restic are: a feature that quietly does not
                 // work is one you discover on the day you needed it.
                 pdf_text: fm_core::ingest::pdf_text_available(),
                 // Env **or** the password formicaria keeps: setting one in the app has to move
                 // this, or the panel goes on saying "no password" about a machine that has one.
-                restic_password_set: crate::secrets::has_restic_password(),
+                restic_password_set: cap.restic_password,
                 vault_root: vaults::vault_root().map(|p| p.display().to_string()),
                 ca_bundle: crate::ca_bundle::status(),
                 platform: std::env::consts::OS,
@@ -2629,6 +2633,44 @@ struct Supervision {
 }
 
 /// What the create-vault form needs: the filesystem facts, plus the ones only the vault
+/// **What this machine can do, asked in one place.**
+///
+/// `git`, `restic` and "is the restic password held" were each probed by three different commands —
+/// `ping`, `config` and `backup_status` — and `restic` was even exposed under two names
+/// (`restic` and `restic_installed`). Three probes of one fact are three chances to answer
+/// differently, and `mock.contract.test.ts` exists because two of them already did.
+///
+/// Deliberately not cached: `vcs::available()` is a `OnceLock` already, and restic can be installed
+/// or a password set while the app runs — a stale "no restic here" would be a worse answer than a
+/// cheap one.
+struct Capabilities {
+    git: bool,
+    restic: bool,
+    restic_password: bool,
+}
+
+fn capabilities() -> Capabilities {
+    Capabilities {
+        git: vcs::available(),
+        // Media backup is an optional *feature*: no restic, no feature — but the notebook is
+        // untouched, and the panels have to be able to say which of those it is.
+        restic: backup::available(),
+        // One password for every repo. A per-vault password would have to live somewhere, and the
+        // one place it must never live is the config file next to the paths.
+        restic_password: crate::secrets::has_restic_password(),
+    }
+}
+
+/// Whether this vault's snapshot tier will actually run — **the three conditions together**.
+///
+/// Written out five times before this: here, in `backup_latest`'s reason ladder, in `run_backup`,
+/// in `restore_vault`, and again in the browser. `restic_ready` is the cautionary tale two other
+/// comments in this file already cite — it once meant "configured" rather than "will work", and a
+/// button enabled and then failed.
+fn restic_ready(cap: &Capabilities, repo: Option<&String>) -> bool {
+    cap.restic && repo.is_some() && cap.restic_password
+}
+
 /// A vault folder sitting in the managed root that is **not** in the vault list — something to
 /// take back with one tap instead of a name typed from memory.
 ///
@@ -2922,12 +2964,7 @@ fn backup_latest(app: &App, scope: &Scope, vault: &str) -> Result<LatestBackup, 
 }
 
 fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
-    // One password for every repo. A per-vault password would have to live somewhere,
-    // and the one place it must never live is the config file next to the paths.
-    let has_password = crate::secrets::has_restic_password();
-    // The tool itself. Media backup is an optional *feature*: no restic, no feature — but
-    // the notebook is untouched, and the panel has to say which of those it is.
-    let has_restic = backup::available();
+    let cap = capabilities();
     // Clone the configs out and **drop the guard** before any of this: every entry below
     // shells out per vault, including `remote_moved`'s network `ls-remote`. Holding the
     // lock across that would stall every `ping`, and with it the local poll, for a
@@ -2951,7 +2988,7 @@ fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
             identity: vcs::identity(&v.path),
             remote_moved: vcs::remote_moved(&v.path).unwrap_or(None),
             conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
-            restic_ready: has_restic && v.restic.is_some() && has_password,
+            restic_ready: restic_ready(&cap, v.restic.as_ref()),
             restic_repo: v.restic.clone(),
             // Best-effort, exactly as the vault list treats it (`VaultInfo::git_assets_max`): a
             // descriptor that will not parse reports "off", the same as having no opinion. One
@@ -2964,9 +3001,9 @@ fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
         .collect();
     Ok(BackupStatus {
         vaults,
-        git: vcs::available(),
-        restic: has_restic,
-        restic_password_set: has_password,
+        git: cap.git,
+        restic: cap.restic,
+        restic_password_set: cap.restic_password,
     })
 }
 
