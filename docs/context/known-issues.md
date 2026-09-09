@@ -1472,6 +1472,14 @@ The gray-screen fix and its tests are in
 
 ## External facts (dated — re-verify, never trust the date alone)
 
+- **`macos-latest` is macOS 26 (Tahoe) as of 2026-09-09.** Read off a rung-5 log: Homebrew poured
+  `arm64_tahoe` bottles. It matters because that image's **awk enforces POSIX on `-v`
+  assignments** where gawk, mawk and busybox awk do not — which is what killed rung 5's second
+  ever run (`ci/ios-inject-plist.sh`, fixed the same day, and `ci/checks.sh` now refuses the
+  construct textually because no awk here can refuse it behaviourally). Rung 5's only green run,
+  2026-09-03, was on the previous image. **Anything an iOS rung "proved" before 2026-09-09 was
+  proved against a different macOS**, and the runner image moves without notice.
+
 **The rule that created this section: any external claim gets a date and a re-verify command, or
 it does not go in.** The corpus previously carried *"once `gix` push ships"* as though it were a
 schedule, for an upstream issue that has been open for years.

@@ -76,21 +76,38 @@ KEYS='        NSMicrophoneUsageDescription: formicaria records audio only when y
 if grep -q '^        NSMicrophoneUsageDescription: ' "$spec"; then
     echo "ios-inject-plist: already applied to $spec"
 else
-    awk -v keys="$KEYS" '
+    # **Through the environment, not `awk -v`** (2026-09-09). `$KEYS` is four lines, and POSIX does
+    # not allow a literal newline in a `-v` assignment: the value is processed for escape sequences,
+    # and a raw newline is a syntax error. gawk, mawk and busybox awk all accept it anyway, so this
+    # ran green here and on every runner image until `macos-latest` moved to macOS 26, whose awk
+    # enforces the rule — `awk: newline in string   NSMicrophone... at source line 1`, three times,
+    # then a failed job. `ENVIRON` is not escape-processed and carries newlines untouched.
+    if KEYS="$KEYS" awk '
         { print }
-        /^        CFBundleVersion: / && !done { print keys; done = 1 }
+        /^        CFBundleVersion: / && !done { print ENVIRON["KEYS"]; done = 1 }
         END { if (!done) exit 3 }
-    ' "$spec" > "$spec.new" || {
+    ' "$spec" > "$spec.new"; then
+        mv "$spec.new" "$spec"
+        echo "ios-inject-plist: added 4 usage descriptions to $spec"
+    else
+        # **Two failures, told apart** — because conflating them is what made the first one cost a
+        # job to understand. `exit 3` is ours and means the anchor is genuinely gone; anything else
+        # is awk itself refusing, and the old code reported both as "the template changed", sending
+        # the reader to re-read tauri-cli's template when the template was fine.
+        rc=$?
         rm -f "$spec.new"
-        echo "ios-inject-plist: no '        CFBundleVersion: ' line in $spec." >&2
-        echo "  That anchor comes from tauri-cli's own project.yml template, inside the app" >&2
-        echo "  target's 'info: properties:' map, and is unconditional. If it is gone the template" >&2
-        echo "  changed — re-read it before guessing a new anchor:" >&2
-        echo "  crates/tauri-cli/templates/mobile/ios/project.yml at the pinned CLI version." >&2
+        if [ "$rc" = 3 ]; then
+            echo "ios-inject-plist: no '        CFBundleVersion: ' line in $spec." >&2
+            echo "  That anchor comes from tauri-cli's own project.yml template, inside the app" >&2
+            echo "  target's 'info: properties:' map, and is unconditional. If it is gone the template" >&2
+            echo "  changed — re-read it before guessing a new anchor:" >&2
+            echo "  crates/tauri-cli/templates/mobile/ios/project.yml at the pinned CLI version." >&2
+        else
+            echo "ios-inject-plist: awk failed (exit $rc) reading $spec — this is awk refusing, not" >&2
+            echo "  a missing anchor. Read its message above before touching the anchor or template." >&2
+        fi
         exit 1
-    }
-    mv "$spec.new" "$spec"
-    echo "ios-inject-plist: added 4 usage descriptions to $spec"
+    fi
 fi
 
 # **Verify, do not assume.** A key that landed in the wrong block would produce a build that runs

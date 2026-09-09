@@ -499,6 +499,58 @@ else
     echo "  (skipped: ci/ios-inject-plist.sh not present)"
 fi
 
+echo "[check] no multi-line shell value is passed through 'awk -v'..."
+# ---------------------------------------------------------------------------------------------
+# **POSIX forbids a literal newline in an `awk -v` assignment**, and most awks allow it anyway.
+# That gap cost a billed macOS job on 2026-09-09: `ci/ios-inject-plist.sh` passed four lines of
+# usage descriptions as `awk -v keys="$KEYS"`, which gawk, mawk and busybox awk all accept — so it
+# was green here, green in this very file's own self-test, and green on every runner image — until
+# `macos-latest` moved to macOS 26, whose awk enforces the rule. `awk: newline in string`, three
+# times, and a failed rung 5. Worse, the script reported it as *"no CFBundleVersion line — the
+# template changed"*, sending the reader to re-read tauri-cli's template, which was fine.
+#
+# **This has to be a textual check, and that is the point.** A behavioural one cannot exist here:
+# no awk on this machine rejects the construct, so the self-test above passed the broken script and
+# would again. The rule is checkable by reading; the behaviour is not, without the runner.
+#
+# Pass it through the environment instead — `ENVIRON["NAME"]` is not escape-processed and carries
+# newlines untouched.
+if ls ci/*.sh >/dev/null 2>&1; then
+    awkv=$(python3 - <<'PY'
+import pathlib, re
+# A variable opened with a single quote and not closed on the same line holds a multi-line value.
+open_q = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)='")
+use = re.compile(r'-v\s+[A-Za-z_][A-Za-z0-9_]*="\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?"')
+hits = []
+for f in sorted(pathlib.Path('ci').glob('*.sh')):
+    lines = f.read_text().splitlines()
+    multi = set()
+    for i, line in enumerate(lines):
+        m = open_q.match(line)
+        if m and line[m.end():].count("'") == 0:
+            multi.add(m.group(1))
+    for i, line in enumerate(lines, 1):
+        if 'awk' not in line:
+            continue
+        for name in use.findall(line):
+            if name in multi:
+                hits.append(f"{f}:{i}: awk -v carries multi-line ${name}")
+for h in hits:
+    print(h)
+PY
+)
+    if [ -n "$awkv" ]; then
+        echo "  FAIL: a multi-line shell value is passed through 'awk -v':"
+        echo "$awkv" | sed 's/^/          /'
+        echo "        POSIX does not allow a newline in a -v assignment. gawk/mawk/busybox accept"
+        echo "        it; the awk on macos-latest does not, and the job dies with"
+        echo "          awk: newline in string ... at source line 1"
+        echo "        Pass it through the environment instead:"
+        echo "          NAME=\"\$NAME\" awk '{ ... ENVIRON[\"NAME\"] ... }' file"
+        fail=1
+    fi
+fi
+
 echo "[check] the iOS smoke test's simctl parsers still parse (the only part testable off a Mac)..."
 # `ci/ios-smoke.sh` runs on macOS and nowhere else, so almost none of it can be checked here — its
 # first real execution is inside a billed CI job. Its *parsers* are the exception: they are pure
