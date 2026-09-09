@@ -1,0 +1,24 @@
+# The certificate every formicaria APK is signed with — the one fact a user can check.
+#
+# **Why this file exists.** An APK's signature protects *updates*: Android refuses to replace an
+# installed app with one signed by a different key. It does nothing for a **first install** — a new
+# user has no baseline to compare against, so an APK swapped on the release page installs cleanly
+# and looks exactly as official as the real one. GitHub release assets are mutable and GitHub signs
+# nothing. Publishing this digest is what gives a first-time installer something to check, and it is
+# the one gap that is closed neither by where the key is kept nor by who does the signing.
+#
+# **It is also the assertion, not a note.** `ci/android-release.sh` reads this file after signing
+# and refuses to finish if the APK it just produced carries a different certificate. So a build
+# signed with the wrong keystore — a mistyped alias, a CI job that generated its own key, a
+# restored-from-the-wrong-backup keystore — fails loudly here instead of shipping an app that
+# contradicts its own published fingerprint and that nobody's phone will accept as an update.
+#
+# Same discipline as `android/toolchain.lock`: the checksum is the assertion, and you do not "fix" a
+# mismatch by pasting the new value. A change here means the app's identity changed, which is a
+# thing users feel — read `decisions.md` (`#track-m`, the Android signing key) before touching it.
+#
+# Read it back yourself from any release APK with:
+#   apksigner verify --print-certs formicaria-<version>-android-arm64.apk
+#
+# Format: one `<algorithm> <lowercase hex digest>` line, `#` comments ignored.
+sha256 de040b95933b491e3fb26966025001a8d7c052a526a56ea789e330c1f937bc20

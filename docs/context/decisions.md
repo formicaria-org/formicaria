@@ -7212,15 +7212,33 @@ overwhelmingly through developer-side mistakes: committed to a repo, plaintext p
   an environment only *scopes* a secret. Required reviewers are a repository setting, invisible in
   the YAML, and on Free/Pro/Team plans the protection rules exist only while the repo is public.
   Not adopted as security; available later as bookkeeping.
-- **What this does not fix, and local signing would not either.** GitHub release assets are mutable
-  and GitHub signs nothing, so anyone with repository write can swap an APK — and an APK signature
-  protects *updates*, not *first installs*, because a new user has no baseline. The answer is
-  publishing the certificate fingerprint, not where the key sleeps.
-- **Two follow-ups this survey earned, neither done here.** Establish the `apksigner` rotation
-  lineage **now**: rotation needs `--old-signer`, so a lineage created after a leak is worthless.
-  And a GitHub-Releases APK has no auto-update at all — the release body now points at Obtainium,
-  which is what Organic Maps does; IzzyOnDroid is the other half (it ingests the release APK,
-  **keeps our signature**, and adds reproducibility verification) and is not set up.
+- **The certificate fingerprint is published, and it is an assertion (done 2026-09-09).** GitHub
+  release assets are mutable and GitHub signs nothing, so anyone with repository write can swap an
+  APK — and an APK signature protects *updates*, not *first installs*, because a new phone has no
+  baseline to compare against. Where the key sleeps changes none of that. So
+  `android/signing-certificate.sha256` holds the digest,
+  `ci/android-release.sh` **refuses to finish** if the APK it just signed carries a different
+  certificate (which also catches a mistyped alias, a restored-from-the-wrong-backup keystore, or a
+  CI job that generated its own key), `release.yml` reads the same file into the release body, and
+  the manual repeats the literal digest because a reader offline in a `.zip` cannot follow an
+  indirection. `ci/checks.sh` fails if the manual's copy drifts or if the workflow grows a third.
+  **A stale fingerprint is worse than none** — it either teaches people the check is noise, or makes
+  someone refuse a genuine download.
+- **The rotation lineage was investigated and declined (2026-09-09), reversing my own advice.**
+  I recommended it twice on the reasoning that *"rotation needs `--old-signer`, so a lineage created
+  after a leak is worthless."* That is wrong: a leak does not take the key away, so `--old-signer`
+  is still in hand at that moment. Worse, the AOSP v3 spec says an attacker holding the original key
+  can build **their own competing lineage**, and that an established lineage gives *"no retrospective
+  protection if the original key is stolen"* — it does not defend the case it was proposed for. It
+  is not free either: a lineage is a chain where each certificate signs the next, so creating one
+  requires generating and then guarding a **second** irreplaceable key; using it means signing with
+  that new key, which `minSdk = 24` devices below API 28 reject outright; and AOSP states plainly
+  that *"APK key rotation is not recommended for Android 12 (API level 31) and earlier."* Where a
+  pre-made lineage genuinely helps is key **loss**, not compromise — and an off-machine backup of
+  the keystore covers that better and costs nothing. **Back the keystore up; do not pre-rotate.**
+- **Still not set up: IzzyOnDroid.** A GitHub-Releases APK has no auto-update at all — the release
+  body now points at Obtainium, which is what Organic Maps does. IzzyOnDroid is the other half: it
+  ingests the release APK, **keeps our signature**, and adds reproducibility verification.
 - **Play App Signing would dissolve the irreversibility**, by making the CI-held key a resettable
   *upload* key. It needs a Play account, so it is not on the table — recorded so the next reader
   knows it was considered rather than missed.

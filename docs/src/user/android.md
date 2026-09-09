@@ -15,6 +15,30 @@ not come from the Play Store. Allow it, and the install proceeds normally.
 
 Updating is the same gesture: download the newer file and open it. Your notes stay where they are.
 
+## Checking that you got the real thing
+
+Every formicaria APK is signed with the same certificate. Its fingerprint is:
+
+```text
+de040b95933b491e3fb26966025001a8d7c052a526a56ea789e330c1f937bc20
+```
+
+You can read that back out of any file you download:
+
+```sh
+apksigner verify --print-certs formicaria-<version>-android-arm64.apk
+```
+
+The `SHA-256 digest` it prints should match, character for character. If it does not, do not
+install it — tell us.
+
+**Why bother.** Android already protects you *after* the first install: it refuses to replace the
+app with one signed by a different key, so nobody can push you a fake update. What it cannot do is
+protect the first install, because your phone has nothing to compare against yet. Downloads on a
+release page can be replaced by anyone with write access to the project, and nothing about how the
+app is built changes that. This fingerprint is the baseline that closes the gap, and it is the only
+part of the chain that depends on you rather than on us.
+
 ## There is no automatic update
 
 Nothing tells you when a new version exists — you have to look. If that sounds like something you

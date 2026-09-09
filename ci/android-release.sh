@@ -179,6 +179,30 @@ if [ "$do_sign" = yes ]; then
     "${bt}apksigner" sign --ks "$storeFile" --ks-pass "pass:$storePassword" \
         --key-pass "pass:$keyPassword" --ks-key-alias "$keyAlias" "$out" 2>/dev/null
     "${bt}apksigner" verify "$out" >/dev/null 2>&1 || { echo "android-release: signature did not verify" >&2; exit 1; }
+
+    # **The published fingerprint is an assertion, not a note.** `android/signing-certificate.sha256`
+    # is what users are told to check a download against; if this build carries a different
+    # certificate then either the file is wrong or the wrong key just signed the app, and both are
+    # worth stopping for. A mismatched APK would fail to install as an update on every phone that
+    # already has formicaria, and would contradict the digest published beside it.
+    want=$(sed -n 's/^sha256[[:space:]]*//p' "$root/android/signing-certificate.sha256" | tr -d '[:space:]')
+    got=$("${bt}apksigner" verify --print-certs "$out" 2>/dev/null \
+          | sed -n 's/.*certificate SHA-256 digest:[[:space:]]*//p' | head -1 | tr -d '[:space:]')
+    if [ -z "$want" ]; then
+        echo "android-release: no sha256 line in android/signing-certificate.sha256" >&2
+        exit 1
+    fi
+    if [ "$got" != "$want" ]; then
+        echo "android-release: SIGNED BY THE WRONG KEY" >&2
+        echo "  expected $want" >&2
+        echo "  got      $got" >&2
+        echo "  Users are told to check a download against the expected digest, and every phone" >&2
+        echo "  that already has formicaria will refuse this as an update. Either the wrong" >&2
+        echo "  keystore signed it, or the app's identity really changed — in which case read" >&2
+        echo "  decisions.md before editing android/signing-certificate.sha256." >&2
+        exit 1
+    fi
+    echo "android-release: certificate matches the published fingerprint"
 fi
 
 # Assert the artifact, not the flag: this is the check that catches Tauri having replaced the

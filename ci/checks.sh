@@ -1484,6 +1484,37 @@ fi
 # warns about a limit that is fine or accepts one the backend will reject, and the user meets the
 # disagreement as an error they cannot act on. There is no git-lfs here, so this number is what
 # stands between an attachment and a push that fails after the commit is already made.
+echo "[check] the published signing fingerprint agrees everywhere it appears..."
+# ---------------------------------------------------------------------------------------------
+# **A stale fingerprint is worse than none.** It is the one fact a first-time installer is told to
+# check by hand, and the whole value of it is that a mismatch means *stop*. Publish a wrong one and
+# either people learn to ignore the check, or somebody refuses a genuine download.
+#
+# `android/signing-certificate.sha256` is the single source. `ci/android-release.sh` refuses to ship
+# an APK whose certificate does not match it, and `release.yml` reads the same file into the release
+# body rather than keeping a copy. The manual is the one place that must repeat the literal digest,
+# because a reader offline in a `.zip` cannot follow an indirection — so that copy is checked here.
+if [ -f android/signing-certificate.sha256 ]; then
+    want=$(sed -n 's/^sha256[[:space:]]*//p' android/signing-certificate.sha256 | tr -d '[:space:]')
+    if [ -z "$want" ]; then
+        echo "  FAIL: android/signing-certificate.sha256 has no 'sha256 <digest>' line."
+        fail=1
+    elif ! grep -q "$want" docs/src/user/android.md 2>/dev/null; then
+        echo "  FAIL: docs/src/user/android.md does not carry the signing fingerprint from"
+        echo "        android/signing-certificate.sha256 ($want)."
+        echo "        The manual tells users to check a download against it, so a copy that has"
+        echo "        drifted teaches them the check is noise. Update the page, or find out why"
+        echo "        the certificate changed before you touch either."
+        fail=1
+    fi
+    # And the workflow must read the file rather than grow a third copy that can rot.
+    if grep -q "$want" .github/workflows/release.yml 2>/dev/null; then
+        echo "  FAIL: .github/workflows/release.yml hardcodes the signing fingerprint. Read it from"
+        echo "        android/signing-certificate.sha256 instead — one source, no drift."
+        fail=1
+    fi
+fi
+
 echo "[check] the attachment ceiling agrees between Rust and the UI..."
 rs_ceiling=$(grep -aoE 'pub const GIT_ASSETS_CEILING: u64 = [0-9_]+' crates/fm-core/src/descriptor.rs \
     | grep -aoE '[0-9_]+$' | tr -d _)

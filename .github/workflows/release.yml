@@ -544,6 +544,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # **The fingerprint comes from the file, never a copy.** `android/signing-certificate.sha256`
+      # is the one place it is written; `ci/android-release.sh` refuses to ship an APK that does not
+      # match it, and this reads the same file so the release page cannot drift from either.
+      - id: cert
+        run: |
+          echo "sha256=$(sed -n 's/^sha256[[:space:]]*//p' android/signing-certificate.sha256 | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
       - id: notes
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
@@ -661,3 +667,14 @@ jobs:
             - **The Android app has no auto-update.** Check back here, or point
               [Obtainium](https://github.com/ImranR98/Obtainium) at this repository and let it watch
               for you.
+            - **Checking the Android app is really ours.** Every formicaria APK is signed with the
+              same certificate, and its fingerprint is
+
+              ```text
+              ${{ steps.cert.outputs.sha256 }}
+              ```
+
+              Read it back with `apksigner verify --print-certs <the file>`; the `SHA-256 digest`
+              should match character for character. Android already stops anyone replacing an
+              installed app with a differently-signed one — this is for the *first* install, where
+              your phone has nothing to compare against yet.
