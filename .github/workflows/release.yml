@@ -71,6 +71,18 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
+      # `pixi run build` opens with `pnpm -C ui install`, so without this every release re-fetches
+      # the whole JS dependency tree on three runners. The store, not `node_modules` — see the
+      # android job for why.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
       # **The version, before the build rather than after it**, because the binary has to carry
       # it: the crates are all `0.0.0` and the real version is this tag. `fm-app` reads it through
       # `option_env!("FM_VERSION")` and falls back to `dev`, so an ordinary local `cargo build`
@@ -386,13 +398,20 @@ jobs:
             android
           run-install: true
           cache: true
+      # **Both workspaces.** The Android build compiles into `mobile/src-tauri/target`, not the root
+      # one — caching only `. -> target` would cache the half this job does not use. `ios.yml` has
+      # named both since it was written; this job was added later and did not.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
-          workspaces: . -> target
+          workspaces: |
+            . -> target
+            mobile/src-tauri -> target
           shared-key: android
           cache-on-failure: true
       # ~1 GB of NDK/SDK, verified against `android/toolchain.lock` — *"the checksum, not the URL,
-      # is the assertion"*. Cached on that file, so it is fetched once per toolchain bump.
+      # is the assertion"*. **It also carries `.android/whisper-src`**, where
+      # `ci/android-stage-whisper.sh` clones and cross-compiles whisper.cpp, so the cmake build is
+      # restored with it rather than repeated — that is the slowest single step in this job.
       - name: cache the android toolchain
         uses: actions/cache@v4
         with:
@@ -400,6 +419,27 @@ jobs:
           key: android-toolchain-${{ hashFiles('android/toolchain.lock') }}
       - name: the android toolchain
         run: pixi run android-init
+      # **Cache pnpm's STORE, never node_modules** — the pattern `cross.yml` and `ios.yml` document:
+      # pnpm fills `node_modules` with symlinks into a content-addressable store elsewhere, so
+      # caching `node_modules` restores dangling links and pnpm then reports "Already up to date"
+      # and repairs nothing. The store is content-addressed, which is why `restore-keys` is safe.
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run -e android pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+      # **Without this the job cannot build at all.** `tauri.conf.json` sets
+      # `beforeBuildCommand: pnpm -C ../ui build`, which needs `ui/node_modules`, and the script
+      # invokes `pnpm exec tauri`, which needs `mobile/node_modules`. Both exist on the machine
+      # where this was written and on no runner anywhere.
+      - name: the frontend
+        run: |
+          pixi run -e android pnpm -C ui install --frozen-lockfile
+          pixi run -e android pnpm -C mobile install --frozen-lockfile
       - name: version
         shell: bash
         run: |
