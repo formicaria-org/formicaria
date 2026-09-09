@@ -84,10 +84,11 @@ Nothing else is required. The interface, fonts, maths renderer and diagram rende
 compiled into the binary, so no runtime, package manager or network connection is needed to
 run it.
 
-**Two of those platforms are proven and two are not.** formicaria is used daily on Linux and
-Android. The macOS and Windows builds are compiled and tested by CI and the release archives are
-real, but nobody has run the app on either — see [Project status](#project-status) before you
-rely on it there.
+**How far each platform is proven, plainly.** Linux is what this is written and used on daily.
+**macOS and Windows have been run by other people, who report them working** — download, setup and
+note-taking. Neither is checked on this end: there is no Mac and no Windows machine here, so those
+two are *reported* working rather than tested, and the reports come with real problems attached.
+See [Project status](#project-status).
 
 ## Install
 
@@ -241,9 +242,19 @@ what it reversed), and they are not a description of how to use the app. The man
 
 **v0.4.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
 built alongside their research rather than as a product. It is used daily on **Linux and
-Android**, which are the only two platforms anyone has actually sat in front of. macOS and
-Windows builds are compiled and tested by CI and the release archives are real — but nobody
-has run the app on either, and the launchers for both have never been double-clicked.
+Android**, the two platforms the author works on and the only two anything here is checked
+against.
+
+**The other platforms have been run by other people, and reported working.** macOS since v0.3.0:
+download and setup "works smoothly", notes and search both used
+([#2](https://github.com/formicaria-org/formicaria/issues/2), 2026-08-30) — reported alongside
+real faults, including a view that could not be recovered by reloading the page, only by
+restarting the app. Windows and iOS more recently, 2026-09-09.
+
+**None of that is verified here.** There is no Mac, no Windows machine and no iPhone on this end,
+so those platforms are *reported* rather than tested, and a report is one person's session rather
+than a suite. The builds themselves are compiled and tested by CI and the release archives are
+real.
 
 Treat the feature tables above as *what is implemented*, not as *what is proven on your
 machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),

@@ -397,6 +397,22 @@ The gray-screen fix and its tests are in
   red plus shipped to the emulator as a visible ellipse on 2026-07-20. `svelte-check` cannot see
   this; one screenshot can.
 
+- **A reload does not recover the app, and a first-time user found that out.** From the only
+  outside report there is ([#2](https://github.com/formicaria-org/formicaria/issues/2), macOS,
+  v0.3.0, 2026-08-30): *"I was taking my first note and clicked something, then this happened.
+  Reloading the page didn't help. I had to rerun the start file. In general, I can't reload the
+  page, I need to restart it to reload it."*
+  **Unreproduced here, and the second sentence is the useful one.** A reload re-fetches everything
+  the server holds, so if it does not help, the bad state is *persisted* — the workspace layout and
+  the per-browser view preferences, which live in `localStorage` and survive exactly the action a
+  user reaches for. That is the same family as the vault filter that could hide every vault and
+  then hide its own control: state a person can get into and cannot get out of from inside the app.
+  Restarting the process only appears to fix it because it is the one thing that reloads the page
+  *and* re-reads the workspace. **What is missing is a way back** — a reset that clears the
+  per-browser view state without a terminal, on a screen someone in trouble can find. Worth pairing
+  with the reporter's other point, that the crash came from clicking around to discover features,
+  which is what a first-time user is supposed to do.
+
 - **A media query adds no specificity, so a width-scoped hide can lose to a utility class.**
   `.panel-toggle { display: none }` inside `@media (max-width: 59.999rem)` and
   `.icon-btn { display: grid }` at the top level are both (0,1,0). They tie, and **source order
