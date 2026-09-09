@@ -1178,14 +1178,23 @@ The gray-screen fix and its tests are in
   then `curl` that and look for e.g. `timelineMode` or `kind=thumb`. A timestamp says when a file
   was written; a string says what is inside it.
 
-- **`pixi run -e android android-release` leaves `icons/icon.icns` dirty every time.** The script
-  regenerates all icons from `icon-source.svg` (`ci/android-release.sh:39`), and that generator is
-  **nondeterministic for `.icns` only**: measured 2026-08-30, the file came back the same 44312
-  bytes with 43208 of them different, while every other generated icon was byte-identical. So a
-  clean tree becomes dirty after a release build, in a macOS icon an Android build has no reason to
-  touch. Harmless — it is derived from the same unchanged SVG — but do not read it as a real change,
-  and do not sweep it into a commit with `git add -A` without looking, which is exactly how it got
-  into `9a48a1f`.
+- **`tauri icon` is nondeterministic for `.icns` only** — still true, no longer a hazard. The
+  release script regenerates every icon from `icon-source.svg`, and that one file comes back the
+  same 44312 bytes with ~43k of them reordered while every other generated icon is byte-identical
+  (measured 2026-08-30, re-measured across four builds 2026-09-09). **Since 2026-09-09
+  `ci/android-release.sh` restores it immediately after generating**, so a release build leaves the
+  tree clean and there is nothing to sweep up.
+
+  **Why it needed the script and not the warning.** This entry used to end *"do not sweep it into a
+  commit with `git add -A` without looking, which is exactly how it got into `9a48a1f`"* — and it
+  then got into `94442c5` and `4a3d3dc` the same way, one of them while the script's own header was
+  being edited to describe the problem. Three times, against a warning that was already written and
+  already correct. Worth keeping as the example: a hazard a person must remember at exactly the
+  wrong moment is not mitigated by documenting it.
+
+  Only `icon.icns` is restored. Restoring the whole directory would silently revert a real edit to
+  `icon-source.svg`. Whether these should be generated at build time rather than tracked is still
+  open.
 
 - **The visual pass is part-done, and these are the parts that are not.** Shipped 2026-08-30:
   hue-derived status colour, `EmptyState` wired into all six renderers that had hand-rolled text
@@ -1328,12 +1337,9 @@ The gray-screen fix and its tests are in
   binary alone before believing it. Repro:
   `for i in $(seq 1 8); do target/debug/deps/discussions-* who_left_a_message_is_read_from_git --exact >/dev/null 2>&1 || echo FAIL & done; wait`
 
-- **`tauri icon` rewrites `mobile/src-tauri/icons/*` non-deterministically.** Every
-  `ci/android-release.sh` run re-encodes all platforms' icons, so an *Android* build leaves the
-  *macOS* `icon.icns` dirty with 43k of 44k bytes changed and no semantic difference. It is
-  committed, so it shows up in `git status` after any APK build. Discard it
-  (`git checkout -- mobile/src-tauri/icons/`) rather than committing the churn; whether these
-  should be generated at build time instead of tracked is an open design call, not a papercut fix.
+- **`tauri icon` rewrites `icon.icns` non-deterministically** — recorded once, above, with what
+  the script now does about it. (This was the second copy of the same finding; the two drifted, and
+  the shorter one was the one people read.)
 
 - **Line endings are LF, and both halves matter.** `from_file` tolerates CRLF because a
   Windows editor produces it; the repo's `.gitattributes` (`* text=auto eol=lf`) stops git
