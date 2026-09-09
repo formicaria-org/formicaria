@@ -764,6 +764,24 @@ if ls .github/workflows/*.yml >/dev/null 2>&1; then
         echo "        never becomes part of the shell text."
         fail=1
     fi
+    # **An unsigned intermediate must never reach the release page.** `attach` downloads every
+    # artifact of the run with `merge-multiple`, which includes the unsigned APK that the build job
+    # hands to the signing job. Published, it would install for nobody and update nothing, while
+    # looking exactly as official as the real one. The naming convention and the deletion are one
+    # mechanism: if either half goes, this fails.
+    if grep -q 'android-unsigned' .github/workflows/release.yml 2>/dev/null; then
+        if ! grep -q 'rm -f dist/unsigned-' .github/workflows/release.yml; then
+            echo "  FAIL: release.yml builds an unsigned intermediate APK but 'attach' never deletes"
+            echo "        it from dist/ — so 'merge-multiple' would publish it beside the signed one."
+            echo "        Restore the 'drop the intermediates' step."
+            fail=1
+        fi
+        if ! grep -q 'unsigned-android-arm64.apk' .github/workflows/release.yml; then
+            echo "  FAIL: the unsigned intermediate is no longer named 'unsigned-…', so the deletion"
+            echo "        in 'attach' cannot match it. The name and the rm are one mechanism."
+            fail=1
+        fi
+    fi
     # A job that writes a signing key to the runner must remove it on a path a failure cannot skip.
     # Syncthing's cleanup sits after ./gradlew under 'set -e', so a failed build leaves the key.
     if grep -q 'ANDROID_KEYSTORE_B64' .github/workflows/release.yml 2>/dev/null; then

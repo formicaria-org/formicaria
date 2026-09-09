@@ -358,8 +358,22 @@ jobs:
           if-no-files-found: error
           path: formicaria-*.ipa
 
-  android:
-    name: android apk
+  # ===============================================================================================
+  # **Android is two jobs, and the seam is the point.**
+  #
+  # Building this APK compiles the whole Rust workspace — hundreds of crates, each free to run a
+  # `build.rs` — plus npm and a cmake cross-compile of whisper.cpp. If the keystore were on that
+  # machine, any one of them could read it. That is the largest exposure in the signing story and
+  # nothing about *how the secret is passed* touches it: the key is on disk because `apksigner`
+  # needs it there.
+  #
+  # So `android-build` holds **no secret at all**, and `android-sign` runs `apksigner` and nothing
+  # else, on a fresh runner. Hundreds of third-party build scripts able to read the key becomes one
+  # Google-published binary — and a build script cannot leave something behind to wait for the key,
+  # because the key never appears on that machine. (`decisions.md`, 2026-09-09.)
+  # ===============================================================================================
+  android-build:
+    name: android apk (build)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -372,16 +386,11 @@ jobs:
             android
           run-install: true
           cache: true
-      # **`cache-read-only`, in the one job that holds a signing key.** A writable cache in a job
-      # with a secret is a way to persist something into later runs; practitioners in the field
-      # manage this explicitly (Molly sets the same flag) and it costs nothing here, because the
-      # release job is not where cache freshness matters.
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: . -> target
           shared-key: android
-          cache-on-failure: false
-          save-if: false
+          cache-on-failure: true
       # ~1 GB of NDK/SDK, verified against `android/toolchain.lock` — *"the checksum, not the URL,
       # is the assertion"*. Cached on that file, so it is fetched once per toolchain bump.
       - name: cache the android toolchain
@@ -398,14 +407,68 @@ jobs:
           [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
           echo "VERSION=${VERSION}"    >> "$GITHUB_ENV"
           echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: build the apk, unsigned
+        run: FM_ANDROID_STAGE=build pixi run -e android android-release
+      # **Renamed on the way out, and that is a safety property rather than tidiness.** `attach`
+      # merges every artifact of the run into one directory; if this file kept its release name it
+      # would collide with the signed one and could be published in its place. `unsigned-` is what
+      # `attach` deletes before publishing, and `ci/checks.sh` asserts that it does.
+      - name: set it aside as an intermediate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "mobile/formicaria-${VERSION}-android-arm64.apk" unsigned-android-arm64.apk
+          ls -la unsigned-android-arm64.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-unsigned
+          if-no-files-found: error
+          path: unsigned-android-arm64.apk
+
+  android-sign:
+    name: android apk (sign)
+    runs-on: ubuntu-latest
+    needs: android-build
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
+        with:
+          pixi-version: v0.72.2
+          environments: >-
+            default
+            android
+          run-install: true
+          cache: true
+      # **No `rust-cache` here, and no compiler will run.** This job needs `apksigner`, which lives
+      # in the pinned build-tools, so it restores the same toolchain cache; `android-init` prints
+      # "already present" on a hit and re-fetches nothing.
+      - name: cache the android toolchain
+        uses: actions/cache@v4
+        with:
+          path: .android
+          key: android-toolchain-${{ hashFiles('android/toolchain.lock') }}
+      - name: the android toolchain
+        run: pixi run android-init
+      - name: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
+          echo "VERSION=${VERSION}"    >> "$GITHUB_ENV"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-unsigned
+      - name: put it back under its release name
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mobile
+          mv unsigned-android-arm64.apk "mobile/formicaria-${VERSION}-android-arm64.apk"
       # ---------------------------------------------------------------------------------------
-      # **The signing key, and how it is handled.**
-      #
-      # `decisions.md` (2026-09-09) records the choice and the survey behind it: among comparable
-      # projects that publish an APK on GitHub Releases, holding the keystore in Actions secrets is
-      # an even split with holding it off CI, and no authority discourages either. What is NOT
-      # optional is the handling, and these three lines are copied from where the field gets it
-      # right and avoid where it gets it wrong:
+      # **The signing key, and how it is handled.** Three rules, copied from where the field gets
+      # it right and avoiding where it gets it wrong (`decisions.md`, 2026-09-09):
       #
       #   1. **Through `env:`, never `${{ secrets.X }}` inside the script.** An inline expansion is
       #      substituted into the shell text before it runs. Syncthing-Android does this; Molly
@@ -413,8 +476,7 @@ jobs:
       #   2. **Nothing into `$GITHUB_ENV`.** AnkiDroid writes its passwords there, which hands them
       #      to every later step and every action in the job.
       #   3. **Cleanup with `if: always()`.** Syncthing removes its keystore *after* gradle inside a
-      #      `set -e` block, so a failed build leaves the key on the runner. The step below cannot
-      #      be skipped by a failure.
+      #      `set -e` block, so a failed build leaves the key on the runner.
       # ---------------------------------------------------------------------------------------
       - name: the signing key
         env:
@@ -426,8 +488,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${KEYSTORE_B64:-}" ]; then
-            echo "no ANDROID_KEYSTORE_B64 secret — cannot sign, so there is no APK to publish." >&2
-            echo "Add the four ANDROID_* secrets, or accept a release without the phone app." >&2
+            echo "no ANDROID_KEYSTORE_B64 secret — nothing can sign this, so there is no APK to" >&2
+            echo "publish. Add the four ANDROID_* secrets, or accept a release without it." >&2
             exit 1
           fi
           d="$HOME/.config/formicaria"
@@ -441,21 +503,23 @@ jobs:
             echo "keyAlias=$(printenv KEY_ALIAS)"
             echo "keyPassword=$(printenv KEY_PASSWORD)"
           } > "$d/android-release.properties"
-      - name: build and sign the apk
-        run: pixi run -e android android-release
+      - name: sign it
+        run: FM_ANDROID_STAGE=sign pixi run -e android android-release
       # **Cannot be skipped by a failure**, which is the whole point of `if: always()` here.
       - name: shred the signing key
         if: always()
         shell: bash
         run: |
           d="$HOME/.config/formicaria"
-          shred -u "$d/android-release.keystore" "$d/android-release.properties" 2>/dev/null ||             rm -f "$d/android-release.keystore" "$d/android-release.properties"
+          shred -u "$d/android-release.keystore" "$d/android-release.properties" 2>/dev/null || \
+            rm -f "$d/android-release.keystore" "$d/android-release.properties"
           ls -la "$d" 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: android-apk
           if-no-files-found: error
-          path: mobile/formicaria-*.apk
+          path: mobile/formicaria-*-android-*.apk
+
 
   attach:
     name: attach to the release
@@ -463,7 +527,7 @@ jobs:
     # **`binaries` gates; the phone legs do not.** They are `continue-on-error`, so a failed phone
     # build reports success to this job and simply contributes no artifact. A failed *desktop*
     # build still stops the release, which is the one thing that must not be published half-made.
-    needs: [binaries, ios, android]
+    needs: [binaries, ios, android-sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -492,7 +556,14 @@ jobs:
         with:
           path: dist
           merge-multiple: true
-      - run: ls -la dist
+      # **The unsigned intermediate is deleted before anything is published.** `merge-multiple`
+      # pulls in every artifact of the run, including the one `android-build` hands to
+      # `android-sign`. An unsigned APK on a release page would install for nobody and update
+      # nothing, and would sit there looking official. `ci/checks.sh` asserts this step exists.
+      - name: drop the intermediates
+        run: |
+          rm -f dist/unsigned-*
+          ls -la dist
       # **The one screen every single downloader sees, and it was a list of commit titles.**
       #
       # Everything we have written about installing formicaria lives *inside* the archive — the

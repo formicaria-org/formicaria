@@ -19,14 +19,45 @@ cd "$root"
 props="$HOME/.config/formicaria/android-release.properties"
 target="${1:-aarch64}"
 
-[ -f "$props" ] || {
+# ===============================================================================================
+# **Building and signing are separable, so the key need not be present while the build runs.**
+#
+# `FM_ANDROID_STAGE` — `build`, `sign`, or unset for both. Unset is the default and is what a
+# person types locally; the split exists for CI.
+#
+# **Why.** Building this APK compiles the whole Rust workspace — hundreds of crates, each free to
+# run a `build.rs` — plus npm and a cmake cross-compile of whisper.cpp. Every one of those runs as
+# you, on the machine where the keystore sits, and any of them could simply read the file. That is
+# the largest exposure in the whole signing story, and it is not addressed by anything to do with
+# how the secret is *passed*: the key is on disk because `apksigner` needs it there.
+#
+# Split, the release workflow builds with **no secret in the job at all**, and signs in a second
+# job that runs `apksigner` and nothing else. Hundreds of third-party build scripts able to read
+# the key becomes one Google-published binary. (`decisions.md`, 2026-09-09.)
+#
+# It does nothing for a *local* build, where the same key sits on the same disk while the same
+# crates compile. That is worth knowing rather than pretending otherwise — but the runner is the
+# machine that runs unreviewed code on a schedule, so it is the one worth separating.
+# ===============================================================================================
+stage="${FM_ANDROID_STAGE:-both}"
+case "$stage" in
+    build|sign|both) ;;
+    *) echo "android-release: FM_ANDROID_STAGE must be build, sign or unset (got '$stage')" >&2; exit 1 ;;
+esac
+do_build=yes; do_sign=yes
+[ "$stage" = sign ] && do_build=no
+[ "$stage" = build ] && do_sign=no
+
+# **Only the signing stage needs a key.** Checked before any work rather than after the build, so
+# a missing keystore costs a second instead of a full compile.
+if [ "$do_sign" = yes ] && [ ! -f "$props" ]; then
     echo "android-release: no keystore at $props" >&2
     echo "  Create one with:" >&2
     echo "    keytool -genkeypair -v -keystore ~/.config/formicaria/android-release.keystore \\" >&2
     echo "      -alias formicaria -keyalg RSA -keysize 4096 -validity 10000" >&2
     echo "  then write storeFile/storePassword/keyAlias/keyPassword into $props (chmod 600)." >&2
     exit 1
-}
+fi
 
 # The launcher icons live in the regenerated tree, so they must be (re)written after any
 # `android init` — otherwise the app ships Tauri's default icon and nobody notices until it is
@@ -36,6 +67,7 @@ target="${1:-aarch64}"
 # its extremities — on a real phone the circle cut the ant's antennae and outer legs. The
 # favicon fills its canvas because a browser tab is a 16px square with no mask and wants every
 # pixel; the two requirements are opposite, so they are two files. See `mobile/icon-source.svg`.
+if [ "$do_build" = yes ]; then
 ( cd mobile && pnpm exec tauri icon ./icon-source.svg >/dev/null )
 # **…and then put back the one file it rewrites for no reason.** `tauri icon` emits byte-identical
 # PNGs, but its `.icns` packer does not: the same 44 312 bytes come back with ~43 400 of them
@@ -54,6 +86,7 @@ target="${1:-aarch64}"
 # `known-issues.md` records. This does not settle it — it stops the churn reaching a commit.
 if git -C "$root" ls-files --error-unmatch mobile/src-tauri/icons/icon.icns >/dev/null 2>&1; then
     git -C "$root" checkout -- mobile/src-tauri/icons/icon.icns 2>/dev/null || true
+fi
 fi
 
 # **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
@@ -81,14 +114,16 @@ fi
 # not be kept in step by hand; `FM_VERSION=... pixi run android-release` still wins for a one-off.
 : "${FM_VERSION:=$(git -C "$root" describe --tags --exact-match 2>/dev/null || echo dev)}"
 export FM_VERSION
-echo "android-release: building as FM_VERSION=$FM_VERSION"
+echo "android-release: stage=$stage, FM_VERSION=$FM_VERSION"
 
+if [ "$do_build" = yes ]; then
 ( cd mobile \
     && PATH="$root/ci/bin:$PATH" \
        NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
        JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
        FM_VERSION="$FM_VERSION" \
        pnpm exec tauri android build --apk --target "$target" )
+fi
 
 bt=$(ls -d "$root"/.android/sdk/build-tools/*/ | sort -V | tail -1)
 unsigned="$root/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
@@ -115,18 +150,36 @@ out="$root/mobile/formicaria-$FM_VERSION-android-$abi.apk"
 # `-P 16`: Google states 16 KB page size as a *device* property — without it the app will not
 # run on future Android releases at all. Verified afterwards rather than assumed, because
 # Tauri sets its own CARGO_TARGET_*_RUSTFLAGS and overwrites ours.
-"${bt}zipalign" -P 16 -f 4 "$unsigned" "$out"
+#
+# Alignment is the build's business, and `apksigner` preserves it — so the two stages meet at
+# `$out`: build leaves an aligned, unsigned APK there, sign picks that same path up.
+if [ "$do_build" = yes ]; then
+    "${bt}zipalign" -P 16 -f 4 "$unsigned" "$out"
+fi
+
+if [ "$do_sign" = yes ] && [ ! -f "$out" ]; then
+    echo "android-release: nothing to sign at $out" >&2
+    echo "  FM_ANDROID_STAGE=sign expects the build stage's aligned APK to be there already." >&2
+    echo "  Check FM_VERSION matches the build ($FM_VERSION) — the filename carries it." >&2
+    exit 1
+fi
 
 # Read the four values rather than sourcing the file: `. <(...)` is a bashism that dies under
 # dash, and sourcing a properties file would *execute* whatever is in it. Parsing is both
 # portable and the safer of the two for a file holding a signing password.
-storeFile=$(sed -n 's/^storeFile=//p' "$props")
-storePassword=$(sed -n 's/^storePassword=//p' "$props")
-keyAlias=$(sed -n 's/^keyAlias=//p' "$props")
-keyPassword=$(sed -n 's/^keyPassword=//p' "$props")
-"${bt}apksigner" sign --ks "$storeFile" --ks-pass "pass:$storePassword" \
-    --key-pass "pass:$keyPassword" --ks-key-alias "$keyAlias" "$out" 2>/dev/null
-"${bt}apksigner" verify "$out" >/dev/null 2>&1 || { echo "android-release: signature did not verify" >&2; exit 1; }
+#
+# **This is the only part of the script that touches the key**, which is the point of the split:
+# in CI it runs in a job with no compiler, no npm and no cmake — one Google-published binary
+# instead of hundreds of build scripts.
+if [ "$do_sign" = yes ]; then
+    storeFile=$(sed -n 's/^storeFile=//p' "$props")
+    storePassword=$(sed -n 's/^storePassword=//p' "$props")
+    keyAlias=$(sed -n 's/^keyAlias=//p' "$props")
+    keyPassword=$(sed -n 's/^keyPassword=//p' "$props")
+    "${bt}apksigner" sign --ks "$storeFile" --ks-pass "pass:$storePassword" \
+        --key-pass "pass:$keyPassword" --ks-key-alias "$keyAlias" "$out" 2>/dev/null
+    "${bt}apksigner" verify "$out" >/dev/null 2>&1 || { echo "android-release: signature did not verify" >&2; exit 1; }
+fi
 
 # Assert the artifact, not the flag: this is the check that catches Tauri having replaced the
 # alignment rustflag.
@@ -137,5 +190,12 @@ for so in "$tmp"/*.so; do
 done
 rm -rf "$tmp"
 
-printf 'android-release: %s (%.0f MB), signed and 16 KB aligned\n' "$out" \
-    "$(stat -c%s "$out" | awk '{print $1/1048576}')"
+# Say what actually happened. "signed" printed after a build-only run would be the kind of
+# cheerful overstatement this project spends most of its guards preventing.
+if [ "$do_sign" = yes ]; then
+    what="signed and 16 KB aligned"
+else
+    what="16 KB aligned, NOT signed (FM_ANDROID_STAGE=build)"
+fi
+printf 'android-release: %s (%.0f MB), %s\n' "$out" \
+    "$(stat -c%s "$out" | awk '{print $1/1048576}')" "$what"

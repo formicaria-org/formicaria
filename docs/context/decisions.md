@@ -7187,6 +7187,21 @@ overwhelmingly through developer-side mistakes: committed to a repo, plaintext p
 `android`/`123456`.
 
 **Consequences:**
+- **The key is never on the machine that compiles.** Android is two jobs: `android-build` holds no
+  secret at all, and `android-sign` runs `apksigner` and nothing else on a fresh runner. This is
+  the one change that alters the *shape* of the risk rather than its odds. Building the APK
+  compiles the whole Rust workspace — hundreds of crates, each free to run a `build.rs` — plus npm
+  and a cmake cross-compile; every one of those could simply read the keystore off disk, and no
+  amount of care about how the *secret is passed* touches that, because `apksigner` needs the file
+  there. Separate jobs also defeat the patient version: a build script cannot leave something
+  running to wait for the key, because the key never appears on that machine.
+  `ci/android-release.sh` gained `FM_ANDROID_STAGE=build|sign`, with unset meaning both, so a local
+  build is one command as before. Proven by moving the keystore out of the way and watching the
+  build stage succeed without it, then signing separately to the same certificate digest.
+- **The unsigned intermediate cannot be published.** `attach` merges every artifact of the run, so
+  the hand-off file is named `unsigned-…` and deleted before publishing — an unsigned APK on a
+  release page installs for nobody, updates nothing, and looks exactly as official as the real one.
+  The name and the deletion are one mechanism and `ci/checks.sh` fails if either half goes.
 - **Handling copied from where the field gets it right.** Through `env:`, never `${{ secrets.X }}`
   inside a `run:` script (an inline expansion becomes part of the shell text); nothing into
   `$GITHUB_ENV`, which would hand it to every later step and action; and a `shred` step with
