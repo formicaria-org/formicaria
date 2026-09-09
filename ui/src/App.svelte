@@ -84,6 +84,7 @@
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
+  import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
   import ViewBar from './lib/ViewBar.svelte';
   import * as keys from './lib/keys';
@@ -2358,6 +2359,23 @@
     </header>
 
     <div class="body">
+      <!-- **"The app has stopped" is a different sentence from "something went wrong".**
+         formicaria is a local server plus this tab. When the server stops, the tab keeps its
+         chrome and its last-rendered data and simply cannot fetch — which reads as a broken
+         interface rather than a stopped program. Issue #2 is that experience: a note pane showing
+         a raw `TypeError: Load failed`, and *"I can't reload the page, I need to restart it"*.
+         Reloading genuinely could not work, and nothing on screen said why.
+         First in the body, above the error banner, because while this is true every other message
+         on screen is a symptom of it. -->
+      {#if unreachable()}
+        <p class="banner stopped" role="alert">
+          <strong>formicaria has stopped.</strong> The app on this computer is no longer running, so
+          nothing can be opened or saved until it starts again.
+          <strong>Your notes are files on your disk and are safe.</strong> Start formicaria the way you
+          normally do — then reload this page. Reloading first cannot work: there is nothing here to answer
+          it.
+        </p>
+      {/if}
       {#if error}
         <p class="banner error">
           {error}
@@ -3373,6 +3391,12 @@
     margin: 0;
     padding: var(--space-2) var(--space-5);
     font-size: var(--text-sm);
+  }
+  /* Louder than `error`: this one is about the program, not about a command. */
+  .banner.stopped {
+    background: var(--danger-subtle, #fee2e2);
+    color: var(--text);
+    border: 1px solid var(--danger, #b91c1c);
   }
   .banner.error {
     background: var(--danger-bg);

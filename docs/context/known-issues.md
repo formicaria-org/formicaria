@@ -397,21 +397,47 @@ The gray-screen fix and its tests are in
   red plus shipped to the emulator as a visible ellipse on 2026-07-20. `svelte-check` cannot see
   this; one screenshot can.
 
-- **A reload does not recover the app, and a first-time user found that out.** From the only
-  outside report there is ([#2](https://github.com/formicaria-org/formicaria/issues/2), macOS,
-  v0.2.1, 2026-08-30): *"I was taking my first note and clicked something, then this happened.
-  Reloading the page didn't help. I had to rerun the start file. In general, I can't reload the
-  page, I need to restart it to reload it."*
-  **Unreproduced here, and the second sentence is the useful one.** A reload re-fetches everything
-  the server holds, so if it does not help, the bad state is *persisted* — the workspace layout and
-  the per-browser view preferences, which live in `localStorage` and survive exactly the action a
-  user reaches for. That is the same family as the vault filter that could hide every vault and
-  then hide its own control: state a person can get into and cannot get out of from inside the app.
-  Restarting the process only appears to fix it because it is the one thing that reloads the page
-  *and* re-reads the workspace. **What is missing is a way back** — a reset that clears the
-  per-browser view state without a terminal, on a screen someone in trouble can find. Worth pairing
-  with the reporter's other point, that the crash came from clicking around to discover features,
-  which is what a first-time user is supposed to do.
+- **A reload does not recover the app, and a first-time user found that out. Cause not
+  established.** From the only outside report there is
+  ([#2](https://github.com/formicaria-org/formicaria/issues/2), macOS, v0.2.1, 2026-08-30):
+  *"I was taking my first note and clicked something, then this happened. Reloading the page
+  didn't help. I had to rerun the start file. In general, I can't reload the page, I need to
+  restart it to reload it."* The screenshot shows the chrome intact and the Activity pane holding
+  real data, while the note pane's whole body reads **`TypeError: Load failed`** — Safari's wording
+  for a failed `fetch()`, i.e. a network-layer failure rather than an HTTP error status.
+
+  **Ruled out so far** (each checked against the v0.2.1 tree, which is what they ran):
+  - *The reload tripped auto-shutdown.* v0.2.1's watchdog was `IDLE = 90s` / `STARTUP = 60s` with
+    no `pagehide`/goodbye path at all — those came later. A one-second reload cannot cross a
+    ninety-second window.
+  - *A poisoned mutex wedged the server.* `fm-serve`'s only `.lock().unwrap()` calls are inside
+    `#[cfg(test)]`; the request path uses `if let Ok(...)`, and `fm-app`'s vault lock recovers
+    explicitly via `into_inner()`.
+
+  **This entry first claimed the cause was `localStorage` surviving the reload. That was wrong**
+  and is left recorded rather than deleted, because the reasoning error is the reusable part: a
+  reload re-fetches everything the server holds, so "a reload did not fix it" does narrow the
+  cause to *something durable* — but persisted client state is only one branch of that, and the
+  other is durable state in the still-running server. `TypeError: Load failed` points at the
+  second, and the guess was made without opening the screenshot that says so.
+
+  **What was actually fixed (2026-09-09), since the cause is still open.** Whatever stopped the
+  server, the app had *nothing to say about it*: every background failure is swallowed, so a raw
+  `String(e)` in one note pane was the only witness a user got. `invoke` now tells the two failure
+  shapes apart — `fetch` rejects with a `TypeError` when nothing answers and resolves non-ok when
+  the server refuses — and two consecutive network-level failures raise a banner saying the app has
+  stopped, that the notes are safe, and that reloading first cannot work. That does not fix the
+  disappearance; it stops a stopped server presenting as a wedged interface, which is the part the
+  reporter could not get past.
+
+  **And a search for the persisted-state wedge found none.** All ten `localStorage` keys were
+  checked for a value that leaves the app unusable with no control on screen to undo it, and every
+  candidate has an in-app exit (`fm-panel`'s toggle stays live, `fm-theme` falls back to a complete
+  palette, `fm-board-order` appends anything unnamed, `fm-workspace`'s `active` is clamped, a note
+  pane keeps its own ✕). The `fm-hidden-vaults` trap was real **at v0.2.1** and was fixed on
+  2026-09-08 by `8845283`; it was never reachable on a first run, because with one vault the filter
+  never renders. So there is no known wedge to fix — a reset control would be insurance against the
+  class, and should be argued for in those words rather than by pointing at a trap that exists.
 
 - **A media query adds no specificity, so a width-scoped hide can lose to a utility class.**
   `.panel-toggle { display: none }` inside `@media (max-width: 59.999rem)` and

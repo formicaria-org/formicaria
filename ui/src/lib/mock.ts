@@ -522,8 +522,16 @@ let mockProvisioning: {
 export type Fault = {
   /// The dispatch command name to interfere with, e.g. `list_vaults`.
   cmd: string;
-  /// `reject` fails it, `hang` never settles (the phone's actual symptom), `delay` answers late.
-  mode: 'reject' | 'hang' | 'delay';
+  /// `reject` fails it, `hang` never settles (the phone's actual symptom), `delay` answers
+  /// late, `offline` fails it the way an absent server does.
+  ///
+  /// **`offline` is not `reject` with a different message.** `fetch` rejects with a
+  /// `TypeError` when nothing answers and *resolves* non-ok when the server refuses, and the
+  /// app now tells those apart — one means "formicaria has stopped, start it again", the
+  /// other means "it is running and said no". Until this existed the suite could not reach
+  /// the state issue #2 was reported in, which is why nothing caught that the app had no way
+  /// to say the server was gone.
+  mode: 'reject' | 'hang' | 'delay' | 'offline';
   message?: string;
   ms?: number;
   /// Apply to this many calls, then let the command succeed. Omitted = forever.
@@ -740,7 +748,12 @@ export function seed(opts: { notes?: number; bodyBytes?: number; vault?: string 
 }
 
 export async function handle<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  const fault = mockFaults.find((f) => f.cmd === cmd);
+  // `'*'` matches every command, which is the only faithful way to express *the server is
+  // gone*: a stopped process does not fail one route and answer another, and the app's own
+  // "has it stopped" rule needs consecutive failures precisely so that a single route
+  // failing is not mistaken for absence. Without this a test could only ever produce the
+  // partial outage, which is the case that must *not* raise the alarm.
+  const fault = mockFaults.find((f) => f.cmd === cmd || f.cmd === '*');
   if (fault) {
     if (fault.times !== undefined) {
       if (fault.times <= 1) mockFaults = mockFaults.filter((f) => f !== fault);
@@ -748,6 +761,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     if (fault.mode === 'hang') return new Promise<T>(() => {});
     if (fault.mode === 'reject') throw new Error(fault.message ?? `${cmd}: refused`);
+    // The exact shape a browser produces when nothing is listening — Safari words it
+    // "Load failed", Chrome "Failed to fetch"; both are a `TypeError`, and that type is
+    // what the app keys on rather than the wording.
+    if (fault.mode === 'offline') throw new TypeError(fault.message ?? 'Load failed');
     await new Promise((r) => setTimeout(r, fault.ms ?? 5000));
   }
   switch (cmd) {

@@ -34,6 +34,7 @@ import type {
 import * as mock from './mock';
 import { blobBase } from './blobBase';
 import { isPhone } from './platform';
+import { missed, reached } from './reachable.svelte';
 import type { ShareStatus } from './remote';
 
 // Two backends, one contract:
@@ -86,6 +87,26 @@ function nativeInvoke<T>(cmd: string, args: Record<string, unknown>): Promise<T>
 }
 
 async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
+  try {
+    const out = await transport<T>(cmd, args);
+    reached();
+    return out;
+  } catch (e) {
+    // **A `TypeError` from here means nothing answered.** `fetch` rejects with one when it cannot
+    // reach the server at all, and *resolves* — non-ok — when the server answered and refused. So
+    // the two situations arrive by different routes, and only the first means "the app on this
+    // computer has stopped, restart it". An error status is proof of life and clears the count.
+    //
+    // Noticed here rather than in `http` so it covers all three transports, and once rather than
+    // in each of the several dozen callers that swallow their own failures — which is why issue #2
+    // had no witness but a raw `String(e)` in one note pane.
+    if (e instanceof TypeError) missed();
+    else reached();
+    throw e;
+  }
+}
+
+function transport<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
   if (isPhone()) {
     return nativeInvoke<T>(cmd, args);
   }
