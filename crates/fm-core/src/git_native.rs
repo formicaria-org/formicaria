@@ -68,7 +68,47 @@ pub fn ensure_repo(vault: &Path) -> Result<bool, StoreError> {
     // sweeps `blobs/` and `index.sqlite` into history and the next push ships every PDF.
     crate::git::write_vault_files(vault)?;
     ensure_identity(vault);
+    keep_packing_quick(vault);
     Ok(created)
+}
+
+/// Bytes above which an object is not delta-searched. 512 KB: notes still delta against their own
+/// history, photos and recordings do not.
+const DELTA_SEARCH_LIMIT: i64 = 512 * 1024;
+
+/// **Stop spending eighty seconds delta-compressing photographs.**
+///
+/// Measured on the owner's phone, 2026-09-09, on a step carrying ~16 MB of camera images:
+///
+///     after 83304 ms: 0 of 0 objects, 0 bytes of pack sent; packing Deltafication 150/150
+///
+/// Pack preparation *finished* — and then the first write to the socket got `EPIPE`, because the
+/// same keep-alive connection had carried the ref advertisement and had sat idle for those 83
+/// seconds. GitHub closes an idle `git-receive-pack` after about ten (libgit2 #6205, #6385).
+/// **So the variable was never the size of the push. It is how long packing takes**, and almost all
+/// of that time was delta-searching JPEGs, which do not delta: incompressible bytes, compared
+/// against each other, to discover that every pair is unrelated.
+///
+/// `pack.deltaCacheSize` is the lever, and only by accident. libgit2 1.9.4 reads that one key into
+/// **two** fields — `max_delta_cache_size`, which is what the name means, and `big_file_threshold`,
+/// which is not (`pack-objects.c:114-119`). Anything larger than the threshold skips the delta
+/// search outright (`pack-objects.c:1361`: `po->size < 50 || po->size > pb->big_file_threshold`).
+/// There is no other way to reach it: `core.bigFileThreshold` is never read, and `git2` exposes no
+/// packbuilder options beyond parallelism.
+///
+/// **This depends on an upstream bug, and that is worth stating plainly.** If libgit2 ever splits
+/// the two keys, `big_file_threshold` reverts to its 512 MB default and packing gets slow again —
+/// the failure would return as a timeout, not as corruption, and this comment is the thread back.
+/// Shrinking the delta *cache* to the same 512 KB is the honest cost, and it is barely one: with
+/// the large objects out of the delta search there is little left to cache.
+///
+/// Per clone, never pushed, and only on this backend — the desktop shells out to real `git`, where
+/// the key means what it says and 512 KB is a harmless cache size.
+fn keep_packing_quick(vault: &Path) {
+    let Ok(repo) = Repository::open(vault) else { return };
+    let Ok(mut cfg) = repo.config() else { return };
+    // Best-effort: a vault that cannot take this setting still works, just slowly.
+    let _ = cfg.set_i64("pack.deltaCacheSize", DELTA_SEARCH_LIMIT);
 }
 
 /// Give a brand-new vault the placeholder committer when the machine has none.
@@ -1322,6 +1362,11 @@ pub fn push(vault: &Path) -> Result<(), StoreError> {
 
     let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
     let mut opts = git2::PushOptions::new();
+    // **The other half of the same clock.** libgit2 defaults `pb_parallelism` to 1, so whatever
+    // delta search remains happens on one core while the connection idles. Four is the usual shape
+    // of a phone and costs a desktop nothing; `0` would ask libgit2 to guess from the CPU count,
+    // but an explicit number is easier to reason about against a ten-second budget.
+    opts.packbuilder_parallelism(4);
 
     // **Say how far a failed push got, because the error alone cannot.**
     //

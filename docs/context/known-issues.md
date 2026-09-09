@@ -475,8 +475,31 @@ The gray-screen fix and its tests are in
   **NTLM and Negotiate**, and we authenticate with Basic — so it never runs, and there is no option
   to force it.
 
-  **Whether size is even the variable is still unknown**, and the honest reason is that the two
-  anchors are tens of KB (works) and ~16 MB (fails, 4/4) with nothing measured between. Across that
+  **MEASURED 2026-09-09, and size was never the variable.** The instrumented push reported:
+
+      after 83304 ms: 0 of 0 objects, 0 bytes of pack sent; packing Deltafication 150/150
+
+  Pack preparation *finished* — 150 of 150 objects deltified — and then the first write to the
+  socket got `EPIPE`. **Nothing had gone on the wire at all.** So the connection was already dead
+  when the body began: it had carried the ref advertisement and then idled for 83 seconds while
+  packing ran, and GitHub closes an idle `git-receive-pack` after about ten. That is #6385 exactly,
+  and it settles hypothesis (a) against (b) and (c) — a mid-upload drop would have shown megabytes
+  sent, and a flaky link would not have been deterministic four times over.
+
+  **What costs the 83 seconds is delta-searching photographs**, which cannot succeed: incompressible
+  bytes compared against each other to discover that every pair is unrelated. Fixed by capping the
+  delta search at 512 KB, so notes still delta against their own history and media does not, plus
+  `packbuilder_parallelism(4)` for what remains — see `git_native::keep_packing_quick` for why the
+  only reachable lever is `pack.deltaCacheSize` (libgit2 reads that one key into
+  `big_file_threshold` as well) and what happens if upstream ever fixes that.
+
+  **The batching built for this was aimed at the wrong quantity** and is kept anyway: it bounds
+  packing time as a side effect of bounding bytes, and it makes a failure resumable. But the budget
+  is bytes where the constraint is seconds, and that mismatch is now understood rather than
+  guessed. The old paragraph below is left for its reasoning about what could not be distinguished
+  before the measurement:
+
+  The two anchors were tens of KB (works) and ~16 MB (fails, 4/4) with nothing measured between. Across that
   gap bytes, object count, pack-preparation CPU, upload duration and per-object memory all move
   together. The desktop's small successes constrain nothing: it shells out to the `git` binary and
   is a different implementation entirely.
