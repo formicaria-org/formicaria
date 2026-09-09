@@ -37,19 +37,24 @@ target="${1:-aarch64}"
 # favicon fills its canvas because a browser tab is a 16px square with no mask and wants every
 # pixel; the two requirements are opposite, so they are two files. See `mobile/icon-source.svg`.
 ( cd mobile && pnpm exec tauri icon ./icon-source.svg >/dev/null )
-# **If `icons/icon.icns` shows up modified after this runs, discard it — it is not a change.**
-# `tauri icon` emits byte-identical PNGs, but its `.icns` packer does **not**: measured 2026-09-09
-# across four consecutive builds, every one produced a different 44 312-byte file, 43 425 of those
-# bytes differing. The members and their payloads are the same; only the packing order is not.
+# **…and then put back the one file it rewrites for no reason.** `tauri icon` emits byte-identical
+# PNGs, but its `.icns` packer does not: the same 44 312 bytes come back with ~43 400 of them
+# reordered, every run. `known-issues.md` has said so since 2026-08-30 — *"do not sweep it into a
+# commit with `git add -A` without looking"* — and naming the hazard was not enough: it rode into
+# `9a48a1f` that way, and into two more commits on 2026-09-09 while the very header you are reading
+# was being corrected. A trap that is documented and still sprung is a trap the script should
+# disarm.
 #
-# **This header said the opposite until 2026-09-09** — "deterministic; three consecutive runs
-# produce byte-identical output" (measured 2026-09-03) — and concluded the committed copy had merely
-# gone stale once and was now fixed. It had not: the file re-dirties on every phone build, and it
-# rode into two commits unnoticed under `git add -A` before the four-way comparison was actually
-# run. Committing it again only moves which bytes are stale.
+# **Only `icon.icns`, deliberately.** It is the one file measured nondeterministic, and nothing here
+# consumes it — `bundle.icon` is `icons/icon.png` alone, and this app ships to Android and iOS.
+# Restoring the whole icon directory would silently revert a real change to `icon-source.svg`, which
+# is the opposite mistake; the PNGs stay as generated, so an edited source still shows up.
 #
-# Nothing consumes `.icns`, `.ico` or the `Square*Logo` set — `bundle.icon` is `icons/icon.png`
-# alone and this app ships to Android and iOS. `tauri icon` just always emits the full desktop set.
+# Whether these should be generated at build time rather than tracked is still the open design call
+# `known-issues.md` records. This does not settle it — it stops the churn reaching a commit.
+if git -C "$root" ls-files --error-unmatch mobile/src-tauri/icons/icon.icns >/dev/null 2>&1; then
+    git -C "$root" checkout -- mobile/src-tauri/icons/icon.icns 2>/dev/null || true
+fi
 
 # **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
 # not a clear error: `tauri android build` fails with "failed to ensure Android environment:
