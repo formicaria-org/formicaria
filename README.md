@@ -22,63 +22,6 @@ plural.
 Notes, tasks and shared documents are not separate systems. A task is a note with a `due`
 property; a shared note is a note in a different repository.
 
-## Where this is up to
-
-**v0.4.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
-built alongside their research rather than as a product. It is used daily on **Linux and
-Android**, which are the only two platforms anyone has actually sat in front of. macOS and
-Windows builds are compiled and tested by CI and the release archives are real — but nobody
-has run the app on either, and the launchers for both have never been double-clicked.
-
-Treat the feature tables below as *what is implemented*, not as *what is proven on your
-machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
-kept as working notes rather than marketing; the current state of each feature is
-[`docs/context/features.md`](docs/context/features.md).
-
-## Requirements
-
-| | |
-|---|---|
-| **A web browser** | Any current Firefox, Chrome, Safari or Edge. This is the interface; there is no separate desktop window. |
-| **A 64-bit OS** | Linux x86-64 with glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+) · macOS on Apple silicon · Windows 10/11 x64 |
-
-Nothing else is required. The interface, fonts, maths renderer and diagram renderer are
-compiled into the binary, so no runtime, package manager or network connection is needed to
-run it.
-
-## Install
-
-Download the archive for your platform from
-[Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
-double-click the launcher for your system — `Start formicaria.vbs` on Windows,
-`Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
-itself; closing the tab stops the app.
-
-The archive carries a `README.txt` and the whole manual (`Manual.html`), including what to do
-about the security warning your OS shows for unsigned software — **on macOS that is now System
-Settings → Privacy & Security → Open Anyway**, not the old right-click.
-
-From a terminal, the binaries are under `program/`:
-
-```sh
-tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
-./program/fm-serve            # serves http://127.0.0.1:8765
-```
-
-`fm` must stay in the same directory as `fm-serve`: it is the binary git invokes to merge
-notes, and the merge driver is not installed if it cannot be found.
-
-<details>
-<summary>Building from source</summary>
-
-The toolchain is pinned with [pixi](https://pixi.sh); no other prerequisites.
-
-```sh
-pixi run serve      # build the UI, then serve it against ./vault
-pixi run build      # → target/release/{fm-serve,fm}
-```
-</details>
-
 ## Features
 
 The following require only a browser.
@@ -128,6 +71,55 @@ pixi global install git poppler libvips restic
 ```
 
 Windows: `winget install Git.Git`; the remainder through [pixi](https://pixi.sh).
+</details>
+
+## Requirements
+
+| | |
+|---|---|
+| **A web browser** | Any current Firefox, Chrome, Safari or Edge. This is the interface; there is no separate desktop window. |
+| **A 64-bit OS** | Linux x86-64 with glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, Fedora 35+) · macOS on Apple silicon · Windows 10/11 x64 |
+
+Nothing else is required. The interface, fonts, maths renderer and diagram renderer are
+compiled into the binary, so no runtime, package manager or network connection is needed to
+run it.
+
+**Two of those platforms are proven and two are not.** formicaria is used daily on Linux and
+Android. The macOS and Windows builds are compiled and tested by CI and the release archives are
+real, but nobody has run the app on either — see [Project status](#project-status) before you
+rely on it there.
+
+## Install
+
+Download the archive for your platform from
+[Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
+double-click the launcher for your system — `Start formicaria.vbs` on Windows,
+`Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
+itself; closing the tab stops the app.
+
+The archive carries a `README.txt` and the whole manual (`Manual.html`), including what to do
+about the security warning your OS shows for unsigned software — **on macOS that is now System
+Settings → Privacy & Security → Open Anyway**, not the old right-click.
+
+From a terminal, the binaries are under `program/`:
+
+```sh
+tar xzf formicaria-*-linux-x86_64.tar.gz && cd formicaria-*
+./program/fm-serve            # serves http://127.0.0.1:8765
+```
+
+`fm` must stay in the same directory as `fm-serve`: it is the binary git invokes to merge
+notes, and the merge driver is not installed if it cannot be found.
+
+<details>
+<summary>Building from source</summary>
+
+The toolchain is pinned with [pixi](https://pixi.sh); no other prerequisites.
+
+```sh
+pixi run serve      # build the UI, then serve it against ./vault
+pixi run build      # → target/release/{fm-serve,fm}
+```
 </details>
 
 ## Study assistant (optional, local AI)
@@ -244,6 +236,19 @@ their reasons, known gaps, and the queue. These are **unedited working notes, no
 documentation**: they are written to be useful to whoever is next in the code, they contradict
 each other across dates on purpose (`decisions.md` is append-only, so a reversal sits beside
 what it reversed), and they are not a description of how to use the app. The manual is.
+
+## Project status
+
+**v0.4.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
+built alongside their research rather than as a product. It is used daily on **Linux and
+Android**, which are the only two platforms anyone has actually sat in front of. macOS and
+Windows builds are compiled and tested by CI and the release archives are real — but nobody
+has run the app on either, and the launchers for both have never been double-clicked.
+
+Treat the feature tables above as *what is implemented*, not as *what is proven on your
+machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
+kept as working notes rather than marketing; the current state of each feature is
+[`docs/context/features.md`](docs/context/features.md).
 
 ## Development
 
