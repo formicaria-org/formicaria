@@ -37,12 +37,18 @@ target="${1:-aarch64}"
 # favicon fills its canvas because a browser tab is a 16px square with no mask and wants every
 # pixel; the two requirements are opposite, so they are two files. See `mobile/icon-source.svg`.
 ( cd mobile && pnpm exec tauri icon ./icon-source.svg >/dev/null )
-# **If `icons/icon.icns` shows up modified after this runs, that is all it is.** `tauri icon` is
-# deterministic — three consecutive runs produce byte-identical output for all 52 files — but the
-# `.icns` packer's member *order* changed between CLI versions, so the committed copy went stale
-# and every release build re-dirtied it. It stayed dirty across eight commits before anyone looked
-# (measured 2026-09-03: same 12 members, identical payloads, different order; now committed).
-# Nothing here consumes `.icns`, `.ico` or the `Square*Logo` set — `bundle.icon` is `icons/icon.png`
+# **If `icons/icon.icns` shows up modified after this runs, discard it — it is not a change.**
+# `tauri icon` emits byte-identical PNGs, but its `.icns` packer does **not**: measured 2026-09-09
+# across four consecutive builds, every one produced a different 44 312-byte file, 43 425 of those
+# bytes differing. The members and their payloads are the same; only the packing order is not.
+#
+# **This header said the opposite until 2026-09-09** — "deterministic; three consecutive runs
+# produce byte-identical output" (measured 2026-09-03) — and concluded the committed copy had merely
+# gone stale once and was now fixed. It had not: the file re-dirties on every phone build, and it
+# rode into two commits unnoticed under `git add -A` before the four-way comparison was actually
+# run. Committing it again only moves which bytes are stale.
+#
+# Nothing consumes `.icns`, `.ico` or the `Square*Logo` set — `bundle.icon` is `icons/icon.png`
 # alone and this app ships to Android and iOS. `tauri icon` just always emits the full desktop set.
 
 # **Three env vars Tauri needs that the pixi feature does not supply**, and their absence is
