@@ -106,6 +106,30 @@ if [ -d "$dest/cmdline-tools" ]; then
     fi
 fi
 
+# **The two packages Gradle needs in the SDK layout it expects.** `sdkmanager` would normally put
+# these there, by downloading them itself and asking you to accept a licence — which is an
+# interactive system step, on one machine, of exactly the kind this file exists to avoid. They are
+# fetched and checksummed above like everything else; all that is left is putting them where Gradle
+# looks. Same shape as the cmdline-tools copy above, and stamped so it happens once per version.
+#
+# Google's zip names are not Gradle's directory names: build-tools 35 unpacks to `android-15`, and
+# the platform to `android-36`. That mapping is here rather than in the lock so the lock stays a
+# plain list of artifacts.
+place_in_sdk() {
+    _src="$dest/$1" _dst="$dest/sdk/$2" _stamp_src="$dest/.stamp-$1" _stamp_dst="$dest/sdk/$2/.stamp"
+    [ -d "$_src" ] || return 0
+    _want=$(cat "$_stamp_src" 2>/dev/null || echo unknown)
+    _have=$(cat "$_stamp_dst" 2>/dev/null || echo none)
+    [ "$_want" = "$_have" ] && return 0
+    echo "  installing $1 into the SDK layout as $2..."
+    rm -rf "$_dst"
+    mkdir -p "$(dirname "$_dst")"
+    cp -a "$_src" "$_dst"
+    printf '%s' "$_want" > "$_stamp_dst"
+}
+place_in_sdk android-15 build-tools/35.0.0
+place_in_sdk android-36 platforms/android-36
+
 echo "android-init: $fetched fetched, $skipped already present -> $dest"
 
 if [ -x "$dest/platform-tools/adb" ]; then

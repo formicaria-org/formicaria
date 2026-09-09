@@ -40,3 +40,20 @@ android-ndk-r27d 27.3 linux 601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be282
 # **non-hermetic** in `docs/context/decisions.md`. This zip is pinned; what it downloads is not.
 # That is an honest boundary, not an oversight: pinning the whole SDK would mean mirroring it.
 cmdline-tools 13114758 linux 7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+
+# **build-tools and a platform, which `sdkmanager` would normally install.** Gradle needs both and
+# refuses without them — "Failed to install the following Android SDK packages as some licences
+# have not been accepted" — so until 2026-09-09 the APK built only where somebody had once run
+# `sdkmanager` by hand and accepted the licences interactively. That is precisely the system
+# requirement this file exists to avoid, and it made the first four CI builds impossible.
+#
+# The names are Google's, not ours: the build-tools 35 zip unpacks to `android-15` and the platform
+# 36 zip to `android-36`. `ci/android-init.sh` moves each into the SDK layout Gradle expects
+# (`sdk/build-tools/35.0.0`, `sdk/platforms/android-36`) the same way it already does for
+# cmdline-tools.
+#
+# URLs and revisions come from Google's own package index, `repository2-3.xml`; the SHA-256s below
+# were computed here from the downloaded bytes, and each one's SHA-1 was cross-checked against the
+# index before being written down.
+android-15         35.0.0       linux  bd3a4966912eb8b30ed0d00b0cda6b6543b949d5ffe00bea54c04c81e1561d88  https://dl.google.com/android/repository/build-tools_r35_linux.zip
+android-36         36_r02       any    37607369a28c5b640b3a7998868d45898ebcb777565a0e85f9acf36f29631d2e  https://dl.google.com/android/repository/platform-36_r02.zip
