@@ -124,13 +124,20 @@ CARGO_TARGET_X86_64_LINUX_ANDROID_RUSTFLAGS = "-C link-arg=-Wl,-z,max-page-size=
 android-check = "sh ci/android-check.sh"
 # Stage the bundled model runtime (llama.cpp android-arm64) into jniLibs and enable extract-native-libs
 # — the on-device agent's `llama-server`. gen/android is generated, so this runs before every build.
-android-stage-runtime = "sh ci/android-stage-runtime.sh"
+android-stage-runtime = { cmd = "sh ci/android-stage-runtime.sh", depends-on = ["android-project"] }
+# **Generate `gen/android` if it is absent** — the Android analogue of `ios_project_ready()`, which
+# iOS has had since it was written and Android never grew. Three staging scripts required the
+# generated tree and all three only *told you* to make it, so the APK built on exactly one machine;
+# the first CI attempt died in 60 seconds (2026-09-09). A dependency rather than a step in
+# `android-release`, because pixi runs `depends-on` before the task, and these three staging tasks
+# are what need it.
+android-project = "sh ci/android-project-ready.sh"
 # Cross-compile whisper.cpp's whisper-server (android-arm64, static) into jniLibs — the phone's
 # audio→transcript runtime. Idempotent (version-stamped), so it compiles once then no-ops.
-android-stage-whisper = "sh ci/android-stage-whisper.sh"
+android-stage-whisper = { cmd = "sh ci/android-stage-whisper.sh", depends-on = ["android-project"] }
 # Inject the foreground service so Android keeps the app + its network alive for the agent's model
 # download and inference (else Doze stalls the download and LMKD can reap the model). Also generated.
-android-inject-service = "sh ci/android-inject-service.sh"
+android-inject-service = { cmd = "sh ci/android-inject-service.sh", depends-on = ["android-project"] }
 # **Does the app actually paint — twice in a row, and after being killed?** The unattended startup +
 # closure test, on the emulator only (it installs and force-stops, so it refuses any serial that is
 # not `emulator-*`; the phone this is developed against is the owner's personal device). Deliberately
