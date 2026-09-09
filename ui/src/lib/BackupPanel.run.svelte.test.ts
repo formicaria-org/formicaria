@@ -216,7 +216,12 @@ describe('pressing Back up', () => {
     await waitFor(() => expect(button.disabled).toBe(false));
     await fireEvent.click(button);
 
-    const line = await screen.findByText(/^Snapshot/);
+    // **Scoped to the step list.** The panel also previews the snapshot before you press —
+    // "Snapshot — this vault's notes and attachments →" — and an unscoped search matches that
+    // one the instant the click resolves, long before the snapshot has been taken. It only ever
+    // passed because the git tier used to return without awaiting anything for a vault with no
+    // destination; now it saves one first, and the race showed.
+    const line = await screen.findByText(/^Snapshot/, { selector: '.steps li' });
     // The vault keeps its notes in `docs/`, so the default name would be a lie.
     expect(line.textContent).toContain('docs/');
     expect(line.textContent).not.toContain('blobs/');
@@ -244,7 +249,12 @@ describe('pressing Back up', () => {
     await waitFor(() => expect(button.disabled).toBe(false));
     await fireEvent.click(button);
 
-    const line = await screen.findByText(/^Snapshot/);
+    // **Scoped to the step list.** The panel also previews the snapshot before you press —
+    // "Snapshot — this vault's notes and attachments →" — and an unscoped search matches that
+    // one the instant the click resolves, long before the snapshot has been taken. It only ever
+    // passed because the git tier used to return without awaiting anything for a vault with no
+    // destination; now it saves one first, and the race showed.
+    const line = await screen.findByText(/^Snapshot/, { selector: '.steps li' });
     expect(line.textContent).toContain('contents not reported');
     // What went in is still known — we chose the directories — so it is still said.
     expect(line.textContent).toContain('notes/');

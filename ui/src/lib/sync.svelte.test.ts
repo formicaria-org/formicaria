@@ -576,13 +576,72 @@ describe('why a send failed', () => {
   });
 
   it('does not mistake a refusal or a conflict for a dead wire', () => {
-    // The two must not collapse: one says "try again", the other says "do something first".
+    // The three must not collapse: one says "try again", one says "do something first", and one
+    // says "the sign-in was refused" — three different next moves.
     expect(plainError('failed to push some refs: non-fast-forward')).toMatch(
       /get their changes first/i,
     );
-    expect(plainError('authentication failed — check the token')).toBe(
-      'authentication failed — check the token',
+    const auth = plainError('authentication failed — check the token');
+    expect(auth).toMatch(/refused the sign-in/i);
+    expect(auth).not.toMatch(/connection dropped/i);
+  });
+
+  // **A refused sign-in, which is the failure the owner has actually hit** — 2026-09-08, with
+  // three saves stuck behind an expired token, and again on 2026-09-09 after replacing it. The
+  // panel already grew the box to fix it in; until now the sentence above that box was git's, and
+  // git says `authentication required` or `403` and stops there.
+  //
+  // The remedy is named because it exists and is one screen away: the token row appears beside the
+  // vault whose send just failed, for exactly this state.
+  it('says a refused sign-in is a token to replace, and where to replace it', () => {
+    const said = plainError('failed to authenticate: 403 Forbidden');
+    expect(said).toMatch(/refused the sign-in/i);
+    expect(said).toMatch(/access token/i);
+    expect(said).toMatch(/backup options/i);
+    // The diagnosis rides behind it, as with a dead wire: `401` and `403` are different faults
+    // (wrong credential vs. a credential without permission) and only the raw text says which.
+    expect(said).toContain('403');
+  });
+
+  it('recognises the several ways a backend words a refused sign-in', () => {
+    for (const raw of [
+      'authentication required',
+      'ERROR: Permission to org/repo.git denied to someone',
+      'remote: Invalid username or password',
+      'fatal: could not read Username for https://github.com: terminal prompts disabled',
+      'unexpected http status code: 401',
+    ]) {
+      expect(plainError(raw)).toMatch(/refused the sign-in/i);
+    }
+  });
+
+  // **Nothing was sent is not the same as the send was cut off.** Both used to render as "the
+  // connection dropped part-way through sending… a large photo is the usual reason", which is a
+  // wrong story for a device that never reached anything: nothing was part-way, and the size of
+  // the photo has nothing to do with it.
+  it('separates being unable to reach anything from a send that was cut off', () => {
+    const offline = plainError('could not resolve host: github.com');
+    expect(offline).toMatch(/could not be reached/i);
+    expect(offline).not.toMatch(/part-way/i);
+    // Still the reassurance, because it is still true and it is the first thing a person wants.
+    expect(offline).toMatch(/nothing was lost/i);
+
+    const cut = plainError('SSL error: error:80000020: system library::Broken pipe');
+    expect(cut).toMatch(/part-way/i);
+    expect(cut).not.toMatch(/could not be reached/i);
+  });
+
+  // GitHub answers a private repository the token cannot see with the same 404 it gives a
+  // repository that does not exist — deliberately, so that a wrong token cannot be used to
+  // enumerate private repositories. So the sentence must name both, or it will send half the
+  // people who see it to fix the wrong thing.
+  it('names both causes when the destination cannot be found, because they are indistinguishable', () => {
+    const said = plainError(
+      "remote: Repository not found.\nfatal: repository 'https://x/y' not found",
     );
+    expect(said).toMatch(/address/i);
+    expect(said).toMatch(/access token/i);
+    expect(said).toMatch(/backup options/i);
   });
 
   it('leaves anything it does not recognise exactly as it was', () => {

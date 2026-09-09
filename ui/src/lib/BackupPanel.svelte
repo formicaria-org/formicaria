@@ -161,7 +161,15 @@
   ///
   /// The two tiers were already independent inside `run()`: a vault with no remote gets its own
   /// step line and the media loop never depended on the git loop. Only the gate assumed one.
-  const canRun = $derived(!busy && ((!noGit && anyRemote) || (heavy && anyRestic)));
+  /// **And since 2026-09-09, git alone is enough — a remote is not required.**
+  ///
+  /// Backing up is two things: writing history here, and sending it somewhere. The gate demanded
+  /// the second, so a vault with nowhere to send had a Back up button that would not press. That
+  /// was survivable only while the toolbar had its own button that did the work regardless; with
+  /// the toolbar now opening this panel instead, the same gate would mean a vault with no remote
+  /// could not be backed up from the interface at all. `run()` has always handled that vault —
+  /// it commits and reports `local`, which is a state and not a failure.
+  const canRun = $derived(!busy && ((!noGit && vaults.length > 0) || (heavy && anyRestic)));
   // Only the people git has never met get asked, and only about the vault they are
   // sharing: a vault is an audience, so the name on a lab repo need not be the one on
   // your personal notes.
@@ -255,7 +263,13 @@
   const noPassword = 'no backup password is set on this machine';
   // A single vault has no boundary to talk about, so don't name it at every turn.
   const plural = $derived(vaults.length > 1);
-  const of = (v: PanelVault) => (plural ? ` (${v.name})` : '');
+  /// **The label, not the name.** This said `v.name`, which is the local identity — the string a
+  /// command takes and, on a phone, the folder a vault lives in. Every other surface shows the
+  /// repository behind the remote, so a vault appeared here under a name it had nowhere else: the
+  /// owner's laptop says `vault` where the phone says `notes`. The App summary was fixed for
+  /// exactly this on 2026-09-08 and this copy was missed, which is what happens when one fact has
+  /// two producers. See `vaults.svelte.ts`.
+  const of = (v: PanelVault) => (plural ? ` (${labelFor(v.name)})` : '');
 
   /// Which vault has been clicked once. A two-step, because it changes what the app shows you and a
   /// single misclick in a list of vaults should not.
@@ -436,10 +450,14 @@
     }
   }
 
-  // Bring their work home. Separate from "Back up" on purpose: pushing and pulling are
-  // different intentions, and a button that quietly did both would be a button nobody
-  // could predict. Commit first for the same reason `run()` does — the 5s auto-commit
-  // is best-effort, and git will not merge over uncommitted edits.
+  // Bring their work home **without sending yours**. This used to be kept apart from Back up on
+  // the grounds that sending and getting are different intentions and a button doing both would be
+  // unpredictable. That argument was reversed on 2026-09-09 (`decisions.md`): Back up now gets
+  // their changes first, because the ordering was a decision the app was making the user get right
+  // — *"better avoid a push before a pull"*. What survives here is the narrower intention, which is
+  // still real: see what the other device did, and decide, without publishing anything of your own.
+  // Commit first for the same reason `run()` does — the 5s auto-commit is best-effort, and git will
+  // not merge over uncommitted edits.
   async function bringDown(v: PanelVault) {
     if (busy) return;
     busy = true;
@@ -519,15 +537,11 @@
     // that fails must not cancel the others — and must not be quietly folded into a
     // cheerful summary either.
     for (const v of vaults) {
-      if (!v.remote) {
-        stuck.push(v.name);
-        steps.push({
-          text: `Nowhere to send${of(v)} yet — those notes cannot leave this device.`,
-          ok: false,
-        });
-        continue;
-      }
-      const reach = reachOf(v.remote);
+      // **A vault with no remote is still backed up — into its own history.** This used to `continue`
+      // before committing, so pressing Back up did nothing at all for such a vault and said only
+      // that it could not leave. `syncVault` commits it and comes back `local`, which is a state and
+      // not a failure, and the report below says which of the two things actually happened.
+      const reach = v.remote ? reachOf(v.remote) : 'unset';
       // `syncVault` is commit → push, and — if the remote moved while you were writing —
       // pull, merge, push once more. That last part is the difference between this button
       // working and this button telling you "the remote has changes you don't have — pull
@@ -538,9 +552,28 @@
       if (s.merged > 0) {
         steps.push({ text: `Brought down ${s.merged} change(s)${of(v)} first.`, ok: true });
       }
-      if (phase === 'synced') {
+      // **Nowhere to send is asked first, and answered from what we already know.** `syncVault` can
+      // only infer it — from a send that failed — while this panel *knows*, because `backup_status`
+      // read the destination off the config. Deciding it here also means a send that somehow
+      // reported success for a vault with no destination cannot make the panel announce notes sent
+      // to nowhere, which is the one thing it exists never to say.
+      //
+      // **Two sentences below, because they are two different facts and only one of them is a
+      // claim.** "saved here" asserts that something was committed; saying it when nothing was is
+      // the failure reported on the phone (2026-09-08), where a vault with nothing new announced a
+      // save in the same breath as the quiet chip said it had been silent for 38 days. `committed`
+      // is the answer, carried out of the save step for this exact purpose.
+      if (!v.remote || phase === 'local') {
         steps.push({
-          text: `Notes${of(v)} sent to ${shortDest(v.remote)} — ${left(reach)}.`,
+          text: s.committed
+            ? `“${labelFor(v.name)}” saved here, but nowhere to send. Add a destination below.`
+            : `“${labelFor(v.name)}” has nothing new to save, and nowhere to send it to. Add a destination below.`,
+          ok: false,
+        });
+        stuck.push(v.name);
+      } else if (phase === 'synced') {
+        steps.push({
+          text: `Notes${of(v)} sent to ${shortDest(v.remote ?? '')} — ${left(reach)}.`,
           ok: true,
         });
         (reach === 'remote' ? off : stuck).push(v.name);
@@ -993,12 +1026,12 @@
             pick a side.
           </p>
         {:else if syncFor(v.name).phase === 'failed' && syncFor(v.name).error}
-          <!-- **The detail the toolbar promised.** "…need you: open backup options for detail"
-               pointed here, and here had nothing to show: `steps` is only ever filled by this
-               panel's own buttons, so a backup started from the toolbar left this screen blank and
-               the reason sitting unread in the sync store. Reported from the phone, 2026-09-08 —
-               three unpushed commits, a vault named as needing attention, and no way to find out
-               why. Persistent, because the message that sends you here can arrive at any time. -->
+          <!-- **Read out of the sync store, not out of `steps`.** `steps` is this panel's report
+               of the run you just watched; it is empty on every fresh open, so a failure from a
+               previous run — or from the auto-commit loop, or from the toolbar's get-changes chip —
+               would leave this screen blank with the reason sitting unread. Reported from the phone,
+               2026-09-08: three saves that had not left the device, a vault named as needing
+               attention, and no way to find out why. -->
           <p class="error">
             Notes did not go: {plainError(syncFor(v.name).error ?? '')}
           </p>

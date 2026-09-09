@@ -20,6 +20,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
+import { backUpThroughPanel } from './lib/harness';
 import { clearFaults, faults, reset } from './lib/mock';
 import { clearSync } from './lib/sync.svelte';
 
@@ -41,7 +42,7 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
   faults([{ cmd: 'push', mode: 'delay', ms: 300 }]);
   render(App);
 
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   // Announced, not merely drawn — the same information for someone who cannot see it spin.
   const working = await screen.findByRole('status');
@@ -60,7 +61,7 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
 test('nothing is spinning when nothing is happening', async () => {
   render(App);
   // Anchored on a control that must render, so this cannot pass by the app failing to boot.
-  await screen.findByRole('button', { name: /back up notes/i });
+  await screen.findByRole('button', { name: /^back up$/i });
   expect(screen.queryByRole('status')).toBeNull();
 });
 
@@ -70,6 +71,6 @@ test('a backup that fails still stops the spinner', async () => {
   faults([{ cmd: 'push', mode: 'reject', message: 'nope' }]);
   render(App);
 
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
   await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull(), { timeout: 4000 });
 });

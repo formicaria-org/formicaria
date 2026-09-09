@@ -18,6 +18,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
+import { backUpThroughPanel } from './lib/harness';
 import { clearFaults, faults, reset, setLastCommits, setLastSent, setUnrecorded } from './lib/mock';
 
 beforeEach(() => {
@@ -70,7 +71,7 @@ test('backing up clears it, so the alert does not outlive the act that answered 
   render(App);
   await screen.findByRole('button', { name: /lab-notes: 39 days since a save/i });
 
-  await fireEvent.click(screen.getByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   await vi.waitFor(() =>
     expect(screen.queryByRole('button', { name: /since a save/i })).toBeNull(),
@@ -103,7 +104,7 @@ test('a vault with no remote and nothing new does not claim it just committed', 
     { cmd: 'pull', mode: 'reject', message: 'no remote configured' },
   ]);
   render(App);
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   const notice = await screen.findByText(/nothing new to save/i);
   expect(notice.textContent).not.toMatch(/saved here/i);
@@ -117,7 +118,7 @@ test('and it does say so when it really did commit', async () => {
     { cmd: 'pull', mode: 'reject', message: 'no remote configured' },
   ]);
   render(App);
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   const notice = await screen.findByText(/saved here, but nowhere to send/i);
   expect(notice.textContent).toContain('“personal”');
@@ -135,7 +136,7 @@ test('the backup summary names a vault the way every other surface does', async 
   ]);
   setUnrecorded([{ vault: 'lab', count: 1, new: 1, modified: 0, deleted: 0, notes: [] }]);
   render(App);
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   const notice = await screen.findByText(/saved here, but nowhere to send/i);
   expect(notice.textContent).toContain('“lab-notes”');

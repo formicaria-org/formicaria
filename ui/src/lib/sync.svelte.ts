@@ -211,11 +211,73 @@ const AHEAD_OF_US =
  * cause, a hexadecimal error code is not a thing to hand somebody who wanted their notes backed up.
  */
 const WIRE_DIED =
-  /(broken pipe|connection reset|connection closed|timed out|timeout|early eof|unexpected disconnect|network is unreachable|could not resolve host)/i;
+  /(broken pipe|connection reset|connection closed|timed out|timeout|early eof|unexpected disconnect)/i;
+
+/**
+ * The sign-in was refused. **The failure the owner has actually hit**, twice: 2026-09-08 with
+ * three saves stuck behind an expired token, and again the next day after replacing it.
+ *
+ * Matched on several spellings because there is no one error here — a backend can answer
+ * `authentication required`, a bare `401`, a `403`, git's `could not read Username … terminal
+ * prompts disabled` (which is what a *missing* credential looks like when nothing can prompt),
+ * or a server's own English. They all mean the same thing to the reader, and the remedy is the
+ * same box.
+ */
+const SIGN_IN_REFUSED =
+  /(authentication (?:failed|required)|auth failed|\b401\b|\b403\b|forbidden|invalid username or password|could not read username|terminal prompts disabled|permission (?:to \S+ )?denied|access denied|authorization failed|bad credentials)/i;
+
+/**
+ * There is nothing at that address — **or there is, and this token may not see it.**
+ *
+ * The two are one message on purpose, because the server makes them one answer: a host that
+ * returned "no such thing" for an existing private repository and "you may not" for one that
+ * exists would let anyone with a bad token enumerate private repositories, so it returns the same
+ * 404 for both. A sentence naming only the address would send half the people who read it to
+ * correct something that was already right.
+ */
+const NO_SUCH_PLACE =
+  /(repository not found|repository '[^']*' not found|\b404\b|does not appear to be a git repository|remote repository does not exist)/i;
+
+/**
+ * Nothing was reached at all — no signal, no name resolution, no route.
+ *
+ * **Split out of `WIRE_DIED` on 2026-09-09**, which had swallowed `could not resolve host` and
+ * `network is unreachable` and therefore told a reader with no signal that "the connection dropped
+ * part-way through sending" and that "a large photo is the usual reason". Both halves were wrong:
+ * nothing was part-way, and the size of what was being sent had nothing to do with it. The remedy
+ * differs too — one says *try again*, this says *reconnect first*.
+ */
+const OFFLINE =
+  /(could not resolve host|temporary failure in name resolution|name or service not known|nodename nor servname|network is unreachable|no route to host|failed to connect to|connection refused|could not connect to server)/i;
 
 export function plainError(raw: string): string {
   if (AHEAD_OF_US.test(raw)) {
     return "The other device has changes you don't have yet — get their changes first, then send.";
+  }
+  // **Before the wire cases**, because a refusal arrives over a connection that worked perfectly:
+  // the destination answered, and what it said was no.
+  if (SIGN_IN_REFUSED.test(raw)) {
+    return (
+      'The destination refused the sign-in. Its access token is wrong, has expired, or was made ' +
+      "without permission to write — replace it in backup options, beside this vault's address. " +
+      `(${raw})`
+    );
+  }
+  if (NO_SUCH_PLACE.test(raw)) {
+    return (
+      'The destination could not be found. Either its address is wrong, or the access token saved ' +
+      'for it cannot see what is there — a private destination answers both the same way, on ' +
+      'purpose — so check the two of them in backup options. ' +
+      `(${raw})`
+    );
+  }
+  if (OFFLINE.test(raw)) {
+    return (
+      'The destination could not be reached, so nothing was sent — and nothing was lost. Your ' +
+      'notes are still here and their history is untouched. Check this device is online, then ' +
+      'try again. ' +
+      `(${raw})`
+    );
   }
   if (WIRE_DIED.test(raw)) {
     // **This one keeps its detail, where the case above drops it.** They are not the same kind of

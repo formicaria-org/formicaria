@@ -52,5 +52,5 @@ test('and the message goes when the next refresh works', async () => {
   await handle('capture', { body: 'a note that forces a refresh' });
 
   // The empty state is the honest answer once the read succeeds and there is genuinely nothing.
-  await screen.findByRole('button', { name: /back up notes/i });
+  await screen.findByRole('button', { name: /^back up$/i });
 });

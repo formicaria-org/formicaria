@@ -64,6 +64,6 @@ test('a name left over from a removed vault does not keep the filter on screen',
 
   render(App);
   // Anchored on something that must render, so this cannot pass before the app has loaded.
-  await screen.findByRole('button', { name: /back up notes/i });
+  await screen.findByRole('button', { name: /^back up$/i });
   expect(screen.queryByRole('button', { name: /which vaults to show/i })).toBeNull();
 });

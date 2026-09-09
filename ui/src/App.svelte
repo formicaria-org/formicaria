@@ -1732,121 +1732,8 @@
     backupOpen = true;
   }
 
-  let backupMenuOpen = $state(false);
   /** Non-null while a backup runs — doubles as the button's label and its disabled flag. */
   let savingLabel = $state<string | null>(null);
-
-  /// **The default action: commit and push notes.**
-  ///
-  /// Every vault, because "back up" with several vaults open meaning only the first one is the
-  /// bug this panel already had once. Assets ride along only where that vault's `vault.json` sets
-  /// `git_assets_max` — a per-vault rule, so one device cannot decide what lands in shared
-  /// history for everyone.
-  async function backUpNotes() {
-    if (savingLabel) return;
-    savingLabel = 'Backing up…';
-    error = null;
-    const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    try {
-      const results = await Promise.all(
-        allVaults.map((v) => syncVault(v, `backup: ${stamp}`, () => refresh())),
-      );
-      const failed = allVaults.filter((_, i) => results[i] === 'failed');
-      const conflicted = allVaults.filter((_, i) => results[i] === 'conflicts');
-      // **A vault with no remote is not a failure**, and lumping it in with one made the whole
-      // action look blocked. Each vault is pushed independently, so the ones that *can* back up
-      // always do — but the old message could not say that, and reasonably read as "nothing went"
-      // (reported 2026-07-31). Now the sentence leads with what left the machine.
-      const local = allVaults.filter((_, i) => results[i] === 'local');
-      const sent = allVaults.filter((_, i) => results[i] === 'synced');
-      const parts: string[] = [];
-      if (sent.length) {
-        parts.push(
-          allVaults.length === 1
-            ? 'Notes backed up'
-            : `Notes backed up (${sent.length} of ${allVaults.length} vaults)`,
-        );
-      }
-      // **Split by whether anything was actually committed, because the sentence says so.**
-      // "committed here, but nowhere to send" was printed for every remoteless vault, including
-      // ones with nothing new in them — so a phone reported a vault as just-committed in the same
-      // breath as the quiet-vault chip said "38 days since a save" (2026-09-08). The chip had read
-      // `git log`; the sentence had read nothing.
-      const localSaved = local.filter((v) => syncFor(v).committed);
-      const localQuiet = local.filter((v) => !syncFor(v).committed);
-      if (localSaved.length) {
-        // Stated as the fact it is, with the fix: no remote yet. Never "failed".
-        parts.push(
-          `${localSaved.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
-            `${localSaved.length === 1 ? 'has' : 'have'} no destination yet — saved here, but ` +
-            `nowhere to send. Add one in backup options.`,
-        );
-      }
-      if (localQuiet.length) {
-        parts.push(
-          `${localQuiet.map((v) => `“${labelFor(v)}”`).join(', ')} ` +
-            `${localQuiet.length === 1 ? 'has' : 'have'} nothing new to save, and nowhere to ` +
-            `send it to. Add one in backup options.`,
-        );
-      }
-      if (failed.length || conflicted.length) {
-        // Named, and pointed at the panel that can actually resolve it — a toolbar button is the
-        // wrong place to explain a merge conflict.
-        parts.push(
-          `${[...failed, ...conflicted].map((v) => `“${labelFor(v)}”`).join(', ')} need you: ` +
-            `open backup options for detail.`,
-        );
-      }
-      if (failed.length || conflicted.length) {
-        report(parts.join(' '));
-      } else {
-        notice = parts.join(' ') || 'Nothing to back up';
-      }
-    } catch (e) {
-      report(`Backup failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      savingLabel = null;
-      // **Backup commits, so the "not in history" chip must be re-read here.** It was loaded once
-      // per `vaults` change and after the panel's own Record button — nowhere else. So backing up
-      // recorded the notes and left the chip saying the old number, which reads as "Backup did not
-      // clear them" (reported 2026-08-24 with a count of 1). The count is a fact about git, and
-      // this is the moment git changed.
-      await loadUnrecorded();
-      // Same argument, and the chip it feeds is the one that says "nothing has been saved here in
-      // N days": a backup is precisely the event that answers it, so leaving the old number on
-      // screen would have the alert survive the act that resolved it — which is how an alert stops
-      // being read at all.
-      await loadLastSaves();
-      // Backing up goes through `syncVault`, which pulls before it pushes — so it too can be the
-      // thing that resurrects a note or demotes a field.
-      await Promise.all([loadDemoted(), loadKept()]);
-    }
-  }
-
-  /// The variants behind the chevron. Short on purpose: the button already does the common thing,
-  /// and everything here is either rarer or needs a screen of its own to be honest about.
-  let BACKUP_MENU = $derived([
-    {
-      label: 'Back up notes',
-      note: 'commit and push — what the button does',
-      run: backUpNotes,
-    },
-    {
-      label: 'Get their changes',
-      note: 'pull what others pushed',
-      run: getTheirChanges,
-    },
-    {
-      label: 'Backup options…',
-      note: 'media, remotes, per-vault detail',
-      run: onBackup,
-    },
-    {
-      label: 'Attachment settings…',
-      note: 'which assets travel with your notes',
-      run: () => openSettings(),
-    },
-  ] as { label: string; note: string; run: () => void }[]);
 </script>
 
 <svelte:window onkeydown={onGlobalKey} />
@@ -2265,61 +2152,32 @@
         </button>
       {/if}
 
-      <!-- **Back up is a split button**, because "save" had become a question nobody could answer
-         from the screen. The wide half does the ordinary thing — commit and push **notes** — and
-         the narrow half opens the variants. That keeps one obvious action at one click while the
-         rarer choices stay reachable without a trip to Settings.
-         Pushes are user-triggered rather than on a timer: a push is a visible act with a remote
-         audience, and a cadence that fires on its own makes it one nobody chose. -->
+      <!-- **One control, and it opens the panel rather than acting.**
+         It was a split button: a wide half that backed up on the spot, and a narrow chevron for the
+         variants. Two small targets side by side, which on a phone is the owner's report —
+         *"the button is small and the down arrow to, and the user will have to select more often
+         than not what to do"*. They are one button now, twice the target, and it opens the surface
+         where the state is visible before anything is sent: what is waiting, how much, where it
+         goes, and whether the vault has anywhere to send at all.
+         It costs a press on the routine case, and that is the trade: an accidental tap on a control
+         that sends is worse than an extra tap on one that asks.
+         **Named `back up`, not `back up notes`.** It opens the backup surface; it does not send. The
+         panel's own primary button is the one that sends, and it keeps the fuller label — which
+         also keeps the two tellable apart by name, to a screen reader and to a test.
+         Sending stays user-triggered rather than timed, which is unchanged: it is a visible act
+         with an audience, and a cadence that fires on its own makes it one nobody chose. -->
       <div class="create-wrap">
         <button
           type="button"
           class="save-btn"
-          onclick={backUpNotes}
+          onclick={onBackup}
           disabled={savingLabel !== null}
-          title="Save and send your notes"
-          aria-label="back up notes"
+          title="Back up — see what will be sent, then send it"
+          aria-label="back up"
         >
           <Icon name="backup" size={14} />
-          <!-- **No idle label.** Help and Settings beside it carry none, and one labelling rule per
-             state is what makes a column of controls read as a column rather than a list of
-             exceptions. The word returns while it is *working*, because "is anything happening?"
-             is the one moment an icon alone cannot answer (heuristic 1, visibility of system
-             status); the tooltip carries the meaning the rest of the time. -->
           {#if savingLabel}<span class="save-label">{savingLabel}</span>{/if}
         </button>
-        <button
-          type="button"
-          class="save-more"
-          onclick={(e) => (anchorTo(e), (backupMenuOpen = !backupMenuOpen))}
-          aria-expanded={backupMenuOpen}
-          aria-haspopup="menu"
-          aria-label="other backup options"
-          title="Other backup options"
-        >
-          <Icon name="chevron-down" size={12} />
-        </button>
-        {#if backupMenuOpen}
-          <div
-            class="menu-backdrop"
-            role="presentation"
-            onclick={() => (backupMenuOpen = false)}
-          ></div>
-          <ul class="create-menu" role="menu" style={menuAnchor}>
-            {#each BACKUP_MENU as item (item.label)}
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitem"
-                  onclick={() => ((backupMenuOpen = false), item.run())}
-                >
-                  <span class="mi-label">{item.label}</span>
-                  <span class="mi-note">{item.note}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
       </div>
 
       <!-- The manual, one click from anywhere in the app.
@@ -3242,12 +3100,11 @@
     width: 9rem;
     outline: none;
   }
-  /* **One control, two halves.** They sit flush and share an outline so the pair reads as a
-     single thing with a default action, which is the point of a split button: the wide half is
-     what you almost always want, the narrow half admits there are alternatives. Separating them
-     into two buttons would ask a question on every backup. */
-  .save-btn,
-  .save-more {
+  /* **One whole control.** This was a split button — a wide half that sent on the spot and a
+     narrow chevron for the variants — so it carried a square inner edge and no border between the
+     halves. One button now: a border on all four sides, one radius, and twice the target, which is
+     the whole point on a phone. */
+  .save-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -3255,38 +3112,17 @@
     font-size: var(--text-sm);
     padding: 5px 10px;
     border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--text);
     cursor: pointer;
-  }
-  .save-btn {
-    border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-    border-right-color: transparent;
     white-space: nowrap;
   }
-  .save-more {
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    padding-inline: 6px;
-    color: var(--text-muted);
-  }
-  .save-btn:hover:not(:disabled),
-  .save-more:hover {
+  .save-btn:hover:not(:disabled) {
     background: var(--surface-hover);
   }
   .save-btn:disabled {
     cursor: default;
-    color: var(--text-muted);
-  }
-  /* The menu hangs off the right-hand control, so it aligns to that edge rather than the
-     viewport's left the way the create menu does. */
-  .create-menu .mi-label {
-    display: block;
-  }
-  /* The second line is what makes the menu answerable without opening anything: "commit and
-     push" says what backing up *is*, which was the actual question. */
-  .create-menu .mi-note {
-    display: block;
-    font-size: var(--text-xs, 0.75rem);
     color: var(--text-muted);
   }
   .create-menu button {

@@ -11,6 +11,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
+import { backUpThroughPanel } from './lib/harness';
 import { clearFaults, reset, setKept } from './lib/mock';
 
 beforeEach(() => {
@@ -65,7 +66,7 @@ test('the chip appears after the pull that caused it, not after a restart', asyn
   // Through **Back up notes**, which is `commit → pull → push`: the "get their changes" chip only
   // exists behind the production-only remote poll, and the debt is about the surface being right
   // after whichever door the user came through.
-  await fireEvent.click(await screen.findByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   await vi.waitFor(() =>
     expect(screen.getByRole('button', { name: /3 decided for you/i })).toBeTruthy(),

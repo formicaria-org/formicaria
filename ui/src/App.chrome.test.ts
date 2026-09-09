@@ -144,11 +144,11 @@ test('every label in the chrome is wrapped in something CSS can hide', async () 
 
 test('back up is an icon like the controls beside it, and says so only while it is working', async () => {
   render(App);
-  const btn = await screen.findByRole('button', { name: 'back up notes' });
+  const btn = await screen.findByRole('button', { name: 'back up' });
   // Help and Settings next to it carry no words; one labelling rule per state is what makes the
   // column read as a column. The meaning lives in the tooltip.
   expect((btn.textContent ?? '').trim()).toBe('');
-  expect(btn.getAttribute('title')).toMatch(/save and send/i);
+  expect(btn.getAttribute('title')).toMatch(/back up/i);
 });
 
 test('a view can be opened when the chrome is a bar, where there is no rail', async () => {
@@ -244,10 +244,14 @@ test('a dropdown opens at the button that opened it, not at a fixed corner', asy
   // the backup menu opened in the opposite corner from its own button.
   render(App);
 
-  const backup = await screen.findByRole('button', { name: 'other backup options' });
-  backup.getBoundingClientRect = () =>
+  // **Driven by the ＋ menu since 2026-09-09.** This used the backup chevron, which is gone: the
+  // split Back up button became one control that opens the panel. The rule under test is about
+  // *any* of these menus, so it moves to one that still exists — with a faked rect low on screen,
+  // which is what it was really testing all along.
+  const low = await screen.findByRole('button', { name: 'make something new' });
+  low.getBoundingClientRect = () =>
     ({ left: 12, top: 700, bottom: 728, right: 40, width: 28, height: 28 }) as DOMRect;
-  await fireEvent.click(backup);
+  await fireEvent.click(low);
 
   const menu = await screen.findByRole('menu');
   const style = menu.getAttribute('style') ?? '';

@@ -15,6 +15,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
+import { backUpThroughPanel } from './lib/harness';
 import { clearFaults, setUnrecorded } from './lib/mock';
 
 beforeEach(() => clearFaults());
@@ -30,7 +31,7 @@ test('backing up records the outstanding notes, and the chip stops claiming othe
   // The complaint's starting state: one note on disk that git does not have.
   await screen.findByRole('button', { name: /1 not in history/i });
 
-  await fireEvent.click(screen.getByRole('button', { name: /back up notes/i }));
+  await backUpThroughPanel(screen, fireEvent);
 
   // Backup committed it, so nothing is outstanding — and the toolbar has to say so without a
   // reload. `queryByRole` and not a text match: the chip is a button, and its absence is the claim.

@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -6983,3 +6983,69 @@ device, so the page is never laid out against an approximation even on its first
 - **The cost is accepted.** A `pointer: coarse` device with a working `env()` and no cutout gets a
   larger top pad than it needs. That is the right side to err on: too much space wastes pixels, too
   little makes a control unpressable.
+
+## Back up asks before it acts, and gets their changes before it sends (2026-09-09, `#ui` `#sync`)
+
+**Decision.** The toolbar's Back up button **opens the backup panel and sends nothing**. Backing up
+from that panel is one act that **gets the other device's changes and then sends** — the two are no
+longer separate choices a person has to sequence correctly. And the sentences for a failed send name
+the remedy: a token to replace, an address to check, a connection to restore.
+
+**The report**, verbatim: *"I think we should remove the effect of the backup button and have it
+always open the different backup options. This is because the button is small and the down arrow to,
+and the user will have to select more often than not what to do, so better avoid a push before a
+pull for instance (I would actually merge the two: backup notes pulls and pushes, to automatically
+avoid the user having to think about getting other changes). Then error message should help her
+understand the issues if they happen and how to solve them."*
+
+**What it replaces.** A split button: a wide half that sent immediately, and a chevron opening four
+variants (*Back up notes*, *Get their changes*, *Backup options…*, *Attachment settings…*). Two
+small targets side by side on a phone, where the common case was reaching for the *narrow* one —
+because the choice mattered. There was no `decisions.md` entry establishing it; the argument lived
+only in a comment in `App.svelte`, which is part of why it survived unexamined.
+
+**Consequences:**
+- **It costs a press on the routine case, and that is the trade.** An accidental tap on a control
+  that sends is worse than an extra tap on one that asks. The panel is also the only surface that
+  can answer *what am I about to send, from which vault, to where* before it happens.
+- **`aria-label="back up"`, not `back up notes`.** It opens a surface; it does not send. The panel's
+  own primary button keeps the fuller label, which also keeps the two tellable apart by name — to a
+  screen reader and to a test. `ui/src/lib/harness.ts` gains `backUpThroughPanel`, so the eight
+  suites that used to click the toolbar now go the way a person does.
+- **`backUpNotes` is deleted, not hidden.** Its whole reporting apparatus — which vaults sent, which
+  had nowhere to send, which had nothing to save — was a second implementation of what the panel's
+  step list already said better, and the two had already drifted once.
+- **A vault with no destination is saved anyway.** The panel used to `continue` past it before
+  committing, so pressing Back up did nothing at all for such a vault and reported only that it
+  could not leave. It now commits and says which of the two things happened.
+- **Having nowhere to send is decided from the config, not from a failed send.** `syncVault` can
+  only infer it; the panel *knows*, because `backup_status` read the destination. So a send that
+  somehow reported success for a vault with no destination cannot make the panel announce notes sent
+  to nowhere.
+- **Get-then-send moved into `syncVault`** (from the panel's own button, where it was first put).
+  The button most people press is the one in the toolbar, so an improvement that lives in the other
+  button is not an improvement — the same mistake as putting the backlog staging there.
+
+**And the fault sentences.** `plainError` extends the 2026-09-08 ruling (*a refused send says what
+to do about it*) with three more states, each with a real remedy and each grounded in something that
+has actually been hit or actually mis-worded:
+
+| State | What it now says |
+|---|---|
+| sign-in refused (`401`/`403`/`authentication required`/`permission denied`/…) | the access token is wrong, expired, or cannot write — replace it in backup options, beside this vault's address |
+| destination not found (`404`, `repository not found`) | **both** causes, because the server makes them one answer: a wrong address, or a token that cannot see a private destination |
+| nothing reachable (`could not resolve host`, `network is unreachable`, `connection refused`) | nothing was sent and nothing was lost — check this device is online, then try again |
+
+**`could not resolve host` used to be reported as a dropped connection**, complete with *"a large
+photo over a phone connection is the usual reason"*. Both halves were wrong: nothing was part-way,
+and the size of what was being sent had nothing to do with it. Being unable to reach anything and
+being cut off mid-transfer are now separate, because the remedies are (*reconnect* vs *retry*).
+
+**The diagnosis rides behind every one of them**, as with the dead wire: `401` and `403` are
+different faults and only the raw text says which. The one case that still drops its detail is
+*the other device is ahead*, which has exactly one remedy and a button that performs it.
+
+**Not built: a sentence for a file the destination refuses as too large.** GitHub's 100 MB limit is
+reachable in principle, and there is no honest remedy to offer — the file is already in the vault's
+history by then, so lowering the attachment limit does not undo it. A message whose advice does not
+work is worse than the raw error. Left until someone actually hits it.
