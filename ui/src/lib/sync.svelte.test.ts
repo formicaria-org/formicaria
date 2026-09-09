@@ -586,3 +586,83 @@ describe('why a send failed', () => {
     expect(plainError('could not resolve host: github.com')).not.toMatch(/get their changes/i);
   });
 });
+
+// ── Staging a backlog, from whichever button ──
+//
+// The first attempt put this loop in the Backup panel's own button. The button most people press
+// is the one in the toolbar, which calls `syncVault` directly — so the owner ticked the box,
+// pressed Back up, and got the same broken pipe with no steps at all. The option was in one place
+// and the action in another.
+//
+// It lives in `syncVault` now, which every backup path goes through. These tests are about that
+// property: the caller does not opt in, does not pass anything, and still gets steps.
+describe('a backlog too big for one push', () => {
+  const plan = [
+    { cap: 100, count: 2, bytes: 150 },
+    { cap: 900, count: 1, bytes: 900 },
+  ];
+
+  it('is sent in steps without the caller asking for it', async () => {
+    const caps: (number | undefined)[] = [];
+    const { ops: o } = ops({
+      batches: async () => plan,
+      commit: async (_m: string, _v: string, cap?: number) => {
+        caps.push(cap);
+        return { committed: true, conflicts: [] };
+      },
+    });
+
+    expect(await syncVault('big', 'backup', undefined, o)).toBe('synced');
+    // One pass per step, each with its own rising cap, then a final uncapped pass so anything
+    // written while it ran still goes.
+    expect(caps).toEqual([100, 900, undefined]);
+    clearSync('big');
+  });
+
+  it('stops where it failed, and says how far it got', async () => {
+    // Each step is a completed push, so the ones before the failure are already sent. What must
+    // not happen is the loop carrying on into steps that cannot land.
+    let n = 0;
+    const { ops: o } = ops({
+      batches: async () => plan,
+      push: async () => {
+        n += 1;
+        if (n > 1) throw new Error('SSL error: error:80000020: system library::Broken pipe');
+      },
+    });
+
+    expect(await syncVault('halted', 'backup', undefined, o)).toBe('failed');
+    expect(n).toBe(2);
+    expect(syncFor('halted').step).toBe(2);
+    expect(syncFor('halted').steps).toBe(3);
+    clearSync('halted');
+  });
+
+  it('a vault with nothing waiting is one push, exactly as before', async () => {
+    const caps: (number | undefined)[] = [];
+    const { ops: o } = ops({
+      batches: async () => [],
+      commit: async (_m: string, _v: string, cap?: number) => {
+        caps.push(cap);
+        return { committed: true, conflicts: [] };
+      },
+    });
+    await syncVault('small', 'backup', undefined, o);
+    expect(caps).toEqual([undefined]);
+    clearSync('small');
+  });
+
+  it('a single step is one push too — a loop there would be ceremony', async () => {
+    const caps: (number | undefined)[] = [];
+    const { ops: o } = ops({
+      batches: async () => [{ cap: 500, count: 1, bytes: 500 }],
+      commit: async (_m: string, _v: string, cap?: number) => {
+        caps.push(cap);
+        return { committed: true, conflicts: [] };
+      },
+    });
+    await syncVault('one', 'backup', undefined, o);
+    expect(caps).toEqual([undefined]);
+    clearSync('one');
+  });
+});

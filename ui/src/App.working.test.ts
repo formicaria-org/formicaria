@@ -21,6 +21,7 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
 import { clearFaults, faults, reset } from './lib/mock';
+import { clearSync } from './lib/sync.svelte';
 
 beforeEach(() => {
   reset();
@@ -30,6 +31,9 @@ afterEach(() => {
   vi.useRealTimers();
   clearFaults();
   reset();
+  // Module state outlives a render — the trap this repo has hit repeatedly. A vault left mid-flight
+  // by one test is a spinner the next test finds and fails on.
+  for (const v of ['personal', 'lab']) clearSync(v);
 });
 
 test('the toolbar says it is working while a slow backup runs, and goes quiet when it ends', async () => {
@@ -41,7 +45,12 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
 
   // Announced, not merely drawn — the same information for someone who cannot see it spin.
   const working = await screen.findByRole('status');
-  expect(working.textContent).toMatch(/Sending…/);
+  // **Any of the working labels, not a specific one.** Which step is running when the assertion
+  // fires depends on how many round-trips precede the push and on which vault is where — and since
+  // a backlog is now planned before the first commit, that is one more than it was. The subject of
+  // this test is that the app says it is working at all, and stops saying so; pinning the phase
+  // made it fail for a reason with nothing to do with the indicator.
+  expect(working.textContent).toMatch(/Saving…|Getting changes…|Sending…/);
 
   // **And it must not outlive the work.** A spinner that never stops is worse than none: it
   // teaches the user that the indicator means nothing.

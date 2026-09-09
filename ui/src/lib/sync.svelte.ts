@@ -23,8 +23,8 @@
 // conflicts must never be followed by a push — that would publish conflict markers as though
 // they were content.
 
-import { backupStatus, commit, push, pull } from './ipc';
-import type { CommitResult, PullResult } from './types';
+import { assetBatches, backupStatus, commit, push, pull } from './ipc';
+import type { AssetBatch, CommitResult, PullResult } from './types';
 
 /**
  * The three operations the sequence is made of, injectable so every branch of it can be
@@ -44,12 +44,19 @@ export interface SyncOps {
   /// `backup_status` shells out `git ls-remote` per vault and is the one call in this file that is
   /// genuinely slow.
   hasRemote(vault: string): Promise<boolean>;
+  /// How this vault's attachment backlog would be sent, in steps. Local and read-only.
+  ///
+  /// **Optional**, and absent means "no backlog". A test stub that does not care about staging
+  /// should not have to say so, and the honest default for an unanswered question here is the one
+  /// that changes nothing: a single push, exactly as before.
+  batches?(vault: string, budget: number): Promise<AssetBatch[]>;
 }
 
 const realOps: SyncOps = {
   commit,
   push,
   pull,
+  batches: assetBatches,
   hasRemote: async (vault: string) => {
     const status = await backupStatus().catch(() => null);
     const v = status?.vaults.find((s) => s.name === vault);
@@ -80,6 +87,10 @@ export type SyncPhase =
   | 'failed';
 
 export interface VaultSync {
+  /// Which step of a staged backup is running, and how many there are. `0` when the backup is a
+  /// single push, which is every ordinary one.
+  step?: number;
+  steps?: number;
   phase: SyncPhase;
   /** Notes with conflict markers, waiting for a human. Only set in the `conflicts` phase. */
   conflicts: string[];
@@ -283,7 +294,58 @@ async function commitStep(
  * Never throws: the whole reason this exists is that the failure has somewhere to go.
  * Returns the terminal phase so a caller can chain on it.
  */
+/// **How much a single push may carry before it stops finishing.** Not a network fact — a
+/// judgement about what survives a phone connection, set against the report that produced it: 65
+/// attachments, 127.2 MB, a broken pipe every time.
+const BATCH_BUDGET = 16_000_000;
+
+/// Back this vault up, **in steps if its attachment backlog is too big for one push**.
+///
+/// **Here rather than in the Backup panel, and that placement is the bug this fixes.** The staging
+/// loop lived in the panel's own button while the button most people press is the one in the
+/// toolbar — which called `syncVault` directly and knew nothing about it. So the option was in one
+/// place and the action in another: the owner ticked the box, pressed Back up, and got the same
+/// broken pipe with no steps at all. Every backup path goes through this function, so this is the
+/// only place the behaviour cannot be bypassed.
+///
+/// **Automatic, not a checkbox.** A control that has to be found before it can help is a control
+/// that does not help; the single push demonstrably cannot finish, so the staged one is simply
+/// what a large backlog means. It announces itself through `step`/`steps`, which the spinner and
+/// the panel both read.
+///
+/// Each step raises the attachment limit, so it re-stages what is already sent (a no-op in git)
+/// and adds only what the raise newly admits — and each step is a *completed push*, so stopping
+/// half-way keeps everything that already went.
 export async function syncVault(
+  vault: string,
+  message: string,
+  onChanged?: () => void | Promise<void>,
+  ops: SyncOps = realOps,
+): Promise<SyncPhase> {
+  const plan = await (ops.batches?.(vault, BATCH_BUDGET) ?? Promise.resolve([])).catch(
+    () => [] as AssetBatch[],
+  );
+  // One step is one push; the loop would only add ceremony.
+  if (plan.length > 1) {
+    for (const [i, batch] of plan.entries()) {
+      set(vault, { step: i + 1, steps: plan.length + 1 });
+      const phase = await syncOnce(vault, message, onChanged, ops, batch.cap);
+      if (phase !== 'synced') {
+        // Everything before this is already pushed. Leaving `step` set is what lets the panel say
+        // how far it got rather than only that it stopped.
+        return phase;
+      }
+    }
+    set(vault, { step: plan.length + 1, steps: plan.length + 1 });
+  }
+  // The last pass is uncapped, so anything the plan did not foresee — a note written while this
+  // ran — still goes.
+  const out = await syncOnce(vault, message, onChanged, ops);
+  set(vault, { step: undefined, steps: undefined });
+  return out;
+}
+
+async function syncOnce(
   vault: string,
   message: string,
   onChanged?: () => void | Promise<void>,
