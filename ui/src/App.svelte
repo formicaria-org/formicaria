@@ -2162,7 +2162,7 @@
            present"* — and it is the half that survives the trim. -->
       {#if busy}
         <span class="tb-chip working" role="status" aria-live="polite">
-          <span class="spinner" aria-hidden="true"></span>
+          <span class="spinner" data-motion="essential" aria-hidden="true"></span>
           <span class="lbl">{busy}</span>
         </span>
       {/if}
@@ -3396,6 +3396,15 @@
     margin: 0;
     padding: var(--space-2) var(--space-5);
     font-size: var(--text-sm);
+  }
+  /* **The first banner is the top of the screen, and it was paying no inset.** `.body`'s children
+     are these banners and *then* `ViewBar`, so on a phone — where `.body` is grid-row 1 — a banner
+     renders above the bar that carries `--safe-top`, i.e. straight under the camera cutout. The
+     green "Notes backed up" message landed there and its ✕ could not be tapped, because that strip
+     does not take touches. Reported 2026-09-09.
+     `:first-child`, so only the topmost one pays it and a stack does not accumulate the inset. */
+  .body > .banner:first-child {
+    padding-top: calc(var(--space-2) + var(--safe-top));
   }
   /* Louder than `error`: this one is about the program, not about a command. */
   .banner.stopped {

@@ -238,6 +238,29 @@ fn commit_all_inner(
             ours.push(Path::new(f).to_path_buf());
         }
     }
+    // **Small attachments, if this vault asked for them — and until 2026-09-09 this backend did
+    // not.** The subprocess arm has walked `blobs/` and force-added everything at or under
+    // `git_assets_max` since the setting existed; here there was no such loop, so on Android and
+    // iOS the setting was accepted, displayed, and did nothing.
+    //
+    // The report that found it: a photo taken on the phone with the limit set to 50MB on both
+    // devices, backed up, and the laptop showing "no bytes in vault for asset:sha256-…". The note
+    // travelled because it is a note. The image never left the phone, and nothing said so — which
+    // is the worse half, because the vault on the other device now references bytes that exist in
+    // exactly one place.
+    //
+    // `blobs_within` is shared with the subprocess arm rather than rewritten: it is a filesystem
+    // walk and a size test, and two copies of that rule is how the backends would come to disagree
+    // about what travels. `index.add_path` is the force-add — libgit2 adds an explicit path
+    // whatever `.gitignore` says, which is exactly what `git add -f` buys over there.
+    for rel in crate::git::blobs_within(vault)? {
+        if blocked.contains(&rel) {
+            continue;
+        }
+        index.add_path(Path::new(&rel)).map_err(map)?;
+        staged += 1;
+        ours.push(std::path::PathBuf::from(&rel));
+    }
     if staged == 0 && repo.head().is_ok() {
         // Nothing of ours moved. The common case for a debounced auto-commit, and it must not
         // surface as a failure.

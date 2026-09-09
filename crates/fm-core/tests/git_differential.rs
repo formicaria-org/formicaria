@@ -427,6 +427,78 @@ fn last_sent_agrees_on_the_moment_and_on_never() {
     assert_eq!(git_native::unpushed(a.path()).unwrap(), Some(1));
 }
 
+/// **Attachments travel on both backends, or the phone silently keeps them.**
+///
+/// A vault that sets `git_assets_max` is asking for its media to ride along with the notes. The
+/// subprocess backend does that: it walks `blobs/`, keeps every file at or under the limit, and
+/// force-adds them past the `.gitignore` `ensure_repo` wrote. The libgit2 backend — the one Android
+/// and iOS actually run — **did not**, and nothing said so.
+///
+/// Reported 2026-09-09: a photo taken on the phone, `git_assets_max` set to 50MB on both devices,
+/// backed up; the laptop got the note and not the bytes, and said
+/// *"no bytes in vault for asset:sha256-…"*. The note travels because it is a note; the image never
+/// left the phone. Worse than a missing feature, because the setting is offered on the phone and
+/// appears to have been accepted.
+///
+/// The fixture is that report in miniature: one blob under the limit, one over it. Both backends
+/// must commit the first and refuse the second — the refusal matters as much, since committing an
+/// oversized file is permanent in every clone.
+#[test]
+fn attachments_within_the_limit_are_committed_by_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    let mut committed: Vec<Vec<String>> = Vec::new();
+
+    for (i, v) in [a.path(), b.path()].into_iter().enumerate() {
+        git::ensure_repo(v).unwrap();
+        no_identity(v);
+        // The vault opts in. Without this the walk is empty by design, and the test would pass
+        // against a backend that stages nothing.
+        fs::write(v.join("vault.json"), r#"{"git_assets_max": "1MB"}"#).unwrap();
+
+        let note = v.join("notes/01.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        fs::write(&note, NOTE).unwrap();
+
+        // Content-addressed layout: blobs/sha256/<aa>/<bb>/<hash>.
+        let small = v.join("blobs/sha256/aa/bb/aabbsmall");
+        let large = v.join("blobs/sha256/cc/dd/ccddlarge");
+        for p in [&small, &large] {
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+        }
+        fs::write(&small, vec![7u8; 1024]).unwrap();
+        fs::write(&large, vec![7u8; 2 * 1024 * 1024]).unwrap();
+
+        let ok = if i == 0 {
+            git::commit_all(v, "seed", &[note]).unwrap()
+        } else {
+            git_native::commit_all(v, "seed", &[note]).unwrap()
+        };
+        assert!(ok, "backend {i}: the note alone should have made a commit");
+
+        let mut listed: Vec<String> = g(v, &["ls-tree", "-r", "--name-only", "HEAD"])
+            .lines()
+            .filter(|l| l.starts_with("blobs/"))
+            .map(str::to_string)
+            .collect();
+        listed.sort();
+        committed.push(listed);
+    }
+
+    assert_eq!(
+        committed[0], committed[1],
+        "the two backends must put the same attachments in the commit"
+    );
+    assert_eq!(
+        committed[0],
+        vec!["blobs/sha256/aa/bb/aabbsmall".to_string()],
+        "the file under the limit travels, and the one over it does not"
+    );
+}
+
 /// **The agent's own identity survives on both backends.**
 ///
 /// `commit_all_as` is how a study-assistant reply is attributed to the *model* rather than to

@@ -766,7 +766,10 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
 /// accept — a push that fails *after* the commit is made. There is no git-lfs to fall back on.
 ///
 /// [`GIT_ASSETS_CEILING`]: crate::descriptor::GIT_ASSETS_CEILING
-fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
+/// `pub(crate)` so the libgit2 backend selects **the same files by the same rule**. It is a
+/// filesystem walk and a size test — nothing in it is subprocess-specific — and duplicating it
+/// is how the two backends would come to disagree about which attachments travel.
+pub(crate) fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
     let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
         return Ok(Vec::new());
     };

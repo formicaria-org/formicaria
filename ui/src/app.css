@@ -289,8 +289,19 @@ body {
   border-radius: var(--radius-sm);
 }
 
+/* **The blanket reset, minus the motion that is the message.**
+   `!important` on `*` is right for decoration and wrong for a status indicator: it also flattened
+   the working spinner, and the *pulse* that the spinner's own reduced-motion rule substitutes for
+   spinning — so on any device with Reduce Motion on, "something is happening" rendered as a
+   motionless ring that never changed. That is every OS (it is prominent on iOS), which is how it
+   was reported: "the wheel that signals whether a backup and sync is happening might not work on
+   all the supported OSs." It did not work on any of them, under that one setting.
+   `[data-motion='essential']` opts an element out. It is not a licence to keep spinning: the
+   element still owes a reduced-motion rule of its own, and the spinner's substitutes a slow
+   opacity pulse for rotation — motion that says "still working" without the rotation that causes
+   vestibular symptoms. What must not happen is the indicator going silent. */
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not([data-motion='essential']),
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
