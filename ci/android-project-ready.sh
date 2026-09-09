@@ -30,23 +30,33 @@ gen="$root/mobile/src-tauri/gen/android"
 
 if [ -d "$gen" ]; then
     echo "android-project-ready: gen/android already present"
-    exit 0
+else
+    echo "android-project-ready: no gen/android — running 'tauri android init'"
+
+    # The same three variables the build needs, for the reasons `ci/android-release.sh` documents at
+    # length: Tauri reads `NDK_HOME` while cargo reads `ANDROID_NDK_HOME`; Gradle refuses conda's
+    # default JDK; and `ci/bin` puts our verifying `rustup` shim first, because `android init` is
+    # one of the things that shells out to `rustup target add`.
+    ( cd "$root/mobile" \
+        && PATH="$root/ci/bin:$PATH" \
+           NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
+           JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
+           pnpm exec tauri android init )
+
+    [ -d "$gen" ] || {
+        echo "android-project-ready: 'tauri android init' finished but $gen still does not exist." >&2
+        exit 1
+    }
+    echo "android-project-ready: generated $gen"
 fi
 
-echo "android-project-ready: no gen/android — running 'tauri android init'"
-
-# The same three variables the build needs, for the same reasons `ci/android-release.sh` documents
-# at length: Tauri reads `NDK_HOME` while cargo reads `ANDROID_NDK_HOME`; Gradle refuses conda's
-# default JDK; and `ci/bin` puts our verifying `rustup` shim first, because `android init` is one of
-# the things that shells out to `rustup target add`.
-( cd "$root/mobile" \
-    && PATH="$root/ci/bin:$PATH" \
-       NDK_HOME="${NDK_HOME:-$ANDROID_NDK_HOME}" \
-       JAVA_HOME="${JAVA_HOME:-$CONDA_PREFIX/lib/jvm}" \
-       pnpm exec tauri android init )
-
-[ -d "$gen" ] || {
-    echo "android-project-ready: 'tauri android init' finished but $gen still does not exist." >&2
-    exit 1
-}
-echo "android-project-ready: generated $gen"
+# **And the staging destination, which a freshly generated project does not have.** `jniLibs/<abi>`
+# is where `android-stage-runtime` and `android-stage-whisper` put the two model runtimes, and both
+# refuse outright if it is absent — with the same "run 'tauri android init' first" advice, which by
+# then has already been followed. It exists on this machine only because a build once created it,
+# so the second CI attempt failed here *after* the init this script had just done (2026-09-09).
+#
+# Gradle packages whatever is in `jniLibs`, so creating it early is free; unconditional rather than
+# inside the init branch, because a tree that was generated but never built is in exactly the same
+# state as a fresh one.
+mkdir -p "$gen/app/src/main/jniLibs/arm64-v8a"
