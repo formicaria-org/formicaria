@@ -42,6 +42,7 @@
   import { conflictLabels } from './conflictLabel';
   import { reachOf, shortDest } from './destination';
   import { GIT_ASSETS_CEILING, humanSize } from './size';
+  import { assetBatches } from './ipc';
   import type { VaultInfo, Recoverable } from './types';
 
   /// A vault as this panel needs it: the network facts from `backup_status`, and the cheap ones
@@ -197,6 +198,30 @@
     (!needsIdentity(v) || (!!nameDrafts[v.name]?.trim() && !!emailDrafts[v.name]?.trim()));
 
   const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+  /// **Sending a backlog of attachments in steps, rather than one pack that will not finish.**
+  ///
+  /// A device that has never sent attachments stages every one it holds the first time it can —
+  /// the rule is a filter over the blob store, not a diff against the remote. The owner's phone had
+  /// 65 of them totalling 127.2 MB and the push died with a broken pipe, twice.
+  ///
+  /// Offered rather than imposed, because it is slower and because a fast connection does not need
+  /// it. Each step raises the attachment limit, so a step re-stages what is already sent (a no-op)
+  /// and adds only what its raise newly admits.
+  const BATCH_BUDGET = 16_000_000;
+  /// Below this a single push is fine and the offer would be noise.
+  const OFFER_OVER = 24_000_000;
+  let staged = $state<Record<string, boolean>>({});
+  let plans = $state<Record<string, import('./types').AssetBatch[]>>({});
+
+  async function planFor(vault: string) {
+    plans[vault] = await assetBatches(vault, BATCH_BUDGET).catch(() => []);
+  }
+  $effect(() => {
+    for (const v of vaults) {
+      if (v.assets_pending_bytes > OFFER_OVER && plans[v.name] === undefined) void planFor(v.name);
+    }
+  });
   const leaves = (r: string) => (r === 'remote' ? 'leaves this machine' : 'stays on this machine');
   const left = (r: string) => (r === 'remote' ? 'off this machine' : 'still on this machine');
   // **What the git tier actually carries, per vault.** Not a decoration: this panel used to say
@@ -526,6 +551,27 @@
       // working and this button telling you "the remote has changes you don't have — pull
       // first, then back up" and making you do it by hand. Exactly one retry: a loop is how
       // a rejected push becomes an invisible one.
+      // **In steps, if this vault asked for it.** Each pass raises the attachment ceiling, so
+      // every push carries only what that raise newly admits — the same thing as raising the
+      // setting by hand, done for the user. The last pass has no cap at all, so anything the plan
+      // did not foresee (a note written while this ran) still goes.
+      const plan = staged[v.name] ? (plans[v.name] ?? []) : [];
+      for (const [i, batch] of plan.entries()) {
+        steps.push({
+          text: `Step ${i + 1} of ${plan.length + 1}${of(v)}: sending ${batch.count} attachment${
+            batch.count === 1 ? '' : 's'
+          }, ${humanSize(batch.bytes)}.`,
+          ok: true,
+        });
+        const p = await syncVault(v.name, `backup: ${now}`, undefined, undefined, batch.cap);
+        if (p !== 'synced') {
+          steps.push({
+            text: `Stopped at step ${i + 1}${of(v)}: ${plainError(msg(syncFor(v.name).error ?? p))} Everything sent so far is safe; pressing Back up again carries on from here.`,
+            ok: false,
+          });
+          break;
+        }
+      }
       const phase = await syncVault(v.name, `backup: ${now}`, undefined);
       const s = syncFor(v.name);
       if (s.merged > 0) {
@@ -911,6 +957,17 @@
                    first time it can send them. A phone has no other way to find that out: its logs
                    are unreadable, and a push that dies part-way says only that it died. Stated as a
                    size because that is the number that explains a failure. -->
+                {#if v.assets_pending_bytes > OFFER_OVER && (plans[v.name]?.length ?? 0) > 1}
+                  <label class="staged">
+                    <input type="checkbox" bind:checked={staged[v.name]} disabled={busy} />
+                    <span
+                      >Send the attachments in <strong>{plans[v.name].length} steps</strong> rather
+                      than all at once. Slower, and far more likely to finish: one large batch over
+                      a phone connection often drops part-way. Each step carries about
+                      {humanSize(BATCH_BUDGET)}, and stopping half-way keeps whatever already went.</span
+                    >
+                  </label>
+                {/if}
                 {#if v.assets_pending > 0}
                   <span class="muted"
                     >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
@@ -1270,6 +1327,18 @@
   .row {
     display: flex;
     gap: var(--space-2);
+  }
+  /* The staged-backup offer: a choice, laid out like the consent rows in Settings. */
+  .staged {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .staged input {
+    flex: none;
+    margin-top: 0.2rem;
   }
   .identity {
     display: flex;

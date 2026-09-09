@@ -33,7 +33,9 @@ import type { CommitResult, PullResult } from './types';
  * against a real git remote and easy to get wrong.
  */
 export interface SyncOps {
-  commit(message: string, vault: string): Promise<CommitResult>;
+  /// `assetCap` lowers the vault's attachment limit for this commit only — one step of a staged
+  /// backup, absent on every ordinary save.
+  commit(message: string, vault: string, assetCap?: number): Promise<CommitResult>;
   push(message: string, vault: string): Promise<unknown>;
   pull(vault: string): Promise<PullResult>;
   /// Does this vault have a remote at all? **Asked, never inferred from a push error** — the same
@@ -248,10 +250,15 @@ export function clearSync(vault: string): void {
  * is `committed: true` with notes still stuck — and the old test would sail straight past into a
  * push that cannot work. The conflict list is the thing that actually says a merge is unfinished.
  */
-async function commitStep(vault: string, message: string, ops: SyncOps): Promise<SyncPhase | null> {
+async function commitStep(
+  vault: string,
+  message: string,
+  ops: SyncOps,
+  assetCap?: number,
+): Promise<SyncPhase | null> {
   let result: CommitResult;
   try {
-    result = await ops.commit(message, vault);
+    result = await ops.commit(message, vault, assetCap);
   } catch (e) {
     // A commit that fails is not a sync problem to retry — it is the vault refusing,
     // and pushing past it would be worse.
@@ -281,6 +288,7 @@ export async function syncVault(
   message: string,
   onChanged?: () => void | Promise<void>,
   ops: SyncOps = realOps,
+  assetCap?: number,
 ): Promise<SyncPhase> {
   set(vault, {
     phase: 'committing',
@@ -290,7 +298,7 @@ export async function syncVault(
     kept: [],
     committed: false,
   });
-  const stopped = await commitStep(vault, message, ops);
+  const stopped = await commitStep(vault, message, ops, assetCap);
   if (stopped) return stopped;
 
   set(vault, { phase: 'pushing' });

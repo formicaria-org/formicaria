@@ -13,6 +13,7 @@ import type {
   KeptNote,
   LastCommit,
   DiscussionSummary,
+  AssetBatch,
   NoteDetail,
   ObjectMeta,
   PathCheck,
@@ -188,6 +189,10 @@ async function http<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
 export const getBoard = (groupBy: string) => invoke<Board>('board', { groupBy });
 export const getAgenda = () => invoke<ObjectMeta[]>('agenda');
 export const getNote = (id: string) => invoke<NoteDetail | null>('get', { id });
+/** How a backlog of attachments would be sent, in steps. Local and read-only — a walk of the blob
+ *  store against the vault's own limit — so it is free to ask before offering the choice. */
+export const assetBatches = (vault = '', budget = 16_000_000) =>
+  invoke<AssetBatch[]>('asset_batches', { vault, budget });
 // `vault` is the audience the new note joins — empty means the default vault, an
 // unknown name is refused server-side (the create-side twin of `ingestFile`).
 export const capture = (body: string, vault = '') => invoke<ObjectMeta>('capture', { body, vault });
@@ -819,8 +824,10 @@ export async function ingestFile(file: File, vault = ''): Promise<ObjectMeta> {
 // Git is per vault — one vault is one repo, one remote, one collaborator list — so
 // every command below names the vault it acts on. An empty/absent name means the
 // default (the first configured vault), which is what a single-vault install always is.
-export const commit = (message: string, vault = '') =>
-  invoke<CommitResult>('commit', { message, vault });
+/** `assetCap` lowers the vault's attachment limit for this commit only — one step of a staged
+ *  backup. Absent on every ordinary save. */
+export const commit = (message: string, vault = '', assetCap?: number) =>
+  invoke<CommitResult>('commit', { message, vault, assetCap });
 /** Snapshot one vault's media into *its own* restic repo. Per vault because a restic
  *  repo is per repository — there is no one destination a set of vaults could share.
  *

@@ -203,3 +203,71 @@ pub fn eligible_assets(vault: &std::path::Path) -> Result<(u32, u64), crate::Sto
     }
     Ok((count, bytes))
 }
+
+/// One step of a staged backup: send every attachment at or under `cap`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct AssetBatch {
+    /// The size limit this step stages up to, in bytes. Cumulative by construction — a step
+    /// includes everything the steps before it did, which is exactly what makes each push carry
+    /// only the difference.
+    pub cap: u64,
+    /// Attachments this step adds that the one before it did not.
+    pub count: u32,
+    /// Bytes this step adds.
+    pub bytes: u64,
+}
+
+/// **Split a backlog of attachments into pushes that can survive a phone connection.**
+///
+/// The failure this exists for: a device that has never sent attachments stages *all* of them the
+/// first time it can, because the rule is a filter over the blob store rather than a diff against
+/// the remote. The owner's phone had 65 attachments totalling 127.2 MB waiting, and the push died
+/// with a broken pipe — twice, identically, which is what ruled out a transient drop.
+///
+/// **Batches are a rising size limit, not an arbitrary partition, and that is the whole trick.**
+/// `blobs_within` selects everything at or under a limit, so raising the limit step by step yields
+/// a strictly growing set: each commit re-stages what is already committed (a no-op) and adds only
+/// what the raise newly admits, so each *push* carries only the difference. No index bookkeeping,
+/// no per-file state, and it is exactly the manual workaround — raise the setting a step at a
+/// time — done for the user instead of explained to them.
+///
+/// Smallest first, so the earliest steps are the cheapest and a connection that cannot survive the
+/// whole backlog still makes progress. Anything over the vault's own `git_assets_max` is not in
+/// here at all: it is not going to travel, and pretending otherwise would plan a step that cannot
+/// finish.
+///
+/// **A batch may exceed `budget`**, in one case: a single attachment larger than it. Splitting
+/// below one file is not possible, and refusing to plan it would leave that file permanently
+/// unsendable. Files of identical size share a step for the same reason — a cap cannot separate
+/// them.
+pub fn asset_batches(
+    vault: &std::path::Path,
+    budget: u64,
+) -> Result<Vec<AssetBatch>, crate::StoreError> {
+    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+        return Ok(Vec::new());
+    };
+    let max = crate::descriptor::effective_git_assets_max(max);
+    let mut sizes: Vec<u64> = BlobStore::new(vault)
+        .blob_paths()
+        .into_iter()
+        .filter_map(|p| std::fs::metadata(&p).ok().map(|m| m.len()))
+        .filter(|&n| n > 0 && n <= max)
+        .collect();
+    sizes.sort_unstable();
+
+    let mut out: Vec<AssetBatch> = Vec::new();
+    let (mut count, mut bytes) = (0u32, 0u64);
+    for (i, &n) in sizes.iter().enumerate() {
+        // Equal sizes cannot be told apart by a cap, so they close together.
+        let last_of_its_size = sizes.get(i + 1) != Some(&n);
+        count += 1;
+        bytes += n;
+        if last_of_its_size && (bytes >= budget || i + 1 == sizes.len()) {
+            out.push(AssetBatch { cap: n, count, bytes });
+            count = 0;
+            bytes = 0;
+        }
+    }
+    Ok(out)
+}

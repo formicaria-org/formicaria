@@ -163,7 +163,19 @@ pub fn commit_all(
     message: &str,
     paths: &[std::path::PathBuf],
 ) -> Result<bool, StoreError> {
-    commit_all_inner(vault, message, paths, None)
+    commit_all_inner(vault, message, paths, None, None)
+}
+
+/// Like [`commit_all`], but staging only attachments at or under `cap` — one step of a staged
+/// backup, and the reason this backend needed one: a phone that had never sent an attachment
+/// staged 127 MB at its first opportunity and the push died. See `git::blobs_within_capped`.
+pub fn commit_all_capped(
+    vault: &Path,
+    message: &str,
+    paths: &[std::path::PathBuf],
+    cap: Option<u64>,
+) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, None, cap)
 }
 
 /// Mirrors [`crate::git::commit_all_as`]: the same commit, attributed to `(name, email)` — the
@@ -183,7 +195,7 @@ pub fn commit_all_as(
     name: &str,
     email: &str,
 ) -> Result<bool, StoreError> {
-    commit_all_inner(vault, message, paths, Some((name, email)))
+    commit_all_inner(vault, message, paths, Some((name, email)), None)
 }
 
 fn commit_all_inner(
@@ -191,6 +203,7 @@ fn commit_all_inner(
     message: &str,
     paths: &[std::path::PathBuf],
     author: Option<(&str, &str)>,
+    asset_cap: Option<u64>,
 ) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     // **A conflicted path is never staged, and it never stops the rest.** Mirrors the subprocess
@@ -253,7 +266,7 @@ fn commit_all_inner(
     // walk and a size test, and two copies of that rule is how the backends would come to disagree
     // about what travels. `index.add_path` is the force-add — libgit2 adds an explicit path
     // whatever `.gitignore` says, which is exactly what `git add -f` buys over there.
-    for rel in crate::git::blobs_within(vault)? {
+    for rel in crate::git::blobs_within_capped(vault, asset_cap)? {
         if blocked.contains(&rel) {
             continue;
         }

@@ -197,6 +197,23 @@ pub fn commit_all(
     crate::git::commit_all(vault, message, paths)
 }
 
+/// [`commit_all`], staging only attachments at or under `cap` — one step of a staged backup.
+///
+/// Hand-written for the same reason `commit_all` is: the macro's by-value arm cannot express a
+/// slice.
+pub fn commit_all_capped(
+    vault: &Path,
+    message: &str,
+    paths: &[std::path::PathBuf],
+    cap: Option<u64>,
+) -> Result<bool, StoreError> {
+    #[cfg(feature = "native-git")]
+    if native() {
+        return crate::git_native::commit_all_capped(vault, message, paths, cap);
+    }
+    crate::git::commit_all_capped(vault, message, paths, cap)
+}
+
 /// Like [`commit_all`] but attributed to a specific collaborator `(name, email)` — the study agent's
 /// model identity, so its own messages are authored by it, not the vault default.
 ///

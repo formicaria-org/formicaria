@@ -769,11 +769,21 @@ fn write_gitignore(vault: &Path) -> Result<(), StoreError> {
 /// `pub(crate)` so the libgit2 backend selects **the same files by the same rule**. It is a
 /// filesystem walk and a size test — nothing in it is subprocess-specific — and duplicating it
 /// is how the two backends would come to disagree about which attachments travel.
-pub(crate) fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
+/// **`cap` is the mechanism behind a staged backup.** It never raises the vault's own
+/// `git_assets_max` — only lowers it, for one commit — so a caller can send a 127 MB backlog as a
+/// rising series of pushes instead of one pack a phone connection cannot finish. Each step
+/// re-stages what is already committed (a no-op in git) and adds only what the raise newly admits.
+/// `None` is every ordinary save.
+pub(crate) fn blobs_within_capped(
+    vault: &Path,
+    cap: Option<u64>,
+) -> Result<Vec<String>, StoreError> {
     let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
         return Ok(Vec::new());
     };
     let max = crate::descriptor::effective_git_assets_max(max);
+    // Lower only: a caller staging a batch may not lift the vault's own ceiling.
+    let max = cap.map_or(max, |c| c.min(max));
     let store = crate::blob::BlobStore::new(vault);
     let mut out: Vec<String> = store
         .blob_paths()
@@ -792,8 +802,19 @@ pub(crate) fn blobs_within(vault: &Path) -> Result<Vec<String>, StoreError> {
 /// **Scoped on purpose.** A vault may be a repo that also holds code or a manuscript, and
 /// this runs every few seconds. It must never touch a file formicaria did not write, and
 /// must never disturb an index the user staged themselves.
+/// Like [`commit_all`], but staging only attachments at or under `cap` — one step of a staged
+/// backup. See [`blobs_within_capped`].
+pub fn commit_all_capped(
+    vault: &Path,
+    message: &str,
+    paths: &[PathBuf],
+    cap: Option<u64>,
+) -> Result<bool, StoreError> {
+    commit_all_inner(vault, message, paths, None, cap)
+}
+
 pub fn commit_all(vault: &Path, message: &str, paths: &[PathBuf]) -> Result<bool, StoreError> {
-    commit_all_inner(vault, message, paths, None)
+    commit_all_inner(vault, message, paths, None, None)
 }
 
 /// Like [`commit_all`], but attribute the commit to `(name, email)` — a specific collaborator's git
@@ -807,7 +828,7 @@ pub fn commit_all_as(
     name: &str,
     email: &str,
 ) -> Result<bool, StoreError> {
-    commit_all_inner(vault, message, paths, Some((name, email)))
+    commit_all_inner(vault, message, paths, Some((name, email)), None)
 }
 
 fn commit_all_inner(
@@ -815,6 +836,7 @@ fn commit_all_inner(
     message: &str,
     paths: &[PathBuf],
     author: Option<(&str, &str)>,
+    asset_cap: Option<u64>,
 ) -> Result<bool, StoreError> {
     ensure_repo(vault)?;
     let status = git(vault).arg("status").arg("--porcelain").output().map_err(spawn)?;
@@ -896,7 +918,7 @@ fn commit_all_inner(
     // `-f` is required and is the whole trick: `ensure_repo` puts `blobs/` in `.gitignore`, and an
     // ignored path is skipped by a plain `add`. Git cannot filter by size itself, so the selection
     // happens here and each chosen file is named explicitly. Nothing else can slip in.
-    let blobs = blobs_within(vault)?;
+    let blobs = blobs_within_capped(vault, asset_cap)?;
     if !blobs.is_empty() {
         let add = git(vault).arg("add").arg("-f").arg("--").args(&blobs).output().map_err(spawn)?;
         if !add.status.success() {

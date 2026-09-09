@@ -614,3 +614,12 @@ export interface Recoverable {
   path: string;
   notes: number;
 }
+
+/** One step of a staged backup: send every attachment at or under `cap`.
+ *  Cumulative by construction — a step includes everything the steps before it did, which is what
+ *  makes each push carry only the difference. */
+export interface AssetBatch {
+  cap: number;
+  count: number;
+  bytes: number;
+}

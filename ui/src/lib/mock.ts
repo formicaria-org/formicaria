@@ -595,6 +595,11 @@ let mockLastCommits: Record<string, number | null> = freshLastCommits();
 /// vault that is fully backed up. That is the right default for every test that is not about this:
 /// seeding it with an age instead would put the backup chip on screen in all of them, which is the
 /// mirror of the mistake `freshLastCommits` documents above.
+let mockAssetBatches: Array<{ cap: number; count: number; bytes: number }> = [];
+/// Test-only: the steps a staged backup would take for this vault.
+export function setAssetBatches(b: typeof mockAssetBatches): void {
+  mockAssetBatches = b.map((x) => ({ ...x }));
+}
 let mockLastSent: Record<string, number | null> = {};
 let mockUnsent: Record<string, number | null> = {};
 /// Notes a merge brought back. One row, on the note the fixtures already carry, so the panel's
@@ -701,6 +706,7 @@ export function reset(): void {
   mockLastCommits = freshLastCommits();
   mockLastSent = {};
   mockUnsent = {};
+  mockAssetBatches = [];
   mockKept = [];
   mockPlatform = 'linux';
 }
@@ -1016,6 +1022,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'kept_seen':
       mockKept = [];
       return { seen: true } as T;
+    // The fixtures carry no blob backlog, so there is nothing to stage. A test that wants the
+    // staged-backup offer seeds it with `setAssetBatches`.
+    case 'asset_batches':
+      return mockAssetBatches as T;
     case 'last_commits':
       return mockVaults.map((v) => ({
         vault: v.name,

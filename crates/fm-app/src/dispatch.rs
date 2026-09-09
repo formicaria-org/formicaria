@@ -528,6 +528,7 @@ const READ_ONLY: &[&str] = &[
     "kept_notes",
     // One `git log -1` per vault. Same reasoning as `demoted`: a chip refreshing is not the vault
     // moving, and saying it did would make every connected client refetch its workspace.
+    "asset_batches",
     "last_commits",
     "activity",
     "stale",
@@ -780,6 +781,20 @@ fn dispatch_inner(
         //
         // Scoped like `list_vaults`, and for the identical reason: a vault the caller may not read
         // must not be nameable here either, and "how stale is it" is itself a disclosure.
+        // **How a backlog of attachments would be sent, in steps.** Read-only and local: a walk of
+        // the blob store against the vault's own limit, no network and no repository access, so it
+        // costs nothing to ask before offering the choice.
+        //
+        // Exists because the first backup from a device that has never sent attachments carries
+        // every one it holds — the selection rule is a filter, not a diff — and the owner's phone
+        // died twice trying to push 65 of them totalling 127.2 MB. Batches are a rising size limit,
+        // so each step adds only what its raise newly admits.
+        "asset_batches" => {
+            let g = lock()?;
+            let budget = args.get("budget").and_then(|v| v.as_u64()).unwrap_or(16_000_000);
+            let cfg = g.config(scope, &s("vault"))?;
+            json(fm_core::blob::asset_batches(&cfg.path, budget).map_err(err)?)
+        }
         "last_commits" => {
             let vaults: Vec<VaultConfig> =
                 lock()?.configs().into_iter().filter(|c| scope.allows(&c.name)).collect();
@@ -957,7 +972,12 @@ fn dispatch_inner(
                 found.iter().map(|u| cfg.path.join(&u.path)).collect();
             let message =
                 format!("notes: recording {} note(s) the app had not staged", found.len());
-            let made = vcs::commit_all(&cfg.path, &message, &paths).map_err(err)?;
+            // **A per-commit attachment ceiling, for a staged backup.** Absent on every ordinary
+            // save, which is why this is an argument rather than a mode: `assetCap` lowers the
+            // vault's own `git_assets_max` for this commit only, so a caller can send a backlog as
+            // a rising series of pushes instead of one pack a phone connection cannot finish.
+            let cap = args.get("assetCap").and_then(|v| v.as_u64());
+            let made = vcs::commit_all_capped(&cfg.path, &message, &paths, cap).map_err(err)?;
             // **When git declines, say why.** `commit_all` answers `bool`, and every reason it can
             // return `false` for collapses into that one value: an unmerged path, an unchanged tree,
             // nothing staged. The caller then reported `false` as *"Nothing left to record"* — so with

@@ -499,6 +499,74 @@ fn attachments_within_the_limit_are_committed_by_both_backends() {
     );
 }
 
+/// **A backlog goes in steps, and the steps agree on both backends.**
+///
+/// The owner's phone had 65 attachments totalling 127.2 MB waiting the first time it could send
+/// any of them; the push died with a broken pipe, twice. `asset_batches` plans a rising series of
+/// size limits and `commit_all_capped` stages one of them — so what this has to prove is the
+/// property the loop rests on: **each step adds only what its raise newly admits, and the last one
+/// leaves nothing behind.** If a step ever re-sent everything, batching would be theatre.
+#[test]
+fn a_backlog_is_committed_in_rising_steps_by_both_backends() {
+    if !have_git() {
+        eprintln!("skipping: git not on PATH");
+        return;
+    }
+    let (a, b) = pair();
+    let mut per_backend: Vec<Vec<usize>> = Vec::new();
+
+    for (i, v) in [a.path(), b.path()].into_iter().enumerate() {
+        git::ensure_repo(v).unwrap();
+        no_identity(v);
+        fs::write(v.join("vault.json"), r#"{"git_assets_max": "10MB"}"#).unwrap();
+        let note = v.join("notes/01.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        fs::write(&note, NOTE).unwrap();
+
+        for (n, size) in [(1usize, 100usize), (2, 400), (3, 900)] {
+            let hash = format!("{n:064x}");
+            let p = v.join("blobs/sha256").join(&hash[0..2]).join(&hash[2..4]).join(&hash);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(&p, vec![7u8; size]).unwrap();
+        }
+
+        // A budget below the smallest file, so every file closes a step on its own — the fixture
+        // wants three raises, not the greedy packing a larger budget would (correctly) do.
+        let plan = fm_core::blob::asset_batches(v, 50).unwrap();
+        assert_eq!(plan.len(), 3, "backend {i}: the fixture is three steps by construction");
+
+        let mut counts = Vec::new();
+        for (step, batch) in plan.iter().enumerate() {
+            let msg = format!("step {step}");
+            let paths = if step == 0 { vec![note.clone()] } else { Vec::new() };
+            if i == 0 {
+                git::commit_all_capped(v, &msg, &paths, Some(batch.cap)).unwrap();
+            } else {
+                git_native::commit_all_capped(v, &msg, &paths, Some(batch.cap)).unwrap();
+            }
+            counts.push(
+                g(v, &["ls-tree", "-r", "--name-only", "HEAD"])
+                    .lines()
+                    .filter(|l| l.starts_with("blobs/"))
+                    .count(),
+            );
+        }
+        per_backend.push(counts);
+    }
+
+    assert_eq!(
+        per_backend[0], per_backend[1],
+        "the two backends must admit the same attachments at each step"
+    );
+    // One more attachment per step, and everything sent by the end. A step that jumped straight to
+    // 3 would mean the cap was ignored; a last step below 3 would strand a file forever.
+    assert_eq!(
+        per_backend[0],
+        vec![1, 2, 3],
+        "each raise admits exactly the files it newly allows"
+    );
+}
+
 /// **The agent's own identity survives on both backends.**
 ///
 /// `commit_all_as` is how a study-assistant reply is attributed to the *model* rather than to
