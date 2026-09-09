@@ -439,6 +439,24 @@ The gray-screen fix and its tests are in
   never renders. So there is no known wedge to fix — a reset control would be insurance against the
   class, and should be argued for in those words rather than by pointing at a trap that exists.
 
+- **A large attachment pushed from the phone can die mid-transfer, and the cause is not
+  established.** Reported 2026-09-09, on the first backup after the phone learned to send
+  attachments at all: `SSL error: error:80000020: system library::Broken pipe` — OpenSSL's
+  `ERR_LIB_SYS` / `EPIPE`, i.e. the far end closed the socket while libgit2 was still writing.
+  **What is known.** The same phone had pushed successfully minutes earlier, so the token and the
+  Android CA path are both fine; every blob that has ever reached the remote is ≤ 0.43 MB, and a
+  phone photo is an order of magnitude larger. Two variables moved at once — size, and the device
+  doing the pushing — so neither is isolated. `push_squashed` uses default `PushOptions` with only
+  credential callbacks: no transfer tuning, and libgit2 has no `http.postBuffer` equivalent.
+  **What is not a risk.** The rollback is correct: `push_squashed` captures `head_before`, and every
+  failure path soft-resets to it, so a failed push leaves the vault's history exactly as it was.
+  Verified by reading the error path — nothing was lost in the reported incident.
+  **Left open deliberately**, because the honest next step is an observation nobody has: whether it
+  reproduces on Wi-Fi, on a second attempt, or with a smaller `git_assets_max`. What was fixed is
+  the reporting — a hexadecimal error code was the headline; `plainError` now says the connection
+  dropped, that nothing was lost, and that it is safe to retry, keeping the raw text as the detail
+  that tells the causes apart.
+
 - **A media query adds no specificity, so a width-scoped hide can lose to a utility class.**
   `.panel-toggle { display: none }` inside `@media (max-width: 59.999rem)` and
   `.icon-btn { display: grid }` at the top level are both (0,1,0). They tie, and **source order

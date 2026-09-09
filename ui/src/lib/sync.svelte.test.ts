@@ -539,6 +539,39 @@ describe('why a send failed', () => {
     }
   });
 
+  it('says a dropped connection is safe to retry, and keeps the diagnosis', () => {
+    // Reported from the phone, 2026-09-09, on the first backup carrying a photo. OpenSSL's
+    // `8` is ERR_LIB_SYS and `0x20` is EPIPE — true, and useless to someone who wanted a backup.
+    const said = plainError('SSL error: error:80000020: system library::Broken pipe');
+    expect(said).toMatch(/connection dropped part-way through sending/i);
+    expect(said).toMatch(/nothing was lost/i);
+    expect(said).toMatch(/safe to try again/i);
+    // The detail survives, because a dropped connection has several causes and the wording is
+    // what separates them — unlike "the other device is ahead", which has exactly one remedy.
+    expect(said).toContain('error:80000020');
+  });
+
+  it('recognises the other spellings of a connection that went away', () => {
+    for (const raw of [
+      'failed to send request: Connection reset by peer',
+      'early EOF',
+      'operation timed out after 30000 milliseconds',
+      'could not resolve host: github.com',
+    ]) {
+      expect(plainError(raw)).toMatch(/connection dropped part-way|could not resolve/i);
+    }
+  });
+
+  it('does not mistake a refusal or a conflict for a dead wire', () => {
+    // The two must not collapse: one says "try again", the other says "do something first".
+    expect(plainError('failed to push some refs: non-fast-forward')).toMatch(
+      /get their changes first/i,
+    );
+    expect(plainError('authentication failed — check the token')).toBe(
+      'authentication failed — check the token',
+    );
+  });
+
   it('leaves anything it does not recognise exactly as it was', () => {
     // The deliberate escape hatch: an error nobody has written a sentence for must reach the user
     // verbatim rather than be flattened into a reassuring shrug. Losing the only diagnosis of an
@@ -547,9 +580,9 @@ describe('why a send failed', () => {
     expect(plainError('')).toBe('');
   });
 
-  it('does not mistake an unrelated mention of the remote for this', () => {
-    expect(plainError('could not resolve host: github.com')).toBe(
-      'could not resolve host: github.com',
-    );
+  it('does not mistake an unrelated mention of the remote for the ahead-of-us case', () => {
+    // It is now recognised as a dead wire instead, which is what it is — but it must never be
+    // reported as "the other device has changes you don't have".
+    expect(plainError('could not resolve host: github.com')).not.toMatch(/get their changes/i);
   });
 });

@@ -188,9 +188,35 @@ const AHEAD_OF_US =
  * friendly shrug would throw away its only diagnosis, which is a worse failure than an ugly
  * sentence — the same rule that keeps `restic did not say` from being rendered as success.
  */
+/**
+ * The connection died mid-transfer. Not a refusal and not a conflict — nothing decided anything,
+ * the wire simply went away.
+ *
+ * OpenSSL words this as `error:80000020: system library::Broken pipe`: the `8` is `ERR_LIB_SYS`
+ * and `0x20` is `EPIPE`. Reported from the phone, 2026-09-09, on the first backup carrying a photo
+ * — an object an order of magnitude larger than anything this vault had sent before. Whatever the
+ * cause, a hexadecimal error code is not a thing to hand somebody who wanted their notes backed up.
+ */
+const WIRE_DIED =
+  /(broken pipe|connection reset|connection closed|timed out|timeout|early eof|unexpected disconnect|network is unreachable|could not resolve host)/i;
+
 export function plainError(raw: string): string {
   if (AHEAD_OF_US.test(raw)) {
     return "The other device has changes you don't have yet — get their changes first, then send.";
+  }
+  if (WIRE_DIED.test(raw)) {
+    // **This one keeps its detail, where the case above drops it.** They are not the same kind of
+    // message. "The other device is ahead" has a single remedy and the raw git sentence adds
+    // nothing to it. A dropped connection has many causes — a lost signal, a slow upload, a
+    // dead remote — and the exact wording is what tells them apart; it is how this bug was
+    // reported at all. So the headline is plain and the diagnosis rides behind it, which is
+    // exactly the split `decisions.md` allows.
+    return (
+      'The connection dropped part-way through sending. Nothing was lost — your notes are still ' +
+      'here and their history is untouched — so this is safe to try again. A large photo or ' +
+      'recording over a phone connection is the usual reason. ' +
+      `(${raw})`
+    );
   }
   return raw;
 }
