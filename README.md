@@ -14,7 +14,8 @@ formicaria stores each note as a single Markdown file with YAML frontmatter, in 
 you control. It runs as a local web application: a small server on your machine, and your
 browser as the interface. There is no account, no cloud service and no network dependency.
 
-A vault is an ordinary git repository. Running several — one per audience, such as personal
+A vault is an ordinary directory of files, and becomes a git repository wherever git is
+available. Running several — one per audience, such as personal
 notes, a lab's notes, and a paper shared with a collaborator — is the normal case, and is
 what the name refers to: a *formicarium* is one colony's nest, and *formicaria* is the
 plural.
@@ -48,11 +49,11 @@ manager, [pixi](https://pixi.sh), Homebrew or any other method — formicaria on
 
 | Feature | Requires | Behaviour without it |
 |---|---|---|
-| **History** — versions of a note beyond the current session | `git` | Notes remain intact as files; no history is recorded |
-| **Backup and sharing** — push a vault to a remote, pull a collaborator's changes | `git`, and a remote | The vault remains local |
+| **History** — versions of a note beyond the current session | `git` on Linux and macOS; **nothing on Windows**, which carries its own | Notes remain intact as files; no history is recorded |
+| **Backup and sharing** — send a vault somewhere else, get a collaborator's changes | a remote, and `git` except on Windows | The vault remains local |
 | **PDF text search** — text inside a PDF becomes searchable | `pdftotext` (poppler) | The PDF is stored and displayed but not indexed |
 | **Thumbnails** — previews for images and PDFs | `vipsthumbnail` (libvips) | A placeholder is shown instead of a preview |
-| **Media backup** — encrypted, deduplicated snapshots of blobs | `restic`, a repository per vault, and `RESTIC_PASSWORD` | Notes still back up via git; media remains local |
+| **Media backup** — encrypted, deduplicated snapshots of your notes *and* their attachments | `restic`, and a repository per vault (the password is set in the app; `RESTIC_PASSWORD` overrides it) | Notes still back up on their own; media remains local |
 | **Open in default application** | `xdg-open` — Linux only; macOS and Windows provide this | That action reports an error |
 | **Study assistant** — a local model answering and drafting in your notes | nothing: it fetches its own runtime and model on first enable. Exercised on Linux and Android; **on macOS and Windows this is compiled and type-checked but has never been run** | Settings shows the reason instead of a switch |
 | **Reading images** — `/transcribe` on a photographed page | a model with a projector, offered as a choice at first enable | The assistant says it cannot see pictures rather than guessing at one |
@@ -70,7 +71,7 @@ brew install git poppler vips restic
 pixi global install git poppler libvips restic
 ```
 
-Windows: `winget install Git.Git`; the remainder through [pixi](https://pixi.sh).
+Windows: through [pixi](https://pixi.sh). (Not git — the Windows build carries its own.)
 </details>
 
 ## Requirements
@@ -205,7 +206,7 @@ own collaborators.
 | `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app. Set to `0` to keep it running |
 | `FM_RESTIC_REPO` | unset | Restic repository for a single-vault install (a vault list uses its own `restic` field) |
 | `RESTIC_PASSWORD` | unset | Password for the restic repositories |
-| `FM_GIT_TOKEN` | unset | Git token, read only where there is no git credential helper — that is, on the phone |
+| `FM_GIT_TOKEN` | unset | Git token, read only where there is no `git` binary and so no credential helper — the phone, and Windows without git installed |
 
 ## Sharing
 

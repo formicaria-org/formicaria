@@ -89,9 +89,34 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
             "the note names the views a user can switch to; {view} missing"
         );
     }
-    for control in ["Back up", "Settings", "Help", "Edit"] {
+    for control in ["Back up", "Settings", "Help"] {
         assert!(text.contains(control), "{control} is a control the note tells the reader to use");
     }
+
+    // **This list used to include `Edit`, and that is how the guard kept the note wrong.**
+    //
+    // The check above is a *presence* test, so it can only catch a control that gets renamed while
+    // the note still names it. It cannot catch the opposite — a control deleted from the app while
+    // the note goes on teaching it — because the note still contains the word, so the assertion
+    // still passes. `Edit` was removed from the UI on 2026-08-31 (`NotePanel.svelte`: "there is no
+    // Edit button any more"), and this test went on requiring the note to mention it for another
+    // nine days, right up to the docs audit that found it.
+    //
+    // So the guard now has both halves. These are the phrasings that named controls which no
+    // longer exist — a bolded **Edit**, a clickable view name, a scroll-wheel ring of views, and a
+    // top-right button strip that became a side panel on 2026-08-30. A direction is the part that
+    // rots fastest, which is why the note names the strip instead of a corner.
+    for gone in ["**Edit**", "top right", "top bar", "in the ring", "scroll the wheel"] {
+        assert!(
+            !text.contains(gone),
+            "the welcome note still teaches {gone:?}, which the app no longer has"
+        );
+    }
+    // The affordance that replaced it. Named positively so the note cannot simply drop the subject.
+    assert!(
+        text.contains("double-click") || text.contains("Double-click"),
+        "the note must say how a note is actually edited"
+    );
     // The archive carries no assistant, so the note must not advertise one.
     for absent in ["assistant", "@name", "/research", "/transcribe"] {
         assert!(

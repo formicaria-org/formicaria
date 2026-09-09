@@ -18,7 +18,7 @@ works with the internet switched off.
   calendar. Nothing is a separate kind of thing: a task is a note with a date on it.
 - **Keep pictures, PDFs and drawings** alongside the writing, including whiteboards you draw
   yourself.
-- **Go back in time.** With `git` installed, formicaria keeps a history of every change, so you can
+- **Go back in time.** formicaria keeps a history of every change, so you can
   see how a note looked last week.
 - **Work with someone else.** Two people can keep the same notebook in step, each on their own
   machine. If you both edit the same note, formicaria merges the changes rather than making you

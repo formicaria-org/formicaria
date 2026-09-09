@@ -23,9 +23,12 @@ answers below have changed.
 Worth stating plainly, because it sets the stakes:
 
 - **Your notes**, as Markdown files in a directory you chose, and the media beside them.
-- **A git credential**, on a device with no credential helper. On a desktop, git's own helper holds
-  it and formicaria never sees it stored. On the phone there is no helper, so the app writes the
-  token itself, `0600`, beside the vault list.
+- **A git credential**, on any device with no `git` binary. Where git is installed its own
+  credential helper holds the token and formicaria never sees it stored. Where it is not — the
+  phone, and **a Windows machine with no git installed**, which is the ordinary case since the
+  Windows build carries its own git — there is no helper, so the app writes the token itself,
+  `0600`, beside the vault list. The test is the binary, not the platform
+  (`fm_app::secrets::should_store`).
 - **A restic password** (`RESTIC_PASSWORD`, or the stored one), which is the key to your backups.
   It is written `0600` beside the vault list and **never into it**, and every API that reports on
   backups returns it only as a boolean — never by value.
@@ -74,7 +77,9 @@ Anything that lets one of the following happen:
 - Denial of service against your own local server.
 - Vulnerabilities in `git`, `restic`, `pdftotext` or `vipsthumbnail` themselves. They are shelled
   out to deliberately, and they are yours to keep updated — though *how* we invoke them is in
-  scope, and a shell-injection through a filename very much is.
+  scope, and a shell-injection through a filename very much is. **libgit2 is the exception**: on
+  Windows, Android and iOS it is compiled into the binary rather than shelled out to, so a libgit2
+  advisory is ours to ship a fix for and is in scope.
 - Reports from an automated scanner with no demonstrated impact on this application.
 
 ## What ships in the binary

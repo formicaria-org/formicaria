@@ -42,8 +42,9 @@
     <h3>Finding it again</h3>
     <p>
       Your notes are not filed in one place. You look at the same notes in different ways, and the
-      name at the top of each window is a button: <strong>click it</strong> to step to the next way of
-      looking.
+      strip of buttons at the side of the window lists them — pick one. On a narrow window it is the <strong
+        >Views</strong
+      > button.
     </p>
     <ul>
       <li><strong>Timeline</strong> — everything, by the day you wrote it.</li>
@@ -56,8 +57,8 @@
 
     <h3>Giving a note a shape</h3>
     <p>
-      Open a note and press <strong>Edit</strong> to add a title, tags, a status or dates. A status puts
-      it on the Board; a date puts it on the Agenda. None of it is required.
+      Double-click a note to edit it, then use the <strong>+</strong> in its header to add a title, tags,
+      a status or dates. A status puts it on the Board; a date puts it on the Agenda. None of it is required.
     </p>
 
     <h3>Keeping it safe</h3>

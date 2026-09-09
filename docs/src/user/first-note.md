@@ -10,13 +10,14 @@ change, so that later you can tell who wrote what — nothing is sent anywhere.
 There is also a box for a backup repository. Leave it empty; you can set that up later under
 **Back up**.
 
-If you would rather get straight to writing, choose **Skip for now**. Nothing is lost by skipping,
-and you will be asked again the first time it actually matters.
+The two buttons differ in one thing only: **Start writing** saves the name and email you typed,
+**Skip for now** goes in without saving them. Either way you land in the same place, and you will
+be asked again the first time it actually matters.
 
 ## Write a note
 
-Click the **＋** button at the start of the sidebar — *make something new* — and choose **New note**. Or just
-press **Ctrl+K** (**⌘K** on a Mac).
+Click the **＋** button at the start of the sidebar — *make something new* — and choose **New
+note**. Or just press **c**.
 
 ![The ＋ menu open, offering New note, a whiteboard, a discussion and the other things you can
 make](../images/new.png)
@@ -29,6 +30,10 @@ already a file on your disk, and formicaria writes it as you go.
 **Give it a title.** The first line is the title. A note called *Reading list* is one you will find
 again; a note called *Untitled* is one you will not.
 
+**To change it later, double-click it.** The note opens as a page to read; double-clicking turns it
+back into the editor, and clicking its header — or pressing **Escape** — puts the pen down again.
+There is no Edit button to look for.
+
 ## Find it again
 
 Two ways, and you will use both:
@@ -36,11 +41,11 @@ Two ways, and you will use both:
 **Search** — the box at the top of the **sidebar**. It looks inside every note, not just titles, so
 searching for a phrase you half-remember works.
 
-![Search results for "paper": the matching notes, each with the line the match came
-from](../images/search.png)
+![Search results for "paper": the matching notes, each with its title, first line and
+tags](../images/search.png)
 
-**Just look** — the main view lists your notes with the most recently touched first. For the first
-few weeks this is usually enough on its own.
+**Just look** — open **Timeline** from the sidebar and your notes are listed under the day you
+wrote them, newest first. For the first few weeks this is usually enough on its own.
 
 ## Give a note a date, or a status
 
@@ -60,7 +65,8 @@ Your notes are files in the `vault` folder, so the simplest backup is the one yo
 copy that folder somewhere else.
 
 formicaria can also keep a **history** of every change, so you can go back to how a note was last
-week. That needs a program called **git** installed on your computer. If you have it, click the
+week. On Windows nothing needs installing. On Linux and macOS it needs **git**, which most
+machines already have. Either way, click the
 **back up** button — the cloud, near the bottom of the sidebar — and formicaria records
 everything. If you do not, nothing breaks —
 you just have no history to step back through.

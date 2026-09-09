@@ -1917,6 +1917,11 @@
          routing every creation through a full-screen palette, is what made "new note" feel like
          a settings trip. -->
       <div class="create-wrap">
+        <!-- **The tooltip is derived, because it was wrong.** It read "(Ctrl+K)" — which opens
+             Settings; the New-note binding is a bare `c` (`keys.ts` DEFAULTS). Bindings are
+             user-editable too, so any key spelled out here is one rebind away from lying again;
+             `describe` renders whatever is actually bound. Found by a docs audit on 2026-09-09,
+             alongside the same wrong key in `first-note.md`. -->
         <button
           type="button"
           class="plus-btn"
@@ -1927,7 +1932,7 @@
           }}
           aria-expanded={createOpen}
           aria-haspopup="menu"
-          title="Make something new (Ctrl+K)"
+          title={`Make something new (${keys.describe(keymap.newNote)})`}
           aria-label="make something new"
         >
           <Icon name="plus" size={18} />

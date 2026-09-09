@@ -38,11 +38,11 @@ Two more are real views but are **not** in the sidebar, and that is deliberate:
 - **Activity** — who changed what, and when, read straight out of each vault's git
   log. Nothing is stored for it: git already knows, so this is a view of history
   rather than a record of its own. It is genuinely useful and genuinely rare, so it
-  lives in the **command palette** rather than costing a permanent row of attention.
+  lives in **Settings** rather than costing a permanent row of attention.
   It is *not* the same as the Timeline: the Timeline is your notes by the day you
   wrote them; Activity is every edit, including other people's.
 
-  ![The command palette open over the Board, listing Open Board, Open Agenda, Open Timeline,
+  ![Settings open over the Board, listing Open Board, Open Agenda, Open Timeline,
   Open Activity, Open Collaboration and Open Discussions under a filter box](../images/settings.png)
 - **Search** — full-text search across every note (and the extracted text of
   ingested PDFs). Reached by typing into the **search box** at the top of the
@@ -66,7 +66,7 @@ nudging a note's `due` date is the whole reprioritization gesture.
 
 A **view** is an arrangement you keep — *"my board grouped by status"*, *"this week's lab
 agenda"*. It is a small file in your vault, at `<vault>/views/<name>.view`, and every one of them
-appears alongside Board / Agenda / Timeline in the sidebar and in each pane's view picker.
+appears alongside Board / Agenda / Timeline in the sidebar.
 Because it lives in the vault it is **git-tracked and travels to collaborators** — a shared view
 is shared exactly like a note.
 
@@ -149,12 +149,7 @@ and a missing column reads as missing notes.
 The pane header therefore shows what the view narrows to, in the words of the file itself —
 **filtered: status is not done** — and clicking it opens the plain, unfiltered Board (or
 Agenda, or Timeline) with the same grouping, so the rest of your notes are one click away.
-The view picker takes you back.
-
-## Theme
-
-Toggle light / dark with the sun/moon button. Your choice is remembered; the
-first launch follows your OS preference.
+The sidebar takes you back.
 
 ## Renaming and deleting a view
 

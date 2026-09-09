@@ -10,15 +10,15 @@
 
 There is no "type" to pick. Everything is a **note**, and you tell them apart with
 **tags** — the only surviving distinction is `asset`, which the app sets itself when
-you ingest a file. With more than one vault configured, an **in** selector beside
-these buttons chooses which vault the new file lands in.
+you ingest a file. With more than one vault, the ＋ menu ends with a
+**Create in** list — pick the notebook, then pick what to make.
 
 ## Templates
 
 To reuse a layout — a meeting scaffold, a paper-reading checklist, a daily log — make
 a note with that body and **tag it `template`** (in the editor's Tags field). It then
 shows up in the **＋ "make something new" menu** as **New from "…"**, once per template
-— and in the Ctrl+K palette too, where you can filter to one by name. Picking it opens a
+— and in **Settings** too, where you can filter to one by name. Picking it opens a
 fresh note pre-filled with the template's body, ready to edit.
 
 A template is nothing special: **just a note with the `template` tag**. Untag it and it

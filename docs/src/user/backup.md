@@ -47,8 +47,9 @@ which carries attachments of any size and has none of these problems.
 
 ## Setting up (once)
 
-Click **Back up** and paste your vault's git remote — for example
-`git@github.com:you/notes.git`. That is the only setup the light tier needs.
+Open the small **⌄** beside **Back up**, choose **Backup options…**, and paste your vault's git
+remote there — for example `git@github.com:you/notes.git`. That is the only setup the light tier
+needs. (Pressing **Back up** itself does not ask: it saves and sends straight away.)
 
 Your vault is its **own git repository**, independent of the app's source: its
 remote is yours to choose and has nothing to do with where formicaria's code
@@ -68,7 +69,7 @@ repository, with an expiry date.
 
 ## Backing up
 
-Click **Back up**, then **Back up notes**. It commits anything outstanding and pushes —
+Click **Back up** — that is the whole action. It commits anything outstanding and pushes —
 and if someone else pushed while you were writing, it **pulls their work, merges it, and
 pushes once more**, rather than making you do that by hand. Exactly one retry: if the
 merge turns up genuine conflicts it stops, names the notes, and does *not* push (publishing

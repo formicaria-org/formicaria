@@ -35,9 +35,12 @@ small a decade from now.
 pixi run ci
 ```
 
-**That is the whole gate, and it runs on your machine.** Every GitHub workflow here is manual —
-none of them runs on a push or a pull request — so nothing checks your branch but you. If
-`pixi run ci` is green, the change is testable.
+**That is the whole gate, and it runs on your machine.** Four of the five GitHub workflows —
+`ci`, `cross`, `docs` and `ios` — are `workflow_dispatch:` only, so nothing checks your branch but
+you. If `pixi run ci` is green, the change is testable.
+
+**The fifth is `release.yml`, and it fires unattended on a `v*` tag.** Pushing a tag publishes a
+release and bills three jobs. It is the one workflow you can start by accident.
 
 One trap worth repeating: `pixi run ci | tail` reports **`tail`'s** exit code, which is always 0.
 Read the run's own status.

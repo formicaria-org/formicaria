@@ -30,8 +30,8 @@ offers the proposal path; it never forces it.
 
 ### The Collaboration view
 
-The **Collaboration** view (open it from the view picker, or “Open Collaboration” in the command
-palette) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
+The **Collaboration** view (open it from the sidebar, or “Open Collaboration” in
+Settings) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
 notes still in conflict (both versions marked in their bodies after a merge), and below it the open
 **proposals** across your vaults, newest first. Open a conflict to merge the two versions by hand;
 open a proposal to read it and its discussion, and to take part.
