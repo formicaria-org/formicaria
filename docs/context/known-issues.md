@@ -451,11 +451,56 @@ The gray-screen fix and its tests are in
   **What is not a risk.** The rollback is correct: `push_squashed` captures `head_before`, and every
   failure path soft-resets to it, so a failed push leaves the vault's history exactly as it was.
   Verified by reading the error path — nothing was lost in the reported incident.
-  **Left open deliberately**, because the honest next step is an observation nobody has: whether it
-  reproduces on Wi-Fi, on a second attempt, or with a smaller `git_assets_max`. What was fixed is
-  the reporting — a hexadecimal error code was the headline; `plainError` now says the connection
-  dropped, that nothing was lost, and that it is safe to retry, keeping the raw text as the detail
-  that tells the causes apart.
+  **The transport, established 2026-09-09 and worth not re-deriving.** The phone links libgit2
+  **1.9.4** (git2 0.21.0 / libgit2-sys 0.18.5+1.9.4) with vendored OpenSSL 3.6.3. A push is git
+  smart-HTTP **protocol v0**: `GET /info/refs?service=git-receive-pack`, then one
+  `POST /git-receive-pack` carrying the ref pktline *and* the pack in a single body, with
+  **`Transfer-Encoding: chunked`** — a compile-time constant for receive-pack, no `Content-Length`,
+  no option. The pack is streamed in ≤1 MiB deflate chunks, not buffered whole. **There is no SSH
+  transport in the binary at all** (`libssh2-sys` is in neither lockfile). Chunked is *not* the
+  anomaly — real git pushes chunked above `http.postBuffer` too, and `http.postBuffer` itself
+  appears nowhere in the vendored libgit2 tree, so it is inert here.
+
+  **A named upstream bug, still open, and this version is affected.** libgit2
+  [#6385](https://github.com/libgit2/libgit2/issues/6385), *"Broken pipe error while pushing over
+  HTTPS (again)"* — open since 2022-08-17, reported as reproducible only on big repositories. Its
+  ancestor [#6205](https://github.com/libgit2/libgit2/pull/6205) states the mechanism plainly:
+  *"github.com will terminate a git-receive-pack command over http if it is idle for more than 10
+  seconds. This is easily exceeded for a large push."* That fix **is** in our tree, so the
+  pre-#6205 form is not ours — but the structural gap remains: **one keep-alive connection carries
+  the advertisement and the pack**, sits idle for the whole single-threaded
+  `git_packbuilder__prepare` in between (`pb_parallelism` defaults to 1), and is then reused with
+  no liveness check. Real git sends a `0000` probe first whenever a request outgrows
+  `http_post_buffer` (~1 MiB); libgit2 has the same `send_probe`, but `needs_probe` fires only for
+  **NTLM and Negotiate**, and we authenticate with Basic — so it never runs, and there is no option
+  to force it.
+
+  **Whether size is even the variable is still unknown**, and the honest reason is that the two
+  anchors are tens of KB (works) and ~16 MB (fails, 4/4) with nothing measured between. Across that
+  gap bytes, object count, pack-preparation CPU, upload duration and per-object memory all move
+  together. The desktop's small successes constrain nothing: it shells out to the `git` binary and
+  is a different implementation entirely.
+
+  **So the push is instrumented rather than guessed at** (`git_native::push`): the two callbacks
+  `git2` has always exposed and this repo never used — `push_transfer_progress` and
+  `pack_progress` — now append *"after N ms: X of Y objects, Z bytes of pack sent"* to the error.
+  Nothing sent and a failure time ≈ prepare time means the socket was already dead (#6385, and the
+  lever is the idle window). Megabytes sent before it dies means the connection dropped mid-upload,
+  and the lever is batch size or the link. One Wi-Fi run then separates the link from both.
+
+  **Ruled out as first moves, with reasons**: SSH (no transport compiled in, no upstream evidence,
+  widens what ships), `http.postBuffer` (provably inert — zero occurrences in the vendored tree,
+  and tried at three sizes on #6385 with no effect), and a bundled `git` binary, which contradicts
+  Track M ruling 2 verbatim — *"no design may assume an executable subprocess on device"* — and so
+  would need a written dated reversal before it could even be proposed.
+
+  Also found, incidentally: libgit2 reads `pack.deltaCacheSize` into **both** `max_delta_cache_size`
+  and `big_file_threshold`, so `core.bigFileThreshold` is inert and the only reachable lever also
+  resizes the delta cache.
+
+  What was already fixed is the reporting — a hexadecimal error code was the headline; `plainError`
+  now says the connection dropped, that nothing was lost, and that it is safe to retry, keeping the
+  raw text as the detail that tells the causes apart.
 
 - **A media query adds no specificity, so a width-scoped hide can lose to a utility class.**
   `.panel-toggle { display: none }` inside `@media (max-width: 59.999rem)` and

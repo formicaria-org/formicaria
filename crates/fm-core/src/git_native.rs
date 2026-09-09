@@ -1322,9 +1322,65 @@ pub fn push(vault: &Path) -> Result<(), StoreError> {
 
     let mut rem = repo.find_remote(crate::git::REMOTE).map_err(map)?;
     let mut opts = git2::PushOptions::new();
-    opts.remote_callbacks(credentials());
-    rem.push(&[format!("refs/heads/{branch}:refs/heads/{branch}")], Some(&mut opts))
-        .map_err(map)?;
+
+    // **Say how far a failed push got, because the error alone cannot.**
+    //
+    // A push that dies here reports `SSL error: error:80000020: system library::Broken pipe` —
+    // OpenSSL's `ERR_LIB_SYS`/`EPIPE`, meaning the far end closed the socket while we were writing.
+    // True, and it cannot distinguish the two failures it might be, which need opposite fixes:
+    //
+    //   the socket was already dead when the body started   -> nothing sent, dies at once
+    //   the connection dropped part-way through the upload   -> megabytes sent, dies late
+    //
+    // The first is libgit2 #6385 (open since 2022, our 1.9.4 affected): the same keep-alive
+    // connection carries the ref advertisement *and* the pack, and it sits idle for the whole
+    // pack-preparation run in between — `git_packbuilder__prepare` is single-threaded here, since
+    // `pb_parallelism` defaults to 1. GitHub closes an idle `git-receive-pack` after about ten
+    // seconds, and libgit2 reuses the socket with no liveness check. Real git avoids this by
+    // sending a `0000` probe first whenever a request outgrows `http_post_buffer` (~1 MiB);
+    // libgit2 has the same `send_probe`, but `needs_probe` fires only for NTLM and Negotiate, and
+    // we authenticate with Basic — so it never runs, and there is no option to force it.
+    //
+    // These two callbacks are the only way to tell which happened. `git2` has exposed both since
+    // forever and this repo used neither; they cost nothing when the push succeeds.
+    let progress = std::sync::Arc::new(std::sync::Mutex::new((0usize, 0usize, 0usize)));
+    let stage = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let started = std::time::Instant::now();
+    let mut cb = credentials();
+    {
+        let progress = std::sync::Arc::clone(&progress);
+        cb.push_transfer_progress(move |current, total, bytes| {
+            if let Ok(mut p) = progress.lock() {
+                *p = (current, total, bytes);
+            }
+        });
+    }
+    {
+        let stage = std::sync::Arc::clone(&stage);
+        cb.pack_progress(move |s, current, total| {
+            if let Ok(mut st) = stage.lock() {
+                *st = format!("{s:?} {current}/{total}");
+            }
+        });
+    }
+    opts.remote_callbacks(cb);
+
+    if let Err(e) = rem.push(&[format!("refs/heads/{branch}:refs/heads/{branch}")], Some(&mut opts))
+    {
+        let (objects, total, bytes) = progress.lock().map(|p| *p).unwrap_or((0, 0, 0));
+        let packing = stage.lock().map(|s| s.clone()).unwrap_or_default();
+        // Appended, not substituted: the original message is the thing a search engine and an
+        // upstream issue are indexed by, and the numbers are what make it interpretable.
+        return Err(StoreError::Io(format!(
+            "{} [after {} ms: {} of {} objects, {} bytes of pack sent{}]",
+            map(e),
+            started.elapsed().as_millis(),
+            objects,
+            total,
+            bytes,
+            if packing.is_empty() { String::new() } else { format!("; packing {packing}") },
+        )));
+    }
 
     // `push -u`'s other half: without a tracking ref the next `unpushed` has nothing to compare
     // against and reports "never pushed" forever.
