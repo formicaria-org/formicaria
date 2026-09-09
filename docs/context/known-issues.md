@@ -892,6 +892,15 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **`git tag -a -F` eats the release message's headings**, and the release publishes without them.
+  The message lives in the annotated tag (`release.yml:303-310` reads it back with
+  `%(contents)`), and the house format opens `### What's new in X.Y.Z`. `-F` defaults to
+  `--cleanup=strip`, which discards every line starting with `#` — so all three `###` headings
+  vanished from the v0.5.0 tag, silently, exit 0. **Use `--cleanup=verbatim`.** Caught 2026-09-09
+  only because the tag was read back before being pushed; pushing is what publishes, so there is no
+  second chance. Verify with `git tag -l --format='%(contents)' vX.Y.Z | grep -c '^### '` — that
+  reads it exactly as the workflow will.
+
 - **A test fixture cached by *existence* expires silently, and the test keeps passing.** Three
   `fm-cli` suites copy the built `fm` beside the test binary so `git::ensure_repo` can find the merge
   driver — without it `install_merge_driver` *clears* the driver and the "desktop" half of every
