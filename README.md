@@ -99,6 +99,11 @@ double-click the launcher for your system — `Start formicaria.vbs` on Windows,
 `Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
 itself; closing the tab stops the app.
 
+**On a phone**, the same page carries an Android `.apk` and an iPhone `.ipa`, built by the same
+release. Both need a little more than a double-click, and each has a chapter:
+[Android](docs/src/user/android.md) · [iPhone](docs/src/user/iphone.md) — the iPhone one is not
+optional reading, because Apple's free signing expires after seven days.
+
 The archive carries a `README.txt` and the whole manual (`Manual.html`), including what to do
 about the security warning your OS shows for unsigned software — **on macOS that is now System
 Settings → Privacy & Security → Open Anyway**, not the old right-click.
@@ -241,7 +246,7 @@ what it reversed), and they are not a description of how to use the app. The man
 
 ## Project status
 
-**v0.5.0, and young.** The first commit is dated 2026-07-14; this is one person's project,
+**v0.5.1, and young.** The first commit is dated 2026-07-14; this is one person's project,
 built alongside their research rather than as a product. It is used daily on **Linux and
 Android**, the two platforms the author works on and the only two anything here is checked
 against.
@@ -254,9 +259,9 @@ app. Windows on **v0.2.0 through v0.3.1**, and iOS, both reported working as of 
 
 **None of it is verified here, and none of it is this version.** There is no Mac, no Windows
 machine and no iPhone on this end, so a report is one person's session rather than a suite. And
-every report above is against a **v0.2.x or v0.3.x** archive: **neither v0.4.0 nor v0.5.0 has been
-downloaded by anyone**, on any platform, so the current release is exactly as unproven off Linux
-and Android as the ones before it were. The builds are compiled and tested by CI and the archives
+every report above is against a **v0.2.x or v0.3.x** archive: **neither v0.4.0 nor v0.5.x has been
+downloaded by anyone**, on any platform — the release pages say zero — so the current release is
+exactly as unproven off Linux and Android as the ones before it were. The builds are compiled and tested by CI and the archives
 are real; that is a different claim from someone having opened one.
 
 Treat the feature tables above as *what is implemented*, not as *what is proven on your
