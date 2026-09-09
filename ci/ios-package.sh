@@ -185,6 +185,20 @@ for t in xcrun xcodebuild plutil unzip; do
 done
 mkdir -p "$OUT"
 
+# **The version the artifact reports about itself.** Same line as `ci/android-release.sh`, and it
+# was missing here entirely: nothing on the iOS path set `FM_VERSION`, so `fm-app`'s
+# `option_env!` fell back to `dev` and Settings said `dev` while the bundle's
+# `CFBundleShortVersionString` said `0.4.0` from `tauri.conf.json`. Two halves of one build
+# disagreeing about what they are — the exact confusion `android-release.sh:64-70` was written to
+# close, reintroduced on a third platform and unnoticed until the `.ipa` became publishable
+# (2026-09-09).
+#
+# The workflow sets it from the dispatched ref; this default covers a local run on a Mac, and
+# `dev` is the honest answer for a build made from no tag.
+: "${FM_VERSION:=$(git -C "$root" describe --tags --exact-match 2>/dev/null || echo dev)}"
+export FM_VERSION
+say "building as FM_VERSION=$FM_VERSION"
+
 # The runner is 3 CPU / 7 GB RAM / 14 GB disk and this compiles vendored OpenSSL, libgit2 and
 # SQLite *and* runs an Xcode archive. Record disk rather than guess at it later.
 df -h / "$root" > "$OUT/disk-before.txt" 2>&1 || true
@@ -218,6 +232,7 @@ say "built $ipa"
 stats="$OUT/stats.txt"
 : > "$stats"
 record() { echo "$*" | tee -a "$stats"; }
+record "fm-version     $FM_VERSION"
 record "ipa            $ipa"
 record "ipa-bytes      $(wc -c < "$ipa" | tr -d ' ')"
 

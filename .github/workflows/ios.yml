@@ -471,6 +471,20 @@ jobs:
           pixi run -e cross pnpm -C ui build
           pixi run -e cross pnpm -C mobile install --frozen-lockfile
 
+      # **The version the artifact reports about itself**, exactly as the desktop release workflow
+      # and `ci/android-release.sh` do it. Nothing set this on the iOS path, so Settings said `dev`
+      # while `CFBundleShortVersionString` came from `tauri.conf.json` — two halves of one build
+      # disagreeing about what it is, which is the confusion the version display exists to end.
+      # Dispatching on a tag names the tag; on a branch it stays `dev`, which is honest for a
+      # build that is not a release.
+      - name: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "building as FM_VERSION=${VERSION}"
+
       - name: build and check the unsigned device ipa
         run: pixi run -e cross ios-package
 
@@ -478,18 +492,25 @@ jobs:
         if: always()
         with:
           name: ios-rung5
-          # **The `.ipa` is deliberately NOT uploaded** (2026-09-04). It used to be, on the
-          # reasoning that this is the first iOS artifact meant to leave CI — what a user would
-          # sideload. That reasoning held on a private repo, where the only people who could
-          # download it were the people who built it.
+          # **The `.ipa` is uploaded again since 2026-09-09** (`decisions.md`, *the unsigned `.ipa`
+          # is handed over…*). It was withheld on 2026-09-04 because *"it has never run on the
+          # hardware it targets"* and because `features.md` said *"nobody should be handed it
+          # yet"*. Both expired: people have run it on iPhones and reported it working, and that
+          # `features.md` sentence no longer exists — the comment was quoting a line that had
+          # already been rewritten.
           #
-          # **On a public repo an artifact is downloadable by anyone**, and `features.md` says of
-          # this exact file: *"nobody should be handed it yet"*. It has never run on the hardware
-          # it targets. So the rung still builds it, still proves it packages, and still uploads
-          # `stats.txt` and the logs — which are what the rung exists to produce — and the unsigned
-          # binary stops being a public download. When it is ready to be handed to someone, it will
-          # be handed to them deliberately, the way the APK is, not left in a bucket.
+          # **This upload is transport, not the hand-over.** 7-day retention, reachable only from
+          # the run. What a person is handed is a release asset attached by hand, beside the
+          # desktop archives and the APK, with the sideload and 7-day re-sign instructions next to
+          # it (`docs/src/user/setup-iphone.md`). Against that end state the old objection — an
+          # artifact on a public repo is downloadable by anyone — is strictly the smaller exposure.
+          #
+          # Safe to publish because `ci/ios-package.sh` **fails the job** otherwise: device
+          # platform, single `arm64` slice, no `_CodeSignature`, no entitlement a free personal
+          # team cannot hold, the four `NS*UsageDescription` keys present, and a `Payload/` layout
+          # a sideloader accepts. An `.ipa` that exists here is one that passed all of them.
           path: |
             target/ios-package
+            mobile/src-tauri/gen/apple/build/arm64/*.ipa
           if-no-files-found: warn
           retention-days: 7

@@ -5445,6 +5445,12 @@ after the flip is one small commit.
    uploaded. The rung still builds it and still produces its stats and logs, which is what the rung
    exists for; the binary just stops being a public download.
 
+   > **SUPERSEDED for this point only, 2026-09-09** — see *The unsigned `.ipa` is handed over, and
+   > the hand-over is the release page*. Points 1 and 2 stand. This point's condition was written
+   > into it — *"when it is ready to be handed to someone, it will be handed to them deliberately"*
+   > — and both halves of the premise expired: the app has now run on the hardware it targets, and
+   > `features.md` no longer says the sentence quoted above.
+
 **And one silent breakage found before it could happen.** `cross.yml` guards its expensive legs
 with `if: inputs.scope == 'full'`. `scope` is a `workflow_dispatch` input, so **on a `push` event
 `inputs.scope` is empty** and the condition is false: a pushed run would take the cheap `agent`
@@ -7081,3 +7087,52 @@ different faults and only the raw text says which. The one case that still drops
 reachable in principle, and there is no honest remedy to offer — the file is already in the vault's
 history by then, so lowering the attachment limit does not undo it. A message whose advice does not
 work is worse than the raw error. Left until someone actually hits it.
+
+## The unsigned `.ipa` is handed over, and the hand-over is the release page (2026-09-09, `#track-m` `#toolchain`)
+
+**Decision.** `ios.yml` rung 5 uploads the unsigned `.ipa` again, and it is attached to the GitHub
+release by hand, exactly as the Android APK is. `release.yml` still names nothing iOS, and
+`ci/checks.sh` still fails the gate if it ever does.
+
+**What this reverses, and why the premise expired.** The 2026-09-04 going-public ruling stopped the
+upload on two grounds, and wrote its own release condition into the code
+(`ios.yml`): *"It has never run on the hardware it targets… when it is ready to be handed to
+someone, it will be handed to them deliberately, the way the APK is, not left in a bucket."*
+
+- **"It has never run on the hardware it targets" is false as of 2026-09-09.** People have run it on
+  iPhones and reported it working — recorded in `README.md` and `features.md` the same day, and
+  reported rather than verified, which is stated there and stays stated.
+- **The `features.md` sentence it quotes no longer exists.** That row now says users have run it and
+  what that is worth. The comment was citing a line that had already been rewritten — a guard
+  reasoning from a quotation that had moved on.
+- **The economics inverted too** (2026-09-04, same ruling): a public repo on standard runners is
+  free, macOS included, so the four `macos-latest` iOS jobs cost nothing. Confirmed against the
+  docs 2026-09-09: *"Larger runners are always charged for, even when used by public
+  repositories"* — and every runner here is a standard label. This did not decide the question, but
+  it removed the reason to leave it undecided.
+
+**Why publishing is defensible, and it is not "because we want the asset".** `ci/ios-package.sh`
+already **fails the job** unless the artifact has every property that makes it safe to hand over:
+device platform not simulator, a single `arm64` slice, **no `_CodeSignature`**, no entitlement a
+free personal team cannot hold, the four `NS*UsageDescription` keys present in the built
+`Info.plist`, and a `Payload/<Name>.app/` layout a sideloader will accept. An `.ipa` that exists at
+all is one that passed those. The old objection — *an artifact on a public repo is downloadable by
+anyone* — dissolves against an end state that is deliberate publication: the transient artifact is
+now strictly less exposure than the release asset it becomes.
+
+**Consequences:**
+- **The release page is the hand-over, not the artifact bucket.** A workflow artifact is transport:
+  7-day retention, reachable only from the run. What a person is handed is a release asset, beside
+  the desktop archives and the APK, with words next to it.
+- **It gets those words.** `docs/src/user/iphone.md` — the sideload route, and the **7-day
+  re-sign** that a free Apple ID imposes. Publishing a file that stops opening after a week with no
+  explanation would be worse than not publishing it. G5 stays a hazard to warn about; the warning is
+  now somewhere a user reads rather than only in `known-issues.md`.
+- **The iOS build reports its version.** Nothing set `FM_VERSION` anywhere on the iOS path, so
+  Settings said `dev` while `CFBundleShortVersionString` came from `tauri.conf.json` — the exact
+  desktop/phone disagreement `ci/android-release.sh` was written to close, reintroduced on a third
+  platform. Fixed here, because an artifact that cannot say which release it is has no business on
+  a release page.
+- **`release.yml` is untouched.** The unattended-tag exception stays exactly as narrow as it was;
+  the iOS job is still `workflow_dispatch`-only and still fired by a person. That was never the
+  billing argument — it is that an unattended macOS leg widens what runs without anyone choosing it.
