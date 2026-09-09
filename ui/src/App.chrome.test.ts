@@ -244,14 +244,13 @@ test('a dropdown opens at the button that opened it, not at a fixed corner', asy
   // the backup menu opened in the opposite corner from its own button.
   render(App);
 
-  // **Driven by the ＋ menu since 2026-09-09.** This used the backup chevron, which is gone: the
-  // split Back up button became one control that opens the panel. The rule under test is about
-  // *any* of these menus, so it moves to one that still exists — with a faked rect low on screen,
-  // which is what it was really testing all along.
-  const low = await screen.findByRole('button', { name: 'make something new' });
-  low.getBoundingClientRect = () =>
+  // Still the backup menu, but off the **button** rather than the chevron beside it: the chevron
+  // was removed on 2026-09-09 and its job promoted onto the button. Same menu, same anchor
+  // mechanism, one fewer target.
+  const backup = await screen.findByRole('button', { name: 'back up' });
+  backup.getBoundingClientRect = () =>
     ({ left: 12, top: 700, bottom: 728, right: 40, width: 28, height: 28 }) as DOMRect;
-  await fireEvent.click(low);
+  await fireEvent.click(backup);
 
   const menu = await screen.findByRole('menu');
   const style = menu.getAttribute('style') ?? '';

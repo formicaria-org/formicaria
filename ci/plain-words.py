@@ -57,7 +57,14 @@ SCRIPT = re.compile(r"<script[^>]*>(.*?)</script>", re.S)
 STYLE = re.compile(r"<style[^>]*>.*?</style>", re.S)
 ATTRS = re.compile(r"""(?:title|aria-label|placeholder)=(?:"([^"]*)"|\{`([^`]*)`\})""")
 TEXT_NODE = re.compile(r">([^<>{}]{4,})<")
-STEP_TEXT = re.compile(r"\btext:\s*(`(?:[^`\\]|\\.)*`|'[^']*')", re.S)
+# `text:` is how `BackupPanel` builds its step-by-step report; `label:`/`note:` are how every
+# menu in the app builds its items — `App.svelte`'s ＋ menu, its Back up menu, `NotePanel`'s
+# attach menu. **`label:`/`note:` were added 2026-09-09, after the Back up menu was found
+# shipping *"commit and push — what the button does"* and *"pull what others pushed"* as its
+# two visible second lines.** Both are rendered through `{item.note}`, which is an expression,
+# so the markup scan above saw `{` `}` and nothing else: a whole category of user-facing text
+# was invisible to a guard whose entire subject is user-facing text.
+STEP_TEXT = re.compile(r"\b(?:text|label|note):\s*(`(?:[^`\\]|\\.)*`|'[^']*')", re.S)
 
 
 def strip(src: str) -> str:

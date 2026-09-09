@@ -175,24 +175,23 @@ export function fakeFile(
   return { file: new File([bytes], name, { type }), bytes };
 }
 
-/// **Back up the way a person now does: open the panel, then send.**
+/// **Back up the way a person now does: open the menu, take the first item.**
 ///
-/// The toolbar's Back up was a split button whose wide half sent immediately. Since 2026-09-09 it
-/// opens the Backup panel instead — the owner's call, from using it on a phone: *"the button is
-/// small and the down arrow to, and the user will have to select more often than not what to do"*.
-/// Two small targets became one large one, and an accidental tap now asks instead of sending.
+/// The toolbar's Back up was a split button — a wide half that sent immediately, a narrow chevron
+/// for the choices. Since 2026-09-09 the chevron is gone and the button does *its* job, from the
+/// owner's report of using it on a phone: *"the button is small and the down arrow to, and the
+/// user will have to select more often than not what to do"*. So the ordinary backup is two
+/// presses now, in the same two places every time.
 ///
-/// So a test that wants a backup walks the same two steps a person does. Shared rather than
-/// inlined, because eight tests needed it at once and the next change to this flow should have one
-/// place to land.
-export async function backUpThroughPanel(
+/// Shared rather than inlined, because eight tests needed it at once and the next change to this
+/// flow should have one place to land.
+export async function backUpFromToolbar(
   screen: { findByRole: (r: string, o: { name: RegExp }) => Promise<HTMLElement> },
   fireEvent: { click: (el: HTMLElement) => Promise<boolean> | boolean },
 ): Promise<void> {
   await fireEvent.click(await screen.findByRole('button', { name: /^back up$/i }));
-  // The panel's own primary control. Its label says what it will do — "notes" for one vault,
-  // "every vault" for several — so the pattern admits both.
-  await fireEvent.click(
-    await screen.findByRole('button', { name: /^back up (notes|every vault)/i }),
-  );
+  // A `menuitem`, not a button: the element carries an explicit `role`, and an accessible-role
+  // query honours it. Anchored at the start of the name because the item's second line — what it
+  // will actually do — is part of that name.
+  await fireEvent.click(await screen.findByRole('menuitem', { name: /^back up notes/i }));
 }

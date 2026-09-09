@@ -20,7 +20,7 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
-import { backUpThroughPanel } from './lib/harness';
+import { backUpFromToolbar } from './lib/harness';
 import { clearFaults, faults, reset } from './lib/mock';
 import { clearSync } from './lib/sync.svelte';
 
@@ -42,7 +42,7 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
   faults([{ cmd: 'push', mode: 'delay', ms: 300 }]);
   render(App);
 
-  await backUpThroughPanel(screen, fireEvent);
+  await backUpFromToolbar(screen, fireEvent);
 
   // Announced, not merely drawn — the same information for someone who cannot see it spin.
   const working = await screen.findByRole('status');
@@ -58,6 +58,29 @@ test('the toolbar says it is working while a slow backup runs, and goes quiet wh
   await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull(), { timeout: 4000 });
 });
 
+test('pressing Back up starts nothing — it opens the choices', async () => {
+  // **The requirement, stated twice.** *"Remove the effect of the backup button and have it always
+  // open the different backup options… Just remove the tiny arrow close to it and promote its
+  // function to the backup button."* A control that sends on a single tap is the thing being
+  // removed, so the test has to prove the tap does **not** send, not merely that a menu appeared.
+  //
+  // The send is made slow so that a regression cannot hide behind it finishing: if the click
+  // started a backup, the working indicator would be on screen for 300ms and this would fail.
+  faults([{ cmd: 'push', mode: 'delay', ms: 300 }]);
+  render(App);
+
+  await fireEvent.click(await screen.findByRole('button', { name: /^back up$/i }));
+
+  // The choices, in the owner's words rather than git's — the menu is where "what does backing up
+  // actually do?" is answered, so its wording is part of the behaviour.
+  await screen.findByRole('menu');
+  await screen.findByRole('menuitem', { name: /^back up notes/i });
+  await screen.findByRole('menuitem', { name: /^get their changes/i });
+
+  // And nothing was sent. Checked after the menu is up, so the assertion is about a settled state.
+  expect(screen.queryByRole('status')).toBeNull();
+});
+
 test('nothing is spinning when nothing is happening', async () => {
   render(App);
   // Anchored on a control that must render, so this cannot pass by the app failing to boot.
@@ -71,6 +94,6 @@ test('a backup that fails still stops the spinner', async () => {
   faults([{ cmd: 'push', mode: 'reject', message: 'nope' }]);
   render(App);
 
-  await backUpThroughPanel(screen, fireEvent);
+  await backUpFromToolbar(screen, fireEvent);
   await vi.waitFor(() => expect(screen.queryByRole('status')).toBeNull(), { timeout: 4000 });
 });

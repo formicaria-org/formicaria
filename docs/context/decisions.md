@@ -6986,10 +6986,25 @@ device, so the page is never laid out against an approximation even on its first
 
 ## Back up asks before it acts, and gets their changes before it sends (2026-09-09, `#ui` `#sync`)
 
-**Decision.** The toolbar's Back up button **opens the backup panel and sends nothing**. Backing up
-from that panel is one act that **gets the other device's changes and then sends** — the two are no
-longer separate choices a person has to sequence correctly. And the sentences for a failed send name
-the remedy: a token to replace, an address to check, a connection to restore.
+**Decision.** The toolbar's Back up button **opens its menu and sends nothing**. Backing up — from
+that menu's first item or from the panel — is one act that **gets the other device's changes and
+then sends**, so the two are no longer separate choices a person has to sequence correctly. And the
+sentences for a failed send name the remedy: a token to replace, an address to check, a connection
+to restore.
+
+> **Correction (2026-09-09, within the hour).** This entry first said the button opens the **backup
+> panel**, and that is what shipped in `071869f`. It is a misreading of *"have it always open the
+> different backup options"*: the owner meant the **chevron's menu** — *"the possibility of backing
+> up, getting other changes, options (like before). Just remove the tiny arrow close to it and
+> promote its function to the backup button."* The instruction was to delete one of two controls and
+> give the survivor the other's job; I deleted the chevron and gave the button a **third** job
+> instead, which took two choices off the screen (back up now, get their changes) and put them
+> behind a panel.
+>
+> **The general lesson: "promote X's function to Y" is a move, not a redesign.** The tell was that
+> my version needed an argument for why the removed choices did not matter, and it invented one. The
+> two consequences below that named `backUpNotes`'s deletion and `backUpThroughPanel` are wrong with
+> it, and are corrected in place under the ones they replace.
 
 **The report**, verbatim: *"I think we should remove the effect of the backup button and have it
 always open the different backup options. This is because the button is small and the down arrow to,
@@ -7006,15 +7021,32 @@ only in a comment in `App.svelte`, which is part of why it survived unexamined.
 
 **Consequences:**
 - **It costs a press on the routine case, and that is the trade.** An accidental tap on a control
-  that sends is worse than an extra tap on one that asks. The panel is also the only surface that
-  can answer *what am I about to send, from which vault, to where* before it happens.
-- **`aria-label="back up"`, not `back up notes`.** It opens a surface; it does not send. The panel's
-  own primary button keeps the fuller label, which also keeps the two tellable apart by name — to a
-  screen reader and to a test. `ui/src/lib/harness.ts` gains `backUpThroughPanel`, so the eight
-  suites that used to click the toolbar now go the way a person does.
-- **`backUpNotes` is deleted, not hidden.** Its whole reporting apparatus — which vaults sent, which
-  had nowhere to send, which had nothing to save — was a second implementation of what the panel's
-  step list already said better, and the two had already drifted once.
+  that sends is worse than an extra tap on one that asks. The menu's first item is still the
+  ordinary thing, so the common path is button → first item, in the same two places every time.
+- **`aria-label="back up"`, not `back up notes`.** The button opens choices; it does not send. The
+  menu item and the panel's primary button keep the fuller label, which keeps all three tellable
+  apart by name — to a screen reader and to a test. `ui/src/lib/harness.ts` gains
+  `backUpFromToolbar`, so the eight suites that used to click one button walk the two steps a
+  person does.
+- **`backUpNotes` stays.** It was deleted in `071869f` on the argument that its report duplicated
+  the panel's step list; with the menu restored it is the first item's action again, and the
+  argument was only ever true if the choice it served had gone away.
+- **The same on every platform, and asked for as such** — *"This should be the same for all OSs."*
+  No `pointer: coarse` branch and no width branch on this control: one whose behaviour depends on
+  the device is one nobody can be taught once.
+- **Getting their changes cannot be bypassed.** It is inside `syncOnce`, after the commit and before
+  the push, so the menu item, the panel's button and the staged multi-step backup all do it. Putting
+  it in any caller would have left the other callers wrong — the same mistake as the backlog staging,
+  which was first written into the panel's button while the button most people press is the
+  toolbar's.
+- **`ci/plain-words.py` now reads `label:` and `note:`, not only `text:`.** The menu's second lines
+  are rendered through `{item.note}`, an expression, so the markup scan saw `{`…`}` and the script
+  scan looked only for `text:` — and the Back up menu was shipping *"commit and push — what the
+  button does"* and *"pull what others pushed"* as its two visible descriptions, in a UI whose
+  standing rule is that it never uses git's words. A guard whose whole subject is user-facing text
+  was blind to a whole category of it. **Verified to fire** on that exact string, and clean across
+  every `.svelte` file after the widening. The owner's reminder, the same hour: *"use names for
+  options that are intuitive, not git based."*
 - **A vault with no destination is saved anyway.** The panel used to `continue` past it before
   committing, so pressing Back up did nothing at all for such a vault and reported only that it
   could not leave. It now commits and says which of the two things happened.
