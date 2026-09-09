@@ -2789,6 +2789,18 @@ struct VaultStatus {
     /// must mean "will work" — gating on configuration alone offers a checkbox that ticks
     /// and then fails on a machine with no restic.
     restic_ready: bool,
+    /// **How many attachments this vault will put in the next commit, and how many bytes.**
+    ///
+    /// Here rather than on the cheap arm because it answers this arm's own question — *what will
+    /// pressing Back up actually do* — and because it is the only surface a phone has. The walk
+    /// selects every blob at or under `git_assets_max`, not a diff against what the remote holds,
+    /// so a device that has been accumulating photos and has never sent one stages the whole
+    /// backlog the first time it can. That is what happened on 2026-09-09: the libgit2 backend
+    /// gained blob staging, the first push carried months of photos in one pack, and it died with
+    /// a broken pipe — twice — with nothing on screen able to say whether five megabytes were
+    /// pending or five hundred.
+    assets_pending: u32,
+    assets_pending_bytes: u64,
 }
 
 /// What each backup tier can do right now, per vault. fm-core stays free of environment
@@ -2959,13 +2971,19 @@ fn backup_status(app: &App, scope: &Scope) -> Result<BackupStatus, String> {
     let vaults = vaults
         .iter()
         .filter(|v| scope.allows(&v.name))
-        .map(|v| VaultStatus {
-            name: v.name.clone(),
-            remote: vcs::remote(&v.path).unwrap_or(None),
-            unpushed: vcs::unpushed(&v.path).unwrap_or(None),
-            remote_moved: vcs::remote_moved(&v.path).unwrap_or(None),
-            conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
-            restic_ready: restic_ready(&cap, v.restic.as_ref()),
+        .map(|v| {
+            let assets = fm_core::blob::eligible_assets(&v.path).unwrap_or((0, 0));
+            VaultStatus {
+                name: v.name.clone(),
+                remote: vcs::remote(&v.path).unwrap_or(None),
+                unpushed: vcs::unpushed(&v.path).unwrap_or(None),
+                remote_moved: vcs::remote_moved(&v.path).unwrap_or(None),
+                conflicts: vcs::conflicts(&v.path).unwrap_or_default(),
+                restic_ready: restic_ready(&cap, v.restic.as_ref()),
+                // Local: a directory walk and a `stat` each, and empty unless the vault opted in.
+                assets_pending: assets.0,
+                assets_pending_bytes: assets.1,
+            }
         })
         .collect();
     Ok(BackupStatus {

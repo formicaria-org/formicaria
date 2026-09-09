@@ -146,6 +146,11 @@ export interface VaultStatus {
    *  vault has a repo, and the password is set. All three — "ready" has to mean
    *  "will work", not "is configured". */
   restic_ready: boolean;
+  /** Attachments this vault will put in the next commit, and their total bytes. The rule selects
+   *  every blob at or under `git_assets_max` — not a diff against the remote — so a device that
+   *  has never sent one stages its whole backlog the first time it can. */
+  assets_pending: number;
+  assets_pending_bytes: number;
 }
 
 /** What each backup tier could do right now (`backup_status`).

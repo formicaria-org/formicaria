@@ -1979,6 +1979,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           // The real rule: restic installed, this vault has a repo, and a password is set. All
           // three, because "ready" must mean the backup would actually run.
           restic_ready: !!mockRestic[v.name] && mockResticPassword,
+          assets_pending: 0,
+          assets_pending_bytes: 0,
         })),
         git: true,
         restic: true,

@@ -163,3 +163,43 @@ fn hex(bytes: &[u8]) -> String {
 fn io_err(e: io::Error) -> StoreError {
     StoreError::Io(e.to_string())
 }
+
+/// **How much this vault is willing to send with its notes** — the count and total bytes of the
+/// attachments a commit would carry, by the same rule `git`'s staging walk applies.
+///
+/// **Here, not in `git`, because nothing about it is git.** It is a directory walk and a `stat`
+/// per file against a limit from `vault.json`; `ci/checks.sh` refuses a `fm_core::git::` call from
+/// `dispatch` precisely because that module shells out and a phone has no `git` binary — and this
+/// answer has to be available on exactly that phone.
+///
+/// Exists because a device could not be asked. When the libgit2 backend learned to stage
+/// attachments (2026-09-09) the selection rule came with it unchanged: every blob at or under
+/// `git_assets_max`, **not** a diff against what the remote already holds. So a device that has
+/// been accumulating photos and has never sent one stages its whole backlog the first time it can.
+/// The owner's phone had been taking photos since July; the first backup after that change died
+/// with a broken pipe, and again on a retry, and nothing in the app could say whether five
+/// megabytes were pending or five hundred. Its logs are unreadable, so the number had to come from
+/// the app.
+///
+/// Empty and free in the default configuration: no `git_assets_max`, no walk.
+///
+/// **Eligible, not outstanding.** It does not subtract what the remote already has — that needs
+/// the index, which is backend-specific — and the number that explains a stuck push is how much
+/// the rule selects.
+pub fn eligible_assets(vault: &std::path::Path) -> Result<(u32, u64), crate::StoreError> {
+    let Some(max) = crate::descriptor::Descriptor::read(vault)?.git_assets_max else {
+        return Ok((0, 0));
+    };
+    let max = crate::descriptor::effective_git_assets_max(max);
+    let mut count = 0u32;
+    let mut bytes = 0u64;
+    for p in BlobStore::new(vault).blob_paths() {
+        if let Ok(m) = std::fs::metadata(&p) {
+            if m.len() <= max && m.len() > 0 {
+                count += 1;
+                bytes += m.len();
+            }
+        }
+    }
+    Ok((count, bytes))
+}

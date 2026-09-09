@@ -905,6 +905,20 @@
                 {#if v.identity}
                   <span class="muted">Signed as {v.identity.name} &lt;{v.identity.email}&gt;.</span>
                 {/if}
+                <!-- **How much this is about to send.** The attachment rule selects every file at
+                   or under the limit, not a diff against what has already gone — so a device that
+                   has been collecting photos and never sent one has its whole backlog waiting the
+                   first time it can send them. A phone has no other way to find that out: its logs
+                   are unreadable, and a push that dies part-way says only that it died. Stated as a
+                   size because that is the number that explains a failure. -->
+                {#if v.assets_pending > 0}
+                  <span class="muted"
+                    >Carrying {v.assets_pending} attachment{v.assets_pending === 1 ? '' : 's'} —
+                    {humanSize(v.assets_pending_bytes)} in all. A large first batch over a phone connection
+                    can drop part-way; raising <strong>Send attachments under</strong> a step at a time
+                    in Settings sends them in smaller groups.</span
+                  >
+                {/if}
               {/if}
             </li>
             <!-- **When this vault last saved anything** — stated for every vault, remote or not,
