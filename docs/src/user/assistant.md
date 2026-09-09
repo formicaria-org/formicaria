@@ -149,11 +149,12 @@ weights on first enable.
    `pixi run android-init`):
 
    ```sh
-   pixi run android-release          # a signed, 16 KB-aligned APK at mobile/formicaria-<abi>.apk
+   pixi run android-release          # a signed, 16 KB-aligned APK in mobile/
    ```
 
-   Install that APK on your phone (`adb install -r mobile/formicaria-*.apk`, or copy it across and
-   open it). A **notes-only build** that contains none of the assistant is the default when built
+   It prints the path it wrote. The name carries the version — `formicaria-v0.5.0-android-arm64.apk`
+   from a tagged commit, `formicaria-dev-android-arm64.apk` from any other. Install it on your phone
+   (`adb install -r mobile/formicaria-dev-android-arm64.apk`, or copy it across and open it). A **notes-only build** that contains none of the assistant is the default when built
    `--no-default-features` — so people who only want the notebook can ship a lighter app.
 
 2. **First launch** downloads the model (~150 MB–700 MB depending on the model) over your connection,

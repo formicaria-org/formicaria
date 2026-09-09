@@ -87,7 +87,25 @@ echo "android-release: building as FM_VERSION=$FM_VERSION"
 
 bt=$(ls -d "$root"/.android/sdk/build-tools/*/ | sort -V | tail -1)
 unsigned="$root/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-unsigned.apk"
-out="$root/mobile/formicaria-$target.apk"
+
+# **Named the way it is attached, not the way it is built.** The desktop archives arrive from
+# `release.yml` as `formicaria-v0.5.0-linux-x86_64.tar.gz`; the phone's APK is attached to the same
+# release by hand, and until 2026-09-09 this wrote `formicaria-aarch64.apk` — a name with no version
+# in it and an ABI spelling nothing else in the project uses. So every release since v0.2.0 was
+# renamed by hand to `formicaria-<version>-android-arm64.apk` before being uploaded, five times,
+# and a rename done by hand before publishing is a rename that is eventually forgotten — leaving a
+# release carrying an asset that cannot say which version it is.
+#
+# `aarch64` is the Rust target triple's word; `arm64` is Android's and the one the other five files
+# already use. The `case` rather than a `&&` substitution because `set -e` turns a failed test at
+# the end of an `&&` chain into an exit.
+case "$target" in
+    aarch64) abi=arm64 ;;
+    *) abi=$target ;;
+esac
+# `$FM_VERSION` is `v0.5.0` on a tagged commit and `dev` otherwise, so a scratch build is named
+# `formicaria-dev-android-arm64.apk` and can never be mistaken for a release artifact.
+out="$root/mobile/formicaria-$FM_VERSION-android-$abi.apk"
 
 # `-P 16`: Google states 16 KB page size as a *device* property — without it the app will not
 # run on future Android releases at all. Verified afterwards rather than assumed, because
