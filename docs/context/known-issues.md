@@ -399,7 +399,7 @@ The gray-screen fix and its tests are in
 
 - **A reload does not recover the app, and a first-time user found that out.** From the only
   outside report there is ([#2](https://github.com/formicaria-org/formicaria/issues/2), macOS,
-  v0.3.0, 2026-08-30): *"I was taking my first note and clicked something, then this happened.
+  v0.2.1, 2026-08-30): *"I was taking my first note and clicked something, then this happened.
   Reloading the page didn't help. I had to rerun the start file. In general, I can't reload the
   page, I need to restart it to reload it."*
   **Unreproduced here, and the second sentence is the useful one.** A reload re-fetches everything

@@ -85,10 +85,10 @@ compiled into the binary, so no runtime, package manager or network connection i
 run it.
 
 **How far each platform is proven, plainly.** Linux is what this is written and used on daily.
-**macOS and Windows have been run by other people, who report them working** — download, setup and
-note-taking. Neither is checked on this end: there is no Mac and no Windows machine here, so those
-two are *reported* working rather than tested, and the reports come with real problems attached.
-See [Project status](#project-status).
+**macOS and Windows have been run by other people, who report download, setup and note-taking
+working** — but on earlier releases, not this one, and not checked on this end: there is no Mac and
+no Windows machine here. The reports come with real problems attached. See
+[Project status](#project-status).
 
 ## Install
 
@@ -245,16 +245,18 @@ built alongside their research rather than as a product. It is used daily on **L
 Android**, the two platforms the author works on and the only two anything here is checked
 against.
 
-**The other platforms have been run by other people, and reported working.** macOS since v0.3.0:
+**The other platforms have been run by other people, and reported working.** macOS on **v0.2.1**:
 download and setup "works smoothly", notes and search both used
-([#2](https://github.com/formicaria-org/formicaria/issues/2), 2026-08-30) — reported alongside
-real faults, including a view that could not be recovered by reloading the page, only by
-restarting the app. Windows and iOS more recently, 2026-09-09.
+([#2](https://github.com/formicaria-org/formicaria/issues/2), 2026-08-30) — reported alongside real
+faults, including a view that could not be recovered by reloading the page, only by restarting the
+app. Windows on **v0.2.0 through v0.3.1**, and iOS, both reported working as of 2026-09-09.
 
-**None of that is verified here.** There is no Mac, no Windows machine and no iPhone on this end,
-so those platforms are *reported* rather than tested, and a report is one person's session rather
-than a suite. The builds themselves are compiled and tested by CI and the release archives are
-real.
+**None of it is verified here, and none of it is this version.** There is no Mac, no Windows
+machine and no iPhone on this end, so a report is one person's session rather than a suite. And
+every report above is against a **v0.2.x or v0.3.x** archive: **v0.4.0 has not been downloaded by
+anyone**, on any platform, so the current release is exactly as unproven off Linux and Android as
+the ones before it were. The builds are compiled and tested by CI and the archives are real; that
+is a different claim from someone having opened one.
 
 Treat the feature tables above as *what is implemented*, not as *what is proven on your
 machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
