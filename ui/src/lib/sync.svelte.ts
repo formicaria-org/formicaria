@@ -363,6 +363,42 @@ async function syncOnce(
   const stopped = await commitStep(vault, message, ops, assetCap);
   if (stopped) return stopped;
 
+  // **Get their changes first, every time — backing up is both halves.**
+  //
+  // Until 2026-09-09 this pulled only when a push came back rejected: the remote had moved, so we
+  // fetched, merged and pushed again. That worked and left the *thinking* with the user, who had to
+  // notice a chip and decide to press "Get their changes" before pressing Back up — a decision with
+  // one right answer, which is the kind a program should make. The owner's words: *"I would
+  // actually merge the two: backup notes pulls and pushes, to automatically avoid the user having
+  // to think about getting other changes."*
+  //
+  // **After the commit, not before it**, and that order is not negotiable: git will not merge over
+  // uncommitted edits, and the 5-second debounce means the tree is dirty exactly when someone has
+  // just been typing — which is exactly when they reach for Back up.
+  //
+  // **Best-effort.** A first backup has no upstream to pull from, and a vault with no remote has
+  // nothing at either end; neither is a reason to refuse to send. So a failure here is swallowed
+  // and the push below decides — it is the authoritative attempt, and the rejection path after it
+  // still handles a remote that moved while this very pull was running.
+  set(vault, { phase: 'pulling' });
+  try {
+    const early = await ops.pull(vault);
+    if (early.kept.length > 0) set(vault, { kept: early.kept });
+    if (early.merged > 0) {
+      set(vault, { merged: early.merged });
+      await onChanged?.();
+    }
+    // Conflict markers must never be published, so this stops here exactly as the post-rejection
+    // pull does.
+    if (early.conflicts.length > 0) {
+      await onChanged?.();
+      set(vault, { phase: 'conflicts', conflicts: early.conflicts });
+      return 'conflicts';
+    }
+  } catch {
+    /* no upstream yet, or no remote at all — the push decides */
+  }
+
   set(vault, { phase: 'pushing' });
   try {
     await ops.push(message, vault);

@@ -46,18 +46,24 @@ function rejectingPush(times: number, calls: { push: number }) {
 }
 
 describe('syncVault', () => {
-  it('commits and pushes when the remote has not moved', async () => {
+  it('gets their changes and sends yours, in that order, every time', async () => {
+    // **Backing up is both halves since 2026-09-09.** It used to pull only when a push came back
+    // rejected, which left the *decision* with the user: notice a chip, press "Get their changes",
+    // then press Back up. That decision has one right answer, so the program makes it.
+    // After the commit, never before it: git will not merge over uncommitted edits, and the
+    // five-second debounce means the tree is dirty exactly when someone has just been typing.
     clearSync('v');
     const { calls, ops: o } = ops();
 
     expect(await syncVault('v', 'msg', undefined, o)).toBe('synced');
 
-    expect(calls).toEqual({ commit: 1, push: 1, pull: 0 });
+    expect(calls).toEqual({ commit: 1, push: 1, pull: 1 });
     expect(syncFor('v').phase).toBe('synced');
   });
 
-  // The sequence this module exists for.
-  it('heals a moved remote: rejected push -> pull -> push once more', async () => {
+  // The safety net behind the up-front pull: the remote can still move between that pull and this
+  // push, and when it does the retry is what saves the backup.
+  it('heals a remote that moved after the pull: rejected push -> pull -> push once more', async () => {
     clearSync('v');
     const { calls, ops: o } = ops();
     o.push = rejectingPush(1, calls);
@@ -70,13 +76,18 @@ describe('syncVault', () => {
     expect(await syncVault('v', 'msg', onChanged, o)).toBe('synced');
 
     expect(calls.push).toBe(2);
-    expect(calls.pull).toBe(1);
-    expect(onChanged).toHaveBeenCalledOnce();
+    // Twice: once up front as part of backing up, once more to heal the rejection.
+    expect(calls.pull).toBe(2);
+    expect(onChanged).toHaveBeenCalledTimes(2);
     expect(syncFor('v').merged).toBe(3);
   });
 
   // The rule that makes this safe. Conflict markers are not content.
-  it('never pushes after a pull that conflicted', async () => {
+  //
+  // **Stronger than it was.** The pull now happens before the push, so a conflict is found before
+  // anything is sent at all — the count below is zero where it used to be one. The old sequence
+  // could only refuse the *second* push, after the first had already gone out.
+  it('never pushes at all when the pull conflicted', async () => {
     clearSync('v');
     const { calls, ops: o } = ops();
     o.push = rejectingPush(1, calls);
@@ -87,8 +98,8 @@ describe('syncVault', () => {
 
     expect(await syncVault('v', 'msg', undefined, o)).toBe('conflicts');
 
-    // The second push must never happen.
-    expect(calls.push).toBe(1);
+    // No push happens at all: the conflict is found before anything is sent.
+    expect(calls.push).toBe(0);
     expect(syncFor('v').conflicts).toEqual(['01AAA.md', '01BBB.md']);
   });
 
@@ -122,9 +133,11 @@ describe('syncVault', () => {
 
     expect(await syncVault('v', 'msg', undefined, o)).toBe('failed');
 
-    // Tried twice, then stopped.
+    // Tried twice, then stopped. One retry means one, however many times the remote moves.
     expect(calls.push).toBe(2);
-    expect(calls.pull).toBe(1);
+    // Twice: the up-front pull that backing up now always does, and the one the rejection asks
+    // for. The retry count is about *pushes* — that is the thing with an audience.
+    expect(calls.pull).toBe(2);
   });
 
   // **The commit now succeeds while the merge is still unfinished, and the sync must still stop.**
