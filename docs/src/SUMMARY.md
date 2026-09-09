@@ -18,6 +18,7 @@
 - [Installing a new version](./user/updating.md)
 - [Collaboration](./user/collaboration.md)
 - [The study assistant](./user/assistant.md)
+- [formicaria on an Android phone](./user/android.md)
 - [formicaria on an iPhone](./user/iphone.md)
 
 # Reference

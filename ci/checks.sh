@@ -682,27 +682,97 @@ if ls .github/workflows/*.yml >/dev/null 2>&1; then
     fi
 fi
 
-echo "[check] release.yml still names nothing iOS (the unattended-tag exception stays narrow)..."
-# `release.yml` is the **single named exception** to the no-remote-CI standing order: it fires
-# unattended on every `v*` tag. `decisions.md#track-m` (*an iOS build would contradict the
-# project-local-toolchain ruling*) rules that any iOS CI job is `workflow_dispatch`-only and must
-# not be added to it — and rung 5 now produces a downloadable `.ipa`, which is exactly the artifact
-# somebody would reasonably want attached automatically.
+echo "[check] a phone build in release.yml can never cost you the desktop release..."
+# ---------------------------------------------------------------------------------------------
+# **This replaces "release.yml names nothing iOS" (2026-09-09).** That rule kept the phone builds
+# out of the release entirely; `decisions.md` (*every platform is published by the tag*) reverses
+# it, because a release that requires a person to remember two hand-attached files is a release
+# whose phone half is silently missing whenever they forget.
 #
-# **Until now that rule was prose in two file headers and nothing checked it.** A one-line addition
-# to `release.yml` would widen a billed, unattended exception permanently, and would do it in the
-# one workflow nobody dispatches by hand and therefore nobody reads.
+# What the old rule was really protecting survives here as a property rather than a prohibition:
+# **a phone build must not be able to fail the release.** Both legs stand on ground this project
+# does not control — Apple's SDK, reachable only inside whatever Xcode `macos-latest` is today, and
+# ~1 GB of Google's toolchain. `macos-latest` moved to macOS 26 on 2026-09-09 and broke the iOS
+# build that same afternoon with no notice. Blocking, that is a broken release; non-blocking, it is
+# a missing asset, which is exactly where this project stood before either leg existed.
+#
+# So: every job in `release.yml` that is not `binaries` or `attach` must be `continue-on-error`.
+# Stated that way round on purpose — it holds for a phone leg nobody has added yet.
 if [ -f .github/workflows/release.yml ]; then
-    if grep -nEi '(^|[^A-Za-z])ios([^A-Za-z]|$)|\.ipa|xcode|simulator|iphone' .github/workflows/release.yml >/dev/null 2>&1; then
-        echo "  FAIL: .github/workflows/release.yml names iOS. It fires unattended on every 'v*' tag"
-        echo "        and is the single named exception to the no-remote-CI standing order; an iOS leg"
-        echo "        there widens that exception permanently. iOS jobs are workflow_dispatch-only —"
-        echo "        see .github/workflows/ios.yml and decisions.md#track-m. Offending lines:"
-        grep -nEi '(^|[^A-Za-z])ios([^A-Za-z]|$)|\.ipa|xcode|simulator|iphone' .github/workflows/release.yml | sed 's/^/        /' | head -6
+    non_blocking=$(python3 - <<'PY'
+import re, sys
+try:
+    import yaml
+except ImportError:
+    sys.exit(0)  # nothing to say without a parser; the yaml check below is the backstop
+d = yaml.safe_load(open('.github/workflows/release.yml'))
+bad = [n for n, j in (d.get('jobs') or {}).items()
+       if n not in ('binaries', 'attach') and j.get('continue-on-error') is not True]
+print('\n'.join(bad))
+PY
+)
+    if [ -n "$non_blocking" ]; then
+        echo "  FAIL: a release.yml job can block the release that is not allowed to:"
+        echo "$non_blocking" | sed 's/^/          /'
+        echo "        Every job but 'binaries' and 'attach' must carry 'continue-on-error: true',"
+        echo "        so a phone build that fails costs an asset and never the release itself."
+        echo "        See decisions.md, 'every platform is published by the tag'."
+        fail=1
+    fi
+    # And `attach` must still be the only thing that publishes, and only on a tag — so that a
+    # `workflow_dispatch` rehearsal on a branch builds every leg and publishes nothing. That
+    # rehearsal is the only way to test this file before a tag exists.
+    if ! grep -q "startsWith(github.ref, 'refs/tags/v')" .github/workflows/release.yml; then
+        echo "  FAIL: release.yml's publishing job is no longer gated on a v* tag, so a manual"
+        echo "        dispatch on a branch would publish a release. Restore the guard."
         fail=1
     fi
 else
     echo "  (skipped: .github/workflows/release.yml not present)"
+fi
+
+echo "[check] no workflow expands a secret inside a run: script..."
+# ---------------------------------------------------------------------------------------------
+# **A `${{ secrets.X }}` inside a `run:` block is substituted into the shell text before the shell
+# ever sees it.** The value becomes part of the script — so it can be broken by a quote in the
+# secret, and it reaches anywhere the script text goes. Through `env:` it is passed as an
+# environment variable instead and the script only ever names it.
+#
+# Not theoretical, and not a rule this project invented: surveying how other projects sign Android
+# APKs (2026-09-09) found Syncthing-Android interpolating its base64 keystore inline, and Molly
+# deliberately not — `printenv KEYSTORE | base64 -d`. This repo had no secrets at all until the
+# Android signing key, so the rule is cheap to hold from the first one.
+#
+# The test: a line mentioning `secrets.` is fine when it is a `KEY: ${{ secrets.X }}` assignment,
+# which is what `env:` and `with:` look like. Anything else is an expansion in a script.
+if ls .github/workflows/*.yml >/dev/null 2>&1; then
+    # **Comments are stripped first**, and the sibling check at "the release stages what the
+    # assistant looks for" says why: the first version of that one passed while the staging was
+    # deleted, because the *explanation* above it still named the thing. Here it failed the other
+    # way round — the comment in `release.yml` explaining this very rule tripped it.
+    inline=$(for wf in .github/workflows/*.yml; do
+                 grep -nE '\$\{\{[[:space:]]*secrets\.' "$wf" \
+                 | grep -vE '^[0-9]+:[[:space:]]*#' \
+                 | sed "s|^|$wf:|"
+             done \
+             | grep -vE ':[[:space:]]*[A-Za-z_][A-Za-z0-9_-]*:[[:space:]]*\$\{\{[[:space:]]*secrets\.[A-Za-z0-9_]+[[:space:]]*\}\}[[:space:]]*$' \
+             || true)
+    if [ -n "$inline" ]; then
+        echo "  FAIL: a secret is expanded somewhere other than a 'KEY: \${{ secrets.X }}' assignment:"
+        echo "$inline" | sed 's/^/          /'
+        echo "        Pass it through 'env:' and read it in the script with printenv, so the value"
+        echo "        never becomes part of the shell text."
+        fail=1
+    fi
+    # A job that writes a signing key to the runner must remove it on a path a failure cannot skip.
+    # Syncthing's cleanup sits after ./gradlew under 'set -e', so a failed build leaves the key.
+    if grep -q 'ANDROID_KEYSTORE_B64' .github/workflows/release.yml 2>/dev/null; then
+        if ! grep -A3 'shred the signing key' .github/workflows/release.yml | grep -q 'if: always()'; then
+            echo "  FAIL: release.yml writes a signing key to the runner but its cleanup step is not"
+            echo "        'if: always()', so a failed build would leave the key on the machine."
+            fail=1
+        fi
+    fi
 fi
 
 echo "[check] the mobile study agent stays behind the feature AND Android (notes-only pays nothing)..."

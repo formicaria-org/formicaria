@@ -280,10 +280,190 @@ jobs:
           if-no-files-found: error
           path: formicaria-*.${{ matrix.archive }}
 
+  # ===============================================================================================
+  # The two phone builds. **Both are `continue-on-error: true`, and that is the whole design.**
+  #
+  # `decisions.md` (2026-09-09, *every platform is published by the tag*) reverses the rule that
+  # kept iOS out of this file. What that rule was really protecting is kept here instead, as a
+  # property rather than a prohibition: **a phone build can never cost you the desktop release.**
+  # Both legs depend on things this project does not control — Apple's SDK, reachable only inside
+  # whatever Xcode `macos-latest` happens to be today, and ~1 GB of Google's Android toolchain. The
+  # `macos-latest` image moved to macOS 26 on 2026-09-09 and broke the iOS build the same
+  # afternoon, with no notice; had that been a blocking leg, it would have broken the release.
+  #
+  # So a failed phone job leaves a release with three desktop archives and a missing phone asset,
+  # which is exactly where this project was before, and never a release that did not happen.
+  # `ci/checks.sh` asserts the `continue-on-error` on both.
+  # ===============================================================================================
+  ios:
+    name: iphone ipa
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
+        with:
+          pixi-version: v0.72.2
+          environments: >-
+            default
+            cross
+          run-install: true
+          cache: true
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            . -> target
+            mobile/src-tauri -> target
+          cache-on-failure: true
+          shared-key: ios
+      - name: pnpm store path
+        id: pnpm
+        shell: bash
+        run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+      - name: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
+          echo "VERSION=${VERSION}"    >> "$GITHUB_ENV"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: the frontend
+        run: |
+          pixi run -e cross pnpm -C ui install --frozen-lockfile
+          pixi run -e cross pnpm -C ui build
+          pixi run -e cross pnpm -C mobile install --frozen-lockfile
+      # `ios-package` is the same script `ios.yml` rung 5 runs, and it **fails the job** unless the
+      # artifact is device-platform, single-arm64, unsigned, free-team-signable and carries the four
+      # usage descriptions. That is why an unsigned binary is safe to publish: it only exists if it
+      # passed all of them.
+      - name: build and check the unsigned device ipa
+        run: pixi run -e cross ios-package
+      # Named like the desktop archives, because it sits beside them on the release page.
+      - name: name it for the release
+        shell: bash
+        run: |
+          set -euo pipefail
+          src=$(find mobile/src-tauri/gen/apple/build/arm64 -maxdepth 1 -name '*.ipa' -type f | head -1)
+          [ -n "$src" ] || { echo "no .ipa produced" >&2; exit 1; }
+          cp "$src" "formicaria-${VERSION}-ios-arm64.ipa"
+          ls -la formicaria-*.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          if-no-files-found: error
+          path: formicaria-*.ipa
+
+  android:
+    name: android apk
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
+        with:
+          pixi-version: v0.72.2
+          environments: >-
+            default
+            android
+          run-install: true
+          cache: true
+      # **`cache-read-only`, in the one job that holds a signing key.** A writable cache in a job
+      # with a secret is a way to persist something into later runs; practitioners in the field
+      # manage this explicitly (Molly sets the same flag) and it costs nothing here, because the
+      # release job is not where cache freshness matters.
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: . -> target
+          shared-key: android
+          cache-on-failure: false
+          save-if: false
+      # ~1 GB of NDK/SDK, verified against `android/toolchain.lock` — *"the checksum, not the URL,
+      # is the assertion"*. Cached on that file, so it is fetched once per toolchain bump.
+      - name: cache the android toolchain
+        uses: actions/cache@v4
+        with:
+          path: .android
+          key: android-toolchain-${{ hashFiles('android/toolchain.lock') }}
+      - name: the android toolchain
+        run: pixi run android-init
+      - name: version
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
+          echo "VERSION=${VERSION}"    >> "$GITHUB_ENV"
+          echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
+      # ---------------------------------------------------------------------------------------
+      # **The signing key, and how it is handled.**
+      #
+      # `decisions.md` (2026-09-09) records the choice and the survey behind it: among comparable
+      # projects that publish an APK on GitHub Releases, holding the keystore in Actions secrets is
+      # an even split with holding it off CI, and no authority discourages either. What is NOT
+      # optional is the handling, and these three lines are copied from where the field gets it
+      # right and avoid where it gets it wrong:
+      #
+      #   1. **Through `env:`, never `${{ secrets.X }}` inside the script.** An inline expansion is
+      #      substituted into the shell text before it runs. Syncthing-Android does this; Molly
+      #      deliberately does not. `ci/checks.sh` now refuses it repo-wide.
+      #   2. **Nothing into `$GITHUB_ENV`.** AnkiDroid writes its passwords there, which hands them
+      #      to every later step and every action in the job.
+      #   3. **Cleanup with `if: always()`.** Syncthing removes its keystore *after* gradle inside a
+      #      `set -e` block, so a failed build leaves the key on the runner. The step below cannot
+      #      be skipped by a failure.
+      # ---------------------------------------------------------------------------------------
+      - name: the signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "no ANDROID_KEYSTORE_B64 secret — cannot sign, so there is no APK to publish." >&2
+            echo "Add the four ANDROID_* secrets, or accept a release without the phone app." >&2
+            exit 1
+          fi
+          d="$HOME/.config/formicaria"
+          mkdir -p "$d" && chmod 700 "$d"
+          printenv KEYSTORE_B64 | base64 -d > "$d/android-release.keystore"
+          chmod 600 "$d/android-release.keystore"
+          umask 177
+          {
+            echo "storeFile=$d/android-release.keystore"
+            echo "storePassword=$(printenv STORE_PASSWORD)"
+            echo "keyAlias=$(printenv KEY_ALIAS)"
+            echo "keyPassword=$(printenv KEY_PASSWORD)"
+          } > "$d/android-release.properties"
+      - name: build and sign the apk
+        run: pixi run -e android android-release
+      # **Cannot be skipped by a failure**, which is the whole point of `if: always()` here.
+      - name: shred the signing key
+        if: always()
+        shell: bash
+        run: |
+          d="$HOME/.config/formicaria"
+          shred -u "$d/android-release.keystore" "$d/android-release.properties" 2>/dev/null ||             rm -f "$d/android-release.keystore" "$d/android-release.properties"
+          ls -la "$d" 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          if-no-files-found: error
+          path: mobile/formicaria-*.apk
+
   attach:
     name: attach to the release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: binaries
+    # **`binaries` gates; the phone legs do not.** They are `continue-on-error`, so a failed phone
+    # build reports success to this job and simply contributes no artifact. A failed *desktop*
+    # build still stops the release, which is the one thing that must not be published half-made.
+    needs: [binaries, ios, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -333,11 +513,13 @@ jobs:
 
             ### Get started
 
-            | Your system | Download | Double-click |
+            | Your system | Download | Then |
             |---|---|---|
-            | Windows 10/11 (64-bit) | `…-windows-x86_64.zip` | `Start formicaria.vbs` |
-            | Mac, Apple silicon | `…-macos-arm64.tar.gz` | `Start formicaria.command` |
-            | Linux, x86-64 | `…-linux-x86_64.tar.gz` | `Start formicaria.sh` |
+            | Windows 10/11 (64-bit) | `…-windows-x86_64.zip` | double-click `Start formicaria.vbs` |
+            | Mac, Apple silicon | `…-macos-arm64.tar.gz` | double-click `Start formicaria.command` |
+            | Linux, x86-64 | `…-linux-x86_64.tar.gz` | double-click `Start formicaria.sh` |
+            | Android phone or tablet | `…-android-arm64.apk` | open it on the device and allow the install |
+            | iPhone or iPad | `…-ios-arm64.ipa` | sign it with your own free Apple ID — [how](https://github.com/formicaria-org/formicaria/blob/main/docs/src/user/iphone.md) |
 
             **Unpack it first** — do not run it from inside the zip. Windows opens zips in a
             temporary folder it later deletes, and it would take your notes with it.
@@ -398,4 +580,13 @@ jobs:
               app works fully without it; you just have no history to step back through.
             - **Searching the text inside PDFs** needs `poppler`, and **encrypted media backup**
               needs `restic`. Settings tells you what this computer has.
-            - The **Android app** is built separately and attached by hand when available.
+            - **The phone apps are built by the same tag as the desktop ones**, so every download here
+              is the same version. If one is missing, its build failed — the desktop apps are never
+              held back for it.
+            - **The iPhone app is not signed by us**, deliberately: you sign it with your own free
+              Apple ID, which is what makes it free of the App Store. Apple's free signing lasts
+              **seven days**, after which it needs refreshing — the linked page explains the tools
+              that do that in the background.
+            - **The Android app has no auto-update.** Check back here, or point
+              [Obtainium](https://github.com/ImranR98/Obtainium) at this repository and let it watch
+              for you.

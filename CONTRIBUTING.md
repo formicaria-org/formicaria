@@ -40,7 +40,9 @@ pixi run ci
 you. If `pixi run ci` is green, the change is testable.
 
 **The fifth is `release.yml`, and it fires unattended on a `v*` tag.** Pushing a tag publishes a
-release and bills three jobs. It is the one workflow you can start by accident.
+release. It is the one workflow you can start by accident. It used to say "and bills three jobs";
+that stopped being true when the repo went public, since GitHub does not charge for standard
+runners there — but the tag still publishes, which is the part worth being careful about.
 
 One trap worth repeating: `pixi run ci | tail` reports **`tail`'s** exit code, which is always 0.
 Read the run's own status.

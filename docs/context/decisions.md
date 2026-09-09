@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -4710,6 +4710,12 @@ GitHub runner image nobody pins or controls — strictly worse than the position
 > are free, macOS included, so the bound this entry reasons against is gone. What survives it
 > unchanged: iOS is an exception to the project-local-toolchain rule rather than a quiet extension
 > of it, and no iOS leg may reach `release.yml`.
+>
+> **The second half of that sentence is itself superseded (2026-09-09)** — *every platform is
+> published by the tag*. It was restated here **after** the billing premise had already collapsed,
+> so it did survive on its own merits for five days; what retired it is that a release needing two
+> files attached by hand is a release whose phone half goes missing the first time somebody
+> forgets. The first half stands.
 
 **Why this is not a veto.** The owner has ruled: no Mac, no iPhone, repo stays private, a bounded
 macOS CI allocation spent strategically. Under that, iOS is a **Simulator-only proof** — no signing,
@@ -4719,7 +4725,13 @@ the port real and what would it cost"*, with a kill criterion written before the
 
 **Consequence:** any iOS CI job is `workflow_dispatch`-only and **must not** be added to
 `release.yml`, which is the single named exception to the no-remote-CI standing order (2026-07-18)
-and fires unattended on every `v*` tag. `gen/apple` is regenerated per run and never committed —
+and fires unattended on every `v*` tag.
+
+> **SUPERSEDED, this consequence only (2026-09-09)** — see *every platform is published by the tag*.
+> The toolchain reasoning above stands and is why iOS remains a stated exception. What changed is
+> the conclusion drawn from it: the risk is now held as a property (`continue-on-error`, so a phone
+> leg cannot fail the release) instead of a prohibition. `ios.yml` is still dispatch-only for its
+> rungs; `release.yml` gained a leg of its own. `gen/apple` is regenerated per run and never committed —
 `.gitignore` already forbids the Android equivalent in terms, *"it embeds absolute paths, so
 committing it would be committing this machine"* — with an idempotent `ci/ios-inject-*.sh`
 re-applying our edits, exactly as `ci/android-inject-service.sh` does.
@@ -7136,3 +7148,68 @@ now strictly less exposure than the release asset it becomes.
 - **`release.yml` is untouched.** The unattended-tag exception stays exactly as narrow as it was;
   the iOS job is still `workflow_dispatch`-only and still fired by a person. That was never the
   billing argument — it is that an unattended macOS leg widens what runs without anyone choosing it.
+
+## Every platform is published by the tag, and a phone build cannot cost you the release (2026-09-09, `#toolchain` `#track-m`)
+
+**Decision.** `release.yml` builds and attaches **all five**: Linux, macOS, Windows, an Android APK
+and an unsigned iOS `.ipa`. Both phone legs are `continue-on-error: true`. The Android release
+keystore — the existing one, not a new one — lives in GitHub Actions secrets.
+
+**What it reverses.** *No iOS leg may reach `release.yml`* (2026-09-02, restated 2026-09-04). That
+rule was not an accident of the billing argument: it was restated **after** the repo went public and
+the billing premise had already collapsed, so it survived five days on its own merits. What retires
+it is the owner's: *"Times are changing: we have all the OSs and can ship them."* A release that
+needs two files attached by hand is a release whose phone half is missing the first time anyone
+forgets — and both were attached by hand five times running.
+
+**What the old rule was protecting is kept, as a property instead of a prohibition.** Both phone
+legs stand on ground this project does not control: Apple's SDK, reachable only inside whatever
+Xcode `macos-latest` happens to be, and ~1 GB of Google's toolchain. **This is not hypothetical —
+`macos-latest` moved to macOS 26 on 2026-09-09 and broke the iOS build the same afternoon**, with
+no notice, over an `awk -v` newline that every other awk accepts. Blocking, that is a broken
+release. Non-blocking, it is a missing asset — exactly where this project stood before either leg
+existed. `ci/checks.sh` now asserts that every job but `binaries` and `attach` is
+`continue-on-error`, phrased that way round so it binds a leg nobody has added yet.
+
+**The signing key, and the evidence behind it.** A survey of how comparable projects ship an APK
+(2026-09-09, five agents, findings adversarially verified) found the practice **evenly split**, not
+mainstream and not deviant: keystore in Actions secrets — Molly, Syncthing-Android, Organic Maps,
+Mihon, AnkiDroid, Privacy Guides, Immich; key deliberately off CI — NewPipe, Obtainium, Aegis,
+KeePassDX, InnerTune, Seal. The "off-CI" column is flattered by organisations whose alternative is a
+private signing pipeline (Signal, Tailscale, Briar, Element, Proton) — not available here. **No
+authority discourages it**: Android's docs say "keep it in a safe, secure place"; GitHub's describe
+the exposure without advising against it.
+
+**The framing that actually decided it.** Not *CI or not* — both options are a long-lived copy of an
+irreplaceable key, one on an ephemeral runner, one on a daily-driver laptop, neither air-gapped —
+but *which machine*, and *how would misuse be noticed*. The field data says keystores leak
+overwhelmingly through developer-side mistakes: committed to a repo, plaintext passwords,
+`android`/`123456`.
+
+**Consequences:**
+- **Handling copied from where the field gets it right.** Through `env:`, never `${{ secrets.X }}`
+  inside a `run:` script (an inline expansion becomes part of the shell text); nothing into
+  `$GITHUB_ENV`, which would hand it to every later step and action; and a `shred` step with
+  `if: always()`. **Syncthing-Android gets two of those three wrong** — it interpolates inline, and
+  its `rm` sits after `./gradlew` under `set -e`, so a failed build leaves the key on the runner.
+  All three are now `ci/checks.sh` guards, each verified to fire on its own mutation.
+- **`environment:` is not a gate.** Worth stating because it is the popular recommendation: naming
+  an environment only *scopes* a secret. Required reviewers are a repository setting, invisible in
+  the YAML, and on Free/Pro/Team plans the protection rules exist only while the repo is public.
+  Not adopted as security; available later as bookkeeping.
+- **What this does not fix, and local signing would not either.** GitHub release assets are mutable
+  and GitHub signs nothing, so anyone with repository write can swap an APK — and an APK signature
+  protects *updates*, not *first installs*, because a new user has no baseline. The answer is
+  publishing the certificate fingerprint, not where the key sleeps.
+- **Two follow-ups this survey earned, neither done here.** Establish the `apksigner` rotation
+  lineage **now**: rotation needs `--old-signer`, so a lineage created after a leak is worthless.
+  And a GitHub-Releases APK has no auto-update at all — the release body now points at Obtainium,
+  which is what Organic Maps does; IzzyOnDroid is the other half (it ingests the release APK,
+  **keeps our signature**, and adds reproducibility verification) and is not set up.
+- **Play App Signing would dissolve the irreversibility**, by making the CI-held key a resettable
+  *upload* key. It needs a Play account, so it is not on the table — recorded so the next reader
+  knows it was considered rather than missed.
+- **The tag can still be rehearsed.** `attach` stays gated on `startsWith(github.ref, 'refs/tags/v')`
+  and the version step degrades to `dev-<sha>` off a tag, so dispatching `release.yml` on a branch
+  builds every leg and publishes nothing. That is the only way to test this file, and `checks.sh`
+  guards the gate.

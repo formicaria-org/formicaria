@@ -273,8 +273,11 @@ pixi run ci        # test + test-agent-download + test-ui + check-ui + deny + ch
 
 **`pixi run ci` locally *is* the gate.** Four of the five GitHub workflows — `ci`, `cross`,
 `docs` and `ios` — are `workflow_dispatch:` only: nothing runs on a push or a pull request.
-That is deliberate, not an oversight; the repo has been private, where Actions minutes are
-billed, and at 10x on macOS runners the bill is the whole reason.
+That was originally about money — the repo was private, where Actions minutes are billed, at 10x
+on macOS. **That reason is gone**: this repo is public, and GitHub does not charge for standard
+runners in public repositories. What keeps the triggers manual now is that the gate runs here, on
+one machine, before anything is pushed — a second opinion that fires on every push tells you what
+`pixi run ci` already told you.
 
 **The exception is `release.yml`, which fires unattended on a `v*` tag.** Pushing a tag
 publishes a release. It is the one workflow you can start by accident.
