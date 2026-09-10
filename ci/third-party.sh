@@ -52,7 +52,15 @@ npm_licences() {
                     rows.push([p.name, (p.versions || []).join(", ") || "-", lic]);
                 }
             }
-            rows.sort((a, b) => a[0].localeCompare(b[0]));
+            // **Codepoint order, not `localeCompare`** (2026-09-10). ICU collation is
+            // locale-dependent: under `en_US.UTF-8` punctuation is largely ignored, so
+            // `windows_aarch64_gnullvm` sorts before `windows-link`, while a runner with no locale
+            // set uses C collation and puts `-` (0x2D) before `_` (0x5F). The generated file then
+            // differed by machine, and `third-party-check` failed on CI because the committed copy
+            // carried whichever order the last generating machine happened to have.
+            //
+            // No apostrophes in this block: the whole script is one single-quoted shell string.
+            rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
             const unknown = rows.filter(r => /^Unknown$/i.test(r[2])).map(r => r[0]);
             if (unknown.length) {
@@ -100,7 +108,7 @@ npm_licences() {
     done \
       | grep -v '^$' \
       | sed 's/ (proc-macro)//; s| ([^)]*)||' \
-      | sort -u \
+      | LC_ALL=C sort -u \
       | awk -F'|' 'NF==2 {
             n = split($1, p, " ");
             name = p[1];
@@ -127,7 +135,7 @@ npm_licences() {
                 lic = "(MIT OR Apache-2.0) AND Apache-2.0 — vendors OpenSSL";
             printf "| %s | %s | %s |\n", name, (n>1 ? p[2] : "-"), lic
         }' \
-      | sort -u
+      | LC_ALL=C sort -u
     echo
     # ------------------------------------------------------------------------------------
     # **What `cargo tree` cannot see, part one: the user interface.**

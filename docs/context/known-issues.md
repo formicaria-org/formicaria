@@ -892,6 +892,23 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **"It passes locally" was the input, not the output — and `sh ci/like-a-runner.sh` is the
+  answer.** When `ci.yml` was finally dispatched on 2026-09-10 after eight weeks, it failed **eight
+  times for eight different reasons**, every one a check that passed only because of something the
+  developer's machine already had: a global `git config user.name`; a leftover
+  `target/debug/deps/fm` hiding a race in the fixture that copies it; a fast CPU under a 100 ms
+  budget that needs 113 ms on a 4-core runner; a `/usr/include` that agrees with conda's compiler
+  where the runner's does not; a warm `rust-cache` that meant `libgit2-sys` was never compiled at
+  all; a single timing sample read as signal when it was scheduling noise; and a locale, where
+  `en_US.UTF-8` sorts `windows_aarch64` before `windows-link` and C collation does not. **Not one
+  was a regression** — all were written after the last remote run.
+
+  The script reproduces what a runner does not have. **Blind precisely**: its own first version
+  pointed `HOME` at an empty directory and broke `pnpm`, inventing a failure a runner would never
+  see — the same mistake as blinding `git(1)` without `libgit2`, which produces a false failure in
+  `git_differential`. It now links `.local` and `.cache` through and withholds only the git
+  configuration.
+
 - **A warm cache hid a broken build for two months.** `libz-sys` probes for a *system* zlib and
   exports where it found it as `DEP_Z_INCLUDE`; `libgit2-sys`'s build script turns that straight
   into an `-I` (its `build.rs:294`). On a GitHub runner that is `/usr/include`, so Ubuntu's glibc

@@ -47,6 +47,18 @@ runners there — but the tag still publishes, which is the part worth being car
 One trap worth repeating: `pixi run ci | tail` reports **`tail`'s** exit code, which is always 0.
 Read the run's own status.
 
+**And if the change touches anything environmental, run the gate as a fresh machine would:**
+
+```sh
+sh ci/like-a-runner.sh      # same gate, without what your machine happens to have
+```
+
+It withholds the things that were caught hiding real failures for eight weeks — your global git
+identity, a leftover merge driver in `target/`, your locale, your core count. Everything passed
+locally that whole time; the gate on a clean runner failed eight times for eight different reasons,
+none of them a regression. Anything that shells out to git, times something, or sorts something is
+worth this thirty-second check.
+
 [Testing & CI](docs/src/dev/testing.md) covers what is inside the gate, the four pixi environments,
 and four opt-in suites that are not in it — of which **`pixi run test-native-git` is the one to
 remember**: `cargo test --workspace` `cfg`s out the libgit2 backend, which is the backend the phone
