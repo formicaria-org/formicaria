@@ -65,7 +65,7 @@ jobs:
 
       # Caches the solved env by pixi.lock — otherwise every run re-downloads and relinks
       # ~2.5 GB of conda packages.
-      - uses: prefix-dev/setup-pixi@ba3bb36eb2066252b2363392b7739741bb777659 # v0.8.1
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
         with:
           # **Pinned, and this is the whole reason the cache ever hits.**
           # setup-pixi keys its cache on sha256(pixi.lock)+environments+**sha256(the pixi
