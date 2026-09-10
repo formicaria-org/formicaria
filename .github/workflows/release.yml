@@ -78,7 +78,7 @@ jobs:
         id: pnpm
         shell: bash
         run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml') }}
@@ -332,7 +332,7 @@ jobs:
         id: pnpm
         shell: bash
         run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
@@ -413,7 +413,7 @@ jobs:
       # `ci/android-stage-whisper.sh` clones and cross-compiles whisper.cpp, so the cmake build is
       # restored with it rather than repeated — that is the slowest single step in this job.
       - name: cache the android toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .android
           key: android-toolchain-${{ hashFiles('android/toolchain.lock') }}
@@ -427,7 +427,7 @@ jobs:
         id: pnpm
         shell: bash
         run: echo "dir=$(pixi run -e android pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
@@ -484,7 +484,7 @@ jobs:
       # in the pinned build-tools, so it restores the same toolchain cache; `android-init` prints
       # "already present" on a hit and re-fetches nothing.
       - name: cache the android toolchain
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .android
           key: android-toolchain-${{ hashFiles('android/toolchain.lock') }}

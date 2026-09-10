@@ -269,7 +269,7 @@ jobs:
         id: pnpm
         shell: bash
         run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
@@ -459,7 +459,7 @@ jobs:
         id: pnpm
         shell: bash
         run: echo "dir=$(pixi run -e cross pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ${{ steps.pnpm.outputs.dir }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('ui/pnpm-lock.yaml', 'mobile/pnpm-lock.yaml') }}
