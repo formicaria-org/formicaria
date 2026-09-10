@@ -104,7 +104,7 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || inputs.scope == 'full'
         shell: bash
         run: echo "dir=$(pixi run pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         if: github.event_name != 'workflow_dispatch' || inputs.scope == 'full'
         with:
           path: ${{ steps.pnpm.outputs.dir }}
