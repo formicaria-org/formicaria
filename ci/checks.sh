@@ -1484,6 +1484,32 @@ fi
 # warns about a limit that is fine or accepts one the backend will reject, and the user meets the
 # disagreement as an error they cannot act on. There is no git-lfs here, so this number is what
 # stands between an attachment and a push that fails after the commit is already made.
+echo "[check] the release notes come from the tag object, not the commit..."
+# ---------------------------------------------------------------------------------------------
+# **The release message lives in the annotated tag, and for five releases it was silently thrown
+# away.** `actions/checkout` fetches `+<commit-sha>:refs/tags/<tag>` — the commit, not the tag —
+# so the local tag is lightweight, and `git tag -l --format='%(contents)'` on a lightweight tag
+# returns the *commit's* message. v0.3.0 through v0.5.1 all published their `chore(release):`
+# commit message, Co-Authored-By trailers included, in place of the notes written for them.
+#
+# It went unnoticed because the mechanism was documented, the annotation really was written every
+# time, and reading it back **locally** works perfectly — the failure only exists on the runner.
+# So this checks the one line that makes the runner behave like a laptop.
+if [ -f .github/workflows/release.yml ] && grep -q "%(contents)" .github/workflows/release.yml; then
+    if ! grep -q 'git fetch .*refs/tags/\${TAG}:refs/tags/\${TAG}' .github/workflows/release.yml; then
+        echo "  FAIL: release.yml reads the tag annotation but never fetches the tag object."
+        echo "        actions/checkout leaves a LIGHTWEIGHT tag, whose %(contents) is the commit"
+        echo "        message — so the release would publish a developer commit at users."
+        echo "        Restore: git fetch --force --no-tags origin \"refs/tags/\${TAG}:refs/tags/\${TAG}\""
+        fail=1
+    fi
+    if ! grep -q 'git cat-file -t' .github/workflows/release.yml; then
+        echo "  FAIL: release.yml does not verify the tag is annotated before using its contents."
+        echo "        Without that check a lightweight tag silently republishes the commit message."
+        fail=1
+    fi
+fi
+
 echo "[check] the published signing fingerprint agrees everywhere it appears..."
 # ---------------------------------------------------------------------------------------------
 # **A stale fingerprint is worse than none.** It is the one fact a first-time installer is told to

@@ -892,6 +892,27 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **The release notes were thrown away for five releases, and reading them back locally worked
+  perfectly.** `release.yml` takes the release message from the annotated tag
+  (`git tag -l --format='%(contents)'`) — documented, deliberate, *"impossible to forget, because
+  writing it is part of cutting the tag"*. But `actions/checkout` fetches
+  `+<commit-sha>:refs/tags/<tag>` — **the commit, not the tag** — so the runner's tag is
+  **lightweight**, and `%(contents)` on a lightweight tag returns the *commit's* message.
+  v0.3.0 through v0.5.1 each published their `chore(release):` commit, `Co-Authored-By` trailers
+  and all, where the notes should have been. `fetch-depth: 0` does not help: it deepens history, it
+  does not turn a lightweight tag into an annotated one.
+
+  **Why nobody noticed.** The mechanism was documented, the annotation really was written every
+  time, and `git tag -l --format='%(contents)' vX.Y.Z` on a laptop prints it correctly — the bug
+  exists only on the runner, and the published page was never read back. Fixed 2026-09-10 by
+  fetching the tag object explicitly and refusing to use a lightweight tag's contents at all
+  (it now degrades to *no* notes, which is visibly wrong, rather than to a developer commit
+  message, which looks deliberate). `ci/checks.sh` guards both halves. The four affected release
+  pages were repaired by hand from the annotations, which were still sitting in the tags.
+
+  **The general lesson: verifying the input is not verifying the output.** Every check here was on
+  the tag, and the tag was always right.
+
 - **`git tag -a -F` eats the release message's headings**, and the release publishes without them.
   The message lives in the annotated tag (`release.yml:303-310` reads it back with
   `%(contents)`), and the house format opens `### What's new in X.Y.Z`. `-F` defaults to
