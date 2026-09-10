@@ -42,6 +42,28 @@ cargo-deny = "*"     # license / advisory gate
 mdbook = "*"         # renders docs/ to a static site; built in CI
 
 # v2 extractors, isolated so the default env stays lean.
+[activation.env]
+# **zlib is built from source, like libgit2 and OpenSSL beside it** (2026-09-10).
+#
+# `libz-sys` probes for a *system* zlib and exports where it found it as `DEP_Z_INCLUDE`;
+# `libgit2-sys`'s build script turns that straight into an `-I` (build.rs:294). On a GitHub runner
+# that resolves to `/usr/include`, so Ubuntu's glibc headers land on the include path of a compile
+# driven by conda's gcc — whose sysroot carries an older glibc. The result is a wall of errors
+# inside the system headers themselves:
+#
+#     /usr/include/stdlib.h:725:35: error: expected ',' or ';' before '__attribute_alloc_align__'
+#     /usr/include/stdint.h:41:10: fatal error: bits/stdint-least.h: No such file or directory
+#
+# **It only showed on a cold cache**, which is why it took until 2026-09-10 to see: four runs in a
+# row restored `libgit2-sys` from `rust-cache` and never compiled it. The fifth ran while GitHub's
+# cache service was returning 400s, rebuilt it, and failed. It does not reproduce on a developer
+# machine, whose `/usr/include` happens to agree with conda's compiler.
+#
+# `git2` is already `vendored-libgit2` + `vendored-openssl`; zlib was the one dependency still
+# reaching outside the environment. This closes that, and with it the whole class — no system
+# header directory can reach the compile any more.
+LIBZ_SYS_STATIC = "1"
+
 [feature.media.dependencies]
 ffmpeg = "*"
 tesseract = "*"
@@ -105,6 +127,11 @@ NDK_BIN = "$PIXI_PROJECT_ROOT/.android/android-ndk-r27d/toolchains/llvm/prebuilt
 CFLAGS = ""
 CPPFLAGS = ""
 LDFLAGS = ""
+# **Left as it was, deliberately.** The host fix above (`LIBZ_SYS_STATIC = "1"`) is inherited by
+# every environment, and this one cross-compiles against the NDK, which supplies its own zlib. That
+# path builds a working APK today; changing how it obtains zlib is not something this fix needs and
+# not something a host-only failure justifies testing on a phone.
+LIBZ_SYS_STATIC = "0"
 CFLAGS_aarch64_linux_android = "-fPIC -O2"
 CFLAGS_x86_64_linux_android = "-fPIC -O2"
 # `cc` (rusqlite bundled, libgit2/OpenSSL vendored) reads CC_<target>; cargo reads CARGO_TARGET_*.

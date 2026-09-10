@@ -892,6 +892,28 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **A warm cache hid a broken build for two months.** `libz-sys` probes for a *system* zlib and
+  exports where it found it as `DEP_Z_INCLUDE`; `libgit2-sys`'s build script turns that straight
+  into an `-I` (its `build.rs:294`). On a GitHub runner that is `/usr/include`, so Ubuntu's glibc
+  headers reach a compile driven by **conda's gcc**, whose sysroot carries an older glibc — and the
+  errors appear *inside the system headers*, which reads like a broken machine rather than a
+  configuration mistake:
+
+      /usr/include/stdlib.h:725:35: error: expected ',' or ';' before '__attribute_alloc_align__'
+      /usr/include/stdint.h:41:10: fatal error: bits/stdint-least.h: No such file or directory
+
+  **Four CI runs in a row restored `libgit2-sys` from `rust-cache` and never compiled it.** The
+  fifth ran while GitHub's cache service was answering 400s, rebuilt from scratch, and failed. It
+  does not reproduce on a developer machine, whose `/usr/include` agrees with conda's compiler.
+  Fixed 2026-09-10 with `LIBZ_SYS_STATIC = "1"` in the default activation env, so zlib is built
+  in-tree like `vendored-libgit2` and `vendored-openssl` beside it, and no system include directory
+  can reach the compile. Left at `"0"` for the Android environment, which cross-compiles against
+  the NDK's zlib and works.
+
+  **The general lesson: a cache can hide a build failure indefinitely, and the first cold run after
+  an image or toolchain change is where it surfaces.** If a CI build breaks for no reason you
+  changed, check whether that run rebuilt something the previous ones restored.
+
 - **The merge-driver fixture raced against itself, and a leftover file hid it for eight weeks.**
   Three `fm-cli` suites copy the built `fm` beside their test binary so `install_merge_driver` can
   resolve `current_exe().parent()/fm`; without it the driver is *cleared* and every "desktop"
