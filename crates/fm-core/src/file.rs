@@ -73,6 +73,54 @@ pub struct FileStore {
     written: std::collections::BTreeSet<PathBuf>,
 }
 
+/// **An index written by a newer formicaria is not ours — delete it and rebuild.**
+///
+/// The index is disposable by design: gitignored, per-machine, and reconstructible from the notes.
+/// So meeting one from the future has exactly one safe answer, and it costs a reindex the desktop
+/// already performs on every start ([`FileStore::named`] passes `Reindex::Full` unconditionally).
+///
+/// **Why this exists at all: going backwards is now a thing a user can do.** Since 2026-09-10 the
+/// app updates itself in place and keeps the previous version to fall back to, so a *downgrade* is
+/// an ordinary event rather than something only a developer does — and it can happen with no Rust
+/// code involved at all, because the launcher's rescue restores the previous `program/` by itself
+/// when a new version will not start. That path cannot be taught about vaults (it is a shell script
+/// and does not know where they are), which is precisely why the check belongs **here**, on the
+/// arrival side, where every route into a vault passes: the Go-back button, the launcher's
+/// automatic rescue, and a folder carried backwards on a USB stick.
+///
+/// **What would otherwise break is not obvious, and is worth stating exactly.** `init_schema` is
+/// `CREATE TABLE IF NOT EXISTS`, which leaves a newer table exactly as it found it — extra columns
+/// and all. That is survivable today only by luck: both columns added so far are satisfiable by an
+/// older insert (`fts_rowid` is nullable, `kind` has a `DEFAULT`). The day a future version adds a
+/// `NOT NULL` column without one, every insert from an older build fails, `MultiStore::open_with`
+/// files every vault under `unopened`, `list_vaults` answers `[]` — and `[]` is the first-run
+/// signal, so the whole library disappears behind a "create your first vault" screen. The escape
+/// hatch documented for that state is "delete `index.sqlite` and reopen", which needs a terminal.
+/// This does it before it can happen, for someone who has none.
+///
+/// Silent and best-effort on purpose: an index that cannot be read or removed is not a reason to
+/// refuse to open a vault, and the failure it guards against is the one that hides itself.
+fn discard_an_index_from_the_future(index: &Path) {
+    if !index.exists() {
+        return;
+    }
+    let from_the_future = Connection::open(index)
+        .and_then(|db| db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))
+        .map(|v| v > INDEX_SCHEMA)
+        .unwrap_or(false);
+    if !from_the_future {
+        return;
+    }
+    let _ = fs::remove_file(index);
+    // The sidecars too. Leaving a hot journal beside a database SQLite is about to create fresh is
+    // how a "clean" rebuild inherits half a transaction from the version we just left.
+    for suffix in ["-journal", "-wal", "-shm"] {
+        let mut p = index.as_os_str().to_owned();
+        p.push(suffix);
+        let _ = fs::remove_file(PathBuf::from(p));
+    }
+}
+
 impl FileStore {
     /// Open (creating if needed) a vault at `root`, then rebuild the index from
     /// the files on disk. The index is disposable: delete `index.sqlite`,
@@ -120,7 +168,9 @@ impl FileStore {
         // them. The directory is the last resort: it is whatever git called the clone.
         let name = crate::descriptor::vault_name(root, Some(&desc), &given);
         fs::create_dir_all(&notes).map_err(io)?;
-        let db = Connection::open(root.join("index.sqlite")).map_err(sql)?;
+        let index = root.join("index.sqlite");
+        discard_an_index_from_the_future(&index);
+        let db = Connection::open(&index).map_err(sql)?;
         Ok(FileStore {
             notes,
             db,

@@ -548,11 +548,15 @@ and that half is deliberately not built yet.
 
 **The installer.** Fetch what a feature needs into `<app>/program/tools/` — portable, no admin
 rights, travels when the folder is copied. Every piece exists and none is wired together:
-- `crates/fm-agent-run/src/fetch.rs` — resumable, SHA-256 verified, atomic, progress callback,
-  hermetic tests already in `pixi run ci`, **desktop-excluded by one Cargo feature** — and the
-  feature is `fm-agent-run/download`, *not* `fm-serve/agent`, which is on in the shipped binary
-  (corrected 2026-09-02). `pixi run build` also never builds `fm-agent-run` at all, so wiring the
-  fetch means building that crate for the desktop as well as enabling the feature.
+- `crates/fm-fetch` — resumable, SHA-256 verified, atomic, progress callback, hermetic tests in
+  `pixi run ci`. **Both of this line's old claims are now false and were already stale when read on
+  2026-09-10.** It said the fetcher was *"desktop-excluded by one Cargo feature"* and that
+  *"`pixi run build` never builds `fm-agent-run` at all"* — but `pixi.toml`'s `build` has carried
+  `-p fm-agent-run --features fm-agent-run/download` since 2026-09-02, so the shipped desktop binary
+  has had the whole fetcher in it all along. A stale blocker is how a cheap thing gets costed as an
+  expensive one; this one made the installer look further away than it was for eight days. The
+  engine also **moved out of `fm-agent-run` on 2026-09-10** into its own crate, so a consumer no
+  longer drags the study agent in with it (`decisions.md#toolchain`).
 - `pixi.lock` already pins poppler, libvips and restic for all four platforms with checksums, so
   installing means fetching *the exact artifact pixi would*.
 - `packaging/formicaria.sh` records the proof they are relocatable: run "with PATH alone, resolving

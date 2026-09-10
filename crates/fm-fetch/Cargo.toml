@@ -1,0 +1,25 @@
+# The generic, resumable, checksum-verified downloader — extracted from `fm-agent-run` on
+# 2026-09-10 so the self-updater could use it without linking the study-agent pipeline (that crate
+# re-exports `fm_agent` unconditionally, and `ci/checks.sh` guards that a notes-only `fm-serve`
+# links no agent). Generic over `{url, dest, sha256}`; it knows nothing about models or releases.
+[package]
+name = "fm-fetch"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+name = "fm_fetch"
+path = "src/lib.rs"
+
+[dependencies]
+# A small blocking HTTPS client whose default `rustls` TLS is pure-Rust (bundled Mozilla roots via
+# webpki-roots), so it needs no system TLS and cross-compiles to Android. `sha2` verifies.
+ureq = "2"
+sha2 = "0.11"
+# The release archive is `.tar.gz` on Linux/macOS and `.zip` on Windows, so the extractor reads
+# both. Default features off on `zip`: the archives use plain deflate, and the optional codecs
+# (zstd, bzip2, aes) would each add a C dependency for a format we never receive.
+flate2 = "1"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }

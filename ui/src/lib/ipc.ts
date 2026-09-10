@@ -1011,6 +1011,36 @@ export const clearGitCredential = (url = '') => invoke<GitAuth>('clear_git_crede
 export const restoreVault = (name: string, path: string, repo: string) =>
   invoke<VaultInfo[]>('restore_vault', { name, path, repo });
 
+/** Whether this copy can update itself, what it is, and whether there is a version to go back to.
+ *  A *launcher* concern served by fm-serve, not a vault command — the same shape as `agentStatus`,
+ *  and for the same reason: an updater is a property of this downloaded folder, not of a vault.
+ *
+ *  `can_check` and `can_install` are deliberately separate. A copy under `C:\Program Files`, or one
+ *  whose launcher predates the rescue preamble, can still be *told* a fix exists — it just cannot
+ *  install it — and collapsing the two would throw that half away.
+ *
+ *  `previous` is the version sitting in the folder ready to be restored, read from disk rather than
+ *  remembered, so it stays true across a restart. Null when there is nothing to go back to. */
+export const updateStatus = () =>
+  invoke<{
+    can_check: boolean;
+    can_install: boolean;
+    why: string;
+    current: string | null;
+    available: string | null;
+    previous: string | null;
+    can_go_back: boolean;
+    checking: boolean;
+    check: boolean;
+    last_check: number;
+    error: string | null;
+  }>('update_status');
+
+/** Put the previous version back and restart into it. Answers before it stops, so the tab is told
+ *  to expect the gap rather than discovering it. Host-bound: a paired device does not decide what
+ *  program this machine runs. */
+export const updateRollback = () => invoke<{ restarting: boolean }>('update_rollback');
+
 /** What this installation is configured as. Cheap — no shelling out — so Settings can be
  *  opened freely, unlike `backupStatus` which runs `git ls-remote` per vault. */
 export const config = () => invoke<Config>('config');

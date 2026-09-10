@@ -2516,8 +2516,16 @@ struct Config {
     ///
     /// **Why it is here at all.** Each release unpacks into its own folder and the vault lives
     /// inside it, so a user updating ends up with two formicaria folders and no way to tell which
-    /// one they are looking at — from inside the app there was no version anywhere. A string to
-    /// read, nothing more: no comparison, no update check, nothing that phones home.
+    /// one they are looking at — from inside the app there was no version anywhere.
+    ///
+    /// **This was "a string to read, nothing more: no comparison, no update check, nothing that
+    /// phones home" until 2026-09-10**, when the app gained the ability to update itself
+    /// (`decisions.md`, *the app updates itself in place, and the folder stops moving*). The
+    /// clause is superseded, but **this field is not what changed**: comparing versions, checking
+    /// for a release and fetching one all live in `fm-serve`'s update routes, which own their own
+    /// state. `config` still answers only what is true of the *machine*, and still shells out to
+    /// nothing — *one producer per fact*, and opening Settings must never be a reason to hit the
+    /// network. Do not grow an `update_available` here.
     version: String,
     /// The vault list file we would write, or `None` when this machine has no config
     /// directory at all — in which case nothing can be persisted, which is worth saying.

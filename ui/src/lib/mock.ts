@@ -500,6 +500,10 @@ let mockTranscribeAvailable = true;
 // assistant is available but its model has not been downloaded, which is the screen that asks
 // before spending gigabytes. A mock that starts fully provisioned would hide the whole flow.
 let mockProvisioned = false;
+
+// **The version this folder would go back to.** Set, because a folder that has never been updated
+// has no way back and would show no control at all — and the control is the thing being developed.
+let mockPreviousVersion: string | null = 'v0.5.1';
 let mockProvisioning: {
   stage: 'runtime' | 'model' | 'projector' | 'ready' | 'failed';
   done: number;
@@ -774,6 +778,31 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     await new Promise((r) => setTimeout(r, fault.ms ?? 5000));
   }
   switch (cmd) {
+    // **A folder that has been updated once**, which is the only state where Go back means
+    // anything — a fresh download has nothing to go back to, and a mock that started there would
+    // hide the whole control.
+    case 'update_status':
+      return {
+        can_check: true,
+        can_install: true,
+        why: '',
+        current: 'v0.6.0',
+        available: null,
+        previous: mockPreviousVersion,
+        can_go_back: mockPreviousVersion !== null,
+        checking: false,
+        check: true,
+        last_check: 0,
+        error: null,
+      } as T;
+
+    case 'update_rollback': {
+      // The real thing restarts into the earlier version; the mock just consumes the way back, so
+      // the panel's state afterwards is developable.
+      mockPreviousVersion = null;
+      return { restarting: true } as T;
+    }
+
     case 'agent_status':
       return {
         enabled: mockAgentEnabled,

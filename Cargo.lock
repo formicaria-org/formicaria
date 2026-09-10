@@ -335,6 +335,7 @@ dependencies = [
  "clap",
  "flate2",
  "fm-agent",
+ "fm-fetch",
  "serde_json",
  "sha2",
  "tar",
@@ -393,6 +394,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fm-fetch"
+version = "0.0.0"
+dependencies = [
+ "flate2",
+ "sha2",
+ "tar",
+ "ureq",
+ "zip",
+]
+
+[[package]]
 name = "fm-model"
 version = "0.0.0"
 dependencies = [
@@ -416,10 +428,12 @@ dependencies = [
  "fm-agent-run",
  "fm-app",
  "fm-core",
+ "fm-fetch",
  "fm-model",
  "fm-query",
  "getrandom 0.3.4",
  "rcgen",
+ "ring",
  "rustls",
  "serde",
  "serde_json",

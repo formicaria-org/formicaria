@@ -25,6 +25,8 @@
     agentStatus,
     agentModels,
     removeAgentModel,
+    updateRollback,
+    updateStatus,
     setAgent,
     setTranscribe,
     alive,
@@ -199,6 +201,18 @@
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
+    // Whether there is a version to go back to. **Local only** — this asks the server what is on
+    // disk and reads a cached answer about releases; it never reaches the network, because opening
+    // Settings must not be a reason to.
+    try {
+      const u = await updateStatus();
+      previousVersion = u.previous;
+      canInstall = u.can_install;
+    } catch {
+      // A build without the updater answers nothing. Hide the row rather than offer a control that
+      // cannot work — the same rule the assistant's `agentOn = null` follows.
+      previousVersion = null;
+    }
     // The study-assistant toggle. `null` = unavailable here (e.g. a build without the agent), which
     // hides the row rather than showing a control that does nothing.
     try {
@@ -263,6 +277,20 @@
   let pickVision = $state(false);
   let provisioned = $state(true);
   let provisionedBytes = $state(0);
+  /// What this copy could go back to, or null when there is nothing to go back to. Read from the
+  /// server rather than remembered, so it stays true across a restart and a fresh clone.
+  let previousVersion = $state<string | null>(null);
+  /// Whether this copy may install anything at all — a folder the system protects, or one whose
+  /// launcher predates the way back, can say what it is but not change it. Separate from
+  /// `previousVersion` for the reason the assistant's `agentOn`/`agentInstalled` pair is separate:
+  /// a stored fact cannot fail, and conflating the two is how a panel offers a control that
+  /// reports success and does nothing.
+  let canInstall = $state(false);
+  /// Armed by the first click, acted on by the second — the same two steps as removing the model,
+  /// and for the same reason: this replaces the running program and cannot be undone from here.
+  let goingBack = $state(false);
+  let goBackError = $state<string | null>(null);
+
   /// Armed by the first click, acted on by the second — the two-step `BackupPanel` already uses for
   /// "forget this vault", and for the same reason: this frees gigabytes and cannot be undone.
   let removingModel = $state(false);
@@ -337,6 +365,21 @@
       watchProvisioning();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Put the previous version back. The server answers before it stops, so the reply lands and then
+   *  the connection goes; `App` already shows its reconnecting surface when that happens, which is
+   *  why there is nothing to do on success but say what is happening. */
+  async function goBack() {
+    goBackError = null;
+    try {
+      await updateRollback();
+      goingBack = false;
+      previousVersion = null;
+    } catch (e) {
+      goingBack = false;
+      goBackError = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -1208,6 +1251,40 @@
             {/if}
           </li>
         </ul>
+
+        <!-- **The way back.** An update replaces the program in place and keeps the one it
+             replaced, so this is the other half of that promise: the automatic rescue only catches
+             a version that cannot start at all, and a version that starts, stays up and is simply
+             worse needs a person to say so. Two steps, like removing the model, because it replaces
+             the running program and there is no undo from here.
+
+             Not in the `facts` list above, which is a mirror by construction — a control lives in
+             its own `caps` list. -->
+        {#if previousVersion && canInstall}
+          <ul class="caps">
+            <li>
+              {#if goingBack}
+                <span class="k">go back to {previousVersion}?</span>
+                <span class="muted">
+                  Formicaria will restart into {previousVersion}, which is the version you were
+                  using before. Your notes are not touched. Getting {cfg.version} again means downloading
+                  it again.
+                </span>
+                <button class="primary" onclick={goBack}>Yes, go back</button>
+                <button onclick={() => (goingBack = false)}>Cancel</button>
+              {:else}
+                <span class="k">earlier version</span>
+                <span class="muted">
+                  {previousVersion} is still in this folder, in case {cfg.version} does not suit you.
+                </span>
+                <button onclick={() => (goingBack = true)}>Go back to {previousVersion}…</button>
+              {/if}
+            </li>
+            {#if goBackError}
+              <li><span class="bad">{goBackError}</span></li>
+            {/if}
+          </ul>
+        {/if}
       </section>
 
       {#if cfg.env.length}

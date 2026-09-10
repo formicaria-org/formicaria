@@ -28,6 +28,11 @@ mod blob;
 mod share;
 #[cfg(feature = "tls")]
 mod tls;
+// Updating the app from inside the app — transport-shaped, like the agent routes, because an
+// updater is a property of *this* archive and not of a vault. Behind its own feature so the
+// std-only build this crate promises still compiles with `--no-default-features`.
+#[cfg(feature = "update")]
+mod update;
 
 use fm_app::{dispatch_as, App, Host, Output, Scope};
 use serde_json::Value;
@@ -72,6 +77,12 @@ struct AppState {
     // multi-gigabyte download that runs on its own thread and reports progress back into this
     // state long after the response was written.
     agent: std::sync::Arc<agent::AgentState>,
+    /// Whether a check for a newer version is in flight, and what the last one said. Behind the
+    /// `update` feature, like the agent's field above and for the same reason. **In memory only** —
+    /// the *result* of a check lives in `<config>/formicaria/update.json`; a "checking…" written to
+    /// disk would be a lie the next start could not detect.
+    #[cfg(feature = "update")]
+    update: std::sync::Arc<update::UpdateState>,
     /// Pairing codes, device tokens, and what the listener actually managed to do. See
     /// [`share`] — in particular why the *setting* and the *capability* are separate fields.
     share: share::ShareState,
@@ -94,6 +105,8 @@ impl AppState {
             connected: AtomicBool::new(false),
             #[cfg(feature = "agent")]
             agent: std::sync::Arc::new(agent::AgentState::new(port)),
+            #[cfg(feature = "update")]
+            update: std::sync::Arc::new(update::UpdateState::default()),
             share: share::ShareState::load(),
         }
     }
@@ -110,6 +123,100 @@ impl Host for Desktop {
 }
 
 fn main() {
+    // **`--version`, and it exists for the updater rather than for a person.**
+    //
+    // Before an update touches `program/`, the *staged* binary is run with this flag and its answer
+    // compared against the manifest. That one execution is the only thing that catches a download
+    // for the wrong architecture, a copy an antivirus quarantined between the rename and the spawn,
+    // and — on macOS — a binary whose ad-hoc signature did not survive extraction, which otherwise
+    // dies with `Killed: 9` and no message anybody sees. Cheaper than every failure it prevents.
+    //
+    // Handled before anything else: it must not need vaults, a config directory or a free port.
+    if std::env::args().nth(1).as_deref() == Some("--version") {
+        println!("{}", option_env!("FM_VERSION").unwrap_or("dev"));
+        return;
+    }
+
+    // **Are we the staged binary, here to perform a swap?** Before anything else: this needs no
+    // vaults, no config directory and no port, and it must happen before `bind` — the whole point
+    // is that the old process has let go of 8765 and this one has not taken it yet.
+    //
+    // The swap is done here, by the *new* binary, rather than by the old one supervising it. The
+    // old process cannot do it: it still holds the port, so a successor it spawned would meet
+    // `AddrInUse`, find a `build` that is not its own, and exit with an instruction to run `pkill`.
+    // And a supervisor polling `/api/alive` on the port it is itself listening on is checking its
+    // own health. See `update::apply_staged`.
+    // The same hook in reverse: put the previous version back. Also before `bind`, and also done
+    // by a process that is not the one being replaced.
+    #[cfg(feature = "update")]
+    if let Some(dir) = std::env::var_os("FM_APPLY_ROLLBACK") {
+        let app = PathBuf::from(dir);
+        let to = std::env::var("FM_ROLLBACK_TO").unwrap_or_default();
+        if let Err(e) = update::apply_rollback(&app, &to) {
+            eprintln!("formicaria could not go back: {e}");
+            eprintln!("The version you were using is still here. Start formicaria again as usual.");
+            std::process::exit(1);
+        }
+        let installed = update::installed_binary(&app);
+        let mut cmd = std::process::Command::new(&installed);
+        cmd.env_remove("FM_APPLY_ROLLBACK");
+        cmd.env_remove("FM_ROLLBACK_TO");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let e = cmd.exec();
+            eprintln!("formicaria went back, but could not start: {e}");
+            std::process::exit(1);
+        }
+        #[cfg(not(unix))]
+        {
+            match cmd.spawn() {
+                Ok(_) => return,
+                Err(e) => {
+                    eprintln!("formicaria went back, but could not start: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "update")]
+    if let Some(dir) = std::env::var_os("FM_APPLY_UPDATE") {
+        let app = PathBuf::from(dir);
+        if let Err(e) = update::apply_staged(&app) {
+            // **Nothing is half-done here.** `apply_staged` puts the previous version back itself
+            // if it can, and the launcher does it if it cannot — so the honest thing is to say so
+            // and stop, rather than carry on serving from the staging directory.
+            eprintln!("formicaria could not finish updating: {e}");
+            eprintln!("The version you were using is still here. Start formicaria again as usual.");
+            std::process::exit(1);
+        }
+        // **Re-exec from where it now lives, never from the staging directory** — `merge_command()`,
+        // `agents_dir()` and `build_id()` all derive from `current_exe()`, and a server running out
+        // of `.fm-update/` would write a merge driver pointing into a directory that is about to be
+        // deleted.
+        let installed = update::installed_binary(&app);
+        let mut cmd = std::process::Command::new(&installed);
+        cmd.env_remove("FM_APPLY_UPDATE");
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let e = cmd.exec(); // returns only on failure
+            eprintln!("formicaria updated, but could not start: {e}");
+            std::process::exit(1);
+        }
+        #[cfg(not(unix))]
+        {
+            match cmd.spawn() {
+                Ok(_) => return,
+                Err(e) => {
+                    eprintln!("formicaria updated, but could not start: {e}");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
     // Absent on purpose: no default path. The UI is *in* the binary unless someone
     // explicitly points us at a directory.
     let dist = std::env::var_os("FM_UI_DIST").map(PathBuf::from);
@@ -261,6 +368,27 @@ fn main() {
     #[cfg(feature = "agent")]
     agent::spawn_at_launch(Arc::clone(&state));
 
+    // **Clear anything a previous update left half-done, then look for a newer version.**
+    //
+    // The sweep is first and is unconditional: a staging tree outlives only a process that died
+    // mid-update, and resuming half a swap is precisely what must not happen — either it finished,
+    // in which case this is already gone, or it did not, in which case the folder is intact and the
+    // staging is worthless. It never touches `.fm-backup-*`, which is the way back.
+    //
+    // The check runs off the request path entirely, because `SettingsPanel` may not cause network
+    // traffic by being opened. It is silent on failure.
+    #[cfg(feature = "update")]
+    {
+        if let Some(app) = update::app_dir() {
+            update::sweep(&app);
+            // We are up and serving. Clear the launcher's failed-start counter shortly, so three
+            // starts that never get this far are what triggers a rollback — and one that does
+            // costs the next launch nothing.
+            update::mark_healthy_soon(app);
+        }
+        update::check_in_background(Arc::clone(&state));
+    }
+
     for mut stream in listener.incoming().flatten() {
         let state = Arc::clone(&state);
         // **Who is on the other end is a property of the connection, not of the request.** Read
@@ -295,6 +423,18 @@ fn main() {
 /// `Command::new("bash")` and starts a multi-GB model on the desktop's GPU, and it persists, so
 /// it would come back at every launch.
 const REMOTE_DENIED: &[&str] = &[
+    // **Replaces the program this machine runs.** The sharpest entry in this list: a paired tablet
+    // is a guest, and a guest does not decide that the host downloads and installs a new formicaria
+    // — nor that it stops looking for one, which is the same capability pointed the other way.
+    // `update_status` is denied too: it discloses the version, the folder's writability and the
+    // last time this machine was online, none of which is "which audience am I in".
+    "/api/update_status",
+    "/api/update_check",
+    "/api/update_start",
+    "/api/update_cancel",
+    "/api/update_apply",
+    "/api/update_rollback",
+    "/api/set_update_check",
     // Spawns a process, or writes host-level state.
     "/api/set_agent",
     // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
@@ -632,7 +772,11 @@ fn spawn_watchdog(state: Arc<AppState>) {
     });
 }
 
-fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<()> {
+/// **`&Arc`, not `&AppState`.** The updater's restart path has to hand a reference to a thread that
+/// outlives the request — the commit it takes before restarting must be bounded, because the vault
+/// mutex is held across the network by `push`/`pull` and a stalled sync would otherwise hold the
+/// escape hatch shut. Everything else here deref-coerces and is unchanged.
+fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Result<()> {
     // **One stream, read through a buffer, written through the same handle.**
     //
     // This used to `try_clone()` the socket so it could hold a `BufReader` and still write to the
@@ -973,6 +1117,14 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &AppState) -> std::io::Result<
     // routes don't exist. `None` means "not an agent route" — fall through to the command dispatch.
     #[cfg(feature = "agent")]
     if let Some(done) = agent::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // Updating the app from inside it — transport-shaped for the same reason as the agent routes:
+    // an updater is a property of *this* archive, not of a vault, and `fm-cli` and the phone would
+    // never call it. Every route here is in `REMOTE_DENIED`.
+    #[cfg(feature = "update")]
+    if let Some(done) = update::route(reader.get_mut(), &path, &body, state) {
         return done;
     }
 
@@ -1478,8 +1630,14 @@ mod tests {
         std::fs::create_dir_all(vault.join("notes")).unwrap();
         let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
         let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
-        let state =
-            AppState::new(fm_app::App::new(store, vec![cfg], None, false), None, origins, 0);
+        // `Arc`, because `handle` now takes one — the updater's restart path hands a reference to a
+        // thread that outlives the request.
+        let state = Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            origins,
+            0,
+        ));
         if let Some(token) = shared {
             state.share.force_enabled_for_test();
             if let Some(t) = token {
@@ -1848,6 +2006,36 @@ mod tests {
             assert_eq!(
                 status, "HTTP/1.1 403 Forbidden",
                 "{path} slipped past the denylist by carrying a query string"
+            );
+        }
+    }
+
+    /// **A guest does not replace the host's program.** The sharpest capability in the denylist:
+    /// `update_start` would have a tablet make this machine download and install a new formicaria,
+    /// and `set_update_check` is the same capability pointed the other way — a guest silencing the
+    /// host's only notice that a fix exists. `update_status` discloses the version, whether the
+    /// folder is writable and when this machine was last online, none of which is "which audience
+    /// am I in".
+    ///
+    /// Query shapes included deliberately: this list gained three entries, and *"while adding two
+    /// commands to that list"* is exactly when the `?` hole was found last time.
+    #[test]
+    fn a_paired_device_cannot_make_the_host_update_itself() {
+        for path in [
+            "/api/update_status",
+            "/api/update_check",
+            "/api/update_start",
+            "/api/update_cancel",
+            "/api/update_apply",
+            "/api/update_rollback",
+            "/api/set_update_check",
+            "/api/set_update_check?check=false",
+            "/api/update_start?tag=v9.9.9",
+        ] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(
+                status, "HTTP/1.1 403 Forbidden",
+                "{path} would let a guest decide what program this machine runs"
             );
         }
     }

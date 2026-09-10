@@ -1224,6 +1224,137 @@ if grep -niE '~~.*~~.*(fixed|closed|done|resolved)' docs/context/known-issues.md
     fail=1
 fi
 
+echo "[check] the launcher puts the previous version back — missing, or unable to start..."
+# **The five lines the whole in-place update rests on** (`decisions.md`, 2026-09-10). The updater
+# renames `program/` aside to `.fm-backup-<version>` and renames the new one in; between those two
+# renames — and after any update that stopped partway — `program/fm-serve` does not exist. What
+# turns that from "terminal required" into "double-click the thing you already double-click" is a
+# preamble in the launcher.
+#
+# **Rehearsed, not asserted.** The Windows `.bat` and `.vbs` have been executed by nobody
+# (`known-issues.md`), so the one platform that CAN be exercised here is exercised properly: a real
+# folder, a real interrupted swap, and the real script with only its final `exec` replaced. A guard
+# that greps for the word "backup" would pass on a preamble that does nothing.
+launcher="packaging/launcher/Start formicaria.sh"
+if [ ! -f "$launcher" ]; then
+    echo "  FAIL: $launcher is missing. If the launcher moved, re-anchor this test on its new home"
+    echo "        rather than leaving it pointed at nothing."
+    fail=1
+else
+    rescue_tmp=$(mktemp -d)
+    # The launcher, with its `exec` replaced so the test ends instead of starting a server.
+    sed 's|^exec "$here/program/fm-serve"$|echo LAUNCHED|' "$launcher" > "$rescue_tmp/start.sh"
+    chmod +x "$rescue_tmp/start.sh"
+
+    setup_app() {
+        rm -rf "$rescue_tmp/app"
+        mkdir -p "$rescue_tmp/app/program" "$rescue_tmp/app/.fm-backup-v0.5.0"
+        printf '#!/bin/sh\necho old\n' > "$rescue_tmp/app/.fm-backup-v0.5.0/fm-serve"
+        chmod +x "$rescue_tmp/app/.fm-backup-v0.5.0/fm-serve"
+        cp "$rescue_tmp/start.sh" "$rescue_tmp/app/start.sh"
+    }
+
+    # 1. The failure this exists for: an interrupted swap left no program binary at all.
+    setup_app
+    out=$("$rescue_tmp/app/start.sh" 2>&1) || true
+    if [ ! -x "$rescue_tmp/app/program/fm-serve" ]; then
+        echo "  FAIL: the launcher did not put the previous version back."
+        echo "        Output: $out"
+        fail=1
+    elif [ -d "$rescue_tmp/app/.fm-backup-v0.5.0" ]; then
+        echo "  FAIL: the backup was copied rather than moved — a second failure would find two."
+        fail=1
+    elif ! printf '%s' "$out" | grep -q LAUNCHED; then
+        echo "  FAIL: the launcher recovered but then did not start the app."
+        echo "        Output: $out"
+        fail=1
+    fi
+
+    # 2. **An ordinary start must not touch anything.** A rescue that fires when the app is fine
+    #    would silently downgrade every user on every launch — worse than the bug it prevents.
+    setup_app
+    printf '#!/bin/sh\necho new\n' > "$rescue_tmp/app/program/fm-serve"
+    chmod +x "$rescue_tmp/app/program/fm-serve"
+    "$rescue_tmp/app/start.sh" >/dev/null 2>&1 || true
+    if [ ! -d "$rescue_tmp/app/.fm-backup-v0.5.0" ]; then
+        echo "  FAIL: a normal start consumed the backup. The way back must survive being unused."
+        fail=1
+    elif [ "$(cat "$rescue_tmp/app/program/fm-serve")" != "$(printf '#!/bin/sh\necho new\n')" ]; then
+        echo "  FAIL: a normal start replaced a working program with the previous version."
+        fail=1
+    fi
+
+    # 3. **A version that starts and then dies is the failure the missing-file check cannot see.**
+    #    The launcher counts starts and formicaria clears the count once it is serving, so three
+    #    starts that never get that far roll back. Without this, "it installed and now nothing
+    #    works" has no way out that does not involve a terminal.
+    setup_app
+    printf '#!/bin/sh\necho NEW-BROKEN\n' > "$rescue_tmp/app/program/fm-serve"
+    chmod +x "$rescue_tmp/app/program/fm-serve"
+    sed -i.bak 's|^echo LAUNCHED$|"$here/program/fm-serve"|' "$rescue_tmp/app/start.sh" 2>/dev/null         || sed -i 's|^echo LAUNCHED$|"$here/program/fm-serve"|' "$rescue_tmp/app/start.sh"
+    for _ in 1 2 3; do (cd "$rescue_tmp/app" && ./start.sh >/dev/null 2>&1) || true; done
+    last=$( (cd "$rescue_tmp/app" && ./start.sh 2>&1) || true )
+    if ! printf '%s' "$last" | grep -q "old"; then
+        echo "  FAIL: three starts that never became healthy did not roll back to the previous"
+        echo "        version. A new build that will not run would leave the user stuck."
+        echo "        Output: $last"
+        fail=1
+    fi
+
+    # 4. **And a healthy version must never be rolled back.** formicaria clears the counter once it
+    #    is up, so the count only ever accumulates across starts that failed. If a cleared counter
+    #    still rolled back, every user would be downgraded on their fourth launch.
+    setup_app
+    printf '#!/bin/sh\necho new\n' > "$rescue_tmp/app/program/fm-serve"
+    chmod +x "$rescue_tmp/app/program/fm-serve"
+    for _ in 1 2 3 4 5; do
+        (cd "$rescue_tmp/app" && ./start.sh >/dev/null 2>&1) || true
+        rm -f "$rescue_tmp/app/.fm-attempts"   # what a healthy formicaria does for itself
+    done
+    if [ ! -d "$rescue_tmp/app/.fm-backup-v0.5.0" ]; then
+        echo "  FAIL: a version that starts cleanly was rolled back anyway."
+        fail=1
+    fi
+
+    # 5. **Nothing to go back to must say so, not loop.** With no backup, the old code zeroed the
+    #    counter anyway, so the count ran 1, 2, 3, "putting the previous version back", 1, 2, 3 —
+    #    forever, printing a sentence that was false and changing nothing. Going back is now a
+    #    button, so this state is one deliberate press away from a folder that looked healthy.
+    setup_app
+    rm -rf "$rescue_tmp/app/.fm-backup-v0.5.0"
+    printf '#!/bin/sh\necho NEW-BROKEN\n' > "$rescue_tmp/app/program/fm-serve"
+    chmod +x "$rescue_tmp/app/program/fm-serve"
+    for _ in 1 2 3; do (cd "$rescue_tmp/app" && ./start.sh >/dev/null 2>&1) || true; done
+    last=$( (cd "$rescue_tmp/app" && ./start.sh 2>&1) || true )
+    if printf '%s' "$last" | grep -q "putting the previous version back"; then
+        echo "  FAIL: the launcher claims it restored a previous version when there is none."
+        echo "        That message repeating forever is what it looks like to a user with no terminal."
+        fail=1
+    fi
+    if ! printf '%s' "$last" | grep -q "no earlier one here"; then
+        echo "  FAIL: with nothing to go back to, the launcher must say so and name the download."
+        echo "        Output: $last"
+        fail=1
+    fi
+
+    # 6. The launcher must announce its generation, or the app refuses to update itself at all.
+    if ! grep -q 'FM_LAUNCHER=2' "$launcher"; then
+        echo "  FAIL: $launcher does not set FM_LAUNCHER=2, so the app will refuse to self-update."
+        fail=1
+    fi
+    for l in "packaging/launcher/Start formicaria.command" \
+             "packaging/launcher/Start formicaria.vbs" \
+             "packaging/launcher/Start formicaria (show messages).bat"; do
+        if ! grep -q 'FM_LAUNCHER' "$l" || ! grep -q '\.fm-backup-' "$l" \
+           || ! grep -q '\.fm-attempts' "$l"; then
+            echo "  FAIL: $l is missing the rescue preamble, the start counter, or FM_LAUNCHER."
+            echo "        All four launchers must carry all three, or one platform has no way back."
+            fail=1
+        fi
+    done
+    rm -rf "$rescue_tmp"
+fi
+
 echo "[check] the release sheet points at paths the release actually stages..."
 # The archive's README is read by the one person who can check nothing: someone holding a .zip,
 # offline, with no way to discover that a folder was renamed after the sheet was written. This is

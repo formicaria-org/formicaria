@@ -19,7 +19,7 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent", "tls"]
+default = ["agent", "tls", "update"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
@@ -30,6 +30,14 @@ agent = ["dep:fm-agent-run"]
 # is useless if the shipped binary cannot do it, and a feature nobody ships is a compile-time
 # alibi rather than a preserved principle.
 tls = ["dep:rustls", "dep:rcgen"]
+# Updating the app from inside the app. Its own feature for the same reason `tls` is one: it carries
+# a dependency, and `--no-default-features` must keep building the std-only server this crate's doc
+# promises. On by default because an update path nobody ships is not a safety net.
+#
+# **`ring` adds a line, not a node.** It is already in `Cargo.lock` as rustls' pinned backend (and
+# via `ureq` under the agent's `download` feature), so this costs nothing in the tree — which is why
+# the Ed25519 check is five lines of `ring` rather than a new signature crate.
+update = ["dep:ring", "dep:fm-fetch"]
 
 [dependencies]
 fm-model = { workspace = true }
@@ -48,6 +56,15 @@ serde_json = "1"
 # is the exception, because a weak token is silent and unfixable. Pinned to the 0.3 line already
 # in `Cargo.lock` (transitively, via `ulid`), so it adds no new crate to the tree.
 getrandom = "0.3"
+
+# The updater's trust root: an Ed25519 check over the release manifest. Pinned to the same version
+# rustls already resolves, so no new node enters the tree.
+ring = { version = "0.17", optional = true }
+# The download engine — resumable, checksum-verified, `.part` sidecar. **Not reached through
+# `fm-agent-run`**, which re-exports `fm_agent` unconditionally: pulling the updater's HTTPS client
+# through the agent crate would link the whole study-agent pipeline into a notes-only build and
+# quietly retire the property `ci/checks.sh` guards. Hence `fm-fetch` exists.
+fm-fetch = { path = "../fm-fetch", optional = true }
 
 # **Both of these MUST pin the `ring` backend.** Left to their defaults they pull `aws-lc-rs`,
 # whose licence is `ISC AND (Apache-2.0 OR ISC) AND OpenSSL` — and `OpenSSL` is not in

@@ -54,6 +54,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | fm-app | v0.0.0 | MIT |
 | fm-cli | v0.0.0 | MIT |
 | fm-core | v0.0.0 | MIT |
+| fm-fetch | v0.0.0 | MIT |
 | fm-model | v0.0.0 | MIT |
 | fm-query | v0.0.0 | MIT |
 | fm-serve | v0.0.0 | MIT |

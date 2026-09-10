@@ -260,9 +260,14 @@ cross = { features = ["cross"] }
 [tasks]
 setup = "git config core.hooksPath .githooks"   # enable the text-only pre-commit guard
 test = "cargo test --workspace"
-# The `download` feature is off by default (the desktop uses fetch.sh), so `test` above never builds
-# the in-app model fetcher. Exercise its hermetic (localhost) tests explicitly, so the single gate
-# still covers it.
+# The `download` feature is off by default, so `test` above never builds the model-shaped wrappers
+# (`ensure_model`, `ensure_runtime`, the runtime-archive extractors). Exercise their hermetic
+# (localhost) tests explicitly, so the single gate still covers them.
+#
+# **The download *engine* is no longer here** — it moved to `fm-fetch` on 2026-09-10 so the
+# self-updater could use it without linking the study agent. That crate has no optional features, so
+# its tests (resume, the `identity` encoding rule, the early-end backstop, cancel, bad checksum) run
+# under plain `test` above and need no line of their own.
 test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
 # **Are the pinned model runtimes still the bytes we recorded?** Downloads ~110 MB, so it is not in
 # the routine gate — run it before cutting a release. An upstream asset that was re-uploaded would

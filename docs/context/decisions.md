@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -4277,6 +4277,14 @@ guard is precisely how they stop agreeing.
 
 ## 2026-09-02 — the archive carries its own update path, and it copies one way `#toolchain` `#vault`
 
+> **SUPERSEDED IN PART (2026-09-10)** by *the app updates itself in place, and the folder stops
+> moving* — the app now checks for a newer release and can install it, so the closing clause below,
+> *"No comparison, no update check, nothing fetched"*, no longer holds, and on the desktop the
+> program is replaced **in place** rather than the vault being copied into a new folder.
+> **Everything else here still stands and still ships:** the script, its one-way direction, its
+> refusal on "already used", why `vaults.json` is not copied, and why no heuristic warning was added.
+> It remains the path for a manual download, a read-only folder, or a build too old to self-update.
+
 **Why:** the owner asked whether a user can update and keep their vaults, *"because we are
 shipping a vault with fm — if the user does not check it, it might delete it in the update
 process."* The audit found no updater, no version check, no migration, and **the word "update" in
@@ -7334,3 +7342,206 @@ would have kept CI green while quietly retiring the guard, which is worse than s
   non-linear filesystem, which is not a calibration problem.
 - **Delete this if the runner storage changes.** The test is gated on `CI`, so the day that
   environment scales linearly the gate is one line away from coming back.
+
+## 2026-09-10 — the app updates itself in place, and the folder stops moving `#toolchain` `#vault` `#seams`
+
+> Reverses, in part, [the archive carries its own update path, and it copies one
+> way](#2026-09-02--the-archive-carries-its-own-update-path-and-it-copies-one-way-toolchain-vault)
+> (2026-09-02). What that entry shipped — the per-platform script, its one-way direction, its
+> refusals — still ships and is still correct **for a manual download**. What is reversed is its
+> closing clause, *"No comparison, no update check, nothing fetched"*, and its assumption that the
+> program must move.
+
+**Decision.** formicaria checks for a newer release, and can install it itself. The check is on by
+default and switchable off; the download and the install are **never** automatic. On the desktop the
+release folder **stays where it is** and only the build artifacts inside it are replaced. Android
+hands a verified APK to the system installer. iOS can only say a version exists — a sandboxed app
+cannot install an app, including itself.
+
+**Why the 2026-09-02 reasoning now argues the other way.** That entry identified the hazard exactly:
+the vault lives inside the release folder, so a fresh download opens on a pristine "Start here" note,
+the user's work *appears* gone, and they tidy away the "old" folder — *that* is the deletion. The
+script answers *"how do I move my notes to the new program?"* well. But the question exists only
+because **the program moves and the notes have to chase it**. Updating in place removes the question:
+there is no second folder to confuse, to tidy away, or to copy out of. The notes never move at all,
+which is a stronger form of the same protection rather than a weaker one.
+
+**Two guarantees, each with a mechanism and a test.** These are the acceptance criteria; a design
+choice that conflicts with either loses.
+
+- **G1 — no note is ever lost.** The updater writes to an **allowlist of build artifacts** and
+  nothing else: `program/`, `manual/`, `README.txt`, `Manual.html`, the launchers, and its own
+  `.fm-update/` and `.fm-backup-*`. Every one is reproducible from the archive; not one is
+  user-authored. It never opens, reads, writes, moves or deletes anything under `vault/`,
+  `vaults.json` or `<config>/formicaria/`. Pinned by a test that fingerprints the whole app folder
+  before and after and asserts the diff is a subset of that list — the idiom `import.rs` already uses
+  to prove its source folder is untouched. The one exception is deleting `vault/index.sqlite` on a
+  downgrade, which is gitignored, per-machine and rebuilt on open.
+- **G2 — any failure leaves a working app.** At every interruption point the user returns to the
+  version they were running by **double-clicking the launcher** — no terminal, no re-download.
+  Pinned by an interruption matrix that kills the process at each phase boundary.
+
+**The real data-loss vector was the restart, not the swap.** Auto-commit is a browser `setTimeout`
+(`outstanding.md` §3), and there is a 600 ms save debounce, so "type, then update" could drop the
+last keystroke. So before the old process exits it **flushes the editor and waits for the save**,
+**commits best-effort** for a restore point, and **refuses while a sync, push, backup or chunked
+ingest is running**. Settling first is what makes G1 true; the file swap was never the dangerous part.
+
+**The mechanism, and the two designs rejected on evidence.** The payload is staged, and **the new
+binary performs the swap before it binds**; the launcher is the only supervisor.
+
+- *A live supervisor process cannot work.* The old process holds 8765, so a spawned successor hits
+  `main.rs`'s `Running::Ours(_)` arm — *"A different build of formicaria is already running"* — and
+  exits 1. Not a race: `build_id()` is length+mtime, so a freshly swapped binary is **guaranteed** to
+  mismatch. And a supervisor polling `/api/alive` on the port it is still listening on is only ever
+  checking itself.
+- *A sibling folder with the launcher re-pointed cannot work either, because there is no door to
+  re-point.* `packaging/install.sh` writes a `.desktop` on Linux only; on Windows and macOS the
+  "icon" is a file **inside** the folder. Re-pointing means writing into the old folder, which the
+  2026-09-02 entry forbids — and it duplicates the vault, two `.git` repos and every blob.
+
+**`program/` moves as one directory — two renames, never seven.** A *mixed* `program/` is the one
+state that can destroy somebody else's work silently: `merge_command()` writes an absolute path to
+`fm` into `vault/.git/config`, and a driver that fails to run makes git hand back our side with no
+markers, so *"the user sees a conflict, opens a file that looks completely normal, resolves it, and
+has silently deleted their collaborator's edit."* The unsafe window is therefore **one syscall wide**,
+and the launcher preamble covers even that.
+
+**The rescue lives in the launcher, and that has a cost worth stating.** Five lines in each
+`Start formicaria.*` restore `.fm-backup-*` when `program/fm-serve` is missing. It is the highest-value
+change in the feature — it converts most failure states from terminal-required into a double-click.
+But a folder only has the new launcher once it has been updated, so **self-update refuses where
+`FM_LAUNCHER` is unset: v(N) ships the capability, v(N+1) is the first update anyone can take in-app.**
+
+**Two failures, two mechanisms, and the second is the one that is easy to forget.** A program that
+is *missing* is visible in the folder; a program that is *there and cannot start* is not. So the
+launcher also counts starts, and formicaria deletes that counter about twenty seconds after it is
+serving — three starts that never get that far and the previous version goes back. The split is
+forced rather than chosen: a version too broken to run cannot decrement anything, so whatever
+*starts* it has to do the counting and only a version that got somewhere may clear it.
+
+**The previous version is kept until the next update supersedes it**, not until the first successful
+start. A bad release is usually found on day three, and G2 says *any* error — including "this version
+is worse". ~10 MB, with a control to reclaim it that names the figure first.
+
+**The trust root, and what it does not cover.** Until now the project published **no checksum or
+signature for any desktop asset**; the only integrity anchor anywhere was the Android signing
+certificate. Downloading a model with an unverified hash risks a failed download — downloading a
+*program* risks arbitrary code execution, so the updater does not exist without this. A **signed
+manifest**, not a bare hash: signing a loose sha256 is replayable, so the signed bytes carry
+`{version, target, file, sha256, size}` and the client refuses `version <= current`. Verified with
+`ring` — already in `Cargo.lock` via rustls, so **no new dependency** — against an Ed25519 public key
+that is a `const` in the source, reviewable in git history. This **extends** the fetched-artifact
+exception (2026-08-30, extended 2026-09-02) to the program itself, which is materially bigger: a
+stale `models.toml` can only fail to fetch a model; a substituted manifest replaces the program.
+Hence the signature, and hence checking it **before** unpacking.
+
+**Say "signed against transport tampering", never "signed releases".** A key held as a GitHub Actions
+secret defends against a hostile mirror, a bad CDN and a tampered asset. It does **not** defend
+against a compromised pipeline, which yields both the artifacts and the key. An owner-side offline
+countersign is the stronger option and can be layered on later without changing the client.
+
+**An unexpected consequence, and it is the biggest user-facing win.** Quarantine is applied by the
+*downloading* application; files written by `fm-serve` carry no `com.apple.quarantine`. So the macOS
+*"Do not click Move to Trash → Privacy & Security → Open Anyway"* sequence in `README-release.txt`
+happens **once, ever**, instead of at every release. The flip side belongs here too: SmartScreen and
+Gatekeeper will no longer fire, so **the signature check becomes the only gate**.
+
+**What is deliberately not taken.**
+- **No silent update.** The check is automatic; the download and the install never are.
+- **No general downgrade** — only "back to the version you just left", only while a backup exists.
+  Arbitrary downgrade means owning schema compatibility across N versions, and `file.rs` records what
+  that costs: an old insert meeting a newer table files every vault under `unopened`, `list_vaults`
+  answers `[]`, and `[]` is the first-run signal — the whole library vanishes behind a "create your
+  first vault" screen. **Index migrations may therefore only ADD columns**, and a rollback deletes
+  every `vault/index.sqlite` first.
+- **`agent.json` and `models.toml` stay downgrade-tolerant.** Both are read leniently today (a
+  `serde_json::Value` with `unwrap_or`, and a hand parser). Neither may become a
+  `deny_unknown_fields` struct, or a future tidy-up silently breaks every downgrade.
+- **`Update from an older folder.*` keeps shipping unchanged**, and is **not** repurposed as a repair
+  tool: it refuses on every live folder by design, and that guard is not weakened. The repair goes in
+  the launcher, where nobody has to find it.
+
+## 2026-09-10 — an index from the future is discarded, not adopted `#data` `#seams` `#toolchain`
+
+**Decision.** `FileStore` deletes `index.sqlite` (and its journal sidecars) when `PRAGMA
+user_version` is **greater** than `INDEX_SCHEMA`, before `init_schema` runs. `fm_core::file`'s
+`discard_an_index_from_the_future`.
+
+**Why now: going backwards became something a user can do.** The in-place updater keeps the previous
+version and can restore it — and *two of the three ways back involve no Rust code at all*. The
+launcher puts `program/` back by itself after three failed starts, and a folder can be carried
+backwards on a USB stick. Neither can be taught where the vaults are: one is a shell script, the
+other is a person.
+
+**What it prevents, precisely — and the first draft got this wrong.** The obvious reading is that
+`index_is_complete`'s `version == INDEX_SCHEMA` handles it, since an equality forces a full reindex.
+It does not: that check is only reached from `named_incremental`, which is the *phone's* door;
+`fm-serve` reindexes unconditionally anyway. The real hazard is the **table**. `init_schema` is
+`CREATE TABLE IF NOT EXISTS`, which leaves a newer `objects` exactly as it found it — extra columns
+and all. Today that survives by luck: both columns added so far are satisfiable by an older insert
+(`fts_rowid` is nullable, `kind` has a `DEFAULT`). The day a future version adds a `NOT NULL` column
+without one, every insert from an older build fails, `MultiStore` files every vault under
+`unopened`, `list_vaults` answers `[]` — and `[]` is the first-run signal, so the whole library
+disappears behind a *"create your first vault"* screen. The documented escape is *"delete
+`index.sqlite` and reopen"*, which needs a terminal, and this app's users have none.
+
+**Why here and not in the updater.** The updater's first draft deleted every registered vault's
+index itself. That would have been its **only** write outside the app folder — a path built from a
+user-editable config file, unexpressible in `is_ours`, and invisible to the test that fingerprints
+the folder — and `resolve_path` does not absolutise, so a hand-edited relative path could have
+resolved against the process's working directory. It also would not have covered the launcher's
+automatic downgrade. Moving the check to the **arrival** side covers every route into a vault at
+once and lets **G1 keep no exceptions at all**, which is the right place for a rule that is
+compile-and-CI-enforced rather than argued in a comment.
+
+**Cost:** one `PRAGMA` read per vault open, and a rebuild the desktop already performs on every
+start. **Pinned** by `crates/fm-core/tests/downgrade_index.rs`, which writes the hostile *table*
+rather than merely a stale number — the version that only bumped `user_version` passed with the
+guard removed, and was therefore proving nothing.
+
+## 2026-09-10 — the way back is a button as well as a rescue `#toolchain` `#ui`
+
+**Decision.** Settings offers **Go back to `<version>`** whenever the previous version is still in
+the folder, two-step armed like *Remove the model…*. `/api/update_rollback`, in `REMOTE_DENIED`.
+
+**Why a control and not only the automatic rescue.** The launcher restores the previous `program/`
+when the new one is *missing* or *cannot start three times running*. Both triggers are about a
+version that fails loudly. A version that installs, starts, stays up and is merely **worse** trips
+neither, and the answer would otherwise be *"delete the `program` folder and start it again"* —
+which is not something to tell someone who has no terminal. G2 says *any* error leaves a working
+app; "this one is worse" is an error.
+
+**The rejected version goes to `.fm-update/rejected/`, never to a `.fm-backup-*`.** All four
+launchers glob `.fm-backup-*`, so leaving the just-rejected build under that prefix would let three
+failed starts roll the user **forward** into the very version they turned down. Under `.fm-update/`
+it is also transient — the next start's sweep clears it — so going forward again means downloading
+again. That is the *one step only* limit taken deliberately, rather than growing a second retention
+policy beside `.fm-backup-*` and having to say which of two copies the launcher means.
+
+**The runner is a copy of the version being replaced, not of the one being restored.** The restored
+binary is older and may predate this feature entirely — it would ignore `FM_APPLY_ROLLBACK` and
+simply start serving, leaving the folder half-changed. The code that performs a rollback has to be
+code that knows what one is.
+
+**And it proves the old binary runs before spending the working one on it** — `--version`, the same
+check `stage_release` makes in the forward direction and for a sharper reason: an update that fails
+at that point still has the backup, and this *is* the backup.
+
+**Three bugs in the freshly-written updater were found by attacking this design before writing it,
+and all three were real:**
+- **The backup was named after the wrong version.** `swap` runs inside a copy of the *staged*
+  binary, so `Version::running()` there is the **new** version: `.fm-backup-v0.7.0` held v0.6.0's
+  program, wrong by exactly one release, always. Nothing caught it because `FM_VERSION` is unset
+  under `cargo test`, so every backup was named `.fm-backup-previous`. Now read from `plan.json`,
+  which the outgoing process wrote while it still knew what it was.
+- **Backups accumulated**, and the launcher restores the *lexically first* — usually the oldest. A
+  user who updated twice and needed the rescue would have gone back two releases.
+- **The launcher zeroed its failed-start counter even when nothing was restored**, so a folder with
+  no way back printed *"putting the previous version back"* every third launch, forever, changing
+  nothing. It now says what is actually true and names the download.
+
+**Also bounded: the commit taken before restarting.** The vault mutex is held across the network by
+`push`/`pull` with no low-speed timeout, so a sync that connected and stalled would have held the
+escape hatch shut — at exactly the moment someone most wants it. Five seconds, then proceed;
+files-as-truth means the notes are already safe and only the snapshot is missed.
