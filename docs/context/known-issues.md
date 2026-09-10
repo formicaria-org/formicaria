@@ -892,6 +892,27 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **The merge-driver fixture raced against itself, and a leftover file hid it for eight weeks.**
+  Three `fm-cli` suites copy the built `fm` beside their test binary so `install_merge_driver` can
+  resolve `current_exe().parent()/fm`; without it the driver is *cleared* and every "desktop"
+  assertion silently measures bare git, which conflicts on the `updated:` line of any two-sided
+  edit. The copy went to `fm.{process::id()}.tmp` — **constant within a process**, while the tests
+  in a binary are threads — so they raced on one path: `Text file busy` when one execs it as another
+  writes, `No such file or directory` when one renames it out from under another. Every error was
+  `let _ = …`, so the losers carried on driverless.
+
+  **It passed on every developer machine because a *stamped leftover* `deps/fm` from an earlier run
+  made all threads return early**, so no copy was attempted and no race occurred. A fresh runner has
+  no leftover, all threads try at once, and exactly the tests that ran before the winning `rename`
+  fail — deterministically, twice out of four, identically on repeat.
+
+  Fixed 2026-09-10: a `std::sync::Once` (so late threads *wait* rather than race), a temp name
+  unique per process **and** thread (two test binaries share `deps/`), and every step checked
+  instead of discarded. **Reproduce a fresh machine by deleting the leftover**, not by trusting a
+  green local run:
+
+      rm -f target/debug/deps/fm target/debug/deps/fm.stamp && pixi run ci
+
 - **Three tests passed only because the developer had run `git config --global user.name` once.**
   `set_remote` refuses without an identity — deliberately, because from that point every commit
   carries a name into somebody else's clone. `identity()` reads `git config user.name` **in the

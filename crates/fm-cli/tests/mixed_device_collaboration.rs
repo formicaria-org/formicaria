@@ -110,26 +110,70 @@ fn install_driver(repo: &Path) {
 /// silent: git takes the failed exec as "conflict" and hands back `%A` untouched, so the merge
 /// yields one side with no markers and no error anywhere. That is what the flake looked like.
 fn ensure_fm_beside_test_binary() {
+    // **Once per process, because the tests in this binary run as threads and share `deps/`.**
+    // The temp name used to be `fm.{process::id()}.tmp` — constant within a process — so all of
+    // this file's tests raced on one path: one thread `exec`s it while another is still writing
+    // (`Text file busy`), a third renames it away under a fourth (`No such file or directory`).
+    // Every one of those errors was discarded, so the losers simply carried on without a driver and
+    // measured bare git.
+    //
+    // It passed on a developer machine because a *stamped leftover* `deps/fm` from an earlier run
+    // made every thread return early, so no copy was ever attempted. On a fresh runner all of them
+    // attempt it at once — which is why `ci.yml` failed deterministically on exactly the tests that
+    // ran before the winning `rename` landed, and why no developer ever saw it (2026-09-10).
+    //
+    // `Once` also makes the late threads *wait* rather than race, which is the property the tests
+    // actually need: by the time any of them merges, the driver is in place.
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(ensure_fm_beside_test_binary_inner);
+}
+
+fn ensure_fm_beside_test_binary_inner() {
     let src = Path::new(env!("CARGO_BIN_EXE_fm"));
     let dir = std::env::current_exe().unwrap().parent().unwrap().to_path_buf();
     let (dst, stamp_path) = (dir.join("fm"), dir.join("fm.stamp"));
 
-    let Ok(meta) = std::fs::metadata(src) else { return };
+    let meta =
+        std::fs::metadata(src).unwrap_or_else(|e| panic!("no fm binary at {}: {e}", src.display()));
     let stamp = format!("{:?}:{}", meta.modified().ok(), meta.len());
     if std::fs::read_to_string(&stamp_path).is_ok_and(|s| s == stamp) && dst.exists() {
         return;
     }
 
-    let tmp = dir.join(format!("fm.{}.tmp", std::process::id()));
-    let copied = std::fs::copy(src, &tmp).is_ok();
+    // **Every step is now checked, and that is the point of this rewrite.** Until 2026-09-10 each
+    // of these was `let _ = …` and the whole function could fail without a word: the driver would
+    // simply be absent, `install_merge_driver` would *clear* `merge.fm.driver`, and every "desktop"
+    // assertion here would quietly measure **bare git** — which conflicts on the `updated:` line of
+    // any two-sided edit. That is precisely the failure this helper exists to prevent, reproduced by
+    // the helper itself, and it is what `ci.yml` hit on 2026-09-10: two tests failing identically on
+    // a runner while passing on every developer machine, with nothing anywhere saying why.
+    //
+    // A test fixture that cannot be established is not a reason to carry on quietly.
+    // Unique per process *and* per call: two test binaries share this `deps/` directory and cargo
+    // is free to have both here at once.
+    let tmp = dir.join(format!("fm.{}.{:?}.tmp", std::process::id(), std::thread::current().id()));
+    if let Err(e) = std::fs::copy(src, &tmp) {
+        let _ = std::fs::remove_file(&tmp);
+        panic!(
+            "could not copy the fm driver into {}: {e}\n  \
+             git resolves merge.fm.driver as current_exe().parent()/fm, so without it every\n  \
+             desktop merge here silently becomes a plain git merge.",
+            dir.display()
+        );
+    }
     // Does it actually run? Any exit status will do — `fm` with no arguments prints its usage and
     // fails, which still proves the OS could execute the file. What this rejects is a truncated or
     // half-written copy, which is the only failure mode that matters and the only silent one.
-    if copied && std::process::Command::new(&tmp).output().is_ok() {
-        let _ = std::fs::rename(&tmp, &dst);
-        let _ = std::fs::write(&stamp_path, &stamp);
+    if let Err(e) = std::process::Command::new(&tmp).output() {
+        let _ = std::fs::remove_file(&tmp);
+        panic!("the copied fm driver at {} will not execute: {e}", tmp.display());
     }
-    let _ = std::fs::remove_file(&tmp);
+    if let Err(e) = std::fs::rename(&tmp, &dst) {
+        let _ = std::fs::remove_file(&tmp);
+        panic!("could not put the fm driver at {}: {e}", dst.display());
+    }
+    // The stamp is only a cache, so a failure to write it costs a copy next time and nothing else.
+    let _ = std::fs::write(&stamp_path, &stamp);
 }
 
 /// A bare remote and two clones of it: `laptop` (driver installed) and `phone` (none).
