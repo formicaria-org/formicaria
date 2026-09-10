@@ -1433,7 +1433,19 @@ The gray-screen fix and its tests are in
   git's epoch syntax — "everything since 1970" — so this is NOT a time-window race**, which was the
   obvious first guess and is wrong. The mechanism is **unidentified**; it is recorded here so the
   next red is not misread as a regression from whatever was being changed at the time. Re-run the
-  binary alone before believing it. Repro:
+  binary alone before believing it.
+
+  **Seen again 2026-09-10**, on Dependabot's setup-pixi pull request — the same line, and *not*
+  caused by the bump. Two things learned. The assertion now **prints what git actually had**: the
+  paths handed to `commit_all`, the participants map, `git log --since=@0 --name-only`, and
+  `git status --porcelain`. It said only "the discussion has participants" before, which is why
+  three sightings produced no diagnosis. The next red should identify the mechanism by itself.
+
+  And the rate is **much lower than "under load" implies**: reproduced once in 24 parallel runs,
+  then **zero in 192** — 96 of them pinned to four cores to mimic a runner. So do not expect to
+  reproduce it on demand, and do not conclude from a quiet loop that it is fixed.
+
+  Repro:
   `for i in $(seq 1 8); do target/debug/deps/discussions-* who_left_a_message_is_read_from_git --exact >/dev/null 2>&1 || echo FAIL & done; wait`
 
 - **`tauri icon` rewrites `icon.icns` non-deterministically** — recorded once, above, with what
