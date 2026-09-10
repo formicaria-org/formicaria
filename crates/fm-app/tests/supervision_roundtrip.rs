@@ -286,6 +286,21 @@ fn pushing_does_not_collapse_the_record_away() {
         .status()
         .unwrap()
         .success());
+    // **Say who we are first, because `set_git_remote` refuses otherwise** — deliberately: from
+    // that point every commit carries a name into somebody else's clone, and git history is
+    // forever. Set through the app's own arm, which is what a user does.
+    //
+    // **This is why the test used to pass here and nowhere else.** `identity()` reads
+    // `git config user.name` in the vault, and `git config` falls through to the *global* file —
+    // so on any machine whose owner has ever run `git config --global user.name`, the fixture
+    // silently inherited one. On a fresh clone, or a CI runner, it did not, and `pixi run ci`
+    // failed on a test that has nothing to do with identity. Found 2026-09-10, when the gate was
+    // dispatched on a branch for the first time in weeks.
+    call(
+        &app,
+        "set_identity",
+        json!({ "vault": "personal", "name": "Tester", "email": "tester@example.org" }),
+    );
     call(
         &app,
         "set_git_remote",

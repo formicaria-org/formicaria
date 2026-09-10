@@ -892,6 +892,24 @@ The gray-screen fix and its tests are in
 
 ## Traps for whoever works here next
 
+- **Three tests passed only because the developer had run `git config --global user.name` once.**
+  `set_remote` refuses without an identity — deliberately, because from that point every commit
+  carries a name into somebody else's clone. `identity()` reads `git config user.name` **in the
+  vault**, and `git config` falls through to the *global* file, so a fixture that never set one
+  silently inherited the developer's. On a fresh clone or a runner there is none, and `pixi run ci`
+  — the gate `CONTRIBUTING.md` tells every contributor to run — failed on tests that have nothing
+  to do with identity. Found 2026-09-10, the first time `ci.yml` had been dispatched in weeks.
+  Fixed by giving each fixture its own identity.
+
+  **How to check for more of these:** run the gate with the global config hidden. And hide it from
+  **both** git implementations — `GIT_CONFIG_GLOBAL=/dev/null` is a git(1) feature that **libgit2
+  ignores**, so blinding only git(1) makes the two backends disagree about the world and produces a
+  *false* failure in `git_differential::ensure_repo_leaves_both_vaults_in_the_same_state` (which is
+  correct, and was nearly "fixed" on the strength of it). `HOME` must move too:
+
+      pixi run -- env HOME=$(mktemp -d) GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+        cargo test --workspace --features native-git
+
 - **The release notes were thrown away for five releases, and reading them back locally worked
   perfectly.** `release.yml` takes the release message from the annotated tag
   (`git tag -l --format='%(contents)'`) — documented, deliberate, *"impossible to forget, because

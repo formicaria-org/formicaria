@@ -722,6 +722,12 @@ fn the_squash_stops_at_a_commit_the_user_wrote_by_hand() {
     // A baseline that is already pushed, so `tracking` exists.
     note(1);
     git::commit_all(vault.path(), "auto: one", &notes_of(vault.path())).unwrap();
+    // **Say who we are before setting a remote**, which `set_remote` requires: past that point
+    // every commit carries a name into somebody else's clone. Without this the test inherited
+    // an identity from the developer's *global* git config — `git config` falls through to it —
+    // so it passed on a machine that had ever run `git config --global user.name` and nowhere
+    // else. Found 2026-09-10 when the gate ran on a fresh runner for the first time in weeks.
+    git::set_identity(vault.path(), "Tester", "tester@example.org").unwrap();
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 
@@ -766,6 +772,12 @@ fn a_vault_of_only_our_commits_still_squashes_to_one() {
 
     note(1);
     git::commit_all(vault.path(), "auto: one", &notes_of(vault.path())).unwrap();
+    // **Say who we are before setting a remote**, which `set_remote` requires: past that point
+    // every commit carries a name into somebody else's clone. Without this the test inherited
+    // an identity from the developer's *global* git config — `git config` falls through to it —
+    // so it passed on a machine that had ever run `git config --global user.name` and nowhere
+    // else. Found 2026-09-10 when the gate ran on a fresh runner for the first time in weeks.
+    git::set_identity(vault.path(), "Tester", "tester@example.org").unwrap();
     git::set_remote(vault.path(), bare.path().to_str().unwrap()).unwrap();
     git::push_squashed(vault.path(), "backup: first").unwrap();
 
