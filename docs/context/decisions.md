@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -7246,3 +7246,53 @@ overwhelmingly through developer-side mistakes: committed to a repo, plaintext p
   and the version step degrades to `dev-<sha>` off a tag, so dispatching `release.yml` on a branch
   builds every leg and publishes nothing. That is the only way to test this file, and `checks.sh`
   guards the gate.
+
+## The gate checks pull requests, and a measurement is the minimum of several (2026-09-10, `#toolchain`)
+
+**Decision.** `ci.yml` runs on every **pull request** and on every **push to `main`**, not only when
+someone dispatches it. `cross.yml` and `ios.yml` stay `workflow_dispatch`-only. And a test that
+asserts on elapsed time takes the **minimum of several passes**, never one sample.
+
+**Why now.** The owner, on finding three Dependabot pull requests nobody could evaluate: *"This
+requires the PRs to work and not break anything. This is valid also for future PRs"*, and then
+*"where we need auto ci activated for dependabot"*. A pull request that no machine checks is a
+pull request whose only reviewer is the person least able to be surprised by it.
+
+**This is not a reversal so much as a scheduled transition finally taken.** The guard that forbade
+these triggers said so in its own comment: *"Delete this whole check when the triggers are restored.
+It is scaffolding for one transition, not a permanent rule… a guard that outlives its reason becomes
+a puzzle."* Its condition — the repo going public, so standard runners cost nothing — happened on
+2026-09-04. `ci.yml` even carried the prepared reasoning for how to write the trigger, unused.
+
+**Consequences:**
+- **`pull_request`, never `pull_request_target`.** The former runs the contributor's code with a
+  read-only token and **no secrets**; the latter would hand a fork's branch the repository's own
+  credentials. This workflow needs no secret, so it gives up nothing. Worth stating because the two
+  differ by one word and by everything else.
+- **`push` is limited to `main`.** A branch is already covered by its pull request; limiting the
+  push half stops every branch paying twice while still checking what people download from.
+- **The replacement guard is narrower and is not about money.** `cross.yml` and `ios.yml` run on
+  macOS, take tens of minutes, and answer situational questions — *does this still build on a Mac*,
+  *does the iOS artifact still package*. Neither is a gate; `pixi run ci` is. Firing them on every
+  push would bury the one signal anybody reads. `ci/checks.sh` asserts they stay deliberate,
+  verified to fire.
+
+**And the measurement rule, which is why this took eight weeks to find.** `ci.yml` last passed
+2026-07-17 and was not dispatched again until 2026-09-10. In between, the suite roughly doubled, and
+**every failure found on that first green-to-red run was code written after the last remote run** —
+verified: `supervision_roundtrip.rs` added 2026-08-30, `hashing_a_whiteboard_sized_body` 2026-07-18,
+`ensure_fm_beside_test_binary` 2026-07-22. Not one was a regression. They were six faces of one
+fault: a check that passed because of something the author's machine already had — a global git
+identity, a leftover `deps/fm`, a fast CPU, an older `/usr/include`, a warm cache.
+
+Two of the six were timing assertions, and both failed the same way: a single sample on a shared
+4-core runner. `an_incremental_poll_stays_linear_in_what_changed` read **2.56x against a 2.0
+threshold** on CI and ~1.3x here; taking the minimum of three passes it reads **1.07x** on this
+machine — so the single sample was noise, not signal, and the guard was weaker than it looked in
+both directions. **The minimum is the right estimator**: noise can only make a pass slower, so the
+fastest of several is the closest any got to the real cost. The same test's older comment had
+already learned half of this — *"a measurement problem masquerading as a signal"* — at a smaller
+scale.
+
+**The general rule this leaves behind: verifying the input is not verifying the output.** Every one
+of these was green locally, and local was the only place anyone looked.

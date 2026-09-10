@@ -294,25 +294,48 @@ fn an_incremental_poll_stays_linear_in_what_changed() {
         }
         let mut store = FileStore::open(dir.path()).unwrap();
 
-        // The floor: everything this pass does that is not about a changed note.
-        let t = Instant::now();
-        let quiet = store.reindex(fm_core::Reindex::Incremental).unwrap();
-        let baseline = t.elapsed();
-        assert_eq!(quiet.updated, 0, "the baseline pass must find nothing to do");
+        // **Both terms are the minimum of several passes, not one sample** (2026-09-10). The
+        // marginal cost is a *difference* of two timings, so noise in either survives the
+        // subtraction — and at 8k notes the floor is a stat of 8k files, whose variance on a
+        // shared 4-core runner is larger than the marginal term being measured. A single sample
+        // gave 2.56x on CI against a 2.0 threshold while this machine read ~1.3x.
+        //
+        // The minimum is the right estimator here: scheduling noise, page-cache misses and a busy
+        // neighbour can only ever make a pass *slower*, so the fastest of several is the closest
+        // any of them got to the real cost. This is the same lesson the comment above records —
+        // "a measurement problem masquerading as a signal" — met a second time at a larger scale.
+        const PASSES: usize = 3;
 
-        // Rewrite a fixed number of files behind the store's back — a pull, or another device.
-        for p in paths.iter().take(CHANGED) {
-            let content = std::fs::read_to_string(p).unwrap();
-            let mut o = fm_core::frontmatter::from_file(&content).unwrap();
-            o.body = "changed by a pull".to_string();
-            std::fs::write(p, frontmatter::to_file(&o).unwrap()).unwrap();
+        // The floor: everything this pass does that is not about a changed note.
+        let mut baseline = Duration::MAX;
+        for _ in 0..PASSES {
+            let t = Instant::now();
+            let quiet = store.reindex(fm_core::Reindex::Incremental).unwrap();
+            baseline = baseline.min(t.elapsed());
+            assert_eq!(quiet.updated, 0, "the baseline pass must find nothing to do");
         }
 
-        let t = Instant::now();
-        let stats = store.reindex(fm_core::Reindex::Incremental).unwrap();
-        let elapsed = t.elapsed();
-        assert_eq!(stats.updated, CHANGED, "the poll must have re-indexed exactly what changed");
-        elapsed.saturating_sub(baseline) / CHANGED as u32
+        let mut marginal = Duration::MAX;
+        for pass in 0..PASSES {
+            // Rewrite a fixed number of files behind the store's back — a pull, or another device.
+            // The body differs per pass, or the second round would find nothing changed.
+            for p in paths.iter().take(CHANGED) {
+                let content = std::fs::read_to_string(p).unwrap();
+                let mut o = fm_core::frontmatter::from_file(&content).unwrap();
+                o.body = format!("changed by a pull, round {pass}");
+                std::fs::write(p, frontmatter::to_file(&o).unwrap()).unwrap();
+            }
+
+            let t = Instant::now();
+            let stats = store.reindex(fm_core::Reindex::Incremental).unwrap();
+            let elapsed = t.elapsed();
+            assert_eq!(
+                stats.updated, CHANGED,
+                "the poll must have re-indexed exactly what changed"
+            );
+            marginal = marginal.min(elapsed.saturating_sub(baseline));
+        }
+        marginal / CHANGED as u32
     }
 
     let small = poll_cost(2_000);

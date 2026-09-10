@@ -30,6 +30,19 @@ name: ci
 #
 # Meanwhile `pixi run ci` LOCALLY is the gate. It is the same commands this workflow runs.
 on:
+  # **Restored 2026-09-10**, the transition the comment above was written for. The repo is public,
+  # standard runners are free, and the owner asked for Dependabot's pull requests to be checked
+  # automatically — *"this requires the PRs to work and not break anything… also for future PRs"*.
+  #
+  # `pull_request` and not `pull_request_target`: the former runs the contributor's code with a
+  # read-only token and **no secrets**, which is what makes it safe to run on a fork's branch. This
+  # workflow needs no secret, so it loses nothing by that.
+  #
+  # `push` is limited to `main` so a branch does not pay twice — its pull request already covers it
+  # — while every merge still gets checked on the branch people actually download from.
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 # **Least privilege, declared rather than inherited.** With no `permissions:` block every job

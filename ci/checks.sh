@@ -618,28 +618,25 @@ if ls .github/workflows/*.yml >/dev/null 2>&1; then
     fi
 fi
 
-echo "[check] no workflow has gained a push or pull_request trigger..."
+echo "[check] the macOS workflows stay dispatch-only..."
 # ---------------------------------------------------------------------------------------------
-# **The one mistake in this area that costs money.** While the repo was private, restoring a
-# trigger billed minutes immediately — at 10x on macOS. That reason is going away (`decisions.md`,
-# *the repo goes public, and the economics every CI ruling rested on invert*, 2026-09-04) and the
-# trigger blocks are prepared, commented, in each workflow, ready to uncomment **after** the flip.
+# **This replaces "no workflow has gained a push or pull_request trigger" (2026-09-10).** That
+# guard was scaffolding for one transition and said so in its own comment — *"delete this whole
+# check when the triggers are restored… a guard that outlives its reason becomes a puzzle"*. The
+# transition happened: the repo is public, standard runners are free, and `ci.yml` now runs on
+# every push to `main` and every pull request, which is what makes a Dependabot PR verifiable
+# before it is merged rather than after.
 #
-# Until then this guard exists so the change cannot happen by accident — a stray paste, a merge, a
-# half-applied patch. `release.yml` is the single named exception and is allowed its `v*` tags.
-#
-# **Delete this whole check when the triggers are restored.** It is scaffolding for one transition,
-# not a permanent rule, and leaving it behind would block the very commit it was written to
-# protect. That is deliberate: a guard that outlives its reason becomes a puzzle.
-for wf in .github/workflows/*.yml; do
-    case "$wf" in */release.yml) continue ;; esac
-    # Only the real `on:` block — comments are how the restoration instructions are stored, and a
-    # grep that could not tell them apart would fire on the instructions themselves.
+# What survives is narrower and is not about money. `cross.yml` and `ios.yml` run on **macOS**,
+# take tens of minutes, and answer questions that are situational — "does this still build on a
+# Mac", "does the iOS artifact still package". Firing them on every push would bury the signal
+# from the one gate anybody reads, and neither is a gate: `pixi run ci` is. They stay deliberate.
+for wf in .github/workflows/cross.yml .github/workflows/ios.yml; do
+    [ -f "$wf" ] || continue
     if sed -n '/^on:/,/^[a-z]/p' "$wf" | grep -qE '^\s+(push|pull_request):'; then
-        echo "  FAIL: $wf has an active push/pull_request trigger."
-        echo "        Nothing here is meant to fire automatically until the repo is public and the"
-        echo "        owner restores the triggers deliberately. If that has happened, this check"
-        echo "        has done its job and should be deleted along with the comment above it."
+        echo "  FAIL: $wf fires automatically. It runs on macOS and takes tens of minutes;"
+        echo "        it answers a situational question and is not the gate. Keep it"
+        echo "        workflow_dispatch-only — see decisions.md, 'the gate checks pull requests'."
         fail=1
     fi
 done
