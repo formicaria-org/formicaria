@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -7296,3 +7296,41 @@ scale.
 
 **The general rule this leaves behind: verifying the input is not verifying the output.** Every one
 of these was green locally, and local was the only place anyone looked.
+
+## A wall-clock growth assertion needs a filesystem that scales, and a runner has not got one (2026-09-10, `#toolchain` `#data`)
+
+**Decision.** The two growth assertions in `crates/fm-core/tests/big_notes.rs` **measure and print on
+CI but only assert off it**. Everything else in the gate runs everywhere.
+
+**The measurement, which is the whole argument.** Both tests time an operation over a 2k-note vault
+and an 8k-note one and require the *per-note* cost to barely move — per-note cost rising 4x with a
+4x corpus is precisely what an accidentally quadratic reindex looks like. On this machine they read
+**~1.0x**, parallel or serialised, on 16 cores or pinned to 4. On GitHub's runner they read **3.06x
+and 3.73x**. The absolute numbers say why it is not our code:
+
+| | this machine | the runner |
+|---|---|---|
+| one put, 2k-note vault | 257 µs | 4.86 ms (19x) |
+| one put, 8k-note vault | 253 µs | **18.1 ms (71x)** |
+
+Nineteen times slower at 2k and seventy-one times at 8k is not a slower CPU. It is a filesystem
+whose directory operations degrade with directory size — a term this code neither controls nor can
+subtract.
+
+**So the threshold cannot be widened into usefulness.** 4x *is* the quadratic signal; the disk alone
+produces 3.7x. Any bound loose enough to pass there would pass a real regression too. Raising it
+would have kept CI green while quietly retiring the guard, which is worse than saying so.
+
+**Consequences:**
+- **The measurement still runs and is still printed on CI.** Only the assertion is withheld, and
+  only where its premise is false. The numbers stay in the log for anyone who wants them.
+- **This is not the same as deleting the test**, and not the same as marking it `#[ignore]`. On the
+  machines it was calibrated for — where the premise holds — the guard is exactly as strong as it
+  was.
+- **It cuts against the day's other lesson and that is deliberate.** Everything else fixed on
+  2026-09-10 made a check *survive* a machine it had never run on. This one admits a check that
+  cannot. The difference is whether the environment invalidates the *premise* or merely the
+  *calibration*: a 100 ms budget met a slower CPU and was recalibrated; a growth ratio met a
+  non-linear filesystem, which is not a calibration problem.
+- **Delete this if the runner storage changes.** The test is gated on `CI`, so the day that
+  environment scales linearly the gate is one line away from coming back.
