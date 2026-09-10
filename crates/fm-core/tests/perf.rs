@@ -103,9 +103,21 @@ fn a_quiet_incremental_poll_stays_cheap_at_10k_notes() {
 /// accidental double-hash, a copy per call — not to police the constant factor.
 #[test]
 fn hashing_a_whiteboard_sized_body_is_a_rounding_error() {
-    // Debug is roughly 25x slower than release here; 100 ms leaves headroom on a loaded CI
-    // box while still failing loudly if the work stops being one pass over the bytes.
-    const BUDGET_MS: u128 = 100;
+    // **Set from measurement on both machines, not from one** (2026-09-10). It was 100 ms,
+    // described as leaving "headroom on a loaded CI box" — but it had never run on one: `ci.yml`
+    // was last dispatched 2026-07-17, so the number came from a 16-core developer machine alone.
+    // Measured the day it finally ran: **39 ms here, 113 ms on GitHub's 4-core ubuntu-latest.**
+    //
+    // The arithmetic this budget has to satisfy: pass at 113 ms with room for a noisy runner, and
+    // still fail on the regression it exists to catch. That regression is an accidental *second*
+    // pass over the bytes, which lands near 226 ms. 180 ms sits between — 1.6x the observed CI
+    // time, and 20% under a doubling.
+    //
+    // **A ratio test cannot replace this**, though it is the pattern used by
+    // `a_full_rebuild_stays_linear_in_the_note_count` below: hashing twice doubles the cost at
+    // every size, so the ratio is unchanged and the regression invisible. Constant factors need an
+    // absolute bound, and an absolute bound needs the slowest machine it will run on.
+    const BUDGET_MS: u128 = 180;
     // A scene carrying one pasted screenshot: base64 inflates 2 MB to ~2.8 MB.
     let body = "x".repeat(2_800_000);
 
