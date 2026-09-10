@@ -6,11 +6,11 @@ rem window at all. This one exists for the two cases that need the output: scrip
 rem by policy, and diagnosing a launch that did not work. fm-serve prints the keep-this-window-open
 rem warning itself, so this file does not repeat it.
 rem
-rem **No labels and no `goto` anywhere in this file, deliberately.** `.gitattributes` keeps every
-rem file in this repo LF-only and the release archive ships this one as it is (only README.txt is
-rem converted to CRLF), and cmd.exe seeks by byte offset when it resolves a label - on an LF-only
-rem batch file that lands in the wrong place. The rescue below is written with a flag and delayed
-rem expansion instead, which needs no seeking.
+rem **No labels and no `goto` in this file.** Not because they would break - `.gitattributes` marks
+rem `*.bat text eol=crlf`, so this ships with CRLF and cmd.exe resolves labels fine; that hazard was
+rem already handled, and the note there explains it. It is a plain style choice: the rescue below
+rem needs one early exit from a `for /d` loop, and a flag with delayed expansion says so in place
+rem rather than jumping past the block that follows.
 setlocal enabledelayedexpansion
 set "HERE=%~dp0"
 set "FM_VAULT=%HERE%vault"
