@@ -11,3 +11,6 @@
 #
 # Empty until the first key is generated. While it is empty, verification refuses everything — a
 # build with no key must trust nothing, never everything.
+
+1b7ab9219a69331e4566fa4c55e1368e424458c1aed24e2c77f49385c6ee3a48  # release-signing, 2026-09-11
+a1b3de5d6439c95d508a4ec625c7a6635d33ddc079379ef3d2f5b80e74396258  # release-recovery, 2026-09-11

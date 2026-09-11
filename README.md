@@ -246,7 +246,7 @@ what it reversed), and they are not a description of how to use the app. The man
 
 ## Project status
 
-**v0.5.1, and young.** The first commit is dated 2026-07-14; this is one person's project,
+**v0.5.2, and young.** The first commit is dated 2026-07-14; this is one person's project,
 built alongside their research rather than as a product. It is used daily on **Linux and
 Android**, the two platforms the author works on and the only two anything here is checked
 against.
@@ -259,9 +259,10 @@ app. Windows on **v0.2.0 through v0.3.1**, and iOS, both reported working as of 
 
 **None of it is verified here, and none of it is this version.** There is no Mac, no Windows
 machine and no iPhone on this end, so a report is one person's session rather than a suite. And
-every report above is against a **v0.2.x or v0.3.x** archive: **neither v0.4.0 nor v0.5.x has been
-downloaded by anyone**, on any platform — the release pages say zero — so the current release is
-exactly as unproven off Linux and Android as the ones before it were. The builds are compiled and tested by CI and the archives
+every report above is against a **v0.2.x or v0.3.x** archive: **nobody has downloaded anything newer** — v0.4.0 and v0.5.0 show zero, and v0.5.1's two
+downloads are this project's own, fetched on 2026-09-11 to test the updater against a real release
+rather than a hand-built one — so the current release is exactly as unproven off Linux and Android as
+the ones before it were. The builds are compiled and tested by CI and the archives
 are real; that is a different claim from someone having opened one.
 
 Treat the feature tables above as *what is implemented*, not as *what is proven on your
