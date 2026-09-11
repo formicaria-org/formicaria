@@ -45,9 +45,13 @@ if [ "$name" = release-signing ]; then
         store="3. Store the private key as a repository secret. \`gh\` is not installed here, so use the website:
 
    - In a terminal of your own — not one whose output is being recorded or shared — run:
-         base64 -w0 \"$key\"
-   - Copy the one long line it prints into GitHub: the repository → Settings → Secrets and variables
-     → Actions → New repository secret, named RELEASE_SIGNING_KEY_B64.
+         base64 -w0 \"$key\"; echo
+     The \`echo\` matters: without it your prompt is printed on the same line, straight after the key,
+     and is easy to copy along with it.
+   - Copy that one line — 160 characters, starting LS0tLS1CRUdJTi and ending LQo= — into GitHub: the
+     repository → Settings → Secrets and variables → Actions → Repository secrets → New repository
+     secret, named RELEASE_SIGNING_KEY_B64. Not an environment secret, and not one set on the
+     organisation: a public repository does not see an organisation secret limited to private ones.
    - Close that terminal window afterwards."
     fi
 else

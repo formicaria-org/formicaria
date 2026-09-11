@@ -616,15 +616,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # **Say which thing went wrong, as an annotation**, readable on the run page and from the
+          # public API without opening the log — and never printing anything about the key itself.
+          # v0.5.2's signing failed here with a bare "exit code 1", which could not be told apart from
+          # outside the website: a missing secret and a mangled one look identical.
+          fail() { echo "::error title=$1::$2"; exit 1; }
           if [ -z "${RELEASE_SIGNING_KEY_B64:-}" ]; then
-            echo "no RELEASE_SIGNING_KEY_B64 secret — this release publishes without a signature, and no" >&2
-            echo "installed formicaria will accept it as an update. See ci/release-key.sh." >&2
-            exit 1
+            fail "No signing secret" "RELEASE_SIGNING_KEY_B64 is not available to this job. It must be a repository secret (Settings, Secrets and variables, Actions, Repository secrets) named exactly RELEASE_SIGNING_KEY_B64, not an environment or Dependabot secret. See ci/release-key.sh."
           fi
           d="$HOME/.config/formicaria"
           mkdir -p "$d" && chmod 700 "$d"
           umask 177
-          printenv RELEASE_SIGNING_KEY_B64 | base64 -d > "$d/release-signing.pem"
+          # Whitespace goes first: base64 never contains any, and a value pasted from a terminal that
+          # wrapped the line, or with a stray space at either end, should not cost a release.
+          if ! printenv RELEASE_SIGNING_KEY_B64 | tr -d ' \t\r\n' | base64 -d > "$d/release-signing.pem" 2>/dev/null; then
+            fail "Signing secret is not base64" "RELEASE_SIGNING_KEY_B64 is set but does not decode. It should be the single line printed by: base64 -w0 ~/.config/formicaria/release-signing.pem; echo — 160 characters, starting LS0tLS1CRUdJTi and ending LQo=. Without the echo the terminal prompt follows on the same line and is easily copied with it."
+          fi
+          # An Ed25519 public key is 44 bytes as DER. The length says "the right kind of key" without
+          # printing anything derived from the private half.
+          if [ "$(openssl pkey -in "$d/release-signing.pem" -pubout -outform DER 2>/dev/null | wc -c)" != 44 ]; then
+            fail "Signing secret is not the key" "RELEASE_SIGNING_KEY_B64 decodes, but not to an Ed25519 private key. It should be the base64 of release-signing.pem itself, not the public line from release-keys.txt."
+          fi
       - name: sign it
         shell: bash
         run: |
@@ -635,9 +647,16 @@ jobs:
           # here so it is a red job on the tag, not a silent refusal on every device afterwards.
           pub=$(openssl pkey -in "$HOME/.config/formicaria/release-signing.pem" -pubout -outform DER \
                 | tail -c 32 | od -An -tx1 | tr -d ' \n')
-          if ! grep -Eiq "^${pub}([[:space:]]|$)" crates/fm-update/release-keys.txt; then
-            echo "the signing key's public half ($pub) is not in crates/fm-update/release-keys.txt," >&2
-            echo "so no installed formicaria would accept this release. Add it and tag again." >&2
+          listed=$(grep -Ei "^${pub}([[:space:]]|$)" crates/fm-update/release-keys.txt || true)
+          if [ -z "$listed" ]; then
+            echo "::error title=Signing key is not trusted::The key in RELEASE_SIGNING_KEY_B64 ($pub) is not in crates/fm-update/release-keys.txt, so no installed formicaria would accept this release. Add its line and tag again."
+            exit 1
+          fi
+          # **The recovery key is trusted too, and must never be the one CI holds** — its whole value is
+          # being somewhere a compromised pipeline cannot reach. Signing with it would work, and would
+          # quietly spend it.
+          if printf '%s' "$listed" | grep -qi 'recovery'; then
+            echo "::error title=Secret holds the recovery key::RELEASE_SIGNING_KEY_B64 is the recovery key. Replace it with release-signing.pem, and treat the recovery key as exposed: generate a new one and list it."
             exit 1
           fi
       - name: shred the signing key
