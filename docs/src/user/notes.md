@@ -79,8 +79,9 @@ A note's body is Markdown, so **bold**, *italic*, lists, tables, headings, `code
 fenced ```mermaid diagrams / `$math$` all render in the read view. For a **mind-map or tree**,
 a Mermaid flowchart (`graph TD`) draws the hierarchy — no plugin and no extra download.
 
-**You don't have to type the syntax.** Select any text in the editor and a small **toolbar** floats
-above it — **Bold · Italic · Highlight · Code · Colour · Link**, and a **¶ block menu** for
+**You don't have to type the syntax.** Select any text in the editor and a small **toolbar** appears
+beside it — above the selection with a mouse, and below it on a phone, where the phone's own
+Cut/Copy menu takes the space above — **Bold · Italic · Highlight · Code · Colour · Link**, and a **¶ block menu** for
 **headings, bullet/numbered lists, quote, and callout**. Inline buttons wrap the selection in the
 plain-Markdown (or `[…]{.token}`) form; the block menu re-formats the whole line(s). Everything stays
 byte-for-byte and readable anywhere, so it's the fast way to format on a phone — tap a button again

@@ -657,15 +657,19 @@
   // re-tap — losing nothing, since the only edit was one byte we can safely redo.
   async function saveTask() {
     if (!note) return;
+    const id = note.id;
+    const body = draft;
     try {
-      base = await updateBody(note.id, draft, base);
-      note = { ...note, body: draft };
-      saved = true;
+      // Through the same queue as typing (`writeBody`), so a tap during an autosave waits for it.
+      if ((await writeBody(id, body)) === null || note?.id !== id) return;
+      note = { ...note, body };
+      saved = draft === body;
       onsaved?.();
     } catch (e) {
+      if (note?.id !== id) return;
       if (String(e).includes('changed on disk')) {
-        const fresh = await getNote(note.id).catch(() => null);
-        if (fresh) {
+        const fresh = await getNote(id).catch(() => null);
+        if (fresh && note?.id === id) {
           note = fresh;
           draft = fresh.body;
           base = fresh.version;
@@ -682,23 +686,25 @@
   // Bold, Italic, Highlight, Code, Colour, Link, and a ¶ block menu. Each wraps the **selected
   // bytes** in the right Markdown (or the closed-vocab `[…]{.token}`), byte-for-byte source.
   //
-  // **Two presentations, by pointer.** Where a pointer is precise (a desktop mouse), the bar
-  // *floats above the selection* — a discrete presence that appears only when you select something,
-  // the way it should be. On **touch** (coarse pointer), it is a *persistent* row above the editor
-  // instead, because on Android the float hides behind the system Cut/Copy menu that pops over any
-  // selection. One set of actions, shown two ways.
+  // **One presentation: a bar that appears while text is selected, and only then** — on every
+  // device, placed by pointer. With a precise pointer it floats *above* the selection. On **touch**
+  // it sits *below* the selection's last line, past the drag handles, because Android's own
+  // Cut/Copy menu takes the space above any selection — which is what hid the float there, and why
+  // touch used to get a persistent strip instead. That strip is gone (2026-09-11, `decisions.md#ui`):
+  // `.editor-wrap` is a flex row, so it sat *beside* the textarea as a column a third of a phone
+  // wide, and the owner asked for the options on a selection, the way other systems offer them.
   const coarsePointer =
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(pointer: coarse)').matches
       : false;
-  let fmtBar = $state<{ top: number; left: number } | null>(null); // float position — fine pointer only
+  /// Where the bar is: relative to the editor with a precise pointer, and in viewport coordinates on
+  /// touch (`position: fixed`, like the `/` menu there) so it can be kept clear of the keyboard.
+  let fmtBar = $state<{ top: number; left: number } | null>(null);
   let colorOpen = $state(false);
   let blockOpen = $state(false);
 
-  // Position (or hide) the floating bar for the current selection. A no-op on touch, where the bar
-  // is always shown.
+  // Position (or hide) the bar for the current selection.
   function onEditorSelect() {
-    if (coarsePointer) return;
     const el = editorEl;
     if (!el) return;
     const s = el.selectionStart;
@@ -709,6 +715,23 @@
       blockOpen = false;
       return;
     }
+    if (coarsePointer) {
+      // Below the selection's last line and past the handles, in viewport coordinates — clamped
+      // above the bottom of what is visible, because below the caret is usually behind the keyboard
+      // (the `/` menu learned that first; see `slashAnchor`).
+      const TOUCH_BAR_H = 52;
+      const TOUCH_BAR_W = 300;
+      const HANDLES = 30;
+      const r = el.getBoundingClientRect();
+      const end = caretXY(el, e);
+      const visible = Math.min(r.bottom, window.visualViewport?.height ?? window.innerHeight);
+      const below = r.top + end.top + (end.lineHeight || 22) + HANDLES;
+      fmtBar = {
+        top: Math.max(Math.max(r.top, 0), Math.min(below, visible - TOUCH_BAR_H)),
+        left: r.left + clamp(end.left, TOUCH_BAR_W, el.clientWidth),
+      };
+      return;
+    }
     const { top, left } = caretXY(el, s);
     const BAR_H = 40;
     fmtBar = {
@@ -716,6 +739,17 @@
       left: clamp(left, 220, el.clientWidth),
     };
   }
+
+  // A touch selection is made with a long press and moved with drag handles, which send no `mouseup`
+  // or `keyup` — `selectionchange` is the event that follows the handles.
+  $effect(() => {
+    if (!coarsePointer) return;
+    const follow = () => {
+      if (editorEl && document.activeElement === editorEl) onEditorSelect();
+    };
+    document.addEventListener('selectionchange', follow);
+    return () => document.removeEventListener('selectionchange', follow);
+  });
 
   // Wrap (or, if already wrapped, unwrap — a real toggle) the selection with `before`/`after`.
   async function wrapSel(before: string, after: string, placeholder = '') {
@@ -839,15 +873,50 @@
       flushPendingSave();
   }
 
+  /// **One body write at a time, each carrying the version the one before it returned.**
+  ///
+  /// The server refuses a write whose `base` is not the body on disk. Three paths write the body —
+  /// the text autosave, a checkbox tap and a board — and each used to send `base` as it stood when
+  /// *it* started, with nothing stopping a second write leaving while the first was in flight. A
+  /// phone write routinely outlasts the 500 ms debounce (slower storage, and the vault lock a
+  /// background commit holds), so the next autosave carried the version the first was replacing and
+  /// was refused — and `onSaveRejected` took that for someone else's edit, dropping
+  /// `<<<<<<< your unsaved edit` markers around the user's own text in a note nobody else had
+  /// touched (the owner's phone, 2026-09-11; `NotePanel.saveRace.svelte.test.ts`).
+  ///
+  /// So every body write queues here, and `base` is read when a write actually leaves — after the
+  /// one before it has landed and moved it. A reply for a note this pane has since left may not set
+  /// `base`; a queued write for such a note sends the version its predecessor returned, or with
+  /// none is dropped (resolves `null`) rather than borrowing the new note's version.
+  let bodyWrites: Promise<{ id: string; version: string } | null> = Promise.resolve(null);
+  function writeBody(id: string, body: string): Promise<string | null> {
+    const run = bodyWrites.then(async (prev) => {
+      const from = note?.id === id ? base : prev?.id === id ? prev.version : null;
+      if (from === null) return null;
+      const version = await updateBody(id, body, from);
+      if (note?.id === id) base = version;
+      return version;
+    });
+    bodyWrites = run.then(
+      (version) => (version === null ? null : { id, version }),
+      () => null,
+    );
+    return run;
+  }
+
   async function save() {
     if (!note) return;
+    const id = note.id;
+    const body = draft;
     try {
-      base = await updateBody(note.id, draft, base);
-      note = { ...note, body: draft };
-      saved = true;
+      if ((await writeBody(id, body)) === null || note?.id !== id) return;
+      note = { ...note, body };
+      // Saved only if nothing was typed while the write was in flight. If something was, the
+      // debounce has already scheduled the next write, and `flushPendingSave` must still see it.
+      saved = draft === body;
       onsaved?.();
     } catch (e) {
-      await onSaveRejected(e);
+      if (note?.id === id) await onSaveRejected(e);
     }
   }
 
@@ -1370,17 +1439,21 @@
   // The canvas persists the same way the textarea does: write the body bytes.
   async function saveBoard(json: string) {
     if (!note) return;
+    const id = note.id;
     try {
-      base = await updateBody(note.id, json, base);
+      // Through the same queue as typing (`writeBody`): two board saves a moment apart raced exactly
+      // as two autosaves did, and here the loser reloads the scene and drops the latest strokes.
+      if ((await writeBody(id, json)) === null || note?.id !== id) return;
       note = { ...note, body: json };
       onsaved?.();
     } catch (e) {
+      if (note?.id !== id) return;
       // A canvas cannot show conflict markers, so a board says what happened and reloads
       // rather than pretending to merge. `scene.rs` already merged the two scenes on the
       // way in — what is being refused here is only this stale re-serialization of it.
       if (String(e).includes('changed on disk')) {
-        const fresh = await getNote(note.id).catch(() => null);
-        if (fresh) {
+        const fresh = await getNote(id).catch(() => null);
+        if (fresh && note?.id === id) {
           note = fresh;
           // `version` (the body hash), not `updated` — see `onSaveRejected`. A board has no
           // markers to show the damage with, so getting this wrong just refused every later
@@ -2462,19 +2535,6 @@
             {/if}
           </div>
         {/snippet}
-        {#if coarsePointer}
-          <!-- Touch: a persistent bar above the editor — the float would hide behind Android's
-                 system Cut/Copy menu. `pointerdown` prevented so a press keeps the selection. -->
-          <div
-            class="fmt-bar fmt-bar-static"
-            role="toolbar"
-            tabindex="-1"
-            aria-label="format text"
-            onpointerdown={(e) => e.preventDefault()}
-          >
-            {@render fmtButtons()}
-          </div>
-        {/if}
         <textarea
           class="editor"
           bind:this={editorEl}
@@ -2528,10 +2588,13 @@
             </li>
           </ul>
         {/if}
-        {#if !coarsePointer && fmtBar && !slash.open}
-          <!-- Desktop: a discrete bar that floats above the selection, only while text is selected. -->
+        {#if fmtBar && !slash.open}
+          <!-- The bar, only while text is selected: above the selection with a precise pointer, below
+               it on touch and fixed to the viewport there (see `onEditorSelect`). `pointerdown` is
+               prevented so a press keeps the selection. -->
           <div
             class="fmt-bar fmt-bar-float"
+            class:touch={coarsePointer}
             role="toolbar"
             tabindex="-1"
             aria-label="format selection"
@@ -3366,8 +3429,8 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  /* The formatting toolbar. Two presentations share this base: a discrete float on desktop, a
-     persistent row on touch. Kept small — a discrete presence, never a big band across the editor. */
+  /* The formatting toolbar: one bar, shown only while text is selected. Kept small — a discrete
+     presence, never a band across the editor. */
   .fmt-bar {
     display: flex;
     align-items: center;
@@ -3377,20 +3440,27 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
   }
-  /* Desktop: floats above the selection, only while selecting. */
+  /* A precise pointer: above the selection, positioned against `.editor-wrap`. */
   .fmt-bar-float {
     position: absolute;
     z-index: 55;
     box-shadow: var(--shadow-md);
   }
-  /* Touch: a persistent strip above the editor; scrolls sideways on a narrow phone. */
-  .fmt-bar-static {
-    margin-bottom: var(--space-1);
+  /* **Touch: fixed to the viewport, below the selection** — `onEditorSelect` measures where. Never
+     wider than the screen, so on a narrow phone it scrolls sideways instead of running off the edge. */
+  .fmt-bar-float.touch {
+    position: fixed;
+    max-width: calc(100vw - 2 * var(--space-2));
     overflow-x: auto;
     scrollbar-width: none;
   }
-  .fmt-bar-static::-webkit-scrollbar {
+  .fmt-bar-float.touch::-webkit-scrollbar {
     display: none;
+  }
+  /* A finger's target, not a pointer's. More specific than `.fmt-btn` below, so order is moot. */
+  .fmt-bar-float.touch .fmt-btn {
+    min-width: 2.5rem;
+    height: 2.5rem;
   }
   .fmt-btn {
     flex: none;

@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -3851,6 +3851,10 @@ polices for `.panel-views`, sitting unnoticed in a second component.
 grid, the drag-resize and `MAX_PANES`. That is a question about use, settled by living with it.
 
 ## 2026-08-31 — the chrome is one row at the top, and the pane header belongs to `tiled` alone `#ui` `#track-m`
+
+> **AMENDED 2026-09-11** (*on a phone, the open windows are one counted button*): below 40rem the row
+> shows the active window's tab and one button carrying the number of open windows, with the list of
+> them behind it. The row, its place at the top and the controls it carries are unchanged.
 
 > **This reverses one paragraph of *the chrome moves to a collapsible side panel* (2026-08-30)** —
 > *"a top bar on a phone holds actions the thumb cannot reach"*. It also **amends** *A view says
@@ -7691,3 +7695,48 @@ annotation that the public API returns: no secret, not base64, not an Ed25519 ke
 listed, or the recovery key. None of them prints anything derived from the key. It also strips
 whitespace before decoding. The stored-key instruction now reads `base64 -w0 …; echo`: `-w0` prints no
 newline, so without the `echo` the shell prompt lands on the key's line and is easily copied with it.
+
+## 2026-09-11 — on a phone, the open windows are one counted button `#ui` `#track-m`
+
+> **Amends *the chrome is one row at the top* (2026-08-31).** The row stays at the top and still names
+> the view you are in and carries its controls; what changes is that a narrow screen no longer gives
+> every open window a tab.
+
+**The complaint.** On the owner's phone three open windows were three tabs and a close button across
+the whole top row — *Timeline · Note · Note ×* — width spent on what you are not looking at. What was
+asked for is what a phone browser does: **one button with the number of open windows on it, and the
+list behind it.**
+
+**What it is.** Below 40rem, the breakpoint `App.svelte` already treats as a phone, `ViewBar` shows the
+active window's tab, that view's controls, and a square carrying the number of open windows. Pressing it
+opens a list of every window — its icon and name, the one you are in marked — where a row switches to
+that window and the × beside it closes it. Closing moves into the list with it, next to the name of the
+window being closed, which is where the strip's own close button got its reason to exist. Wide screens
+keep a tab per window, unchanged.
+
+**CSS decides which shows, not a viewport check.** Both presentations are rendered and a media query
+picks, the rule the rest of the arrangement follows; only the list is state, because it is open or
+closed rather than wide or narrow. Tests that ask the bar for the view marked current keep working at
+every width, because the active tab is still the element that says so; the counted button and its list
+are pinned in `ViewBar.windows.svelte.test.ts`, and the width by screenshot.
+
+## 2026-09-11 — the formatting bar appears on a selection on every device, and below it on touch `#ui` `#track-m`
+
+**What was there.** A precise pointer got a bar floating above the selection, shown only while text is
+selected. Touch got a persistent strip instead, because on Android the float hid behind the system's
+own Cut/Copy menu, which opens above any selection.
+
+**What was wrong with it.** The strip was meant to sit above the editor, but `.editor-wrap` is a flex
+row, so it rendered *beside* the textarea — on the owner's phone a column about a third of the screen
+wide, holding four buttons, next to the text being written. And a bar that is there when nothing is
+selected is not how a phone offers formatting; the owner asked for the options *on a selection, as on
+the other systems*.
+
+**Now.** One presentation everywhere, keyed to a selection. On touch the bar goes *below* the
+selection's last line, past the drag handles, in viewport coordinates (`position: fixed`), clamped above
+the bottom of what is visible — the `/` menu's lesson that below the caret is usually behind the
+keyboard. A document `selectionchange` listener follows the handles, which send no mouse or key events.
+
+**Not verified on a device.** jsdom has no layout, so `App.phone.test.ts` pins only that touch shows no
+bar until text is selected and shows one once it is. Whether Android's menu, the handles and the
+keyboard leave it room is for the phone to say, and the first place that will be seen is the owner's.

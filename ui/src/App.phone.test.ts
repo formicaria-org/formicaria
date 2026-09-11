@@ -156,10 +156,12 @@ describe('the touch shell', () => {
   it('renders the coarse-pointer surfaces', async () => {
     // Not a screenshot test — jsdom applies no CSS. What is checkable is that the branches keyed
     // on `matchMedia('(pointer: coarse)')` are *taken*, which they never were before
-    // `test-setup.ts` supplied a stub. `NotePanel`'s persistent format bar is the visible one: on
-    // a fine pointer it is a floating bar shown only while text is selected, on a coarse pointer
-    // it is always present above the editor, because the float hides behind Android's own
-    // Cut/Copy menu.
+    // `test-setup.ts` supplied a stub. `NotePanel`'s format bar is the visible one.
+    //
+    // **On touch it appears on a selection, not before** (2026-09-11). It used to be a persistent
+    // strip, which rendered beside the editor as a column a third of the phone wide; now it is the
+    // same bar a mouse gets, placed below the selection because Android's own Cut/Copy menu takes
+    // the space above. Where it lands is layout, and jsdom has none — that is for the device.
     const ids = mock.seed({ notes: 5 });
     await mock.handle('update_body', { id: ids[0], body: 'something to edit', base: '' });
     render(App);
@@ -168,9 +170,16 @@ describe('the touch shell', () => {
     await fireEvent.click(await screen.findByText(/Seeded 0/));
     await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
-    await screen.findByLabelText('note body (Markdown)');
+    const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
 
-    // Present without any selection having been made — the coarse-pointer branch.
-    expect(await screen.findByRole('toolbar', { name: 'format text' })).toBeTruthy();
+    // Nothing selected: no bar at all — not a strip waiting beside the text.
+    expect(screen.queryByRole('toolbar', { name: /^format/ })).toBeNull();
+
+    // Select "something": the bar appears.
+    body.focus();
+    body.selectionStart = 0;
+    body.selectionEnd = 9;
+    await fireEvent.select(body);
+    expect(await screen.findByRole('toolbar', { name: 'format selection' })).toBeTruthy();
   });
 });
