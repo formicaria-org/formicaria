@@ -31,10 +31,14 @@ tauri-build = { version = "2", features = [] }
 # (its model runner needs an APK's `nativeLibraryDir`) and where the ruling is that it should not.
 # `build.rs` ANDs this feature with Android and emits `agent_shell`; see it for the whole argument.
 [features]
-default = ["agent"]
+default = ["agent", "update"]
 # `fm-agent-run/download` gives the phone the in-app model fetcher (resumable + checksum) — no `curl`
 # on Android, so the GGUF is fetched on first enable from Rust.
 agent = ["dep:fm-agent", "dep:fm-agent-run", "fm-agent-run/download"]
+# Updating the app from inside it: check, download, verify, then hand the APK to Android's installer.
+# `fm-update` is the trust root shared with the desktop, so the list of trusted keys exists once. Gated
+# to Android by `cfg(update_shell)` in build.rs — iOS cannot install an app and has no bridge.
+update = ["dep:fm-update", "dep:fm-fetch"]
 
 [dependencies]
 tauri = { version = "2", features = [] }
@@ -48,6 +52,8 @@ fm-core = { path = "../../crates/fm-core", features = ["native-git"] }
 # behind the `agent` feature above, so a notes-only build links neither.
 fm-agent = { path = "../../crates/fm-agent", optional = true }
 fm-agent-run = { path = "../../crates/fm-agent-run", optional = true }
+fm-update = { path = "../../crates/fm-update", optional = true }
+fm-fetch = { path = "../../crates/fm-fetch", optional = true }
 
 # **So a diagnostic is readable.** Android routes neither Rust's stdout nor its stderr to
 # logcat, so every `eprintln!` in this shell has been writing to nowhere — which is how an SSL

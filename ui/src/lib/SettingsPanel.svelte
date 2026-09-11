@@ -16,7 +16,9 @@
   // Cheap on purpose. `config` shells out to nothing, unlike `backup_status`, which runs
   // `git ls-remote` per vault and is the slowest command in the app. Opening Settings must
   // never be a reason to hit the network.
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import type { UpdateStatus } from './ipc';
+  import { isPhone } from './platform';
   import Appearance from './Appearance.svelte';
   import {
     config as fetchConfig,
@@ -33,6 +35,13 @@
     setShare,
     shareCode,
     revokeDevices,
+    installOnPhone,
+    phoneCanInstall,
+    setUpdateCheck,
+    updateApply,
+    updateCancel,
+    updateCheckNow,
+    updateStart,
   } from './ipc';
   import { isRemote, shareSummary, type ShareStatus } from './remote';
   import type { Config } from './types';
@@ -206,8 +215,13 @@
     // Settings must not be a reason to.
     try {
       const u = await updateStatus();
+      upd = u;
       previousVersion = u.previous;
       canInstall = u.can_install;
+      phoneBridge = phoneCanInstall();
+      // A download already under way when the panel opened: keep watching it, the same courtesy the
+      // assistant's first-enable download gets.
+      if (inFlight(u.progress)) watchUpdate();
     } catch {
       // A build without the updater answers nothing. Hide the row rather than offer a control that
       // cannot work — the same rule the assistant's `agentOn = null` follows.
@@ -289,6 +303,24 @@
   /// Armed by the first click, acted on by the second — the same two steps as removing the model,
   /// and for the same reason: this replaces the running program and cannot be undone from here.
   let goingBack = $state(false);
+  /// The update picture as the server last described it. `null` hides every update row — a build with
+  /// no updater, or one whose status never answered.
+  let upd = $state<UpdateStatus | null>(null);
+  let updTimer: ReturnType<typeof setTimeout> | undefined;
+  /// Set once **this person** pressed *Check now*. A failed *background* check is silent by design —
+  /// an error on every offline start teaches people to dismiss errors — but an answer to a question
+  /// somebody just asked is owed to them.
+  let askedNow = $state(false);
+  /// Two steps before restarting, like *Go back* and *Remove the model…*: it replaces the running
+  /// program. Installing forward is recoverable — the way back is kept — which is why one arming is
+  /// enough and there is no third.
+  let restartArmed = $state(false);
+  let restarting = $state(false);
+  /// Whether the Android installer bridge is here. Read once: the shell registers it before the page
+  /// loads, and it cannot appear later.
+  let phoneBridge = $state(false);
+  let phoneMessage = $state<string | null>(null);
+  let updateError = $state<string | null>(null);
   let goBackError = $state<string | null>(null);
 
   /// Armed by the first click, acted on by the second — the two-step `BackupPanel` already uses for
@@ -365,6 +397,107 @@
       watchProvisioning();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  onDestroy(() => clearTimeout(updTimer));
+
+  function inFlight(p: UpdateStatus['progress']): boolean {
+    return !!p && p.stage !== 'ready' && p.stage !== 'failed';
+  }
+
+  /** What each stage is doing, in words. Not a combined percentage: the steps are not comparable in
+   *  size, and inventing one figure across them would be making something up. */
+  const STAGE_WORDS: Record<string, string> = {
+    manifest: 'checking what it contains',
+    download: 'downloading',
+    unpack: 'checking it runs on this computer',
+  };
+
+  /** Poll while getting it. The app has no streaming anywhere; this is the cadence the assistant's
+   *  own download already uses, and a failed poll is not a failed download. */
+  function watchUpdate() {
+    clearTimeout(updTimer);
+    updTimer = setTimeout(async () => {
+      try {
+        upd = await updateStatus();
+      } catch {
+        // Keep watching: one missed answer says nothing about the download.
+      }
+      if (inFlight(upd?.progress)) watchUpdate();
+    }, 1500);
+  }
+
+  function reason(e: unknown): string {
+    return e instanceof Error ? e.message : String(e);
+  }
+
+  async function checkNow() {
+    askedNow = true;
+    updateError = null;
+    try {
+      upd = await updateCheckNow();
+    } catch (e) {
+      updateError = reason(e);
+    }
+  }
+
+  async function toggleUpdateCheck(on: boolean) {
+    updateError = null;
+    try {
+      upd = await setUpdateCheck(on);
+    } catch (e) {
+      updateError = reason(e);
+    }
+  }
+
+  async function getUpdate() {
+    updateError = null;
+    phoneMessage = null;
+    try {
+      upd = await updateStart();
+      watchUpdate();
+    } catch (e) {
+      updateError = reason(e);
+    }
+  }
+
+  async function stopUpdate() {
+    clearTimeout(updTimer);
+    try {
+      upd = await updateCancel();
+    } catch (e) {
+      updateError = reason(e);
+    }
+  }
+
+  /** The server saves what is on disk, answers, and only then stops — so this press lands before the
+   *  connection goes, and `App`'s reconnecting surface takes over the gap. */
+  async function restartIntoUpdate() {
+    updateError = null;
+    try {
+      await updateApply();
+      restarting = true;
+    } catch (e) {
+      updateError = reason(e);
+    } finally {
+      restartArmed = false;
+    }
+  }
+
+  /** Android: ask the shell to open the system installer on the download it already checked. */
+  function installOnThisPhone() {
+    updateError = null;
+    phoneMessage = null;
+    const r = installOnPhone();
+    if (r === 'ok') {
+      phoneMessage =
+        'The installer has opened. Confirm there, and formicaria restarts as the new version with your notes as they are.';
+    } else if (r === 'permission') {
+      phoneMessage =
+        'Android needs your permission first: allow installs from formicaria on the screen that just opened, then come back and press Install again.';
+    } else if (r) {
+      updateError = r.replace(/^error:\s*/, '');
     }
   }
 
@@ -1251,6 +1384,101 @@
             {/if}
           </li>
         </ul>
+
+        <!-- **Newer versions.** Checking is on by default and says, beside the switch, exactly
+             what it sends — a network call a person cannot see described is not one they agreed to.
+             Getting and installing are never automatic; each is a press. On a phone the last step
+             belongs to Android's installer, so that row offers *Install* rather than a restart. -->
+        {#if upd && upd.can_check}
+          <ul class="caps">
+            <li>
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  aria-label="look for newer versions"
+                  checked={upd.check}
+                  onchange={(e) => toggleUpdateCheck(e.currentTarget.checked)}
+                />
+                <span class="k">{upd.check ? 'On' : 'Off'}</span>
+                <span class="muted">
+                  Once a day formicaria asks GitHub which version is newest. Nothing about you, this
+                  computer or your notes is sent.
+                </span>
+              </label>
+            </li>
+            <li>
+              {#if upd.available && upd.progress && inFlight(upd.progress)}
+                <span class="k">getting {upd.available}</span>
+                <span class="muted">
+                  {STAGE_WORDS[upd.progress.stage] ?? upd.progress.stage}…
+                  {#if upd.progress.stage === 'download'}
+                    {upd.progress.total
+                      ? `${humanSize(upd.progress.done)} of ${humanSize(upd.progress.total)}`
+                      : humanSize(upd.progress.done)}
+                  {/if}
+                </span>
+                <button onclick={stopUpdate}>Stop</button>
+              {:else if upd.available && upd.progress?.stage === 'ready' && phoneBridge}
+                <span class="k">{upd.available} is ready</span>
+                <span class="muted">Downloaded and checked. Installing it keeps your notes.</span>
+                <button class="primary" onclick={installOnThisPhone}>Install {upd.available}</button
+                >
+              {:else if upd.available && upd.progress?.stage === 'ready' && restarting}
+                <span class="k">restarting</span>
+                <span class="muted">
+                  formicaria is restarting as {upd.available}. This page reconnects by itself.
+                </span>
+              {:else if upd.available && upd.progress?.stage === 'ready' && restartArmed}
+                <span class="k">restart into {upd.available}?</span>
+                <span class="muted">
+                  What you have typed is saved first, and your notes are not touched. If
+                  {upd.available} does not suit you, you can go back to {cfg.version} from here.
+                </span>
+                <button class="primary" onclick={restartIntoUpdate}>Yes, restart</button>
+                <button onclick={() => (restartArmed = false)}>Cancel</button>
+              {:else if upd.available && upd.progress?.stage === 'ready'}
+                <span class="k">{upd.available} is ready</span>
+                <span class="muted">Downloaded and checked. Restart to finish.</span>
+                <button onclick={() => (restartArmed = true)}>Restart into {upd.available}…</button>
+              {:else if upd.available && upd.progress?.stage === 'failed'}
+                <span class="k">could not get {upd.available}</span>
+                <span class="bad">{upd.progress.error}</span>
+                <button onclick={getUpdate}>Try again</button>
+              {:else if upd.available && upd.can_install}
+                <span class="k">{upd.available} is available</span>
+                <span class="muted">You have {cfg.version}.</span>
+                <button onclick={getUpdate}>Get {upd.available}</button>
+              {:else if upd.available}
+                <span class="k">{upd.available} is available</span>
+                <span class="muted">{upd.why}</span>
+                {#if !isPhone() && upd.page}
+                  <a class="link" href={upd.page} target="_blank" rel="noopener noreferrer"
+                    >Open the download page</a
+                  >
+                {/if}
+              {:else}
+                <span class="k">newest version</span>
+                <span class="muted">
+                  {upd.last_check
+                    ? `You have the newest version — last looked ${new Date(upd.last_check * 1000).toLocaleDateString()}.`
+                    : 'Not looked yet.'}
+                </span>
+                <button onclick={checkNow} disabled={upd.checking}>
+                  {upd.checking ? 'Looking…' : 'Check now'}
+                </button>
+              {/if}
+            </li>
+            {#if updateError}
+              <li><span class="bad">{updateError}</span></li>
+            {/if}
+            {#if askedNow && upd.error && !upd.checking}
+              <li><span class="bad">Could not look just now: {upd.error}</span></li>
+            {/if}
+            {#if phoneMessage}
+              <li><span class="muted">{phoneMessage}</span></li>
+            {/if}
+          </ul>
+        {/if}
 
         <!-- **The way back.** An update replaces the program in place and keeps the one it
              replaced, so this is the other half of that promise: the automatic rescue only catches

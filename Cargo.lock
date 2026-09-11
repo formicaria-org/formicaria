@@ -431,13 +431,22 @@ dependencies = [
  "fm-fetch",
  "fm-model",
  "fm-query",
+ "fm-update",
  "getrandom 0.3.4",
  "rcgen",
- "ring",
  "rustls",
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "fm-update"
+version = "0.0.0"
+dependencies = [
+ "fm-fetch",
+ "ring",
+ "serde_json",
 ]
 
 [[package]]

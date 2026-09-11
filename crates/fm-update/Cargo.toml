@@ -1,0 +1,22 @@
+# The platform-independent half of updating formicaria: what a release version is, what a signed
+# release manifest says, whether to trust it, and whether to look for one. Its own crate because both
+# shells need it — the desktop server and the Android app — and **a trust root kept in two places is a
+# trust root that drifts.** The list of trusted keys exists here and nowhere else.
+[package]
+name = "fm-update"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[lib]
+name = "fm_update"
+path = "src/lib.rs"
+
+[dependencies]
+# The download engine: the manifest, its signature and the release listing are all small GETs.
+fm-fetch = { path = "../fm-fetch" }
+# **A line, not a node.** Already in `Cargo.lock` as rustls' pinned backend, which is why the Ed25519
+# check is a few lines of `ring` rather than a signature crate of its own.
+ring = "0.17"
+serde_json = "1"

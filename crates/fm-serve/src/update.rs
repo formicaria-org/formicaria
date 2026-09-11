@@ -24,197 +24,18 @@
 //! *one producer per fact*, and opening Settings must never be a reason to hit the network. So the
 //! comparison, the check and the fetch all live here, with their own state.
 
+//! # What lives here, and what lives in `fm_update`
+//!
+//! Whether a version is newer, what a release manifest says, and **whether to trust it** are the same
+//! question on every platform, and the Android app asks them too — so they live in `fm_update`, where
+//! the list of trusted keys exists exactly once. A trust root kept in two places is one that drifts.
+//! What stays here is only what a desktop folder has: the swap, the backups, the launcher's counter,
+//! and the restart choreography.
+
 use std::path::{Component, Path};
 use std::sync::Arc;
 
-/// A release version — `vMAJOR.MINOR.PATCH`, the shape every tag in this repo has had since
-/// `v0.1.0`.
-///
-/// **Hand-parsed, and deliberately so.** It is three integers; `config_dir()` is hand-rolled over
-/// the `dirs` crate for exactly this reason, and the house stance is to add a dependency only when
-/// it solves a problem whole.
-///
-/// **A build that is not a release has no version and must not be compared.** The crates are all
-/// `0.0.0`; the real version arrives through `option_env!("FM_VERSION")` and falls back to `dev`,
-/// and a hand-fired build on a branch is stamped `dev-<sha>`. Comparing either against `v0.6.0` is
-/// meaningless, so [`Version::parse`] answers `None` and every caller treats that as "this copy
-/// cannot update itself" rather than as "you are out of date".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Version {
-    major: u32,
-    minor: u32,
-    patch: u32,
-}
-
-impl Version {
-    /// Parse `v1.2.3` (or `1.2.3`). Anything else — `dev`, `dev-3493b4a`, a suffix, a fourth
-    /// component, an empty field — is `None`.
-    ///
-    /// **Strict on purpose.** A lenient parser that read `v0.6` as `0.6.0`, or ignored a `-rc1`
-    /// suffix, would let this code *act* on a string it did not really understand — and what it
-    /// does when it acts is replace the program.
-    pub fn parse(s: &str) -> Option<Version> {
-        let s = s.strip_prefix('v').unwrap_or(s);
-        let mut it = s.split('.');
-        let (a, b, c) = (it.next()?, it.next()?, it.next()?);
-        if it.next().is_some() {
-            return None;
-        }
-        // `u32::from_str` rejects a sign, a space and an empty string, but accepts a leading `+`,
-        // so check the digits ourselves rather than trusting it.
-        let num = |t: &str| -> Option<u32> {
-            if t.is_empty() || !t.bytes().all(|b| b.is_ascii_digit()) {
-                return None;
-            }
-            t.parse().ok()
-        };
-        Some(Version { major: num(a)?, minor: num(b)?, patch: num(c)? })
-    }
-
-    /// What this build is, or `None` when it is not a release build.
-    pub fn running() -> Option<Version> {
-        Version::parse(option_env!("FM_VERSION").unwrap_or("dev"))
-    }
-}
-
-impl std::fmt::Display for Version {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "v{}.{}.{}", self.major, self.minor, self.patch)
-    }
-}
-
-/// The build target this binary was compiled for, in the naming the release archives use.
-///
-/// `#[cfg]`, not a runtime probe, because it names the *build*, not the machine — the same
-/// reasoning as `Manifest::platform_key()` in the model catalogue. A target with no release
-/// answers `None` and the whole feature reports itself unavailable, rather than downloading
-/// somebody else's architecture.
-pub const fn target() -> Option<&'static str> {
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        Some("linux-x86_64")
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        Some("macos-arm64")
-    }
-    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
-    {
-        Some("windows-x86_64")
-    }
-    #[cfg(not(any(
-        all(target_os = "linux", target_arch = "x86_64"),
-        all(target_os = "macos", target_arch = "aarch64"),
-        all(target_os = "windows", target_arch = "x86_64"),
-    )))]
-    {
-        None
-    }
-}
-
-/// One entry of the signed release manifest: everything needed to fetch and trust one artifact.
-///
-/// **The manifest is signed, not the bare hash, and that is the whole point.** A signature over a
-/// loose sha256 is replayable — an attacker who can choose which signed bytes you see serves you
-/// last year's hash and you install a version with a known hole, every field of it genuinely
-/// signed. Binding `version` and `target` into the signed bytes is what makes
-/// "this is the artifact I asked for" a checkable claim rather than "this is *an* artifact we once
-/// published".
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Entry {
-    pub target: String,
-    pub file: String,
-    pub sha256: String,
-    pub size: u64,
-}
-
-/// A parsed, *not yet trusted*, release manifest.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Manifest {
-    pub version: Version,
-    pub entries: Vec<Entry>,
-}
-
-impl Manifest {
-    /// Parse the manifest JSON. Shape:
-    ///
-    /// ```json
-    /// { "version": "v0.6.0",
-    ///   "artifacts": [ {"target":"linux-x86_64","file":"…tar.gz","sha256":"…","size":14669973} ] }
-    /// ```
-    ///
-    /// **A hex digest is checked for being a hex digest here**, not deep inside the fetcher. 64
-    /// lowercase-or-uppercase hex characters, nothing else: a truncated or empty digest that
-    /// reached `fetch` would be compared against a real hash and simply never match, which reports
-    /// as a download that keeps failing rather than as a manifest that is malformed.
-    pub fn parse(bytes: &[u8]) -> Result<Manifest, String> {
-        let v: serde_json::Value = serde_json::from_slice(bytes)
-            .map_err(|e| format!("the update information could not be read: {e}"))?;
-        let version = v["version"]
-            .as_str()
-            .and_then(Version::parse)
-            .ok_or_else(|| "the update information does not name a version".to_string())?;
-        let arts = v["artifacts"]
-            .as_array()
-            .ok_or_else(|| "the update information lists no files".to_string())?;
-        let mut entries = Vec::with_capacity(arts.len());
-        for a in arts {
-            let get = |k: &str| -> Result<String, String> {
-                a[k].as_str()
-                    .map(str::to_owned)
-                    .ok_or_else(|| format!("the update information is missing '{k}'"))
-            };
-            let sha256 = get("sha256")?;
-            if sha256.len() != 64 || !sha256.bytes().all(|b| b.is_ascii_hexdigit()) {
-                return Err("the update information carries a checksum that is not one".into());
-            }
-            let size = a["size"]
-                .as_u64()
-                .ok_or_else(|| "the update information is missing 'size'".to_string())?;
-            entries.push(Entry { target: get("target")?, file: get("file")?, sha256, size });
-        }
-        Ok(Manifest { version, entries })
-    }
-
-    /// The artifact for one target, if this release has one.
-    pub fn entry(&self, target: &str) -> Option<&Entry> {
-        self.entries.iter().find(|e| e.target == target)
-    }
-}
-
-/// The Ed25519 public key that release manifests are signed with.
-///
-/// **A `const` in the source, never a file and never an environment variable.** A key the program
-/// reads from somewhere is a key an attacker can put there; a key in the source is in git history,
-/// reviewable in a diff, and changing it is a commit somebody can see. This is the entire trust
-/// root of the updater — every byte this module is willing to execute traces back to it.
-///
-/// **What it defends, said honestly.** The private half lives as a CI secret, so a valid signature
-/// proves the manifest came from this project's release pipeline and was not altered in transit by
-/// a hostile mirror, a bad CDN or a tampered asset. It does **not** defend against a compromised
-/// pipeline, which would yield the artifacts and the key together. Say *signed against transport
-/// tampering*, never *signed releases*.
-///
-/// Placeholder until the signing job runs once and prints the real key; `verify` refuses an
-/// all-zero key outright so a build that forgot to set it cannot silently trust everything.
-pub const RELEASE_PUBLIC_KEY: [u8; 32] = [0u8; 32];
-
-/// Check a detached Ed25519 signature over `bytes`.
-///
-/// Verified **before** the manifest is acted on and long before any archive is unpacked — §4388's
-/// rule, which this feature extends from tools to the program itself: *"unpacking an unverified
-/// archive has already written attacker-chosen paths by the time you notice."*
-///
-/// `ring` rather than a new crate: it is already in `Cargo.lock`, pinned as rustls' backend and
-/// reached through `ureq`, so this adds a dependency *line* but no node to the tree.
-pub fn verify(bytes: &[u8], signature: &[u8], key: &[u8; 32]) -> Result<(), String> {
-    if key.iter().all(|b| *b == 0) {
-        return Err("this build carries no key to check the update against".into());
-    }
-    ring::signature::UnparsedPublicKey::new(&ring::signature::ED25519, key.as_slice())
-        .verify(bytes, signature)
-        .map_err(|_| "the update did not come from formicaria, so it was not used".to_string())
-}
+use fm_update::{asset, target, Version};
 
 /// Is `p` a path this updater is allowed to create, replace or delete?
 ///
@@ -395,156 +216,34 @@ fn settings_path() -> Option<std::path::PathBuf> {
     Some(fm_app::vaults::config_dir()?.join("formicaria").join("update.json"))
 }
 
-/// The stored setting, and what the last check found.
-///
-/// **Read as a `Value` with defaults, never a strict struct.** The same discipline `agent.json`
-/// keeps, and for a reason this feature makes sharp: a user who updates and then goes back must
-/// find the older version able to read a file the newer one wrote. Making this
-/// `#[serde(deny_unknown_fields)]` would break every downgrade, silently.
-pub struct Settings {
-    /// Whether to look for a newer version at all. **On by default** — a fix nobody hears about is
-    /// a fix nobody has.
-    pub check: bool,
-    /// Unix seconds of the last completed check, so a restart does not mean another request.
-    pub last_check: u64,
-    /// The newest version the last check saw, so the UI can say something without the network.
-    pub last_seen: Option<String>,
-    /// A version the user installed and then went back from. Not offered again unless they ask.
-    pub rejected: Option<String>,
+// The stored setting and the check are the same on every platform, so they live in `fm_update`, shared
+// with the Android app. Only *where the file is* is desktop-shaped; these supply that.
+
+fn settings() -> fm_update::Settings {
+    settings_path().map(|p| fm_update::settings_at(&p)).unwrap_or_default()
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Settings { check: true, last_check: 0, last_seen: None, rejected: None }
-    }
-}
-
-pub fn settings() -> Settings {
-    let d = Settings::default();
-    let Some(v) = settings_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-    else {
-        return d;
-    };
-    Settings {
-        check: v["check"].as_bool().unwrap_or(d.check),
-        last_check: v["last_check"].as_u64().unwrap_or(0),
-        last_seen: v["last_seen"].as_str().map(str::to_owned),
-        rejected: v["rejected"].as_str().map(str::to_owned),
-    }
-}
-
-/// Write the setting back, preserving keys we do not know about.
-///
-/// **Read-modify-write, not overwrite.** The downgrade case again: a newer version may have stored
-/// something here, and an older one must not silently drop it on the next save.
 fn save(f: impl FnOnce(&mut serde_json::Value)) -> Result<(), String> {
     let p = settings_path().ok_or("this machine has nowhere to keep settings")?;
-    let bytes = merged(std::fs::read_to_string(&p).ok().as_deref(), f)?;
-    if let Some(dir) = p.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&p, bytes).map_err(|e| e.to_string())
-}
-
-/// The read-modify-write itself, kept pure so the property that matters can be tested.
-///
-/// **Unknown keys survive.** A user who updates and then goes back must find the older version able
-/// to read what the newer one wrote — so this merges into whatever is already there rather than
-/// serialising a struct over it. Anything unparseable is replaced rather than merged: a file that
-/// is not an object carries nothing worth keeping, and refusing to save because of it would leave
-/// the switch permanently stuck.
-fn merged(
-    existing: Option<&str>,
-    f: impl FnOnce(&mut serde_json::Value),
-) -> Result<Vec<u8>, String> {
-    let mut v = existing
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(t).ok())
-        .filter(serde_json::Value::is_object)
-        .unwrap_or_else(|| serde_json::json!({}));
-    f(&mut v);
-    serde_json::to_vec_pretty(&v).map_err(|e| e.to_string())
+    fm_update::save_at(&p, f)
 }
 
 pub fn set_check(on: bool) -> Result<(), String> {
     save(|v| v["check"] = serde_json::Value::Bool(on))
 }
 
-fn now() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0)
-}
-
-/// The public release listing. **The only address this feature ever contacts.**
-const LATEST: &str = "https://api.github.com/repos/formicaria-org/formicaria/releases/latest";
-
-/// A day between checks.
-const EVERY: u64 = 24 * 60 * 60;
-
-/// Ask which version is newest. Returns the tag, whatever it is — the comparison is the caller's.
-///
-/// **What this discloses, in full:** one HTTPS GET to the address above, with a fixed
-/// `User-Agent: formicaria`, no query string, no identifier, and nothing about the machine, its
-/// vaults or its user. GitHub learns an IP and a time, which is what any download already tells it.
-/// That sentence is also in the settings panel, next to the switch, because a network call a user
-/// cannot see described is one they cannot consent to.
-pub fn ask() -> Result<String, String> {
-    // 256 KiB: the real answer is a few kilobytes, and the cap is what stops an endless body.
-    let body = fm_fetch::get(LATEST, 256 * 1024).map_err(|e| e.to_string())?;
-    let v: serde_json::Value =
-        serde_json::from_slice(&body).map_err(|e| format!("the reply could not be read: {e}"))?;
-    v["tag_name"]
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| "the reply did not name a version".to_string())
-}
-
-/// Run a check if one is due, and remember what it found.
-///
-/// `force` is the *Check now* button: it ignores both the switch and the interval, because a person
-/// who pressed it is asking, and an explicit ask is its own consent.
 pub fn check(force: bool) -> Result<Option<Version>, String> {
-    let s = settings();
-    if !force && (!s.check || now().saturating_sub(s.last_check) < EVERY) {
-        return Ok(s.last_seen.as_deref().and_then(Version::parse).filter(newer));
-    }
-    let tag = ask()?;
-    let _ = save(|v| {
-        v["last_check"] = serde_json::json!(now());
-        v["last_seen"] = serde_json::json!(tag);
-        // An explicit ask outranks an earlier refusal — the same rule the switch and the interval
-        // already get from `force`.
-        if force {
-            v["rejected"] = serde_json::Value::Null;
-        }
-    });
-    Ok(Version::parse(&tag).filter(newer))
+    let p = settings_path().ok_or("this machine has nowhere to keep settings")?;
+    fm_update::check_at(&p, force)
 }
 
-/// Is `v` actually newer than what is running? `false` when this build has no version at all — the
-/// `dev` refusal, applied at the one place that decides whether to offer anything.
 fn newer(v: &Version) -> bool {
-    if !Version::running().is_some_and(|cur| *v > cur) {
-        return false;
-    }
-    // **Not the one they just rejected.** `last_seen` lives in the config directory and a rollback
-    // does not touch it, so without this the Settings panel offers v0.7.0 again the moment v0.6.0
-    // comes back up — computed offline, on the same screen, seconds after the user said no.
-    // *Check now* clears it, so an explicit ask still wins.
-    settings().rejected.as_deref().and_then(Version::parse) != Some(*v)
+    fm_update::is_newer(v, settings().rejected.as_deref())
 }
 
 // ---------------------------------------------------------------------------------------------
 // Getting it: download, prove it is genuine, stage it
 // ---------------------------------------------------------------------------------------------
-
-/// Where a release's files live.
-fn asset(tag: &str, file: &str) -> String {
-    format!("https://github.com/formicaria-org/formicaria/releases/download/{tag}/{file}")
-}
 
 /// How far a download has got. **In memory only**, like the agent's `Provision` and for the reason
 /// its comment gives: a stale "downloading" written to disk would outlive the process that meant it.
@@ -590,26 +289,9 @@ fn stage_release(
     std::fs::create_dir_all(&dir).map_err(|e| format!("could not prepare the download: {e}"))?;
 
     on_progress("manifest", 0, None);
-    // 64 KiB each: a manifest is a few hundred bytes per artifact and a signature is 64.
-    let manifest_bytes =
-        fm_fetch::get(&asset(tag, &format!("formicaria-{tag}.manifest.json")), 64 * 1024)
-            .map_err(|e| format!("could not read what {tag} contains: {e}"))?;
-    let signature =
-        fm_fetch::get(&asset(tag, &format!("formicaria-{tag}.manifest.json.sig")), 64 * 1024)
-            .map_err(|e| format!("could not read the signature for {tag}: {e}"))?;
-
-    verify(&manifest_bytes, &signature, &RELEASE_PUBLIC_KEY)?;
-
-    let manifest = Manifest::parse(&manifest_bytes)?;
-    let current = Version::running().ok_or("this copy has no version to compare")?;
-    if manifest.version <= current {
-        // Deliberately not phrased as "you are up to date": we asked for `tag` and were handed
-        // something that is not newer, which is a different fact and worth saying plainly.
-        return Err(format!(
-            "the download said it was {} rather than something newer, so it was not used",
-            manifest.version
-        ));
-    }
+    // Fetch, verify the signature, refuse anything not newer — in that order, in `fm_update`,
+    // where the phone runs exactly the same sequence against exactly the same keys.
+    let manifest = fm_update::fetch_verified_manifest(tag)?;
     let entry = manifest
         .entry(target)
         .ok_or_else(|| format!("{} has no download for this kind of computer", manifest.version))?;
@@ -994,7 +676,15 @@ fn swap(app: &Path) -> Result<(), String> {
             }
             let Some(rel) = name.to_str().map(Path::new) else { continue };
             if !is_ours(rel) {
-                debug_assert!(false, "the archive carried something the updater does not own");
+                // **`vault/` is expected, and is never moved.** Every real release archive carries one — the
+                // welcome note for a fresh unpack — and moving it would put a stranger's "Start here" note
+                // into somebody's notebook, or replace their vault outright. This used to be a
+                // `debug_assert!`, which panicked on every real archive in any debug build: the hand-built
+                // test archives never carried a `vault/`, so nothing noticed until one was made to.
+                //
+                // Anything else that is not ours — a file a *later* release adds that this version has never
+                // heard of — is skipped the same way. G1 says never write what is not ours, and an updater
+                // must not fail on an archive it is merely older than.
                 continue;
             }
             let target = app.join(&name);
@@ -1401,13 +1091,16 @@ fn start(state: &Arc<crate::AppState>) -> Result<(), String> {
         .ok_or("there is nothing newer to get")?;
 
     let u = Arc::clone(&state.update);
-    let gen = u.generation.fetch_add(1, Ordering::SeqCst) + 1;
     if let Ok(mut p) = u.progress.lock() {
         if p.as_ref().is_some_and(|p| p.stage != "ready" && p.stage != "failed") {
             return Err("this is already being downloaded".into());
         }
         *p = Some(Progress { stage: "manifest".into(), ..Progress::default() });
     }
+    // **Take the generation only once nothing is running.** Taking it first — as this did — cancelled
+    // the download already under way and then reported that one was, so pressing Get twice lost the
+    // first download while telling the person it was still going.
+    let gen = u.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
     std::thread::spawn(move || {
         // The live generation is what "stopped" means. Reading it on every chunk is what lets a
@@ -1472,84 +1165,6 @@ pub fn check_in_background(state: std::sync::Arc<crate::AppState>) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_release_tag_parses_and_orders() {
-        assert_eq!(Version::parse("v0.5.1"), Some(Version { major: 0, minor: 5, patch: 1 }));
-        assert_eq!(Version::parse("0.5.1"), Version::parse("v0.5.1"));
-        assert!(Version::parse("v0.6.0") > Version::parse("v0.5.1"));
-        assert!(Version::parse("v0.10.0") > Version::parse("v0.9.9"), "numeric, not lexical");
-        assert!(Version::parse("v1.0.0") > Version::parse("v0.99.99"));
-    }
-
-    /// A build that is not a release must never be told it is out of date, and must never update
-    /// itself: there is nothing to compare. This is the `dev` refusal at its source.
-    #[test]
-    fn a_build_that_is_not_a_release_has_no_version() {
-        for s in ["dev", "dev-3493b4a", "", "v", "v1", "v1.2", "v1.2.3.4", "v1.2.x", "v1.2.3-rc1"] {
-            assert_eq!(Version::parse(s), None, "{s} must not parse");
-        }
-    }
-
-    #[test]
-    fn a_version_field_is_digits_only() {
-        for s in ["v+1.2.3", "v1.+2.3", "v-1.2.3", "v1..3", "v 1.2.3", "v1.2. 3"] {
-            assert_eq!(Version::parse(s), None, "{s} must not parse");
-        }
-    }
-
-    fn manifest_json(sha: &str) -> String {
-        format!(
-            r#"{{"version":"v0.6.0","artifacts":[
-                 {{"target":"linux-x86_64","file":"formicaria-v0.6.0-linux-x86_64.tar.gz",
-                   "sha256":"{sha}","size":14669973}}]}}"#
-        )
-    }
-
-    #[test]
-    fn a_manifest_parses_and_finds_its_target() {
-        let sha = "a".repeat(64);
-        let m = Manifest::parse(manifest_json(&sha).as_bytes()).expect("parses");
-        assert_eq!(m.version, Version::parse("v0.6.0").unwrap());
-        let e = m.entry("linux-x86_64").expect("has linux");
-        assert_eq!(e.sha256, sha);
-        assert_eq!(e.size, 14669973);
-        assert!(
-            m.entry("solaris-vax").is_none(),
-            "a target we do not publish is absent, not wrong"
-        );
-    }
-
-    /// §4388's surviving rule, in the shape this feature needs it: a checksum that is not a
-    /// checksum is refused *here*, not discovered as a download that can never succeed.
-    #[test]
-    fn a_checksum_that_is_not_one_is_refused() {
-        for bad in ["", "abc", &"a".repeat(63), &"a".repeat(65), &"z".repeat(64)] {
-            let e = Manifest::parse(manifest_json(bad).as_bytes()).unwrap_err();
-            assert!(e.contains("checksum"), "{bad} → {e}");
-        }
-    }
-
-    #[test]
-    fn a_manifest_without_a_version_is_refused() {
-        let j = r#"{"version":"dev","artifacts":[]}"#;
-        assert!(Manifest::parse(j.as_bytes()).unwrap_err().contains("version"));
-    }
-
-    /// A build whose key was never filled in must trust nothing. The failure has to be a refusal,
-    /// not an accidental "no key, so everything passes".
-    #[test]
-    fn an_unset_key_verifies_nothing() {
-        let e = verify(b"anything", &[0u8; 64], &[0u8; 32]).unwrap_err();
-        assert!(e.contains("no key"), "{e}");
-    }
-
-    #[test]
-    fn a_wrong_signature_is_refused() {
-        let mut key = [0u8; 32];
-        key[0] = 1; // not a valid point; ring must reject rather than accept
-        assert!(verify(b"anything", &[7u8; 64], &key).is_err());
-    }
-
     /// G1, as a unit test over the predicate. The four names that must never be writable are the
     /// four that hold somebody's work.
     #[test]
@@ -1612,6 +1227,15 @@ mod tests {
         std::fs::create_dir_all(dir.join(".fm-update/staged/manual")).unwrap();
         std::fs::write(dir.join(".fm-update/staged/manual/index.html"), b"new manual").unwrap();
         std::fs::write(dir.join(".fm-update/staged/README.txt"), b"new readme").unwrap();
+        // **Every real release archive carries a `vault/`** — the welcome note for a fresh unpack.
+        // It must be skipped, never moved: moving it would put a stranger's "Start here" note into
+        // somebody's notebook, or replace their vault outright.
+        std::fs::create_dir_all(dir.join(".fm-update/staged/vault/notes")).unwrap();
+        std::fs::write(
+            dir.join(".fm-update/staged/vault/notes/01M191H1763EX62JM1DZMBK9A9.md"),
+            b"WELCOME NOTE FROM THE ARCHIVE",
+        )
+        .unwrap();
         dir
     }
 
@@ -1844,31 +1468,6 @@ mod tests {
         });
         assert!(has_program || has_backup, "there must always be a formicaria to start");
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// **The downgrade promise, as a test.** `decisions.md` records that `update.json` must stay
-    /// readable by an older version, which only holds if a save preserves keys it does not know.
-    /// Without this the claim is prose, and the first tidy-up into a strict struct breaks it
-    /// silently — a user rolls back and their settings are gone.
-    #[test]
-    fn saving_keeps_keys_this_version_has_never_heard_of() {
-        let before = r#"{"check":true,"a_later_idea":{"deep":[1,2]},"channel":"beta"}"#;
-        let out = merged(Some(before), |v| v["check"] = serde_json::Value::Bool(false)).unwrap();
-        let after: serde_json::Value = serde_json::from_slice(&out).unwrap();
-        assert_eq!(after["check"], serde_json::json!(false), "the write we asked for happened");
-        assert_eq!(after["a_later_idea"], serde_json::json!({"deep":[1,2]}), "nested keys survive");
-        assert_eq!(after["channel"], serde_json::json!("beta"));
-    }
-
-    /// A file that is not an object carries nothing worth keeping — but it must not wedge the
-    /// switch either, which is what returning an error here would do.
-    #[test]
-    fn an_unreadable_settings_file_is_replaced_rather_than_fatal() {
-        for junk in [None, Some("not json"), Some("[1,2,3]"), Some("")] {
-            let out = merged(junk, |v| v["check"] = serde_json::Value::Bool(true)).unwrap();
-            let after: serde_json::Value = serde_json::from_slice(&out).unwrap();
-            assert_eq!(after["check"], serde_json::json!(true), "{junk:?}");
-        }
     }
 
     /// **Looking and installing are different capabilities**, and the invariant between them is

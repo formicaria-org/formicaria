@@ -1021,20 +1021,74 @@ export const restoreVault = (name: string, path: string, repo: string) =>
  *
  *  `previous` is the version sitting in the folder ready to be restored, read from disk rather than
  *  remembered, so it stays true across a restart. Null when there is nothing to go back to. */
-export const updateStatus = () =>
-  invoke<{
-    can_check: boolean;
-    can_install: boolean;
-    why: string;
-    current: string | null;
-    available: string | null;
-    previous: string | null;
-    can_go_back: boolean;
-    checking: boolean;
-    check: boolean;
-    last_check: number;
-    error: string | null;
-  }>('update_status');
+export const updateStatus = () => invoke<UpdateStatus>('update_status');
+
+/** How far getting a newer version has got. Held in memory on the server only. `total` is null when
+ *  the server sends no length, and the panel then says bytes rather than inventing a percentage. */
+export type UpdateProgress = {
+  stage: 'manifest' | 'download' | 'unpack' | 'ready' | 'failed';
+  done: number;
+  total: number | null;
+  error: string | null;
+};
+
+/** Everything the update rows need, in one answer — the same shape on the desktop and the phone,
+ *  because the same panel renders both. */
+export type UpdateStatus = {
+  can_check: boolean;
+  can_install: boolean;
+  why: string;
+  current: string | null;
+  available: string | null;
+  previous: string | null;
+  can_go_back: boolean;
+  checking: boolean;
+  check: boolean;
+  last_check: number;
+  error: string | null;
+  progress?: UpdateProgress | null;
+  page?: string;
+};
+
+/** Look now, rather than waiting for the once-a-day check. An explicit ask ignores the switch and the
+ *  interval — somebody pressed the button — and clears an earlier "no" to a version they went back
+ *  from. */
+export const updateCheckNow = () => invoke<UpdateStatus>('update_check');
+
+/** The switch. Off means formicaria never asks on its own; *Check now* still works. */
+export const setUpdateCheck = (check: boolean) =>
+  invoke<UpdateStatus>('set_update_check', { check });
+
+/** Start getting the newest version. Answers at once and works in the background; poll
+ *  `updateStatus` for `progress`. */
+export const updateStart = () => invoke<UpdateStatus>('update_start');
+
+/** Stop getting it. What already arrived is kept, so starting again resumes. */
+export const updateCancel = () => invoke<UpdateStatus>('update_cancel');
+
+/** Desktop: install what was got and restart into it. Answers before it stops. */
+export const updateApply = () => invoke<{ restarting: boolean }>('update_apply');
+
+/** **Android: hand the checked download to the system installer.** A phone cannot restart into a new
+ *  version — only Android's installer can replace an app — so the shell's activity exposes a single
+ *  method for it, and that method takes **no argument**: it installs only the one file the shell
+ *  downloaded and verified, and only if it is signed like the app already installed. Nothing on the
+ *  page can name a different file.
+ *
+ *  Returns `'ok'` when the installer opened, `'permission'` when Android first needs the person to
+ *  allow installs from formicaria, or the reason it could not. `null` when this is not the Android
+ *  app, which is also how the panel knows which button to offer. */
+export function installOnPhone(): string | null {
+  const bridge = (globalThis as { __fmUpdate?: { install(): string } }).__fmUpdate;
+  return bridge ? bridge.install() : null;
+}
+
+/** Whether the Android installer bridge is present. */
+export function phoneCanInstall(): boolean {
+  return (
+    typeof (globalThis as { __fmUpdate?: { install?: unknown } }).__fmUpdate?.install === 'function'
+  );
+}
 
 /** Put the previous version back and restart into it. Answers before it stops, so the tab is told
  *  to expect the gap rather than discovering it. Host-bound: a paired device does not decide what

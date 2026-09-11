@@ -29,6 +29,8 @@ use fm_core::ColdStart;
 // explains why Cargo cannot; every arm below reads `agent_shell`, never the raw feature.
 #[cfg(agent_shell)]
 mod agent;
+#[cfg(update_shell)]
+mod update;
 
 /// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the JVM;
 /// iOS's is a `UIDocumentInteractionController`. Wiring either is a later milestone
@@ -578,6 +580,39 @@ fn fm(
         })
         .to_string());
     }
+    // **Updating the app.** A transport concern, like the agent's rows above: fm-serve answers these on
+    // the desktop and the core `dispatch` never has them. **Matched by exact name** — `update_body` is
+    // a note being saved, and a prefix match would swallow every edit made on this phone.
+    #[cfg(update_shell)]
+    if matches!(
+        cmd.as_str(),
+        "update_status"
+            | "update_check"
+            | "set_update_check"
+            | "update_start"
+            | "update_cancel"
+            | "update_apply"
+            | "update_rollback"
+    ) {
+        use tauri::Manager;
+        let cache = app_handle.path().app_cache_dir().map_err(|e| e.to_string())?;
+        if let Some(r) = update::handle(&cmd, &args, &cache) {
+            return r;
+        }
+    }
+    // A build that cannot update itself — iOS, or one made without the feature — still answers the
+    // status the panel reads, so the rows hide instead of the panel meeting an unknown command.
+    #[cfg(not(update_shell))]
+    if cmd == "update_status" {
+        return Ok(serde_json::json!({
+            "can_check": false, "can_install": false,
+            "why": "This build of the app cannot update itself.",
+            "current": null, "available": null, "previous": null, "can_go_back": false,
+            "checking": false, "check": false, "last_check": 0, "error": null, "progress": null,
+            "page": null,
+        })
+        .to_string());
+    }
     // Resolved here rather than in the signature, so the arms above answer while the vaults are
     // still opening (the `@`-picker and the Settings toggles need no store) and this one reports
     // *why* it cannot.
@@ -945,6 +980,14 @@ pub fn run() {
             // **Recorded, not just logged.** See `PATHS`: a device that gave us nowhere to write
             // must not present a first-run form whose every button fails.
             let _ = PATHS.set(configure_paths(app.handle()));
+            // Clear an update that has already been installed, then look for a newer one in the
+            // background — after `configure_paths`, because the settings file lives under the
+            // directory it sets.
+            #[cfg(update_shell)]
+            {
+                use tauri::Manager;
+                update::on_start(app.handle().path().app_cache_dir().ok());
+            }
             // The git token, if this device has one. **Only ever reached here**: a desktop
             // delegates to git's credential helper and stores nothing, so this call is the
             // mobile half of that split (`fm_app::secrets`). Must run before the first sync,

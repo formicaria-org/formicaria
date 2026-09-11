@@ -109,25 +109,40 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
     const MAX_BYTES: u64 = 256 * 1024 * 1024;
     const MAX_ENTRIES: usize = 20_000;
 
+    /// Where an entry goes. **Three answers, not two — and conflating them refused every real
+    /// release.** Both `tar czf` and 7-Zip write an entry for the archive's own top-level directory
+    /// (`formicaria-v0.5.1-linux-x86_64/`), and the first version of this answered that entry the
+    /// same way it answered one trying to escape. The hand-built test archives carried only files,
+    /// so nothing noticed until the extractor was pointed at a published release.
+    enum Place {
+        /// The archive's own top-level directory: there is nothing to write.
+        Root,
+        /// Somewhere under `dest`.
+        At(PathBuf),
+        /// Outside `dest`, or under a top level other than the expected one: refuse the archive.
+        Refuse,
+    }
+
     let name = archive.file_name().and_then(|s| s.to_str()).unwrap_or_default();
     fs::create_dir_all(dest).map_err(|e| format!("could not prepare {}: {e}", dest.display()))?;
 
-    // Where an entry is allowed to land: under `dest`, with `expect/` stripped. `None` means refuse.
-    let placed = |raw: &Path| -> Option<PathBuf> {
+    let place = |raw: &Path| -> Place {
         let mut it = raw.components();
         match it.next() {
             Some(std::path::Component::Normal(first)) if first == expect => {}
-            _ => return None,
+            _ => return Place::Refuse,
         }
-        let rest: PathBuf = it.as_path().to_path_buf();
+        let rest = it.as_path();
         if rest.as_os_str().is_empty() {
-            return None; // the top-level directory itself; nothing to write
+            return Place::Root;
         }
         if !rest.components().all(|c| matches!(c, std::path::Component::Normal(_))) {
-            return None;
+            return Place::Refuse;
         }
-        Some(dest.join(rest))
+        Place::At(dest.join(rest))
     };
+    let refuse =
+        |raw: &Path| format!("refusing '{}', which is not where it says it is", raw.display());
 
     let mut seen = 0usize;
     let mut bytes = 0u64;
@@ -145,15 +160,16 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
         let mut zip = zip::ZipArchive::new(f).map_err(|e| format!("read {name}: {e}"))?;
         for i in 0..zip.len() {
             let mut e = zip.by_index(i).map_err(|e| format!("read {name}: {e}"))?;
-            // `enclosed_name` is zip's own refusal of traversal; `placed` then applies ours.
+            // `enclosed_name` is zip's own refusal of traversal; `place` then applies ours.
             let raw = e.enclosed_name().ok_or("refusing an entry that escapes the folder")?;
-            let Some(out) = placed(&raw) else {
-                return Err(format!(
-                    "refusing '{}', which is not where it says it is",
-                    raw.display()
-                ));
+            let out = match place(&raw) {
+                Place::Root => continue,
+                Place::At(out) => out,
+                Place::Refuse => return Err(refuse(&raw)),
             };
-            // A unix-mode symlink stored in a zip. `S_IFLNK` is 0o120000.
+            // A unix-mode symlink stored in a zip. `S_IFLNK` is 0o120000. (The Windows release is
+            // written by 7-Zip with DOS attributes and no unix bits at all, so this never fires on
+            // a real one — it is here for the archive that is not real.)
             if e.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000) {
                 return Err("refusing a link inside the download".to_string());
             }
@@ -178,7 +194,6 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
 
     let f = File::open(archive).map_err(|e| format!("open {name}: {e}"))?;
     let mut ar = tar::Archive::new(flate2::read::GzDecoder::new(f));
-    // Off: we set modes from the header ourselves and never want ownership from an archive.
     ar.set_preserve_permissions(true);
     ar.set_unpack_xattrs(false);
     for entry in ar.entries().map_err(|e| format!("read {name}: {e}"))? {
@@ -191,8 +206,10 @@ pub fn unpack_tree(archive: &Path, dest: &Path, expect: &str) -> Result<(), Stri
             return Err("refusing an entry that is neither a file nor a folder".to_string());
         }
         let raw = e.path().map_err(|err| format!("read {name}: {err}"))?.into_owned();
-        let Some(out) = placed(&raw) else {
-            return Err(format!("refusing '{}', which is not where it says it is", raw.display()));
+        let out = match place(&raw) {
+            Place::Root => continue,
+            Place::At(out) => out,
+            Place::Refuse => return Err(refuse(&raw)),
         };
         if kind.is_dir() {
             fs::create_dir_all(&out).map_err(|err| format!("{}: {err}", out.display()))?;
@@ -800,5 +817,95 @@ mod tests {
         assert!(!dest.exists(), "no dest is left on a bad checksum");
         assert!(!part_path(&dest).exists(), "the corrupt partial is deleted");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// **A real archive names its own top-level directory, and that is not an escape.**
+    ///
+    /// `tar czf` and 7-Zip both write an entry for the root folder itself. The first version of the
+    /// extractor refused it as "not where it says it is", which would have refused every published
+    /// release on every desktop — and every test passed, because every test archive was built with
+    /// files only. These two carry the entry exactly as the real tools write it.
+    #[test]
+    fn a_tar_that_names_its_own_top_level_directory_unpacks() {
+        let dir = scratch("root-tar");
+        let top = "formicaria-v0.6.0-linux-x86_64";
+        let arc = dir.join("r.tar.gz");
+        let f = fs::File::create(&arc).unwrap();
+        let enc = flate2::write::GzEncoder::new(f, flate2::Compression::fast());
+        let mut ar = tar::Builder::new(enc);
+        let mut d = tar::Header::new_gnu();
+        d.set_entry_type(tar::EntryType::Directory);
+        d.set_mode(0o755);
+        d.set_size(0);
+        d.set_cksum();
+        ar.append_data(&mut d, format!("{top}/"), std::io::empty()).unwrap();
+        let body: &[u8] = b"binary";
+        let mut h = tar::Header::new_gnu();
+        h.set_size(body.len() as u64);
+        h.set_mode(0o755);
+        h.set_cksum();
+        ar.append_data(&mut h, format!("{top}/program/fm-serve"), body).unwrap();
+        ar.into_inner().unwrap().finish().unwrap();
+
+        let out = dir.join("staged");
+        unpack_tree(&arc, &out, top).expect("a root directory entry is not a refusal");
+        assert_eq!(fs::read(out.join("program/fm-serve")).unwrap(), b"binary");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_zip_that_names_its_own_top_level_directory_unpacks() {
+        use std::io::Write as _;
+        let dir = scratch("root-zip");
+        let top = "formicaria-v0.6.0-windows-x86_64";
+        let arc = dir.join("r.zip");
+        let f = fs::File::create(&arc).unwrap();
+        let mut z = zip::ZipWriter::new(f);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+        z.add_directory(format!("{top}/"), opts).unwrap();
+        z.start_file(format!("{top}/program/fm-serve.exe"), opts).unwrap();
+        z.write_all(b"binary").unwrap();
+        z.finish().unwrap();
+
+        let out = dir.join("staged");
+        unpack_tree(&arc, &out, top).expect("a root directory entry is not a refusal");
+        assert_eq!(fs::read(out.join("program/fm-serve.exe")).unwrap(), b"binary");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// **The extractor against the archives the release workflow actually publishes.**
+    ///
+    /// Every other test here builds its archive by hand, which proves the extractor agrees with the
+    /// test's idea of a release — not with `release.yml`'s. The two differ in ways that matter: the
+    /// Windows zip is written by 7-Zip with DOS attributes and no Unix mode bits at all, and both
+    /// archives carry a `vault/` holding the welcome note, which the updater must never move.
+    /// `#[ignore]`d because it needs real downloads; run it before trusting a change to the `stage`
+    /// step, with `FM_REAL_ARCHIVES` naming files under their release names, colon-separated.
+    #[test]
+    #[ignore = "needs real release archives named by FM_REAL_ARCHIVES"]
+    fn real_release_archives_unpack_to_the_shape_the_updater_expects() {
+        let list = std::env::var("FM_REAL_ARCHIVES").expect("set FM_REAL_ARCHIVES");
+        for archive in list.split(':').filter(|s| !s.is_empty()) {
+            let archive = Path::new(archive);
+            let name = archive.file_name().unwrap().to_str().unwrap();
+            let top = name
+                .strip_suffix(".tar.gz")
+                .or_else(|| name.strip_suffix(".zip"))
+                .expect("a release archive is .tar.gz or .zip");
+            let out = scratch(&format!("real-{top}"));
+            unpack_tree(archive, &out, top).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let exe = if name.ends_with(".zip") { "fm-serve.exe" } else { "fm-serve" };
+            for want in [format!("program/{exe}"), "manual/index.html".into(), "README.txt".into()]
+            {
+                assert!(
+                    out.join(&want).exists(),
+                    "{name}: {want} did not land where the updater looks"
+                );
+            }
+            assert!(!out.join(top).exists(), "{name}: the top-level directory must be stripped");
+            eprintln!("{name}: unpacked cleanly");
+            let _ = fs::remove_dir_all(&out);
+        }
     }
 }

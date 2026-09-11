@@ -504,6 +504,35 @@ let mockProvisioned = false;
 // **The version this folder would go back to.** Set, because a folder that has never been updated
 // has no way back and would show no control at all — and the control is the thing being developed.
 let mockPreviousVersion: string | null = 'v0.5.1';
+
+// **A newer version exists**, so the install rows are what `pnpm dev` opens on — the same reason
+// `mockProvisioned` starts false: a mock that starts up to date would hide the whole flow.
+const mockAvailableVersion: string | null = 'v0.6.1';
+let mockUpdateCheck = true;
+let mockUpdateProgress: {
+  stage: 'manifest' | 'download' | 'unpack' | 'ready' | 'failed';
+  done: number;
+  total: number | null;
+  error: string | null;
+} | null = null;
+
+function mockUpdateStatus() {
+  return {
+    can_check: true,
+    can_install: true,
+    why: '',
+    current: 'v0.6.0',
+    available: mockAvailableVersion,
+    previous: mockPreviousVersion,
+    can_go_back: mockPreviousVersion !== null,
+    checking: false,
+    check: mockUpdateCheck,
+    last_check: 0,
+    error: null,
+    progress: mockUpdateProgress,
+    page: 'https://github.com/formicaria-org/formicaria/releases/latest',
+  };
+}
 let mockProvisioning: {
   stage: 'runtime' | 'model' | 'projector' | 'ready' | 'failed';
   done: number;
@@ -782,19 +811,36 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     // anything — a fresh download has nothing to go back to, and a mock that started there would
     // hide the whole control.
     case 'update_status':
-      return {
-        can_check: true,
-        can_install: true,
-        why: '',
-        current: 'v0.6.0',
-        available: null,
-        previous: mockPreviousVersion,
-        can_go_back: mockPreviousVersion !== null,
-        checking: false,
-        check: true,
-        last_check: 0,
-        error: null,
-      } as T;
+      // Advance a download a third at a time per poll, so `pnpm dev` walks through the whole panel
+      // — getting, bytes, ready — without a server.
+      if (mockUpdateProgress?.stage === 'download') {
+        const total = mockUpdateProgress.total ?? 0;
+        const done = Math.min(total, mockUpdateProgress.done + total / 3);
+        mockUpdateProgress = {
+          ...mockUpdateProgress,
+          done,
+          stage: done >= total ? 'ready' : 'download',
+        };
+      }
+      return mockUpdateStatus() as T;
+
+    case 'update_check':
+      return mockUpdateStatus() as T;
+
+    case 'set_update_check':
+      mockUpdateCheck = (args as Record<string, unknown>).check === true;
+      return mockUpdateStatus() as T;
+
+    case 'update_start':
+      mockUpdateProgress = { stage: 'download', done: 0, total: 14_669_973, error: null };
+      return mockUpdateStatus() as T;
+
+    case 'update_cancel':
+      mockUpdateProgress = null;
+      return mockUpdateStatus() as T;
+
+    case 'update_apply':
+      return { restarting: true } as T;
 
     case 'update_rollback': {
       // The real thing restarts into the earlier version; the mock just consumes the way back, so

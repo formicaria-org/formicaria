@@ -871,63 +871,36 @@ The gray-screen fix and its tests are in
   which never invokes the board widget. So a board is still effectively open-on-its-own;
   canvas-inside-an-embed is the remaining gap. Planned in [plan.md](./plan.md) (Track S #4).
 
-## Self-update: what is built, and the four things that are not (2026-09-10)
+## Self-update: built end to end, not yet usable (2026-09-11)
 
-The app can now say a newer version exists and fetch it (`decisions.md#toolchain`, *the app updates
-itself in place, and the folder stops moving*). **It cannot yet install one**, and the gaps are not
-evenly risky — three are unfinished work, one is a live trap.
+The app can check, download, verify and install, and on the desktop go back (`decisions.md#toolchain`).
+What stands between that and anyone using it is not one gap but several, of different kinds.
 
-- **`RELEASE_PUBLIC_KEY` is all zeroes, and `verify` refuses an all-zero key.** So today
-  `update_start` downloads a manifest and then declines it, by design: a build that forgot to set a
-  key must trust nothing rather than everything. **Nothing can be installed until the release
-  signing job runs once and the real key is committed.** The refusal is the safe direction, but it
-  reads to a user as "the update failed" — do not ship the *Get it* button to anyone before the key
-  is real.
-- **The swap and the launcher rescue are built and verified end to end** (2026-09-10), including on
-  a real fixture folder: the program, README and manual are replaced, the previous `program/` is
-  kept as `.fm-backup-<version>`, the notes and `vaults.json` come through byte-identical, and
-  deleting `program/` and double-clicking the launcher puts the previous version back. The launcher
-  also **counts starts and rolls back after three that never became healthy** (formicaria clears the
-  counter ~20 s after it is serving), which covers the failure the missing-file check cannot see: a
-  version that installs, starts, and dies. Both paths are guarded in `ci/checks.sh`, and both guards
-  were watched to fail before being trusted.
-- **Going back is now a button** (Settings → This machine), two-step armed, over
-  `/api/update_rollback`. It proves the earlier binary runs before spending the working one on it,
-  sets the rejected build aside in `.fm-update/rejected/` rather than under `.fm-backup-*` (which
-  the launchers glob, and would roll the user *forward* into what they just turned down), and
-  records the rejection so the panel does not offer it back seconds later. **G2 has no known gap
-  left.**
-- **What still has no automatic signal** is a version that installs, starts, stays up, and is
-  subtly wrong in a way nobody notices for weeks. The backup is kept only until the *next* update
-  supersedes it, so past that point going back means downloading an older release by hand. That is
-  a deliberate limit — arbitrary downgrade would mean owning schema compatibility across N
-  versions — and `discard_an_index_from_the_future` is what makes a hand-installed older release
-  safe when someone does it.
-- **`FM_LAUNCHER < 2` refuses, and that is every folder in existence right now.** The rescue lives
-  in the launcher, so a folder only gains it by being updated once — v(N) ships the capability,
-  v(N+1) is the first update anyone can take in-app. Expected, and the reason the refusal names
-  `Update from an older folder` as the way through.
-- **`release.yml` publishes no manifest and no signature.** The client half is written against a
-  format nothing produces yet. Until that job exists, `stage_release` fails at its first request on
-  every real release — including `v0.5.1`.
-- **Nothing here has run on Windows or macOS.** The same standing caveat as
-  `Start formicaria.vbs` and the `.bat` (which *"has been executed by nobody"*): the swap step is
-  the riskiest filesystem manoeuvre in the product and Windows has the strictest locking semantics,
-  so every Windows claim in the decision entry is reasoning from documented API behaviour rather
-  than from a run.
-
-**A pre-existing bug this feature makes routine, worth fixing separately.** `manifest_path()`
-prefers `<config>/formicaria/tools/models.toml` over the copy beside the binary, *forever*. So on
-any machine that has enabled the assistant once, shipping a new catalogue in `program/` is a no-op
-— a new release cannot change the model catalogue for exactly the users who have models. Android
-already dodges this by rewriting `models.toml` from `EMBEDDED_MANIFEST` on every start; the desktop
-does not.
-
-**And the residual on the trust root, stated where somebody will read it.** The signing key lives as
-a CI secret, so a valid signature proves the manifest came from this project's pipeline and was not
-altered in transit. It does **not** survive a compromise of the repository or its Actions, which
-would yield the artifacts and the key together. Say *signed against transport tampering*; an
-owner-side offline countersign is the stronger option and needs no client change.
+- **No release key exists, so nothing verifies.** `crates/fm-update/release-keys.txt` holds only
+  comments, and a build with no key trusts nothing — by design. Until the maintainer runs `pixi run
+  release-key`, lists the public half and sets `RELEASE_SIGNING_KEY_B64`, every tag publishes without a
+  signature and `manifest-sign` goes red. **Do not tell anyone a release can update itself before then.**
+- **The first release carrying this cannot update anyone.** On the desktop the rescue lives in the
+  launcher, so a folder gains it only by being updated once — `FM_LAUNCHER` unset refuses. On a phone the
+  installed APK must already contain the updater, so the first such APK is installed by hand. Testing
+  it therefore takes two signed releases: one installed by hand, one to update to.
+- **The Android path has never run on a device.** The bridge's permission screen, the positive-mismatch
+  signature check and the `FileProvider` hand-off are reasoned from the API and checked against Tauri's
+  source, not observed. The owner's phone is the first place any of it runs.
+- **Nothing here has run on Windows or macOS** either — the same standing caveat as `Start
+  formicaria.vbs`. The zip extraction *is* checked against the published Windows archive.
+- **Going back is desktop-only**, by necessity: Android installs an older version only after an
+  uninstall, which deletes the notes kept inside the app.
+- **iOS has no update rows at all.** Notify-only is possible and unbuilt.
+- **A version that is subtly wrong and noticed late** has no way back once the next update supersedes
+  its backup; past that point going back means downloading an older release by hand, which
+  `discard_an_index_from_the_future` makes safe.
+- **`models.toml` in `program/` is a no-op** on any machine that has enabled the assistant:
+  `manifest_path()` prefers `<config>/formicaria/tools/models.toml` forever, so a release cannot change
+  the catalogue for exactly the users who have models. Android sidesteps this by rewriting it from
+  `EMBEDDED_MANIFEST` on every start.
+- **The trust residual:** a CI-held signing key defends against transport tampering, not a compromised
+  repository or pipeline.
 
 ## Deferred (intentionally not built yet)
 

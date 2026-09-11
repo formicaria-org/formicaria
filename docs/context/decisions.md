@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -7545,3 +7545,120 @@ and all three were real:**
 `push`/`pull` with no low-speed timeout, so a sync that connected and stalled would have held the
 escape hatch shut — at exactly the moment someone most wants it. Five seconds, then proceed;
 files-as-truth means the notes are already safe and only the snapshot is missed.
+
+## 2026-09-11 — a release is signed by a job that runs no toolchain, against keys that survive losing one `#toolchain`
+
+**Decision.** Every tagged release carries `formicaria-<tag>.manifest.json` — each artifact's target,
+file, sha256 and size — and `formicaria-<tag>.manifest.json.sig`, a raw 64-byte Ed25519 signature over
+it. Two jobs in `release.yml` make them: `manifest` downloads the artifacts and hashes them, holding no
+secret; `manifest-sign` receives only that JSON, decodes `RELEASE_SIGNING_KEY_B64`, runs `openssl` and
+shreds the key in an `if: always()` step. The app verifies with `ring` against the keys in
+`crates/fm-update/release-keys.txt`.
+
+**`openssl`, not a signing crate and not a compiler in the key's job.** The reasoning is the one that
+split `android-build` from `android-sign`: every program that runs on a machine holding a key is a
+program that can read it, and compiling the workspace runs hundreds of third-party build scripts.
+OpenSSL is already on every runner and in the pixi environment, and `pkeyutl -rawin` makes a pure
+Ed25519 signature. That `ring` accepts it is not assumed: `crates/fm-update/tests/fixtures` holds a
+manifest written by `ci/release-manifest.sh` and signed by `ci/release-sign.sh` with a throwaway key
+whose private half was deleted, and a test verifies it and watches a changed byte fail. `ci/checks.sh`
+rehearses the scripts over fake artifacts and fails if the key-holding job ever gains a toolchain —
+that guard was watched to fail before it was trusted.
+
+**The trusted keys are a list, and that is what makes losing one survivable.** A single key is a single
+point of permanent failure: lose it and nothing signed afterwards is accepted, so no installed copy can
+update again. With a second, offline recovery key listed, the recovery key signs one release that lists
+a new signing key. The list is a text file compiled in with `include_str!` — not a runtime file an
+attacker could replace, and `grep`-able so `manifest-sign` can refuse to sign with a key the app does
+not trust, which would otherwise publish a release nobody can take. An empty list, or a zero
+placeholder, trusts nothing.
+
+**The key is the maintainer's to make, on their own machine.** `ci/release-key.sh` refuses to overwrite
+an existing key and prints the `gh secret set` command that reads the file, so the key never appears on
+a screen or in a transcript. It was deliberately not generated during the session that built this: the
+key is the whole trust root, and its backup and custody are decisions for the person who holds it.
+
+**Both jobs are `continue-on-error`**, like the phone builds. A signing failure costs a release its
+ability to be taken as an update — installed copies refuse an unsigned manifest — and never costs
+anyone the download itself.
+
+**The residual, stated where it will be read:** a CI-held key defends against a tampered asset, a bad
+CDN and a hostile mirror, not against a compromised repository or pipeline, which yields artifacts and
+key together. *Signed against transport tampering*, never *signed releases*.
+
+## 2026-09-11 — the trust root lives in one crate that both shells link `#seams` `#toolchain`
+
+**Decision.** `crates/fm-update` holds what is the same on every platform: `Version`, the build
+`target()`, the manifest, `verify`, the trusted keys, and the setting and check. `fm-serve` keeps what
+only a desktop folder has — the allowlist of what an update may write, the swap, the backups, the
+launcher's counter, the restart — and the Android shell keeps the hand-off to the installer.
+
+**Why a crate rather than a copy.** The phone had to answer the same questions, and the tempting route
+was a second implementation in the mobile shell. A trust root in two places is one that drifts: two
+key lists, two replay checks, two readings of the manifest, and the first disagreement is a security
+bug on exactly one platform. `fm_update::fetch_verified_manifest` is now the only place that fetches,
+verifies and refuses anything not newer, and both shells call it.
+
+**It found a gap on the way.** `Version::running()` reads `option_env!("FM_VERSION")`, which is
+evaluated at compile time. `fm-app/build.rs` exists so a cached build cannot keep a stale version;
+`fm-serve`'s build script watches only the UI, so the comparison that lived there could have compared a
+`v0.6.1` release as `v0.6.0`. `fm-update/build.rs` declares the input.
+
+## 2026-09-11 — an extractor is proven against the archives the pipeline actually publishes `#toolchain`
+
+**Two bugs in the updater were invisible to every test, and both were found by pointing it at a
+published release.**
+
+- **Every real archive names its own top-level directory**, as its first entry: `tar czf` writes
+  `formicaria-v0.5.1-linux-x86_64/`, and 7-Zip writes the same for the Windows zip. The extractor
+  treated that entry as "not where it says it is" — the refusal meant for an escape — so **every update,
+  on every desktop, would have failed at unpacking.** Every hand-built test archive contained files
+  only.
+- **Every real archive also carries a `vault/`**, holding the welcome note for a fresh unpack. The swap
+  met it with a `debug_assert!`, which panics in any debug build. It is now skipped, never moved, along
+  with anything else a *later* release adds that this version has never heard of.
+
+**The lesson generalises: a test archive built by the test's author proves agreement with the author's
+idea of a release, not with the release.** So `fm-fetch` carries an `#[ignore]`d test that unpacks real
+downloads named by `FM_REAL_ARCHIVES` — run against both v0.5.1 archives, which now unpack cleanly —
+and the swap's fixture carries a `vault/` exactly as the archive does. The Windows zip turned out to be
+DOS-created, with no Unix mode bits at all, which the symlink refusal handles without a false positive.
+
+## 2026-09-11 — a phone installs an update through Android's installer, over a bridge that takes no argument `#track-m` `#toolchain`
+
+**Decision.** On Android the app checks, downloads and verifies exactly as the desktop does, through
+`fm_update`, writing the APK to `cacheDir/update/formicaria.apk` only once its checksum matches a
+verified manifest. Pressing Install calls `window.__fmUpdate.install()`, a JavaScript interface
+`MainActivity` registers, which hands that file to the system installer.
+
+**This widens what ships: `REQUEST_INSTALL_PACKAGES`.** Android lets an app open its installer only if
+it declares the permission, and people and scanners read it as a red flag. It grants nothing silent —
+Android asks the person once to allow installs from formicaria, and again for every install — and the
+bridge opens that permission screen itself rather than failing.
+
+**The bridge is as narrow as it can be made.**
+- **No argument.** It installs one fixed file. Nothing running in the page can name a different one, so
+  a page that went wrong cannot turn it into "install what I point at". The path is `cacheDir` because
+  that is what the existing `FileProvider` already shares (`cache-path "."`), and Tauri's
+  `app_cache_dir()` resolves to `activity.cacheDir` — checked against its `PathPlugin`, not assumed.
+- **A foreign signature is not offered** — but only on a *positive* mismatch. Android enforces matching
+  signatures on an update itself; the bridge adds a check so a stranger's package is never put in front
+  of the person, and it deliberately does not block when a platform quirk returns no signing
+  information, because that would stop an update Android would accept.
+
+**No going back on a phone, by necessity.** Android installs an older version only after uninstalling
+the newer one, and uninstalling deletes the app's private storage, which is where the notes live.
+`update_rollback` refuses with that sentence and the panel never shows the row.
+
+**Two traps closed on the way.** The core has an `update_body` command — saving a note — so the update
+commands are matched by exact name on both shells, and `ci/checks.sh` refuses a prefix match: one would
+have swallowed every edit. And Android refuses to install an update whose `versionCode` is not higher,
+while `versionCode` comes from a hand-edited `tauri.conf.json` that had already drifted in its generated
+copy; `ci/android-release.sh` now refuses to build a tag that file disagrees with.
+
+**iOS gets nothing yet.** `cfg(update_shell)` is Android-only, so iOS answers a status that hides the
+rows. Notify-only for iOS is possible and unbuilt, and there is still no iPhone here to check it on.
+
+**Also:** the desktop's `start` took its cancel generation before checking whether a download was
+already running, so pressing *Get it* twice cancelled the first download while reporting that it was
+still going. It now refuses first, and the phone was written that way from the start.

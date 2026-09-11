@@ -19,6 +19,15 @@
 fn main() {
     // Declares the cfg so `--cfg` typos become warnings rather than silently-dead code.
     println!("cargo::rustc-check-cfg=cfg(agent_shell)");
+    // **`update_shell` means "this build can update itself"**: the `update` feature, on Android. The
+    // same two-sided shape as `agent_shell`, and for the same reason — iOS cannot install an app and has
+    // no installer bridge, so it must compile the *other* arm, which answers a status that hides the rows.
+    println!("cargo::rustc-check-cfg=cfg(update_shell)");
+    if std::env::var_os("CARGO_FEATURE_UPDATE").is_some()
+        && std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android")
+    {
+        println!("cargo::rustc-cfg=update_shell");
+    }
     if std::env::var_os("CARGO_FEATURE_AGENT").is_some()
         && std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android")
     {

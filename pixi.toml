@@ -273,6 +273,13 @@ test-agent-download = "cargo test -p fm-agent-run --features download fetch::"
 # the routine gate — run it before cutting a release. An upstream asset that was re-uploaded would
 # otherwise reach a user as an unexplained checksum failure on their first enable.
 check-pins = "cargo test -p fm-agent-run --features download -- --ignored --nocapture every_pinned_runtime"
+# **The release trust root** (`decisions.md#toolchain`, 2026-09-11). `release-key` is run once, by the
+# maintainer, on their own machine — it refuses to overwrite a key. `release-manifest` and
+# `release-sign` are what the release workflow runs, exposed here so a release can be rehearsed
+# locally against a throwaway key before a tag makes it public.
+release-key = "sh ci/release-key.sh"
+release-manifest = "sh ci/release-manifest.sh"
+release-sign = "sh ci/release-sign.sh"
 # Fetch the local agent's runtime + a model into agents/{runtime,models} (both gitignored).
 # `pixi run fetch-model` for the lightest default; `pixi run fetch-model <name>` for a specific one.
 fetch-model = "bash agents/fetch.sh"

@@ -561,13 +561,104 @@ jobs:
           path: mobile/formicaria-*-android-*.apk
 
 
+  # **The signed release manifest** (`decisions.md#toolchain`, 2026-09-11) — the updater's trust root.
+  #
+  # Two jobs, split for the reason `android-build` and `android-sign` are: **the job holding the key
+  # sees one small JSON file and runs one audited binary.** `manifest` downloads every artifact and
+  # hashes it, with no secret; `manifest-sign` receives only that file, decodes the key, runs
+  # `openssl` and shreds the key. No toolchain is installed there, because every program that runs on
+  # a machine holding a key is a program that can read it.
+  #
+  # Both are `continue-on-error`, like the phone builds, and for the same reason: a signing failure must
+  # not cost anyone the release. What it costs instead is safe — a release with no signature is one no
+  # installed formicaria will accept as an update, and people can still download it by hand.
+  manifest:
+    name: release manifest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [binaries, ios, android-sign]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: the manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f dist/unsigned-*
+          sh ci/release-manifest.sh dist "${GITHUB_REF_NAME}"
+          cat "dist/formicaria-${GITHUB_REF_NAME}.manifest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: dist/formicaria-${{ github.ref_name }}.manifest.json
+          if-no-files-found: error
+
+  manifest-sign:
+    name: release manifest (sign)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: manifest
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      # Checked out for two small shell scripts and the list of trusted keys. Nothing is built.
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-manifest
+          path: manifest
+      - name: the signing key
+        env:
+          RELEASE_SIGNING_KEY_B64: ${{ secrets.RELEASE_SIGNING_KEY_B64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_SIGNING_KEY_B64:-}" ]; then
+            echo "no RELEASE_SIGNING_KEY_B64 secret — this release publishes without a signature, and no" >&2
+            echo "installed formicaria will accept it as an update. See ci/release-key.sh." >&2
+            exit 1
+          fi
+          d="$HOME/.config/formicaria"
+          mkdir -p "$d" && chmod 700 "$d"
+          umask 177
+          printenv RELEASE_SIGNING_KEY_B64 | base64 -d > "$d/release-signing.pem"
+      - name: sign it
+        shell: bash
+        run: |
+          set -euo pipefail
+          m="manifest/formicaria-${GITHUB_REF_NAME}.manifest.json"
+          FM_RELEASE_KEY="$HOME/.config/formicaria/release-signing.pem" sh ci/release-sign.sh "$m"
+          # **A signature from a key the app does not trust is a release nobody can take.** Checked
+          # here so it is a red job on the tag, not a silent refusal on every device afterwards.
+          pub=$(openssl pkey -in "$HOME/.config/formicaria/release-signing.pem" -pubout -outform DER \
+                | tail -c 32 | od -An -tx1 | tr -d ' \n')
+          if ! grep -Eiq "^${pub}([[:space:]]|$)" crates/fm-update/release-keys.txt; then
+            echo "the signing key's public half ($pub) is not in crates/fm-update/release-keys.txt," >&2
+            echo "so no installed formicaria would accept this release. Add it and tag again." >&2
+            exit 1
+          fi
+      - name: shred the signing key
+        if: always()
+        shell: bash
+        run: |
+          f="$HOME/.config/formicaria/release-signing.pem"
+          shred -u "$f" 2>/dev/null || rm -f "$f"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-signature
+          path: manifest/formicaria-${{ github.ref_name }}.manifest.json.sig
+          if-no-files-found: error
+
   attach:
     name: attach to the release
     if: startsWith(github.ref, 'refs/tags/v')
     # **`binaries` gates; the phone legs do not.** They are `continue-on-error`, so a failed phone
     # build reports success to this job and simply contributes no artifact. A failed *desktop*
     # build still stops the release, which is the one thing that must not be published half-made.
-    needs: [binaries, ios, android-sign]
+    needs: [binaries, ios, android-sign, manifest, manifest-sign]
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,0 +1,13 @@
+# The Ed25519 public keys an installed formicaria trusts to sign a release manifest.
+#
+# Compiled into the binary with `include_str!`, so this is not a file anyone can change on a user's
+# machine: changing it is a commit, and every change is in history. One key per line — 64 lowercase
+# hex characters, then an optional `# comment`. Blank lines and comment lines are ignored, and a line
+# that is neither fails the test suite rather than reaching a user.
+#
+# Add a line with `pixi run release-key` (ci/release-key.sh prints it). **List a second, offline
+# recovery key too**: a lost signing key then costs one release signed with the recovery key, rather
+# than every installed copy's ability to update ever again.
+#
+# Empty until the first key is generated. While it is empty, verification refuses everything — a
+# build with no key must trust nothing, never everything.

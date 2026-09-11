@@ -79,16 +79,21 @@ cat > "$pkg_dir/MainActivity.kt" <<'KT'
 package dev.formicaria.notes
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import java.io.File
 
 class MainActivity : TauriActivity() {
   private var wv: WebView? = null
@@ -178,9 +183,84 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  /// **The one thing the page may ask Android to install: formicaria's own, already-checked update.**
+  ///
+  /// A phone cannot restart into a new version the way the desktop does — only Android's package
+  /// installer can replace an app — so this is the last step of updating on Android, and it is
+  /// deliberately narrow (`decisions.md#toolchain`, 2026-09-11):
+  ///
+  /// - **It takes no argument.** It installs one file: `cacheDir/update/formicaria.apk`, which the Rust
+  ///   side writes only once its sha256 matches a manifest whose Ed25519 signature has been verified.
+  ///   Nothing running in the page can name a different file, so a page that went wrong cannot turn
+  ///   this into "install whatever I point at". `cacheDir` is also exactly what the existing
+  ///   `FileProvider` shares (`cache-path "."`), so no resource needs editing — Tauri's
+  ///   `app_cache_dir()` resolves to `activity.cacheDir`, checked against its `PathPlugin`.
+  /// - **Android asks first, once.** Installing from an app needs the person's permission for that
+  ///   app. Rather than fail, this opens the screen that grants it and says so; the page tells the
+  ///   person to come back and press Install again.
+  /// - **A download signed by somebody else is not offered.** Android enforces this itself for an
+  ///   update, but only after the person has been shown an install prompt for a stranger's package.
+  ///   The check here blocks only on a *positive* mismatch: a platform quirk that returns no signing
+  ///   information must not block an update Android would accept — that enforcement stays Android's.
+  ///
+  /// Returns `ok`, `permission`, or `error: <reason>`; the page prints the reason as it is.
+  inner class UpdateInstaller {
+    @JavascriptInterface
+    fun install(): String {
+      val apk = File(cacheDir, "update/formicaria.apk")
+      if (!apk.isFile) return "error: there is no checked download to install yet"
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+        val allow = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runOnUiThread { startActivity(allow) }
+        return "permission"
+      }
+      if (signedDifferently(apk)) {
+        return "error: the download is not signed like the formicaria already installed, so it was not installed"
+      }
+      return try {
+        val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", apk)
+        val view = Intent(Intent.ACTION_VIEW)
+          .setDataAndType(uri, "application/vnd.android.package-archive")
+          .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        runOnUiThread { startActivity(view) }
+        "ok"
+      } catch (e: Exception) {
+        "error: ${e.message}"
+      }
+    }
+  }
+
+  /// True only when both signer sets were read **and** they differ. See `UpdateInstaller`.
+  private fun signedDifferently(apk: File): Boolean {
+    return try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        @Suppress("DEPRECATION")
+        val theirs = packageManager
+          .getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNING_CERTIFICATES)
+          ?.signingInfo?.apkContentsSigners
+        @Suppress("DEPRECATION")
+        val mine = packageManager
+          .getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+          .signingInfo?.apkContentsSigners
+        theirs != null && mine != null && theirs.toSet() != mine.toSet()
+      } else {
+        @Suppress("DEPRECATION")
+        val theirs = packageManager.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)?.signatures
+        @Suppress("DEPRECATION")
+        val mine = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES).signatures
+        theirs != null && mine != null && theirs.toSet() != mine.toSet()
+      }
+    } catch (e: Exception) {
+      false
+    }
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     wv = webView
     webView.addJavascriptInterface(Insets(), "__fmInsets")
+    // The installer bridge, re-injected into every document like the insets one. See UpdateInstaller.
+    webView.addJavascriptInterface(UpdateInstaller(), "__fmUpdate")
 
     // **Applied before the page's own CSS**, on every navigation, so there is no frame in which
     // the app is laid out against a zero inset. Feature-gated exactly as `RustWebView.kt` gates
@@ -285,6 +365,21 @@ if ! grep -q 'RECORD_AUDIO' "$manifest"; then
         { print }
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
+# The update installer: Android lets an app hand an APK to the system installer only if it declares
+# this. **A deliberate widening, recorded in decisions.md** — people and scanners read it as a red
+# flag, and it is what installing an update from inside the app costs. It grants no silent install:
+# Android still asks the person, once for the permission and every time for the install. Idempotent.
+if ! grep -q 'REQUEST_INSTALL_PACKAGES' "$manifest"; then
+    tmpf=$(mktemp)
+    awk '
+        /android.permission.INTERNET/ && !r {
+            print
+            print "    <uses-permission android:name=\"android.permission.REQUEST_INSTALL_PACKAGES\" />"
+            r=1; next
+        }
+        { print }
+    ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
+fi
 if ! grep -q 'AgentService' "$manifest"; then
     tmpf=$(mktemp)
     awk '
@@ -299,4 +394,4 @@ if ! grep -q 'AgentService' "$manifest"; then
     ' "$manifest" > "$tmpf" && mv "$tmpf" "$manifest"
 fi
 
-echo "android-inject-service: foreground service injected (AgentService + MainActivity + manifest)."
+echo "android-inject-service: foreground service and update installer injected (AgentService + MainActivity + manifest)."

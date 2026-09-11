@@ -1,0 +1,7 @@
+{
+  "version": "v9.9.9",
+  "artifacts": [
+    {"target": "android-arm64", "file": "formicaria-v9.9.9-android-arm64.apk", "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04", "size": 3},
+    {"target": "linux-x86_64", "file": "formicaria-v9.9.9-linux-x86_64.tar.gz", "sha256": "caf90169eefa5f807d577486b9f795ab86ae2983c5c20806cff959117e90af18", "size": 5}
+  ]
+}

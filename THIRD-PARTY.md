@@ -58,6 +58,7 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | fm-model | v0.0.0 | MIT |
 | fm-query | v0.0.0 | MIT |
 | fm-serve | v0.0.0 | MIT |
+| fm-update | v0.0.0 | MIT |
 | fnv | v1.0.7 | Apache-2.0 / MIT |
 | foldhash | v0.2.0 | Zlib |
 | form_urlencoded | v1.2.2 | MIT OR Apache-2.0 |

@@ -114,6 +114,25 @@ fi
 # not be kept in step by hand; `FM_VERSION=... pixi run android-release` still wins for a one-off.
 : "${FM_VERSION:=$(git -C "$root" describe --tags --exact-match 2>/dev/null || echo dev)}"
 export FM_VERSION
+
+# **On a release tag, the Android version must be the tag.** `tauri.conf.json`'s `"version"` is edited
+# by hand and is what Tauri turns into `versionCode` (major·1000000 + minor·1000 + patch), while the
+# tag is what everything else — the file name, `FM_VERSION`, the in-app comparison — is built from.
+# Nothing kept them in step, and the generated copy had already drifted to 0.5.0 while the source said
+# 0.5.1. Since 2026-09-11 that drift is not cosmetic: **Android refuses to install an update whose
+# `versionCode` is not higher than the installed one**, so an APK built from a tag with a stale
+# `tauri.conf.json` is a release the app can download, verify and then never install.
+if printf '%s\n' "$FM_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+    conf_version=$(sed -n 's/^[[:space:]]*"version":[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$root/mobile/src-tauri/tauri.conf.json" | head -1)
+    if [ "v$conf_version" != "$FM_VERSION" ]; then
+        echo "android-release: building $FM_VERSION, but mobile/src-tauri/tauri.conf.json says" >&2
+        echo "  \"version\": \"$conf_version\". Android derives versionCode from that file and will not" >&2
+        echo "  install an update unless it is higher, so this APK could never be taken as an update" >&2
+        echo "  from inside the app. Set it to \"${FM_VERSION#v}\" and tag again." >&2
+        exit 1
+    fi
+fi
 echo "android-release: stage=$stage, FM_VERSION=$FM_VERSION"
 
 if [ "$do_build" = yes ]; then

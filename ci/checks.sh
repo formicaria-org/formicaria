@@ -1355,6 +1355,104 @@ else
     rm -rf "$rescue_tmp"
 fi
 
+echo "[check] the release manifest is built, signed and wired the way the updater reads it..."
+# **The updater's trust root, rehearsed rather than asserted** (`decisions.md#toolchain`, 2026-09-11).
+# A real run of the two scripts over fake artifacts, checked against the shape `fm_update::Manifest`
+# parses; a real Ed25519 signature from a throwaway key; and a manifest changed after signing that must
+# stop verifying. The Rust half — that `ring` accepts what `openssl` signs — is pinned by a fixture in
+# `crates/fm-update`. And the workflow must keep the key-holding job free of any toolchain.
+if ! command -v openssl >/dev/null 2>&1; then
+    echo "  FAIL: openssl is not on PATH, so the release signing cannot be rehearsed."
+    echo "        It comes from pixi's default environment — are you inside 'pixi run'?"
+    fail=1
+else
+    rel_tmp=$(mktemp -d)
+    mkdir -p "$rel_tmp/dist"
+    printf 'linux'    > "$rel_tmp/dist/formicaria-v9.9.9-linux-x86_64.tar.gz"
+    printf 'windows!' > "$rel_tmp/dist/formicaria-v9.9.9-windows-x86_64.zip"
+    printf 'apk'      > "$rel_tmp/dist/formicaria-v9.9.9-android-arm64.apk"
+    printf 'x'        > "$rel_tmp/dist/unsigned-android-arm64.apk"
+    if ! sh ci/release-manifest.sh "$rel_tmp/dist" v9.9.9 >/dev/null 2>&1; then
+        echo "  FAIL: ci/release-manifest.sh could not write a manifest for three ordinary artifacts."
+        fail=1
+    elif ! python3 - "$rel_tmp/dist" <<'PY'
+import hashlib, json, os, re, sys
+d = sys.argv[1]
+m = json.load(open(os.path.join(d, "formicaria-v9.9.9.manifest.json")))
+bad = []
+if m.get("version") != "v9.9.9":
+    bad.append("version")
+arts = m.get("artifacts", [])
+names = sorted(a["file"] for a in arts)
+want = ["formicaria-v9.9.9-android-arm64.apk", "formicaria-v9.9.9-linux-x86_64.tar.gz",
+        "formicaria-v9.9.9-windows-x86_64.zip"]
+if names != want:
+    bad.append(f"files {names} (an unsigned intermediate must never be listed)")
+for a in arts:
+    data = open(os.path.join(d, a["file"]), "rb").read()
+    if a.get("sha256") != hashlib.sha256(data).hexdigest():
+        bad.append(f"sha256 of {a['file']}")
+    if a.get("size") != len(data):
+        bad.append(f"size of {a['file']}")
+    stem = re.sub(r"\.(tar\.gz|zip|apk|ipa)$", "", a["file"])
+    if a.get("target") != stem[len("formicaria-v9.9.9-"):]:
+        bad.append(f"target of {a['file']}")
+if bad:
+    print("  FAIL: the manifest does not match what fm_update::Manifest parses: " + "; ".join(bad))
+    sys.exit(1)
+PY
+    then
+        fail=1
+    fi
+    for not_a_release in v1.2.3-rc1 dev-3493b4a 1.2.3 v1.2; do
+        if sh ci/release-manifest.sh "$rel_tmp/dist" "$not_a_release" >/dev/null 2>&1; then
+            echo "  FAIL: release-manifest.sh accepted '$not_a_release', a version the updater refuses."
+            fail=1
+        fi
+    done
+    openssl genpkey -algorithm ed25519 -out "$rel_tmp/k.pem" 2>/dev/null
+    m="$rel_tmp/dist/formicaria-v9.9.9.manifest.json"
+    if ! FM_RELEASE_KEY="$rel_tmp/k.pem" sh ci/release-sign.sh "$m" >/dev/null 2>&1; then
+        echo "  FAIL: ci/release-sign.sh could not sign a manifest with a valid key."
+        fail=1
+    elif [ "$(wc -c < "$m.sig" | tr -d ' ')" != 64 ]; then
+        echo "  FAIL: the signature is not 64 raw bytes, which is what fm_update::verify reads."
+        fail=1
+    else
+        openssl pkey -in "$rel_tmp/k.pem" -pubout -out "$rel_tmp/k.pub" 2>/dev/null
+        printf ' ' >> "$m"
+        if openssl pkeyutl -verify -pubin -inkey "$rel_tmp/k.pub" -rawin -in "$m" -sigfile "$m.sig" >/dev/null 2>&1; then
+            echo "  FAIL: a manifest changed after signing still verified."
+            fail=1
+        fi
+    fi
+    rm -rf "$rel_tmp"
+fi
+if ! python3 - <<'PY'
+import sys, yaml
+jobs = yaml.safe_load(open(".github/workflows/release.yml"))["jobs"]
+bad = []
+for name in ("manifest", "manifest-sign"):
+    if name not in jobs:
+        bad.append(f"there is no '{name}' job")
+sign = jobs.get("manifest-sign", {})
+text = yaml.safe_dump(sign)
+for toolchain in ("setup-pixi", "pixi run", "cargo", "rust-cache", "setup-node"):
+    if toolchain in text:
+        bad.append(f"manifest-sign uses '{toolchain}' — the job holding the key must run no toolchain")
+if sign and not any(st.get("if") == "always()" and "shred" in (st.get("run") or "")
+                    for st in sign.get("steps", [])):
+    bad.append("manifest-sign has no 'if: always()' step that shreds the key")
+if "manifest-sign" not in (jobs.get("attach", {}).get("needs") or []):
+    bad.append("'attach' does not wait for manifest-sign, so the signature would not be published")
+if bad:
+    print("  FAIL: " + "\n        ".join(bad))
+    sys.exit(1)
+PY
+then
+    fail=1
+fi
+
 echo "[check] the release sheet points at paths the release actually stages..."
 # The archive's README is read by the one person who can check nothing: someone holding a .zip,
 # offline, with no way to discover that a folder was renamed after the sheet was written. This is
@@ -1602,6 +1700,44 @@ if [ -f mobile/src-tauri/src/lib.rs ] && [ -f crates/fm-serve/src/agent.rs ]; th
             fail=1
         fi
     done
+fi
+
+echo "[check] the phone's update_status answers every key the desktop's does, by exact name..."
+# The same Settings panel renders both, so a key missing on one side is a row that renders wrong on that
+# platform only — the bug the agent_status guard above exists for, one feature over.
+if [ -f mobile/src-tauri/src/update.rs ] && [ -f crates/fm-serve/src/update.rs ]; then
+    for k in can_check can_install why current available previous can_go_back checking check last_check error progress page; do
+        if ! grep -aq "\"$k\"" crates/fm-serve/src/update.rs; then
+            echo "  FAIL: this guard names \"$k\", which fm-serve's update_status no longer answers."
+            echo "        Update the list here rather than letting it check a key nobody sends."
+            fail=1
+        fi
+        if ! grep -aq "\"$k\"" mobile/src-tauri/src/update.rs; then
+            echo "  FAIL: mobile/src-tauri/src/update.rs never names \"$k\", which the desktop's"
+            echo "        update_status answers and SettingsPanel.svelte reads."
+            fail=1
+        fi
+    done
+else
+    echo "  FAIL: an update module is missing (mobile/src-tauri/src/update.rs or crates/fm-serve/src/update.rs)."
+    fail=1
+fi
+# **`update_body` is a command too — it saves a note.** A route matched by the prefix `update_` would
+# swallow every edit on whichever platform did it, silently, and look like a save that did nothing.
+if grep -nE 'starts_with\("update' mobile/src-tauri/src/lib.rs mobile/src-tauri/src/update.rs crates/fm-serve/src/update.rs crates/fm-serve/src/main.rs 2>/dev/null; then
+    echo "  FAIL: an update command is matched by prefix. 'update_body' saves a note and starts with"
+    echo "        'update_' too. Match the update commands by their exact names."
+    fail=1
+fi
+upd_dep=$(grep -E '^fm-update[[:space:]]*=' mobile/src-tauri/Cargo.toml 2>/dev/null || true)
+if [ -z "$upd_dep" ] || ! printf '%s' "$upd_dep" | grep -q 'optional = true'; then
+    echo "  FAIL: fm-update must be an optional dependency of the mobile shell, behind its 'update' feature."
+    fail=1
+fi
+if ! grep -B1 -E '^[[:space:]]*mod update;' mobile/src-tauri/src/lib.rs | grep -q 'cfg(update_shell)'; then
+    echo "  FAIL: 'mod update;' in mobile/src-tauri/src/lib.rs must be gated by #[cfg(update_shell)],"
+    echo "        or iOS compiles an installer path it has no way to use."
+    fail=1
 fi
 
 # **The attachment ceiling is one number, written twice.**
