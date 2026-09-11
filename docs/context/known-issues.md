@@ -871,19 +871,23 @@ The gray-screen fix and its tests are in
   which never invokes the board widget. So a board is still effectively open-on-its-own;
   canvas-inside-an-embed is the remaining gap. Planned in [plan.md](./plan.md) (Track S #4).
 
-## Self-update: built end to end, not yet usable (2026-09-11)
+## Self-update: signed and published, not yet run from a real release (2026-09-11)
 
 The app can check, download, verify and install, and on the desktop go back (`decisions.md#toolchain`).
-What stands between that and anyone using it is not one gap but several, of different kinds.
+What stands between that and anyone relying on it is not one gap but several, of different kinds.
 
-- **No release key exists, so nothing verifies.** `crates/fm-update/release-keys.txt` holds only
-  comments, and a build with no key trusts nothing — by design. Until the maintainer runs `pixi run
-  release-key`, lists the public half and sets `RELEASE_SIGNING_KEY_B64`, every tag publishes without a
-  signature and `manifest-sign` goes red. **Do not tell anyone a release can update itself before then.**
-- **The first release carrying this cannot update anyone.** On the desktop the rescue lives in the
+- **Releases are signed from v0.5.2**, and that signature has been checked against the listed key. **The
+  keys have one copy each, on the maintainer's laptop**: until the signing key has an offline backup and
+  the recovery key has left that machine, one lost laptop strands every installed copy.
+- **A failed `manifest-sign` still publishes the release, unsigned.** Re-run the failed jobs; do not tag
+  again (`decisions.md`, *a failed signature is re-run, not re-tagged*). The step's annotation says which
+  of five things went wrong.
+- **v0.5.2 carries the updater, so nobody could update into it.** On the desktop the rescue lives in the
   launcher, so a folder gains it only by being updated once — `FM_LAUNCHER` unset refuses. On a phone the
-  installed APK must already contain the updater, so the first such APK is installed by hand. Testing
-  it therefore takes two signed releases: one installed by hand, one to update to.
+  installed APK must already contain the updater, so 0.5.2 is installed by hand. **The first in-app
+  update anyone can take is 0.5.2 to 0.5.3**, and until one has run, the chain is built, not proven.
+- **The release page still says the Android app has no auto-update** (`release.yml`'s `body:`). Leave it
+  until a device has taken an update, then change it.
 - **The Android path has never run on a device.** The bridge's permission screen, the positive-mismatch
   signature check and the `FileProvider` hand-off are reasoned from the API and checked against Tauri's
   source, not observed. The owner's phone is the first place any of it runs.

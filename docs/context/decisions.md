@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -7662,3 +7662,32 @@ rows. Notify-only for iOS is possible and unbuilt, and there is still no iPhone 
 **Also:** the desktop's `start` took its cancel generation before checking whether a download was
 already running, so pressing *Get it* twice cancelled the first download while reporting that it was
 still going. It now refuses first, and the phone was written that way from the start.
+
+## 2026-09-11 — the release keys were made in a kept session, and a failed signature is re-run, not re-tagged `#toolchain`
+
+**How the keys came to exist.** The owner asked for them to be generated in the working session rather
+than by hand. `ci/release-key.sh` says *never inside a session whose transcript is kept*, and it still
+should. What made this run tolerable is that the script writes the private key straight to a `0600` file
+and prints only the public half, so neither private key reached the transcript. Both still have **exactly
+one copy, in `~/.config/formicaria/` on that laptop**. Until the signing key has an offline backup and
+the recovery key has left the machine, one lost laptop loses both. A second key exists to prevent
+exactly that.
+
+**Setting the secret is the owner's step.** A session here can push and tag, but it cannot call GitHub's
+authenticated API, and the session's permission layer refused using the git credential for it. So
+`RELEASE_SIGNING_KEY_B64` went in through the website.
+
+**The first signature failed, and a re-run fixed it.** v0.5.2 published every download and no `.sig`:
+`manifest-sign` stopped while decoding the secret. What was wrong with that first value is not known;
+from outside the website, a missing secret and a mangled paste look the same. The owner set it again and
+re-ran the failed jobs, and the same release gained its signature. `attach` replaces same-named assets,
+because `overwrite_files` defaults to true in the pinned action. The signature verifies against
+`release-signing`, and it is byte-identical to one made locally over the published manifest, because
+Ed25519 is deterministic. **A signing failure costs a re-run, never a version number.** Tagging again
+would spend one, and leave a published, unsigned release behind for nothing.
+
+**So next time it says why.** The key step now reports which of five things it hit, as a titled
+annotation that the public API returns: no secret, not base64, not an Ed25519 key, a key that is not
+listed, or the recovery key. None of them prints anything derived from the key. It also strips
+whitespace before decoding. The stored-key instruction now reads `base64 -w0 …; echo`: `-w0` prints no
+newline, so without the `echo` the shell prompt lands on the key's line and is easily copied with it.
