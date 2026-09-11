@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -7698,6 +7698,9 @@ newline, so without the `echo` the shell prompt lands on the key's line and is e
 
 ## 2026-09-11 — on a phone, the open windows are one counted button `#ui` `#track-m`
 
+> **SUPERSEDED in part, later the same day** (*on a phone there is no top row*): the square moved
+> from the top row into the bottom bar, beside the view button, and on a phone the row itself is gone.
+
 > **Amends *the chrome is one row at the top* (2026-08-31).** The row stays at the top and still names
 > the view you are in and carries its controls; what changes is that a narrow screen no longer gives
 > every open window a tab.
@@ -7740,3 +7743,32 @@ keyboard. A document `selectionchange` listener follows the handles, which send 
 **Not verified on a device.** jsdom has no layout, so `App.phone.test.ts` pins only that touch shows no
 bar until text is selected and shows one once it is. Whether Android's menu, the handles and the
 keyboard leave it room is for the phone to say, and the first place that will be seen is the owner's.
+
+## 2026-09-11 — on a phone there is no top row: the windows and the view's switches live at the bottom `#ui` `#track-m`
+
+> **Supersedes, the same day, where *on a phone, the open windows are one counted button* put the
+> square** — it is in the bottom bar now — and amends *the chrome is one row at the top* (2026-08-31)
+> again: on a phone there is no top row at all.
+
+**The complaint.** With the counted button in place, a phone's top row held only the name of the window
+in front of you and the square. The owner: remove it — *"the goal is to remove totally the top portion
+that is not useful at all"* — and the square *"can fit perfectly right on the right side of the view
+button"* in the bottom bar.
+
+**What the row carried, and where it went.** Not only a name: since 2026-08-31 it was the one route to
+a view's own switches — Month/Week/List, Feed/List, the query a search pane is showing, and a filtered
+view's chip. Deleting the row would have stranded them, so the owner was asked where they belong and
+chose the **view menu**: it now starts with *Show as* (or *Searching*, or *This view*) and the switches
+of the view in front of you, then the list of views. A mode change puts the menu away; typing a query
+does not.
+
+**Phones only, by width.** Below 40rem the row is `display: none` and the counted button and the menu's
+switches show; from 40rem the row is back and those two are hidden — so at every width exactly one copy
+of the switches is visible. `ViewControls` is in the DOM twice while the view menu is open on a phone.
+The 2026-08-31 rule against two copies was about two *visible* copies confusing assistive technology and
+`getByLabelText`, and a `display: none` copy is in neither's view of the page.
+
+**The camera inset moves with it.** The row was what paid `--safe-top` on a phone. `.body` pays it there
+now, so nothing is drawn under the cutout, and a banner at the top no longer adds a second inset.
+
+**Asked, not assumed:** the owner also chose phones only — wide screens keep a tab per window.

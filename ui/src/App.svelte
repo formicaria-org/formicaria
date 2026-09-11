@@ -16,6 +16,8 @@
     RAIL_PANES,
     VIEWS_MENU_ICON,
     MAX_PANES,
+    paneTitle,
+    paneIcon,
     type Workspace,
     type Layout,
     type Pane as PaneT,
@@ -87,6 +89,7 @@
   import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
   import ViewBar from './lib/ViewBar.svelte';
+  import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
 
   // The flexible workspace: panes the user opens, arranges, and resizes. `feeds` holds the
@@ -1289,6 +1292,26 @@
   }
 
   let viewsOpen = $state(false);
+  /// **The open windows behind the bottom bar's counted button** — a phone's way to see and switch
+  /// them since its top row went (2026-09-11).
+  let windowsOpen = $state(false);
+  /// The window in front of you and the data it is showing: what the view menu's switches tune on a
+  /// phone.
+  const focusedPane = $derived(workspace.panes[focused]);
+  const focusedFeed = $derived(
+    focusedPane && feedKey(focusedPane) ? feeds[feedKey(focusedPane) ?? ''] : undefined,
+  );
+  /// What heads the view menu for that window, or `null` when its view has no switches — the same
+  /// branches `ViewControls` renders, so a heading never sits over an empty row. A saved view counts
+  /// only while it hides something.
+  const switchesHead = $derived.by(() => {
+    const p = focusedPane;
+    if (!p) return null;
+    if (p.kind === 'agenda' || p.kind === 'timeline') return 'Show as';
+    if (p.kind === 'search') return 'Searching';
+    if (p.kind === 'view' && (focusedFeed?.view?.filters?.length ?? 0) > 0) return 'This view';
+    return null;
+  });
   let helpOpen = $state(false);
   /// **Saving, renaming and deleting a view left the UI on 2026-08-31.** The dialog, its state and
   /// the three functions that drove it are gone: *"views are basically fixed for now and view
@@ -2068,6 +2091,24 @@
         {#if viewsOpen}
           <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
           <ul class="create-menu" role="menu" style={menuAnchor}>
+            <!-- **The switches of the view in front of you, first** — a phone only, by CSS: the top row
+               that carried them is hidden below 40rem (2026-09-11), and from 40rem it is back and these
+               are hidden, so exactly one copy is ever visible. A mode change puts the menu away; typing
+               a search pane's query does not. -->
+            {#if (workspace.layout ?? 'single') === 'single' && switchesHead && focusedPane}
+              <li class="menu-head view-switches" role="presentation">{switchesHead}</li>
+              <li class="view-switches switches-row" role="none">
+                <ViewControls
+                  pane={focusedPane}
+                  feed={focusedFeed}
+                  onchange={(patch) => {
+                    changePane(focusedPane.id, patch);
+                    if (!('query' in patch)) viewsOpen = false;
+                  }}
+                />
+              </li>
+              <li class="menu-sep view-switches" role="separator"></li>
+            {/if}
             {#each viewTargets as t (t.key)}
               <li role="none">
                 <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
@@ -2078,6 +2119,75 @@
           </ul>
         {/if}
       </div>
+
+      <!-- **The open windows, on a phone** (2026-09-11). The top row that listed them is gone below
+         40rem, so their count sits here beside the view button, where the owner asked for it, and the
+         list opens from it like every other menu in this bar. Hidden by CSS from 40rem up, where the row
+         is back; mounted only in `single`, where the other windows are out of sight. -->
+      {#if (workspace.layout ?? 'single') === 'single'}
+        <div class="create-wrap windows-wrap">
+          <button
+            type="button"
+            class="windows-btn"
+            onclick={(e) => (anchorTo(e), (windowsOpen = !windowsOpen))}
+            aria-expanded={windowsOpen}
+            aria-haspopup="menu"
+            title="Open windows"
+            aria-label="open windows: {workspace.panes.length}"
+          >
+            <span class="windows-count" aria-hidden="true">{workspace.panes.length}</span>
+          </button>
+          {#if windowsOpen}
+            <div
+              class="menu-backdrop"
+              role="presentation"
+              onclick={() => (windowsOpen = false)}
+            ></div>
+            <ul
+              class="create-menu windows-menu"
+              role="menu"
+              aria-label="open windows"
+              style={menuAnchor}
+            >
+              {#each workspace.panes as pane, i (pane.id)}
+                {@const icon = paneIcon(pane)}
+                <li class="window-row" class:current={i === focused} role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="window-pick"
+                    aria-current={i === focused ? 'true' : undefined}
+                    onclick={() => {
+                      windowsOpen = false;
+                      focused = i;
+                      persistWorkspace();
+                    }}
+                  >
+                    {#if icon}
+                      <Icon name={icon} size={16} />
+                    {:else}
+                      <span class="window-dot" aria-hidden="true">•</span>
+                    {/if}
+                    <span class="window-name">{paneTitle(pane)}</span>
+                  </button>
+                  {#if workspace.panes.length > 1}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      class="window-close"
+                      aria-label="close {paneTitle(pane)}"
+                      title="Close this window"
+                      onclick={() => closePane(pane.id)}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
 
       <!-- **The views you can open** — the rail this panel was asked for. A fixed list, in a fixed
          order, so it can be learned: every built-in, then every saved view. It is the same set the
@@ -3237,6 +3347,82 @@
     margin: 4px 2px;
     background: var(--border);
   }
+  /* **The open windows' button**, beside the view button — a phone only (the 40rem block shows it). */
+  .windows-wrap {
+    display: none;
+  }
+  .windows-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .windows-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  /* A phone browser's tab count: a small rounded square carrying the number. */
+  .windows-count {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.2rem;
+    border: 2px solid currentColor;
+    border-radius: 0.35rem;
+    font-size: var(--text-xs);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .window-row {
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-2, 6px);
+  }
+  .window-row.current {
+    background: var(--surface-hover);
+  }
+  .windows-menu .window-pick {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    width: auto;
+  }
+  .window-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .window-row.current .window-name {
+    font-weight: 600;
+  }
+  .window-dot {
+    width: 16px;
+    text-align: center;
+  }
+  .windows-menu .window-close {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 2.75rem;
+    color: var(--text-muted);
+  }
+  /* The view's switches at the head of the view menu — a phone only (the 40rem block shows them). */
+  .view-switches {
+    display: none;
+  }
+  .switches-row {
+    padding: 2px var(--space-2) 6px;
+  }
   .searchfield {
     display: flex;
     align-items: center;
@@ -3518,6 +3704,21 @@
     .tb-chip.alert .lbl,
     .working .lbl {
       display: none;
+    }
+    /* **No top row on a phone** (2026-09-11). The count and list of open windows sit beside the view
+       button, the view's switches head the view menu, and the content pays the camera inset the row
+       used to pay — so a banner at the top no longer adds a second one. */
+    .windows-wrap {
+      display: flex;
+    }
+    .view-switches {
+      display: block;
+    }
+    .body {
+      padding-top: var(--safe-top);
+    }
+    .body > .banner:first-child {
+      padding-top: var(--space-2);
     }
   }
 

@@ -341,6 +341,15 @@ export const BUILTIN_PANES: BuiltinPane[] = [
   { kind: 'discussions', label: 'Discussions', icon: 'chat' },
 ];
 
+/// **The icon a window is drawn with** wherever open windows are listed — the tab row on a wide screen
+/// and the window menu in a phone's bottom bar. A built-in's own, a pen for a note, and `null` for a
+/// saved view, which both lists show as a dot rather than inventing art. One function, so the two
+/// lists cannot come to disagree.
+export function paneIcon(p: Pane): string | null {
+  if (p.kind === 'note') return 'pen';
+  return BUILTIN_PANES.find((b) => b.kind === p.kind)?.icon ?? null;
+}
+
 /// **What is offered, as distinct from what exists.** `BUILTIN_PANES` above stays the full
 /// registry — kind to label and icon — because a pane of *any* kind still has to render, still
 /// needs its icon in the bottom bar, and a workspace saved before today may hold one. These two
