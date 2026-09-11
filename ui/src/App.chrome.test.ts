@@ -238,38 +238,43 @@ test('there is exactly one way into Settings from the chrome', async () => {
   expect(screen.getAllByRole('button', { name: 'settings' })).toHaveLength(1);
 });
 
-test('a dropdown opens at the button that opened it, not at a fixed corner', async () => {
-  // These menus are `position: fixed` because the chrome scrolls. Their coordinates used to be
-  // hardcoded to the corners of a horizontal top bar — so once the chrome became a left column,
-  // the backup menu opened in the opposite corner from its own button.
-  render(App);
+test('a dropdown opens at the button that opened it, measured, not at a fixed corner', async () => {
+  // These menus were placed from hardcoded corners of a top bar, then from a guessed width — which let
+  // a long window name push the list of open windows off the screen. `popup` (lib/popup.ts) places each
+  // one from its control and its own measured size. jsdom measures nothing, so both are stood in here:
+  // the control is the wrapper the button sits in, and the menu is 200px tall.
+  const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get: () => 200,
+  });
+  try {
+    render(App);
+    const backup = await screen.findByRole('button', { name: 'back up' });
+    backup.parentElement!.getBoundingClientRect = () =>
+      ({ left: 12, top: 700, bottom: 728, right: 40, width: 28, height: 28 }) as DOMRect;
+    await fireEvent.click(backup);
 
-  // Still the backup menu, but off the **button** rather than the chevron beside it: the chevron
-  // was removed on 2026-09-09 and its job promoted onto the button. Same menu, same anchor
-  // mechanism, one fewer target.
-  const backup = await screen.findByRole('button', { name: 'back up' });
-  backup.getBoundingClientRect = () =>
-    ({ left: 12, top: 700, bottom: 728, right: 40, width: 28, height: 28 }) as DOMRect;
-  await fireEvent.click(backup);
-
-  const menu = await screen.findByRole('menu');
-  const style = menu.getAttribute('style') ?? '';
-  expect(style, 'the menu must carry measured coordinates').toMatch(/left:\s*12px/);
-  // Low on screen, so it opens upward — anchored by its bottom, which needs no guess at its height.
-  expect(style).toMatch(/bottom:/);
-  expect(style).toMatch(/top:\s*auto/);
+    const menu = await screen.findByRole('menu');
+    expect(menu.style.left, 'the menu must carry measured coordinates').toBe('12px');
+    // Low on the screen with no room below, so it opens upward, its bottom just above the button.
+    expect(menu.dataset.open).toBe('up');
+    expect(menu.style.top).toBe(`${700 - 4 - 200}px`);
+  } finally {
+    if (height) Object.defineProperty(HTMLElement.prototype, 'offsetHeight', height);
+  }
 });
 
 test('a dropdown from the top of the panel opens downward', async () => {
   render(App);
   const plus = await screen.findByRole('button', { name: 'make something new' });
-  plus.getBoundingClientRect = () =>
+  plus.parentElement!.getBoundingClientRect = () =>
     ({ left: 12, top: 20, bottom: 48, right: 40, width: 28, height: 28 }) as DOMRect;
   await fireEvent.click(plus);
 
-  const style = (await screen.findByRole('menu')).getAttribute('style') ?? '';
-  expect(style).toMatch(/top:\s*52px/);
-  expect(style).not.toMatch(/bottom:/);
+  const menu = await screen.findByRole('menu');
+  expect(menu.dataset.open).toBe('down');
+  expect(menu.style.top).toBe('52px');
 });
 
 /// **Where a new note lands is asked where you decide it.**

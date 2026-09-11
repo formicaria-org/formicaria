@@ -2,6 +2,7 @@
   import { draggable } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
   import StatusChip from '../lib/StatusChip.svelte';
   import VaultBadge from '../lib/VaultBadge.svelte';
+  import { popup } from '../lib/popup';
   import EditedBy from '../lib/EditedBy.svelte';
   import { lastEditFor } from '../lib/activity.svelte';
   import { formatStamp } from '../lib/stamp';
@@ -38,6 +39,8 @@
     onmoveto?: (id: string, value: string) => void;
   } = $props();
   let menuOpen = $state(false);
+  /** The ⇄ button, which the move menu opens against (`popup`), so a board column cannot clip it. */
+  let moveBtn = $state<HTMLButtonElement>();
   let dragging = $state(false);
   // Suppress the click that trails a drag, so dropping a card never also opens it.
   let suppressClick = false;
@@ -128,6 +131,7 @@
          it testable without a phone. -->
     <button
       class="move"
+      bind:this={moveBtn}
       aria-haspopup="true"
       aria-expanded={menuOpen}
       aria-label="Move this card to another column"
@@ -139,7 +143,12 @@
     <!-- Plain buttons in a labelled group rather than a listbox: a real button is already
          focusable, keyboard-operable and announced correctly, where a `listbox` role would
          oblige us to hand-roll focus management to say the same thing. -->
-    <div class="move-menu" role="group" aria-label="Move to column">
+    <div
+      class="move-menu"
+      role="group"
+      aria-label="Move to column"
+      use:popup={{ anchor: moveBtn, align: 'end' }}
+    >
       {#each columns as col (col.value)}
         <button
           class="move-option"

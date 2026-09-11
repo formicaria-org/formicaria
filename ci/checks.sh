@@ -1540,6 +1540,49 @@ fi
 #
 # The rule: inside a narrower `.topbar` rule, set padding with longhands. The bottom belongs to the
 # one rule that knows about the inset.
+echo "[check] every menu and list of choices is placed by popup, so it stays on the screen..."
+# **Nothing that opens may fall outside the visible screen** — the owner's standing rule, said "for the
+# nth time" on 2026-09-11, the day it broke three ways: ＋ Media's menu half off the left of a phone, the
+# note ＋ window cut off by its own note, and the list of open windows pushed off the right edge by a
+# long note name. Each popup had placed itself, each from a different guess. `ui/src/lib/popup.ts`
+# places them all from what it measures, in the top layer, capped to the screen; this refuses a menu or
+# a list of choices that does not use it. jsdom sees no layout, so no component test can catch this.
+if ! python3 - <<'PY'
+import pathlib, re, sys
+bad = []
+for path in sorted(pathlib.Path("ui/src").rglob("*.svelte")):
+    text = path.read_text(encoding="utf-8")
+    for m in re.finditer(r'role="(menu|listbox)"', text):
+        start = text.rfind("<", 0, m.start())
+        # The end of the tag: the first '>' outside quotes and outside `{...}` expressions.
+        depth, quote, i = 0, None, start + 1
+        while i < len(text):
+            c = text[i]
+            if quote:
+                if c == quote:
+                    quote = None
+            elif c in "\"'" and depth == 0:
+                quote = c
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+            elif c == ">" and depth == 0:
+                break
+            i += 1
+        if "use:popup" not in text[start:i + 1]:
+            line = text.count("\n", 0, start) + 1
+            bad.append(f"{path}:{line}: a {m.group(0)} element without use:popup")
+if bad:
+    print("  FAIL: a popup that places itself can fall off the screen —")
+    for b in bad:
+        print("        " + b)
+    sys.exit(1)
+PY
+then
+    fail=1
+fi
+
 echo "[check] every icon a pane names exists in the icon set..."
 # `Icon.svelte` renders **nothing** for a name it does not know, and the bottom bar falls back to a
 # dot — so a typo in `panes.ts` is a silently blank control, not an error. The same class of failure

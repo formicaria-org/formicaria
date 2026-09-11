@@ -35,10 +35,10 @@
   } from './render';
   import { CALLOUT_TYPES, TEXT_TOKENS } from './render-vocab';
   import { clickOutside } from './clickOutside';
-  import { topLayer } from './topLayer';
+  import { popup, type Box } from './popup';
   import { noteName } from './noteName';
   import { parseStamp, toStamp } from './stamp';
-  import { caretXY, clamp } from './caret';
+  import { caretXY } from './caret';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
   import { beatMs, POLL_BUSY_MS } from './pollBeat';
@@ -142,7 +142,7 @@
   // who last edited. The header is the title and this button on every device. It is a *window* (a
   // card), not a dropdown; every action closes it, and it dismisses on outside-tap/Escape.
   let optionsOpen = $state(false);
-  /// The ＋ that opens the options window, which is placed against it (`topLayer`).
+  /// The ＋ that opens the options window, which is placed against it (`popup`).
   let optionsBtn = $state<HTMLButtonElement>();
 
   // Copying a note into another vault is sensitive: it writes into that vault's repo
@@ -231,8 +231,6 @@
   let adding = $state(false);
 
   // Slash-menu (Notion-style `/` → insert a note or asset reference) state.
-  // `at` is where the popup sits: the caret's pixel position within the editor,
-  // so the menu opens under what you are typing rather than at a fixed corner.
   type SlashState = {
     open: boolean;
     from: number;
@@ -242,7 +240,6 @@
     // `//` opens the menu in embed mode — a tap inserts an inline embed instead of a chip link, so
     // embedding needs no Shift key (the phone has none handy). `/` stays link mode.
     embed: boolean;
-    at: { top: number; left: number };
   };
   let slash = $state<SlashState>({
     open: false,
@@ -251,7 +248,6 @@
     results: [],
     active: 0,
     embed: false,
-    at: { top: 0, left: 0 },
   });
   let slashTimer: ReturnType<typeof setTimeout> | undefined;
   // The pane's root, so a global key (Ctrl+S) can tell whether *this* pane in the
@@ -496,12 +492,10 @@
     void saveTask();
   }
 
-  // The callout-type picker. `at` anchors a small menu under the tapped type badge; `el`/`idx` say
-  // which callout the pick rewrites. The vocabulary is the closed `CALLOUT_TYPES` — data SELECTS a
-  // type from a fixed set, it never supplies one (the no-plugin-API line).
-  let calloutPick = $state<{ el: HTMLElement; idx: number; top: number; left: number } | null>(
-    null,
-  );
+  // The callout-type picker. It opens against the tapped type badge (`el`, placed by `popup`); `el` and
+  // `idx` say which callout the pick rewrites. The vocabulary is the closed `CALLOUT_TYPES` — data
+  // SELECTS a type from a fixed set, it never supplies one (the no-plugin-API line).
+  let calloutPick = $state<{ el: HTMLElement; idx: number } | null>(null);
   const CALLOUT_OPTIONS = CALLOUT_TYPES;
 
   // The `[!type]` token span of each valid callout, in document order, skipping fenced code —
@@ -531,8 +525,7 @@
     );
     const idx = callouts.indexOf(kindEl.closest('.callout') as HTMLElement);
     if (idx < 0) return;
-    const r = kindEl.getBoundingClientRect();
-    calloutPick = { el: kindEl, idx, top: r.bottom + 4, left: r.left };
+    calloutPick = { el: kindEl, idx };
   }
 
   // Rewrite the tapped callout's `[!type]` to the chosen kind, in place (swap the class + label, no
@@ -724,9 +717,11 @@
     typeof window !== 'undefined' && window.matchMedia
       ? window.matchMedia('(pointer: coarse)').matches
       : false;
-  /// Where the bar is: relative to the editor with a precise pointer, and in viewport coordinates on
-  /// touch (`position: fixed`, like the `/` menu there) so it can be kept clear of the keyboard.
-  let fmtBar = $state<{ top: number; left: number } | null>(null);
+  /// The selection the bar opens against (`popup`), in viewport coordinates: its first line with a
+  /// precise pointer, where the bar sits above it, and its last line on touch, where it sits below —
+  /// past the drag handles (`HANDLES`), and clear of the phone's own copy and paste bar above.
+  let fmtBar = $state<Box | null>(null);
+  const HANDLES = 30;
   let colorOpen = $state(false);
   let blockOpen = $state(false);
 
@@ -742,29 +737,13 @@
       blockOpen = false;
       return;
     }
-    if (coarsePointer) {
-      // Below the selection's last line and past the handles, in viewport coordinates — clamped
-      // above the bottom of what is visible, because below the caret is usually behind the keyboard
-      // (the `/` menu learned that first; see `slashAnchor`).
-      const TOUCH_BAR_H = 52;
-      const TOUCH_BAR_W = 300;
-      const HANDLES = 30;
-      const r = el.getBoundingClientRect();
-      const end = caretXY(el, e);
-      const visible = Math.min(r.bottom, window.visualViewport?.height ?? window.innerHeight);
-      const below = r.top + end.top + (end.lineHeight || 22) + HANDLES;
-      fmtBar = {
-        top: Math.max(Math.max(r.top, 0), Math.min(below, visible - TOUCH_BAR_H)),
-        left: r.left + clamp(end.left, TOUCH_BAR_W, el.clientWidth),
-      };
-      return;
-    }
-    const { top, left } = caretXY(el, s);
-    const BAR_H = 40;
-    fmtBar = {
-      top: top - BAR_H < 0 ? top + 22 : top - BAR_H,
-      left: clamp(left, 220, el.clientWidth),
-    };
+    // Touch: the selection's last line, since the bar goes below it; otherwise its first. `popup` keeps
+    // the bar on the screen and above the keyboard, which is what the clamps here used to guess at.
+    const r = el.getBoundingClientRect();
+    const at = caretXY(el, coarsePointer ? e : s);
+    const x = r.left + at.left;
+    const top = r.top + at.top;
+    fmtBar = { top, bottom: top + (at.lineHeight || 22), left: x, right: x };
   }
 
   // A touch selection is made with a long press and moved with drag handles, which send no `mouseup`
@@ -2077,34 +2056,25 @@
     if (from !== 0 && !/\s/.test(draft[from - 1])) return closeSlash();
     const query = draft.slice(i + 1, caret);
     if (/\s/.test(query)) return closeSlash();
-    slash = { ...slash, open: true, from, query, active: 0, embed, at: slashAnchor(el, from) };
+    slash = { ...slash, open: true, from, query, active: 0, embed };
     clearTimeout(slashTimer);
     slashTimer = setTimeout(runSlashSearch, 150);
   }
 
-  // Put the menu just under the `/` you typed. Measured against the textarea and
-  // clamped to it, so a `/` near the right or bottom edge doesn't push the popup
-  // out of the pane. Where there is no layout engine (jsdom) caretXY reports
-  // zeros and this degrades to the editor's top-left — never a crash.
-  function slashAnchor(el: HTMLTextAreaElement, from: number): { top: number; left: number } {
-    // **Touch: pin to the top of the editor, in viewport coords (`.slash-menu` is `position: fixed`
-    // on coarse).** Anchoring at the caret is unreliable on a phone — the space "below" the caret
-    // that `slashAnchor` measures against the textarea's height is usually *behind the keyboard*, so
-    // the menu opened where it couldn't be seen. The top of the textarea is always above the keyboard.
-    if (coarsePointer) {
-      const r = el.getBoundingClientRect();
-      return { top: r.top + 2, left: r.left + 2 };
-    }
-    const { top, left, lineHeight } = caretXY(el, from);
-    const MENU_W = 256; // 16rem, the popup's min-width
-    const MENU_H = 224; // 14rem, its max-height
-    const below = top + lineHeight;
-    // No room underneath? Flip above the caret line rather than clamp onto it.
-    const flip = below + MENU_H > el.clientHeight && top - MENU_H >= 0;
-    return {
-      top: flip ? top - MENU_H : clamp(below, MENU_H, el.clientHeight),
-      left: clamp(left, MENU_W, el.clientWidth),
-    };
+  // What the `/` menu opens against (`popup`): the `/` you typed, in viewport coordinates, so the menu
+  // opens under what you are typing — or over it, where there is more room. Where there is no layout
+  // engine (jsdom) caretXY reports zeros and this is the editor's corner — never a crash.
+  function slashBox(): Box {
+    const el = editorEl;
+    if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
+    const r = el.getBoundingClientRect();
+    // **Touch: the top of the editor.** Below the caret is usually *behind the keyboard* on a phone, so
+    // a menu anchored there opened where it could not be seen; the top of the textarea is above it.
+    if (coarsePointer)
+      return { top: r.top, bottom: r.top + 2, left: r.left + 2, right: r.left + 2 };
+    const { top, left, lineHeight } = caretXY(el, slash.from);
+    const x = r.left + left;
+    return { top: r.top + top, bottom: r.top + top + lineHeight, left: x, right: x };
   }
 
   async function runSlashSearch() {
@@ -2196,12 +2166,12 @@
           {#if optionsOpen}
             <!-- Dismissed by tapping outside (the wrapper's clickOutside), Escape, or its ✕ —
                  identically on a phone and a laptop. Each action closes it. Drawn in the browser's
-                 top layer against the ＋ (`topLayer.ts`), so neither this note's window nor the bottom
+                 top layer against the ＋ (`popup.ts`), so neither this note's window nor the bottom
                  bar can cut it off, and never wider or taller than the screen (`.options-window`). -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="options-window"
-              use:topLayer={optionsBtn}
+              use:popup={{ anchor: optionsBtn, align: 'end' }}
               role="dialog"
               tabindex="-1"
               aria-label="note options"
@@ -2596,7 +2566,7 @@
               onclick={() => (colorOpen = !colorOpen)}>A<span class="caret">▾</span></button
             >
             {#if colorOpen}
-              <ul class="fmt-colors" role="listbox" aria-label="colour token">
+              <ul class="fmt-colors" role="listbox" aria-label="colour token" use:popup>
                 {#each TEXT_TOKENS as t (t)}
                   <li>
                     <button
@@ -2619,7 +2589,7 @@
               onclick={() => (blockOpen = !blockOpen)}>¶<span class="caret">▾</span></button
             >
             {#if blockOpen}
-              <ul class="fmt-colors" role="listbox" aria-label="block format">
+              <ul class="fmt-colors" role="listbox" aria-label="block format" use:popup>
                 <li><button class="fmt-block-opt" onclick={() => heading(1)}>Heading 1</button></li>
                 <li><button class="fmt-block-opt" onclick={() => heading(2)}>Heading 2</button></li>
                 <li><button class="fmt-block-opt" onclick={() => heading(3)}>Heading 3</button></li>
@@ -2653,7 +2623,7 @@
             class:fixed-pos={coarsePointer}
             role="listbox"
             aria-label={slash.embed ? 'insert an embed' : 'insert a link or embed'}
-            style="top: {slash.at.top}px; left: {slash.at.left}px"
+            use:popup={{ anchor: slashBox }}
             use:clickOutside={closeSlash}
             onpointerdown={(e) => {
               // Mouse: keep the textarea focused so the menu doesn't blur-close. Touch: do NOT
@@ -2686,15 +2656,19 @@
         {/if}
         {#if fmtBar && !slash.open}
           <!-- The bar, only while text is selected: above the selection with a precise pointer, below
-               it on touch and fixed to the viewport there (see `onEditorSelect`). `pointerdown` is
-               prevented so a press keeps the selection. -->
+               it on touch, placed by `popup` (see `onEditorSelect`). `pointerdown` is prevented so a
+               press keeps the selection. -->
           <div
             class="fmt-bar fmt-bar-float"
             class:touch={coarsePointer}
             role="toolbar"
             tabindex="-1"
             aria-label="format selection"
-            style="top: {fmtBar.top}px; left: {fmtBar.left}px"
+            use:popup={{
+              anchor: fmtBar,
+              prefer: coarsePointer ? 'below' : 'above',
+              gap: coarsePointer ? HANDLES : 6,
+            }}
             onpointerdown={(e) => e.preventDefault()}
           >
             {@render fmtButtons()}
@@ -2838,7 +2812,7 @@
                 placeholder="Add to the discussion… type @ to call an assistant"
                 aria-label="write a message"></textarea>
               {#if atMenu.open}
-                <ul class="at-menu" role="listbox">
+                <ul class="at-menu" role="listbox" use:popup={{ prefer: 'above' }}>
                   {#each atMenu.results as name, i (name)}
                     <li>
                       <button
@@ -2923,7 +2897,7 @@
       class="callout-picker"
       role="listbox"
       aria-label="callout type"
-      style="top: {calloutPick.top}px; left: {calloutPick.left}px"
+      use:popup={{ anchor: calloutPick.el }}
       use:clickOutside={() => (calloutPick = null)}
     >
       {#each CALLOUT_OPTIONS as t (t)}
@@ -3190,10 +3164,9 @@
     display: inline-flex;
   }
   /* The note-options window: a card under the ＋, not a dropdown list. **Always on the screen**
-     (2026-09-11): its right edge sits under the ＋'s, so it grows leftward into the note rather than
-     off the edge; it is never wider than the screen less its gutters, and scrolls within the height it
-     has — the 2026-09-01 overlay rule. These are the in-place rules, which an engine without a top
-     layer keeps; the `:popover-open` rules below take it out of the note. */
+     (2026-09-11): placed by `popup` (lib/popup.ts) in the top layer, its right edge under the ＋'s,
+     never wider than the screen less its gutters, scrolling within the height it has — the 2026-09-01
+     overlay rule. The coordinates below are only where it would sit before `popup` places it. */
   .options-window {
     position: absolute;
     right: 0;
@@ -3212,29 +3185,6 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
-  }
-  /* **In the top layer** (`topLayer.ts`). A pane is a size container, which makes it the containing
-     block even for `position: fixed`, and it clips — so in place, wherever a note's window was short
-     (two notes stacked on a computer, a small phone above the bottom bar), this window was cut off.
-     Out here it is placed against the screen: `topLayer` says where it starts (`--opens-at`, from the
-     ＋) and which way it opens; how far it may grow is decided here, where the insets are readable. */
-  .options-window:popover-open {
-    position: fixed;
-    right: auto;
-    margin: 0;
-    color: var(--text);
-  }
-  .options-window:popover-open[data-open='down'] {
-    max-height: calc(100dvh - var(--opens-at) - max(var(--safe-bottom), var(--space-3)));
-  }
-  .options-window:popover-open[data-open='up'] {
-    max-height: calc(100dvh - var(--opens-at) - max(var(--safe-top), var(--space-3)));
-  }
-  /* The navigation-bar floor — `--bar-floor`, never a hand-copied number. */
-  @media (pointer: coarse) {
-    .options-window:popover-open[data-open='down'] {
-      max-height: calc(100dvh - var(--opens-at) - max(var(--safe-bottom), var(--bar-floor)));
-    }
   }
   .options-head {
     display: flex;
@@ -3654,7 +3604,7 @@
     color: var(--text);
     font: inherit;
   }
-  /* The callout-type picker: a small menu anchored (fixed, to the viewport) under the tapped badge. */
+  /* The callout-type picker: a small menu placed against the tapped badge by `popup`. */
   .callout-picker {
     position: fixed;
     z-index: 60;

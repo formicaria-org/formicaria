@@ -914,6 +914,13 @@ What stands between that and everyone relying on it is not one gap but several, 
 - **The trust residual:** a CI-held signing key defends against transport tampering, not a compromised
   repository or pipeline.
 
+## Popups on an engine without a top layer (2026-09-11)
+
+- `ui/src/lib/popup.ts` lifts every popup into the browser's top layer (the Popover API). Where the API is
+  missing — iOS before 17 — a popup is still measured, placed and capped to the screen, but it stays inside
+  its pane, which is a size container and clips, so a tall menu near a pane's edge can be cut off there.
+  Android's WebView, current desktop browsers and iOS 17 and later all have the API.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

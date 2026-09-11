@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -7775,6 +7775,9 @@ now, so nothing is drawn under the cutout, and a banner at the top no longer add
 
 ## 2026-09-11 — a note's header is its title and one ＋, and leaving a note ends editing `#ui` `#track-m`
 
+> **Extended the same day:** the ＋ window's `topLayer.ts` became `popup.ts`, which now places
+> every popup in the app — see *everything that opens is placed by one action, and stays on the screen*.
+
 **The complaint, with a screenshot.** On the owner's phone the note header was three rows: the title; the
 vault, the last editor and a ＋; and — while editing — ＋ Media, full screen and close. ＋ Media's menu
 opened half off the left edge of the screen. The owner: *"just a single title and a single plus to do
@@ -7815,3 +7818,40 @@ hint ("Drag files in… Ctrl+S") is hidden on a touch screen, where none of it a
 **A name, even for an untitled note.** The header — and the note's row in the list of open windows — is
 its title or, without one, its first line with a heading's `#` marks taken off, the way a card names it
 (`noteName.ts`). An untitled board's first line is its canvas, so it reads "Untitled". It said "note".
+
+## 2026-09-11 — everything that opens is placed by one action, and stays on the screen `#ui`
+
+**The complaint, "for the nth time".** Right after 0.5.6 shipped, a long note name in the phone's list of
+open windows pushed that list off the right edge of the screen. The owner: *"any window and option that
+opens in a device, whatever the OS, cannot fall outside the main view."* It was the third break of one day:
+＋ Media's menu half off the left edge, then the note ＋ window cut off by its own note (caught by
+screenshot before release), then this.
+
+**Why fixing one popup at a time kept failing.** Every popup placed itself, each from a different guess.
+The bottom bar's menus (`anchorTo`) assumed they were 11rem wide and had no width cap, so the "…" the
+window names already carried never engaged. The status and callout pickers opened at their control's left
+with no check on the right edge, and were `position: fixed` inside a pane — which a size container
+(`container-type`) makes the containing block, so they were offset by the pane's corner and clipped by it.
+The format bar's two dropdowns sat inside a bar that scrolls sideways on touch, which clips them; the `/`
+and `@` menus were clamped to the text box, not to the screen; a card's move menu was clipped by its
+column.
+
+**The ruling.** Anything that opens from a control — a menu, a picker, a list of choices, the format bar —
+is placed by `ui/src/lib/popup.ts`, and nothing places itself. It lifts the popup into the browser's top
+layer (the Popover API), so no ancestor can clip or cover it; measures it after it renders; opens it on the
+preferred side when it fits there and on the roomier side when it does not; lines its start or end edge up
+with the control's; caps its width at the screen less gutters and its height at the room it has, less the
+safe-area inset (and the navigation-bar floor on touch), scrolling inside — never looser than its own
+stylesheet's cap; and places it again when its content, the screen or a scroll moves. The note ＋ window's
+`topLayer.ts` (the entry above) was the first case of this, and became it.
+
+**Long text is capped, not accommodated.** The bottom bar's menus are at most 18rem wide, so a long window
+name ends in "…" rather than widening the list.
+
+**Enforced where it can be.** `ci/checks.sh` refuses a `role="menu"` or `role="listbox"` element without
+`use:popup`. jsdom sees no layout, so the placement itself is pinned by `popup.test.ts` and checked in
+Chromium by tapping — `document.elementFromPoint` — at the centre of every row of every popup, on 320px and
+390px phones and on a computer.
+
+**The residue.** On an engine without the Popover API (iOS before 17) a popup is still placed and capped,
+but its pane can clip it (`known-issues.md`).

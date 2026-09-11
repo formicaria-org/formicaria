@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nextStatus } from './status';
   import { clickOutside } from './clickOutside';
+  import { popup } from './popup';
   import { hashHue } from './vaultColor';
 
   // Click to rotate a note's status through the values the vault already uses,
@@ -35,7 +36,8 @@
     title?: string;
   } = $props();
 
-  let picker = $state<{ top: number; left: number } | null>(null);
+  /** The chip the picker opens against, while it is open. */
+  let picker = $state<HTMLElement | null>(null);
 
   function rotate(e: MouseEvent) {
     // A card is itself a click target that opens the note; rotating its status
@@ -47,8 +49,7 @@
   function openPicker(e: MouseEvent) {
     e.preventDefault(); // no native context menu
     e.stopPropagation();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    picker = { top: r.bottom + 4, left: r.left };
+    picker = e.currentTarget as HTMLElement;
   }
 
   function pick(e: MouseEvent, next: string | null) {
@@ -78,7 +79,7 @@
     class="status-picker"
     role="listbox"
     aria-label="pick status"
-    style="top: {picker.top}px; left: {picker.left}px"
+    use:popup={{ anchor: picker }}
     use:clickOutside={() => (picker = null)}
   >
     {#each statuses as s (s)}
@@ -117,7 +118,7 @@
     border-color: var(--border);
     color: var(--muted);
   }
-  /* The picker: a small menu anchored (fixed, to the viewport) under the chip. Each option is
+  /* The picker: a small menu placed against the chip by `popup`, on the screen. Each option is
      tinted by the same [data-value] rule the chip uses, so it previews the status colour. */
   .status-picker {
     position: fixed;

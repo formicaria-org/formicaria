@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
+  import { popup } from './lib/popup';
   import Icon from './lib/Icon.svelte';
   import Pane from './lib/Pane.svelte';
   import {
@@ -1282,29 +1283,6 @@
     }
   }
 
-  /// **Where a dropdown actually goes.**
-  ///
-  /// These menus are `position: fixed`, and they have to be: the chrome scrolls, so a child
-  /// positioned against it would be clipped. But their coordinates were *hardcoded* — `top:
-  /// header-height; left: space-2` for the create menu, `right: space-2` for backup — which were
-  /// the corners of a horizontal bar across the top of the window. The chrome is a column down the
-  /// left now, or a bar along the bottom, so the backup menu opened in the opposite corner from its
-  /// own button.
-  ///
-  /// Measured on open instead, which is what `StatusChip`'s picker already does. **Opens upward
-  /// when the button is in the lower half** — anchoring the menu's bottom to the button's top,
-  /// which needs no guess about how tall the menu is — and that is every menu opened from the foot
-  /// of the panel or from the bottom bar. Nudged inward so a menu near an edge stays on screen.
-  let menuAnchor = $state('');
-  function anchorTo(e: MouseEvent) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const left = Math.max(8, Math.min(r.left, window.innerWidth - 11 * 16 - 8));
-    menuAnchor =
-      r.bottom > window.innerHeight / 2
-        ? `left:${Math.round(left)}px;bottom:${Math.round(window.innerHeight - r.top + 4)}px;top:auto;`
-        : `left:${Math.round(left)}px;top:${Math.round(r.bottom + 4)}px;`;
-  }
-
   let viewsOpen = $state(false);
   /// **The open windows behind the bottom bar's counted button** — a phone's way to see and switch
   /// them since its top row went (2026-09-11).
@@ -1964,8 +1942,8 @@
          difference between the search field fitting and not.
 
          This is a real anchored menu, which the codebase previously avoided on the grounds that
-         `.topbar` is a scroll container that would clip one. It is `position: fixed` and
-         measured off the button, so no ancestor's overflow can clip it — and the alternative,
+         `.topbar` is a scroll container that would clip one. It is placed by `popup`
+         (lib/popup.ts), in the top layer, so no ancestor's overflow can clip it — and the alternative,
          routing every creation through a full-screen palette, is what made "new note" feel like
          a settings trip. -->
       <div class="create-wrap">
@@ -1977,8 +1955,7 @@
         <button
           type="button"
           class="plus-btn"
-          onclick={(e) => {
-            anchorTo(e);
+          onclick={() => {
             createOpen = !createOpen;
             if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
           }}
@@ -1993,7 +1970,7 @@
           <!-- Click-away on a backdrop rather than a document listener: it also blocks the stray
              tap that would otherwise land on whatever is behind the menu. -->
           <div class="menu-backdrop" role="presentation" onclick={() => (createOpen = false)}></div>
-          <ul class="create-menu" role="menu" style={menuAnchor}>
+          <ul class="create-menu" role="menu" use:popup>
             {#each createItems as item, i (item.label)}
               <!-- The rule falls where "make something" turns into "look at something", worked out
                  from the groups rather than flagged by hand — so it stays right when an item is
@@ -2094,7 +2071,7 @@
         <button
           type="button"
           class="views-btn"
-          onclick={(e) => (anchorTo(e), (viewsOpen = !viewsOpen))}
+          onclick={() => (viewsOpen = !viewsOpen)}
           aria-expanded={viewsOpen}
           aria-haspopup="menu"
           title="Open a view"
@@ -2104,7 +2081,7 @@
         </button>
         {#if viewsOpen}
           <div class="menu-backdrop" role="presentation" onclick={() => (viewsOpen = false)}></div>
-          <ul class="create-menu" role="menu" style={menuAnchor}>
+          <ul class="create-menu" role="menu" use:popup>
             <!-- **The switches of the view in front of you, first** — a phone only, by CSS: the top row
                that carried them is hidden below 40rem (2026-09-11), and from 40rem it is back and these
                are hidden, so exactly one copy is ever visible. A mode change puts the menu away; typing
@@ -2143,7 +2120,7 @@
           <button
             type="button"
             class="windows-btn"
-            onclick={(e) => (anchorTo(e), (windowsOpen = !windowsOpen))}
+            onclick={() => (windowsOpen = !windowsOpen)}
             aria-expanded={windowsOpen}
             aria-haspopup="menu"
             title="Open windows"
@@ -2157,12 +2134,7 @@
               role="presentation"
               onclick={() => (windowsOpen = false)}
             ></div>
-            <ul
-              class="create-menu windows-menu"
-              role="menu"
-              aria-label="open windows"
-              style={menuAnchor}
-            >
+            <ul class="create-menu windows-menu" role="menu" aria-label="open windows" use:popup>
               {#each workspace.panes as pane, i (pane.id)}
                 {@const icon = paneIcon(pane)}
                 <li class="window-row" class:current={i === focused} role="none">
@@ -2247,7 +2219,7 @@
             type="button"
             class="tb-chip vaults-btn"
             class:filtering={hiddenVaults.length > 0}
-            onclick={(e) => (anchorTo(e), (vaultMenuOpen = !vaultMenuOpen))}
+            onclick={() => (vaultMenuOpen = !vaultMenuOpen)}
             aria-expanded={vaultMenuOpen}
             aria-haspopup="menu"
             title="Which vaults to show"
@@ -2262,7 +2234,7 @@
               role="presentation"
               onclick={() => (vaultMenuOpen = false)}
             ></div>
-            <ul class="create-menu" role="menu" style={menuAnchor}>
+            <ul class="create-menu" role="menu" use:popup>
               {#each allVaults as v (v)}
                 <li role="none">
                   <!-- **`menuitemcheckbox`, and the click does not close.** Every other menu in this
@@ -2422,7 +2394,7 @@
         <button
           type="button"
           class="save-btn"
-          onclick={(e) => (anchorTo(e), (backupMenuOpen = !backupMenuOpen))}
+          onclick={() => (backupMenuOpen = !backupMenuOpen)}
           disabled={savingLabel !== null}
           aria-expanded={backupMenuOpen}
           aria-haspopup="menu"
@@ -2443,7 +2415,7 @@
             role="presentation"
             onclick={() => (backupMenuOpen = false)}
           ></div>
-          <ul class="create-menu" role="menu" style={menuAnchor}>
+          <ul class="create-menu" role="menu" use:popup>
             {#each BACKUP_MENU as item (item.label)}
               <li role="none">
                 <button
@@ -3302,10 +3274,14 @@
   }
   .create-menu {
     position: fixed;
-    /* No coordinates here — `anchorTo` measures the button that opened it and supplies them
-       inline. A fixed corner was only ever right while the chrome was a bar across the top. */
+    /* No coordinates here — `popup` (lib/popup.ts) measures the button that opened it and the menu
+       itself, and supplies them inline. */
     z-index: 41;
     min-width: 11rem;
+    /* **A cap, so a long name cannot widen the menu**: it ends in "…" instead (`.window-name`). The
+       list of open windows grew to the width of a long note name and off the screen (2026-09-11).
+       `popup` also caps every menu at the width of the screen. */
+    max-width: 18rem;
     /* `dvh`, not `vh` — see the overlay note in app.css. */
     max-height: 70dvh;
     overflow-y: auto;
@@ -3482,8 +3458,8 @@
     cursor: default;
     color: var(--text-muted);
   }
-  /* The menu hangs off this control, so it anchors to the button that opened it — `menuAnchor`,
-     the same mechanism the ＋ menu uses, rather than a fixed corner. */
+  /* The menu hangs off this control, so it is placed against the button that opened it — `popup`,
+     the same mechanism every menu uses, rather than a fixed corner. */
   .create-menu .mi-label {
     display: block;
   }

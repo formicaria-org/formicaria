@@ -78,12 +78,3 @@ export function caretXY(el: HTMLTextAreaElement, index: number): CaretPos {
 
   return { top, left, lineHeight: Number.isFinite(lineHeight) ? lineHeight : 0 };
 }
-
-/**
- * Keep a `size`-sized popup inside `[0, extent]`: shift it back when it would
- * overflow the far edge, but never push it off the near one. Pure, so the
- * clamping is testable without layout.
- */
-export function clamp(pos: number, size: number, extent: number): number {
-  return Math.max(0, Math.min(pos, extent - size));
-}
