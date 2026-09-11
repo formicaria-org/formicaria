@@ -195,6 +195,20 @@
     persistWorkspace();
     void refresh();
   }
+  /// **A note window's name**, reported by the note once it has loaded or been renamed, so a list of
+  /// windows can show the title rather than "Note" (the owner, 2026-09-11). **Not `changePane`**: that
+  /// re-fetches every view (`refresh`), and a phone budgets its commands — a title is a label on a
+  /// window, not a change to what any window shows. Every note window reports on each load, so an
+  /// unchanged name writes nothing.
+  function nameWindow(id: string, noteTitle: string | null) {
+    const pane = workspace.panes.find((p) => p.id === id);
+    if (!pane || (pane.noteTitle ?? null) === noteTitle) return;
+    workspace = {
+      ...workspace,
+      panes: workspace.panes.map((p) => (p.id === id ? { ...p, noteTitle } : p)),
+    };
+    persistWorkspace();
+  }
   // Changing arrangement is a view preference, like the theme — it never touches a vault.
   function setLayout(layout: Layout) {
     workspace = { ...workspace, layout };
@@ -2605,6 +2619,7 @@
               onnavigate={openNoteInPane}
               onsaved={scheduleCommit}
               onchange={(patch) => changePane(pane.id, patch)}
+              ontitle={(title) => nameWindow(pane.id, title)}
               onreorder={movePane}
               onresize={(patch) => resizePane(pane.id, patch)}
               onclose={() => closePane(pane.id)}

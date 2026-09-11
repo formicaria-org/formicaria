@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, tick, untrack } from 'svelte';
   import {
     getNote,
     updateBody,
@@ -35,6 +35,8 @@
   } from './render';
   import { CALLOUT_TYPES, TEXT_TOKENS } from './render-vocab';
   import { clickOutside } from './clickOutside';
+  import { topLayer } from './topLayer';
+  import { noteName } from './noteName';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY, clamp } from './caret';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
@@ -54,7 +56,10 @@
     onclose,
     onsaved,
     onnavigate,
+    ontitle,
     ontogglewide,
+    hidden = false,
+    canWiden = false,
     wide = true,
     solo = true,
     statuses = [],
@@ -64,11 +69,17 @@
     id: string;
     onclose: () => void;
     onsaved?: () => void;
+    /** The note's title as loaded or renamed, so the window it is in can be named after it. */
+    ontitle?: (title: string | null) => void;
     /** A note chip in the read view was clicked — push it onto the trail. */
     onnavigate?: (id: string) => void;
     /** The full-screen toggle lives in this header but the state is the whole
      *  trail's, so App owns it. */
     ontogglewide?: () => void;
+    /** This note's window is out of sight — switched away from, one at a time — which ends editing. */
+    hidden?: boolean;
+    /** Whether widening this note means anything: tiled only. One at a time, it already fills the window. */
+    canWiden?: boolean;
     /** All vault names — the "Copy to" control offers the ones that aren't this note's. */
     vaults?: string[];
     wide?: boolean;
@@ -114,17 +125,25 @@
     if (boardFull) {
       boardFull = false;
       void nudgeResize();
+      return;
+    }
+    // Back while editing: if the entry now showing is not this note's, its entry was the one popped.
+    if (editHistory && history.state?.fmEditing !== editToken) {
+      editHistory = false;
+      if (editing) void toggleEdit();
     }
   }
   // Deleting is destructive + irreversible, so the button arms a confirm strip
   // (a second, deliberate click) rather than firing on the first press.
   let confirmingDelete = $state(false);
 
-  // The note "options" window opened by the single `＋` in the header. Only identity — the vault
-  // (audience) and who last edited — stays on the row; Edit, Copy, Delete (and the properties, via
-  // Edit) live here, so a phone header stays legible and refinement is one tap away. It is a
-  // *window* (a card), not a dropdown; every item closes it, and it dismisses on outside-tap/Escape.
+  // The note "options" window opened by the single `＋` beside the title — **everything a note offers**,
+  // since 2026-09-11: Edit, Add media, Full screen, Copy, Delete, Close, and at its foot the vault and
+  // who last edited. The header is the title and this button on every device. It is a *window* (a
+  // card), not a dropdown; every action closes it, and it dismisses on outside-tap/Escape.
   let optionsOpen = $state(false);
+  /// The ＋ that opens the options window, which is placed against it (`topLayer`).
+  let optionsBtn = $state<HTMLButtonElement>();
 
   // Copying a note into another vault is sensitive: it writes into that vault's repo
   // (permanent in its git history). So the button opens a popover that states this plainly,
@@ -304,8 +323,15 @@
   // genuinely concurrent, and without this an older, slower `get` lands last and shows the wrong
   // note in the pane, with `draft`/`base` to match. `base` being wrong is the dangerous part: the
   // next autosave would carry another note's version.
+  /// **The note to load, as a memo** — the same fix `noteId` below applies to `note?.id`, here for the
+  /// prop. Read straight inside the effect, `id` subscribed it to whatever the parent built the prop
+  /// from: `Pane` passes `pane.noteId`, so replacing the pane object — naming the window after the
+  /// note (2026-09-11), or resizing it — re-ran the load for the *same* note. That cost a second `get`
+  /// (caught by `App.phone.test.ts`'s budget) and would have thrown a note being edited back to the
+  /// read view the moment its title was renamed. A derived notifies only when the id itself changes.
+  const loadId = $derived(id);
   $effect(() => {
-    const which = id;
+    const which = loadId;
     let cancelled = false;
     note = null;
     editing = false;
@@ -317,6 +343,7 @@
         note = n;
         draft = n?.body ?? '';
         base = n?.version ?? '';
+        ontitle?.(n ? noteName(n) : null);
         if (n) {
           pTitle = n.title ?? '';
           pStatus = n.status ?? '';
@@ -1476,6 +1503,7 @@
     try {
       await setProperty(note.id, key, value);
       applyLocal(key, value);
+      if (key === 'title' && note) ontitle?.(noteName({ ...note, title: value || null }));
       onsaved?.();
       error = null;
     } catch (e) {
@@ -1544,20 +1572,84 @@
   async function toggleEdit() {
     // A board's body is the canvas scene (autosaved by Whiteboard); the textarea
     // `draft` is stale for it, so flushing it here would clobber the drawing.
-    if (editing && !isBoard) await save(); // leaving edit mode flushes the textarea
+    // Leaving edit mode flushes the textarea — **only when there is something to flush.** Since
+    // 2026-09-11 editing also ends by switching windows or pressing Back, so an unconditional write
+    // here rewrote an unchanged note on every switch: `updated` moved, the byline said "just now", and
+    // the next auto-commit recorded a frontmatter change nobody made. `saved` is the same signal
+    // `flushPendingSave` already trusts.
+    if (editing && !isBoard && !saved) await save();
     editing = !editing;
+  }
+
+  // **Leaving a note puts the pen down** (2026-09-11). There is no Done button: editing ends when you
+  // tap the title, press Escape or Ctrl+S — or leave the note. Closing its window unmounts it; the
+  // effects below cover switching to another window and the phone's Back. Saving is automatic
+  // throughout, so none of these can lose work.
+  //
+  // Back works the way the full-screen board already does: entering the editor pushes a history entry,
+  // and popping it (`onPopState`) ends editing. Each note tags its entry, so Back ends the editing of
+  // the note whose entry it popped and no other; and leaving the editor any other way takes the entry
+  // back only while it is still on top, never popping someone else's.
+  const editToken = `edit-${Math.random().toString(36).slice(2)}`;
+  let editHistory = false;
+  $effect(() => {
+    const on = editing;
+    untrack(() => {
+      if (on && !editHistory) {
+        try {
+          history.pushState({ fmEditing: editToken }, '');
+          editHistory = true;
+        } catch {
+          /* no history (rare) — the title, Escape and leaving still end editing */
+        }
+      } else if (!on && editHistory) {
+        editHistory = false;
+        try {
+          if (history.state?.fmEditing === editToken) history.back();
+        } catch {
+          /* nothing to take back */
+        }
+      }
+    });
+  });
+  // Switching to another window hides this one (one at a time) without unmounting it.
+  $effect(() => {
+    if (!hidden) return;
+    untrack(() => {
+      if (editing) void toggleEdit();
+      // Nor does it keep its ＋ window open, to be found still open on coming back.
+      optionsOpen = false;
+      captureOpen = false;
+    });
+  });
+  // A note closed while editing leaves its entry behind; take it back if it is still on top.
+  onDestroy(() => {
+    try {
+      if (editHistory && history.state?.fmEditing === editToken) history.back();
+    } catch {
+      /* nothing to take back */
+    }
+  });
+
+  /// **Add media works from reading too** — it opens the editor with the caret at the end first,
+  /// because every capture inserts at the caret.
+  async function addMedia(run: () => unknown) {
+    optionsOpen = false;
+    captureOpen = false;
+    if (!editing) await openEditor(draft.length);
+    await run();
   }
 
   // Leaving the editor should feel like putting the pen down, not hunting for a "Done" button:
   // clicking the header chrome — the title and the note's identity line — flushes the draft and
   // drops back to the read view, the same as Ctrl+S or Escape. An intuitive trigger beats an
-  // explicit command. Only the header's own controls keep their meaning (the ＋ options and its
-  // window, ＋ Media, full-screen, close); everything else in the header is "done".
+  // explicit command. Only the header's ＋ and its window keep their meaning; everything else in the
+  // header — the title, which is now nearly all of it — is "done".
   function onHeaderClick(e: MouseEvent) {
     if (!editing) return;
     if (
       (e.target as HTMLElement | null)?.closest(
-        'button, input, a, select, .capture, .options-window',
+        'button, input, a, select, .options-window, .recording',
       )
     ) {
       return;
@@ -2071,32 +2163,31 @@
   <header
     class:editing={!!(note && editing)}
     onclick={onHeaderClick}
-    title={note && editing ? 'Click here (or press Ctrl+S / Esc) to finish editing' : undefined}
+    title={note && editing ? 'Tap the title (or press Ctrl+S / Esc) to finish editing' : undefined}
   >
-    <!-- **The title gets its own line.** It used to share one flex row with the vault badge,
-           the last editor, the status chip and every action button, so a title of any real
-           length was squeezed into whatever those left over — unreadable on a narrow pane and
-           worse on a phone. The title is what identifies the note; the controls act on it.
-           Two rows, in that order. -->
+    <!-- **A title and one ＋, on every device** (2026-09-11, `decisions.md#ui`). The owner, with a
+         screenshot of three rows of chrome and a menu half off the screen: "just a single title and a
+         single plus to do things". Everything else a note offers — editing, media, full screen, copy,
+         delete, close, and whose note it is — lives in the ＋'s window. -->
     <div class="title-row">
       {#if note && note.type === 'asset'}<span class="type" data-type={note.type}>{note.type}</span
         >{/if}
-      <h2>{note?.title ?? 'note'}</h2>
-    </div>
-    <div class="control-row">
-      {#if note?.vault}<VaultBadge vault={note.vault} />{/if}
-      {#if note}<EditedBy edit={lastEditFor(note.id)} />{/if}
+      <h2>{note ? (noteName(note) ?? 'Untitled') : 'note'}</h2>
       {#if note}
-        <!-- **One button, one window.** Only identity — vault (audience) + who last edited — stays
-             on the row; Edit, Copy, Delete (and the properties, via Edit) live behind this single
-             `＋`, which opens an options *window* (a card, not a dropdown). Keeps a phone header
-             legible; refinement is one tap away when wanted. The window is nested in this
-             `position:relative` wrapper — the same shape as `＋ Media` — so it opens *directly
-             under the button* at any scroll offset, never adrift at the panel's edge. -->
-        <div class="options" use:clickOutside={() => (optionsOpen = false)}>
+        <div
+          class="options"
+          use:clickOutside={() => {
+            optionsOpen = false;
+            captureOpen = false;
+          }}
+        >
           <button
             class="edit options-btn"
-            onclick={() => (optionsOpen = !optionsOpen)}
+            bind:this={optionsBtn}
+            onclick={() => {
+              optionsOpen = !optionsOpen;
+              captureOpen = false;
+            }}
             aria-haspopup="dialog"
             aria-expanded={optionsOpen}
             aria-label="note options"
@@ -2104,11 +2195,13 @@
           >
           {#if optionsOpen}
             <!-- Dismissed by tapping outside (the wrapper's clickOutside), Escape, or its ✕ —
-                 identically on a phone and a laptop. Each action closes it, so it and a popover are
-                 never both open. Edit reveals the property form (the fine refinement). -->
+                 identically on a phone and a laptop. Each action closes it. Drawn in the browser's
+                 top layer against the ＋ (`topLayer.ts`), so neither this note's window nor the bottom
+                 bar can cut it off, and never wider or taller than the screen (`.options-window`). -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="options-window"
+              use:topLayer={optionsBtn}
               role="dialog"
               tabindex="-1"
               aria-label="note options"
@@ -2122,7 +2215,8 @@
                   aria-label="close options">✕</button
                 >
               </div>
-              {#if !isDiscussion}
+              <!-- No Done: editing ends by tapping the title, Escape, Ctrl+S, or leaving the note. -->
+              {#if !isDiscussion && !editing}
                 <button
                   class="opt"
                   onclick={() => {
@@ -2130,7 +2224,44 @@
                     void toggleEdit();
                   }}
                 >
-                  {#if isBoard}{editing ? 'Done' : 'Details'}{:else}{editing ? 'Done' : 'Edit'}{/if}
+                  {isBoard ? 'Details' : 'Edit'}
+                </button>
+              {/if}
+              {#if !isBoard && !isDiscussion}
+                <!-- **Opened in place, inside this window** — never a menu hanging off a menu, which is
+                     how ＋ Media ended up half off the left edge of a phone. -->
+                <button
+                  class="opt"
+                  aria-expanded={captureOpen}
+                  onclick={() => (captureOpen = !captureOpen)}
+                  >Add media<span class="opt-caret" aria-hidden="true"
+                    >{captureOpen ? '▾' : '▸'}</span
+                  ></button
+                >
+                {#if captureOpen}
+                  <div class="opt-sub" role="group" aria-label="add media">
+                    <!-- In-app recorder: same web-audio path on every device (browser + phone WebView). -->
+                    <button class="opt" onclick={() => addMedia(startRecordingFlow)}
+                      >Record audio</button
+                    >
+                    {#each CAPTURE as kind (kind.label)}
+                      <button class="opt" onclick={() => addMedia(() => capture(kind))}
+                        >{kind.label}</button
+                      >
+                    {/each}
+                  </div>
+                {/if}
+              {/if}
+              {#if isBoard || canWiden}
+                <button
+                  class="opt"
+                  onclick={() => {
+                    optionsOpen = false;
+                    if (isBoard) enterBoardFull();
+                    else ontogglewide?.();
+                  }}
+                >
+                  {isBoard || !wide ? 'Full screen' : 'Exit full screen'}
                 </button>
               {/if}
               {#if isPaper && clipboardAvailable}
@@ -2173,72 +2304,37 @@
                   confirmingDelete = true;
                 }}>Delete</button
               >
+              <button
+                class="opt"
+                onclick={() => {
+                  optionsOpen = false;
+                  onclose();
+                }}>Close</button
+              >
+              <!-- Whose note this is: information, not controls, so it sits at the foot. -->
+              <div class="options-info">
+                {#if note.vault}<VaultBadge vault={note.vault} />{/if}
+                <EditedBy edit={lastEditFor(note.id)} />
+              </div>
             </div>
           {/if}
         </div>
       {/if}
-      {#if note && editing}
-        <!-- Only while editing: capture exists to put something *into* the text you are
-             writing, and the caret it inserts at only means something in the editor. -->
-        <div class="capture" use:clickOutside={() => (captureOpen = false)}>
-          <button
-            class="edit"
-            onclick={() => (captureOpen = !captureOpen)}
-            aria-expanded={captureOpen}
-            aria-label="add media">＋ Media</button
-          >
-          {#if captureOpen}
-            <ul class="capture-menu">
-              <li>
-                <!-- In-app recorder: same web-audio path on every device (browser + phone WebView). -->
-                <button onclick={startRecordingFlow}>Record audio</button>
-              </li>
-              {#each CAPTURE as kind (kind.label)}
-                <li>
-                  <button onclick={() => capture(kind)}>{kind.label}</button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-        {#if recording}
-          <div class="recording" role="status" aria-live="polite">
-            <span class="rec-dot" aria-hidden="true"></span>
-            <span class="rec-time"
-              >Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(
-                2,
-                '0',
-              )}</span
-            >
-            <button class="rec-stop" onclick={finishRecording}>Stop &amp; add</button>
-            <button class="rec-cancel" onclick={cancelRecording}>Cancel</button>
-          </div>
-        {/if}
-        <!-- One hidden input, reconfigured per source. `multiple` because the library picker is
-             the natural place to add several at once, and `ingestAll` already loops. -->
-        <input
-          class="capture-input"
-          type="file"
-          multiple
-          bind:this={captureEl}
-          onchange={onCaptured}
-        />
-      {/if}
-      <button
-        class="icon-toggle"
-        onclick={isBoard ? enterBoardFull : ontogglewide}
-        aria-pressed={isBoard ? boardFull : wide}
-        aria-label="full screen"
-        title={isBoard
-          ? 'Full screen board (Back to exit)'
-          : wide
-            ? 'Exit full screen'
-            : 'Full screen'}
-      >
-        {isBoard ? '⛶' : wide ? '⤡' : '⤢'}
-      </button>
-      <button class="close" onclick={onclose} aria-label="close">✕</button>
     </div>
+    {#if recording}
+      <div class="recording" role="status" aria-live="polite">
+        <span class="rec-dot" aria-hidden="true"></span>
+        <span class="rec-time"
+          >Recording {Math.floor(recordSecs / 60)}:{String(recordSecs % 60).padStart(2, '0')}</span
+        >
+        <button class="rec-stop" onclick={finishRecording}>Stop &amp; add</button>
+        <button class="rec-cancel" onclick={cancelRecording}>Cancel</button>
+      </div>
+    {/if}
+    <!-- One hidden input, reconfigured per source, and present whether or not the editor is open,
+         since Add media may be what opens it. `multiple` because the library picker is the natural
+         place to add several at once, and `ingestAll` already loops. -->
+    <input class="capture-input" type="file" multiple bind:this={captureEl} onchange={onCaptured} />
   </header>
   {#if confirmingDelete}
     <div class="confirm" role="alertdialog" aria-label="confirm delete">
@@ -2957,17 +3053,9 @@
   }
   .title-row {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: var(--space-2);
     min-width: 0;
-  }
-  /* The controls wrap rather than compress: on a narrow pane a second line of buttons is
-     readable, whereas eight items crushed onto one is what this change exists to undo. */
-  .control-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-2);
   }
   .type {
     font-size: var(--text-xs);
@@ -3095,57 +3183,27 @@
     color: var(--ok-fg);
     font-size: var(--text-sm);
   }
-  .capture {
-    position: relative;
-  }
-  .capture-menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 4px);
-    z-index: 5;
-    min-width: 12rem;
-    margin: 0;
-    padding: 4px;
-    list-style: none;
-    background: var(--surface-elevated);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-2, 6px);
-    box-shadow: var(--shadow-lg);
-  }
-  .capture-menu button {
-    display: block;
-    width: 100%;
-    text-align: left;
-    /* The touch target both platform guidelines ask for — this menu exists for phones. */
-    min-height: 2.75rem;
-    padding: var(--space-2);
-    background: none;
-    border: none;
-    border-radius: var(--radius-2, 6px);
-    color: var(--text);
-    font: inherit;
-    cursor: pointer;
-  }
-  .capture-menu button:hover {
-    background: var(--surface-hover);
-  }
   /* The `＋`-options button and its window share one relative wrapper (the `.capture` shape),
      so the window is positioned against the *button*, not the header edge. */
   .options {
     position: relative;
     display: inline-flex;
   }
-  /* The note-options window: a card anchored directly under the `＋`, not a dropdown list.
-     `left: 0` hangs it from the button's left edge, opening rightward, so it sits beside the `＋`
-     at any scroll offset — anchored to the header/panel it drifted to a corner of the pane (the
-     "weird places" bug). Clamped so a narrow phone pane never pushes it off-screen. */
+  /* The note-options window: a card under the ＋, not a dropdown list. **Always on the screen**
+     (2026-09-11): its right edge sits under the ＋'s, so it grows leftward into the note rather than
+     off the edge; it is never wider than the screen less its gutters, and scrolls within the height it
+     has — the 2026-09-01 overlay rule. These are the in-place rules, which an engine without a top
+     layer keeps; the `:popover-open` rules below take it out of the note. */
   .options-window {
     position: absolute;
-    left: 0;
+    right: 0;
     top: calc(100% + 4px);
     z-index: 20;
     min-width: 13rem;
-    max-width: min(20rem, 88vw);
+    max-width: min(20rem, calc(100vw - 2 * var(--space-3)));
+    max-height: 70dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -3154,6 +3212,29 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-lg);
+  }
+  /* **In the top layer** (`topLayer.ts`). A pane is a size container, which makes it the containing
+     block even for `position: fixed`, and it clips — so in place, wherever a note's window was short
+     (two notes stacked on a computer, a small phone above the bottom bar), this window was cut off.
+     Out here it is placed against the screen: `topLayer` says where it starts (`--opens-at`, from the
+     ＋) and which way it opens; how far it may grow is decided here, where the insets are readable. */
+  .options-window:popover-open {
+    position: fixed;
+    right: auto;
+    margin: 0;
+    color: var(--text);
+  }
+  .options-window:popover-open[data-open='down'] {
+    max-height: calc(100dvh - var(--opens-at) - max(var(--safe-bottom), var(--space-3)));
+  }
+  .options-window:popover-open[data-open='up'] {
+    max-height: calc(100dvh - var(--opens-at) - max(var(--safe-top), var(--space-3)));
+  }
+  /* The navigation-bar floor — `--bar-floor`, never a hand-copied number. */
+  @media (pointer: coarse) {
+    .options-window:popover-open[data-open='down'] {
+      max-height: calc(100dvh - var(--opens-at) - max(var(--safe-bottom), var(--bar-floor)));
+    }
   }
   .options-head {
     display: flex;
@@ -3193,6 +3274,35 @@
   }
   .opt.danger {
     color: var(--danger-fg);
+  }
+  .opt-caret {
+    float: right;
+    color: var(--text-muted);
+  }
+  /* Add media's own list, opened in place inside the window. */
+  .opt-sub {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 var(--space-1) var(--space-2);
+    padding-left: var(--space-2);
+    border-left: 2px solid var(--border);
+  }
+  /* Whose note this is — the vault and who last edited — at the foot of the window, since the header is
+     only the title now. Information rather than controls, so it reads quieter than the actions. */
+  .options-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    padding: var(--space-2) var(--space-2) var(--space-1);
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+  header > .recording {
+    align-self: flex-start;
   }
   /* Hidden, never `display: none`: a display-none input cannot be opened by `.click()` in
      every engine, and this one is only ever driven programmatically. */
@@ -3248,22 +3358,6 @@
     .recording button {
       min-height: 2.75rem;
     }
-  }
-  .icon-toggle {
-    display: grid;
-    place-items: center;
-    width: 1.9rem;
-    height: 1.9rem;
-    background: none;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    color: var(--text-muted);
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  .icon-toggle:hover {
-    color: var(--text);
-    background: var(--surface-hover);
   }
   /* The Obsidian/Notion-style properties form, shown in edit mode above the body. */
   .props {
@@ -3355,16 +3449,6 @@
   }
   .field.checkbox input {
     width: auto;
-  }
-  .close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  .close:hover {
-    color: var(--text);
   }
   .editor-wrap {
     position: relative;
@@ -4003,6 +4087,12 @@
     padding: var(--space-1) var(--space-5) var(--space-3);
     font-size: var(--text-xs);
     color: var(--text-subtle);
+  }
+  /* Dragging files, a `/` typed on a keyboard, Ctrl+S: none of it applies to a touch screen. */
+  @media (pointer: coarse) {
+    .editor-hint {
+      display: none;
+    }
   }
   .editor-hint kbd {
     font-family: var(--font-mono);

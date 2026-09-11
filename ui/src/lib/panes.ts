@@ -30,6 +30,9 @@ export interface Pane {
   query: string; // search
   noteId: string | null; // note / whiteboard
   viewName: string | null; // a saved .view
+  /** note — the title last seen, so a list of windows can name a note rather than call it "Note".
+   *  Optional: a workspace saved before 2026-09-11 has none, and the note reports it when it loads. */
+  noteTitle?: string | null;
   colSpan: number; // grid columns occupied (>=1)
   rowSpan: number; // grid rows occupied (>=1)
 }
@@ -306,7 +309,9 @@ export function paneTitle(p: Pane): string {
     case 'view':
       return p.viewName ?? 'View';
     case 'note':
-      return 'Note';
+      // Its title — whose first letters are what a narrow list or tab shows — and "Note" only until
+      // the note has loaded, or for a note that has no title.
+      return p.noteTitle?.trim() || 'Note';
   }
 }
 

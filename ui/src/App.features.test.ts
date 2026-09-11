@@ -53,6 +53,14 @@ async function setDate(el: HTMLElement, value: string): Promise<void> {
 }
 
 // There is no Edit button: you double-click the note to edit it.
+/// Close a note the way its header offers it since 2026-09-11: the ＋ beside the title, then Close.
+/// `which` picks among several open notes, counting from the end when negative.
+async function closeNote(which = 0): Promise<void> {
+  const pluses = screen.getAllByRole('button', { name: 'note options' });
+  await fireEvent.click(pluses.at(which)!);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+}
+
 async function openEditor(): Promise<void> {
   await fireEvent.dblClick(await screen.findByTitle('Double-click to edit'));
 }
@@ -74,7 +82,7 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.change(dueField, { target: { value: '2026-08-01' } });
 
     // Close the panel, then reopen the same note — the change survived the round trip.
-    await fireEvent.click(screen.getByLabelText('close'));
+    await closeNote();
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     const reopened = (await screen.findByLabelText('due')) as HTMLInputElement;
@@ -106,7 +114,7 @@ describe('v2: property editing, timeline, delete', () => {
     await setDate(dueTime, '14:30');
 
     // Round-trip: the two inputs recombine into one wire value, and split again.
-    await fireEvent.click(screen.getByLabelText('close'));
+    await closeNote();
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('2026-08-01');
@@ -124,7 +132,7 @@ describe('v2: property editing, timeline, delete', () => {
     await setDate(await screen.findByLabelText('due time'), '14:30');
     await setDate(due, ''); // clearing the day must take the orphaned time with it
 
-    await fireEvent.click(screen.getByLabelText('close'));
+    await closeNote();
     await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
     await openEditor();
     expect(((await screen.findByLabelText('due')) as HTMLInputElement).value).toBe('');
@@ -282,12 +290,12 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await screen.findByText(/permanently/i);
-    expect(screen.queryByLabelText('close')).not.toBeNull();
+    expect(screen.queryByLabelText('note body (Markdown)')).not.toBeNull();
 
     // Clicking the menu item closed the menu, so the only remaining "Delete" is the
     // confirm strip's — this targets the second, final click.
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await waitFor(() => expect(screen.queryByLabelText('close')).toBeNull());
+    await waitFor(() => expect(screen.queryByLabelText('note body (Markdown)')).toBeNull());
   });
 
   // Leaving the editor is an intuitive gesture, not a hunt for a "Done" button: clicking the

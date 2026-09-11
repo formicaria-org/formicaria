@@ -11,7 +11,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/sve
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 
 import App from './App.svelte';
-import { clearFaults } from './lib/mock';
+import { clearFaults, reset, seed } from './lib/mock';
 
 const store = new Map<string, string>();
 beforeEach(() => {
@@ -29,6 +29,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   clearFaults();
+  reset();
 });
 
 /// Open a view through the bottom bar's view menu, the way a phone does.
@@ -110,4 +111,25 @@ test('a view with no switches of its own adds nothing to the view menu', async (
   const menu = await screen.findByRole('menu');
   expect(within(menu).queryByText('Show as')).toBeNull();
   expect(within(menu).queryByRole('separator')).toBeNull();
+});
+
+/// **A note's window is named by its title.** The owner, on the list behind the counted button: instead of
+/// a generic "Note", the first letters of the note's title. The list truncates; the name is the title.
+test('a note window is named by its title, not "Note"', async () => {
+  reset();
+  seed({ notes: 3 });
+  render(App);
+  await fireEvent.click(await screen.findByText(/Seeded 0/));
+  await screen.findByLabelText('note options');
+
+  await fireEvent.click(windowsButton());
+  const menu = await screen.findByRole('menu', { name: 'open windows' });
+  // The title arrives when the note has loaded, so the row may say "Note" for a moment first.
+  await waitFor(() =>
+    expect(within(menu).getByRole('menuitem', { name: 'Seeded 0' })).toBeTruthy(),
+  );
+  expect(within(menu).queryByRole('menuitem', { name: 'Note' })).toBeNull();
+  // The same name on the wide screen's tab for that window, from the one function both use.
+  const row = screen.getByRole('navigation', { name: 'open views' });
+  expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Seeded 0');
 });

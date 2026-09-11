@@ -43,6 +43,9 @@
     onnavigate: (id: string) => void; // a note pane's chip was followed → open that note
     onsaved: () => void; // a note pane wrote → schedule the git commit
     onchange: (patch: Partial<Pane>) => void;
+    /** A note window's title as the note reports it — a label only, so it does not go through
+     *  `onchange`, which re-fetches every view. */
+    ontitle?: (title: string | null) => void;
     onreorder: (from: number, to: number) => void;
     onresize: (patch: { colSpan?: number; rowSpan?: number }) => void;
     onclose: () => void;
@@ -73,6 +76,7 @@
     onnavigate,
     onsaved,
     onchange,
+    ontitle,
     onreorder,
     onresize,
     onclose,
@@ -312,6 +316,9 @@
             {onnavigate}
             {onsaved}
             ontogglewide={toggleMax}
+            {ontitle}
+            hidden={!headed && !focused}
+            canWiden={!!headed}
           />
         {/await}
       {:else}

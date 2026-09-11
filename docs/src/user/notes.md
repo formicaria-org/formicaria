@@ -29,17 +29,19 @@ actually reuse) — the new note is its own untitled note, not another template,
 
 ## Editing a note
 
-Click any card to open it. It shows the rendered read view. To edit it, either
-open the header's **＋ options** window and pick **Edit**, or — quicker —
-**double-click anywhere in the note**; both land in the same place. Double-clicking
-a reference chip, a link, or embedded media does what that element does instead of
-opening the editor.
+Click any card to open it. It shows the rendered read view, under a header that is just the
+note's title and a **＋**. To edit, tap the **＋** and pick **Edit**, or — quicker — **double-click
+anywhere in the note**; both land in the same place. Double-clicking a reference chip, a link, or
+embedded media does what that element does instead of opening the editor.
 
-**To finish, click the header** — the title and the note's identity line turn into
-a "done" target while you edit (an accent underline and a pointer cursor mark it),
-so putting the pen down is a tap where your eye already is, not a hunt for a button.
-**Ctrl+S** and **Escape** do the same. Your typing is autosaved either way, so none
-of these can lose work.
+**There is no Done button.** To finish, **tap the title**, press **Escape** or **Ctrl+S** — or simply
+leave the note: switch to another window, close it, or press Back on a phone. Your typing is autosaved
+throughout, so none of these can lose work.
+
+Everything else a note offers is under the same **＋**: **Add media** (a photo, a video, a recording or a
+file — from reading too, in which case it opens the editor and adds at the end), **Full screen** for a
+whiteboard, **Copy to…** another vault, **Delete** and **Close**. At the bottom of that window you can
+see which vault the note is in and who last edited it.
 
 The editor also gives you a **properties form**:
 

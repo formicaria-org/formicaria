@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -7772,3 +7772,46 @@ The 2026-08-31 rule against two copies was about two *visible* copies confusing 
 now, so nothing is drawn under the cutout, and a banner at the top no longer adds a second inset.
 
 **Asked, not assumed:** the owner also chose phones only — wide screens keep a tab per window.
+
+## 2026-09-11 — a note's header is its title and one ＋, and leaving a note ends editing `#ui` `#track-m`
+
+**The complaint, with a screenshot.** On the owner's phone the note header was three rows: the title; the
+vault, the last editor and a ＋; and — while editing — ＋ Media, full screen and close. ＋ Media's menu
+opened half off the left edge of the screen. The owner: *"just a single title and a single plus to do
+things"*, done automatically, delete under the plus — on every device — and *"all the options in all the
+OSs should be displayed in the particular device's screen, not cut out."*
+
+**What the header is now, everywhere.** The title and one ＋. The ＋ opens the options window, which holds
+everything a note offers: Edit (Details for a board); **Add media**, opened in place inside the window
+rather than as a menu hanging off a menu; Full screen, for a board or a tiled note (one at a time a note
+already fills the window, so it is not offered); Copy as BibTeX; Open externally; Copy to…; Delete;
+Close — and at its foot the vault and who last edited, as information rather than controls. Add media
+works from reading too: it opens the editor with the caret at the end, because every capture inserts at
+the caret.
+
+**No Done.** Editing ends by tapping the title (as before), Escape or Ctrl+S — or by leaving the note.
+Closing its window unmounts it; switching to another window hides it (`hidden`, one at a time only); and
+Back pops an edit history entry, the way the full-screen board already did. Each note tags its entry, so
+Back ends that note's editing and no other, and leaving the editor any other way takes the entry back only
+while it is still on top. The owner chose this over ending on focus loss, which would end editing by
+accident mid-action — choosing a photo, for one. **Leaving the editor writes only unsaved text:** editing
+now ends on every window switch, and the old unconditional save on leaving rewrote an unchanged note each
+time — its `updated` moved and the next automatic save recorded a change nobody made.
+
+**Fitting the screen, and why the window is drawn in the top layer.** The options window's right edge sits
+under the ＋'s, it is never wider than the screen less its gutters, and it scrolls within the height it has
+— the 2026-09-01 rule (*an overlay is bounded by the visible viewport*), which ＋ Media's menu, anchored to
+its button's right edge from the left of the screen, had broken. **Staying inside the note was not
+enough.** The first cut, checked by screenshot, was cut off by the note's own window: under the bottom bar
+on a 320px phone, and at the note's lower edge with two notes stacked on a computer. A pane is a size
+container (`container-type`), which makes it the containing block even for `position: fixed`, and it
+clips — so nothing positioned from inside a note can get out. So the window is lifted into the browser's
+**top layer** (`topLayer.ts`, the Popover API): it stays where it is in the document, so its handlers,
+styles and tap-outside are unchanged, but it is drawn above everything — below the ＋ or above it by which
+half of the screen the ＋ is in — and grows only as far as the screen's edge and safe-area insets allow.
+An engine without the Popover API (iOS before 17; jsdom) keeps the in-place window. The editor's keyboard
+hint ("Drag files in… Ctrl+S") is hidden on a touch screen, where none of it applies.
+
+**A name, even for an untitled note.** The header — and the note's row in the list of open windows — is
+its title or, without one, its first line with a heading's `#` marks taken off, the way a card names it
+(`noteName.ts`). An untitled board's first line is its canvas, so it reads "Untitled". It said "note".

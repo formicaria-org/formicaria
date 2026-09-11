@@ -73,6 +73,14 @@ afterEach(() => {
 async function openEditor(): Promise<void> {
   await fireEvent.dblClick(await screen.findByTitle('Double-click to edit'));
 }
+/// Close a note the way its header offers it since 2026-09-11: the ＋ beside the title, then Close.
+/// `which` picks among several open notes, counting from the end when negative.
+async function closeNote(which = 0): Promise<void> {
+  const pluses = screen.getAllByRole('button', { name: 'note options' });
+  await fireEvent.click(pluses.at(which)!);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Close' }));
+}
+
 async function saveWithCtrlS(): Promise<void> {
   await fireEvent.keyDown(window, { key: 's', ctrlKey: true });
 }
@@ -123,7 +131,7 @@ describe('the app, driven end to end as a user', () => {
     const body = await screen.findByLabelText('note body (Markdown)');
     await fireEvent.input(body, { target: { value: 'a freshly captured thought' } });
     await saveWithCtrlS();
-    await fireEvent.click(screen.getByLabelText('close'));
+    await closeNote();
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
     // 3. Open another view from the panel. Views are chosen there and nowhere else now — a pane
@@ -165,7 +173,7 @@ describe('the app, driven end to end as a user', () => {
     expect(await screen.findByRole('heading', { name: 'Edited in the window' })).toBeTruthy();
 
     // 7. Close the panel; the read view goes away.
-    await fireEvent.click(screen.getByRole('button', { name: 'close' }));
+    await closeNote();
     await waitFor(() =>
       expect(screen.queryByRole('heading', { name: 'Edited in the window' })).toBeNull(),
     );
@@ -206,8 +214,7 @@ describe('the app, driven end to end as a user', () => {
     );
 
     // Closing the second pane truncates the trail back to the first.
-    const closes = screen.getAllByRole('button', { name: 'close' });
-    await fireEvent.click(closes[closes.length - 1]);
+    await closeNote(-1);
     await waitFor(() => expect(panes()).toHaveLength(1));
     expect(screen.getAllByRole('heading', { name: /GAE and inner-loop adaptation/ })).toHaveLength(
       1,
