@@ -311,6 +311,11 @@
   /// an error on every offline start teaches people to dismiss errors — but an answer to a question
   /// somebody just asked is owed to them.
   let askedNow = $state(false);
+  /// *Check now* is under way. Held here rather than read from the status, because both shells answer
+  /// the command only once the check has finished — the status's own `checking` is false again by the
+  /// time the panel sees it — so the button gave no sign of having been pressed, and on the phone the
+  /// owner could not tell whether a tap had worked (2026-09-11).
+  let looking = $state(false);
   /// Two steps before restarting, like *Go back* and *Remove the model…*: it replaces the running
   /// program. Installing forward is recoverable — the way back is kept — which is why one arming is
   /// enough and there is no third.
@@ -435,11 +440,24 @@
   async function checkNow() {
     askedNow = true;
     updateError = null;
+    looking = true;
     try {
       upd = await updateCheckNow();
     } catch (e) {
       updateError = reason(e);
+    } finally {
+      looking = false;
     }
+  }
+
+  /** When the last look was, to the minute. A date alone read the same before and after a second
+   *  look that day, so a press that worked could not be told from one that did nothing. */
+  function lookedWhen(secs: number): string {
+    const then = new Date(secs * 1000);
+    const time = then.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return then.toDateString() === new Date().toDateString()
+      ? `today at ${time}`
+      : `${then.toLocaleDateString()} at ${time}`;
   }
 
   async function toggleUpdateCheck(on: boolean) {
@@ -1390,7 +1408,7 @@
              Getting and installing are never automatic; each is a press. On a phone the last step
              belongs to Android's installer, so that row offers *Install* rather than a restart. -->
         {#if upd && upd.can_check}
-          <ul class="caps">
+          <ul class="caps updates">
             <li>
               <label class="choice">
                 <input
@@ -1457,14 +1475,14 @@
                   >
                 {/if}
               {:else}
-                <span class="k">newest version</span>
-                <span class="muted">
-                  {upd.last_check
-                    ? `You have the newest version — last looked ${new Date(upd.last_check * 1000).toLocaleDateString()}.`
-                    : 'Not looked yet.'}
-                </span>
-                <button onclick={checkNow} disabled={upd.checking}>
-                  {upd.checking ? 'Looking…' : 'Check now'}
+                <!-- The label is the answer and the sentence says when it was found, so neither
+                     repeats the other: this read "newest version · You have the newest version". -->
+                <span class="k">{upd.last_check ? 'up to date' : 'not looked yet'}</span>
+                {#if upd.last_check}
+                  <span class="muted">Last looked {lookedWhen(upd.last_check)}.</span>
+                {/if}
+                <button onclick={checkNow} disabled={looking || upd.checking}>
+                  {looking || upd.checking ? 'Looking…' : 'Check now'}
                 </button>
               {/if}
             </li>
@@ -1489,7 +1507,7 @@
              Not in the `facts` list above, which is a mirror by construction — a control lives in
              its own `caps` list. -->
         {#if previousVersion && canInstall}
-          <ul class="caps">
+          <ul class="caps updates">
             <li>
               {#if goingBack}
                 <span class="k">go back to {previousVersion}?</span>
@@ -1798,6 +1816,42 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
+  /* **A button in these lists looks like a button** — unless it is a text link or a key chip, which
+     have looks of their own. Until 2026-09-11 nothing styled them, so *Check now*, *Get*, *Install*,
+     *Go back* and *Remove the model…* fell back to the web view's default drawing, and on the owner's
+     phone *Check now* did not read as something to press. `BackupPanel`'s look, a size smaller for a
+     row, so the two panels agree. */
+  .caps button:not(.link):not(.binding) {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .caps button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  /* Pressed. A touch screen has no hover, so this is the only sign a tap landed before the answer. */
+  .caps button:not(.link):not(.binding):not(.primary):active:not(:disabled) {
+    background: var(--border);
+  }
+  .caps button.primary:active:not(:disabled) {
+    filter: brightness(0.9);
+  }
+  .caps button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  @media (pointer: coarse) {
+    .caps button:not(.link):not(.binding) {
+      min-height: 2.5rem;
+    }
+  }
 
   /* The one editable vault setting: label and field on one line, so it reads as a sentence
      rather than a form. */
@@ -1940,6 +1994,23 @@
     .vault {
       padding-left: var(--space-3);
       border-left: 2px solid var(--border);
+    }
+    /* The update rows stack the way the machine facts above them do: what is true on its own line in
+       bold, the sentence under it, the button under that. Inline, the label ran straight into its
+       sentence — "up to date Last looked today at 10:49" — which is how the owner quoted it back
+       from the phone (2026-09-11). `> li >` leaves out the checkbox row, whose `.k` sits inside its
+       label. */
+    .updates > li > .k {
+      display: block;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .updates > li > .muted,
+    .updates > li > .bad {
+      display: block;
+    }
+    .updates > li > button {
+      margin-top: var(--space-2);
     }
   }
 </style>

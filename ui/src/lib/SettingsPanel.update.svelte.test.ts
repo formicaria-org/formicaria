@@ -166,10 +166,41 @@ describe('SettingsPanel — getting a newer version', () => {
     updateStatus.mockResolvedValue(status({ available: null, error: 'offline' }));
     updateCheckNow.mockResolvedValue(status({ available: null, error: 'offline' }));
     panel();
-    await screen.findByText(/Not looked yet/);
+    await screen.findByText(/^not looked yet$/);
     expect(screen.queryByText(/Could not look just now/)).toBeNull();
     await fireEvent.click(await screen.findByText(/^Check now$/));
     expect(await screen.findByText(/Could not look just now: offline/)).toBeTruthy();
+  });
+
+  /// It read "newest version · You have the newest version — last looked 11/09/2026": the same words
+  /// twice, and a date that stayed the same when somebody looked again that day.
+  it('says it is up to date once, and when it looked, to the minute', async () => {
+    const earlier = new Date(2026, 0, 2, 9, 30).getTime() / 1000;
+    updateStatus.mockResolvedValue(status({ available: null, last_check: earlier }));
+    panel();
+    expect(await screen.findByText(/^up to date$/)).toBeTruthy();
+    expect(screen.getByText(/^Last looked .+ at .+\.$/)).toBeTruthy();
+    expect(screen.queryByText(/newest version/)).toBeNull();
+  });
+
+  /// Both shells answer *Check now* only once the check is done, so the status can never say it is
+  /// checking — which on a phone left a tap with no visible effect at all.
+  it('shows that Check now is looking while it waits, then the time it looked', async () => {
+    let answer: (s: ReturnType<typeof status>) => void = () => {};
+    updateStatus.mockResolvedValue(status({ available: null }));
+    updateCheckNow.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    panel();
+    await fireEvent.click(await screen.findByText(/^Check now$/));
+    const waiting = await screen.findByRole('button', { name: 'Looking…' });
+    expect((waiting as HTMLButtonElement).disabled).toBe(true);
+    answer(status({ available: null, last_check: Math.floor(Date.now() / 1000) }));
+    expect(await screen.findByText(/^Last looked today at .+\.$/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeTruthy();
   });
 
   it('shows no update rows at all in a build without the updater', async () => {
