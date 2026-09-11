@@ -871,28 +871,36 @@ The gray-screen fix and its tests are in
   which never invokes the board widget. So a board is still effectively open-on-its-own;
   canvas-inside-an-embed is the remaining gap. Planned in [plan.md](./plan.md) (Track S #4).
 
-## Self-update: signed and published, not yet run from a real release (2026-09-11)
+## Self-update: run for real on a phone and on Linux (2026-09-11)
 
 The app can check, download, verify and install, and on the desktop go back (`decisions.md#toolchain`).
-What stands between that and anyone relying on it is not one gap but several, of different kinds.
+What stands between that and everyone relying on it is not one gap but several, of different kinds.
 
-- **Releases are signed from v0.5.2**, and that signature has been checked against the listed key. **The
-  keys have one copy each, on the maintainer's laptop**: until the signing key has an offline backup and
-  the recovery key has left that machine, one lost laptop strands every installed copy.
+- **The first real updates have run.** On the owner's Xiaomi phone (Android 16), 0.5.2 to 0.5.3 through
+  Android's installer: HyperOS made the permission screen wait ten seconds, then scanned the app twice,
+  and the app ran. On Linux, the real downloaded 0.5.2 folder took 0.5.3 in place and went back, each in
+  about a second, with every note file byte-identical both ways and the declined version not offered
+  again until *Check now*. Driven through the routes Settings uses, not by clicking.
+- **Releases are signed from v0.5.2**, and both published signatures verify against the listed key.
+  **The keys have one copy each, on the maintainer's laptop**: until the signing key has an offline
+  backup and the recovery key has left that machine, one lost laptop strands every installed copy.
 - **A failed `manifest-sign` still publishes the release, unsigned.** Re-run the failed jobs; do not tag
   again (`decisions.md`, *a failed signature is re-run, not re-tagged*). The step's annotation says which
   of five things went wrong.
-- **v0.5.2 carries the updater, so nobody could update into it.** On the desktop the rescue lives in the
-  launcher, so a folder gains it only by being updated once — `FM_LAUNCHER` unset refuses. On a phone the
-  installed APK must already contain the updater, so 0.5.2 is installed by hand. **The first in-app
-  update anyone can take is 0.5.2 to 0.5.3**, and until one has run, the chain is built, not proven.
-- **The release page still says the Android app has no auto-update** (`release.yml`'s `body:`). Leave it
-  until a device has taken an update, then change it.
-- **The Android path has never run on a device.** The bridge's permission screen, the positive-mismatch
-  signature check and the `FileProvider` hand-off are reasoned from the API and checked against Tauri's
-  source, not observed. The owner's phone is the first place any of it runs.
-- **Nothing here has run on Windows or macOS** either — the same standing caveat as `Start
-  formicaria.vbs`. The zip extraction *is* checked against the published Windows archive.
+- **A copy older than 0.5.2 cannot update itself.** On the desktop the rescue lives in the launcher, so a
+  folder gains it only by being updated once — `FM_LAUNCHER` unset refuses; on a phone the updater must
+  already be in the installed APK. Such a copy takes one update by hand.
+- **The check shares GitHub's allowance of 60 API calls an hour per internet address.** It asks
+  `api.github.com/…/releases/latest` without signing in, so every device and script behind one address
+  draws on the same 60. Once a day per device rarely reaches it; a campus network, or a release being
+  watched from the same machine (2026-09-11), can — and then *Check now* says it could not look. The
+  `github.com/<repo>/releases/latest` redirect names the newest tag without that limit.
+- **The commit before a restart can set up git in a vault that had none.** `settle` commits so there is a
+  restore point, and a vault that has never been committed gets its `.gitattributes` and `.gitignore`
+  then — the files any first backup writes. A fingerprint of `vault/` across an update shows them; the
+  notes themselves are untouched.
+- **Nothing here has run on Windows or macOS** — the same standing caveat as `Start formicaria.vbs`. The
+  zip extraction *is* checked against the published Windows archive.
 - **Going back is desktop-only**, by necessity: Android installs an older version only after an
   uninstall, which deletes the notes kept inside the app.
 - **iOS has no update rows at all.** Notify-only is possible and unbuilt.

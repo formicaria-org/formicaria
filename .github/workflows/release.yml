@@ -798,8 +798,12 @@ jobs:
 
             ### Already using an earlier version?
 
-            **Your notes are not in this download — they are still in the folder you have been
-            using.** Every version is its own folder, and your notes live in the `vault` inside
+            **On 0.5.2 or later there is nothing to download by hand.** Open Settings: it says this
+            version is available and installs it when you ask — in place on a computer, through
+            Android's installer on a phone — and your notes stay where they are.
+
+            **On anything older, your notes are not in this download — they are still in the folder
+            you have been using.** Every version is its own folder, and your notes live in the `vault` inside
             the one you already have. So this one starts empty, showing the same "Start here"
             note as a first install.
 
@@ -831,9 +835,10 @@ jobs:
               Apple ID, which is what makes it free of the App Store. Apple's free signing lasts
               **seven days**, after which it needs refreshing — the linked page explains the tools
               that do that in the background.
-            - **The Android app has no auto-update.** Check back here, or point
-              [Obtainium](https://github.com/ImranR98/Obtainium) at this repository and let it watch
-              for you.
+            - **The Android app tells you about new versions** from 0.5.2 on, and hands them to
+              Android's own installer when you press Install. Some phones add a short wait and a scan
+              of their own the first time; that is normal.
+              [Obtainium](https://github.com/ImranR98/Obtainium) still works too.
             - **Checking the Android app is really ours.** Every formicaria APK is signed with the
               same certificate, and its fingerprint is
 

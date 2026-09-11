@@ -13,7 +13,8 @@ Download `formicaria-…-android-arm64.apk` on the phone and open it. Android wi
 allow installing apps from wherever you downloaded it — your browser, usually — because the app did
 not come from the Play Store. Allow it, and the install proceeds normally.
 
-Updating is the same gesture: download the newer file and open it. Your notes stay where they are.
+To update later you normally need not download anything yourself — see [Updating](#updating).
+Downloading a newer file and opening it still works too, and either way your notes stay where they are.
 
 ## Checking that you got the real thing
 
@@ -39,12 +40,28 @@ release page can be replaced by anyone with write access to the project, and not
 app is built changes that. This fingerprint is the baseline that closes the gap, and it is the only
 part of the chain that depends on you rather than on us.
 
-## There is no automatic update
+## Updating
 
-Nothing tells you when a new version exists — you have to look. If that sounds like something you
-will forget, [Obtainium](https://github.com/ImranR98/Obtainium) is an app that watches a GitHub
-project for you and offers the update when one appears. Point it at
-`github.com/formicaria-org/formicaria` and it will track releases from then on.
+**From 0.5.2 on, formicaria tells you when there is a newer version.** Once a day it asks GitHub which
+version is newest — nothing about you, the phone or your notes is sent — and **Settings → This
+machine** says so. **Check now** asks straight away.
+
+1. Press **Get v…**. formicaria downloads the new version and checks that it is exactly what the
+   release published, signed by us. Anything that does not match is refused.
+2. Press **Install v…**. This hands the checked download to Android's own installer.
+3. The first time, Android asks whether formicaria may install apps. Allow it. Some phones add steps
+   of their own — on a Xiaomi phone the permission screen makes you wait ten seconds before you can
+   confirm, and the phone then scans the app and runs its own virus scan before installing it. That is
+   the phone's caution about apps that did not come from its store, and it is normal.
+
+Your notes stay where they are: an update keeps the app's storage. **Going back to an earlier version
+is not offered on a phone**, because Android can only do that by uninstalling first, and uninstalling
+deletes the notes kept inside the app.
+
+A copy older than 0.5.2 cannot do this — install 0.5.2 or later by hand once, and from then on it can.
+If you would rather have another app watch for new versions,
+[Obtainium](https://github.com/ImranR98/Obtainium) still works: point it at
+`github.com/formicaria-org/formicaria`.
 
 ## Your notes, and why backup matters more on a phone
 

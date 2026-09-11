@@ -1,12 +1,34 @@
 # Installing a new version
 
+## From 0.5.2 on, formicaria updates itself
+
+**Settings → This machine** says when a newer version is out. formicaria asks GitHub once a day, and
+**Check now** asks straight away; nothing about you, this computer or your notes is sent.
+
+1. Press **Get v…**. It downloads the new version and checks that it is exactly what the release
+   published, signed by us. Anything that does not match is refused, and nothing has changed yet.
+2. Press **Restart into v…**, then **Yes, restart**. What you have typed is saved first. formicaria
+   replaces its own program inside the folder it runs from, and this page reconnects by itself in a few
+   seconds. **Your notes do not move** — they stay in the `vault` folder beside it.
+3. The version you had is kept. If the new one does not suit you, **Settings → Go back to v…** puts it
+   back.
+
+**If the new version will not start**, start formicaria again the way you always do. When it fails to
+start a few times in a row, the launcher puts the previous version back by itself.
+
+Settings says when a copy cannot update itself, and why — usually a folder the system protects (move
+it to your home folder), or a folder set up by a version older than 0.5.2, which needs the way below
+once. On a phone, see [formicaria on an Android phone](./android.md#updating).
+
+## By hand, into a new folder
+
 **Your notes are not in the new download. They are still in the folder you have been
 using.** Nothing about an update removes them — but you do have to bring them across,
-and this page is how.
+and this section is how.
 
 ## Why there is anything to do at all
 
-formicaria does not install itself. Each version arrives as its own folder —
+A download does not install itself. Each version arrives as its own folder —
 `formicaria-v0.2.1-linux-x86_64`, then `formicaria-v0.2.2-linux-x86_64` — and your
 notes live in the `vault` folder *inside* the one you have been using. That is what
 makes the app portable: copy the folder to a USB stick and your notes go with it.
