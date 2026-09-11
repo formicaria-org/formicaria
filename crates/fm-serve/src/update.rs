@@ -395,8 +395,12 @@ fn write_atomic(path: &Path, bytes: Vec<u8>) -> Result<(), String> {
 /// update over, and files-as-truth means the notes are already safe on disk either way.
 fn settle(state: &crate::AppState) {
     let Ok(configs) = state.app.configs() else { return };
+    // **With a message.** `commit` takes it from its arguments and git refuses an empty one, so without
+    // it every restore point was refused — silently, because a failed settle is by design no reason to
+    // stop. `auto:` like the app's own background commits, so history treats it as one of them.
+    let message = format!("auto: {}", fm_app::dto::stamp_of(std::time::SystemTime::now()));
     for cfg in configs {
-        let args = serde_json::json!({ "vault": cfg.name });
+        let args = serde_json::json!({ "vault": cfg.name, "message": message });
         let _ = fm_app::dispatch("commit", &args, &[], &state.app, &crate::Desktop);
     }
 }
@@ -1164,6 +1168,45 @@ pub fn check_in_background(state: std::sync::Arc<crate::AppState>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The restore point before a restart has to actually land.** `settle` called `commit` with no
+    /// `message`; git refuses an empty one ("Aborting commit due to empty commit message"), and
+    /// `settle` discards errors by design — so no update and no go-back ever made the snapshot it
+    /// exists for. Nothing failed visibly: the notes were on disk and the next commit adopted them.
+    /// Found on 2026-09-11 by running the real v0.5.2 → v0.5.3 update, because no test asked git.
+    #[test]
+    fn settling_before_a_restart_leaves_a_commit() {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg =
+            fm_app::vaults::VaultConfig { name: "v".into(), path: vault.clone(), restic: None };
+        let state = crate::AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            Vec::new(),
+            0,
+        );
+        let note = serde_json::json!({ "body": "# Typed just before restarting\n", "vault": "v" });
+        fm_app::dispatch("capture", &note, &[], &state.app, &crate::Desktop)
+            .expect("capture a note");
+
+        settle(&state);
+
+        let log = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&vault)
+            .args(["log", "--format=%s"])
+            .output()
+            .expect("run git");
+        let subjects = String::from_utf8_lossy(&log.stdout);
+        assert!(
+            log.status.success() && subjects.lines().any(|s| s.starts_with("auto: ")),
+            "nothing was committed before the restart — git log said {subjects:?}, {}",
+            String::from_utf8_lossy(&log.stderr).trim()
+        );
+    }
 
     /// G1, as a unit test over the predicate. The four names that must never be writable are the
     /// four that hold somebody's work.
