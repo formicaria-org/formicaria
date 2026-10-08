@@ -31,7 +31,7 @@
     "@atlaskit/pragmatic-drag-and-drop": "^2.0.1",
     "@excalidraw/excalidraw": "^0.18.1",
     "@tauri-apps/api": "^2.11.1",
-    "dompurify": "^3.4.12",
+    "dompurify": "^3.4.16",
     "katex": "^0.17.0",
     "marked": "^18.0.6",
     "mermaid": "^11.16.0",
