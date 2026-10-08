@@ -123,9 +123,9 @@ Generated from the dependency tree by `ci/third-party.sh`; do not edit.
 | rsqlite-vfs | v0.1.1 | MIT |
 | rusqlite | v0.40.1 | MIT |
 | rustix | v1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
-| rustls | v0.23.42 | Apache-2.0 OR ISC OR MIT |
+| rustls | v0.23.45 | Apache-2.0 OR ISC OR MIT |
 | rustls-pki-types | v1.15.0 | MIT OR Apache-2.0 |
-| rustls-webpki | v0.103.13 | ISC |
+| rustls-webpki | v0.103.15 | ISC |
 | rustversion | v1.0.23 | MIT OR Apache-2.0 |
 | ryu | v1.0.23 | Apache-2.0 OR BSL-1.0 |
 | serde | v1.0.228 | MIT OR Apache-2.0 |
