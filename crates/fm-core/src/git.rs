@@ -1702,8 +1702,19 @@ pub struct Touch {
     pub time: String,
 }
 
-/// Every note touched since `since` (a git `--since` value, e.g. `"1 year ago"`), each with its
-/// **last** edit, most-recent-first. Read-only — one `git log`. Empty when there is no repo or no
+/// `since` for [`activity`] meaning **all of history** — no `--since` is passed at all.
+///
+/// Never spell this as a date. `@0` was used for it, as "git's epoch syntax", and git 2.53 does not
+/// read it that way: a zero timestamp is taken as *now*, so the log kept only commits made in the
+/// current second. That was the `who_left_a_message_is_read_from_git` intermittent from 2026-08 to
+/// 2026-10-08 — green when the commit and the log landed in the same second, red when a slow runner
+/// crossed one — and it left a real discussion's participants empty. `1970-01-01` is no better (local
+/// midnight, which underflows to 1969 UTC east of Greenwich). The only `--since` that cannot be
+/// misread is the one that is not there.
+pub const ALL_HISTORY: &str = "";
+
+/// Every note touched since `since` (a git `--since` value, e.g. `"1 year ago"`, or
+/// [`ALL_HISTORY`]), each with its **last** edit, most-recent-first. Read-only — one `git log`. Empty when there is no repo or no
 /// history: authorship is a git capability, and its absence is not an error.
 ///
 /// `--no-merges` because a merge commit's author is whoever *ran* the merge, not who wrote the
@@ -1713,14 +1724,13 @@ pub fn activity(vault: &Path, since: &str) -> Result<Vec<Touch>, StoreError> {
     if !vault.join(".git").exists() {
         return Ok(Vec::new());
     }
-    let out = git(vault)
-        .args([
-            "log",
-            "--no-merges",
-            &format!("--since={since}"),
-            "--pretty=format:\x01%an\x1f%ae\x1f%aI",
-            "--name-only",
-        ])
+    let mut cmd = git(vault);
+    cmd.args(["log", "--no-merges"]);
+    if since != ALL_HISTORY {
+        cmd.arg(format!("--since={since}"));
+    }
+    let out = cmd
+        .args(["--pretty=format:\x01%an\x1f%ae\x1f%aI", "--name-only"])
         .output()
         .map_err(spawn)?;
     // A brand-new repo with no commits exits non-zero on `log`; that is "no history", not failure.

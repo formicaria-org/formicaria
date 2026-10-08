@@ -87,3 +87,40 @@ fn activity_is_empty_without_a_repo_or_history() {
     git::ensure_repo(empty.path()).unwrap();
     assert!(git::activity(empty.path(), "1 year ago").unwrap().is_empty());
 }
+
+/// **All of history means all of it, however old the commit.** `"@0"` was passed for this, as
+/// "git's epoch syntax", and git 2.53 reads a zero timestamp as *now*: the log kept only commits from
+/// the current second. So `who_left_a_message_is_read_from_git` went red whenever a slow runner
+/// crossed a second boundary between commit and log (2026-08 to 2026-10-08, cause unknown until the
+/// diagnostics it had been given printed an empty `git log`), and a real discussion lost its
+/// participants. A commit dated 2020 makes this deterministic rather than a race.
+#[test]
+fn all_history_reaches_a_commit_from_long_before_this_second() {
+    if !have_git() {
+        return;
+    }
+    let vault = tempdir().unwrap();
+    git::ensure_repo(vault.path()).unwrap();
+    fs::create_dir_all(vault.path().join("notes")).unwrap();
+    as_person(vault.path(), "Ada", "ada@example.org");
+    write_note(vault.path(), "note-old", "written long ago\n");
+    let git_old = |args: &[&str]| {
+        let ok = Command::new("git")
+            .arg("-C")
+            .arg(vault.path())
+            .env("GIT_AUTHOR_DATE", "2020-01-01T00:00:00Z")
+            .env("GIT_COMMITTER_DATE", "2020-01-01T00:00:00Z")
+            .args(args)
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "git {args:?}");
+    };
+    git_old(&["add", "notes/note-old.md"]);
+    git_old(&["commit", "-q", "-m", "old"]);
+
+    let acts = git::activity(vault.path(), git::ALL_HISTORY).unwrap();
+    assert_eq!(acts.len(), 1, "a 2020 commit is part of all of history");
+    assert_eq!(acts[0].id, "note-old");
+    assert_eq!(acts[0].author, "Ada");
+}

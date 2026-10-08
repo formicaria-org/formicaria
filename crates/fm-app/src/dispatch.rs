@@ -1352,13 +1352,15 @@ fn dispatch_inner(
             // because the roots are already listed by the store — this only adds authorship, and
             // an old-but-still-open discussion deserves its participants. No git → no authors, the
             // discussion still lists with its title and vault.
-            // `@0` (git's epoch-seconds date) means "since the beginning" — NOT `1970-01-01`, which
-            // git parses as local-midnight and underflows to 1969 UTC in positive-offset timezones,
-            // where `git log --since` then wrongly returns *nothing* (git 2.53). `@0` is timezone-safe.
+            // All of history, with no `--since` at all: both dates once used here were misread by
+            // git — `1970-01-01` as local midnight (1969 UTC east of Greenwich), and `@0` as *now*,
+            // which kept only commits from the current second. See `fm_core::git::ALL_HISTORY`.
             for cfg in g.configs() {
-                let Ok(mut who) =
-                    commands::discussion_participants(&g.store(scope), &cfg.path, "@0")
-                else {
+                let Ok(mut who) = commands::discussion_participants(
+                    &g.store(scope),
+                    &cfg.path,
+                    fm_core::git::ALL_HISTORY,
+                ) else {
                     continue;
                 };
                 for sum in &mut summaries {

@@ -91,23 +91,16 @@ fn who_left_a_message_is_read_from_git() {
     let paths = store.written();
     assert!(fm_core::git::commit_all(dir.path(), "seed", &paths).unwrap());
 
-    let who = discussion_participants(&store, dir.path(), "@0").unwrap();
-    // **When this goes red, say what git actually had.** `known-issues.md` has carried this test as
-    // an intermittent failure with an *unidentified* mechanism since 2026-08: the assertion said
-    // only "the discussion has participants", which tells the next reader nothing about whether the
-    // commit was empty, the log was empty, or the mapping dropped it. These three lines are the
-    // difference between another sighting and a diagnosis.
+    let who = discussion_participants(&store, dir.path(), fm_core::git::ALL_HISTORY).unwrap();
+    // **When this goes red, say what git actually had.** This test was an intermittent failure with
+    // an unidentified mechanism from 2026-08; these lines are what finally diagnosed it (2026-10-08):
+    // an empty `git log` for a commit that existed, because `--since=@0` was read by git as *now*.
+    // See `fm_core::git::ALL_HISTORY`. Kept, so the next red is a diagnosis and not a sighting.
     let parts = who.get(&d.id).unwrap_or_else(|| {
         let log = std::process::Command::new("git")
             .arg("-C")
             .arg(dir.path())
-            .args([
-                "log",
-                "--no-merges",
-                "--since=@0",
-                "--pretty=format:%H %an <%ae>",
-                "--name-only",
-            ])
+            .args(["log", "--no-merges", "--pretty=format:%H %an <%ae>", "--name-only"])
             .output()
             .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
             .unwrap_or_else(|e| format!("<git log failed: {e}>"));
@@ -123,7 +116,7 @@ fn who_left_a_message_is_read_from_git() {
              discussion id: {}\n\
              paths handed to commit_all ({}): {:?}\n\
              participants map keys: {:?}\n\
-             --- git log --since=@0 --name-only ---\n{}\n\
+             --- git log --name-only ---\n{}\n\
              --- git status --porcelain ---\n{}",
             d.id,
             paths.len(),
