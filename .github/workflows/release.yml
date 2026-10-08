@@ -574,7 +574,13 @@ jobs:
   # installed formicaria will accept as an update, and people can still download it by hand.
   manifest:
     name: release manifest
-    if: startsWith(github.ref, 'refs/tags/v')
+    # **`!cancelled()`, not the default.** `continue-on-error` covers a phone leg that *fails*; one that
+    # is *cancelled* — `ios` on 2026-10-08, when GitHub could not find a macOS runner in 15 minutes —
+    # is not a success, and a job whose `if:` does not say otherwise is skipped when a need was not
+    # successful. That skipped this job and `attach`, and v0.5.8 published nothing although every
+    # desktop build and the signed APK were ready. So: run unless the whole run was cancelled, and
+    # require only what this job cannot do without — the desktop builds.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.binaries.result == 'success' }}
     needs: [binaries, ios, android-sign]
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -599,7 +605,7 @@ jobs:
 
   manifest-sign:
     name: release manifest (sign)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.manifest.result == 'success' }}
     needs: manifest
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -673,10 +679,12 @@ jobs:
 
   attach:
     name: attach to the release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.binaries.result == 'success' }}
     # **`binaries` gates; the phone legs do not.** They are `continue-on-error`, so a failed phone
-    # build reports success to this job and simply contributes no artifact. A failed *desktop*
-    # build still stops the release, which is the one thing that must not be published half-made.
+    # build reports success to this job and simply contributes no artifact — and `!cancelled()` does
+    # the same for one that is *cancelled* (no runner), which `continue-on-error` does not cover; see
+    # `manifest`. A failed *desktop* build still stops the release, which is the one thing that must
+    # not be published half-made.
     needs: [binaries, ios, android-sign, manifest, manifest-sign]
     runs-on: ubuntu-latest
     permissions:

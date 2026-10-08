@@ -705,6 +705,18 @@ except ImportError:
 d = yaml.safe_load(open('.github/workflows/release.yml'))
 bad = [n for n, j in (d.get('jobs') or {}).items()
        if n not in ('binaries', 'attach') and j.get('continue-on-error') is not True]
+# A job that needs a `continue-on-error` leg must also survive that leg being *cancelled* (no runner),
+# which `continue-on-error` does not cover: without `!cancelled()` in its `if:`, GitHub skips it.
+# That skipped `manifest` and `attach` for v0.5.8 and published nothing (2026-10-08).
+jobs = d.get('jobs') or {}
+soft = {n for n, j in jobs.items() if j.get('continue-on-error') is True}
+for n, j in jobs.items():
+    needs = j.get('needs') or []
+    needs = [needs] if isinstance(needs, str) else needs
+    # Only the jobs that gather every leg (they also need `binaries`): `android-sign` needing the
+    # build it signs is rightly skipped when that build never ran.
+    if 'binaries' in needs and soft.intersection(needs) and '!cancelled()' not in str(j.get('if', '')):
+        bad.append(f"{n} (needs a continue-on-error job but has no '!cancelled()' in its if:)")
 print('\n'.join(bad))
 PY
 )
