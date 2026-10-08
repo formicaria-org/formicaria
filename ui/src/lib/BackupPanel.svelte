@@ -1257,7 +1257,7 @@
        four sides and silently discard the insets, which is the mistake `ci/checks.sh`
        already guards against on `.topbar`. */
     box-sizing: border-box;
-    height: 100dvh;
+    height: var(--app-h);
     padding-top: calc(var(--overlay-inset) + var(--safe-top));
     padding-bottom: var(--safe-bottom);
     z-index: 80;

@@ -132,7 +132,7 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    height: 100dvh;
+    height: var(--app-h);
     padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
     z-index: 41;
     pointer-events: none;

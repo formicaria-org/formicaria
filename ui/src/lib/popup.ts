@@ -24,6 +24,8 @@
 // control is `anchor`: an element, a box in viewport coordinates, or a function returning one (the
 // caret); by default the popup's parent.
 
+import { KEYBOARD_EVENT, keyboardInset } from './keyboard';
+
 export type Box = { top: number; bottom: number; left: number; right: number };
 
 export type PopupOptions = {
@@ -65,7 +67,8 @@ export function popup(node: HTMLElement, options: PopupOptions = {}) {
     const vv = window.visualViewport;
     const top0 = vv?.offsetTop ?? 0;
     const left0 = vv?.offsetLeft ?? 0;
-    const bottom = vv ? top0 + vv.height : window.innerHeight;
+    // Less the keyboard where the shell reports one: there `visualViewport` still spans it.
+    const bottom = (vv ? top0 + vv.height : window.innerHeight) - keyboardInset();
     const right = vv ? left0 + vv.width : window.innerWidth;
     const s = node.style;
 
@@ -131,6 +134,7 @@ export function popup(node: HTMLElement, options: PopupOptions = {}) {
   resized?.observe(node);
   window.addEventListener('resize', schedule);
   window.visualViewport?.addEventListener('resize', schedule);
+  window.addEventListener(KEYBOARD_EVENT, schedule);
   document.addEventListener('scroll', onScroll, true);
 
   return {
@@ -143,6 +147,7 @@ export function popup(node: HTMLElement, options: PopupOptions = {}) {
       resized?.disconnect();
       window.removeEventListener('resize', schedule);
       window.visualViewport?.removeEventListener('resize', schedule);
+      window.removeEventListener(KEYBOARD_EVENT, schedule);
       document.removeEventListener('scroll', onScroll, true);
       try {
         node.hidePopover();

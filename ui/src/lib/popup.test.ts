@@ -67,6 +67,25 @@ describe('popup', () => {
     expect(p.style.left).toBe('300px');
   });
 
+  // The Android shell is not resized for the keyboard (edge-to-edge, SDK 36) and reports it as `--kb`
+  // instead; `visualViewport` still spans the keyboard there, so the room below a control is the
+  // screen *less* `--kb`. Without it a menu opened near the bottom unfolded behind the keyboard.
+  it('treats the reported keyboard as off the screen', () => {
+    const anchor = { top: H - 400, bottom: H - 372, left: 300, right: 338 };
+    const roomy = sized(208, 200);
+    popup(roomy, { anchor: anchorAt(anchor) });
+    expect(roomy.dataset.open).toBe('down');
+
+    document.documentElement.style.setProperty('--kb', '300px');
+    try {
+      const p = sized(208, 200);
+      popup(p, { anchor: anchorAt(anchor) });
+      expect(p.dataset.open).toBe('up');
+    } finally {
+      document.documentElement.style.removeProperty('--kb');
+    }
+  });
+
   it('lines up end edges when asked', () => {
     const p = sized(208, 200);
     popup(p, { anchor: anchorAt({ top: 60, bottom: 88, left: 300, right: 338 }), align: 'end' });

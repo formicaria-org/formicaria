@@ -2802,7 +2802,7 @@
        explicit `100dvh` so the child can say `max-height: 100%` rather than restate this
        padding in a calc that can fall out of step with it. */
     box-sizing: border-box;
-    height: 100dvh;
+    height: var(--app-h);
     padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
     z-index: 41;
     pointer-events: none;
@@ -2837,7 +2837,7 @@
     /* `dvh`, not `vh`: on a phone `100vh` is the tallest the viewport ever gets, so with a
        retracting URL bar or an on-screen keyboard the shell is taller than what you can see
        and the bottom of the app is unreachable. `dvh` tracks the *current* viewport. */
-    height: 100dvh;
+    height: var(--app-h);
     overflow: hidden;
     background: var(--bg);
   }

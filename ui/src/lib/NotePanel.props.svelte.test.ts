@@ -69,9 +69,9 @@ async function openDetails(props: Record<string, unknown>) {
   getNote.mockResolvedValue(noteDetail(props));
   render(NotePanel, { props: { id: ID, onclose: () => {} } });
   await waitFor(() => expect(getNote).toHaveBeenCalled());
-  // The property form lives behind the note's Options popover — open it, then Edit.
+  // The property form lives behind the note's Options popover — open it, then Details.
   await fireEvent.click(await screen.findByRole('button', { name: 'note options' }));
-  await fireEvent.click(await screen.findByRole('button', { name: /^(Edit|Details)$/ }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'Details' }));
 }
 
 beforeEach(() => {

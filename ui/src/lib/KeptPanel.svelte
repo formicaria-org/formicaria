@@ -264,7 +264,7 @@
     /* Longhands, never the `padding` shorthand — a narrower rule added later would reset all four
        sides and discard the insets. Same arithmetic as every other overlay here. */
     box-sizing: border-box;
-    height: 100dvh;
+    height: var(--app-h);
     padding-top: calc(var(--overlay-inset) + var(--safe-top));
     padding-bottom: var(--safe-bottom);
     z-index: 80;

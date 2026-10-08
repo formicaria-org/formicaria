@@ -45,6 +45,14 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
 
+  /* **The height the app may use: the screen less the on-screen keyboard.** `--kb` is written only by
+     the Android shell (`MainActivity`, see `lib/keyboard.ts`), which draws edge-to-edge and is no
+     longer resized for the keyboard — without this the editor's last lines sat under it. It is the
+     keyboard *beyond* the navigation bar, so `--safe-bottom` is still paid once, as before. Every
+     `100dvh` layer — the shell and each overlay — is sized by this, so one number moves them all. */
+  --kb: 0px;
+  --app-h: calc(100dvh - var(--kb));
+
   /* ---- Overlay panel geometry ----
      Every dialog in this app is a `position: fixed` box inside `.app`, which is
      `height: 100dvh; overflow: hidden` — the document itself never scrolls. So an overlay

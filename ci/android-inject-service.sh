@@ -119,6 +119,13 @@ class MainActivity : TauriActivity() {
   private var right = 0f
   private var bottom = 0f
   private var left = 0f
+  /// The on-screen keyboard **beyond the navigation bar**, in CSS pixels; 0 while it is closed.
+  ///
+  /// Edge-to-edge at SDK 35+ means Android no longer resizes the window for the keyboard — it is drawn
+  /// over the WebView, and the page believes the whole screen is visible, so the line being typed sat
+  /// under it (the owner, 2026-10-08). The page subtracts this from its height (`--app-h`). Beyond the
+  /// navigation bar because the page already pays that as `--safe-bottom`.
+  private var keyboard = 0f
 
   /// **The page asks; the shell does not tell.**
   ///
@@ -179,7 +186,7 @@ class MainActivity : TauriActivity() {
       // "this device has no status bar", and the page cannot tell the difference either — so the
       // one reading that must never be guessed downwards is guessed from the device itself.
       val t = if (top > 0f) top else fallbackTop()
-      return "{\"top\":$t,\"right\":$right,\"bottom\":$bottom,\"left\":$left}"
+      return "{\"top\":$t,\"right\":$right,\"bottom\":$bottom,\"left\":$left,\"keyboard\":$keyboard}"
     }
   }
 
@@ -280,6 +287,8 @@ class MainActivity : TauriActivity() {
       )
       val d = v.resources.displayMetrics.density
       top = i.top / d; right = i.right / d; bottom = i.bottom / d; left = i.left / d
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+      keyboard = maxOf(0, ime.bottom - i.bottom) / d
       // Now only the *update* channel — a rotation, the keyboard, a returned-to app. By the time
       // any of those happen the page exists, which is the one job this call can actually do.
       v.post { (v as WebView).evaluateJavascript(APPLY_INSETS, null) }
@@ -307,6 +316,14 @@ class MainActivity : TauriActivity() {
           s.setProperty('--safe-right', i.right + 'px');
           s.setProperty('--safe-bottom', i.bottom + 'px');
           s.setProperty('--safe-left', i.left + 'px');
+          // The keyboard: written only when it changes, so a rotation does not re-fire the event.
+          var kb = (i.keyboard || 0) + 'px';
+          if (s.getPropertyValue('--kb') !== kb) {
+            s.setProperty('--kb', kb);
+            if (i.keyboard > 0) document.documentElement.setAttribute('data-keyboard', '');
+            else document.documentElement.removeAttribute('data-keyboard');
+            window.dispatchEvent(new Event('fm-keyboard'));
+          }
         } catch (e) {}
       })();
     """

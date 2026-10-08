@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -7855,3 +7855,47 @@ Chromium by tapping — `document.elementFromPoint` — at the centre of every r
 
 **The residue.** On an engine without the Popover API (iOS before 17) a popup is still placed and capped,
 but its pane can clip it (`known-issues.md`).
+
+## 2026-10-08 — a note opens on its text, and the keyboard is taken off the screen `#ui` `#track-m`
+
+**The complaint.** On the owner's Android phone a new note opened with half the screen taken by its
+property form — status, dates, tags, title — before a word was typed. And in a long note the line being
+written sat under the keyboard: *"the user is writing something she does not see."*
+
+**The properties fold away while you write, on every device.** Both ways into the editor (Edit,
+double-click) and a new note reach the text alone. The note's ＋ offers **Details**, which shows the form
+— entering editing without focusing the text, so a phone does not raise the keyboard over the fields
+that were asked for — and **Hide details** folds it; it folds by itself when editing ends. A **board** is
+unchanged: it has no text to write, so its *Details* is what editing a board means. One behaviour on every
+OS, as the owner asks of every change; on a desktop the form costs less, but a second rule for wide
+screens is exactly the half-written arrangement `decisions.md` keeps retiring.
+
+**The keyboard: why the WebView did not handle it.** The shell calls `enableEdgeToEdge()` and targets
+SDK 36. From SDK 35 an edge-to-edge window is **not resized for the keyboard** — `adjustResize` is
+ignored — so the WebView stays full height, the keyboard is drawn over it, and `100dvh`,
+`visualViewport` and the engine's own "scroll the focused field into view" all believe the whole screen
+is visible.
+
+**So the shell reports it, the way it already reports the safe areas.** `MainActivity` (written by
+`ci/android-inject-service.sh`; `mobile/src-tauri/gen/` is generated and ignored) adds `keyboard` — the
+IME inset **beyond the navigation bar**, since the page already pays that as `--safe-bottom` — to the
+`__fmInsets` bridge, and `APPLY_INSETS` writes `--kb`, sets `data-keyboard` while it is non-zero, and
+fires `fm-keyboard` when it changes. Then:
+- `app.css` defines `--app-h: calc(100dvh - var(--kb))`, and the shell and every `100dvh` overlay are
+  sized by it — one number moves them all, rather than a keyboard rule per panel.
+- `popup.ts` takes `--kb` off the bottom of the screen and re-places on `fm-keyboard`, so a menu near
+  the bottom opens above the keyboard rather than behind it.
+- The editor drops its `22rem` floor while `data-keyboard` is set (taller than the room above the
+  keyboard, it would scroll the note as a whole and put the last lines back under it), and on
+  `fm-keyboard` / a `visualViewport` resize it brings an **out-of-sight** caret into the top third of
+  what is left. A caret still in sight is not moved under you. Typing needs nothing: a textarea keeps
+  its caret visible as you type once its box ends above the keyboard.
+
+**Elsewhere `--kb` is never written and stays 0**: a desktop has no on-screen keyboard, and a browser or
+WKWebView resizes its own viewport — the caret reveal still listens to `visualViewport` there.
+
+**Not verified on a device.** jsdom has no layout: `NotePanel.keyboard.svelte.test.ts` pins the caret
+reveal with a stood-in caret and height, `popup.test.ts` that a reported keyboard is off the screen, and
+the Kotlin compiles. Whether the IME inset arrives as expected on the owner's phone is for the next
+release to show — a debug build cannot be installed over the release one without an uninstall, which is
+the data loss the phone rules forbid.

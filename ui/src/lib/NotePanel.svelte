@@ -39,6 +39,7 @@
   import { noteName } from './noteName';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY } from './caret';
+  import { KEYBOARD_EVENT } from './keyboard';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
   import { beatMs, POLL_BUSY_MS } from './pollBeat';
@@ -99,6 +100,14 @@
   // Transient success line (e.g. after a drag-drop copy). Auto-clears.
   let notice = $state<string | null>(null);
   let editing = $state(false);
+  /// **The properties are folded away while you write** (the owner, 2026-10-08): on a phone the form —
+  /// status, dates, tags, title — took half the screen of every new note before a word was typed. It
+  /// opens from the note's ＋ (*Details*) and folds again when editing ends. A board is the exception:
+  /// it has no text to write, so *Details* is what editing a board means and shows them as before.
+  let detailsOpen = $state(false);
+  $effect(() => {
+    if (!editing) detailsOpen = false;
+  });
 
   // **Pure full-screen board.** A phone is small and Excalidraw's own floating tools already eat
   // into it, so a board can fill the *entire* viewport — nothing but the canvas, no note header, no
@@ -1691,6 +1700,29 @@
     editorEl.scrollTop += top - editorEl.clientHeight / 2;
   }
 
+  /// **Keep the line being written above the keyboard.** When the keyboard opens the editor gets
+  /// shorter (`--app-h`), and a textarea does not scroll to its caret on a resize — only on typing — so
+  /// the line you tapped stayed where it was, now behind the keyboard. Put it in the upper third of what
+  /// is left. Only when the caret is out of sight: a caret already visible is not moved under you.
+  function revealCaret() {
+    const el = editorEl;
+    if (!el || document.activeElement !== el) return;
+    el.scrollIntoView?.({ block: 'nearest' });
+    const { top, lineHeight } = caretXY(el, el.selectionEnd);
+    const lh = lineHeight || 22;
+    if (top < 0 || top + lh > el.clientHeight) el.scrollTop += top - el.clientHeight / 3;
+  }
+  $effect(() => {
+    if (!editing) return;
+    const later = () => requestAnimationFrame(revealCaret);
+    window.addEventListener(KEYBOARD_EVENT, later);
+    window.visualViewport?.addEventListener('resize', later);
+    return () => {
+      window.removeEventListener(KEYBOARD_EVENT, later);
+      window.visualViewport?.removeEventListener('resize', later);
+    };
+  });
+
   /** Does the keyboard focus live in *this* pane? */
   const focused = () => !!paneEl?.contains(document.activeElement);
 
@@ -2198,6 +2230,25 @@
                 </button>
               {/if}
               {#if !isBoard && !isDiscussion}
+                <button
+                  class="opt"
+                  aria-expanded={editing && detailsOpen}
+                  onclick={() => {
+                    optionsOpen = false;
+                    if (editing && detailsOpen) {
+                      detailsOpen = false;
+                      return;
+                    }
+                    // Into editing without focusing the text: on a phone that would raise the
+                    // keyboard over the very fields that were asked for.
+                    editing = true;
+                    detailsOpen = true;
+                  }}
+                >
+                  {editing && detailsOpen ? 'Hide details' : 'Details'}
+                </button>
+              {/if}
+              {#if !isBoard && !isDiscussion}
                 <!-- **Opened in place, inside this window** — never a menu hanging off a menu, which is
                      how ＋ Media ended up half off the left edge of a phone. -->
                 <button
@@ -2386,7 +2437,7 @@
     <p class="note-notice">{notice}</p>
   {/if}
   {#if note}
-    {#if editing}
+    {#if editing && (isBoard || detailsOpen)}
       <div class="props">
         <label class="field">
           <span>Status</span>
@@ -2942,7 +2993,7 @@
     z-index: 200;
     width: 100vw;
     height: 100%;
-    height: 100dvh; /* excludes the phone's URL/nav bars where supported */
+    height: var(--app-h); /* excludes the phone's URL/nav bars where supported */
     max-width: none;
     overflow: hidden;
     box-shadow: none;
@@ -3417,6 +3468,12 @@
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     line-height: 1.6;
+  }
+  /* With the keyboard up the editor fits what is left rather than holding 22rem, which on a phone is
+     taller than the room above the keyboard — the note would scroll as a whole and its last lines,
+     the ones being typed, would be under the keyboard again. */
+  :global(html[data-keyboard]) .editor {
+    min-height: 0;
   }
   .editor:focus-visible {
     outline: none;
