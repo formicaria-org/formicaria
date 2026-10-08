@@ -1,0 +1,107 @@
+# Keep THIRD-PARTY.md in step with a Dependabot pull request.
+#
+# **Why this exists.** Dependabot edits a manifest and its lockfile and nothing else — it never runs a
+# project's own scripts. `THIRD-PARTY.md` is generated from the dependency tree, records exact
+# versions, and `ci/third-party-check.sh` fails the gate when the committed copy drifts. So every
+# dependency PR failed on a file the bot cannot know exists (katex 0.17 -> 0.18, 2026-10-08). The owner:
+# *"if the dependencies need update we should update it everywhere"* — the notice changes in the same
+# pull request as the dependency, not in a follow-up a person has to remember. This is the pattern
+# GitHub's own `github/github-mcp-server` uses for its licence files. See decisions.md, 2026-10-08,
+# "a Dependabot pull request carries its own notice".
+#
+# **Two jobs, so the token that can push never sits beside dependency code.** Regenerating installs
+# the updated packages; a compromised one would then be running next to whatever the job holds. So:
+#   - `regenerate` runs the dependency code with a **read-only** token, no persisted credentials and
+#     install scripts off, and hands the new notice over as an artifact;
+#   - `commit` holds `contents: write` and runs **no project code at all** — it copies one file onto
+#     the Dependabot branch and commits only that file.
+# The same split as `android-build` / `android-sign` in release.yml, for the same reason.
+#
+# **Then it dispatches `ci.yml` on the branch.** A push made with GITHUB_TOKEN deliberately starts no
+# workflow (it would loop); `workflow_dispatch` is the documented exception. Without this the
+# corrected commit would carry no check at all.
+name: dependabot notice
+
+on:
+  pull_request:
+    paths:
+      - '**/Cargo.lock'
+      - '**/Cargo.toml'
+      - 'ui/package.json'
+      - 'ui/pnpm-lock.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-notice-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate:
+    # Dependabot's own pull requests, on this repository — never a fork, never a person's branch.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@d3f436a425481402e6a95a1d1fc10331c708cd9e # v0.10.2
+        with:
+          pixi-version: v0.72.2
+          run-install: true
+          cache: true
+      # The notice reads the installed npm tree; it needs no package's install script to have run.
+      - name: install the UI tree, scripts off
+        run: pixi run pnpm -C ui install --frozen-lockfile --ignore-scripts
+      - name: regenerate the notice
+        run: pixi run third-party
+      - uses: actions/upload-artifact@v6
+        with:
+          name: third-party-notice
+          path: THIRD-PARTY.md
+          if-no-files-found: error
+
+  commit:
+    needs: regenerate
+    runs-on: ubuntu-latest
+    # The one elevated scope outside release.yml's `attach`, and only here: push the notice, then start
+    # the gate on the corrected commit.
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: third-party-notice
+          path: ${{ runner.temp }}/notice
+      - name: commit the notice if it changed, then run the gate on it
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The notice was generated from HEAD_SHA. If the branch has moved since (Dependabot rebased),
+          # a newer run of this workflow owns it — never commit a notice for a tree it was not made from.
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "the branch moved on from $HEAD_SHA; a newer run will handle it"
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/notice/THIRD-PARTY.md" THIRD-PARTY.md
+          if git diff --quiet -- THIRD-PARTY.md; then
+            echo "THIRD-PARTY.md is already current"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- THIRD-PARTY.md
+          git commit -m "chore(deps): regenerate THIRD-PARTY.md"
+          git push origin "HEAD:$HEAD_REF"
+          gh workflow run ci.yml --ref "$HEAD_REF"

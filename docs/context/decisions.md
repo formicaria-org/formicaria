@@ -161,7 +161,10 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   ***What ships is an app, not a binary*** (read before touching `packaging/launcher/` or the
   `stage` step — the portable-vault recipe is exact and the CSP one is not obvious) ·
   ***An addition is checked against the record before it is written*** (read before adding a
-  dependency, an archive file, a relaxed guard or a changed default) · *The manual's CSP is a named
+  dependency, an archive file, a relaxed guard or a changed default) ·
+  ***An advisory gets a pull request, not just a red gate*** (read before adding an ecosystem to
+  `dependabot.yml`) · ***A Dependabot pull request carries its own notice*** (read before touching
+  `dependabot-notice.yml`, `THIRD-PARTY.md`'s format, or any job holding `contents: write`) · *The manual's CSP is a named
   exception* (`#ui`).
 - **`#agent`**: ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
@@ -7899,3 +7902,83 @@ reveal with a stood-in caret and height, `popup.test.ts` that a reported keyboar
 the Kotlin compiles. Whether the IME inset arrives as expected on the owner's phone is for the next
 release to show — a debug build cannot be installed over the release one without an uninstall, which is
 the data loss the phone rules forbid.
+
+## 2026-10-08 — an advisory gets a pull request, not just a red gate `#toolchain`
+
+> **Extended the same day** (*a Dependabot pull request carries its own notice*): the
+> `third-party-check` consequence below is now handled by a workflow, not by hand.
+
+> Extends, does not reverse, `dependabot.yml`'s *"Actions only, deliberately"*. Owner's decision,
+> 2026-10-08; the owner enabled the setting.
+
+**Decision.** **Dependabot security updates** are on for this repository — a GitHub setting
+(Settings → Code security), not a line in `dependabot.yml`. Dependabot now opens a pull request for
+Cargo and npm dependencies **only when one this repo resolves has a published advisory**. Routine
+*version* updates for Cargo and npm stay off; `dependabot.yml` still lists only `github-actions`.
+
+**Why — what happened.** RUSTSEC-2026-0285 was published against `rustls 0.23.42` on 2026-09-14.
+`cargo deny` caught it, exactly as designed — but the gate only runs on a push or a pull request, and
+nobody pushed for three weeks. It surfaced on 2026-10-01 as three red Dependabot **Actions** PRs whose
+diffs could not have caused it, and was fixed by hand on 2026-10-08 (`9093a21`, `3cce010`). The old
+ruling's premise — *"`cargo deny` already gates advisories"* — was true and not enough: **a gate
+detects, it does not propose, and it detects only when something else makes it run.** The UI's npm
+tree had no advisory gate at all.
+
+**Why not version updates.** The old ruling's other reason still holds: a monthly lockfile PR stream
+against a single-maintainer repo is noise. Security updates are the narrow slice of that stream which
+is never noise — a handful a year, each one answering a published vulnerability in something we
+actually ship.
+
+**Consequences:**
+- **A Dependabot security PR will fail `third-party-check` as raised.** It bumps the lockfile and not
+  `THIRD-PARTY.md`, which records versions. Before merging: check out the branch, `pixi run
+  third-party`, commit the notice. Automating that is a separate decision, not taken here.
+- **The PR is gated like any other** — `ci.yml` runs on `pull_request`, so it is checked before it is
+  merged (*The gate checks pull requests*, 2026-09-10).
+- **Still undetected between pushes:** an advisory against a crate with no fix yet opens no PR, and
+  `cargo deny` still only speaks when CI runs. A scheduled run of the gate would close that; not
+  taken here.
+
+## 2026-10-08 — a Dependabot pull request carries its own notice `#toolchain`
+
+> Widens what holds write access: a second job with `contents: write`, beside `release.yml`'s
+> `attach`. Owner's decision, 2026-10-08, after asking how other projects solve it.
+
+**The problem.** Dependabot edits a manifest and its lockfile and never runs a project's scripts.
+`THIRD-PARTY.md` is generated from the dependency tree and records exact versions, and the gate fails
+when the committed copy drifts — so **every** dependency pull request failed on a file the bot cannot
+know exists (the katex 0.17 → 0.18 security update, the first one the new setting raised). The owner:
+*"if the dependencies need update we should update it everywhere."*
+
+**How the field handles it** (searched, not assumed): a person regenerates by hand (erlef/setup-beam);
+the check is skipped for the bot and regenerated on a schedule (Stirling-PDF); the file is not committed
+and licences are checked another way (proposed in Apache EventMesh); or **a workflow regenerates the file
+on the pull request and commits it** — what GitHub's own `github/github-mcp-server` does for its licence
+files. The last is the only one that keeps the notice exact in the same pull request, so it is taken.
+
+**Decision.** `.github/workflows/dependabot-notice.yml`, on a `pull_request` from `dependabot[bot]` on
+this repository that touches a lockfile or manifest:
+- **`regenerate`** — read-only token, `persist-credentials: false`, `pnpm install --ignore-scripts`
+  (the notice reads `package.json` licence fields, which need no install script) — runs
+  `pixi run third-party` and hands the file over as an artifact.
+- **`commit`** — `contents: write` + `actions: write`, and **runs no project code**: it copies that one
+  file onto the Dependabot branch, commits only it, pushes, and dispatches `ci.yml` on the branch.
+
+**Why two jobs.** Regenerating installs the updated packages, and a token that can push must not sit
+beside code the bot just pulled in — the `android-build` / `android-sign` split (*every platform is
+published by the tag*, 2026-09-09) for the same reason.
+
+**Why it dispatches CI.** A push made with `GITHUB_TOKEN` starts no workflow, on purpose (it would
+loop); `workflow_dispatch` is the documented exception. Without it the corrected commit would carry no
+check. The check that failed on Dependabot's own commit stays on that commit and is superseded.
+
+**Consequences:**
+- **Not `pull_request_target`.** A Dependabot-triggered `pull_request` may raise its token with
+  `permissions:` (GitHub's own Dependabot auto-merge example does), so no secret and no personal token
+  is needed.
+- **A notice for the tree it was made from, or none.** If the branch moved on between the jobs
+  (Dependabot rebased), `commit` stops; the newer run owns it.
+- **Dependabot will not rebase a branch someone else has committed to.** On a conflict, comment
+  `@dependabot recreate`; the workflow runs again on the fresh branch.
+- **Unproven until a Dependabot pull request runs it.** The two open npm ones (katex, dompurify) pick
+  it up once rebased onto a `main` that has it (`@dependabot rebase`).
