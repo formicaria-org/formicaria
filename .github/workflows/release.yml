@@ -497,7 +497,7 @@ jobs:
           [ "${GITHUB_REF_TYPE}" = "tag" ] || VERSION="dev-$(git rev-parse --short HEAD)"
           echo "VERSION=${VERSION}"    >> "$GITHUB_ENV"
           echo "FM_VERSION=${VERSION}" >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: android-unsigned
       - name: put it back under its release name
@@ -580,7 +580,7 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
@@ -606,7 +606,7 @@ jobs:
     steps:
       # Checked out for two small shell scripts and the list of trusted keys. Nothing is built.
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: release-manifest
           path: manifest
@@ -725,7 +725,7 @@ jobs:
             git tag -l --format='%(contents)' "$TAG"
             echo 'RELEASE_NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: dist
           merge-multiple: true
