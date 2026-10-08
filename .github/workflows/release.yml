@@ -286,7 +286,7 @@ jobs:
           cd ..
           ls -la formicaria-*
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ env.DIR }}
           if-no-files-found: error
@@ -364,7 +364,7 @@ jobs:
           [ -n "$src" ] || { echo "no .ipa produced" >&2; exit 1; }
           cp "$src" "formicaria-${VERSION}-ios-arm64.ipa"
           ls -la formicaria-*.ipa
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ios-ipa
           if-no-files-found: error
@@ -459,7 +459,7 @@ jobs:
           set -euo pipefail
           cp "mobile/formicaria-${VERSION}-android-arm64.apk" unsigned-android-arm64.apk
           ls -la unsigned-android-arm64.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: android-unsigned
           if-no-files-found: error
@@ -554,7 +554,7 @@ jobs:
           shred -u "$d/android-release.keystore" "$d/android-release.properties" 2>/dev/null || \
             rm -f "$d/android-release.keystore" "$d/android-release.properties"
           ls -la "$d" 2>/dev/null || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: android-apk
           if-no-files-found: error
@@ -591,7 +591,7 @@ jobs:
           rm -f dist/unsigned-*
           sh ci/release-manifest.sh dist "${GITHUB_REF_NAME}"
           cat "dist/formicaria-${GITHUB_REF_NAME}.manifest.json"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: release-manifest
           path: dist/formicaria-${{ github.ref_name }}.manifest.json
@@ -665,7 +665,7 @@ jobs:
         run: |
           f="$HOME/.config/formicaria/release-signing.pem"
           shred -u "$f" 2>/dev/null || rm -f "$f"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: release-manifest-signature
           path: manifest/formicaria-${{ github.ref_name }}.manifest.json.sig
