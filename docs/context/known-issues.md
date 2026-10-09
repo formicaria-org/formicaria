@@ -956,7 +956,8 @@ durable limits, not a to-do list:
 ## Meetings from your own calendar — Phase 1's limits (2026-10-09)
 
 Settings → Calendars (`fm-serve/src/calendar.rs` → `calendar_sync` → `fm_core::calendar`). Tested
-hermetically; **never yet run against a real Google feed**.
+hermetically, and **run on the owner's real Google calendar on 2026-10-09**: meetings landed in the
+Agenda. A *move* seen end to end on a real feed is still to be confirmed (Google's feed lags).
 
 - **Repeating meetings: a subset of `RRULE`** (`fm_core::recur`, 2026-10-09): `DAILY`/`WEEKLY`/
   `MONTHLY`/`YEARLY`, `INTERVAL`, `COUNT`, `UNTIL`, `WKST`, `BYDAY` (ordinals for monthly),
@@ -976,11 +977,15 @@ hermetically; **never yet run against a real Google feed**.
 - **Hourly, while the app is open.** There is no daemon (a ruling). Google's secret feed itself lags
   the web UI by hours.
 - **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
+- **A one-off meeting deleted in Google is not marked.** Google drops it from the feed rather than
+  marking it cancelled, and only repeating series mark their missing dates. Its note stays, at the
+  old time, until the person removes it (`outstanding.md` §2.16 item 1).
 
 ## Gmail, read-only — Phase 2's limits (2026-10-09)
 
 Settings → Mail (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`). Hermetic tests only;
-**never yet run against a real Gmail account.**
+**run on the owner's real Gmail on 2026-10-09** (a label, four conversations; the exchange in each
+note, invitations made meetings).
 
 - **A sign-in every 7 days** while the person's Google Cloud project is in testing (Google's rule
   for unverified apps). Shown on the panel as an error with the remedy; nothing is read meanwhile.

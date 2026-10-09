@@ -874,24 +874,36 @@ What is **not** built, roughly in the order it should be:
 **Track S #2 in `plan.md` is this work's other half** and now carries a `SUPERSEDED IN PART` banner:
 its `curl` clause and CLI-first surface are reversed, everything else stands.
 
-### 2.16 Mail → tasks and meetings — Phase 1 landed; Phases 2–4 have not (2026-10-09)
+### 2.16 Mail and calendars → meetings — all three phases built and run on real data (2026-10-09)
 
 The approved plan (`decisions.md` 2026-10-09, *mail and your own calendars become notes on their
-own*): read-only access, deterministic where the source is structured, the on-device model only for
-prose, and the person's only act is answering a proposal. **Phase 1 is built**: your own calendar's
-private iCal address → `fm-serve/src/calendar.rs` (fetch, `0600` secret file, hourly background read,
-`REMOTE_DENIED`) → the `calendar_sync` command → `fm_core::calendar::reconcile` (pure). Settings →
-Calendars is the surface; repeating meetings are expanded (`fm_core::recur`). **Phase 2 is built too**: Gmail read-only (`fm-serve/src/mail.rs`, `fm_core::mail`, `mail_sync`), Settings → Mail, the person's own Google client; each conversation note holds the whole exchange. **Neither yet seen against a real Gmail. Not yet seen against a real Google feed in a browser.**
+own*, and the entries after it): read-only access, deterministic where the source is structured,
+the on-device model only for prose, and the person's only act is answering a proposal.
 
-Next, in order:
-1. **Run Phase 1 for real** — paste the owner's Google secret address, move a meeting in Google
-   Calendar, watch the note move. Google's feed can lag hours behind the web UI.
-2. **Meetings from prose** (Phase 3) — **built 2026-10-09, not yet run against the real model**:
-   `fm_agent::meetings` + `fm-agent-run/src/meetings.rs` (meetings only, by the owner's narrowing).
-   Next: run it on the owner's real conversations with qwen3-vl-4b and measure what it misses or
-   misreads. Recaps were dropped from scope with tasks.
-3. **Outlook** (Phase 4): Graph `Mail.Read`; the NUS tenant may refuse consent, so `.eml`/`.ics` drop
-   is the fallback.
+- **Built and run on the owner's real data on 2026-10-09:**
+  - your own calendar (`fm-serve/src/calendar.rs` → `calendar_sync` → `fm_core::calendar`, with
+    `fm_core::recur` for repeats);
+  - Gmail read-only (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`; the owner's own Google
+    client; the conversation note holds the exchange);
+  - the assistant's meeting pass (`fm-agent-run/src/meetings.rs` → `fm_agent::meetings`).
+
+  Its first real run proposed nothing: the model translated the date words. The fix was that the
+  model points at the sentence and Rust reads the date. Re-run: three correct proposals, two past
+  meetings skipped.
+- **Released in v0.6.0.**
+
+Next, roughly in order:
+1. **A deleted one-off meeting is not marked.** Google drops it from the feed rather than marking it
+   cancelled, and only repeating series mark their missing dates (`calendar::reconcile`). Apply the
+   same *marked, never deleted* rule to one-off meetings within the window, when the feed was read
+   in full. Offered to the owner, not yet built.
+2. **First real run on Windows and macOS** of the assistant, calendars and mail. Everything there is
+   compiled, never run (`features.md`).
+3. **A shorter path than the Google Cloud set-up** for non-technical users: a calendar-only mode,
+   or a screenshot walkthrough in the manual. The set-up took real help even for the owner (Italian
+   console labels; `?hl=en` is the workaround).
+4. **Outlook** (Phase 4): Graph `Mail.Read`. The NUS tenant may refuse consent, so dropping
+   `.eml`/`.ics` files is the fallback.
 
 ## 3. Known and accepted — do not "fix" without deciding
 
