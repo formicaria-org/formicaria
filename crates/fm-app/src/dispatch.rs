@@ -506,6 +506,7 @@ fn notes_rel_of(root: &std::path::Path) -> String {
 /// `open_external`/`open_skipped` hand a file to another program and change nothing here; if
 /// that program then edits the note, the drift check is what catches it.
 const READ_ONLY: &[&str] = &[
+    "deleted_notes",
     "mail_conversations",
     "board",
     "gallery",
@@ -1449,10 +1450,16 @@ fn dispatch_inner(
         // Every thread with messages — first-class discussions AND ordinary notes with comment
         // threads — for the study agent to watch. Not the Discussions view (that is `discussions`).
         "thread_roots" => json(commands::thread_roots(&lock()?.store(scope)).map_err(err)?),
+        // Answers the value it replaced, so the UI's undo can set it back.
         "set_property" => {
-            commands::set_property(&mut lock()?.store(scope), &s("id"), &s("key"), &s("value"))
-                .map_err(err)?;
-            nothing()
+            let previous = commands::set_property_answering(
+                &mut lock()?.store(scope),
+                &s("id"),
+                &s("key"),
+                &s("value"),
+            )
+            .map_err(err)?;
+            json(serde_json::json!({ "previous": previous }))
         }
         // Answers with the new **version** — the content hash of the body just written, which
         // the caller holds and sends back as `base` on its next write. That round trip is the
@@ -1469,9 +1476,59 @@ fn dispatch_inner(
                     .map_err(err)?;
             json(stamp)
         }
+        // Answers what was deleted, so the UI's undo can put it back (`restore_note`).
         "delete" => {
-            commands::delete(&mut lock()?.store(scope), &s("id")).map_err(err)?;
-            nothing()
+            json(commands::delete_keeping(&mut lock()?.store(scope), &s("id")).map_err(err)?)
+        }
+        // **Put a deleted note back** — the session undo's path. Refuses an id that exists again.
+        "restore_note" => {
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            json(commands::restore_note(&mut g.store(scope), &cfg.name, &s("file")).map_err(err)?)
+        }
+        // **Recently deleted** — read from each vault's own history, so it survives a restart and
+        // reaches a deletion made on another device. The vault lock is not held across the git
+        // subprocesses (`#seams`, *the vault lock is not held across a subprocess*).
+        "deleted_notes" => {
+            let days = args.get("days").and_then(Value::as_u64).unwrap_or(30) as u32;
+            let configs: Vec<_> = {
+                let g = lock()?;
+                g.configs().into_iter().filter(|c| scope.allows(&c.name)).collect()
+            };
+            let mut found = Vec::new();
+            for cfg in configs {
+                for d in vcs::deleted_notes(&cfg.path, days).unwrap_or_default() {
+                    found.push((cfg.name.clone(), d));
+                }
+            }
+            let mut g = lock()?;
+            let st = g.store(scope);
+            let rows: Vec<commands::DeletedRow> = found
+                .into_iter()
+                .filter(|(_, d)| {
+                    d.id.parse::<fm_model::Id>().is_ok_and(|id| matches!(st.get(id), Ok(None)))
+                })
+                .map(|(vault, d)| commands::DeletedRow {
+                    title: commands::deleted_title(&d.file),
+                    id: d.id,
+                    vault,
+                    author: d.author,
+                    time: d.time,
+                })
+                .collect();
+            json(rows)
+        }
+        "restore_deleted" => {
+            let (vault, id) = (s("vault"), s("id"));
+            let cfg = lock()?.config(scope, &vault)?;
+            let days = args.get("days").and_then(Value::as_u64).unwrap_or(30) as u32;
+            let found = vcs::deleted_notes(&cfg.path, days)
+                .map_err(err)?
+                .into_iter()
+                .find(|d| d.id == id)
+                .ok_or_else(|| "that note is no longer in the recent history".to_string())?;
+            let mut g = lock()?;
+            json(commands::restore_note(&mut g.store(scope), &cfg.name, &found.file).map_err(err)?)
         }
         // Searched across vaults: the reference names bytes, not a place. Configs are
         // cloned out and the guard dropped before touching the disk.

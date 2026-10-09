@@ -89,6 +89,9 @@
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
+  import * as undo from './lib/undo.svelte';
+  import * as nav from './lib/nav.svelte';
+  import { captureUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
@@ -142,6 +145,27 @@
   // **Stamp a migrated record straight away.** Otherwise the one-time layout move re-runs on
   // every load, and a `tiled` chosen *after* the migration would be undone by the next one.
   if (loaded.migrated) persistWorkspace();
+  /** Where the focused window is — the place Back returns to (`nav.svelte.ts`). */
+  function here(): nav.Target {
+    const p = workspace.panes[focused];
+    return p ? { kind: p.kind, noteId: p.noteId, viewName: p.viewName } : { kind: 'board' };
+  }
+  /** A move happened: record it for Back. Synchronous on purpose — see `nav.svelte.ts`. */
+  function moved() {
+    nav.visit(here());
+  }
+  nav.start(here());
+  /** Back (or forward) landed somewhere: close panels above it, then put that place back. */
+  function onNavPop(e: PopStateEvent) {
+    const t = nav.popped(e.state);
+    if (!t || !t.kind) return;
+    nav.restore(() =>
+      focusOrOpen(t.kind as PaneKind, {
+        ...(t.noteId ? { noteId: t.noteId } : {}),
+        ...(t.viewName ? { viewName: t.viewName } : {}),
+      }),
+    );
+  }
   function addPane(kind: PaneKind, over: Partial<PaneT> = {}) {
     if (workspace.panes.length >= MAX_PANES) {
       notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
@@ -151,6 +175,7 @@
     workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
     focused = workspace.panes.length - 1;
     persistWorkspace();
+    moved();
     void refresh();
   }
   /** **Reuse before you add.** With one view at a time as the default, tapping a view's name
@@ -176,6 +201,7 @@
     focused = at;
     if (changed.length) changePane(pane.id, Object.fromEntries(changed));
     else persistWorkspace(); // mounted and already fetched — nothing to refresh
+    moved();
   }
   function closePane(id: string) {
     const filtered = workspace.panes.filter((p) => p.id !== id);
@@ -186,6 +212,7 @@
     workspace = { ...workspace, cols: autoCols(panes.length, workspace), panes };
     if (focused >= workspace.panes.length) focused = workspace.panes.length - 1;
     persistWorkspace();
+    moved();
     void refresh();
   }
   function changePane(id: string, patch: Partial<PaneT>) {
@@ -680,6 +707,7 @@
     if (n < 2) return;
     focused = (focused + step + n) % n;
     persistWorkspace();
+    moved();
   }
 
   function run(cmd: keys.Command) {
@@ -705,6 +733,27 @@
       case 'backup':
         backupOpen = true;
         break;
+      case 'undo':
+        void runUndo('undo');
+        break;
+      case 'redo':
+        void runUndo('redo');
+        break;
+    }
+  }
+
+  // After an undo or redo lands: show it, and save it like any other write.
+  undo.onChange(async () => {
+    await refresh();
+    scheduleCommit();
+  });
+
+  /** Undo or redo the last action; a refusal ("it was changed again since") is shown like any error. */
+  async function runUndo(which: 'undo' | 'redo') {
+    try {
+      await (which === 'undo' ? undo.undo() : undo.redo());
+    } catch (e) {
+      error = `Could not ${which} that: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
@@ -723,9 +772,12 @@
     // someone meant to type.
     const tag = (e.target as HTMLElement | null)?.tagName;
     const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    // The whiteboard has its own undo for what is drawn; the app's undo must not fire beside it.
+    const inBoard = !!(e.target as HTMLElement | null)?.closest?.('.excalidraw');
 
     for (const cmd of Object.keys(keymap) as keys.Command[]) {
       if (typing && !keys.WHILE_TYPING.has(cmd)) continue;
+      if (inBoard && (cmd === 'undo' || cmd === 'redo')) continue;
       if (!keys.matches(e, keymap[cmd])) continue;
       e.preventDefault();
       run(cmd);
@@ -1329,7 +1381,7 @@
   // form + empty body), Obsidian/Notion style. Differentiate with tags, not type.
   async function onNew() {
     try {
-      const meta = await capture('', createTarget);
+      const meta = await captureUndoable('', createTarget);
       openNoteInPane(meta.id, { editing: true });
       scheduleCommit();
     } catch (err) {
@@ -1404,7 +1456,7 @@
   async function onNewFromTemplate(id: string) {
     try {
       const tpl = await getNote(id);
-      const meta = await capture(tpl?.body ?? '', createTarget);
+      const meta = await captureUndoable(tpl?.body ?? '', createTarget);
       openNoteInPane(meta.id, { editing: true });
       scheduleCommit();
     } catch (err) {
@@ -1423,7 +1475,7 @@
   // pane model for now; the card lands in the column, position by the server's sort.)
   async function onMove(groupBy: string, id: string, value: string, _beforeId: string | null) {
     try {
-      await setProperty(id, groupBy, value);
+      await setPropertyUndoable(id, groupBy, value, `moved a card to “${value || 'none'}”`);
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -1435,7 +1487,12 @@
   // as a board drag, but always on `status` — a board may be grouped by anything.
   async function onSetStatus(id: string, value: string | null) {
     try {
-      await setProperty(id, 'status', value ?? '');
+      await setPropertyUndoable(
+        id,
+        'status',
+        value ?? '',
+        `set the status to “${value || 'none'}”`,
+      );
       await refresh();
       scheduleCommit();
     } catch (err) {
@@ -1748,6 +1805,36 @@
   }
 
   let backupMenuOpen = $state(false);
+  /// The ↶ menu (undo, redo, Recently deleted) and the panel it opens — `decisions.md` 2026-10-09.
+  let undoMenuOpen = $state(false);
+  let deletedOpen = $state(false);
+
+  // **Panels and menus are layers: Back closes the top one first** (`nav.svelte.ts`). Watched here,
+  // in one list, so a new panel joins by adding a line rather than by editing its open and close
+  // sites — the list is what a reviewer checks.
+  const LAYERS: [string, () => boolean, () => void][] = [
+    ['settings', () => settingsOpen, () => (settingsOpen = false)],
+    ['backup', () => backupOpen, () => (backupOpen = false)],
+    ['backup-menu', () => backupMenuOpen, () => (backupMenuOpen = false)],
+    ['new-vault', () => newVaultOpen, () => (newVaultOpen = false)],
+    ['skipped', () => skippedOpen, () => (skippedOpen = false)],
+    ['unrecorded', () => unrecordedOpen, () => (unrecordedOpen = false)],
+    ['kept', () => demotedOpen, () => (demotedOpen = false)],
+    ['create', () => createOpen, () => (createOpen = false)],
+    ['vault-menu', () => vaultMenuOpen, () => (vaultMenuOpen = false)],
+    ['views', () => viewsOpen, () => (viewsOpen = false)],
+    ['windows', () => windowsOpen, () => (windowsOpen = false)],
+    ['help', () => helpOpen, () => (helpOpen = false)],
+    ['paper', () => paperOpen, () => (paperOpen = false)],
+    ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
+    ['deleted', () => deletedOpen, () => (deletedOpen = false)],
+  ];
+  for (const [name, isOpen, close] of LAYERS) {
+    $effect(() => {
+      const open = isOpen();
+      untrack(() => (open ? nav.openLayer(name, close) : nav.closeLayer(name)));
+    });
+  }
   /** Non-null while a backup runs — doubles as the button's label and its disabled flag. */
   let savingLabel = $state<string | null>(null);
 
@@ -1879,7 +1966,7 @@
   ] as { label: string; note: string; run: () => void }[]);
 </script>
 
-<svelte:window onkeydown={onGlobalKey} />
+<svelte:window onkeydown={onGlobalKey} onpopstate={onNavPop} />
 
 <!-- The gate. Three states, and the middle one is the point:
      null - we have not asked yet, or the backend has not answered. `Starting` renders nothing
@@ -2432,6 +2519,66 @@
         {/if}
       </div>
 
+      <!-- **Undo, in a menu** (owner's choice, 2026-10-09: no pop-up bar). It names what it would undo,
+         so nothing happens by surprise; Ctrl+Z / Ctrl+Shift+Z reach the same stack on a keyboard.
+         Recently deleted lives here too, because "I deleted that" is the moment both are wanted. -->
+      <div class="create-wrap">
+        <button
+          type="button"
+          class="icon-btn"
+          onclick={() => (undoMenuOpen = !undoMenuOpen)}
+          aria-expanded={undoMenuOpen}
+          aria-haspopup="menu"
+          aria-label="undo"
+          title={undo.nextUndo()
+            ? `Undo ${undo.nextUndo()?.label}`
+            : 'Undo, redo, recently deleted'}
+        >
+          <Icon name="undo" size={16} />
+        </button>
+        {#if undoMenuOpen}
+          <div
+            class="menu-backdrop"
+            role="presentation"
+            onclick={() => (undoMenuOpen = false)}
+          ></div>
+          <ul class="create-menu" role="menu" use:popup>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!undo.nextUndo() || undo.busy()}
+                onclick={() => ((undoMenuOpen = false), void runUndo('undo'))}
+              >
+                <span class="mi-label">Undo</span>
+                <span class="mi-note">{undo.nextUndo()?.label ?? 'Nothing to undo yet'}</span>
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!undo.nextRedo() || undo.busy()}
+                onclick={() => ((undoMenuOpen = false), void runUndo('redo'))}
+              >
+                <span class="mi-label">Redo</span>
+                <span class="mi-note">{undo.nextRedo()?.label ?? 'Nothing to redo'}</span>
+              </button>
+            </li>
+            <li role="none">
+              <button
+                type="button"
+                role="menuitem"
+                onclick={() => ((undoMenuOpen = false), (deletedOpen = true))}
+              >
+                <span class="mi-label">Recently deleted…</span>
+                <span class="mi-note">Bring back a note deleted in the last 30 days</span>
+              </button>
+            </li>
+          </ul>
+        {/if}
+      </div>
+
       <!-- The manual, one click from anywhere in the app.
          The first non-technical tester's verdict was that it was "difficult to find and click on"
          — it shipped in the archive as a folder, and nothing in the running app ever mentioned
@@ -2651,6 +2798,18 @@
     {#if skippedOpen}
       {#await import('./lib/SkippedPanel.svelte') then { default: SkippedPanel }}
         <SkippedPanel skipped={skippedNotes} onclose={() => (skippedOpen = false)} />
+      {/await}
+    {/if}
+
+    {#if deletedOpen}
+      {#await import('./lib/DeletedPanel.svelte') then { default: DeletedPanel }}
+        <DeletedPanel
+          onclose={() => (deletedOpen = false)}
+          onrestored={async () => {
+            await refresh();
+            scheduleCommit();
+          }}
+        />
       {/await}
     {/if}
 

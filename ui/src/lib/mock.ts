@@ -250,6 +250,22 @@ function buildBoard(groupBy: string): Board {
   return { group_by: groupBy, columns: [...cols.values()] };
 }
 
+/** What `set_property` would answer as `previous`: the value in the form it reads back. */
+function getProp(id: string, key: string): string | null {
+  const n = notes.find((x) => x.id === id);
+  if (!n) return null;
+  const v =
+    key === 'tags'
+      ? n.tags.join(', ')
+      : key === 'status' || key === 'title' || key === 'due' || key === 'start'
+        ? (n as unknown as Record<string, string | null>)[key]
+        : n.props?.[key];
+  return v ? String(v) : null;
+}
+
+/** Notes deleted in this mock session — what Recently deleted lists. */
+const mockDeleted: { id: string; vault: string; title: string; file: string }[] = [];
+
 function setProp(id: string, key: string, value: string): void {
   const n = notes.find((x) => x.id === id);
   if (!n) return;
@@ -295,6 +311,9 @@ function setProp(id: string, key: string, value: string): void {
 function captureNote(body: string, vault = ''): ObjectMeta {
   const n = makeNote({ preview: body, vault: mockVault(vault).name });
   notes.unshift(n);
+  // Keep what was written, as the server does — a note captured with text reads back that text,
+  // not the shared sample (which undoing a deletion would otherwise "restore").
+  if (body) bodyOverrides.set(n.id, body);
   return n;
 }
 
@@ -742,6 +761,7 @@ const FIXTURE_VAULTS = JSON.parse(JSON.stringify(mockVaults)) as typeof mockVaul
 /// conditions of every later test in the same file. That is the precise trap the comment on
 /// `clearFaults` warns about, reintroduced by the function written to fix it.
 export function reset(): void {
+  mockDeleted.length = 0;
   clearFaults();
   notes.length = 0;
   notes.push(...FIXTURES.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta));
@@ -1100,8 +1120,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       if (key === 'thread_of' || key === 'reply_to') {
         throw new Error(`\`${key}\` is discussion structure — reply to a note instead`);
       }
+      const previous = getProp(String(args.id), key);
       setProp(String(args.id), key, String(args.value));
-      return undefined as T;
+      return { previous } as T;
     }
     // A first-class discussion — a note that is the root of its own thread. Created explicitly
     // because the self-anchor `thread_of` is refused by `set_property` (mirrors the server).
@@ -1496,13 +1517,54 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       }
       return mockVersion(body) as T;
     }
+    // The "file" is opaque to the UI; the mock keeps a JSON copy of the note and its body, and lists
+    // it under Recently deleted as git would after the next save.
     case 'delete': {
       const id = String(args.id);
       const i = notes.findIndex((x) => x.id === id);
-      if (i >= 0) notes.splice(i, 1);
+      if (i < 0) throw new Error(`no such note: ${id}`);
+      const [gone] = notes.splice(i, 1);
+      const file = JSON.stringify({ meta: gone, body: bodyOverrides.get(id) ?? null });
+      // Named like the server's `deleted_title`: the title, else the first line without its `#`.
+      const firstLine = (bodyOverrides.get(id) ?? '')
+        .split('\n')
+        .map((l) => l.trim().replace(/^#+\s*/, ''))
+        .find(Boolean);
       bodyOverrides.delete(id);
-      return undefined as T;
+      mockDeleted.unshift({
+        id,
+        vault: gone.vault,
+        title: gone.title ?? firstLine ?? '(untitled note)',
+        file,
+      });
+      return { id, vault: gone.vault, file } as T;
     }
+    case 'restore_note':
+    case 'restore_deleted': {
+      const file =
+        cmd === 'restore_note'
+          ? String(args.file)
+          : (mockDeleted.find((d) => d.id === String(args.id))?.file ??
+            (() => {
+              throw new Error('that note is no longer in the recent history');
+            })());
+      const { meta, body } = JSON.parse(file) as { meta: ObjectMeta; body: string | null };
+      if (notes.some((n) => n.id === meta.id))
+        throw new Error('that note is already back — it exists in your notes');
+      notes.unshift(meta);
+      if (body !== null) bodyOverrides.set(meta.id, body);
+      return meta as T;
+    }
+    case 'deleted_notes':
+      return mockDeleted
+        .filter((d) => !notes.some((n) => n.id === d.id))
+        .map((d) => ({
+          id: d.id,
+          vault: d.vault,
+          title: d.title,
+          author: 'You',
+          time: new Date().toISOString(),
+        })) as T;
     case 'copy_note': {
       const src = notes.find((x) => x.id === String(args.id));
       if (!src) throw new Error('note not found');

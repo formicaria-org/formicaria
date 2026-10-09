@@ -1687,6 +1687,67 @@ pub fn activity(vault: &Path, _since: &str) -> Result<Vec<crate::git::Touch>, St
     Ok(touches)
 }
 
+/// Mirrors [`crate::git::deleted_notes`]: notes deleted in the last `days` days, with their text
+/// just before, newest first. A revwalk over non-merge commits, stopping at the cutoff; the old
+/// text is the deleted side of the diff, read straight from its blob.
+pub fn deleted_notes(vault: &Path, days: u32) -> Result<Vec<crate::git::Deleted>, StoreError> {
+    use crate::git::Deleted;
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let repo = Repository::open(vault).map_err(map)?;
+    let mut walk = repo.revwalk().map_err(map)?;
+    if walk.push_head().is_err() {
+        return Ok(Vec::new());
+    }
+    walk.set_sorting(git2::Sort::TIME).map_err(map)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let cutoff = now - i64::from(days) * 86_400;
+    let mut seen = std::collections::HashSet::new();
+    let mut found = Vec::new();
+    for oid in walk.take(5000) {
+        let Ok(oid) = oid else { continue };
+        let Ok(commit) = repo.find_commit(oid) else { continue };
+        if commit.time().seconds() < cutoff {
+            break;
+        }
+        if commit.parent_count() != 1 {
+            continue;
+        }
+        let (Ok(tree), Some(parent_tree)) =
+            (commit.tree(), commit.parent(0).ok().and_then(|p| p.tree().ok()))
+        else {
+            continue;
+        };
+        let Ok(diff) = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None) else {
+            continue;
+        };
+        for delta in diff.deltas() {
+            if delta.status() != git2::Delta::Deleted {
+                continue;
+            }
+            let Some(path) = delta.old_file().path() else { continue };
+            let Some(id) = note_id_from_path(&path.to_string_lossy()) else { continue };
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            let Ok(blob) = repo.find_blob(delta.old_file().id()) else { continue };
+            let author = commit.author();
+            found.push(Deleted {
+                id,
+                commit: oid.to_string(),
+                author: author.name().unwrap_or_default().to_string(),
+                time: format_iso(author.when()),
+                file: String::from_utf8_lossy(blob.content()).into_owned(),
+            });
+        }
+    }
+    Ok(found)
+}
+
 /// `notes/<ULID>.md` → `<ULID>`; blobs, manifest, `.view` files and anything nested → `None`.
 /// Duplicated from [`crate::git`] rather than shared because it is four lines and the
 /// differential test is what actually keeps the two backends honest.

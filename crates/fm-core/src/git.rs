@@ -1764,6 +1764,70 @@ pub fn activity(vault: &Path, since: &str) -> Result<Vec<Touch>, StoreError> {
 }
 
 /// `notes/<ULID>.md` → `<ULID>`; blobs, manifest, `.view` files and anything nested → `None`.
+/// A note deleted in this vault's history, with the text it had just before.
+///
+/// What *Recently deleted* lists and brings back (`decisions.md` 2026-10-09, *a deleted note is never
+/// more than a list away*). The text is read from the deleting commit's parent, so nothing is stored
+/// anywhere new: git already kept it.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct Deleted {
+    pub id: String,
+    /// The commit that removed it.
+    pub commit: String,
+    pub author: String,
+    /// When, as git's `%aI`.
+    pub time: String,
+    /// The note file as it was just before it was deleted.
+    #[serde(skip)]
+    pub file: String,
+}
+
+/// Notes deleted in the last `days` days, newest deletion first, one entry per note.
+///
+/// A note deleted twice (brought back, deleted again) appears once, at its latest deletion. Whether
+/// it exists *now* is the caller's question — the store knows, git does not.
+pub fn deleted_notes(vault: &Path, days: u32) -> Result<Vec<Deleted>, StoreError> {
+    if !vault.join(".git").exists() {
+        return Ok(Vec::new());
+    }
+    let out = git(vault)
+        .args(["log", "--no-merges", "--diff-filter=D", &format!("--since={days} days ago")])
+        .args(["--pretty=format:\x01%H\x1f%an\x1f%aI", "--name-only"])
+        .output()
+        .map_err(spawn)?;
+    if !out.status.success() {
+        return Ok(Vec::new());
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut seen = std::collections::HashSet::new();
+    let mut found = Vec::new();
+    let mut cur: Option<(String, String, String)> = None;
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix('\x01') {
+            let mut f = rest.split('\x1f');
+            cur = Some((
+                f.next().unwrap_or_default().to_string(),
+                f.next().unwrap_or_default().to_string(),
+                f.next().unwrap_or_default().to_string(),
+            ));
+        } else if let (Some(id), Some((commit, author, time))) =
+            (note_id_from_path(line), cur.clone())
+        {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            let shown =
+                git(vault).args(["show", &format!("{commit}^:{line}")]).output().map_err(spawn)?;
+            if !shown.status.success() {
+                continue;
+            }
+            let file = String::from_utf8_lossy(&shown.stdout).into_owned();
+            found.push(Deleted { id, commit, author, time, file });
+        }
+    }
+    Ok(found)
+}
+
 fn note_id_from_path(path: &str) -> Option<String> {
     let stem = path.strip_prefix("notes/")?.strip_suffix(".md")?;
     (!stem.is_empty() && !stem.contains('/')).then(|| stem.to_string())

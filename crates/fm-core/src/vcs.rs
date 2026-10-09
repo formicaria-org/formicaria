@@ -140,6 +140,8 @@ route!(pull(vault: &Path) -> Result<crate::git::Pulled, StoreError>);
 route!(push_squashed(vault: &Path, message: &str) -> Result<u32, StoreError>);
 route!(remote_moved(vault: &Path) -> Result<Option<bool>, StoreError>);
 route!(activity(vault: &Path, since: &str) -> Result<Vec<crate::git::Touch>, StoreError>);
+// *Recently deleted* — routed from the start: a phone is where a slip of the thumb deletes a note.
+route!(deleted_notes(vault: &Path, days: u32) -> Result<Vec<crate::git::Deleted>, StoreError>);
 route!(probe(url: &str) -> crate::git::Probe);
 
 // The proposal lifecycle — create, review, accept, reject. Routed late (2026-07-24): it was the

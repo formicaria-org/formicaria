@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 95 of them are below**, grouped by what they are for. If you add an arm to
+**All 98 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -42,9 +42,12 @@ dispatch no longer has fails too.)
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
 | `capture`        | `body`, `vault`              | `ObjectMeta`           | creates a note |
-| `set_property`   | `id`, `key`, `value`         | —                      | writes one frontmatter field (see the table below) |
+| `set_property`   | `id`, `key`, `value`         | `{ previous }`         | writes one frontmatter field (see the table below), and answers the value it replaced (`null` if none), in the form it reads back — what undo sets again |
 | `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
-| `delete`         | `id`                         | —                      | unlinks the file and both index rows |
+| `delete`         | `id`                         | `DeletedNote`          | unlinks the file and both index rows, and answers the note's file and notebook so the UI's undo can put it back |
+| `restore_note`   | `vault`, `file`              | `ObjectMeta`           | put a deleted note back from its file; refused if a note with that id exists again |
+| `deleted_notes`  | `days` (default 30)          | `DeletedRow[]`         | read-only: notes deleted in the last `days`, read from each notebook's own history (git, or libgit2 on the phone), skipping ones that exist again |
+| `restore_deleted` | `vault`, `id`, `days`       | `ObjectMeta`           | bring back a note listed by `deleted_notes`, exactly as it was before it was deleted |
 | `create_paper`   | `input`, `vault`             | `ObjectMeta`           | a note from a pasted BibTeX entry, DOI, arXiv id, URL or bare title — parsed locally, never looked up online |
 | `paper_bibtex`   | `id`                         | `String`               | that note's frontmatter rendered back as a BibTeX entry |
 

@@ -694,8 +694,9 @@ The gray-screen fix and its tests are in
   so a Back that reaches the Activity finishes it and tao's event loop then calls
   `std::process::exit` — **but measured on the owner's phone 2026-07-31 it did not**: this frontend
   pushes history (`NotePanel` handles `onpopstate`), so the WebView had somewhere to go back to and
-  absorbed the key. Treat Back as *may* exit, depending on the page's history; the kills that always
-  happen are the swipe and the reclaim. The 500 ms save debounce and the 5 s auto-commit
+  absorbed the key. **Since 2026-10-09 every view and note opened pushes an entry**
+  (`nav.svelte.ts`), so Back exits only from the first screen; the save-lag concern applies there,
+  and to the swipe and the reclaim, which always happen. The 500 ms save debounce and the 5 s auto-commit
   are browser `setTimeout`s, so *the ordinary way of leaving the app* can skip both. Since 2026-07-31
   `pagehide`/`visibilitychange` flush them — **best-effort only**: a WebView is not guaranteed to
   deliver either event before the Activity is torn down, and nothing in wry/tauri wires Android's
@@ -1015,6 +1016,25 @@ Settings → Mail (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`). 
   conversations would be read and proposed afresh.
 - **Body over 12 000 characters**: only the tail is given to the model (the final arrangement is
   there). A meeting fixed only near the start of a very long exchange can be missed.
+
+## Undo, Recently deleted and Back — limits (2026-10-09)
+
+`undo.svelte.ts` (session stack), `deleted_notes`/`restore_deleted` (git history), `nav.svelte.ts`.
+
+- **Undo is per session and per device.** Closing the app empties it; a deletion is still in
+  Recently deleted, but a changed date or tag can then only be set back by hand.
+- **Recently deleted sees only what was saved to history.** A deletion from the last few seconds,
+  before the auto-save, is reachable through Undo; once the session ends before that save, the note
+  is gone. Rare, and the same window as any unsaved write.
+- **Not undoable:** proposals, getting their changes, backups, imports, merges, a reply in a
+  discussion, a copy to another notebook (it has its own Undo strip). The ↶ menu names only what it
+  can undo.
+- **A whiteboard's drawing** is undone by the whiteboard's own undo; the app's Ctrl+Z is
+  deliberately off inside it.
+- **Back and `tiled`**: Back re-focuses the window you came from; it does not re-open a window you
+  closed and then reopened elsewhere in the grid. In `single`, which is the default, it walks
+  exactly what you saw.
+- **Search typing is not history**: a search window is one place, however many queries you type.
 
 ## Deferred (intentionally not built yet)
 

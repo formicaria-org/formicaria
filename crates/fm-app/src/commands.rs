@@ -2623,3 +2623,83 @@ pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreE
     }
     Ok(out)
 }
+
+/// What `delete` hands back: enough to put the note back exactly where it was (`restore_note`).
+#[derive(Serialize)]
+pub struct DeletedNote {
+    pub id: String,
+    pub vault: String,
+    /// The note file as it was, serialised as the store writes it.
+    pub file: String,
+}
+
+/// [`delete`], answering what was deleted — the session undo's half of *a deleted note is never more
+/// than a list away* (`decisions.md` 2026-10-09). The text goes to the person who just deleted it, who
+/// had it on screen a moment ago; nothing new is kept anywhere.
+pub fn delete_keeping(store: &mut dyn Store, id: &str) -> Result<DeletedNote, StoreError> {
+    let parsed: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let obj = store.get(parsed)?.ok_or(StoreError::NotFound(parsed))?;
+    let file = fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+    store.delete(parsed)?;
+    Ok(DeletedNote { id: parsed.to_string(), vault: obj.vault, file })
+}
+
+/// [`set_property`], answering the value it replaced — `None` when there was none — in the form
+/// [`set_property`] reads back, so undoing is setting it again.
+pub fn set_property_answering(
+    store: &mut dyn Store,
+    id: &str,
+    key: &str,
+    value: &str,
+) -> Result<Option<String>, StoreError> {
+    let parsed: Id = id.parse().map_err(|_| StoreError::Parse(format!("invalid id: {id}")))?;
+    let before = store.get(parsed)?.ok_or(StoreError::NotFound(parsed))?.get(key);
+    set_property(store, id, key, value)?;
+    Ok((!before.is_null()).then(|| before.display()))
+}
+
+/// Put a deleted note back from its file. **Refuses if a note with that id exists**: it has already
+/// been brought back (here, or on another device), and writing over it would lose whatever happened
+/// to it since.
+pub fn restore_note(
+    store: &mut dyn Store,
+    vault: &str,
+    file: &str,
+) -> Result<ObjectMeta, StoreError> {
+    let mut obj =
+        fm_core::frontmatter::from_file(file).map_err(|e| StoreError::Parse(e.to_string()))?;
+    if store.get(obj.id)?.is_some() {
+        return Err(StoreError::Io("that note is already back — it exists in your notes".into()));
+    }
+    obj.vault = vault.to_string();
+    store.put(&obj)?;
+    Ok(ObjectMeta::from(&obj))
+}
+
+/// One row of *Recently deleted*.
+#[derive(Serialize)]
+pub struct DeletedRow {
+    pub id: String,
+    pub vault: String,
+    pub title: String,
+    pub author: String,
+    pub time: String,
+}
+
+/// The title a deleted file had, or its first line, for a list a person reads.
+pub fn deleted_title(file: &str) -> String {
+    match fm_core::frontmatter::from_file(file) {
+        Ok(o) => o
+            .title
+            .filter(|t| !t.trim().is_empty())
+            .or_else(|| {
+                o.body
+                    .lines()
+                    .map(|l| l.trim().trim_start_matches('#').trim())
+                    .find(|l| !l.is_empty())
+                    .map(|l| l.chars().take(72).collect())
+            })
+            .unwrap_or_else(|| "(untitled note)".into()),
+        Err(_) => "(a note that could not be read)".into(),
+    }
+}

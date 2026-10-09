@@ -8347,3 +8347,45 @@ an estimate of tokens (`TEXT_TOKENS` = 6500, a CJK character counted as one) and
 **What it costs.** Image reading (`/transcribe` on a photo) runs the projector on the CPU, which is
 slower, measured as starting fine but not timed. On a machine with no GPU, the larger KV cache costs
 about 0.9 GB more RAM.
+
+## 2026-10-09 — Back walks what you opened, and panels close first `#ui` `#track-m`
+
+**The ask.** On the phone, Back closed formicaria from anywhere, because moving between views and
+notes added nothing to the WebView's history. Tauri's `AppPlugin` (no JS back listener) does
+`canGoBack ? goBack : finish`, so an empty history meant exit (`known-issues.md`).
+
+**Decision.** Every navigation pushes **one history entry** carrying a snapshot of where you were:
+the pane and its target (`ui/src/lib/nav.svelte.ts`). `popstate` puts the snapshot back. Panels and
+menus are **layers**: opening one pushes an entry, and Back closes the topmost layer before it moves
+navigation. At the first screen there is nothing left, so Back leaves the app, as on any Android app
+(owner's choice).
+
+**Why the History API and not a Back listener.** A listener would make Back work on Android only.
+History gives the desktop browser's back button, the mouse's back button and iOS swipe-back the same
+behaviour (*same behaviour on every OS*), and it composes with the two entries `NotePanel` already
+pushes (full-screen board, editing). Where one of those is on top, a navigation **replaces** it
+instead of stacking, so its own `onDestroy` (which only pops its *own* token) does not pop the new
+entry.
+
+## 2026-10-09 — undo is a session stack of the app's own writes, and a deleted note is never more than a list away `#ui` `#data`
+
+**The ask.** Ctrl+Z for more than text: a note deleted by mistake, a date, a tag, a card moved on
+the board. On a phone, in a menu, with no pop-up bar (owner's choice).
+
+**Decision, in two layers:**
+1. **A session undo stack** in the UI (`ui/src/lib/undo.svelte.ts`, 50 entries, redo cleared by a new
+   action). Each undoable write records how to reverse itself, using what the backend now answers:
+   - `delete` answers the note's full text;
+   - `set_property` answers the value it replaced;
+   - a new `restore_note` writes a deleted note back, and **refuses if that id exists again**.
+
+   Undoing a property refuses if the value has changed since. Undoing text uses the existing
+   lost-update guard. Ctrl+Z / Ctrl+Shift+Z apply **outside** text fields and the whiteboard, which
+   keep their own undo.
+2. **"Recently deleted"**, read from the notebook's own history (`deleted_notes`,
+   `restore_deleted`, on git and on libgit2 for the phone). It survives a restart and reaches a
+   deletion made on another device. *No data loss, always a way back*: the confirm strip no longer
+   says "can't be undone", because it no longer is.
+
+**Out of scope, on purpose.** Proposals, getting their changes, backups, imports and merges are
+git-level acts with their own way back. The undo menu names only what it can actually undo.

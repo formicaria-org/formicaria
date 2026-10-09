@@ -19,7 +19,9 @@ export type Command =
   | 'newView'
   | 'focusSearch'
   | 'closePane'
-  | 'backup';
+  | 'backup'
+  | 'undo'
+  | 'redo';
 
 export interface Binding {
   /** `KeyboardEvent.key`, lower-cased for letters. Empty string = unbound. Kept for display,
@@ -44,6 +46,8 @@ export const LABELS: Record<Command, string> = {
   focusSearch: 'Search',
   closePane: 'Close this view',
   backup: 'Back up',
+  undo: 'Undo',
+  redo: 'Redo',
 };
 
 /// **Commands that still fire while you are typing.**
@@ -98,6 +102,10 @@ export const DEFAULTS: Record<Command, Binding> = {
   newView: { key: '' },
   closePane: { key: '' },
   backup: { key: '' },
+  // Outside text fields and the whiteboard only: those keep their own undo (`decisions.md`
+  // 2026-10-09). Not in `WHILE_TYPING` for exactly that reason.
+  undo: { key: 'z', mod: true },
+  redo: { key: 'z', mod: true, shift: true },
 };
 
 /** Is this binding one the browser will take before the page sees it? */

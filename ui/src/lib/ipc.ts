@@ -196,8 +196,10 @@ export const assetBatches = (vault = '', budget = 16_000_000) =>
 // `vault` is the audience the new note joins — empty means the default vault, an
 // unknown name is refused server-side (the create-side twin of `ingestFile`).
 export const capture = (body: string, vault = '') => invoke<ObjectMeta>('capture', { body, vault });
+/** Answers the value it replaced (`null` when there was none), in the form `setProperty` reads back —
+ *  which is what lets undo set it again. */
 export const setProperty = (id: string, key: string, value: string) =>
-  invoke<void>('set_property', { id, key, value });
+  invoke<{ previous: string | null } | undefined>('set_property', { id, key, value });
 // `base` is the **`version`** — the content hash of the body you last saw (`ObjectMeta.version`),
 // *not* the `updated` stamp. The new one comes back, and you hold it for the next write. That
 // round trip is the **lost-update guard**: an editor open across someone else's pull would
@@ -212,7 +214,19 @@ export const updateBody = (id: string, body: string, base = '') =>
   invoke<string>('update_body', { id, body, base });
 // Destructive: unlink the note's file + index rows. Named `deleteNote` because
 // `delete` is a reserved word; the wire command is still `delete`.
-export const deleteNote = (id: string) => invoke<void>('delete', { id });
+//
+// Answers what was deleted — the note's file and its notebook — so undo can put it back with
+// `restoreNote`. The text goes only to the person who just deleted it.
+export type DeletedNote = { id: string; vault: string; file: string };
+export const deleteNote = (id: string) => invoke<DeletedNote>('delete', { id });
+/** Put a deleted note back. Refused if a note with that id exists again. */
+export const restoreNote = (vault: string, file: string) =>
+  invoke<ObjectMeta>('restore_note', { vault, file });
+/** One row of *Recently deleted*, read from the notebook's own history. */
+export type DeletedRow = { id: string; vault: string; title: string; author: string; time: string };
+export const deletedNotes = (days = 30) => invoke<DeletedRow[]>('deleted_notes', { days });
+export const restoreDeleted = (vault: string, id: string, days = 30) =>
+  invoke<ObjectMeta>('restore_deleted', { vault, id, days });
 export const search = (query: string) => invoke<ObjectMeta[]>('search', { query });
 export const recent = () => invoke<ObjectMeta[]>('recent');
 // The collaboration read-model: who last edited each note, and when, from each vault's git log,

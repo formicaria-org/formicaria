@@ -67,6 +67,30 @@ plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render i
 the read view). Nothing is ever rewritten behind your back — the file round-trips
 byte-for-byte.
 
+## Undo, and getting back a deleted note
+
+The **↶** button (beside Settings, or in the bottom bar on a phone) opens a small menu:
+
+- **Undo** names the last thing you did, for example *deleted "Lab meeting"*,
+  *changed the due date of "Lab meeting"*, *moved a card to "doing"*, *edits to "Lab meeting"* or
+  *created a note*. Choose it to undo that. On a computer, **Ctrl+Z** does the same and
+  **Ctrl+Shift+Z** redoes. Inside a text field or a whiteboard, those keys undo your typing or
+  drawing instead, as usual.
+- **Redo** puts back what you just undid.
+- **Recently deleted…** lists the notes deleted in the last 30 days, on this device or another one
+  that shares the notebook, even after formicaria was closed. **Bring back** restores a note
+  exactly as it was.
+
+Undo never overwrites a change made after it. If the date you want to undo was changed again since,
+on this device or another, formicaria says so and leaves it as it is.
+
+## Going back
+
+The **Back** button goes to the view or note you were on before. On a phone that is the Back key
+or gesture; on a computer it is the browser's Back button. If a menu or panel is open, Back closes it
+first. If you are editing a note, Back stops editing and then takes you back. From the first screen,
+Back closes the app, as usual on Android.
+
 ## Ticking things off
 
 A task list — `- [ ] milk` — renders with a real checkbox in the read view, and you can **tap it

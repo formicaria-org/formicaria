@@ -321,13 +321,20 @@ describe('v2: property editing, timeline, delete', () => {
     // the confirmation — the panel is still open.
     await fireEvent.click(await screen.findByLabelText('note options'));
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
-    await screen.findByText(/permanently/i);
+    await screen.findByText(/You can undo this/i);
     expect(screen.queryByLabelText('note body (Markdown)')).not.toBeNull();
 
     // Clicking the menu item closed the menu, so the only remaining "Delete" is the
     // confirm strip's — this targets the second, final click.
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByLabelText('note body (Markdown)')).toBeNull());
+
+    // **And it is not gone** (2026-10-09): the ↶ menu names it and Undo puts it back.
+    await fireEvent.click(screen.getByLabelText('undo'));
+    const item = await screen.findByRole('menuitem', { name: /Undo deleted/ });
+    await fireEvent.click(item);
+    await fireEvent.click(screen.getByLabelText('undo'));
+    expect(await screen.findByRole('menuitem', { name: /Redo deleted/ })).toBeTruthy();
   });
 
   // Leaving the editor is an intuitive gesture, not a hunt for a "Done" button: clicking the

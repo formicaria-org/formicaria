@@ -3,7 +3,6 @@
   import {
     getNote,
     updateBody,
-    setProperty,
     deleteNote,
     copyNote,
     copyStatus,
@@ -37,6 +36,7 @@
   import { clickOutside } from './clickOutside';
   import { popup, type Box } from './popup';
   import { noteName } from './noteName';
+  import { deleteUndoable, recordTextEdit, setPropertyUndoable } from './undo.svelte';
   import { parseStamp, toStamp } from './stamp';
   import { caretXY } from './caret';
   import { KEYBOARD_EVENT } from './keyboard';
@@ -1298,7 +1298,7 @@
   async function renameDiscussion(title: string) {
     if (!note) return;
     try {
-      await setProperty(note.id, 'title', title);
+      await setPropertyUndoable(note.id, 'title', title, `renamed “${noteName(note)}”`);
       note = { ...note, title: title || null };
       onsaved?.();
     } catch (e) {
@@ -1484,12 +1484,31 @@
     }
   }
 
+  /** A property's name as a person says it, for the undo menu's label. */
+  function propWord(key: string): string {
+    const words: Record<string, string> = {
+      status: 'the status',
+      due: 'the due date',
+      start: 'the start',
+      tags: 'the tags',
+      title: 'the title',
+      location: 'the place',
+      hard: 'the deadline kind',
+    };
+    return words[key] ?? `“${key}”`;
+  }
+
   // Write one property via the existing set_property command, then reflect it in
   // the local note so the header/pills update without a refetch.
   async function setProp(key: string, value: string) {
     if (!note) return;
     try {
-      await setProperty(note.id, key, value);
+      await setPropertyUndoable(
+        note.id,
+        key,
+        value,
+        `changed ${propWord(key)} of “${noteName(note)}”`,
+      );
       applyLocal(key, value);
       if (key === 'title' && note) ontitle?.(noteName({ ...note, title: value || null }));
       onsaved?.();
@@ -1580,9 +1599,17 @@
   // back only while it is still on top, never popping someone else's.
   const editToken = `edit-${Math.random().toString(36).slice(2)}`;
   let editHistory = false;
+  // The text as it was when editing began — one finished session is one undoable step.
+  let editStart: string | null = null;
   $effect(() => {
     const on = editing;
     untrack(() => {
+      if (on && editStart === null && note && !isBoard) editStart = note.body;
+      if (!on && editStart !== null) {
+        if (note && editStart !== draft)
+          recordTextEdit(note.id, noteName(note) ?? 'a note', editStart, draft);
+        editStart = null;
+      }
       if (on && !editHistory) {
         try {
           history.pushState({ fmEditing: editToken }, '');
@@ -1763,7 +1790,7 @@
   async function confirmDelete() {
     if (!note) return;
     try {
-      await deleteNote(note.id);
+      await deleteUndoable(note.id, noteName(note) ?? 'a note');
       onsaved?.();
       onclose();
     } catch (e) {
@@ -2359,7 +2386,10 @@
   </header>
   {#if confirmingDelete}
     <div class="confirm" role="alertdialog" aria-label="confirm delete">
-      <span>Delete this note permanently? This can't be undone.</span>
+      <span
+        >Delete this note? You can undo this from the ↶ menu, or bring it back later from Recently
+        deleted.</span
+      >
       <div class="confirm-actions">
         <button class="edit" onclick={() => (confirmingDelete = false)}>Cancel</button>
         <button class="edit danger solid" onclick={confirmDelete}>Delete</button>
