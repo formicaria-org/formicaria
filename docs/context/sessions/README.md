@@ -33,5 +33,5 @@ of what was believed, not a licence to publish someone's hardware serial.
 
 ## Range
 
-`2026-07-15` through `2026-08-29`. The log stops before the last week of decisions; that gap is
-real, and `decisions.md` — which runs to the present — is the place that does not have it.
+`2026-07-15` through `2026-08-29`, then `2026-10-09`. September has no narrative; that gap is real,
+and `decisions.md`, which runs to the present, is the place that does not have it.

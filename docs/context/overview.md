@@ -23,6 +23,8 @@ grep `decisions.md` for that subject tag — its index is at the top of the file
 | The **study assistant / agent** (`fm-agent*`, models, first enable, per-OS support) | **`decisions.md#agent`** — every current ruling, with "read before" guards on `unavailable()`, `SystemMonitor::sample`, `die_with_supervisor`, the launch path and `models.toml`'s runtime keys · `model-selection-research-2026-07-24-grounded.md` (choosing a model) · *(superseded by its own delivery: `archive/ai-agents-plan-superseded-2026-09-02.md`)* |
 | **Audio transcription** (`transcribe`, whisper) | `audio-asr-research-2026-07-23.md`; `sessions/2026-07-24-proposals-on-the-phone.md` |
 | **Changing the model behind image→text or voice→text** — before you assume the general VLM is the right engine | `transcription-specialists-grounded-2026-08-31.md` — what our two devices could actually run (sizes, gate arithmetic, runtime support), and it corrects a falsified premise in `outstanding.md` §2.4. Its unconstrained field survey is `transcription-specialists-survey-2026-08-31.md`. Neither makes a pick |
+| **Calendars, Gmail, the meeting pass** (`calendar.rs`/`mail.rs` in `fm-serve`, `fm_core::{calendar,recur,mail}`, `fm_agent::meetings`) | `decisions.md#agent` (2026-10-09 entries: read-only by scope, secrets per machine, model points/Rust dates) · `known-issues.md` (their limits) · `outstanding.md` §2.16 |
+| **Undo, Recently deleted, Back** (`undo.svelte.ts`, `nav.svelte.ts`, `LAYERS` in `App.svelte`) | `decisions.md#ui` (2026-10-09: Back, undo, the menu-entry refinement) — a panel must join `LAYERS`, a write meant to be undoable goes through `undo.svelte.ts` |
 | **Model sizing / device RAM / per-component footprint** | `device-resources.md` (measured numbers, not guesses) |
 | **Who may see which vault** (`Scope`, `Scoped`, the share/pairing gate, a new read path) | `decisions.md#vault` — the enforcement points are not obvious and one of them is `Vaults::config` |
 | **Adding** to what ships — a dependency, a file in the release archive, a relaxed guard, a changed default | [`../../CLAUDE.md`](../../CLAUDE.md)'s four questions, then the subject the addition touches. Nothing here checks a change against a prior ruling, so this one is on you |
@@ -182,20 +184,11 @@ surface:
   why a `Stamp` and not a `Date`/`DateTime` pair.
 - **Timeline** — Logseq-style journal by creation day
 - **Search** — FTS5 (also indexes extracted PDF text)
-- **Board notes (whiteboard)** — a note with `view: board` whose body is an
-  **Excalidraw** scene (JSON). `NotePanel` renders the canvas (`Whiteboard.svelte`,
-  which lazily imports Excalidraw/React — a separate ~744 KB-gz chunk, loaded only
-  when a board opens). "New board" is both a command-palette entry and a sidebar
-  button. No new `Kind`, no backend change — files-as-truth via the `.excalidraw`
-  JSON. A board is **treated exactly like a note**: its header Edit button opens a
-  **"Details"** panel with the same props editor (Status/Start/Due/Hard/Title/Tags)
-  above the live canvas, so a dated board shows up in Agenda/Calendar and a
-  statused board groups on the Board — it's a first-class note that happens to draw.
-  **No new `Kind` and no new file type**: the scene JSON is the body of the note's own
-  `<ulid>.md`. The one backend addition is `fm-core/src/scene.rs` — an element-level 3-way
-  merge, so two people drawing at once get both their shapes instead of a mangled scene.
-  It runs under the existing `*.md merge=fm` driver; there is no `.excalidraw` file and no
-  second driver.
+- **Board notes (whiteboard)** — a note with `view: board` whose body is an **Excalidraw** scene
+  (JSON), drawn by `Whiteboard.svelte` (Excalidraw lazy-loaded as its own chunk). It is treated
+  exactly like a note (Details, dates, tags, Agenda, Board). **No new `Kind`, no new file type**:
+  the scene is the body of the note's own `<ulid>.md`, merged element by element by
+  `fm-core/src/scene.rs` under the existing `*.md merge=fm` driver.
 
 There is **no user-facing note "type"** (meeting/task/note): everything is a
 **note**, differentiated by **tags**. The only surviving `Kind` distinction is

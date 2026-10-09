@@ -69,5 +69,9 @@ afterwards is how a project stops being what it said it was, one reasonable step
   Publishing is the owner's local step. *(This constraint holds for every repo on
   the owner's machine; the durable home is the global `~/.claude/CLAUDE.md`, which a
   remote session cannot edit — so it is restated here per-repo.)*
+- **Test on the phone before tagging a release** (owner's requirement since v0.6.2 broke window
+  switching on the phone). Local signing may be unavailable; the route that always works is
+  `release.yml` run by hand on `main` → its signed `android-apk` artifact → check the certificate →
+  `adb install -r` by cable. Details: `docs/context/known-issues.md`, *Signing a phone build locally*.
 - In this environment, shell commands need `dangerouslyDisableSandbox: true`
   (sandboxed Bash hits a seccomp/`setgroups` error).
