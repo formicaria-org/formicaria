@@ -111,14 +111,10 @@ pub fn app_dir() -> Option<std::path::PathBuf> {
 /// **A reason, never a bool** — the house rule from *the assistant asks the machine, not a list of
 /// operating systems*: a capability that answers "no" without saying why is the commonest source of
 /// "why is this greyed out", and here every "no" has a different remedy.
+/// Why this copy cannot check, if it cannot. **A build with no version can** (2026-10-09), the same as
+/// on the phone: it is offered the latest release. Whether it can *install* is `cannot_install`'s
+/// question, and a copy run from source still cannot — it is not a downloaded folder.
 pub fn cannot_check() -> Option<String> {
-    if Version::running().is_none() {
-        return Some(
-            "This copy was built from source rather than downloaded, so it has no version to \
-             compare. Updates are for the downloaded app."
-                .into(),
-        );
-    }
     if target().is_none() {
         return Some(
             "There is no download published for this kind of computer, so this copy cannot update \
@@ -1524,12 +1520,22 @@ mod tests {
         }
     }
 
-    /// This test binary has no `FM_VERSION`, so it *is* the `dev` case — the refusal that keeps a
-    /// source build from comparing itself against a release tag.
+    /// This test binary has no `FM_VERSION` and is not a downloaded folder — a source build. Since
+    /// 2026-10-09 it may **check** (it is behind every release, so it is told one exists), but it still
+    /// cannot **install** itself, and it says why rather than offering a button that fails.
     #[test]
-    fn a_source_build_refuses_both_and_says_why() {
-        let why = cannot_check().expect("a build with no FM_VERSION must refuse");
-        assert!(why.contains("built from source"), "the reason must be actionable: {why}");
+    fn a_source_build_may_check_but_cannot_install_and_says_why() {
+        if target().is_some() {
+            assert!(
+                cannot_check().is_none(),
+                "a build with no version may still ask what is published"
+            );
+        }
+        let why = cannot_install().expect("a source build cannot replace itself");
+        assert!(
+            why.contains("downloaded formicaria folder") || why.contains("no download published"),
+            "the reason must be actionable: {why}"
+        );
     }
 
     /// Refused rather than normalised: `..` is how a path that looks local reaches the vault.

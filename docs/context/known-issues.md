@@ -1055,7 +1055,8 @@ signed update without an uninstall, which would wipe the app's data.
 - **Meanwhile, to test on the phone before a release:** run `release.yml` by hand on `main`. It
   builds and signs with the official key, publishes nothing, and leaves an `android-apk` artifact.
   Download that, then install it by cable with `adb install -r` after checking the certificate
-  against `android/signing-certificate.sha256`. Used for v0.6.3.
+  against `android/signing-certificate.sha256`. Used for v0.6.3. Since 2026-10-09 such a test build can update itself
+  back to the published release from Settings (*Check now*); before, its `dev-<sha>` version hid it.
 
 ## Deferred (intentionally not built yet)
 

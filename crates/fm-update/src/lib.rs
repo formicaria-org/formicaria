@@ -22,11 +22,14 @@ use std::path::Path;
 /// **Hand-parsed, and deliberately so.** It is three integers, and the house stance is to add a
 /// dependency only when it solves a problem whole.
 ///
-/// **A build that is not a release has no version and must not be compared.** The crates are all
-/// `0.0.0`; the real version arrives through `option_env!("FM_VERSION")` and falls back to `dev`, and a
-/// hand-fired build on a branch is stamped `dev-<sha>`. Comparing either against `v0.6.0` is
-/// meaningless, so [`Version::parse`] answers `None` and every caller treats that as "this copy cannot
-/// update itself", never as "you are out of date".
+/// **A build that is not a release has no version.** The crates are all `0.0.0`; the real version
+/// arrives through `option_env!("FM_VERSION")` and falls back to `dev`, and a hand-fired build on a
+/// branch is stamped `dev-<sha>`, so [`Version::parse`] answers `None` for it.
+///
+/// Until 2026-10-09 every caller read that as "this copy cannot update itself". It now reads it as
+/// **"behind every release"** ([`newer_than`]): a test build put on a phone by cable must be able to
+/// get back onto the published release from Settings, without a cable (`decisions.md` 2026-10-09,
+/// *a build with no version can always return to the latest release*).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Version {
     major: u32,
@@ -391,11 +394,15 @@ pub fn ask() -> Result<String, String> {
 }
 
 /// Is `v` newer than what is running, and not the version this person already went back from?
-///
-/// `false` when this build has no version at all — the `dev` refusal, applied at the one place that
-/// decides whether anything is offered.
 pub fn is_newer(v: &Version, rejected: Option<&str>) -> bool {
-    if !Version::running().is_some_and(|cur| *v > cur) {
+    newer_than(v, Version::running(), rejected)
+}
+
+/// [`is_newer`] with the running version passed in, so both cases can be tested. **A build with no
+/// version is behind every release**: a test build or a source build is offered the latest release,
+/// which is how a phone that took a test build by cable gets back in line from Settings.
+pub fn newer_than(v: &Version, running: Option<Version>, rejected: Option<&str>) -> bool {
+    if running.is_some_and(|cur| *v <= cur) {
         return false;
     }
     rejected.and_then(Version::parse) != Some(*v)
@@ -590,11 +597,25 @@ mod tests {
     /// A version already turned down is not offered again; any other newer version still is.
     #[test]
     fn a_rejected_version_is_not_offered_again() {
-        // Under `cargo test` there is no FM_VERSION, so nothing is newer than this build — the `dev`
-        // refusal — and a rejection can only ever narrow that further.
         let v = Version::parse("v99.0.0").unwrap();
         assert!(!is_newer(&v, Some("v99.0.0")));
-        assert_eq!(is_newer(&v, None), Version::running().is_some());
+        assert!(!newer_than(&v, None, Some("v99.0.0")));
+    }
+
+    /// **A build with no version can always get back to the release** (2026-10-09). A test build put on
+    /// the phone by cable hid *Check now*, and the owner could not return to the published version
+    /// from Settings.
+    #[test]
+    fn a_build_with_no_version_is_offered_the_latest_release() {
+        let latest = Version::parse("v0.6.3").unwrap();
+        assert!(newer_than(&latest, None, None), "a test or source build is behind every release");
+        let cur = Version::parse("v0.6.3");
+        assert!(!newer_than(&latest, cur, None), "a release is not offered itself");
+        assert!(newer_than(&Version::parse("v0.6.4").unwrap(), cur, None));
+        assert!(
+            !newer_than(&Version::parse("v0.6.2").unwrap(), cur, None),
+            "never offered an older one"
+        );
     }
 
     /// **The downgrade promise, as a test.** `update.json` must stay readable by an older version,

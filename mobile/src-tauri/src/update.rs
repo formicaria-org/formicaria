@@ -57,14 +57,9 @@ fn apk_version(cache: &Path) -> PathBuf {
 }
 
 /// Why this copy cannot look for a newer version, or `None`. A reason, never a bool.
+/// Why this copy cannot check, if it cannot. **A build with no version can** (2026-10-09): it is
+/// offered the latest release, so a test build put on by cable can get back in line from Settings.
 fn cannot_check() -> Option<String> {
-    if Version::running().is_none() {
-        return Some(
-            "This copy was built from source rather than installed from a release, so it has no \
-             version to compare."
-                .into(),
-        );
-    }
     if fm_update::target().is_none() {
         return Some("There is no download published for this kind of phone.".into());
     }

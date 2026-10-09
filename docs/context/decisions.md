@@ -8411,3 +8411,24 @@ checked right after the click, before that step arrived, and passed.
 **The test lesson.** The window-list test now waits out the history step and checks the switch
 held, then that Back returns from it. Shown to fail on v0.6.2's code. Any test of something that
 goes through history must wait for `popstate` before it asserts.
+
+## 2026-10-09 — a build with no version can always return to the latest release `#toolchain` `#track-m`
+
+> Reverses the `dev` refusal documented in `fm-update` ("a build that is not a release must never be
+> told it is out of date, and must never update itself"). It was a code rule, not a decisions entry,
+> but it is a changed default, so it is recorded here.
+
+**What prompted it.** A test build installed on the phone by cable (`dev-9aad0ec`, signed with the
+real key) hid **Check now**: "This copy was built from source… no version to compare." The owner
+could not get back onto the published release from Settings: *"I should always be able to update
+from there to align to the GitHub latest."*
+
+**Decision.** A build with no release version is **behind every release**
+(`fm_update::newer_than`). It is offered the latest one, and a version the person went back from
+is still never offered again. `cannot_check` no longer refuses such a build, on the phone or the
+desktop (same behaviour on every OS).
+
+**What stays.** Installing is still `cannot_install`'s question. A copy run from source on a
+computer is not a downloaded folder, so it is told a release exists and why it cannot install it
+there. The phone hands the APK to Android's installer, which refuses anything not signed with the
+same key, so a test build from `release.yml` updates in place.
