@@ -833,6 +833,66 @@ launches or syncs on a physical iPhone."*
 
 ---
 
+### 2.15 "What's on" — the parser landed; everything that uses it has not (2026-09-12)
+
+The approved plan is a checked digest of events in your city: **the events go in deterministically and
+only the summary is written by a model** (`decisions.md`, *a city digest is two halves*). What exists
+after 2026-09-12 is the bottom of it — `fm_core::events`, pure, 28 tests, reading iCalendar, RSS/Atom
+and `schema.org/Event` JSON-LD, with both load-bearing guards proven to discriminate by deleting them
+and re-running. Its limits are in `known-issues.md`.
+
+What is **not** built, roughly in the order it should be:
+
+1. **Fetch**, through `fm-fetch` (which already has `ureq` + rustls, and is already agent-free). No
+   HTTP client may enter `fm-core` or `fm-app`.
+2. **The fetch policy** — *a subscription is not a crawl* (`decisions.md`): a source the user added is
+   fetched once per interval, conditionally (`ETag`/`Last-Modified`), under an honest `User-Agent`,
+   without consulting `robots.txt`; a link the app discovered obeys `robots.txt`; and the sites whose
+   terms ban automated access are refused **by name** (Resident Advisor, Dice.fm, Eventbrite,
+   Facebook/Instagram) with a plain sentence and no override.
+3. **The provenance gate — the primary check, ahead of grounding.** An event's own link must share a
+   host with the source that carried it. The Dublin case is why (`decisions.md`), and the test for it
+   must fail when the check is removed.
+4. **Freshness and dedup** — past events not written; `cancelled` marks a note and never deletes one;
+   two-stage dedup (block on day + venue, then fuzzy-match titles), `UID` preferred over any heuristic.
+5. **`events_pull`**, a dispatch arm beside `ingest`/`import`, host-only, **not** on `READ_ONLY` so the
+   `ping` generation bumps. Idempotence is Track S #2's: key on `ics_uid`, store `ics_seq`, rewrite
+   times only on a `SEQUENCE` bump, **never touch the body**.
+6. **The places you check are a note** tagged `events-source` (`decisions.md`) — not a config file.
+7. **The once-a-day check**, shaped exactly like `update.rs::check_in_background`: one shot a few
+   seconds after start, never on panel open, failure silent, driven by a stored `last_checked` rather
+   than a timer. There is no daemon available and that is a ruling, not a gap.
+8. **The optional Ticketmaster key** (`decisions.md`) — `secrets.rs`, `0600`, `REMOTE_DENIED`, and the
+   surface must work and state what a key would add rather than offer a switch that fails.
+9. **The digest itself**: parsed records rendered as flat keyed text into the model, output through
+   `grounding::verify` unchanged, landing as a **proposal** into a host note — `VaultAccess` has no
+   create-note verb, which is a constraint, not an oversight. Needs the `Provenance.source_key`
+   rename (`decisions.md`).
+10. **A "What's on" panel**, plus a manual chapter. Remember the standing rules: plain words
+    (`ci/plain-words.py`), popups wholly on screen, and **it has not been seen in a browser** (§1.1).
+
+**Track S #2 in `plan.md` is this work's other half** and now carries a `SUPERSEDED IN PART` banner:
+its `curl` clause and CLI-first surface are reversed, everything else stands.
+
+### 2.16 Mail → tasks and meetings — Phase 1 landed; Phases 2–4 have not (2026-10-09)
+
+The approved plan (`decisions.md` 2026-10-09, *mail and your own calendars become notes on their
+own*): read-only access, deterministic where the source is structured, the on-device model only for
+prose, and the person's only act is answering a proposal. **Phase 1 is built**: your own calendar's
+private iCal address → `fm-serve/src/calendar.rs` (fetch, `0600` secret file, hourly background read,
+`REMOTE_DENIED`) → the `calendar_sync` command → `fm_core::calendar::reconcile` (pure). Settings →
+Calendars is the surface; repeating meetings are expanded (`fm_core::recur`). **Phase 2 is built too**: Gmail read-only (`fm-serve/src/mail.rs`, `fm_core::mail`, `mail_sync`), Settings → Mail, the person's own Google client; each conversation note holds the whole exchange. **Neither yet seen against a real Gmail. Not yet seen against a real Google feed in a browser.**
+
+Next, in order:
+1. **Run Phase 1 for real** — paste the owner's Google secret address, move a meeting in Google
+   Calendar, watch the note move. Google's feed can lag hours behind the web UI.
+2. **Meetings from prose** (Phase 3) — **built 2026-10-09, not yet run against the real model**:
+   `fm_agent::meetings` + `fm-agent-run/src/meetings.rs` (meetings only, by the owner's narrowing).
+   Next: run it on the owner's real conversations with qwen3-vl-4b and measure what it misses or
+   misreads. Recaps were dropped from scope with tasks.
+3. **Outlook** (Phase 4): Graph `Mail.Read`; the NUS tenant may refuse consent, so `.eml`/`.ics` drop
+   is the fallback.
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.

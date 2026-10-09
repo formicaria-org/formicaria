@@ -1145,3 +1145,81 @@ export const deleteTheme = (name: string, vault = '') =>
   invoke<ThemeInfo[]>('delete_theme', { name, vault });
 /** Run one saved view by name — the query is defined server-side; we send only the name. */
 export const runView = (name: string) => invoke<ViewResult>('run_view', { name });
+
+/** One of your own calendars, as this machine reads it. **The address is never sent back** — it is a
+ *  secret (anyone holding it reads the whole calendar), so the server returns only its `host`.
+ *  `last` is the outcome of the most recent read: the counts, or an `error`. */
+export type CalendarFeed = {
+  label: string;
+  host: string;
+  vault: string;
+  last: {
+    at: number;
+    error?: string;
+    created?: number;
+    moved?: number;
+    cancelled?: number;
+    unchanged?: number;
+    past?: number;
+    undated?: number;
+    noId?: number;
+    repeating?: number;
+    series?: number;
+  } | null;
+};
+
+export type Calendars = {
+  offset: string;
+  lastChecked: number;
+  pulling: boolean;
+  feeds: CalendarFeed[];
+};
+
+/** Your calendars and how each last read went. Desktop only: the addresses live on this computer. */
+export const calendars = () => invoke<Calendars>('calendars');
+/** Add a calendar by its private address (Google: *Settings → Integrate calendar → Secret address in
+ *  iCal format*). Write-only from here: nothing ever reads the address back. */
+export const calendarAdd = (label: string, url: string, vault: string) =>
+  invoke<Calendars>('calendar_add', { label, url, vault });
+export const calendarRemove = (label: string) => invoke<Calendars>('calendar_remove', { label });
+/** The wall clock meetings are shown in, as an offset such as `+08:00`. */
+export const calendarOffset = (offset: string) => invoke<Calendars>('calendar_offset', { offset });
+/** Read every calendar now rather than at the next hourly check. */
+export const calendarReadNow = () => invoke<Calendars>('calendar_pull');
+
+/** Gmail, read-only, as this computer reads it. Never carries the token or the client secret. */
+export type MailStatus = {
+  configured: boolean;
+  connected: boolean;
+  email: string;
+  label: string;
+  since: string;
+  vault: string;
+  read: number;
+  lastChecked: number;
+  reading: boolean;
+  last: {
+    at: number;
+    error?: string;
+    messages?: number;
+    waiting?: number;
+    newConversations?: number;
+    updatedConversations?: number;
+    invites?: { created: number; moved: number; cancelled: number };
+  } | null;
+};
+
+export const mailStatus = () => invoke<MailStatus>('mail_status');
+/** Save the Google Cloud client, and which mail to read: a label, since a date, into a notebook.
+ *  An empty id or secret keeps the one already saved. */
+export const mailSetup = (s: {
+  clientId: string;
+  clientSecret: string;
+  label: string;
+  since: string;
+  vault: string;
+}) => invoke<MailStatus>('mail_setup', s);
+/** Start the Google sign-in: answers the address of Google's consent page. */
+export const mailConnect = (origin: string) => invoke<{ url: string }>('mail_connect', { origin });
+export const mailReadNow = () => invoke<MailStatus>('mail_read_now');
+export const mailDisconnect = () => invoke<MailStatus>('mail_disconnect');

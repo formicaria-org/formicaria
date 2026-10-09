@@ -2187,6 +2187,41 @@ if grep -rniE 'right.?click.{0,40}(and choose|then|->|→).{0,10}\*{0,2}open'   
     fail=1
 fi
 
+# Mail is read-only by scope, and this keeps the code from widening it (`decisions.md` 2026-10-09).
+# Every Google address in the Gmail transport must be one of the five a read-only reader needs, the
+# only scope must be `gmail.readonly`, and the only verbs are GET (Gmail) and POST (sign-in only).
+# Verified to fire: adding `https://gmail.googleapis.com/gmail/v1/users/me/messages/send`, a second
+# scope, or a "DELETE" literal each fails this.
+echo "[check] the Gmail reader can only read..."
+mail_rs=crates/fm-serve/src/mail.rs
+if [ -f "$mail_rs" ]; then
+    stray=$(grep -oE 'https://[a-z0-9.-]*google(apis)?\.com[^" ]*' "$mail_rs" | sort -u | grep -vxE \
+        'https://www\.googleapis\.com/auth/gmail\.readonly|https://accounts\.google\.com/o/oauth2/v2/auth|https://oauth2\.googleapis\.com/token|https://oauth2\.googleapis\.com/revoke|https://gmail\.googleapis\.com/gmail/v1/users/me')
+    if [ -n "$stray" ]; then
+        echo "  FAIL: the Gmail reader names a Google address outside the read-only set:"
+        echo "$stray" | sed 's/^/        /'
+        fail=1
+    fi
+    if grep -nE 'auth/(gmail\.(modify|send|compose|insert|labels|metadata|settings)|mail\.google\.com)' "$mail_rs" >/dev/null; then
+        echo "  FAIL: the Gmail reader names a scope other than gmail.readonly."
+        fail=1
+    fi
+    if grep -nE '"(PUT|PATCH|DELETE)"' "$mail_rs" >/dev/null; then
+        echo "  FAIL: the Gmail reader uses a writing HTTP verb."
+        fail=1
+    fi
+    # Layout-proof: whitespace removed, so a call the formatter split over lines still counts. One
+    # `"POST"` literal (inside `post_form`), and every `post_form(` call aims at token or revoke.
+    flat=$(tr -d ' \n' < "$mail_rs")
+    posts=$(printf '%s' "$flat" | grep -oE '"POST"' | wc -l)
+    calls=$(printf '%s' "$flat" | grep -oE '[^n]post_form\(' | wc -l)
+    allowed=$(printf '%s' "$flat" | grep -oE 'post_form\((TOKEN_URL|REVOKE_URL)' | wc -l)
+    if [ "$posts" -ne 1 ] || [ "$calls" -ne "$allowed" ]; then
+        echo "  FAIL: the Gmail reader POSTs somewhere other than Google's sign-in token/revoke endpoints."
+        fail=1
+    fi
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

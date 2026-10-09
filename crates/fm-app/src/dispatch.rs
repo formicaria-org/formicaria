@@ -506,6 +506,7 @@ fn notes_rel_of(root: &std::path::Path) -> String {
 /// `open_external`/`open_skipped` hand a file to another program and change nothing here; if
 /// that program then edits the note, the drift check is what catches it.
 const READ_ONLY: &[&str] = &[
+    "mail_conversations",
     "board",
     "gallery",
     "agenda",
@@ -1166,12 +1167,12 @@ fn dispatch_inner(
             let id = s("id");
             let mut g = lock()?;
             let note_id = id.parse().map_err(|_| format!("invalid id: {id}"))?;
-            let vault_name = g
-                .store(scope)
-                .get(note_id)
-                .map_err(err)?
-                .ok_or_else(|| format!("no such note: {id}"))?
-                .vault;
+            // A proposed *new* note is not on `main` yet; its proposal says which vault it is in.
+            let vault_name = match g.store(scope).get(note_id).map_err(err)? {
+                Some(o) => o.vault,
+                None => commands::vault_of_proposed(&g.store(scope), note_id)
+                    .ok_or_else(|| format!("no such note: {id}"))?,
+            };
             let cfg = g.config(scope, &vault_name)?;
             let limits =
                 fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
@@ -1200,11 +1201,12 @@ fn dispatch_inner(
                 sources: &sources,
                 kind: args.get("kind").and_then(Value::as_str),
             };
-            let made = commands::create_proposal(
+            let made = commands::create_proposal_with(
                 &mut g.store(scope),
                 &cfg.path,
                 &id,
                 &s("body"),
+                args.get("props").filter(|p| p.is_object()),
                 &limits,
                 author,
                 rec,
@@ -1219,6 +1221,79 @@ fn dispatch_inner(
                 }
             }
             json(made)
+        }
+        // **Propose a new note** — a meeting the assistant found in an email exchange (`decisions.md`
+        // 2026-10-09, *the assistant proposes meetings*). It exists only on its proposal branch until a
+        // person accepts it; `about` is the conversation it came from and decides the vault.
+        "propose_note" => {
+            let about = s("about");
+            let about_id: fm_model::Id =
+                about.parse().map_err(|_| format!("invalid id: {about}"))?;
+            let mut g = lock()?;
+            let vault_name = g
+                .store(scope)
+                .get(about_id)
+                .map_err(err)?
+                .ok_or_else(|| format!("no such note: {about}"))?
+                .vault;
+            let cfg = g.config(scope, &vault_name)?;
+            let limits =
+                fm_core::descriptor::Descriptor::read(&cfg.path).map_err(err)?.proposal_limits;
+            let mut draft = fm_model::Object::new(fm_model::Kind::Note, s("body"));
+            draft.vault = vault_name.clone();
+            draft.title = Some(s("title")).filter(|t| !t.trim().is_empty());
+            draft.tags = args
+                .get("tags")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|t| t.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            for key in ["start", "due", "location"] {
+                let v = s(key);
+                if !v.is_empty() {
+                    fm_core::apply_property(&mut draft, key, &v).map_err(err)?;
+                }
+            }
+            let author = args
+                .get("authorName")
+                .and_then(Value::as_str)
+                .zip(args.get("authorEmail").and_then(Value::as_str));
+            let sources: Vec<String> = args
+                .get("sources")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let rec = commands::Record {
+                why: None,
+                tool: args.get("tool").and_then(Value::as_str),
+                query: args.get("query").and_then(Value::as_str),
+                sources: &sources,
+                kind: args.get("kind").and_then(Value::as_str),
+            };
+            let made = commands::propose_new_note(
+                &mut g.store(scope),
+                &cfg.path,
+                draft,
+                Some(about_id),
+                &limits,
+                author,
+                rec,
+            )
+            .map_err(err)?;
+            if vcs::available() {
+                let paths = g.all.written(&vault_name);
+                if vcs::commit_all(&cfg.path, "backup: proposal", &paths).unwrap_or(false) {
+                    g.all.clear_written(&vault_name);
+                }
+            }
+            json(made)
+        }
+        // **What the assistant's meeting pass reads** — every email conversation (id, title, when its
+        // latest message arrived, its current start), and the meeting starts already on the agenda,
+        // so it neither re-proposes a meeting an invitation already made nor one already proposed.
+        // Read-only. The note bodies are read one by one through `get`, as with any other note.
+        "mail_conversations" => {
+            let mut g = lock()?;
+            json(commands::mail_conversations(&g.store(scope)).map_err(err)?)
         }
         // The read half of review: a proposal's branch diff against `main`. Resolve the proposal
         // note's own vault (immutable store read, so no `&mut` juggling), then diff.
@@ -1778,6 +1853,33 @@ fn dispatch_inner(
         }
         // **A fourth way a vault gets filled**, beside create/clone/restore — and the only one
         // that *converts* rather than moving bytes. See `run_import` for where the lock is.
+        // **Your own calendar, read into a vault** — `decisions.md` 2026-10-09. The body is the
+        // iCalendar text, fetched by the transport (no HTTP client may enter `fm-app`); this arm only
+        // converts and writes, with no model in the path.
+        "calendar_sync" => {
+            let ics =
+                std::str::from_utf8(body).map_err(|_| "the calendar was not text".to_string())?;
+            let offset = commands::parse_offset(&s("offset"))?;
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            json(
+                commands::calendar_sync(&mut g.store(scope), &cfg.name, &s("source"), ics, offset)
+                    .map_err(err)?,
+            )
+        }
+        // **Mail, read into a vault** — `decisions.md` 2026-10-09. The body is a JSON array of Gmail
+        // messages the transport fetched with a read-only token; this arm only converts and writes.
+        "mail_sync" => {
+            let messages: Vec<Value> = serde_json::from_slice(body)
+                .map_err(|e| format!("the mail could not be read: {e}"))?;
+            let offset = commands::parse_offset(&s("offset"))?;
+            let mut g = lock()?;
+            let cfg = g.config(scope, &s("vault"))?;
+            json(
+                commands::mail_sync(&mut g.store(scope), &cfg.name, &messages, offset)
+                    .map_err(err)?,
+            )
+        }
         "run_import" => json(run_import(
             app,
             scope,
@@ -4047,6 +4149,101 @@ mod tests {
 
     fn call(app: &App, cmd: &str, args: serde_json::Value) -> Result<String, String> {
         dispatch(cmd, &args, &[], app, &NoHost).map(|o| String::from_utf8(o.into_bytes()).unwrap())
+    }
+
+    /// **A calendar read through the one door writes a meeting once, and moves it on a bump.**
+    /// The end-to-end half of `fm_core::calendar`'s tests: the arm must land notes in the named
+    /// vault, find them again on the next read, and never write a second copy.
+    #[test]
+    fn calendar_sync_creates_once_and_moves_on_a_sequence_bump() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (_home, _vault, app) = app_with_vault(None);
+        let ics = |seq: u32, day: &str| {
+            format!(
+                "BEGIN:VEVENT\nUID:m1\nSEQUENCE:{seq}\nSUMMARY:Supervision\n\
+                 DTSTART:{day}T020000Z\nDTEND:{day}T030000Z\nEND:VEVENT\n"
+            )
+        };
+        let sync = |body: String| {
+            let args =
+                serde_json::json!({ "vault": "notes", "source": "work", "offset": "+08:00" });
+            dispatch("calendar_sync", &args, body.as_bytes(), &app, &NoHost)
+                .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+        };
+        let first = sync(ics(0, "29991012")).unwrap();
+        assert!(first.contains("\"created\":1"), "{first}");
+        let again = sync(ics(0, "29991012")).unwrap();
+        assert!(again.contains("\"created\":0") && again.contains("\"unchanged\":1"), "{again}");
+        let moved = sync(ics(1, "29991013")).unwrap();
+        assert!(moved.contains("\"moved\":1"), "{moved}");
+
+        let agenda = call(&app, "search", serde_json::json!({ "query": "Supervision" })).unwrap();
+        assert_eq!(agenda.matches("Supervision").count(), 1, "exactly one note: {agenda}");
+        // `Z` 02:00 at +08:00 is 10:00 wall clock — the offset is applied, not ignored.
+        assert!(agenda.contains("2999-10-13T10:00"), "{agenda}");
+    }
+
+    /// **Mail through the one door**: a conversation becomes one note holding the exchange, and an
+    /// invite in it becomes the same meeting note the calendar would have made.
+    #[test]
+    fn mail_sync_makes_one_conversation_note_and_reads_the_invite() {
+        let _guard = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        let (_home, _vault, app) = app_with_vault(None);
+        // "Ci vediamo alle 10" and an invite, base64url as Gmail sends it.
+        let text = "Q2kgdmVkaWFtbyBhbGxlIDEw";
+        let ics =
+            "BEGIN:VEVENT\nUID:inv1\nSUMMARY:Revisione\nDTSTART:29991020T100000\nEND:VEVENT\n";
+        let enc = |s: &str| {
+            const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+            let mut out = String::new();
+            for c in s.as_bytes().chunks(3) {
+                let n = c
+                    .iter()
+                    .enumerate()
+                    .fold(0u32, |a, (i, x)| a | (u32::from(*x) << (16 - 8 * i)));
+                for i in 0..=c.len() {
+                    out.push(T[((n >> (18 - 6 * i)) & 63) as usize] as char);
+                }
+            }
+            out
+        };
+        let batch = serde_json::json!([{
+            "id": "m1", "threadId": "t1", "internalDate": "1760000000000",
+            "payload": { "mimeType": "multipart/mixed",
+                "headers": [{ "name": "Subject", "value": "R: Revisione" }, { "name": "From", "value": "Maria <m@x.it>" }],
+                "parts": [
+                    { "mimeType": "text/plain", "body": { "data": text } },
+                    { "mimeType": "text/calendar", "body": { "data": enc(ics) } }
+                ] }
+        }]);
+        let args = serde_json::json!({ "vault": "notes", "offset": "+08:00" });
+        let out = dispatch("mail_sync", &args, batch.to_string().as_bytes(), &app, &NoHost)
+            .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+            .unwrap();
+        assert!(out.contains("\"newConversations\":1"), "{out}");
+        assert!(out.contains("\"created\":1"), "the invite became a meeting: {out}");
+        let found = call(&app, "search", serde_json::json!({ "query": "Revisione" })).unwrap();
+        assert!(found.contains("Revisione"), "{found}");
+        let note = call(&app, "search", serde_json::json!({ "query": "vediamo" })).unwrap();
+        assert!(
+            note.contains("Revisione"),
+            "the exchange is in the note, so search finds it: {note}"
+        );
+        // Read twice, nothing doubles.
+        let again = dispatch("mail_sync", &args, batch.to_string().as_bytes(), &app, &NoHost)
+            .map(|o| String::from_utf8(o.into_bytes()).unwrap())
+            .unwrap();
+        assert!(again.contains("\"unchanged\":1"), "{again}");
+        assert!(again.contains("\"updatedConversations\":0"), "a re-read changes nothing: {again}");
+    }
+
+    #[test]
+    fn an_offset_that_is_not_one_is_refused_rather_than_guessed() {
+        assert!(commands::parse_offset("+08:00").is_ok());
+        assert!(commands::parse_offset("-05:30").is_ok());
+        for bad in ["8", "+8:75", "Asia/Singapore", "+15:00"] {
+            assert!(commands::parse_offset(bad).is_err(), "{bad} must be refused");
+        }
     }
 
     /// **The password is reported as a bool and never by value**, and the three conditions behind

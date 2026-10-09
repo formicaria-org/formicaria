@@ -266,6 +266,51 @@ pub fn get(url: &str, limit: usize) -> Result<Vec<u8>, FetchError> {
     Ok(buf)
 }
 
+/// One request with headers and an optional body, answering the status and a **capped** body.
+///
+/// Added 2026-10-09 for the read-only Gmail connector, which needs an `Authorization` header and one
+/// form `POST` (the token exchange) — neither of which [`get`] can send. **A non-2xx status is an
+/// answer, not an error**: the body of a `401` or a `400 invalid_grant` is what tells the caller to
+/// ask the person to sign in again, so it is returned rather than swallowed. Only a transport failure
+/// (no network, TLS, timeout) is an `Err`.
+pub fn request(
+    method: &str,
+    url: &str,
+    headers: &[(&str, &str)],
+    body: Option<&[u8]>,
+    limit: usize,
+) -> Result<(u16, Vec<u8>), FetchError> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(CONNECT_TIMEOUT)
+        .timeout_read(READ_TIMEOUT)
+        .user_agent("formicaria")
+        .build();
+    let mut req = agent.request(method, url).set("Accept-Encoding", "identity");
+    for (k, v) in headers {
+        req = req.set(k, v);
+    }
+    let resp = match body {
+        Some(b) => req.send_bytes(b),
+        None => req.call(),
+    };
+    let resp = match resp {
+        Ok(r) => r,
+        Err(ureq::Error::Status(_, r)) => r,
+        // The URL is left out on purpose: a caller's URL may carry a query it would not want logged.
+        Err(e) => return Err(FetchError::Transient(format!("could not reach the server: {e}"))),
+    };
+    let status = resp.status();
+    let mut buf = Vec::new();
+    resp.into_reader()
+        .take(limit as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| FetchError::Transient(format!("could not read the answer: {e}")))?;
+    if buf.len() > limit {
+        return Err(FetchError::Fatal(format!("the answer was larger than {limit} bytes")));
+    }
+    Ok((status, buf))
+}
+
 /// Fetch `d`, resuming a partial `<dest>.part` if present. `on_progress(done, total)` fires as bytes
 /// arrive (`total` is `None` when the server sends no length). **Idempotent:** an existing `dest`
 /// returns `Ok` without touching the network — verifying it first if a checksum was given.

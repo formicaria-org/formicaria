@@ -865,17 +865,55 @@ pub fn create_proposal(
     author: Option<(&str, &str)>,
     rec: Record,
 ) -> Result<ObjectMeta, StoreError> {
-    let id: Id = target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
-    let mut obj = store.get(id)?.ok_or(StoreError::NotFound(id))?;
-    if obj.kind != Kind::Note {
-        return Err(StoreError::Io("you can only propose a change to a note".into()));
-    }
+    create_proposal_with(store, vault_path, target, new_body, None, limits, author, rec)
+}
 
-    // The proposed file: the target note with its new body, serialized **exactly** as it would be
-    // written to disk — the branch holds real note bytes (files-as-truth), not a diff.
-    obj.body = new_body.to_string();
-    let content =
-        fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+/// Where a proposal keeps the property changes it carries, as JSON, so a reviewer's edit — which sends
+/// only a body — re-applies them instead of silently dropping the date the proposal was about.
+pub const PROPOSAL_PROPS: &str = "proposal_props";
+
+/// The properties a proposal may change besides the body. **An allowlist, on purpose**: the assistant
+/// proposes *when and where* a meeting is; it does not get to rewrite a note's title, its vault, its
+/// status or anything else by riding a proposal (`decisions.md` 2026-10-09, *the assistant proposes
+/// meetings*). Tags may only be added.
+fn apply_props(obj: &mut Object, props: &serde_json::Value) -> Result<(), StoreError> {
+    let Some(map) = props.as_object() else { return Ok(()) };
+    for (k, v) in map {
+        match k.as_str() {
+            "start" | "due" | "location" | "meeting_of" => {
+                apply_property(obj, k, v.as_str().unwrap_or_default())?;
+            }
+            "addTags" => {
+                for t in v.as_array().into_iter().flatten().filter_map(|t| t.as_str()) {
+                    if !obj.tags.iter().any(|x| x == t) {
+                        obj.tags.push(t.to_string());
+                    }
+                }
+            }
+            other => {
+                return Err(StoreError::Io(format!("a proposal cannot change '{other}'")));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// [`create_proposal`], optionally also changing the allowlisted properties in [`apply_props`].
+///
+/// Also the path a reviewer's edit takes for a **proposed new note** ([`propose_new_note`]): such a note
+/// exists only on its branch until it is accepted, so it is read from there.
+#[allow(clippy::too_many_arguments)]
+pub fn create_proposal_with(
+    store: &mut dyn Store,
+    vault_path: &Path,
+    target: &str,
+    new_body: &str,
+    props: Option<&serde_json::Value>,
+    limits: &fm_core::proposal::ProposalLimits,
+    author: Option<(&str, &str)>,
+    rec: Record,
+) -> Result<ObjectMeta, StoreError> {
+    let id: Id = target.parse().map_err(|_| StoreError::Parse(format!("invalid id: {target}")))?;
 
     // The target note's repo-relative file path, from the vault's own notes directory.
     let desc = fm_core::descriptor::Descriptor::read(vault_path)?;
@@ -887,24 +925,59 @@ pub fn create_proposal(
         .to_string_lossy()
         .replace('\\', "/");
 
+    // **One living proposal per note.** Find this note's existing OPEN proposal up front, so a REVISE is
+    // guardrailed as a *replacement* (it does not add a proposal) rather than double-counting itself.
+    let existing = open_proposal_for(store, vault_path, id)?;
+    let existing_branch = existing.as_ref().and_then(proposal_branch_of);
+
+    let on_main = store.get(id)?;
+    let mut obj = match &on_main {
+        Some(o) => o.clone(),
+        // A proposed new note: on its branch only, until accepted.
+        None => existing_branch
+            .as_ref()
+            .and_then(|b| fm_core::vcs::file_on_branch(vault_path, b, &rel))
+            .and_then(|f| fm_core::frontmatter::from_file(&f).ok())
+            .map(|mut o| {
+                o.vault = existing.as_ref().map(|p| p.vault.clone()).unwrap_or_default();
+                o
+            })
+            .ok_or(StoreError::NotFound(id))?,
+    };
+    if obj.kind != Kind::Note {
+        return Err(StoreError::Io("you can only propose a change to a note".into()));
+    }
+
+    // The proposed file: the target note with its new body (and any allowlisted property changes),
+    // serialized **exactly** as it would be written to disk — the branch holds real note bytes
+    // (files-as-truth), not a diff.
+    obj.body = new_body.to_string();
+    let stored_props = existing.as_ref().and_then(|p| match p.get(PROPOSAL_PROPS) {
+        PropertyValue::Text(t) => serde_json::from_str::<serde_json::Value>(&t).ok(),
+        _ => None,
+    });
+    let props_now = props.cloned().or(stored_props);
+    if let Some(p) = &props_now {
+        apply_props(&mut obj, p)?;
+    }
+    let content =
+        fm_core::frontmatter::to_file(&obj).map_err(|e| StoreError::Parse(e.to_string()))?;
+
     // Commit the target note first (before any branch), so the proposal branch shares a base with
     // `main`. Without this an *uncommitted* note (a freshly captured one whose debounced auto-commit
     // hasn't fired) makes the branch ADD the file; accepting it then conflicts with main's untracked
     // copy — `main` stays safe, but the proposal can never merge. Idempotent + best-effort. `commit_all`
     // takes vault-rooted paths, so join `rel` onto the vault.
-    let note_path = vault_path.join(&rel);
-    let _ = fm_core::vcs::commit_all(
-        vault_path,
-        "auto: snapshot the note before a proposal",
-        std::slice::from_ref(&note_path),
-    );
+    if on_main.is_some() {
+        let note_path = vault_path.join(&rel);
+        let _ = fm_core::vcs::commit_all(
+            vault_path,
+            "auto: snapshot the note before a proposal",
+            std::slice::from_ref(&note_path),
+        );
+    }
 
     let title = obj.title.clone().unwrap_or_else(|| "note".into());
-
-    // **One living proposal per note.** Find this note's existing OPEN proposal up front, so a REVISE is
-    // guardrailed as a *replacement* (it does not add a proposal) rather than double-counting itself.
-    let existing = open_proposal_for(store, vault_path, id)?;
-    let existing_branch = existing.as_ref().and_then(proposal_branch_of);
 
     // Guardrails: one file of `content.len()` bytes, against the vault's ceilings and current load.
     // Refused **before** any write, fail-closed, never truncated. On a revise, subtract the proposal
@@ -941,6 +1014,11 @@ pub fn create_proposal(
         if fm_core::vcs::remote(vault_path)?.is_some() {
             let _ = fm_core::vcs::push_branch(vault_path, &branch, true); // the ref moved → force-push
         }
+        let mut existing = existing;
+        if let Some(p) = props {
+            existing.extra.insert(PROPOSAL_PROPS.into(), PropertyValue::Text(p.to_string()));
+            store.put(&existing)?;
+        }
         return Ok(ObjectMeta::from(&existing));
     }
 
@@ -954,6 +1032,9 @@ pub fn create_proposal(
     note.extra
         .insert(crate::thread::PROPOSES.into(), PropertyValue::Text(fm_model::branch_ref(&branch)));
     note.extra.insert(crate::thread::TARGETS.into(), PropertyValue::Text(fm_model::note_ref(id)));
+    if let Some(p) = props {
+        note.extra.insert(PROPOSAL_PROPS.into(), PropertyValue::Text(p.to_string()));
+    }
 
     // Build the branch first (additive, no `main` write); record the note only on success.
     fm_core::vcs::create_proposal_branch(
@@ -972,6 +1053,85 @@ pub fn create_proposal(
     }
     store.put(&note)?;
     Ok(ObjectMeta::from(&note))
+}
+
+/// Propose a **new** note: it exists only on its own `proposal/<id>` branch until a person accepts it,
+/// and accepting merges the file in. Rejecting deletes the branch, so nothing was ever written to
+/// `main`. `about` links it to the note it came from (for a meeting, the email conversation).
+///
+/// The same guardrails as [`create_proposal`] — the vault's own proposal limits, refused before any
+/// write — and the same review: the proposal targets the new note's id, so a reviewer's edit goes
+/// back through [`create_proposal_with`], which reads the note from the branch.
+#[allow(clippy::too_many_arguments)]
+pub fn propose_new_note(
+    store: &mut dyn Store,
+    vault_path: &Path,
+    mut draft: Object,
+    about: Option<Id>,
+    limits: &fm_core::proposal::ProposalLimits,
+    author: Option<(&str, &str)>,
+    rec: Record,
+) -> Result<ObjectMeta, StoreError> {
+    if let Some(a) = about {
+        draft.extra.insert(MEETING_OF.into(), PropertyValue::Text(fm_model::note_ref(a)));
+    }
+    let content =
+        fm_core::frontmatter::to_file(&draft).map_err(|e| StoreError::Parse(e.to_string()))?;
+    let desc = fm_core::descriptor::Descriptor::read(vault_path)?;
+    let notes_abs = desc.notes_dir(vault_path);
+    let rel = notes_abs
+        .strip_prefix(vault_path)
+        .unwrap_or(&notes_abs)
+        .join(format!("{}.md", draft.id))
+        .to_string_lossy()
+        .replace('\\', "/");
+
+    retire_settled_proposals(store, vault_path);
+    let (open, open_bytes) = fm_core::vcs::proposal_load(vault_path)?;
+    limits
+        .check(
+            fm_core::proposal::ProposalSize { files: 1, bytes: content.len() as u64 },
+            fm_core::proposal::VaultLoad { open, open_bytes },
+        )
+        .map_err(|b| StoreError::Io(b.to_string()))?;
+
+    let title = draft.title.clone().unwrap_or_else(|| "note".into());
+    let mut note = Object::new(Kind::Note, format!("Proposed new note **{title}**."));
+    note.vault = draft.vault.clone();
+    note.title = Some(format!("Proposal: {title}"));
+    let branch = format!("proposal/{}", note.id);
+    note.extra
+        .insert(crate::thread::PROPOSES.into(), PropertyValue::Text(fm_model::branch_ref(&branch)));
+    note.extra
+        .insert(crate::thread::TARGETS.into(), PropertyValue::Text(fm_model::note_ref(draft.id)));
+    fm_core::vcs::create_proposal_branch(
+        vault_path,
+        &branch,
+        &rel,
+        &content,
+        &proposal_message(&format!("propose: new note {title}"), rec, author, desc.supervision),
+        author,
+    )?;
+    if fm_core::vcs::remote(vault_path)?.is_some() {
+        let _ = fm_core::vcs::push_branch(vault_path, &branch, false);
+    }
+    store.put(&note)?;
+    Ok(ObjectMeta::from(&note))
+}
+
+/// Where a meeting happens — the same key `fm_core::calendar` writes for an invitation.
+const MEETING_LOCATION: &str = "location";
+
+/// On a meeting note the assistant proposed from an email exchange: the conversation it came from.
+pub const MEETING_OF: &str = "meeting_of";
+
+/// The vault a proposal *targets*, for a target that is not on `main` yet (a proposed new note).
+pub fn vault_of_proposed(store: &dyn Store, target: Id) -> Option<String> {
+    let q = Query { filter: crate::thread::proposals_base(), ..Default::default() };
+    store.query(&q).ok()?.rows.into_iter().find_map(|p| match p.get(crate::thread::TARGETS) {
+        PropertyValue::Text(s) if fm_model::parse_note_ref(&s) == Some(target) => Some(p.vault),
+        _ => None,
+    })
 }
 
 /// The note's current OPEN proposal, if any: a proposal note that `targets` `host` and whose branch
@@ -1140,6 +1300,14 @@ pub struct ProposalContent {
     pub title: String,
     /// The proposed note body (from the branch) — the review VISUALIZES this and lets the user EDIT it.
     pub body: String,
+    /// When and where the proposed note says it happens, so a proposal that *dates* a note shows the
+    /// date it is asking to set in plain view, not only inside the diff.
+    pub start: Option<String>,
+    pub due: Option<String>,
+    pub location: Option<String>,
+    /// The proposal adds a note that does not exist yet (a meeting found in an email exchange).
+    #[serde(rename = "isNew")]
+    pub is_new: bool,
 }
 
 /// Read a proposal's proposed note — host id, title, and the proposed body on the branch. Lets the
@@ -1187,7 +1355,20 @@ pub fn proposal_content(
             host.parse::<Id>().ok().and_then(|h| store.get(h).ok().flatten()).and_then(|o| o.title)
         })
         .unwrap_or_else(|| "note".into());
-    Ok(Some(ProposalContent { host, title, body: proposed.body }))
+    let is_new = host.parse::<Id>().ok().is_some_and(|h| matches!(store.get(h), Ok(None)));
+    let location = match proposed.get(MEETING_LOCATION) {
+        PropertyValue::Text(t) if !t.is_empty() => Some(t),
+        _ => None,
+    };
+    Ok(Some(ProposalContent {
+        host,
+        title,
+        start: proposed.start.map(|s| s.to_string()),
+        due: proposed.due.map(|s| s.to_string()),
+        location,
+        is_new,
+        body: proposed.body,
+    }))
 }
 
 /// Accept the proposal note `id`: resolve its `proposes: branch:<name>` (exactly as [`proposal_diff`]
@@ -2272,4 +2453,173 @@ pub fn blob_path_of_kind(
         }
     }
     Ok(store.path_for(&hash))
+}
+
+/// What one calendar read did, and to which vault — what the Calendars panel repeats back.
+#[derive(Serialize)]
+pub struct CalendarReport {
+    pub vault: String,
+    pub source: String,
+    #[serde(flatten)]
+    pub counts: fm_core::calendar::Report,
+}
+
+/// Read one calendar's iCalendar text into a vault: new meetings become notes, a newer `SEQUENCE`
+/// moves an existing one, a cancellation marks it. **No model and no network here** — the caller
+/// fetched the bytes; this is `decisions.md`'s deterministic half (2026-10-09).
+///
+/// `offset` is the wall clock a UTC (`Z`) time is shown in, and the clock "today" is read in. The
+/// machine's own offset cannot be read in this process (see `fm_core::events`), so it is the person's
+/// stated setting.
+pub fn calendar_sync(
+    store: &mut dyn Store,
+    vault: &str,
+    source: &str,
+    ics: &str,
+    offset: time::UtcOffset,
+) -> Result<CalendarReport, StoreError> {
+    let records = fm_core::events::parse_ics(ics, Some(offset));
+    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    let rows = store.query(&q)?.rows;
+    // Matched within the destination vault only: the same invite in a second vault is that
+    // audience's own note, and moving it from here would reach across an audience boundary.
+    let existing = fm_core::calendar::index(rows.iter().filter(|o| o.vault == vault));
+    let now = OffsetDateTime::now_utc().to_offset(offset);
+    let plan = fm_core::calendar::reconcile(&records, &existing, source, now.date());
+    for mut note in plan.create {
+        // `MultiStore::put` routes on `vault`; empty would file the meeting into the default vault.
+        note.vault = vault.to_string();
+        store.put(&note)?;
+    }
+    for mut note in plan.update {
+        note.updated = OffsetDateTime::now_utc();
+        store.put(&note)?;
+    }
+    Ok(CalendarReport { vault: vault.into(), source: source.into(), counts: plan.report })
+}
+
+/// `+08:00` / `-05:30` / `Z` → an offset. Anything else is refused rather than guessed: a wrong
+/// offset moves every meeting by hours, silently.
+pub fn parse_offset(raw: &str) -> Result<time::UtcOffset, String> {
+    let t = raw.trim();
+    if t.is_empty() || t.eq_ignore_ascii_case("z") {
+        return Ok(time::UtcOffset::UTC);
+    }
+    let bad = || format!("'{t}' is not a time zone offset like +08:00");
+    let (sign, rest) = match t.as_bytes()[0] {
+        b'+' => (1i8, &t[1..]),
+        b'-' => (-1i8, &t[1..]),
+        _ => return Err(bad()),
+    };
+    let (h, m) = rest.split_once(':').unwrap_or((rest, "0"));
+    let (h, m): (i8, i8) = (h.parse().map_err(|_| bad())?, m.parse().map_err(|_| bad())?);
+    if !(0..=14).contains(&h) || !(0..60).contains(&m) {
+        return Err(bad());
+    }
+    time::UtcOffset::from_hms(sign * h, sign * m, 0).map_err(|_| bad())
+}
+
+/// What one mail read did — conversations, and the meetings its invites made or moved.
+#[derive(Serialize)]
+pub struct MailReport {
+    pub vault: String,
+    #[serde(flatten)]
+    pub conversations: fm_core::mail::Report,
+    /// The invites found in this mail, read exactly as a calendar is.
+    pub invites: fm_core::calendar::Report,
+}
+
+/// Read a batch of Gmail messages (Gmail's own JSON, `format=full`) into a vault.
+///
+/// **Two halves, neither with a model** (`decisions.md` 2026-10-09): every conversation keeps one
+/// note holding the exchange — each message's sender, recipients, time and text, appended, never
+/// rewriting what the person wrote (*the email exchange lives in the conversation note*); and every invite inside
+/// a message goes through [`calendar_sync`]'s exact path, keyed on its `UID`, so an invite that also
+/// sits in the person's Google Calendar lands on the same note rather than a second one.
+pub fn mail_sync(
+    store: &mut dyn Store,
+    vault: &str,
+    messages: &[serde_json::Value],
+    offset: time::UtcOffset,
+) -> Result<MailReport, StoreError> {
+    let parsed: Vec<fm_core::mail::Message> =
+        messages.iter().filter_map(fm_core::mail::from_gmail).collect();
+    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    let rows = store.query(&q)?.rows;
+    let existing = fm_core::mail::index(rows.iter().filter(|o| o.vault == vault));
+    let (create, update, conversations) = fm_core::mail::reconcile(&parsed, &existing, offset);
+    for mut note in create {
+        note.vault = vault.to_string();
+        store.put(&note)?;
+    }
+    for mut note in update {
+        note.updated = OffsetDateTime::now_utc();
+        store.put(&note)?;
+    }
+    let mut invites = fm_core::calendar::Report::default();
+    for m in &parsed {
+        for ics in &m.calendars {
+            let r = calendar_sync(store, vault, "mail", ics, offset)?.counts;
+            invites.created += r.created;
+            invites.moved += r.moved;
+            invites.cancelled += r.cancelled;
+            invites.unchanged += r.unchanged;
+            invites.past += r.past;
+            invites.series += r.series;
+            invites.repeating += r.repeating;
+            invites.undated += r.undated;
+            invites.no_id += r.no_id;
+        }
+    }
+    Ok(MailReport { vault: vault.into(), conversations, invites })
+}
+
+/// One email conversation, as the assistant's meeting pass sees it.
+#[derive(Serialize)]
+pub struct MailConversation {
+    pub id: String,
+    pub title: String,
+    /// When its latest message arrived (`mail_last`): the pass re-reads a conversation only when this
+    /// moves.
+    pub last: String,
+    /// The meeting the conversation note already stands for, if any.
+    pub start: Option<String>,
+}
+
+/// Every email conversation and the meeting starts already in the vault.
+#[derive(Serialize)]
+pub struct MailConversations {
+    pub conversations: Vec<MailConversation>,
+    /// `start` of every note tagged `meeting` (invitations, accepted meetings): a meeting found in
+    /// prose at one of these times is already on the agenda.
+    pub taken: Vec<String>,
+    /// For each conversation id, the starts of meeting notes linked to it with `meeting_of`.
+    pub linked: HashMap<String, Vec<String>>,
+}
+
+pub fn mail_conversations(store: &dyn Store) -> Result<MailConversations, StoreError> {
+    let q = Query { filter: crate::thread::notes_base(), ..Default::default() };
+    let rows = store.query(&q)?.rows;
+    let mut out =
+        MailConversations { conversations: Vec::new(), taken: Vec::new(), linked: HashMap::new() };
+    for o in &rows {
+        let start = o.start.map(|s| s.to_string());
+        if matches!(o.get(fm_core::mail::GMAIL_THREAD), PropertyValue::Text(t) if !t.is_empty()) {
+            out.conversations.push(MailConversation {
+                id: o.id.to_string(),
+                title: o.title.clone().unwrap_or_default(),
+                last: o.get(fm_core::mail::MAIL_LAST).display(),
+                start: start.clone(),
+            });
+        }
+        if let (true, Some(st)) = (o.tags.iter().any(|t| t == "meeting"), &start) {
+            out.taken.push(st.clone());
+        }
+        if let (PropertyValue::Text(r), Some(st)) = (o.get(MEETING_OF), &start) {
+            if let Some(of) = fm_model::parse_note_ref(&r) {
+                out.linked.entry(of.to_string()).or_default().push(st.clone());
+            }
+        }
+    }
+    Ok(out)
 }

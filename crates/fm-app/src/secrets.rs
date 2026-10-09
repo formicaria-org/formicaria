@@ -197,11 +197,12 @@ pub fn has_restic_password() -> bool {
     restic_password().is_some()
 }
 
-/// Create `path` owner-only **before** the secret goes in, then fill it.
+/// Create `path` owner-only **before** the secret goes in, then fill it. Public since 2026-10-09:
+/// the calendar addresses are a secret file too, and one `0600` writer is one to get right.
 ///
 /// Creating it world-readable and chmod'ing afterwards leaves a window in which the secret is on
 /// disk and readable, which on a multi-user machine is the whole vulnerability.
-fn write_private(path: &PathBuf, secret: &str) -> Result<(), String> {
+pub fn write_private(path: &PathBuf, secret: &str) -> Result<(), String> {
     let parent = path.parent().ok_or("bad secret path")?;
     std::fs::create_dir_all(parent)
         .map_err(|e| format!("could not create {}: {e}", parent.display()))?;

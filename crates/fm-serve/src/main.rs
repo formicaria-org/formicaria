@@ -33,6 +33,13 @@ mod tls;
 // std-only build this crate promises still compiles with `--no-default-features`.
 #[cfg(feature = "update")]
 mod update;
+// Your own calendars, read on their own. Transport-shaped because the fetch may not live in
+// `fm-app`, and because the addresses are a secret only this machine holds.
+#[cfg(feature = "calendar")]
+mod calendar;
+// Gmail, read-only: the sign-in, and reading labelled mail into conversation notes.
+#[cfg(feature = "mail")]
+mod mail;
 
 use fm_app::{dispatch_as, App, Host, Output, Scope};
 use serde_json::Value;
@@ -388,6 +395,10 @@ fn main() {
         }
         update::check_in_background(Arc::clone(&state));
     }
+    #[cfg(feature = "calendar")]
+    calendar::check_in_background(Arc::clone(&state));
+    #[cfg(feature = "mail")]
+    mail::check_in_background(Arc::clone(&state));
 
     for mut stream in listener.incoming().flatten() {
         let state = Arc::clone(&state);
@@ -435,6 +446,22 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/update_apply",
     "/api/update_rollback",
     "/api/set_update_check",
+    // **A private calendar address is a secret** (`decisions.md` 2026-10-09): anyone holding it reads
+    // the whole calendar. A guest neither lists the host's calendars, adds one, nor makes it fetch.
+    "/api/calendars",
+    "/api/calendar_add",
+    "/api/calendar_remove",
+    "/api/calendar_offset",
+    "/api/calendar_pull",
+    // **Mail is the most sensitive thing this app reads.** A guest neither sees whose mailbox is
+    // connected, signs one in, nor makes the host read it — and the sign-in's return address is
+    // here too, so a device on the network cannot complete (or probe) a sign-in.
+    "/api/mail_status",
+    "/api/mail_setup",
+    "/api/mail_connect",
+    "/api/mail_read_now",
+    "/api/mail_disconnect",
+    "/api/oauth_google",
     // Spawns a process, or writes host-level state.
     "/api/set_agent",
     // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
@@ -1125,6 +1152,18 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // never call it. Every route here is in `REMOTE_DENIED`.
     #[cfg(feature = "update")]
     if let Some(done) = update::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // Your own calendars. Every route here is in `REMOTE_DENIED`: the addresses are secrets.
+    #[cfg(feature = "calendar")]
+    if let Some(done) = calendar::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // Gmail. Every route here is in `REMOTE_DENIED`, including the sign-in's return address.
+    #[cfg(feature = "mail")]
+    if let Some(done) = mail::route(reader.get_mut(), &path, &body, state) {
         return done;
     }
 

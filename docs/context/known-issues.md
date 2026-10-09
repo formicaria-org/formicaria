@@ -921,6 +921,101 @@ What stands between that and everyone relying on it is not one gap but several, 
   its pane, which is a size container and clips, so a tall menu near a pane's edge can be cut off there.
   Android's WebView, current desktop browsers and iOS 17 and later all have the API.
 
+## Reading a published calendar — what the parser can and cannot tell you (2026-09-12)
+
+`fm_core::events` reads iCalendar, RSS/Atom and embedded `schema.org/Event` JSON-LD. It is pure, it
+has 28 tests, and **nothing is wired to it yet** — no fetch, no command, no surface. These are the
+durable limits, not a to-do list:
+
+- **A UTC (`Z`) timestamp with no caller-supplied offset keeps its day and loses its time.** This is
+  deliberate, not a gap to close by guessing: reading `10:30Z` as 10:30 wall-clock shows a Singapore
+  event eight hours early. Nothing reads the machine's local offset — `time`'s `local-offset` feature
+  is not enabled here and is documented as failing in exactly the multi-threaded process `fm-serve`
+  is. **If a caller wants a time out of a `Z` feed it must pass the offset it means.**
+- **An RSS `pubDate` is never read as the event's date, so most RSS items arrive undated.** `pubDate`
+  is when the listing was posted. Only `<ev:startdate>`/`<dc:date>` are read. So a plain events RSS
+  feed is good at saying *that* something exists and bad at saying *when* — a real property of the
+  rung, not a parser defect. `EventRecord::is_dated()` is how a caller sees it.
+- **No timezone database, and none needed.** A `TZID` is not resolved: the wall clock the publisher
+  wrote is carried across verbatim, because `Stamp` is naive by ruling. A consequence worth knowing:
+  we therefore *cannot* detect a local time that does not exist (spring-forward) or happens twice
+  (fall-back). We also cannot be wrong about one, because we never convert.
+- **`RRULE` is not read at all.** A recurring `VEVENT` yields its first occurrence only. schema.org
+  requires separate `Event` objects for recurrences, so that rung is unaffected.
+- **Rung 4 — a page with no feed — is not built**, and it is the only rung that would need the model.
+  That is where the remaining coverage is: see `outstanding.md` §2.15.
+- **Singapore's institutions publish nothing machine-readable** (probed 2026-09-12: National Gallery,
+  Esplanade, Gardens by the Bay, Singapore Art Museum, VisitSingapore, NTU, SMU, **and Catch.sg**, the
+  government-backed arts aggregator; NLB/NHB/Science Centre answer `202` with an empty body; SISTIC
+  `403`; NUS is behind Imperva). So the arts-and-museums category is thin here however good the
+  parser is. What works: the Luma city feed, Meetup group feeds, Localist campuses, WordPress venues.
+  Berlin, by contrast, has a city-government events RSS feed and a museum aggregator with clean
+  JSON-LD. Re-verify before trusting this paragraph — it is an external fact with a date.
+
+## Meetings from your own calendar — Phase 1's limits (2026-10-09)
+
+Settings → Calendars (`fm-serve/src/calendar.rs` → `calendar_sync` → `fm_core::calendar`). Tested
+hermetically; **never yet run against a real Google feed**.
+
+- **Repeating meetings: a subset of `RRULE`** (`fm_core::recur`, 2026-10-09): `DAILY`/`WEEKLY`/
+  `MONTHLY`/`YEARLY`, `INTERVAL`, `COUNT`, `UNTIL`, `WKST`, `BYDAY` (ordinals for monthly),
+  `BYMONTHDAY`. Anything else (`BYSETPOS`, `BYMONTH`, `HOURLY`, …) is refused, shows its first date
+  only, and is counted as `repeating`. Occurrences are laid out 60 days ahead, one note each.
+- **A shifted series leaves its old dates marked, not moved.** Moving a series from Tuesday to
+  Wednesday gives new Wednesday notes and tags the Tuesday ones `cancelled`; anything written in a
+  Tuesday note stays there rather than following the meeting.
+- **A deleted meeting note comes back** at the next read while the event is upcoming: identity is the
+  note's own `ics_uid`, and there is no per-machine "dismissed" list. Tagging is the workaround.
+- **Times move only on a `SEQUENCE` bump.** A publisher that changes times without bumping it (rare;
+  Google bumps) leaves the note at the old time. Deliberate: without the bump we cannot tell the
+  publisher's change from the person's own edit.
+- **The offset is fixed, so it is wrong across a DST change** for a `Z`-timed meeting. Exact for
+  Singapore. A `TZID` time is carried as written and its zone named in `ics_time_zone` — a Berlin
+  10:00 is shown as 10:00, not converted.
+- **Hourly, while the app is open.** There is no daemon (a ruling). Google's secret feed itself lags
+  the web UI by hours.
+- **Desktop only.** The phone shell has no reader; the section is hidden there and on a paired device.
+
+## Gmail, read-only — Phase 2's limits (2026-10-09)
+
+Settings → Mail (`fm-serve/src/mail.rs` → `mail_sync` → `fm_core::mail`). Hermetic tests only;
+**never yet run against a real Gmail account.**
+
+- **A sign-in every 7 days** while the person's Google Cloud project is in testing (Google's rule
+  for unverified apps). Shown on the panel as an error with the remedy; nothing is read meanwhile.
+- **`seen` grows without bound** in `gmail.json` (one id per message read). Fine for a labelled
+  mailbox; a label with tens of thousands of messages would make the file large.
+- **Conversations get no tasks or summary yet.** That is Phase 3 (the assistant), which reads the
+  conversation note itself (`decisions.md`, *the email exchange lives in the conversation note*).
+- **A message appended while the note is open in the editor** makes the editor's next save a
+  lost-update conflict (the body's hash moved), handled like any other concurrent edit.
+- **Quote trimming is pattern-based** (English/Italian Gmail, Outlook, Apple Mail, `>` runs). An
+  unrecognised client's quoted history stays in the note — longer, never lost.
+- **Desktop only**, like the calendars. The section is hidden on the phone and on a paired device.
+- **The return address assumes `127.0.0.1`.** Google allows any loopback port for a desktop client,
+  but formicaria opened at a LAN address cannot sign in. The panel says to open it at 127.0.0.1.
+
+## Meetings found in email — the assistant's pass, limits (2026-10-09)
+
+`fm-agent-run/src/meetings.rs` → `fm_agent::meetings`; proposals via `create_proposal` `props` and
+`propose_note`. Hermetic tests only; **never run against the real model or real mail.**
+
+- **The date is Rust's, from the quoted sentence** or the same email before it; the model only points
+  at the sentence (it translated and invented day words when asked to copy them; `decisions.md`).
+  A sentence whose date is in a *different* email ("as agreed, see you then") finds none and is
+  dropped.
+- **Day words it does not read** are dropped, not guessed: "la settimana prossima", "a fine mese",
+  "after the holidays", ordinal weekdays ("il secondo martedì"). A weekday names the *next* such day
+  after the message was sent; "giovedì prossimo" is read the same as "giovedì".
+- **"Today" is UTC's day** in the runner (it cannot read the machine's offset). Within a few hours of
+  midnight a same-day meeting may be judged past or upcoming by the neighbouring day.
+- **A moved further meeting is proposed as a new note.** Only the conversation note's own meeting is
+  moved; a linked meeting note whose time changes gets a second proposal, and the old note stays.
+- **The pass's memory is per machine** (`<runtime>/mail-meetings.json`). On another computer the same
+  conversations would be read and proposed afresh.
+- **Body over 12 000 characters**: only the tail is given to the model (the final arrangement is
+  there). A meeting fixed only near the start of a very long exchange can be missed.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

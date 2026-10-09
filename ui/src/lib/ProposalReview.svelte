@@ -192,6 +192,12 @@
     };
   });
 
+  /** `2026-10-16T15:00` + `2026-10-16T16:00` → "2026-10-16 15:00–16:00"; a day alone stays a day. */
+  function when(start: string, due?: string | null): string {
+    const [d, t] = start.split('T');
+    const end = due && due !== start && due.startsWith(d) ? due.split('T')[1] : undefined;
+    return t ? `${d} ${t}${end ? `–${end}` : ''}` : d;
+  }
   const lines = $derived((diff?.patch ?? '').split('\n'));
 
   // A unified-diff line's role, for colouring. `+++`/`---` are file headers, not adds/deletes.
@@ -218,6 +224,14 @@
     <p class="muted">This proposal was merged into the note; the discussion lives on.</p>
   {:else if diff}
     {#if proposed}
+      {#if proposed.start}
+        <!-- A proposal that dates a note says the date it sets in plain view: accepting a meeting
+             time should never depend on opening the diff. -->
+        <p class="pr-when" data-testid="pr-when">
+          <strong>{proposed.isNew ? 'New meeting' : 'Meeting'}:</strong>
+          {when(proposed.start, proposed.due)}{proposed.location ? ` · ${proposed.location}` : ''}
+        </p>
+      {/if}
       <p class="pr-edit-label">
         Proposed note{proposed.title ? ` for “${proposed.title}”` : ''} — edit it here before accepting:
       </p>
@@ -295,6 +309,10 @@
 <style>
   .review {
     padding: 0.25rem 0 0.5rem;
+  }
+  .pr-when {
+    margin: 0 0 var(--space-2);
+    overflow-wrap: anywhere;
   }
   .pr-edit-label {
     margin: 0 0 0.3rem;

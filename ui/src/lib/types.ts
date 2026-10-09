@@ -99,6 +99,12 @@ export interface ProposalContent {
   title: string;
   /** The proposed note body as it stands on the branch. */
   body: string;
+  /** When/where the proposed note says it happens — shown in plain view, not only in the diff. */
+  start?: string | null;
+  due?: string | null;
+  location?: string | null;
+  /** The proposal adds a note that does not exist yet (a meeting found in an email exchange). */
+  isNew?: boolean;
 }
 
 /** One first-class discussion, as the Discussions view shows it at a glance. The `ObjectMeta`

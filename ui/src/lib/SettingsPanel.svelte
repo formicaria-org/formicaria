@@ -20,6 +20,8 @@
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
   import Appearance from './Appearance.svelte';
+  import CalendarsSection from './CalendarsSection.svelte';
+  import MailSection from './MailSection.svelte';
   import {
     config as fetchConfig,
     setGitAssetsMax,
@@ -1067,6 +1069,13 @@
             {/if}
           </ul>
         </section>
+      {/if}
+
+      <!-- Your own calendars. The computer holds the addresses and does the reading, so a paired
+           tablet (refused every route) and the phone (no reader yet) are not offered it. -->
+      {#if !isRemote() && !isPhone()}
+        <CalendarsSection />
+        <MailSection />
       {/if}
 
       <section>

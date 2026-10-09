@@ -166,7 +166,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   `dependabot.yml`) · ***A Dependabot pull request carries its own notice*** (read before touching
   `dependabot-notice.yml`, `THIRD-PARTY.md`'s format, or any job holding `contents: write`) · *The manual's CSP is a named
   exception* (`#ui`).
-- **`#agent`**: ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
+- **`#agent`**: ***Mail and your own calendars become notes on their own; the person only answers proposals*** (2026-10-09; read before touching `calendar.rs`, `fm_core::calendar`, or adding any mail access — read-only by scope, a private calendar address is a secret, local model only) · ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `archive/ai-agents-plan-superseded-2026-09-02.md`, which is history rather than instruction.)
 
@@ -7859,6 +7859,162 @@ Chromium by tapping — `document.elementFromPoint` — at the centre of every r
 **The residue.** On an engine without the Popover API (iOS before 17) a popup is still placed and capped,
 but its pane can clip it (`known-issues.md`).
 
+## 2026-09-12 — the feed parser sits in `fm-core` beside the importer, and Track S #2's `curl` clause is reversed `#toolchain` `#seams`
+
+**The reversal, written before the code** (`CLAUDE.md`'s four questions). `plan.md`'s Track S #2
+designed ICS→notes with two clauses that no longer hold: *"No TLS in `fm-serve` → **shell out to
+`curl`** (add to pixi; **zero new Rust deps**)"*, and a CLI verb, `fm ics pull <url|path>`.
+
+- **`curl` is no longer the only client.** `fm-fetch` exists — `ureq` with default pure-Rust rustls,
+  bundled roots, cross-compiles to Android — extracted on 2026-09-10 so the self-updater could fetch
+  without linking the agent. Fetching a feed is exactly what it does, so the honest cost of this
+  feature is **zero new dependencies**, which is what Track S #2 was protecting. A `curl` on PATH is
+  the thing we would be adding.
+- **The surface is the app, not a verb.** The owner works only through the UI, so a CLI-only entry
+  point would deliver nothing. `fm-cli` may still grow the verb; it is not the feature.
+
+**And a correction of this session's own first draft, which is the more useful half of this entry.**
+That draft put the parser in `fm-agent/src/events.rs`. It would have compiled, and it would have
+quietly retired the property `ci/checks.sh` guards — that `fm-serve --no-default-features` is a
+*provably* agent-free core — because the deterministic events half is supposed to work with the
+assistant off, and it cannot if it links the assistant. `fm-fetch`'s own header already records this
+exact trap, in these words: reaching the downloader through `fm-agent-run` *"would have linked the
+whole study-agent pipeline into a notes-only build."* The lesson generalises and is the reason this
+entry exists: **anything the notes-only build must be able to do cannot live in an agent crate**, and
+the compiler will not tell you, because `--no-default-features` is a build nobody runs by hand.
+
+**Consequence.** `crates/fm-core/src/events.rs`, beside `import.rs` — the established home for "a
+foreign format becomes notes", including its invariant that the source is only ever read
+(`#data`, *An import converts; adoption renders*). No new crate and no new dependency: `fm-core`
+already has `fm-model` and `time`. Hand-parsed, per `parse_arxiv`. Fetching goes through `fm-fetch`;
+**no HTTP client enters `fm-core` or `fm-app`**, both of which are ruled against elsewhere in this
+file.
+
+**`Stamp` needed no change, and had anticipated this.** Its doc says seconds *"are accepted on parse
+(iCalendar emits them) and truncated"*, and it is deliberately naive because *"a 14:30 meeting is at
+14:30 where you are, and the file is the truth."* So a source's `TZID` or `Z` is resolved to the
+event's own wall-clock and stored naive — which is also what Track S #2 said. No offset is ever
+written into a note.
+
+## 2026-09-12 — an adjunct's idempotency key is a source key, not only a blob hash `#agent`
+
+> Widens `fm_agent::adjunct`'s documented contract; the four safety properties are unchanged.
+
+`Provenance.blob_hash` was documented as *"the lowercase-hex SHA-256 of the **source** blob"*, and
+idempotency as `(blob-hash, specialist, model)`. Both specialists that exist read a blob, so the name
+was accurate. A digest of what a feed said on a given day has **no blob** — and inventing a fake hash
+to fit the field would be a lie in the one place a reader goes to ask where text came from.
+
+**Decision:** the field becomes `source_key` — the blob hash for the media specialists (unchanged on
+disk for every existing block, because the value is unchanged), a `<source>|<date>` key for a digest.
+The key stays opaque to `adjunct`, which only ever compares it.
+
+**Why not a second mechanism.** The alternative was a separate splice for non-blob adjuncts, which is
+precisely the duplication the module was extracted to prevent — *"a rule implemented once per caller
+is a rule the next caller forgets"*. One splice, one insertion-only guarantee, one supersede rule.
+
+## 2026-09-12 — a city digest is two halves: the events are a command, the prose is the assistant `#agent` `#data`
+
+**The events go in deterministically; only the summary is written by a model.** A parsed feed becomes
+notes through an ordinary `fm-app` command with **no model in the path**, so it works with the
+assistant switched off, on any OS, and on a phone. The assistant's job is relevance and prose over
+records that are already verified, through `grounding::verify` unchanged — a claim whose quote is not
+a substring of its cited source is dropped and reported.
+
+**Why the split is the design and not a convenience.** Two reasons, one local and one measured.
+Locally, *a capability must mean "this will work", never "this is configured"* — so the valuable half
+must not depend on a 3 GB download. Measured: extraction quality is dominated by the *input
+representation*, not the model — flat keyed JSON gives a 3.05% hallucination rate against 91.46% for
+slimmed HTML on the same model (NEXT-EVAL, arXiv 2505.17125) — and title and URL are the easy fields
+while **date and venue are the ones a small model gets wrong quietly**. A parsed `VEVENT` is the limit
+of that finding: there is nothing left to invent. So the model is kept off the two fields whose
+failure sends a person to the wrong place at the wrong time.
+
+**Provenance is the primary check, ahead of grounding.** On 2024-10-31 thousands of people waited on
+O'Connell Street in Dublin for an AI-invented Halloween parade, attributed to a real performance group
+and illustrated with that group's real photographs from past years. Against that page: the link
+returned **200**, a verbatim quote would have **verified**, liveness and freshness would have
+**passed**. Every check we would naturally have built says yes. What was false was *authority* — the
+page was not the venue. **So an event is only ever as good as the fact that the venue itself published
+it**: an event's own link must share a host with the source that carried it, or it is recorded as
+pointing elsewhere rather than presented as that venue's event. The failure runs both ways — a real
+Ashley MacIsaac concert was cancelled in December 2025 because an AI summary confused him with someone
+else — so a check may drop an event, and may never delete a note.
+
+## 2026-09-12 — a subscription is not a crawl `#toolchain` `#agent`
+
+Some event feeds return `200` to anyone and are documented by their own publisher as subscribable,
+while that publisher's `robots.txt` disallows the path — Meetup's group `.ics` and RSS are exactly
+this. Treating the two cases identically gets one of them wrong whichever way it is resolved.
+
+**Decision.** Two postures. A source **the user added** is a subscription: `robots.txt` is not
+consulted, because a person typed that address and asked for it — the posture of any calendar client —
+and it is fetched **once per interval** (12 h by default, honouring a feed's own
+`REFRESH-INTERVAL`), conditionally (`If-None-Match`/`If-Modified-Since`), under an honest
+`User-Agent` naming formicaria. A link **the app found itself** is a crawl: `robots.txt` is fetched,
+parsed and obeyed, one hop only, and a refusal says what the site asked for.
+
+**Sites whose terms ban automated access are refused by name, in code, whoever pastes them** —
+Resident Advisor (Terms 4.4(f); its `robots.txt` also names `ClaudeBot` and `anthropic-ai` with
+`Disallow: /`), Dice.fm (`Content-Signal: ai-train=no`, an EU DSM Art. 4 reservation), Eventbrite
+(ToS §13.1), Facebook and Instagram. The user gets a plain sentence, not a silent failure and not an
+override — a refusal that can be clicked through is not a policy.
+
+**Instagram is closed, and the entry exists so it is not revisited on a hunch.** There is no
+location-media endpoint at all; Hashtag Search needs a professional account, a linked Page and App
+Review for purposes that do not include event discovery, is capped at 30 hashtags per 7 days, and
+strips author and timestamp — so a post could not carry an attributable source even if we had it.
+`instagram.com/robots.txt` redirects to a login page. Meta's terms (effective 2025-01-01) prohibit
+automated collection *"regardless of whether … logged-in"*, which is the clause that closed the gap
+*Meta v. Bright Data* turned on; and *hiQ v. LinkedIn* ended in an injunction to delete all code and
+data derived from the scrape, plus $500,000. **The supported path is the one already built**: the
+user saves the poster image into a note and `/transcribe` reads it. The human did the fetching, which
+is what a browser is for.
+
+## 2026-09-12 — the places to check are a note, not configuration `#data` `#vault`
+
+The list of feeds a person follows lives in **a note in the vault**, tagged `events-source`, one line
+per place.
+
+**Why not a config file.** `vaults.json` is on record as *"the first app-level config file, and a
+deliberate break with `decisions.md`'s 'no new config file'… Breaking that principle on purpose, in
+one place, beats breaking it by accident later."* One break, not two.
+
+**Why not `vault.json`.** That file's own bar is *"every field must be a fact git cannot supply"*, and
+which places *you* follow is not a property of an audience — it would also travel to every
+collaborator as though it were theirs.
+
+**What being a note buys.** Files-as-truth: it is editable in the app's own editor, versioned,
+greppable, survives as plain text, and travels with the vault when a notebook is shared — so a shared
+notebook shares its places, which is the behaviour you want and would otherwise have to build.
+
+## 2026-09-12 — one optional third-party key, and it is a place you added `#vault` `#toolchain`
+
+> Widens what ships: the first credential this app holds for a third party. Owner's decision,
+> 2026-09-12, with the keyless alternative on the table and declined.
+
+Every keyless route to concerts and club nights is closed — Resident Advisor and Dice ban automated
+access, Songkick requires a paid partnership and *"is not approving API requests for student projects,
+educational purposes or hobbyist purposes"*, Bandsintown's keys are artist-scoped with no city search.
+Ticketmaster's Discovery API does real city search on a free tier (5,000 calls/day).
+
+**Decision.** The user may paste a Ticketmaster key. It is **optional**, and the framing is what keeps
+it consistent with the capability rule: **a key is a place you added, not a feature switch.**
+Everything works without one, and the panel states what a key would add rather than offering a toggle
+that fails.
+
+**Storage changes nothing about the existing posture.** `secrets.rs`, `<config>/formicaria/`, `0600`,
+never in a vault, never in `vaults.json`; the writer joins `REMOTE_DENIED` beside
+`set_git_credential` and `set_restic_password`, because a paired tablet is a guest and a guest does
+not spend the host's quota. The standing rule — *"`secrets.rs` exists only where there is no
+credential helper, because everywhere else git owns the secret and we must not"* — is unchanged;
+this is a service with no credential helper, which is the same reason restic's password is here.
+
+**What it costs, stated plainly so a later reader can weigh it.** One signup wall exists where before
+there was none, and one more thing can be revoked by a third party. The 12 h interval and the
+note-per-event shape keep us inside Ticketmaster's caching terms, and no other keyed source is
+admitted by this entry.
+
 ## 2026-10-08 — a note opens on its text, and the keyboard is taken off the screen `#ui` `#track-m`
 
 **The complaint.** On the owner's Android phone a new note opened with half the screen taken by its
@@ -7982,3 +8138,212 @@ check. The check that failed on Dependabot's own commit stays on that commit and
   `@dependabot recreate`; the workflow runs again on the fresh branch.
 - **Unproven until a Dependabot pull request runs it.** The two open npm ones (katex, dompurify) pick
   it up once rebased onto a `main` that has it (`@dependabot rebase`).
+
+## 2026-10-09 — mail and your own calendars become notes on their own; the person only answers proposals `#agent` `#data` `#vault`
+
+**The ask.** Agenda items arrive by email (Gmail now, Outlook later). The owner wants meetings and
+tasks to appear, and to move when a later email moves them, **without doing anything** — the only
+human act is accepting or rejecting what the assistant proposes. Mail access must be read-only,
+because it is the most sensitive data the app will ever touch.
+
+**Four rulings, written before the code (`CLAUDE.md`'s four questions):**
+
+1. **Read-only by scope, not by promise.** Phase 1 reads the calendar's *secret iCal address* — a
+   URL that can only be read. Phase 2 reads Gmail through the API with exactly one scope,
+   `gmail.readonly`, so Google refuses a write even if our code tried one. IMAP was rejected: an app
+   password grants full mailbox rights, so "read-only" would be our code's promise and nothing more
+   — and NUS's M365 tenant has very likely switched password IMAP off anyway.
+2. **A private calendar address is a secret, not a note.** This *refines* *the places to check are a
+   note* (2026-09-12): a public venue feed stays in an `events-source` note, but a Google "secret
+   address" is a credential — anyone holding it reads the whole calendar — and a note is pushed to git
+   and shared with every collaborator. So it lives in `<config>/formicaria/calendars.json`, `0600`,
+   per machine, beside the restic password, and every route that reads or writes it is in
+   `REMOTE_DENIED`. A paired tablet is a guest; it neither sees nor sets the host's calendars.
+3. **Two halves, like the city digest.** A calendar invite is structured (`UID`, `SEQUENCE`,
+   `DTSTART`), so it goes in **deterministically, with no model**: a `SEQUENCE` bump rewrites `start`,
+   `due` and `location` on its own, `cancelled` marks a note and never deletes one, and **the body is
+   never touched**. Only prose — "can we move this to Thursday?" — goes through the on-device model,
+   `grounding::verify`, and lands as a **proposal**. The model is kept off the two fields whose
+   failure sends a person to the wrong place at the wrong time unless a human accepts it.
+4. **Local only, and autonomous.** Gemini in Gmail has no API, so nothing can call it; a manual "paste
+   Gemini's summary" path was offered and declined by the owner — *"the overall solutions should be
+   autonomous, the user enters only when she needs to accept or not a proposal."* So every step runs
+   from a background check, and when the model is absent the work waits rather than disappearing.
+
+**Does it widen what ships? Yes, twice, and both are named here.** `fm-serve` gains a `calendar`
+feature carrying `fm-fetch` (already in the binary behind `update`, so no new crate), and a second
+per-machine secret file. *(Reversed the same day — see *the email exchange lives in the conversation note*.)* Email bodies are **not** stored in a vault in any phase: only titles, stamps
+and the short verbatim quotes that justify them.
+
+**Phase 1's time-zone rule.** `parse_ics` drops the time of a `Z` stamp without an offset, by ruling,
+and the machine's local offset cannot be read in this process. So the offset is a **stated setting**
+(default `+08:00`), shown beside the calendars. A fixed offset is wrong across a DST change; for a
+Singapore user it is exact, and `known-issues.md` says so for everyone else.
+
+## 2026-10-09 — a repeating meeting is one note per occurrence, laid out two months ahead `#data` `#agent`
+
+**Decision.** `fm_core::recur` expands a subset of `RRULE` (the patterns a personal calendar
+actually holds) and `calendar::reconcile` writes **one note per occurrence** from today to 60 days
+ahead, keyed `ics_uid: <uid>#<date>`. An override (`RECURRENCE-ID`) shares the key of the date it
+moves, so it replaces that occurrence; an `EXDATE` removes one. A date the series no longer
+produces (a dropped week, a series moved to another weekday) has its note **tagged `cancelled`,
+never deleted**, and only when the series was read in full this time, within the window, and the
+date is still ahead.
+
+**Why one note per occurrence and not one per series.** *The atom is the file*, and a meeting's notes
+belong to *that* meeting: the 14 October minutes are not the 21 October minutes. A single series note
+could not sit on the agenda on each date either, because `start`/`due` hold one span.
+
+**Why a window.** A weekly series has no end, and laying out a year at once would put fifty notes in
+the vault on the first read. Sixty days fills the month view, and the hourly read moves the window, so
+the cost is a few new notes per week.
+
+**Why a subset, refusing the rest.** A rule read wrongly puts a meeting on a day it is not, which is
+the one failure a calendar must not have. A refused rule shows its first date and is counted on the
+panel. Missing a meeting is something the person can see. A meeting on the wrong day is not.
+
+## 2026-10-09 — Gmail is read with the person's own Google client, and its text never enters a vault `#vault` `#data` `#toolchain`
+
+> SUPERSEDED IN PART (2026-10-09, same day) — *the email exchange lives in the conversation note*.
+> The "text stays on the machine" bullet and the private `mail/` folder are reversed; everything else
+> here (own client, read-only enforcement, `/api/oauth_google`, label + date bound) stands.
+
+**What shipped** (`fm-serve/src/mail.rs`, `fm_core::mail`, `mail_sync`): Phase 2 of *mail and your
+own calendars become notes on their own*.
+
+- **The person's own Google Cloud client, not one we ship.** `gmail.readonly` is a *restricted*
+  scope: a shared client would need Google's verification and a third-party security assessment,
+  and would put this project between every user and their mailbox. Each person creates a
+  Desktop-app client (the manual walks it), so the arrangement is theirs and Google's. The cost is
+  ten minutes of set-up, and a sign-in every 7 days while their project is in testing. The panel
+  states that cost rather than hiding it.
+- **Read-only, enforced three times.** One `SCOPE` constant (tested); a sign-in that comes back
+  wider than it is refused rather than kept; and `ci/checks.sh` fails on any Google address outside
+  the five a reader needs, any other scope, any writing verb, or a `POST` anywhere but the sign-in
+  token and revoke endpoints. Each guard was seen to fire.
+- **PKCE + a `state` check, and the return address is under `/api/`.** Everything outside `/api/` is
+  served to a paired device without a token. A callback there would be reachable from the network,
+  so it is `/api/oauth_google`, behind the command gate and in `REMOTE_DENIED`.
+- **A label and a start date bound what is read**, at most 200 new messages per read. The whole
+  mailbox is never read: it would be slow on a local model, and the person decides what the app sees
+  by labelling mail (a Gmail filter does it automatically).
+- **The text stays on the machine.** A conversation note carries subject, last sender and time; the
+  message text goes to `<config>/formicaria/mail/<id>.json` (`0600`, directory `0700`) for the
+  assistant. `Disconnect` removes it and revokes the token; notes stay. Ruling 4 of the 2026-10-09
+  entry, now with a mechanism.
+- **An invite in a message is a calendar**, read by `calendar_sync` with source `mail` and keyed on
+  its `UID`, so a meeting in both Gmail and Google Calendar is one note.
+- **No message count on the note.** Reading a message twice must change nothing (a batch is re-sent
+  after a failure), and a count cannot stay true without listing every message id in the note.
+
+## 2026-10-09 — the email exchange lives in the conversation note `#data` `#vault` `#agent`
+
+> Reverses ruling 4 of *mail and your own calendars become notes on their own* and the "text stays on
+> the machine" bullet of *Gmail is read with the person's own Google client*. Owner's decision, with
+> the consequences stated to them first.
+
+**Decision.** A conversation note holds the **whole exchange**: one block per message (sender, To, Cc,
+date and time, attachment names, the text with its quoted history trimmed), appended in order, plus
+`participants` and a link that opens the thread in Gmail. The private `<config>/formicaria/mail/`
+folder is gone; the assistant reads the note like any other.
+
+**Why the owner chose it.** A second store for the same text was complexity bought only for privacy,
+and the read-only scope already protects the mailbox. With the text in the note, it is searchable,
+readable in the app, and the agent needs no special path. *Files-as-truth* applies again without an
+exception.
+
+**What it costs, stated to the owner and accepted.** Mail goes into `vault`, which is copied to
+GitHub. So the exchanges, including what other people wrote, are on GitHub, stay in that notebook's
+history after a note is deleted, and reach anyone the notebook is shared with. Pointing Mail at a
+notebook with no online copy avoids all three, and the manual says so.
+
+**What is still never done.** Text the person wrote in the note is never rewritten or moved: a new
+message is *appended*, found again by an invisible `<!-- gmail:<id> -->` marker so a re-read adds
+nothing. The title is never rewritten, and nothing is deleted.
+
+## 2026-10-09 — the assistant proposes meetings from email, and a proposal may now date a note or add one `#agent` `#data`
+
+**The ask, narrowed by the owner.** Only **meetings with people** ("I can create tasks by myself"),
+several per exchange possible, and with nothing for the person to do but accept or reject. The
+owner chose: *the conversation note becomes the first meeting; each further one is its own meeting
+note, linked back.*
+
+**What the model may do, and what it may not.** It copies words: the sentence that fixes a meeting
+and, inside it, the words for the day, time and place. **It never writes a date.**
+`fm_agent::meetings` checks the sentence is in the emails, that the day words are inside it, and turns
+them into a date counting from the day *that message* was sent (its heading), in Italian or English.
+Unreadable words drop the meeting rather than guess. That keeps the model off the two fields whose
+failure sends a person to the wrong place at the wrong time, the 2026-09-12 city-digest rule applied
+to prose. One stated heuristic: a bare hour 1–7 is the afternoon.
+
+**Two widenings of the proposal path, both through the human gate:**
+
+1. **A proposal may set allowlisted properties**: `start`, `due`, `location`, `meeting_of`, and
+   *add* tags (`create_proposal`'s `props`, `apply_props`). Anything else is refused by name.
+   Stored on the proposal note (`proposal_props`) so a reviewer's edit, which sends only a body,
+   re-applies them instead of silently dropping the date the proposal was about.
+2. **A proposal may add a new note** (`propose_note`, `propose_new_note`). The note exists only on its
+   `proposal/<id>` branch until accepted; rejecting leaves nothing on `main`. *VaultAccess has no
+   create-note verb* (outstanding §2.15 #9) still holds: the agent still cannot create a note, it can
+   only propose one.
+
+**The pass runs itself.** It runs from the resident watcher's minute rescan, one conversation per
+minute and only when no discussion was just answered. It re-reads a conversation only when its
+`mail_last` moves. Its memory (last message read, meeting starts already proposed) is a file in the
+assistant's runtime folder: machine bookkeeping, not vault content, and what makes a rejection final.
+A meeting already on the agenda (an invitation made it) is not proposed again.
+
+**The review shows the date in plain view.** `proposal_content` now carries `start`/`due`/`location`
+and `isNew`, and the review screen states "Meeting: … · place" above the text. Accepting a meeting time
+must not depend on opening the diff.
+
+**Dependencies.** `time` joins `fm-agent` and `fm-agent-run`. It is already in the workspace via
+`fm-core`/`fm-model`, so no new crate enters the tree.
+
+## 2026-10-09 — the model points at the sentence; Rust reads the date from it `#agent`
+
+> Refines *the assistant proposes meetings* (same day), after its first run on the owner's real mail.
+
+**What happened.** On four real conversations the model found every meeting and quoted the right
+sentence, but it did not copy the day words: it translated "the 16th of October" into "16 ottobre",
+and offered "domani" for a sentence that said nothing of the kind. Both had been copied from the
+Italian examples in the instructions. The checks refused all of them, correctly, so the owner saw
+nothing.
+
+**Decision.** The model is asked for the one thing it did right: **the sentence**. Rust finds the
+date in that sentence, or, when it says only "that day", in the text before it **in the same email**
+(the nearest date wins). Rust finds the time in the sentence only. The model's own day words are a
+last resort, used only if they appear in that email. The date finder is strict, because emails are
+full of numbers: a room (`RM 01-02`), a project code (`2999-00001`) or a time (`15.30`) is never read
+as a date. The instructions no longer carry example words that a small model can echo back.
+
+**Also fixed.** The day an email was sent is read from *its own* heading. Before, the text was
+flattened first, so the lookup could take the wrong message's date. The pass's memory now carries a
+version: when the rules change, every conversation is read once more, and nothing already proposed is
+asked again.
+
+**Measured, not assumed.** A read-only dry run over the owner's four conversations, with the real
+model, proposes the three upcoming meetings (all 16 October) and skips the two already past.
+
+## 2026-10-09 — the laptop model gets an 8192-token window, and its image projector moves off the GPU `#agent` `#toolchain`
+
+> Changes a `models.toml` runtime key (read *The assistant provisions itself* before touching
+> those). Widens what the launch path can do by one per-model key; the global default is unchanged.
+
+**Why.** The meeting pass reads a whole email conversation in one prompt, and the shipped 2048-token
+window holds about 700 words. A real exchange with quoted Chinese replies needs several thousand.
+
+**Measured on the owner's 4 GB RTX 3050** (`llama-server` alone, in a memory-capped scope):
+2048 with the projector on the GPU = 3553 MiB. **4096 and 8192 do not start**: Vulkan cannot
+allocate the 0.8 GB projector. With `--no-mmproj-offload`, 4096 = 3046 MiB, 8192 = 3626 MiB, and a
+6.8k-token mixed Italian/Chinese prompt was answered in 14.5 s at 3641 MiB.
+
+**Decision.** For `qwen3-vl-4b` only: `ctx = 8192` and the new per-model key
+`mmproj_offload = false` (`serve.rs` adds `--no-mmproj-offload`). The global `ctx = 2048` and the
+phone's model are untouched (a test reads the shipped catalogue). The meeting pass sizes its text by
+an estimate of tokens (`TEXT_TOKENS` = 6500, a CJK character counted as one) and caps its answer at
+600 tokens, so prompt and answer always fit together.
+
+**What it costs.** Image reading (`/transcribe` on a photo) runs the projector on the CPU, which is
+slower, measured as starting fine but not timed. On a machine with no GPU, the larger KV cache costs
+about 0.9 GB more RAM.

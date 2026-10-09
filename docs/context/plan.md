@@ -175,7 +175,17 @@ cross-tie: Ruling B lands before Track C Phase 3 shares boards.
 ### Track S — single-user near-term (from the old `archive/roadmap.md`)
 
 1. **Time on `start`/`due`** — **DONE** (`decisions.md`; `sessions/2026-07-15-time-on-dates.md`).
-2. **Calendar import (ICS → notes, one-way).** `fm ics pull <url|path>` → one note per
+2. **Calendar import (ICS → notes, one-way).**
+   > **SUPERSEDED IN PART (2026-09-12)** — see `decisions.md`, *the feed parser sits in `fm-core`
+   > beside the importer, and Track S #2's `curl` clause is reversed* `#toolchain`. Two clauses below
+   > no longer hold: **shelling out to `curl`** (`fm-fetch` ships `ureq` + rustls since 2026-09-10, so
+   > the "zero new Rust deps" goal is met *by not adding curl*), and the **CLI-first surface** (the
+   > app is the surface). **Everything else here stands and is the design being built** — the
+   > `VEVENT`→`start`/`due` mapping, `SUMMARY`→title, the `UID`/`SEQUENCE` idempotence, "never touch
+   > the body", the hand-rolled parser, and `TZID`→naive wall-clock. It is being delivered pointed at
+   > *public venue calendars* as well as your own: see the approved "What's on" plan.
+
+   `fm ics pull <url|path>` → one note per
    `VEVENT`; `DTSTART`/`DTEND` → `start`/`due` stamps; `SUMMARY` → title;
    `LOCATION`/`ORGANIZER`/attendees → frontmatter; `tags: [meeting, <source>]`; **body left
    empty for the owner.** Idempotence is the trick: key each note to the event `UID`, store

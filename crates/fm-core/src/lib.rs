@@ -32,6 +32,16 @@ pub mod backup;
 pub mod git;
 // Logseq/Obsidian -> notes; converts, where `acquire` only moves bytes.
 pub mod import;
+// A published calendar -> event records; converts too, and for the same reason sits beside `import`
+// rather than in the agent: the events half must work with the assistant off.
+pub mod events;
+// Event records -> notes: which to create, which a newer `SEQUENCE` moves, which are cancelled. Pure;
+// the caller owns the store.
+pub mod calendar;
+// The `RRULE` subset real calendars use, expanded into dates. Refuses what it cannot read exactly.
+pub mod recur;
+// One email read from Gmail's JSON, and one note per conversation. Pure; the transport fetches.
+pub mod mail;
 // In-process git, for platforms with no `git` binary. Non-default: the desktop shells out.
 #[cfg(feature = "native-git")]
 pub mod git_native;

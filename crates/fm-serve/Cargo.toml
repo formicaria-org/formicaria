@@ -19,7 +19,7 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent", "tls", "update"]
+default = ["agent", "tls", "update", "calendar", "mail"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
@@ -38,6 +38,13 @@ tls = ["dep:rustls", "dep:rcgen"]
 # Android app so the list of trusted keys exists exactly once. `fm-fetch` is used directly too, for the
 # archive download and the extraction that only a desktop folder needs.
 update = ["dep:fm-update", "dep:fm-fetch"]
+# Reading your own calendars (`decisions.md` 2026-10-09). Carries `fm-fetch` — already in the binary
+# behind `update`, so no new crate — and is a feature for the same reason: `--no-default-features`
+# must keep building the std-only server.
+calendar = ["dep:fm-fetch"]
+# Gmail, read-only (`decisions.md` 2026-10-09). Rides on `calendar`: an invite in a message is read
+# exactly as a calendar is, and the person's stated offset lives there.
+mail = ["calendar"]
 
 [dependencies]
 fm-model = { workspace = true }

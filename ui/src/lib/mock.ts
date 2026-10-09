@@ -509,6 +509,26 @@ let mockPreviousVersion: string | null = 'v0.5.1';
 // `mockProvisioned` starts false: a mock that starts up to date would hide the whole flow.
 const mockAvailableVersion: string | null = 'v0.6.1';
 let mockUpdateCheck = true;
+let mockMail: import('./ipc').MailStatus = {
+  configured: false,
+  connected: false,
+  email: '',
+  label: 'formicaria',
+  since: '',
+  vault: 'personal',
+  read: 0,
+  lastChecked: 0,
+  reading: false,
+  last: null,
+};
+function mockMailStatus(): import('./ipc').MailStatus {
+  return { ...mockMail };
+}
+let mockCalendarFeeds: import('./ipc').CalendarFeed[] = [];
+let mockCalendarOffset = '+08:00';
+function mockCalendars(): import('./ipc').Calendars {
+  return { offset: mockCalendarOffset, lastChecked: 0, pulling: false, feeds: mockCalendarFeeds };
+}
 let mockUpdateProgress: {
   stage: 'manifest' | 'download' | 'unpack' | 'ready' | 'failed';
   done: number;
@@ -823,6 +843,124 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         };
       }
       return mockUpdateStatus() as T;
+
+    // Your own calendars. The address is kept and never returned, as on the server.
+    case 'calendars':
+      return mockCalendars() as T;
+    case 'calendar_add': {
+      const { label, url, vault } = args as { label: string; url: string; vault: string };
+      if (!String(label ?? '').trim())
+        throw new Error('give the calendar a short name, such as work');
+      if (!/^(https|webcal):\/\//.test(String(url ?? '')))
+        throw new Error("paste the calendar's address — it starts with https:// or webcal://");
+      mockCalendarFeeds.push({
+        label: label.trim(),
+        host: String(url).split('://')[1]?.split('/')[0] ?? '',
+        vault: vault || 'personal',
+        last: null,
+      });
+      return mockCalendars() as T;
+    }
+    case 'calendar_remove':
+      mockCalendarFeeds = mockCalendarFeeds.filter(
+        (f) => f.label !== (args as { label: string }).label,
+      );
+      return mockCalendars() as T;
+    case 'calendar_offset':
+      mockCalendarOffset = String((args as { offset: string }).offset);
+      return mockCalendars() as T;
+    // The command the server calls with the fetched bytes; the UI never does, but the mock answers it
+    // so a dispatch arm is never a mock-less surprise.
+    case 'calendar_sync':
+      return {
+        vault: 'personal',
+        source: 'work',
+        created: 0,
+        moved: 0,
+        cancelled: 0,
+        unchanged: 0,
+        past: 0,
+        undated: 0,
+        noId: 0,
+        repeating: 0,
+        series: 0,
+      } as T;
+    // Gmail. No Google here: signing in is simulated by the consent address being "visited".
+    // Called by the server with the messages it read; the UI never does, but every arm has a case.
+    case 'mail_sync':
+      return {
+        vault: 'personal',
+        messages: 0,
+        newConversations: 0,
+        updatedConversations: 0,
+        invites: { created: 0, moved: 0, cancelled: 0 },
+      } as T;
+    // The assistant's meeting pass calls these; the UI never does, but every arm has a case.
+    case 'mail_conversations':
+      return { conversations: [], taken: [], linked: {} } as T;
+    case 'propose_note':
+      return { id: 'proposal-new', title: 'Proposal: meeting' } as T;
+    case 'mail_status':
+      return mockMailStatus() as T;
+    case 'mail_setup': {
+      const a = args as {
+        clientId: string;
+        clientSecret: string;
+        label: string;
+        since: string;
+        vault: string;
+      };
+      if (a.clientId && !a.clientId.endsWith('.apps.googleusercontent.com'))
+        throw new Error(
+          'the client ID ends in .apps.googleusercontent.com — check you copied the whole of it',
+        );
+      mockMail = {
+        ...mockMail,
+        configured: mockMail.configured || !!a.clientId,
+        label: a.label,
+        since: a.since,
+        vault: a.vault || 'personal',
+      };
+      return mockMailStatus() as T;
+    }
+    case 'mail_connect':
+      mockMail = { ...mockMail, connected: true, email: 'reader@example.org' };
+      return { url: 'about:blank' } as T;
+    case 'mail_read_now':
+      mockMail = {
+        ...mockMail,
+        read: mockMail.read + 3,
+        lastChecked: Math.floor(Date.now() / 1000),
+        last: {
+          at: Math.floor(Date.now() / 1000),
+          messages: 3,
+          waiting: 3,
+          newConversations: 2,
+          updatedConversations: 1,
+          invites: { created: 1, moved: 0, cancelled: 0 },
+        },
+      };
+      return mockMailStatus() as T;
+    case 'mail_disconnect':
+      mockMail = { ...mockMail, connected: false, email: '', read: 0, last: null };
+      return mockMailStatus() as T;
+    case 'calendar_pull':
+      mockCalendarFeeds = mockCalendarFeeds.map((f) => ({
+        ...f,
+        last: {
+          at: Math.floor(Date.now() / 1000),
+          created: 2,
+          moved: 0,
+          cancelled: 0,
+          unchanged: 0,
+          past: 5,
+          undated: 0,
+          noId: 0,
+          repeating: 1,
+          series: 2,
+        },
+      }));
+      return mockCalendars() as T;
 
     case 'update_check':
       return mockUpdateStatus() as T;
