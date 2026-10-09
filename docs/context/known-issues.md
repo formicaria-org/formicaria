@@ -1041,6 +1041,22 @@ note, invitations made meetings).
   exactly what you saw.
 - **Search typing is not history**: a search window is one place, however many queries you type.
 
+## Signing a phone build locally (2026-10-09)
+
+On the owner's machine, `~/.config/formicaria/android-release.properties` held a byte-copy of the
+keystore instead of its four lines. It was overwritten on 2026-09-09. Since then a local
+`pixi run -e android android-release` builds and aligns, but `apksigner` fails silently (its stderr
+goes to `/dev/null`) and the APK is **unsigned**. The phone refuses an unsigned or differently
+signed update without an uninstall, which would wipe the app's data.
+
+- **To restore it:** `pixi run -e android sh ci/android-signing-setup.sh`, run by the owner in their
+  own terminal. It asks for the store password, alias and key password (the GitHub secrets'
+  values), checks them against the keystore with `keytool`, and only then writes the file, owner-only.
+- **Meanwhile, to test on the phone before a release:** run `release.yml` by hand on `main`. It
+  builds and signs with the official key, publishes nothing, and leaves an `android-apk` artifact.
+  Download that, then install it by cable with `adb install -r` after checking the certificate
+  against `android/signing-certificate.sha256`. Used for v0.6.3.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
