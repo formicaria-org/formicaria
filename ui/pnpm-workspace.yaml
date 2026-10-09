@@ -3,8 +3,9 @@
 # → 5 is the one line change; its API is unchanged). Remove an entry once `pnpm audit` is clean
 # without it.
 #
-# Not pinned: `braces` (via Excalidraw's `sass` → `chokidar`). Its advisory names 3.0.4, which is not
-# published; it runs only at build time and never reaches the app.
+# `chokidar` 3 → 4 removes `braces` entirely (its advisory names a fix, 3.0.4, that is not published).
+# The only `chokidar` 3 here is under Excalidraw's pinned `sass` 1.51, which uses it for its own
+# command-line `--watch` mode — something neither the build nor the app ever runs.
 overrides:
   "nanoid@<3.3.18": "^3.3.18"
   "nanoid@>=4.0.0 <5.1.16": "^5.1.16"
@@ -12,4 +13,5 @@ overrides:
   "postcss@<8.5.23": "^8.5.23"
   "undici@<7.29.1": "^7.29.1"
   "source-map-js@<1.2.2": "^1.2.2"
+  "chokidar@<4": "^4.0.3"
   "katex@<0.18.2": "0.18.10"

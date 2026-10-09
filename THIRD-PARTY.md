@@ -301,18 +301,15 @@ ship inside the binary. Generated from the production dependency closure
 | @types/trusted-types | 2.0.7 | MIT |
 | @upsetjs/venn.js | 2.0.0 | MIT |
 | acorn | 8.19.0 | MIT |
-| anymatch | 3.1.3 | ISC |
 | aria-hidden | 1.2.6 | MIT |
 | aria-query | 5.3.1 | Apache-2.0 |
 | axobject-query | 4.1.0 | Apache-2.0 |
-| binary-extensions | 2.3.0 | MIT |
 | bind-event-listener | 3.0.0 | MIT |
-| braces | 3.0.3 | MIT |
 | browser-fs-access | 0.29.1 | Apache-2.0 |
 | canvas-roundrect-polyfill | 0.0.1 | MIT |
 | chevrotain | 11.0.3 | Apache-2.0 |
 | chevrotain-allstar | 0.3.1 | MIT |
-| chokidar | 3.6.0 | MIT |
+| chokidar | 4.0.3 | MIT |
 | clsx | 1.1.1, 2.1.1 | MIT |
 | commander | 7.2.0, 15.0.0 | MIT |
 | cose-base | 1.0.3, 2.2.0 | MIT |
@@ -369,11 +366,9 @@ ship inside the binary. Generated from the production dependency closure
 | esm-env | 1.2.2 | MIT |
 | esrap | 2.4.0 | MIT |
 | fastdom | 1.0.12 | MIT |
-| fill-range | 7.1.1 | MIT |
 | fractional-indexing | 3.2.0 | CC0-1.0 |
 | fuzzy | 0.1.3 | MIT |
 | get-nonce | 1.0.1 | MIT |
-| glob-parent | 5.1.2 | ISC |
 | glur | 1.1.2 | MIT |
 | hachure-fill | 0.5.2 | MIT |
 | iconv-lite | 0.6.3 | MIT |
@@ -382,10 +377,6 @@ ship inside the binary. Generated from the production dependency closure
 | import-meta-resolve | 4.2.0 | MIT |
 | inherits | 2.0.4 | ISC |
 | internmap | 1.0.1, 2.0.3 | ISC |
-| is-binary-path | 2.1.0 | MIT |
-| is-extglob | 2.1.1 | MIT |
-| is-glob | 4.0.3 | MIT |
-| is-number | 7.0.0 | MIT |
 | is-reference | 3.0.3 | MIT |
 | isexe | 2.0.0 | ISC |
 | jotai | 2.11.0 | MIT |
@@ -403,7 +394,6 @@ ship inside the binary. Generated from the production dependency closure
 | mermaid | 11.17.2 | MIT |
 | multimath | 2.0.0 | MIT |
 | nanoid | 3.3.20, 5.1.16 | MIT |
-| normalize-path | 3.0.0 | MIT |
 | object-assign | 4.1.1 | MIT |
 | open-color | 1.9.1 | MIT |
 | package-manager-detector | 1.9.0 | MIT |
@@ -412,7 +402,6 @@ ship inside the binary. Generated from the production dependency closure
 | path-key | 3.1.1 | MIT |
 | perfect-freehand | 1.2.0 | MIT |
 | pica | 7.1.1 | MIT |
-| picomatch | 2.3.2 | MIT |
 | png-chunk-text | 1.0.0 | MIT |
 | png-chunks-encode | 1.0.0 | MIT |
 | png-chunks-extract | 1.0.0 | MIT |
@@ -425,7 +414,7 @@ ship inside the binary. Generated from the production dependency closure
 | react-remove-scroll | 2.7.2 | MIT |
 | react-remove-scroll-bar | 2.3.8 | MIT |
 | react-style-singleton | 2.2.3 | MIT |
-| readdirp | 3.6.0 | MIT |
+| readdirp | 4.1.2 | MIT |
 | robust-predicates | 3.0.3 | Unlicense |
 | roughjs | 4.6.4, 4.6.6 | MIT |
 | rw | 1.3.3 | BSD-3-Clause |
@@ -440,7 +429,6 @@ ship inside the binary. Generated from the production dependency closure
 | stylis | 4.4.0 | MIT |
 | svelte | 5.57.2 | MIT |
 | tinyexec | 1.3.1 | MIT |
-| to-regex-range | 5.0.1 | MIT |
 | ts-dedent | 2.3.0 | MIT |
 | tslib | 2.8.1 | 0BSD |
 | tunnel-rat | 0.1.2 | MIT |
