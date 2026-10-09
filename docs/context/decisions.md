@@ -8389,3 +8389,25 @@ the board. On a phone, in a menu, with no pop-up bar (owner's choice).
 
 **Out of scope, on purpose.** Proposals, getting their changes, backups, imports and merges are
 git-level acts with their own way back. The undo menu names only what it can actually undo.
+
+## 2026-10-09 — a move made from a menu replaces the menu's history entry `#ui` `#track-m`
+
+> Refines *Back walks what you opened, and panels close first* (same day), after v0.6.2 broke
+> switching windows on the owner's phone.
+
+**What broke.** Picking a window from the phone's window list closed the list (a *layer*) and set
+the window directly. The move was not recorded, so closing the list stepped history back, which
+restored the window just left. On the phone, picking a window did nothing. The existing test
+checked right after the click, before that step arrived, and passed.
+
+**Decision, three parts:**
+1. **Switching windows is a move** (`selectWindow`), recorded like opening a note.
+2. **A move made while a menu is open replaces the menu's entry** instead of stacking on it, so the
+   menu's own close has nothing to step back from.
+3. **The app's own step back, taken to drop a closed menu's entry, never moves the person**
+   (`ownBack` in `nav.svelte.ts`). This holds for any menu that leads somewhere, including ones
+   added later.
+
+**The test lesson.** The window-list test now waits out the history step and checks the switch
+held, then that Back returns from it. Shown to fail on v0.6.2's code. Any test of something that
+goes through history must wait for `popstate` before it asserts.

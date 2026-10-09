@@ -90,3 +90,17 @@ test('the first screen is stamped, so there is nowhere earlier inside the app', 
   await screen.findByText(/GAE lambda interacts badly/);
   expect((history.state as { fm?: number; nav?: { kind: string } }).nav?.kind).toBeTruthy();
 });
+
+test('a view picked from a menu stays picked, and Back returns from it', async () => {
+  // The other way a menu leads somewhere. Closing the menu must not step back onto the place just
+  // left (the v0.6.2 phone bug, there through the window list).
+  render(App);
+  await screen.findByText(/GAE lambda interacts badly/);
+  await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Agenda' }));
+  await waitFor(() => expect(showing()).toMatch(/Agenda/));
+  await new Promise((r) => setTimeout(r, 100));
+  expect(showing()).toMatch(/Agenda/);
+  history.back();
+  await waitFor(() => expect(showing()).toMatch(/Board/));
+});

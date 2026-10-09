@@ -81,6 +81,16 @@ test('a window in the list switches to it, and its × closes it', async () => {
   expect(screen.queryByRole('menu', { name: 'open windows' })).toBeNull();
   const row = screen.getByRole('navigation', { name: 'open views' });
   expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(name);
+  // **And it stays there** (v0.6.2, the owner's phone): closing the list stepped history back a
+  // moment later, onto the window just left, so the switch undid itself. Checking only right after
+  // the click is what let that through — this waits out the history step.
+  await new Promise((r) => setTimeout(r, 100));
+  expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(name);
+  // Switching is a move: Back returns to Agenda, where we were.
+  history.back();
+  await waitFor(() =>
+    expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Agenda'),
+  );
 
   await fireEvent.click(windowsButton());
   menu = await screen.findByRole('menu', { name: 'open windows' });

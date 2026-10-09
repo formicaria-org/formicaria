@@ -68,9 +68,13 @@ export function visit(t: Target) {
     const raw = history.state as Record<string, unknown> | null;
     // One of NotePanel's own entries (editing, full-screen board) is on top: replace it.
     const transient = !!raw && ('fmEditing' in raw || 'boardFull' in raw);
-    if (transient) history.replaceState({ fm: 1, nav: t } satisfies State, '');
+    // **A menu's entry is on top: replace it too.** Picking a place from a menu (the phone's window
+    // list, the views menu) closes the menu *and* moves. Pushed on top of the menu's entry, the move
+    // would leave that entry beneath it, and the menu's own close would then step back onto the place
+    // just left — which is exactly the v0.6.2 bug: on the phone, picking a window did nothing.
+    if (transient || top?.layer) history.replaceState({ fm: 1, nav: t } satisfies State, '');
     else history.pushState({ fm: 1, nav: t } satisfies State, '');
-    // Any layer still open is left behind by navigating; it is closed by its owner's own logic.
+    // Its entry is gone, so the layer has nothing to take back when its owner closes it.
     layers.length = 0;
   } catch {
     /* no history — nothing to record */
@@ -100,14 +104,25 @@ export function closeLayer(name: string) {
   if (i === -1) return;
   layers.splice(i, 1);
   try {
-    if (current()?.layer === name) history.back();
+    if (current()?.layer === name) {
+      ownBack = true;
+      history.back();
+    }
   } catch {
     /* nothing to take back */
   }
 }
 
+/** Set while the app steps back itself to drop a closed menu's entry. That step must never move the
+ *  person anywhere — they closed a menu, they did not press Back. */
+let ownBack = false;
+
 /** Back (or forward) landed on `state`. Closes the layers above it; answers where to navigate. */
 export function popped(state: unknown): Target | null {
+  if (ownBack) {
+    ownBack = false;
+    return null;
+  }
   const s =
     state && typeof state === 'object' && (state as State).fm === 1 ? (state as State) : null;
   // Close every layer that is not the one this entry belongs to, topmost first.
@@ -124,4 +139,5 @@ export function popped(state: unknown): Target | null {
 export function reset() {
   layers.length = 0;
   restoring = false;
+  ownBack = false;
 }

@@ -166,6 +166,14 @@
       }),
     );
   }
+  /** Switch to an open window — a move like any other, so Back returns from it. **Recorded here, not
+   *  left implicit:** the phone picks windows from a menu, and closing that menu used to step history
+   *  back onto the window you had just left (v0.6.2, reported on the owner's phone the same day). */
+  function selectWindow(i: number) {
+    focused = i;
+    persistWorkspace();
+    moved();
+  }
   function addPane(kind: PaneKind, over: Partial<PaneT> = {}) {
     if (workspace.panes.length >= MAX_PANES) {
       notice = `That's the most panes at once (${MAX_PANES}). Close one to open another.`;
@@ -2232,8 +2240,7 @@
                     aria-current={i === focused ? 'true' : undefined}
                     onclick={() => {
                       windowsOpen = false;
-                      focused = i;
-                      persistWorkspace();
+                      selectWindow(i);
                     }}
                   >
                     {#if icon}
@@ -2698,10 +2705,7 @@
           feed={feedKey(workspace.panes[focused])
             ? feeds[feedKey(workspace.panes[focused]) ?? '']
             : undefined}
-          onselect={(i) => {
-            focused = i;
-            persistWorkspace();
-          }}
+          onselect={selectWindow}
           onchange={(patch) => changePane(workspace.panes[focused].id, patch)}
           onclose={closePane}
         />
