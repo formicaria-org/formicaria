@@ -210,7 +210,7 @@ ship inside the binary. Generated from the production dependency closure
 
 | Package | Version | Licence |
 |---|---|---|
-| @antfu/install-pkg | 1.1.0 | MIT |
+| @antfu/install-pkg | 2.1.0 | MIT |
 | @atlaskit/pragmatic-drag-and-drop | 2.0.1 | Apache-2.0 |
 | @babel/runtime | 7.29.7 | MIT |
 | @braintree/sanitize-url | 6.0.2, 7.1.2 | MIT |
@@ -229,13 +229,13 @@ ship inside the binary. Generated from the production dependency closure
 | @floating-ui/react-dom | 2.1.9 | MIT |
 | @floating-ui/utils | 0.2.12 | MIT |
 | @iconify/types | 2.0.0 | MIT |
-| @iconify/utils | 3.1.4 | MIT |
+| @iconify/utils | 3.1.7 | MIT |
 | @jridgewell/gen-mapping | 0.3.13 | MIT |
 | @jridgewell/remapping | 2.3.5 | MIT |
 | @jridgewell/resolve-uri | 3.1.2 | MIT |
-| @jridgewell/sourcemap-codec | 1.5.5 | MIT |
+| @jridgewell/sourcemap-codec | 1.5.5, 1.6.0 | MIT |
 | @jridgewell/trace-mapping | 0.3.31 | MIT |
-| @mermaid-js/parser | 0.6.3, 1.2.0 | MIT |
+| @mermaid-js/parser | 0.6.3, 1.2.1 | MIT |
 | @radix-ui/primitive | 1.0.0, 1.1.1 | MIT |
 | @radix-ui/react-arrow | 1.1.2 | MIT |
 | @radix-ui/react-collection | 1.0.1 | MIT |
@@ -261,7 +261,7 @@ ship inside the binary. Generated from the production dependency closure
 | @radix-ui/react-use-rect | 1.1.0 | MIT |
 | @radix-ui/react-use-size | 1.1.0 | MIT |
 | @radix-ui/rect | 1.1.0 | MIT |
-| @sveltejs/acorn-typescript | 1.0.11 | MIT |
+| @sveltejs/acorn-typescript | 1.0.13 | MIT |
 | @tauri-apps/api | 2.11.1 | Apache-2.0 OR MIT |
 | @types/d3 | 7.4.3 | MIT |
 | @types/d3-array | 3.2.2 | MIT |
@@ -278,7 +278,7 @@ ship inside the binary. Generated from the production dependency closure
 | @types/d3-fetch | 3.0.7 | MIT |
 | @types/d3-force | 3.0.10 | MIT |
 | @types/d3-format | 3.0.4 | MIT |
-| @types/d3-geo | 3.1.0 | MIT |
+| @types/d3-geo | 3.1.1 | MIT |
 | @types/d3-hierarchy | 3.1.7 | MIT |
 | @types/d3-interpolate | 3.0.4 | MIT |
 | @types/d3-path | 3.1.1 | MIT |
@@ -287,20 +287,20 @@ ship inside the binary. Generated from the production dependency closure
 | @types/d3-random | 3.0.4 | MIT |
 | @types/d3-scale | 4.0.9 | MIT |
 | @types/d3-scale-chromatic | 3.1.0 | MIT |
-| @types/d3-selection | 3.0.11 | MIT |
-| @types/d3-shape | 3.1.8 | MIT |
+| @types/d3-selection | 3.0.12 | MIT |
+| @types/d3-shape | 3.2.0 | MIT |
 | @types/d3-time | 3.0.4 | MIT |
 | @types/d3-time-format | 4.0.3 | MIT |
 | @types/d3-timer | 3.0.2 | MIT |
 | @types/d3-transition | 3.0.9 | MIT |
-| @types/d3-zoom | 3.0.8 | MIT |
+| @types/d3-zoom | 3.0.9 | MIT |
 | @types/estree | 1.0.9 | MIT |
 | @types/geojson | 7946.0.16 | MIT |
 | @types/react | 19.2.17 | MIT |
 | @types/react-dom | 19.2.3 | MIT |
 | @types/trusted-types | 2.0.7 | MIT |
 | @upsetjs/venn.js | 2.0.0 | MIT |
-| acorn | 8.17.0 | MIT |
+| acorn | 8.19.0 | MIT |
 | anymatch | 3.1.3 | ISC |
 | aria-hidden | 1.2.6 | MIT |
 | aria-query | 5.3.1 | Apache-2.0 |
@@ -314,13 +314,13 @@ ship inside the binary. Generated from the production dependency closure
 | chevrotain-allstar | 0.3.1 | MIT |
 | chokidar | 3.6.0 | MIT |
 | clsx | 1.1.1, 2.1.1 | MIT |
-| commander | 7.2.0, 8.3.0 | MIT |
+| commander | 7.2.0, 15.0.0 | MIT |
 | cose-base | 1.0.3, 2.2.0 | MIT |
 | crc-32 | 0.3.0 | Apache-2.0 |
 | cross-env | 7.0.3 | MIT |
 | cross-spawn | 7.0.6 | MIT |
 | csstype | 3.2.3 | MIT |
-| cytoscape | 3.34.0 | MIT |
+| cytoscape | 3.34.3 | MIT |
 | cytoscape-cose-bilkent | 4.1.0 | MIT |
 | cytoscape-fcose | 2.2.0 | MIT |
 | d3 | 7.9.0 | ISC |
@@ -359,15 +359,16 @@ ship inside the binary. Generated from the production dependency closure
 | d3-transition | 3.0.1 | ISC |
 | d3-zoom | 3.0.0 | ISC |
 | dagre-d3-es | 7.0.14 | MIT |
-| dayjs | 1.11.21 | MIT |
+| dayjs | 1.11.23 | MIT |
 | delaunator | 5.1.0 | ISC |
 | detect-node-es | 1.1.0 | MIT |
-| devalue | 5.8.1 | MIT |
-| dompurify | 3.4.12 | Apache-2.0 (elected from `MPL-2.0 OR Apache-2.0`) |
-| es-toolkit | 1.49.0 | MIT |
+| devalue | 5.9.4 | MIT |
+| dompurify | 3.4.16 | Apache-2.0 (elected from `MPL-2.0 OR Apache-2.0`) |
+| es-toolkit | 1.52.0 | MIT |
 | es6-promise-pool | 2.5.0 | MIT |
 | esm-env | 1.2.2 | MIT |
-| esrap | 2.2.13 | MIT |
+| esrap | 2.4.0 | MIT |
+| fastdom | 1.0.12 | MIT |
 | fill-range | 7.1.1 | MIT |
 | fractional-indexing | 3.2.0 | CC0-1.0 |
 | fuzzy | 0.1.3 | MIT |
@@ -389,23 +390,23 @@ ship inside the binary. Generated from the production dependency closure
 | isexe | 2.0.0 | ISC |
 | jotai | 2.11.0 | MIT |
 | jotai-scope | 0.7.2 | MIT |
-| katex | 0.16.47, 0.17.0 | MIT |
+| katex | 0.18.10 | MIT |
 | khroma | 2.1.0 | MIT (declared in its `license` file, not package.json) |
 | langium | 3.3.1 | MIT |
 | layout-base | 1.0.2, 2.0.1 | MIT |
 | locate-character | 3.0.0 | MIT |
-| lodash-es | 4.17.21, 4.18.1 | MIT |
+| lodash-es | 4.18.1 | MIT |
 | lodash.debounce | 4.0.8 | MIT |
 | lodash.throttle | 4.1.1 | MIT |
 | magic-string | 0.30.21 | MIT |
 | marked | 16.4.2, 18.0.6 | MIT |
-| mermaid | 11.16.0 | MIT |
+| mermaid | 11.17.2 | MIT |
 | multimath | 2.0.0 | MIT |
-| nanoid | 3.3.3, 4.0.2 | MIT |
+| nanoid | 3.3.20, 5.1.16 | MIT |
 | normalize-path | 3.0.0 | MIT |
 | object-assign | 4.1.1 | MIT |
 | open-color | 1.9.1 | MIT |
-| package-manager-detector | 1.7.0 | MIT |
+| package-manager-detector | 1.9.0 | MIT |
 | pako | 2.0.3 | (MIT AND Zlib) |
 | path-data-parser | 0.1.0 | MIT |
 | path-key | 3.1.1 | MIT |
@@ -434,10 +435,11 @@ ship inside the binary. Generated from the production dependency closure
 | shebang-command | 2.0.0 | MIT |
 | shebang-regex | 3.0.0 | MIT |
 | sliced | 1.0.1 | MIT |
-| source-map-js | 1.2.1 | BSD-3-Clause |
+| source-map-js | 1.2.2 | BSD-3-Clause |
+| strictdom | 1.0.1 | MIT |
 | stylis | 4.4.0 | MIT |
-| svelte | 5.56.4 | MIT |
-| tinyexec | 1.2.4 | MIT |
+| svelte | 5.57.2 | MIT |
+| tinyexec | 1.3.1 | MIT |
 | to-regex-range | 5.0.1 | MIT |
 | ts-dedent | 2.3.0 | MIT |
 | tslib | 2.8.1 | 0BSD |
@@ -445,7 +447,7 @@ ship inside the binary. Generated from the production dependency closure
 | use-callback-ref | 1.3.3 | MIT |
 | use-sidecar | 1.1.3 | MIT |
 | use-sync-external-store | 1.6.0 | MIT |
-| uuid | 14.0.1 | MIT |
+| uuid | 14.0.2 | MIT |
 | vscode-jsonrpc | 8.2.0 | MIT |
 | vscode-languageserver | 9.0.1 | MIT |
 | vscode-languageserver-protocol | 3.17.5 | MIT |
@@ -454,7 +456,7 @@ ship inside the binary. Generated from the production dependency closure
 | vscode-uri | 3.0.8 | MIT |
 | webworkify | 1.5.0 | MIT |
 | which | 2.0.2 | ISC |
-| zimmerframe | 1.1.4 | MIT |
+| zimmerframe | 1.1.5 | MIT |
 | zustand | 4.5.7 | MIT |
 
 

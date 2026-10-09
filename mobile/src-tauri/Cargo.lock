@@ -987,6 +987,7 @@ dependencies = [
  "libc",
  "serde_json",
  "thiserror 2.0.19",
+ "time",
 ]
 
 [[package]]
@@ -1000,6 +1001,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tar",
+ "time",
  "ureq",
  "zip",
 ]
