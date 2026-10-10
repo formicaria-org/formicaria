@@ -205,6 +205,8 @@ class MainActivity : TauriActivity() {
   /// - **Android asks first, once.** Installing from an app needs the person's permission for that
   ///   app. Rather than fail, this opens the screen that grants it and says so; the page tells the
   ///   person to come back and press Install again.
+  /// - **An older version is not handed over.** Android would refuse it with a sentence that reads
+  ///   like a corrupt file; see `olderThanInstalled`.
   /// - **A download signed by somebody else is not offered.** Android enforces this itself for an
   ///   update, but only after the person has been shown an install prompt for a stranger's package.
   ///   The check here blocks only on a *positive* mismatch: a platform quirk that returns no signing
@@ -225,6 +227,9 @@ class MainActivity : TauriActivity() {
       if (signedDifferently(apk)) {
         return "error: the download is not signed like the formicaria already installed, so it was not installed"
       }
+      if (olderThanInstalled(apk)) {
+        return "error: the download is an older version than the formicaria on this phone. Android only installs the same version or a newer one, so it was not installed. Look for the newest version and get that."
+      }
       return try {
         val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", apk)
         val view = Intent(Intent.ACTION_VIEW)
@@ -237,6 +242,29 @@ class MainActivity : TauriActivity() {
       }
     }
   }
+
+  /// True only when both version codes were read **and** the download's is lower.
+  ///
+  /// **Android refuses this itself, and says nothing useful when it does.** Handed an older package,
+  /// its installer answers *"App not installed as package appears to be invalid"* — the same words
+  /// it uses for a corrupt file — after the person has confirmed the install. The owner met that on
+  /// 2026-10-11, when a test build was offered an older release. The updater no longer offers one
+  /// (`fm_update::newer_than`), and this is the second line: if an older file ever reaches here,
+  /// the person is told why in the app instead of being shown that sentence. Like the signer check
+  /// it blocks only on a *positive* answer; what cannot be read is left to Android.
+  private fun olderThanInstalled(apk: File): Boolean {
+    return try {
+      val theirs = packageManager.getPackageArchiveInfo(apk.path, 0)
+      val mine = packageManager.getPackageInfo(packageName, 0)
+      theirs != null && versionCodeOf(theirs) < versionCodeOf(mine)
+    } catch (e: Exception) {
+      false
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  private fun versionCodeOf(p: android.content.pm.PackageInfo): Long =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) p.longVersionCode else p.versionCode.toLong()
 
   /// True only when both signer sets were read **and** they differ. See `UpdateInstaller`.
   private fun signedDifferently(apk: File): Boolean {

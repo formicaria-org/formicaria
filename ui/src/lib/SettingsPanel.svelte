@@ -1579,6 +1579,25 @@
                 </button>
               {/if}
             </li>
+            <!-- **An offered version must never be the end of the road.** *Check now* lived only in
+                 the "up to date" state, so once a version was on offer there was no way to ask
+                 again — and a copy that had remembered an old release kept offering it for ever
+                 (the owner's phone, 2026-10-11: v0.6.3 offered with v0.6.5 out, and nothing to
+                 press but *Get v0.6.3*). It says when the offer was found, which is what makes a
+                 stale one recognisable. Not while a download is in flight or sitting ready: looking
+                 again then could put a new version's name on an old version's file. -->
+            {#if upd.available && (!upd.progress || upd.progress.stage === 'failed')}
+              <li>
+                <span class="k">found</span>
+                <span class="muted">
+                  {upd.last_check ? `${lookedWhen(upd.last_check)}.` : 'earlier.'} A newer one may be
+                  out since.
+                </span>
+                <button onclick={checkNow} disabled={looking || upd.checking}>
+                  {looking || upd.checking ? 'Looking…' : 'Check now'}
+                </button>
+              </li>
+            {/if}
             {#if updateError}
               <li><span class="bad">{updateError}</span></li>
             {/if}

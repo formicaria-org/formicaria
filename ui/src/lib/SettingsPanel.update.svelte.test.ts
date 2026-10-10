@@ -161,6 +161,39 @@ describe('SettingsPanel — getting a newer version', () => {
     expect(screen.queryByText(/Get v0\.6\.1/)).toBeNull();
   });
 
+  /// *Check now* used to exist only in the "up to date" state. A copy that had remembered an old
+  /// release then offered it for ever, with nothing to press but *Get* — on the owner's phone that
+  /// was v0.6.3 with v0.6.5 already out. An offer is not the end of the road.
+  it('can look again while a version is on offer, and replaces a stale offer', async () => {
+    const stale = new Date(2026, 9, 9, 14, 15).getTime() / 1000;
+    updateStatus.mockResolvedValue(status({ available: 'v0.6.3', last_check: stale }));
+    updateCheckNow
+      .mockReset()
+      .mockResolvedValue(status({ available: 'v0.6.5', last_check: stale + 9 }));
+    panel();
+    expect(await screen.findByText(/^v0\.6\.3 is available$/)).toBeTruthy();
+    // When it was found is on screen, which is what makes a stale offer recognisable.
+    expect(screen.getByText(/A newer one may\s+be out since/)).toBeTruthy();
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    expect(updateCheckNow).toHaveBeenCalled();
+    expect(await screen.findByText(/^v0\.6\.5 is available$/)).toBeTruthy();
+    expect(screen.queryByText(/v0\.6\.3/)).toBeNull();
+  });
+
+  /// Not while a download is under way or waiting to be installed: a new name on an old file.
+  it('does not offer to look again over a download in flight or one that is ready', async () => {
+    for (const stage of ['download', 'ready']) {
+      updateStatus.mockResolvedValue(
+        status({ progress: { stage, done: 1, total: 2, error: null } }),
+      );
+      const { unmount } = panel();
+      await screen.findAllByText(/v0\.6\.1/);
+      expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
+      unmount();
+    }
+  });
+
   /// Silent in the background, answered when asked.
   it('keeps a background failure quiet but reports a failed Check now', async () => {
     updateStatus.mockResolvedValue(status({ available: null, error: 'offline' }));
