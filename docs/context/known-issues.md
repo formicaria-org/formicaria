@@ -1047,8 +1047,8 @@ note, invitations made meetings).
   check had simulated a keyboard and **no navigation bar**. `--kb` is the keyboard *beyond* the
   navigation bar, so with the bottom bar hidden the note's last `--safe-bottom` (47px there) was
   covered, which is the whole row. Fixed by `.body` paying that strip while the bar is hidden;
-  `ci/checks.sh` keeps the two rules together. **The fix itself is measured only in the browser**,
-  now with the strip simulated; a real keyboard, the selection handles and iOS remain unverified.
+  `ci/checks.sh` keeps the two rules together. **The owner confirmed the fix on the phone** the
+  same day, before v0.6.5 was tagged. iOS remains unverified.
   **Trap:** when simulating the Android keyboard, set `--safe-bottom` as well as `--kb`.
 - **The app's bar hides while a note is typed with the keyboard up**, and comes back when the
   keyboard goes. It relies on CSS `:has()` (Android WebView 105+, iOS 15.4+); on an older engine the
