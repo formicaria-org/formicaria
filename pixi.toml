@@ -298,9 +298,6 @@ search-proxy = "python3 agents/search-proxy.py 8888"
 # the study-agent workload and append measured numbers to agents/bench/results.md. See agents/bench/README.md.
 #   pixi run model-bench -- --url http://127.0.0.1:8081 --model qwen3-4b-2507 --device laptop --pid $(pgrep -x llama-server) --gpu
 model-bench = "python3 agents/bench/run.py"
-# Invoke the study assistant: propose an edit to one note (never main). Needs a served model.
-#   pixi run agent-propose -- --vault . --note <ULID> --ask "..." [--search "..."] [--input <ULID>]
-agent-propose = "cargo run -q -p fm-agent-run --bin fm-agent-run --"
 # Warm-session chat with the assistant in a note's discussion (RAG over the vault). Needs a served model.
 #   pixi run agent-chat -- --vault . --note <ULID>
 agent-chat = "cargo run -q -p fm-agent-run --bin agent-chat --"

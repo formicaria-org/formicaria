@@ -1058,6 +1058,26 @@ signed update without an uninstall, which would wipe the app's data.
   against `android/signing-certificate.sha256`. Used for v0.6.3. Since 2026-10-09 such a test build can update itself
   back to the published release from Settings (*Check now*); before, its `dev-<sha>` version hid it.
 
+## A newer assistant model after an update — limits (2026-10-10)
+
+Built the same day it was found (`decisions.md`, *an update offers a newer assistant model*). What
+is left:
+
+- **A computer's model engine does not follow the app.** `provision` fetches the runtime only when
+  `llama-server` is missing, so a changed `runtime_url_*` pin never reaches a downloaded install.
+  Harmless until a new model needs a newer engine; then the offer would download weights the old
+  engine cannot load. The fix has the same shape as the catalogue's: notice the pin moved, and
+  include the engine in what the offer downloads.
+- **On a computer the new model starts at the next launch**, not at once: `fm-serve` keeps no handle
+  on the running assistant (the same reason "off" applies at the next launch).
+- **Not run on a real device.** The rule is unit-tested (`installed.rs`), the Settings row is
+  tested against a mock, and the phone crate compiles; nobody has yet accepted an offer on a phone
+  or a downloaded desktop app.
+- **Models never come from GitHub.** A release carries only the catalogue (names, pinned Hugging
+  Face revisions, checksums); every device downloads weights from Hugging Face itself.
+- **Trap:** the phone's default is `enabled: true`. An update therefore reaches phones whose owners
+  never opened Settings; the offer waits there, and nothing tells them outside Settings.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

@@ -467,6 +467,9 @@ const REMOTE_DENIED: &[&str] = &[
     // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
     // above: a paired tablet is a guest, and a guest does not free the host's storage.
     "/api/remove_agent_model",
+    // Starts a download measured in gigabytes onto the host's disk, or records the host's answer
+    // to an offer. A guest does neither.
+    "/api/update_agent_model",
     "/api/set_transcribe",
     "/api/agent_activity",
     "/api/agent_present",
@@ -2017,7 +2020,12 @@ mod tests {
     /// so it comes back at every launch. A *valid* token must still not reach it.
     #[test]
     fn a_paired_device_cannot_start_a_process_on_the_host() {
-        for path in ["/api/set_agent", "/api/set_transcribe", "/api/agent_activity"] {
+        for path in [
+            "/api/set_agent",
+            "/api/set_transcribe",
+            "/api/agent_activity",
+            "/api/update_agent_model",
+        ] {
             let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
             assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");
         }

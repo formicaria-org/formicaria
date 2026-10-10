@@ -97,6 +97,17 @@ struct EnabledReq {
 }
 
 #[derive(serde::Deserialize, Default)]
+struct UpdateModelReq {
+    /// "Not now": remember that this default was declined, and download nothing.
+    #[serde(default)]
+    dismiss: bool,
+    /// Stop a download of the newer model that is under way. The assistant itself is left as it
+    /// is: stopping this is not turning it off.
+    #[serde(default)]
+    cancel: bool,
+}
+
+#[derive(serde::Deserialize, Default)]
 struct TranscribeReq {
     #[serde(default)]
     transcribe: bool,
@@ -110,22 +121,14 @@ pub fn enabled() -> bool {
     if std::env::var_os("FM_AGENT").is_some() {
         return true;
     }
-    config_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .map(|v| v["enabled"].as_bool().unwrap_or(false))
-        .unwrap_or(false)
+    settings()["enabled"].as_bool().unwrap_or(false)
 }
 
 /// Whether audio→transcript is on — the "Audio transcription" toggle, stored beside `enabled` in
 /// `agent.json` (`{"transcribe": true}`). Read when the agent starts; exported to the agent stack as
 /// `FM_TRANSCRIBE=1` so it launches whisper. Default off — no whisper runtime loads unless asked.
 pub fn transcribe_enabled() -> bool {
-    config_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-        .map(|v| v["transcribe"].as_bool().unwrap_or(false))
-        .unwrap_or(false)
+    settings()["transcribe"].as_bool().unwrap_or(false)
 }
 
 /// Provision the assistant — fetch the runtime, the model, and the projector if one is wanted —
@@ -139,6 +142,20 @@ pub fn transcribe_enabled() -> bool {
 /// Nothing here is fatal to the app: a failure sets `stage: "failed"` with the reason, which the
 /// Settings row prints, and leaves the `.part` files where a retry resumes them.
 pub fn provision_and_spawn(state: &Arc<AgentState>, model: Option<String>, want_vision: bool) {
+    provision(state, model, want_vision, After::Start);
+}
+
+/// What a finished download leads to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum After {
+    /// A first enable: start the assistant now.
+    Start,
+    /// A newer model accepted while the old one is running: it takes over at the next launch, the
+    /// way every other change to the assistant does (`set_agent`'s own rule).
+    NextLaunch,
+}
+
+fn provision(state: &Arc<AgentState>, model: Option<String>, want_vision: bool, after: After) {
     let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
     let st = Arc::clone(state);
     std::thread::spawn(move || {
@@ -268,8 +285,21 @@ pub fn provision_and_spawn(state: &Arc<AgentState>, model: Option<String>, want_
         if !live() {
             return;
         }
-        set("ready", 0, None, None);
-        spawn(st.port);
+        // Remember what was chosen, and the default it was chosen against. Without this the model
+        // picked on the first-enable screen was never the one started (the supervisor took the
+        // catalogue's default), and nothing could tell a deliberate choice from an old install.
+        if let Err(e) = remember_choice(Some(&name), &manifest.default) {
+            eprintln!("study agent: could not record the chosen model: {e}");
+        }
+        match after {
+            After::Start => {
+                set("ready", 0, None, None);
+                spawn(st.port);
+            }
+            After::NextLaunch => {
+                set("restart", 0, None, None);
+            }
+        }
     });
 }
 
@@ -290,6 +320,21 @@ pub fn provisioned() -> bool {
 fn provisioned_in(dir: &std::path::Path) -> bool {
     if !dir.join("runtime").join(server_bin()).exists() {
         return false;
+    }
+    // With a catalogue, "is a model here" means *a model the catalogue still lists*: one it has
+    // dropped has no settings to run with. The default may move freely, though — an older listed
+    // model keeps counting, so a changed default alone never costs a download.
+    if let Ok(manifest) = fm_agent_run::manifest::Manifest::read(&dir.join("models.toml")) {
+        let (chosen, seen) = choice();
+        return fm_agent_run::installed::resolve(
+            &manifest,
+            &dir.join("models"),
+            &manifest.default,
+            chosen.as_deref(),
+            seen.as_deref(),
+        )
+        .running
+        .is_some();
     }
     std::fs::read_dir(dir.join("models")).is_ok_and(|mut d| {
         d.any(|e| {
@@ -470,8 +515,35 @@ pub fn spawn(port: u16) -> bool {
     // supervisor that was already Rust. The phone has run this same stack with no shell since it
     // shipped; the desktop now does too, which is what lets it run where `bash` and `python3` are
     // not a given, and what lets it run at all from an unpacked archive.
+    // **Which model** is decided here, not left to the supervisor's default: the one this person
+    // chose and still has, else whatever catalogued model is on disk. An update that moves the
+    // catalogue's default therefore changes nothing until they accept the offer in Settings.
+    let Some((manifest, _, found)) = installed_now() else {
+        eprintln!("study agent: enabled, but there is no model catalogue to start from");
+        return false;
+    };
+    let Some(model) = found.running else {
+        eprintln!(
+            "study agent: enabled, but no model the catalogue lists is on this machine — \
+             Settings offers the download"
+        );
+        return false;
+    };
+    // Weights that belong to neither the model about to run nor the one on offer are an earlier
+    // model's, left behind by an accepted update. Never in a checkout, where they are a developer's.
+    if !is_checkout(&dir) {
+        for gone in fm_agent_run::installed::sweep(
+            &manifest,
+            &dir.join("models"),
+            &[&model, &manifest.default],
+        ) {
+            println!("study agent: removed unused model file {}", gone.display());
+        }
+    }
+
     let mut cmd = std::process::Command::new(&exe);
     cmd.arg("--agents-dir").arg(&dir).arg("--serve-port").arg(port.to_string());
+    cmd.arg("--model").arg(&model);
     // In-process HTTPS search, since there is no proxy to start without a shell.
     cmd.arg("--web-direct");
 
@@ -537,14 +609,43 @@ pub fn agents_dir() -> Option<PathBuf> {
 pub fn manifest_path() -> Option<PathBuf> {
     let dir = agents_dir()?;
     let in_tools = dir.join("models.toml");
-    if in_tools.exists() {
-        return Some(in_tools);
-    }
     let beside = std::env::current_exe()
         .ok()
         .and_then(|e| e.parent().map(|p| p.join("models.toml")))
-        .filter(|p| p.exists())?;
-    Some(beside)
+        .filter(|p| p.exists());
+    // **The shipped catalogue is the current one.** It used to be copied into the tools directory
+    // once and read from there for ever, so an updated app kept the catalogue of the release that
+    // first enabled the assistant: no new model, and no changed setting either. Once per run, a
+    // shipped copy that differs replaces the tools copy (the old one is kept beside it). A checkout
+    // is never touched: its `agents/models.toml` is the developer's file, in git.
+    static REFRESH: std::sync::Once = std::sync::Once::new();
+    if let (Some(shipped), false) = (&beside, is_checkout(&dir)) {
+        REFRESH.call_once(|| refresh_catalogue(shipped, &in_tools));
+    }
+    if in_tools.exists() {
+        return Some(in_tools);
+    }
+    beside
+}
+
+/// Is `dir` a source checkout's `agents/` rather than this user's tools directory?
+fn is_checkout(dir: &std::path::Path) -> bool {
+    fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("tools")).as_deref() != Some(dir)
+}
+
+/// Make `in_tools` a copy of `shipped` when they differ, keeping what was there as
+/// `models.toml.previous`. Does nothing when the tools copy does not exist yet (first use copies it)
+/// or already matches.
+fn refresh_catalogue(shipped: &std::path::Path, in_tools: &std::path::Path) {
+    let (Ok(new), Ok(old)) = (std::fs::read(shipped), std::fs::read(in_tools)) else { return };
+    if new == old {
+        return;
+    }
+    let _ = std::fs::copy(in_tools, in_tools.with_extension("toml.previous"));
+    match std::fs::write(in_tools, new) {
+        Ok(()) => println!("study agent: the model catalogue was updated with the app"),
+        Err(e) => eprintln!("study agent: could not update the model catalogue: {e}"),
+    }
 }
 
 #[cfg(unix)]
@@ -704,16 +805,67 @@ fn config_path() -> Option<PathBuf> {
     fm_app::vaults::config_dir().map(|d| d.join("formicaria").join("agent.json"))
 }
 
-/// Persist both settings together, so writing one never clobbers the other. `agent.json` holds
-/// `{"enabled": .., "transcribe": ..}`; the settings screen writes it via `/api/set_agent` and
-/// `/api/set_transcribe`.
-fn write_settings(enabled: bool, transcribe: bool) -> Result<(), String> {
+/// Everything in `agent.json`, or an empty object. One reader, so every setting is read the same
+/// way and a key this version does not know survives being written back.
+fn settings() -> serde_json::Value {
+    config_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+/// Write some keys of `agent.json`, **leaving the others as they are** — so the switch, the audio
+/// sub-switch and the remembered model choice never clobber one another.
+fn write_keys(pairs: &[(&str, serde_json::Value)]) -> Result<(), String> {
     let path = config_path().ok_or("no config directory on this OS")?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    std::fs::write(&path, format!("{{\"enabled\": {enabled}, \"transcribe\": {transcribe}}}\n"))
-        .map_err(|e| e.to_string())
+    let mut all = settings();
+    for (k, v) in pairs {
+        all[*k] = v.clone();
+    }
+    std::fs::write(&path, format!("{all}\n")).map_err(|e| e.to_string())
+}
+
+/// Persist both switches together. `agent.json` holds `{"enabled": .., "transcribe": ..}` plus the
+/// model choice below; the settings screen writes it via `/api/set_agent` and `/api/set_transcribe`.
+fn write_settings(enabled: bool, transcribe: bool) -> Result<(), String> {
+    write_keys(&[("enabled", enabled.into()), ("transcribe", transcribe.into())])
+}
+
+/// The model this person picked or accepted, and the catalogue default at that moment (or when
+/// they last said "not now"). See `fm_agent_run::installed::resolve` for what each is for.
+fn choice() -> (Option<String>, Option<String>) {
+    let all = settings();
+    let get = |k: &str| all[k].as_str().map(str::to_string);
+    (get("model"), get("default_seen"))
+}
+
+fn remember_choice(model: Option<&str>, default_seen: &str) -> Result<(), String> {
+    let mut pairs = vec![("default_seen", serde_json::Value::from(default_seen))];
+    if let Some(m) = model {
+        pairs.push(("model", m.into()));
+    }
+    write_keys(&pairs)
+}
+
+/// The catalogue, where the models are kept, and what [`resolve`](fm_agent_run::installed::resolve)
+/// makes of them. `None` when this machine has no catalogue to read.
+fn installed_now(
+) -> Option<(fm_agent_run::manifest::Manifest, PathBuf, fm_agent_run::installed::Installed)> {
+    let dir = agents_dir()?;
+    let manifest = fm_agent_run::manifest::Manifest::read(&manifest_path()?).ok()?;
+    let (chosen, seen) = choice();
+    let found = fm_agent_run::installed::resolve(
+        &manifest,
+        &dir.join("models"),
+        &manifest.default,
+        chosen.as_deref(),
+        seen.as_deref(),
+    );
+    Some((manifest, dir, found))
 }
 
 fn set_enabled(enabled: bool) -> Result<(), String> {
@@ -790,6 +942,14 @@ pub fn route(
                 // on" and "download 2.5 GB and then turn it on", which a person deserves to know
                 // before clicking rather than after.
                 "provisioned": provisioned(),
+                // Which model runs here, and — when an update moved the catalogue's default — the
+                // newer one on offer with what it costs to download. `unsupported` means the
+                // weights on disk are no longer listed, so the offer is the only way forward.
+                "model": installed_now().and_then(|(_, _, f)| f.running),
+                "update": installed_now().and_then(|(_, _, f)| f.offer).map(|o| serde_json::json!({
+                    "name": o.name, "bytes": o.bytes, "license": o.license, "replaces": o.replaces,
+                })),
+                "unsupported": installed_now().is_some_and(|(_, _, f)| f.unsupported),
                 // What removing it would free, so the control can say so rather than ask for faith.
                 "provisioned_bytes": agents_dir().map(|d| provisioned_bytes_in(&d)).unwrap_or(0),
                 // A download in flight, or how the last one ended. Null when nothing is happening.
@@ -884,6 +1044,44 @@ pub fn route(
                     ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
                 }
                 Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
+            }
+        }
+        // **Accept, or decline, the newer model an update offered.** Accepting downloads it beside
+        // the one that is running and records the choice; it takes over at the next launch, like
+        // every other change to the assistant. Declining records which default was declined, so the
+        // offer is not repeated until the default moves again. Nothing is ever fetched unasked.
+        "/api/update_agent_model" => {
+            let req = serde_json::from_slice::<UpdateModelReq>(body).unwrap_or_default();
+            if req.cancel {
+                // Retire the download (it leaves its partial file, so a later accept resumes).
+                state.agent.generation.fetch_add(1, Ordering::SeqCst);
+                *state.agent.provisioning.lock().unwrap() = None;
+                return Some(crate::write_response(
+                    stream,
+                    "200 OK",
+                    "application/json",
+                    b"{\"ok\":true}",
+                ));
+            }
+            match installed_now().and_then(|(m, _, f)| f.offer.map(|o| (m, o))) {
+                None => (
+                    "409 Conflict",
+                    "text/plain; charset=utf-8",
+                    b"There is no newer assistant model to download.".to_vec(),
+                ),
+                Some((manifest, _)) if req.dismiss => {
+                    match remember_choice(None, &manifest.default) {
+                        Ok(()) => ("200 OK", "application/json", b"{\"ok\":true}".to_vec()),
+                        Err(e) => ("500 Internal Server Error", "text/plain", e.into_bytes()),
+                    }
+                }
+                Some((manifest, offer)) => {
+                    // The projector comes with it: it is part of the size the offer stated, and a
+                    // model picked as the default for what it can see is not worth half of.
+                    let sees = manifest.model(&offer.name).is_some_and(|m| m.mmproj.is_some());
+                    provision(&state.agent, Some(offer.name), sees, After::NextLaunch);
+                    ("200 OK", "application/json", b"{\"ok\":true}".to_vec())
+                }
             }
         }
         // The "Audio transcription" toggle. Persist only — whisper is chosen when the agent *starts*
@@ -992,9 +1190,39 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The weights are matched by **extension, not by name**, on purpose: the catalogue's default
-    /// can move under an installation that already holds a perfectly good model, and re-downloading
-    /// gigabytes because a default changed would be the wrong answer.
+    /// A shipped catalogue replaces the copy in the tools directory when it differs, and keeps the
+    /// old one. This is what lets an app update change the assistant's model or its settings: the
+    /// copy used to be made once and read for ever.
+    #[test]
+    fn an_updated_app_brings_its_catalogue_and_keeps_the_old_one() {
+        let dir = scratch("catalogue-refresh");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (shipped, in_tools) = (dir.join("shipped.toml"), dir.join("models.toml"));
+        std::fs::write(&shipped, b"default = \"new\"").unwrap();
+
+        refresh_catalogue(&shipped, &in_tools);
+        assert!(!in_tools.exists(), "nothing to refresh before first use copies it in");
+
+        std::fs::write(&in_tools, b"default = \"old\"").unwrap();
+        refresh_catalogue(&shipped, &in_tools);
+        assert_eq!(std::fs::read(&in_tools).unwrap(), b"default = \"new\"");
+        assert_eq!(
+            std::fs::read(dir.join("models.toml.previous")).unwrap(),
+            b"default = \"old\"",
+            "the catalogue it replaced is kept beside it"
+        );
+
+        // Same bytes: nothing is rewritten, and the kept copy is not overwritten with itself.
+        std::fs::write(dir.join("models.toml.previous"), b"marker").unwrap();
+        refresh_catalogue(&shipped, &in_tools);
+        assert_eq!(std::fs::read(dir.join("models.toml.previous")).unwrap(), b"marker");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// With no catalogue to consult, the weights are matched by **extension, not by name**. With
+    /// one, `provisioned_in` asks `installed::resolve` instead (tested there): a default that moved
+    /// still never costs a download, because an older listed model keeps counting — but weights the
+    /// catalogue has dropped no longer do.
     #[test]
     fn any_gguf_counts_as_weights_whatever_the_catalogue_now_prefers() {
         let dir = scratch("provisioned-any");

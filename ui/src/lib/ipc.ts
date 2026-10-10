@@ -411,8 +411,23 @@ export const agentStatus = () =>
     /** A first-enable download in flight, or how the last one ended; null when idle. `total` is
      *  null where the server sends no length, and the line must then say bytes rather than invent
      *  a percentage. */
+    /** The model this device runs, when one is here. */
+    model?: string | null;
+    /** A newer model that came with an app update, offered and never fetched unasked: what it is,
+     *  what accepting downloads (weights and image reader together), and what it would replace. */
+    update?: {
+      name: string;
+      bytes: number | null;
+      license: string | null;
+      replaces: string | null;
+    } | null;
+    /** The model on this device is no longer listed by this version, so it cannot be started and
+     *  the offer is the only way forward. */
+    unsupported?: boolean;
+    /** `restart` is a newer model fully downloaded on a computer: it takes over at the next
+     *  launch. */
     provisioning: {
-      stage: 'runtime' | 'model' | 'projector' | 'ready' | 'failed';
+      stage: 'runtime' | 'model' | 'projector' | 'ready' | 'restart' | 'failed';
       done: number;
       total: number | null;
       error: string | null;
@@ -425,6 +440,12 @@ export const agentStatus = () =>
  *  images. Both are ignored once the stack is on the machine. */
 export const setAgent = (enabled: boolean, model?: string, vision = false) =>
   invoke<{ ok: boolean }>('set_agent', { enabled, model, vision });
+
+/** Answer the offer of a newer assistant model. No argument downloads it (the model in use keeps
+ *  working meanwhile); `dismiss` records "not now" so the offer is not repeated until the model
+ *  changes again; `cancel` stops a download under way without turning the assistant off. */
+export const updateAgentModel = (answer: { dismiss?: boolean; cancel?: boolean } = {}) =>
+  invoke<{ ok: boolean }>('update_agent_model', answer);
 
 /** Delete the downloaded model and runtime, freeing the disk they use. Turns the assistant off
  *  first — deleting files under a running model leaves it serving from unlinked inodes. Answers how

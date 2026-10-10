@@ -166,7 +166,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   `dependabot.yml`) · ***A Dependabot pull request carries its own notice*** (read before touching
   `dependabot-notice.yml`, `THIRD-PARTY.md`'s format, or any job holding `contents: write`) · *The manual's CSP is a named
   exception* (`#ui`).
-- **`#agent`**: ***The assistant proposes meetings from email, and a proposal may now date a note or add one*** (2026-10-09; read before widening `apply_props`' allowlist or `propose_note`) · ***The model points at the sentence; Rust reads the date from it*** (read before letting a model supply a date, time or place) · ***The laptop model gets an 8192-token window, and its image projector moves off the GPU*** (read before changing `ctx` or `mmproj_offload` in `models.toml`) · ***A city digest is two halves*** and ***a subscription is not a crawl*** (2026-09-12) · *An adjunct's idempotency key is a source key* · ***Mail and your own calendars become notes on their own; the person only answers proposals*** (2026-10-09; read before touching `calendar.rs`, `fm_core::calendar`, or adding any mail access — read-only by scope, a private calendar address is a secret, local model only) · ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
+- **`#agent`**: ***An update offers a newer assistant model and never downloads one unasked; the catalogue follows the app*** (2026-10-10; read before any automatic download, or a second place that decides which model runs) · ***An image is read by a dedicated reader, else the main model if it can see, else nobody*** (2026-10-10; read before adding a platform check to a capability, or a second place that passes a projector) · ***The assistant proposes meetings from email, and a proposal may now date a note or add one*** (2026-10-09; read before widening `apply_props`' allowlist or `propose_note`) · ***The model points at the sentence; Rust reads the date from it*** (read before letting a model supply a date, time or place) · ***The laptop model gets an 8192-token window, and its image projector moves off the GPU*** (read before changing `ctx` or `mmproj_offload` in `models.toml`) · ***A city digest is two halves*** and ***a subscription is not a crawl*** (2026-09-12) · *An adjunct's idempotency key is a source key* · ***Mail and your own calendars become notes on their own; the person only answers proposals*** (2026-10-09; read before touching `calendar.rs`, `fm_core::calendar`, or adding any mail access — read-only by scope, a private calendar address is a secret, local model only) · ***Advice that cannot succeed is worse than none*** (read before writing a capability message, or before adding anything that spends a user's disk) · ***The assistant asks the machine, not a list of operating systems*** (read before touching `unavailable()`, `SystemMonitor::sample` or `die_with_supervisor`) · ***The assistant provisions itself, so a downloaded copy can run it*** (read before touching the launch path, `models.toml`'s runtime keys, or the first-enable flow) · ***`/transcribe` reads writing too — one verb, two specialists*** (read before adding a specialist or a model file) · *Inline meeting actions become their own note* · *The study agent's model warm-up is
   deferred a few seconds after launch*. (Model/agent decisions that are not yet folded up live in
   `archive/ai-agents-plan-superseded-2026-09-02.md`, which is history rather than instruction.)
 
@@ -8432,3 +8432,75 @@ desktop (same behaviour on every OS).
 computer is not a downloaded folder, so it is told a release exists and why it cannot install it
 there. The phone hands the APK to Android's installer, which refuses anything not signed with the
 same key, so a test build from `release.yml` updates in place.
+
+## 2026-10-10 — an image is read by a dedicated reader if there is one, else by the main model if it can see, else by nobody `#agent`
+
+**What prompted it.** Two image readers were measured on the phone (`agents/bench/results.md`): a
+dedicated one took 2½–4 minutes per image, a small general vision model 3–5 seconds. The owner's
+ruling: *"if tools exist the transcription is done with them, otherwise with the VL, if available
+(and not done if nothing is available)"*, and no per-platform `if`/`else` in the agent.
+
+**Decision.**
+1. **One rule, in one function** (`Agent::image_reader`): the dedicated reader when one is running;
+   otherwise the main model when its projector is loaded; otherwise nobody, and the reply says which
+   capability is missing. Audio follows the same shape with one step fewer: whisper, or nobody.
+2. **Whether a model can see is a fact about the model, not the device.** `Manifest::add_projector`
+   is the only code that puts a projector on a command line, and the desktop supervisor and the
+   phone both call it. The phone's launch used to hard-code `vision: false` and never fetched a
+   projector, so a vision model chosen for the phone would have been blind there. It now fetches the
+   projector with the desktop's `ensure_mmproj` and keeps it out of the "remove other weights" sweep.
+3. **A reader's instruction is per model** (`read_prompt` in `models.toml`). Measured: the house
+   instruction took LFM2.5-VL-450M from 1.00 to 0.63 on typed notes; one line read them exactly.
+4. **Admission counts the projector** on both launches, since it is loaded beside the weights.
+
+**What this does not do.** No dedicated reader is started anywhere yet (`image_specialist` is
+`None`); the phone's model is unchanged (`default_mobile` is still text-only), so the phone still
+cannot read an image until a vision model is chosen for it. Asking a *question* about a picture in
+chat is not built: `/transcribe` is the only image path.
+
+**Read before** adding a platform check to anything that decides what the assistant can do: the
+check belongs in what was launched, which this entry makes the single source.
+
+## 2026-10-10 — an update offers a newer assistant model; it never downloads one unasked, and the catalogue follows the app `#agent` `#ui`
+
+> Reverses two code-level rules that were never decisions entries: the desktop's *"the catalogue is
+> copied into the tools directory on first use… a hand-edited one is still honoured"*
+> (`manifest_path`), and the phone's *"an app update must be able to change the model"* by fetching
+> the new default at the next start. It also narrows `provisioned_in`'s *"any `.gguf` counts"*.
+
+**What prompted it.** `default_mobile` moved to a model that can see. Tracing how that would reach
+people found two opposite faults: a phone would download 570 MB by itself, on whatever network it
+was on; a downloaded desktop app would never see the change at all, nor any changed setting,
+because it read the catalogue copied on its first enable for ever. The owner: *"when they update fm
+they would expect to update everything"*, and: *offer it*, with nothing manual on the desktop.
+
+**Decision.**
+1. **The catalogue follows the app.** On a computer, a shipped `models.toml` that differs replaces
+   the tools copy once per run (the old one is kept as `models.toml.previous`). A checkout's own
+   file is never touched. On the phone it was already rewritten at every start.
+2. **What is already downloaded keeps running** while the catalogue still lists it
+   (`fm_agent_run::installed::resolve`, one function for both devices). Every model speaks the same
+   API to this app, since `llama-server` applies each model's own template; what an older model
+   needs from the catalogue is its settings, which is why being listed is the condition.
+3. **The new default is offered, never fetched unasked**: Settings shows its name, the size of the
+   whole download and its licence, with *Download* and *Not now*. *Not now* is recorded against that
+   default (`default_seen` in `agent.json`), so it is not asked again until the default moves again;
+   someone who chose another model on purpose is not nagged.
+4. **A model the catalogue no longer lists is unsupported.** It is not started, and its offer cannot
+   be declined. Old models are not carried for ever: dropping one from the catalogue is how support
+   for it ends.
+5. **The switch.** The phone runs the model in-process, so it switches as soon as the download ends.
+   A computer switches at the next launch, like every other change to the assistant. The earlier
+   model's files are removed when the new one first starts, never in a checkout.
+6. **The chosen model is recorded and is the one started** (`model` in `agent.json`,
+   `agent-serve --model`). Before this, a model picked on the first-enable screen was downloaded and
+   then not run: the supervisor took the catalogue's default.
+7. `/api/update_agent_model` is **host-bound** (`REMOTE_DENIED` and the paired-device test).
+
+**Not covered.** The desktop's model *engine* is still fetched only when missing, so a changed
+runtime pin does not reach a downloaded install (`known-issues.md`). A newer model that needed a
+newer engine would have to wait for that.
+
+**Read before** making anything download on its own after an update, or adding a second place that
+decides which model runs.
+

@@ -185,13 +185,163 @@ pub fn is_transcribe_enabled(agents_dir: &std::path::Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Persist both settings together so writing one never clobbers the other.
-fn write_settings(agents_dir: &std::path::Path, enabled: bool, transcribe: bool) {
+/// Write some keys of `agent.json`, **leaving the others as they are**, so the two switches and
+/// the remembered model choice never clobber one another.
+fn write_keys(agents_dir: &std::path::Path, pairs: &[(&str, Value)]) {
     let _ = std::fs::create_dir_all(agents_dir);
-    let _ = std::fs::write(
-        agents_dir.join("agent.json"),
-        format!("{{ \"enabled\": {enabled}, \"transcribe\": {transcribe} }}\n"),
-    );
+    let path = agents_dir.join("agent.json");
+    let mut all = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .filter(Value::is_object)
+        .unwrap_or_else(|| json!({}));
+    for (k, v) in pairs {
+        all[*k] = v.clone();
+    }
+    let _ = std::fs::write(path, format!("{all}\n"));
+}
+
+/// Persist both switches together.
+fn write_settings(agents_dir: &std::path::Path, enabled: bool, transcribe: bool) {
+    write_keys(agents_dir, &[("enabled", enabled.into()), ("transcribe", transcribe.into())]);
+}
+
+/// The model this person accepted, and the catalogue default at that moment (or when they last said
+/// "not now") — the two things `fm_agent_run::installed::resolve` needs to tell a kept model from
+/// one that has merely not been offered a replacement yet. Same keys as the desktop's `agent.json`.
+fn choice(agents_dir: &std::path::Path) -> (Option<String>, Option<String>) {
+    let all = std::fs::read_to_string(agents_dir.join("agent.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+        .unwrap_or(Value::Null);
+    let get = |k: &str| all[k].as_str().map(str::to_string);
+    (get("model"), get("default_seen"))
+}
+
+fn remember_choice(agents_dir: &std::path::Path, model: Option<&str>, default_seen: &str) {
+    let mut pairs = vec![("default_seen", Value::from(default_seen))];
+    if let Some(m) = model {
+        pairs.push(("model", m.into()));
+    }
+    write_keys(agents_dir, &pairs);
+}
+
+/// The catalogue built into this app, written to app storage and read back. Written on every call,
+/// not just first run: the phone's `models.toml` is app *config* (there is no editor for it on
+/// device), so an app update must be able to change the catalogue. Cheap and idempotent.
+fn catalogue(agents_dir: &std::path::Path) -> Result<Manifest, String> {
+    let path = agents_dir.join("models.toml");
+    std::fs::create_dir_all(agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
+    std::fs::write(&path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
+    Manifest::read(&path)
+}
+
+/// Which model runs on this phone, and whether a newer one is on offer — the desktop's rule, from
+/// the same function, against the phone's own default.
+pub fn installed(agents_dir: &std::path::Path) -> Option<fm_agent_run::installed::Installed> {
+    let manifest = catalogue(agents_dir).ok()?;
+    let (chosen, seen) = choice(agents_dir);
+    Some(fm_agent_run::installed::resolve(
+        &manifest,
+        &agents_dir.join("models"),
+        manifest.mobile_default(),
+        chosen.as_deref(),
+        seen.as_deref(),
+    ))
+}
+
+/// A newer-model download in flight, or how the last one ended — the shape the desktop's
+/// `provisioning` has, so the same Settings row reads both.
+fn updating() -> &'static std::sync::Mutex<Option<Value>> {
+    static U: std::sync::OnceLock<std::sync::Mutex<Option<Value>>> = std::sync::OnceLock::new();
+    U.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// Bumped to retire a newer-model download in flight (its partial file stays, so accepting again
+/// resumes). Separate from the launch generation: stopping this download is not turning the
+/// assistant off.
+static UPDATE_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn cancel_update() {
+    UPDATE_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    if let Ok(mut g) = updating().lock() {
+        *g = None;
+    }
+}
+
+pub fn update_progress() -> Option<Value> {
+    updating().lock().ok().and_then(|g| g.clone())
+}
+
+/// Accept, or decline, the newer model an app update offered.
+///
+/// Declining records which default was declined. Accepting downloads it **beside** the running
+/// model on a background thread, records the choice, and then restarts the assistant on it — the
+/// phone runs the model in-process, so unlike the desktop the switch can happen at once. Nothing is
+/// fetched until this is called: an update used to start the download by itself, on whatever network
+/// the phone was on.
+pub fn update_model(app: Arc<App>, agents_dir: PathBuf, dismiss: bool) -> Result<(), String> {
+    let manifest = catalogue(&agents_dir)?;
+    let default = manifest.mobile_default().to_string();
+    let Some(offer) = installed(&agents_dir).and_then(|i| i.offer) else {
+        return Err("There is no newer assistant model to download.".to_string());
+    };
+    if dismiss {
+        remember_choice(&agents_dir, None, &default);
+        return Ok(());
+    }
+    let set = |v: Value| {
+        if let Ok(mut g) = updating().lock() {
+            *g = Some(v);
+        }
+    };
+    set(json!({ "stage": "model", "done": 0, "total": offer.bytes, "error": null }));
+    let gen = UPDATE_GEN.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+    std::thread::spawn(move || {
+        let live = move || UPDATE_GEN.load(std::sync::atomic::Ordering::SeqCst) == gen;
+        let models_dir = agents_dir.join("models");
+        let progress = |stage: &'static str| {
+            move |done: u64, total: Option<u64>| {
+                if !live() {
+                    return;
+                }
+                if let Ok(mut g) = updating().lock() {
+                    *g = Some(json!({ "stage": stage, "done": done, "total": total, "error": null }));
+                }
+            }
+        };
+        let never = move || !live();
+        let fetched = fm_agent_run::fetch::ensure_model(&models_dir, &manifest, &default, &progress("model"), &never)
+            .and_then(|_| {
+                fm_agent_run::fetch::ensure_mmproj(&models_dir, &manifest, &default, &progress("projector"), &never)
+            });
+        if !live() {
+            return; // stopped by the person: say nothing, change nothing
+        }
+        match fetched {
+            Ok(_) => {
+                remember_choice(&agents_dir, Some(&default), &default);
+                set(json!({ "stage": "ready", "done": 0, "total": null, "error": null }));
+                // Switch now, if the assistant is on: stop the old model, start the new one.
+                if is_enabled(&agents_dir) {
+                    stop();
+                    // `stop` retires the old launch asynchronously; give its thread a moment to
+                    // release the running slot before the new launch claims it.
+                    for _ in 0..50 {
+                        if !is_running() {
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                    if let Err(e) = launch(app, agents_dir) {
+                        log::warn!("study agent: the new model is downloaded but did not start: {e}");
+                    }
+                }
+            }
+            Err(e) => set(json!({ "stage": "failed", "done": 0, "total": null, "error": e })),
+        }
+    });
+    Ok(())
 }
 
 fn write_enabled(agents_dir: &std::path::Path, on: bool) {
@@ -268,9 +418,6 @@ impl VaultAccess for DispatchVault {
     fn alive(&self) -> bool {
         true
     }
-    fn search(&self, query: &str) -> Result<Value, String> {
-        self.call("search", json!({ "query": query }))
-    }
     fn reply(&self, note: &str, body: &str) -> Result<Value, String> {
         self.call("reply", json!({ "id": note, "body": body }))
     }
@@ -345,16 +492,20 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
     if is_running() {
         return Ok(()); // already up — the on-toggle is idempotent
     }
-    // Write the shipped catalogue on every start, not just first run: the phone's models.toml is app
-    // *config* (there is no editor for it on device), so an app update must be able to change the
-    // model and the per-device defaults. A stale first-run copy is exactly why the phone kept running
-    // the old default after an update. Cheap (a few hundred bytes) and idempotent.
-    let manifest_path = agents_dir.join("models.toml");
-    std::fs::create_dir_all(&agents_dir).map_err(|e| format!("mkdir {}: {e}", agents_dir.display()))?;
-    std::fs::write(&manifest_path, EMBEDDED_MANIFEST).map_err(|e| e.to_string())?;
-    let manifest = Manifest::read(&manifest_path)?;
-    // The phone's own pick (default_mobile) — a smaller model than the laptop default.
-    let model_name = manifest.mobile_default().to_string();
+    let manifest = catalogue(&agents_dir)?;
+    // **Which model:** the one already on this phone, for as long as the catalogue lists it — an app
+    // update that moves `default_mobile` offers the new one in Settings instead of downloading it
+    // unasked. Only a phone with no model at all (a first enable) fetches the default here.
+    let default = manifest.mobile_default().to_string();
+    let found = installed(&agents_dir).unwrap_or_default();
+    if found.unsupported {
+        return Err("the model on this phone is no longer supported by this version — Settings offers the new one".to_string());
+    }
+    let first_enable = found.running.is_none();
+    let model_name = found.running.unwrap_or_else(|| default.clone());
+    if first_enable {
+        remember_choice(&agents_dir, Some(&model_name), &default);
+    }
 
     // The runtime is exec'd from the native-library dir; refuse early (before spawning) if it isn't
     // bundled, so the reason is one clear log line rather than a launch failure deep in the thread.
@@ -417,18 +568,18 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
                 }
             };
 
-        // Reclaim space: once the current model is in place, delete any other weights left over from a
-        // previous default (e.g. after an app update changed the pick). Keep only the model in use.
-        if let Ok(entries) = std::fs::read_dir(&models_dir) {
-            for e in entries.flatten() {
-                let p = e.path();
-                let ext = p.extension().and_then(|x| x.to_str()).unwrap_or("");
-                if p != model_gguf && (ext == "gguf" || ext == "part") {
-                    if std::fs::remove_file(&p).is_ok() {
-                        log::info!("study agent: removed unused model {}", p.display());
-                    }
-                }
-            }
+        // The image projector, when the chosen model has one — fetched the same way and by the same
+        // function as on the desktop. Best-effort: without it the model starts text-only and says so
+        // when asked to read a picture, which is the honest state, not a failed launch.
+        if let Err(e) = fm_agent_run::fetch::ensure_mmproj(&models_dir, &manifest, &model_name, &progress, &cancelled) {
+            log::info!("study agent: no image projector yet ({e}) — starting text-only");
+        }
+
+        // Reclaim space: delete weights that belong to neither the model in use nor the one on offer
+        // (whose download may be half done). What is left behind is an earlier model's, after an
+        // accepted update.
+        for gone in fm_agent_run::installed::sweep(&manifest, &models_dir, &[&model_name, &default]) {
+            log::info!("study agent: removed unused model {}", gone.display());
         }
 
         // **Cancelled while downloading?** Then stop here, before a model is in memory. This is the
@@ -453,7 +604,13 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
         // The "model dies with its supervisor" backstop (PR_SET_PDEATHSIG) now lives inside
         // SupervisedModel::launch — one shared path for desktop and phone, exercised by fm-agent's CI
         // tests — so it no longer needs repeating here.
-        let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000);
+        // Whether this model can see is decided here and nowhere else: `add_projector` is the one
+        // function, shared with the desktop, that puts a projector on the command line.
+        let sees = manifest.add_projector(&mut cmd, &model_name, &models_dir);
+        let read_prompt = manifest.read_prompt(&model_name);
+        // The projector is loaded into memory beside the weights, so admission must count it.
+        let model_bytes = std::fs::metadata(&model_gguf).map(|m| m.len()).unwrap_or(500_000_000)
+            + sees.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
         let model = match SupervisedModel::launch(cmd, SystemMonitor, &Need::new(model_bytes, 1_000_000_000), Limits::resident()) {
             Ok(m) => m,
             Err(e) => {
@@ -547,9 +704,10 @@ fn launch(app: Arc<App>, agents_dir: PathBuf) -> Result<(), String> {
             web_direct: true, // …so /research uses the in-process HTTPS multi-source search (websearch.rs)
             whisper_port: whisper_port_val, // Some when whisper-server came up (transcription on + fits)
             whisper_model: whisper_name.clone(),
-            vision: false,
+            vision: sees.is_some(),
+            read_prompt,
+            image_specialist: None,
             max_reply_chars,
-            retrieve: 3,
             history_budget: 4000,
         };
         wait_ready(port);

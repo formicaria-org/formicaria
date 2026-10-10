@@ -264,6 +264,26 @@ These are the three the picker offers, with the download sizes it will show you:
 | **A lighter machine, or a slow connection** | `lfm2.5-1.2b` | 0.73 GB | Best instruction-following and tool-use in its size; also the phone's pick. Text only. |
 | **If the default disappoints** | `qwen3-4b-2507` | 2.5 GB | The validated fallback, text-only — the laptop pick until 2026-07-24. |
 
+On a phone the app chooses for you: `lfm2.5-vl-450m` (0.57 GB with its image reader), a small
+model that can also read a picture.
+
+### When an update brings a newer model
+
+A new version of formicaria can recommend a different model. **It never downloads one by itself.**
+The model you already have keeps working, and **Settings → Study assistant** shows a line such as
+*"This version of formicaria comes with a newer model for the assistant"*, with its name and the
+size of the download.
+
+- **Download** fetches it in the background while you keep working. On a phone the assistant
+  switches to it as soon as it has arrived. On a computer it takes over the next time you open
+  formicaria. The older model's files are removed once the new one has started.
+- **Not now** hides the offer. It comes back only if a later version recommends yet another model.
+- **Stop**, while it is downloading, stops the download and leaves the assistant as it was.
+
+Occasionally a version stops supporting an old model altogether. Then the line says the model on
+your device no longer works with this version, and downloading the new one is the way to get the
+assistant back. Your notes are never affected by any of this.
+
 The assistant caps its own thread use so inference never starves the interface — on a phone this is
 also, conveniently, the *fastest* setting.
 

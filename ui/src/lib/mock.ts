@@ -1019,6 +1019,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
         transcribe_fetchable: !mockTranscribeAvailable,
         provisioned: mockProvisioned,
         provisioned_bytes: mockProvisioned ? 2_497_281_664 : 0,
+        model: mockProvisioned ? 'qwen3-vl-4b' : null,
+        update: null,
+        unsupported: false,
         provisioning: mockProvisioning,
       } as T;
     case 'remove_agent_model': {
@@ -1051,6 +1054,9 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           default: false,
         },
       ] as T;
+    case 'update_agent_model':
+      // The mock never has a newer model on offer, so there is nothing to accept or decline.
+      return { ok: true } as T;
     case 'set_agent':
       // Refuses exactly as the server does, so a test can see the refusal rather than a cheerful ok.
       if (args.enabled && !mockAgentInstalled) {

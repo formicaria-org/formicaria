@@ -32,6 +32,7 @@
     updateRollback,
     updateStatus,
     setAgent,
+    updateAgentModel,
     setTranscribe,
     alive,
     setShare,
@@ -239,9 +240,12 @@
       provisioned = st.provisioned;
       provisionedBytes = st.provisioned_bytes;
       provisioning = st.provisioning;
+      modelOffer = st.update ?? null;
+      modelUnsupported = st.unsupported ?? false;
       if (
         st.provisioning &&
         st.provisioning.stage !== 'ready' &&
+        st.provisioning.stage !== 'restart' &&
         st.provisioning.stage !== 'failed'
       ) {
         watchProvisioning();
@@ -335,6 +339,21 @@
   let removingModel = $state(false);
   let removedNote = $state<string | null>(null);
   let provisioning = $state<Awaited<ReturnType<typeof agentStatus>>['provisioning']>(null);
+  // **A newer model is offered, never fetched unasked.** An app update can change which model the
+  // assistant should use; the one already here keeps working until the person chooses to switch.
+  let modelOffer = $state<NonNullable<Awaited<ReturnType<typeof agentStatus>>['update']> | null>(
+    null,
+  );
+  let modelUnsupported = $state(false);
+  /// The download under way is a newer model, not a first enable — so "Stop" must not turn the
+  /// assistant off.
+  let updatingModel = $state(false);
+  const downloading = $derived(
+    !!provisioning &&
+      provisioning.stage !== 'ready' &&
+      provisioning.stage !== 'restart' &&
+      provisioning.stage !== 'failed',
+  );
   let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
   const picked = $derived(catalogue.find((m) => m.name === pickedModel) ?? null);
@@ -364,12 +383,17 @@
         const st = await agentStatus();
         provisioning = st.provisioning;
         provisioned = st.provisioned;
+        modelOffer = st.update ?? null;
+        modelUnsupported = st.unsupported ?? false;
         if (
           st.provisioning &&
           st.provisioning.stage !== 'ready' &&
+          st.provisioning.stage !== 'restart' &&
           st.provisioning.stage !== 'failed'
         ) {
           watchProvisioning();
+        } else {
+          updatingModel = false;
         }
       } catch {
         // A failed poll is not a failed download — keep watching rather than reporting a fault
@@ -392,6 +416,30 @@
       return;
     }
     await openChooser();
+  }
+
+  /** Download the newer model that was offered. The one in use keeps working meanwhile. */
+  async function acceptModel() {
+    error = null;
+    try {
+      await updateAgentModel();
+      updatingModel = true;
+      provisioning = { stage: 'model', done: 0, total: modelOffer?.bytes ?? null, error: null };
+      watchProvisioning();
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** "Not now": the offer goes away until the model changes again. */
+  async function declineModel() {
+    error = null;
+    try {
+      await updateAgentModel({ dismiss: true });
+      modelOffer = null;
+    } catch (e) {
+      error = e instanceof Error ? e.message : String(e);
+    }
   }
 
   /** Start the download the chooser described. */
@@ -557,6 +605,13 @@
   async function cancelProvisioning() {
     clearTimeout(pollTimer);
     try {
+      if (updatingModel) {
+        // Stopping the download of a newer model leaves the assistant exactly as it was.
+        await updateAgentModel({ cancel: true });
+        updatingModel = false;
+        provisioning = null;
+        return;
+      }
       await setAgent(false);
       agentOn = false;
       provisioning = null;
@@ -883,7 +938,36 @@
 
               <!-- What it is doing now. Bytes, not a percentage, when the server sends no length —
                  a made-up percentage is worse than an honest number. -->
-              {#if provisioning && provisioning.stage !== 'ready'}
+              {#if modelOffer && !downloading && provisioning?.stage !== 'restart'}
+                <li>
+                  <span class="k">newer model</span>
+                  <span class="muted">
+                    {modelUnsupported
+                      ? 'The model on this device no longer works with this version of formicaria.'
+                      : 'This version of formicaria comes with a newer model for the assistant.'}
+                    <strong>{modelOffer.name}</strong>{modelOffer.bytes
+                      ? `, a ${humanSize(modelOffer.bytes)} download`
+                      : ''}{modelOffer.license ? ` (${modelOffer.license})` : ''}.
+                    {modelOffer.replaces
+                      ? `You are using ${modelOffer.replaces}, which keeps working until you switch.`
+                      : ''}
+                  </span>
+                  <button class="primary" onclick={acceptModel}>Download</button>
+                  {#if !modelUnsupported}
+                    <button onclick={declineModel}>Not now</button>
+                  {/if}
+                </li>
+              {/if}
+              {#if provisioning?.stage === 'restart'}
+                <li>
+                  <span class="k">new model ready</span>
+                  <span class="muted">
+                    It is downloaded and takes over the next time you open formicaria. The old one
+                    is removed then.
+                  </span>
+                </li>
+              {/if}
+              {#if provisioning && provisioning.stage !== 'ready' && provisioning.stage !== 'restart'}
                 <li>
                   {#if provisioning.stage === 'failed'}
                     <span class="k">download failed</span>

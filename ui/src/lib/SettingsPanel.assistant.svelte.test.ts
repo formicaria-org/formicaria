@@ -15,18 +15,22 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
 
-const { agentStatus, agentModels, setAgent, removeAgentModel } = vi.hoisted(() => ({
-  agentStatus: vi.fn(),
-  agentModels: vi.fn(),
-  setAgent: vi.fn(),
-  removeAgentModel: vi.fn(),
-}));
+const { agentStatus, agentModels, setAgent, removeAgentModel, updateAgentModel } = vi.hoisted(
+  () => ({
+    agentStatus: vi.fn(),
+    agentModels: vi.fn(),
+    setAgent: vi.fn(),
+    removeAgentModel: vi.fn(),
+    updateAgentModel: vi.fn(),
+  }),
+);
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   agentStatus,
   agentModels,
   setAgent,
   removeAgentModel,
+  updateAgentModel,
 }));
 
 function panel() {
@@ -203,5 +207,87 @@ describe('turning the study assistant on for the first time', () => {
     // No question, no catalogue — it just turns on.
     expect(setAgent).toHaveBeenCalledWith(true);
     expect(screen.queryByText(/needs a model on this computer/i)).toBeNull();
+  });
+});
+
+// **An app update never changes the model behind someone's back.** When a new version names a
+// different model, the one already downloaded keeps working and the new one is *offered*: its name
+// and size on screen, one button to get it, one to decline. Pinned here: nothing is asked of the
+// server until a button is pressed, declining is remembered by the server (not just hidden),
+// stopping the download does not turn the assistant off, and a model that no longer works at all
+// cannot be declined.
+describe('a newer assistant model that came with an update', () => {
+  const offer = {
+    name: 'lfm2.5-vl-450m',
+    bytes: 568_345_184,
+    license: 'LFM Open License v1.0',
+    replaces: 'lfm2.5-1.2b',
+  };
+  const on = (over: Record<string, unknown> = {}) =>
+    status({ enabled: true, provisioned: true, model: 'lfm2.5-1.2b', update: offer, ...over });
+
+  it('is offered with its size, and says the one in use keeps working', async () => {
+    agentStatus.mockResolvedValue(on());
+    updateAgentModel.mockClear();
+    panel();
+
+    expect(await screen.findByText(/comes with a newer model/i)).toBeTruthy();
+    // The figure is the whole download: the model and its image reader together.
+    expect(await screen.findByText(/, a 568\.3MB download/)).toBeTruthy();
+    expect(
+      await screen.findByText(/lfm2\.5-1\.2b, which keeps working until you switch/),
+    ).toBeTruthy();
+    expect(updateAgentModel).not.toHaveBeenCalled();
+  });
+
+  it('downloads only when asked, and Stop then leaves the assistant on', async () => {
+    agentStatus.mockResolvedValue(on());
+    updateAgentModel.mockReset().mockResolvedValue({ ok: true });
+    setAgent.mockClear();
+    panel();
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+    expect(updateAgentModel).toHaveBeenCalledWith();
+    expect(await screen.findByText(/downloading the model/i)).toBeTruthy();
+
+    await fireEvent.click(await screen.findByRole('button', { name: /Stop/i }));
+    expect(updateAgentModel).toHaveBeenLastCalledWith({ cancel: true });
+    expect(setAgent).not.toHaveBeenCalled();
+  });
+
+  it('can be declined, and tells the server so the offer is not repeated', async () => {
+    agentStatus.mockResolvedValue(on());
+    updateAgentModel.mockReset().mockResolvedValue({ ok: true });
+    panel();
+
+    await fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
+    expect(updateAgentModel).toHaveBeenCalledWith({ dismiss: true });
+    expect(screen.queryByText(/comes with a newer model/i)).toBeNull();
+  });
+
+  it('cannot be declined when the model on the device no longer works', async () => {
+    agentStatus.mockResolvedValue(
+      on({
+        provisioned: false,
+        model: null,
+        unsupported: true,
+        update: { ...offer, replaces: null },
+      }),
+    );
+    panel();
+
+    expect(await screen.findByText(/no longer works with this version/i)).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Download' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Not now' })).toBeNull();
+  });
+
+  it('says a downloaded model takes over at the next launch', async () => {
+    agentStatus.mockResolvedValue(
+      on({ update: null, provisioning: { stage: 'restart', done: 0, total: null, error: null } }),
+    );
+    panel();
+
+    expect(await screen.findByText(/takes over the next time you open formicaria/i)).toBeTruthy();
+    expect(screen.queryByText(/downloading the model/i)).toBeNull();
   });
 });

@@ -543,12 +543,22 @@ fn fm(
         return Ok("{\"active\":false}".to_string());
     }
     #[cfg(agent_shell)]
-    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
+    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" || cmd == "update_agent_model" {
         use tauri::Manager;
         let dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join("agents");
         if cmd == "set_agent" {
             let on = args.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false);
             agent::set_running(vault_state(&app_handle)?, dir, on)?;
+            return Ok("{\"ok\":true}".to_string());
+        }
+        if cmd == "update_agent_model" {
+            // Accept or decline the newer model an app update offered (`agent::update_model`).
+            if args.get("cancel").and_then(|v| v.as_bool()).unwrap_or(false) {
+                agent::cancel_update();
+                return Ok("{\"ok\":true}".to_string());
+            }
+            let dismiss = args.get("dismiss").and_then(|v| v.as_bool()).unwrap_or(false);
+            agent::update_model(vault_state(&app_handle)?, dir, dismiss)?;
             return Ok("{\"ok\":true}".to_string());
         }
         if cmd == "set_transcribe" {
@@ -561,14 +571,23 @@ fn fm(
         // Every key fm-serve's `/api/agent_status` answers, because the same Settings panel reads
         // both — see `agent::availability`.
         let (installed, why, transcribe_available) = agent::availability();
+        let found = agent::installed(&dir);
         return Ok(serde_json::json!({
             "enabled": agent::is_enabled(&dir), "transcribe": agent::is_transcribe_enabled(&dir),
             "installed": installed, "why": why, "transcribe_available": transcribe_available,
+            // Which model runs here, and the newer one on offer after an app update — the same
+            // keys, from the same rule, as the desktop.
+            "model": found.as_ref().and_then(|f| f.running.clone()),
+            "update": found.as_ref().and_then(|f| f.offer.as_ref()).map(|o| serde_json::json!({
+                "name": o.name, "bytes": o.bytes, "license": o.license, "replaces": o.replaces,
+            })),
+            "unsupported": found.as_ref().is_some_and(|f| f.unsupported),
+            "provisioning": agent::update_progress(),
         })
         .to_string());
     }
     #[cfg(not(agent_shell))]
-    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" {
+    if cmd == "agent_status" || cmd == "set_agent" || cmd == "set_transcribe" || cmd == "update_agent_model" {
         // A notes-only build: same shape again, and `why` says which kind of build this is rather
         // than leaving the row blank.
         return Ok(serde_json::json!({
