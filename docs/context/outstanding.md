@@ -931,6 +931,25 @@ Next, roughly in order:
 8. **The developer route in `agents/`** (a second search back end and second download path): keep
    or remove is the owner's call, same audit.
 
+### 2.18 After v0.6.5 — the quick row, the Android workflow, the updater (2026-10-11)
+
+Shipped in v0.6.5 and confirmed on the owner's phone: a row of quick actions above the keyboard
+while writing on a touch screen, with the app's bar stepping aside (`decisions.md#ui`, 2026-10-11).
+Also in it: a copy with no version can download the release it asked for, and the Android build is
+its own workflow that the release calls (`decisions.md#toolchain`, both 2026-10-11).
+
+Next, roughly in order:
+1. **Confirm the v0.6.5 release page has the APK.** It is the first release built through
+   `release.yml` → `android.yml`. A missing APK means the call or its secrets, not the build.
+2. **See a test copy update itself**, end to end: install a hand-run `android` build older than a
+   published release and take the release from Settings. Until then the fix is unit-tested only.
+3. **The quick row on iOS and on a tablet.** Neither has been looked at. iOS resizes its own
+   viewport and never sets `--kb`, so, reading the code, the bar-hiding rule (keyed on
+   `data-keyboard`) should not apply there and the row would sit above the app's bar. Unseen.
+4. **"Discussion" sits between the text and the row.** Harmless on the phone; if it reads as
+   clutter, collapse it away while the keyboard is up.
+5. Everything in §2.17 is still open.
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.

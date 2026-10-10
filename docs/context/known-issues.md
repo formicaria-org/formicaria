@@ -1050,6 +1050,7 @@ note, invitations made meetings).
   `ci/checks.sh` keeps the two rules together. **The owner confirmed the fix on the phone** the
   same day, before v0.6.5 was tagged. iOS remains unverified.
   **Trap:** when simulating the Android keyboard, set `--safe-bottom` as well as `--kb`.
+- **Released in v0.6.5.**
 - **The app's bar hides while a note is typed with the keyboard up**, and comes back when the
   keyboard goes. It relies on CSS `:has()` (Android WebView 105+, iOS 15.4+); on an older engine the
   bar simply stays, as before.
@@ -1073,9 +1074,14 @@ signed update without an uninstall, which would wipe the app's data.
   calls: it builds and signs with the official key, publishes nothing, and leaves an `android-apk`
   artifact.
   Download that, then install it by cable with `adb install -r` after checking the certificate
-  against `android/signing-certificate.sha256`. Used for v0.6.3. A test build can update itself back to the
-  published release from Settings only from the release after v0.6.4 (`decisions.md`, 2026-10-11:
-  the 2026-10-09 fix covered the check and missed the download); until then, the cable.
+  against `android/signing-certificate.sha256`. Used for v0.6.3. A test build made from **v0.6.5 or later** can
+  update itself to a published release from Settings (`decisions.md`, 2026-10-11: the 2026-10-09 fix
+  covered the check and missed the download). **Not yet seen end to end**: it needs a test build
+  older than a published release, which first exists after v0.6.5.
+- **The `android` workflow has run by hand** (2026-10-11, the build tested for v0.6.5). **Its call
+  from `release.yml` first ran on the v0.6.5 tag**; whether that run published the APK was not
+  visible from the development machine when this was written. If a release page lacks the APK, look
+  there first.
 
 ## A newer assistant model after an update — limits (2026-10-10)
 
