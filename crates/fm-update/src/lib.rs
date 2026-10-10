@@ -65,6 +65,18 @@ impl Version {
     pub fn running() -> Option<Version> {
         Version::parse(option_env!("FM_VERSION").unwrap_or("dev"))
     }
+
+    /// The release this build was **made on top of**, when the build knows it: the version in
+    /// `tauri.conf.json`, which `ci/android-release.sh` passes as `FM_BASE_VERSION`. `None` for a
+    /// desktop build from source, which has no such number.
+    ///
+    /// A test build has no version of its own ([`running`](Self::running) is `None`), but on a
+    /// phone it is not version-free: Android gives every package a `versionCode`, derived from that
+    /// same file, and **refuses to install a lower one over a higher one**. So this is the floor
+    /// below which nothing may be offered to such a copy — see [`newer_than`].
+    pub fn base() -> Option<Version> {
+        option_env!("FM_BASE_VERSION").and_then(Version::parse)
+    }
 }
 
 impl std::fmt::Display for Version {
@@ -277,7 +289,7 @@ pub fn fetch_verified_manifest(tag: &str) -> Result<Manifest, String> {
             .map_err(|e| format!("could not read the signature for {tag}: {e}"))?;
     verify_release(&manifest_bytes, &signature)?;
     let manifest = Manifest::parse(&manifest_bytes)?;
-    acceptable(manifest.version, Version::running(), Version::parse(tag))?;
+    acceptable(manifest.version, Version::running(), Version::base(), Version::parse(tag))?;
     Ok(manifest)
 }
 
@@ -290,10 +302,13 @@ pub fn fetch_verified_manifest(tag: &str) -> Result<Manifest, String> {
 ///   *"this copy has no version to compare"* — so **Check now** offered the release and **Get**
 ///   then failed, which is the half of the 2026-10-09 fix that was missed. With no version of its
 ///   own to compare, it holds the manifest to the release that was **asked for** instead: the
-///   signature says it is formicaria's, and this says it is the one the person chose.
+///   signature says it is formicaria's, and this says it is the one the person chose. And never
+///   one older than the release it was built on (`base`): the phone would download it, verify it,
+///   and then be refused by Android's installer.
 fn acceptable(
     offered: Version,
     running: Option<Version>,
+    base: Option<Version>,
     asked: Option<Version>,
 ) -> Result<(), String> {
     match running {
@@ -303,6 +318,10 @@ fn acceptable(
             "the download said it was {offered} rather than something newer, so it was not used"
         )),
         Some(_) => Ok(()),
+        None if base.is_some_and(|b| offered < b) => Err(format!(
+            "{offered} is older than this copy, which was made from {}, so it was not used",
+            base.map(|b| b.to_string()).unwrap_or_default()
+        )),
         None if asked == Some(offered) => Ok(()),
         None => Err(format!(
             "the download said it was {offered}, which is not the version that was asked for, so \
@@ -417,15 +436,32 @@ pub fn ask() -> Result<String, String> {
 
 /// Is `v` newer than what is running, and not the version this person already went back from?
 pub fn is_newer(v: &Version, rejected: Option<&str>) -> bool {
-    newer_than(v, Version::running(), rejected)
+    newer_than(v, Version::running(), Version::base(), rejected)
 }
 
-/// [`is_newer`] with the running version passed in, so both cases can be tested. **A build with no
-/// version is behind every release**: a test build or a source build is offered the latest release,
-/// which is how a phone that took a test build by cable gets back in line from Settings.
-pub fn newer_than(v: &Version, running: Option<Version>, rejected: Option<&str>) -> bool {
-    if running.is_some_and(|cur| *v <= cur) {
-        return false;
+/// [`is_newer`] with the running version and the base passed in, so every case can be tested.
+///
+/// - **A release build** is offered only what is newer than itself.
+/// - **A build with no version** (a test build, a source build) is offered a release, which is how
+///   a phone that took a test build by cable gets back in line from Settings — **but never one
+///   older than the release it was built on** (`base`). The first rule here was "behind every
+///   release", and it offered a test build made after v0.6.4 the v0.6.3 it had last seen: the
+///   phone downloaded it, verified it, and Android refused it as a downgrade with *"App not
+///   installed as package appears to be invalid"* (the owner, 2026-10-11). The base itself is
+///   offered (`>=`, not `>`): going from a test build to the release it was made from is the
+///   common case, and Android allows the same `versionCode`.
+/// - With no base known (a desktop build from source) every release is offered; that copy cannot
+///   install one anyway, and is told so.
+pub fn newer_than(
+    v: &Version,
+    running: Option<Version>,
+    base: Option<Version>,
+    rejected: Option<&str>,
+) -> bool {
+    match running {
+        Some(cur) if *v <= cur => return false,
+        None if base.is_some_and(|b| *v < b) => return false,
+        _ => {}
     }
     rejected.and_then(Version::parse) != Some(*v)
 }
@@ -621,7 +657,37 @@ mod tests {
     fn a_rejected_version_is_not_offered_again() {
         let v = Version::parse("v99.0.0").unwrap();
         assert!(!is_newer(&v, Some("v99.0.0")));
-        assert!(!newer_than(&v, None, Some("v99.0.0")));
+        assert!(!newer_than(&v, None, None, Some("v99.0.0")));
+    }
+
+    /// **A test build is not version-free on a phone.** It has no release number, but Android
+    /// gives it a `versionCode` from the release it was built on, and will not install a lower one
+    /// over it. The first rule, "a build with no version is behind every release", offered a test
+    /// build made after v0.6.4 the v0.6.3 it had last seen, and Android refused the install:
+    /// *"App not installed as package appears to be invalid"* (the owner, 2026-10-11). The floor is
+    /// the base, in the check **and** in the download — this rule has been half-applied once.
+    #[test]
+    fn a_test_build_is_never_offered_a_release_older_than_the_one_it_was_built_on() {
+        let v = |s: &str| Version::parse(s).unwrap();
+        let base = Some(v("v0.6.4"));
+
+        // The check: older than the base is not offered; the base itself and anything newer are.
+        assert!(!newer_than(&v("v0.6.3"), None, base, None), "a downgrade Android would refuse");
+        assert!(newer_than(&v("v0.6.4"), None, base, None), "back onto the release it came from");
+        assert!(newer_than(&v("v0.6.5"), None, base, None));
+        // A rejection still applies above the floor.
+        assert!(!newer_than(&v("v0.6.5"), None, base, Some("v0.6.5")));
+
+        // The download: the same floor, even when that older release is the one asked for.
+        let old = acceptable(v("v0.6.3"), None, base, Some(v("v0.6.3"))).unwrap_err();
+        assert!(old.contains("older than this copy"), "{old}");
+        assert!(acceptable(v("v0.6.4"), None, base, Some(v("v0.6.4"))).is_ok());
+        assert!(acceptable(v("v0.6.5"), None, base, Some(v("v0.6.5"))).is_ok());
+
+        // With no base known (a desktop build from source) nothing changes: every release is offered.
+        assert!(newer_than(&v("v0.6.3"), None, None, None));
+        // And a release build ignores the base entirely: its own version is the only measure.
+        assert!(!newer_than(&v("v0.6.4"), Some(v("v0.6.4")), Some(v("v0.6.9")), None));
     }
 
     /// **Being offered a release is not the same as being able to take it.** The check and the
@@ -633,16 +699,19 @@ mod tests {
     fn a_build_with_no_version_can_download_the_release_it_asked_for() {
         let v = |s: &str| Version::parse(s).unwrap();
         // No version of its own: the release that was asked for is accepted…
-        assert!(acceptable(v("v0.6.4"), None, Some(v("v0.6.4"))).is_ok());
+        assert!(acceptable(v("v0.6.4"), None, None, Some(v("v0.6.4"))).is_ok());
         // …and a correctly signed manifest for a *different* release is not.
-        let other = acceptable(v("v0.6.2"), None, Some(v("v0.6.4"))).unwrap_err();
+        let other = acceptable(v("v0.6.2"), None, None, Some(v("v0.6.4"))).unwrap_err();
         assert!(other.contains("not the version that was asked for"), "{other}");
-        assert!(acceptable(v("v0.6.4"), None, None).is_err(), "nothing asked for: nothing taken");
+        assert!(
+            acceptable(v("v0.6.4"), None, None, None).is_err(),
+            "nothing asked for: nothing taken"
+        );
 
         // A copy with a version still takes only something newer — the replay guard is unchanged.
-        assert!(acceptable(v("v0.6.4"), Some(v("v0.6.3")), Some(v("v0.6.4"))).is_ok());
+        assert!(acceptable(v("v0.6.4"), Some(v("v0.6.3")), None, Some(v("v0.6.4"))).is_ok());
         for stale in ["v0.6.3", "v0.6.2"] {
-            let e = acceptable(v(stale), Some(v("v0.6.3")), Some(v(stale))).unwrap_err();
+            let e = acceptable(v(stale), Some(v("v0.6.3")), None, Some(v(stale))).unwrap_err();
             assert!(e.contains("rather than something newer"), "{e}");
         }
     }
@@ -653,12 +722,15 @@ mod tests {
     #[test]
     fn a_build_with_no_version_is_offered_the_latest_release() {
         let latest = Version::parse("v0.6.3").unwrap();
-        assert!(newer_than(&latest, None, None), "a test or source build is behind every release");
-        let cur = Version::parse("v0.6.3");
-        assert!(!newer_than(&latest, cur, None), "a release is not offered itself");
-        assert!(newer_than(&Version::parse("v0.6.4").unwrap(), cur, None));
         assert!(
-            !newer_than(&Version::parse("v0.6.2").unwrap(), cur, None),
+            newer_than(&latest, None, None, None),
+            "a test or source build is behind every release"
+        );
+        let cur = Version::parse("v0.6.3");
+        assert!(!newer_than(&latest, cur, None, None), "a release is not offered itself");
+        assert!(newer_than(&Version::parse("v0.6.4").unwrap(), cur, None, None));
+        assert!(
+            !newer_than(&Version::parse("v0.6.2").unwrap(), cur, None, None),
             "never offered an older one"
         );
     }

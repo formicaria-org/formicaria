@@ -7,4 +7,6 @@
 //! this crate, whose build script watches only the UI, so it had this gap too.)
 fn main() {
     println!("cargo:rerun-if-env-changed=FM_VERSION");
+    // The release a test build was made on top of (`Version::base`), for the same reason.
+    println!("cargo:rerun-if-env-changed=FM_BASE_VERSION");
 }
