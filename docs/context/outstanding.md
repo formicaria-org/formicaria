@@ -939,8 +939,9 @@ Also in it: a copy with no version can download the release it asked for, and th
 its own workflow that the release calls (`decisions.md#toolchain`, both 2026-10-11).
 
 Next, roughly in order:
-1. **Confirm the v0.6.5 release page has the APK.** It is the first release built through
-   `release.yml` → `android.yml`. A missing APK means the call or its secrets, not the build.
+1. ~~Confirm the v0.6.5 release page has the APK.~~ **Confirmed 2026-10-11**: the release, its
+   signed manifest and the APK (certificate `de040b95…`, `versionCode` 6005) are published, so the
+   `release.yml` → `android.yml` call works.
 2. **See a test copy update itself**, end to end: install a hand-run `android` build older than a
    published release and take the release from Settings. Until then the fix is unit-tested only.
 3. **The quick row on iOS and on a tablet.** Neither has been looked at. iOS resizes its own

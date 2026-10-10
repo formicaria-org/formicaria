@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -8511,6 +8511,12 @@ decides which model runs.
 
 ## 2026-10-11 — while writing on a touch screen, a row of quick actions sits above the keyboard `#ui` `#track-m`
 
+> **Extended the same day:** on a touch screen the ＋ window no longer has *Add media*. The owner,
+> once the row was on the phone: *"remove add media from the plus on the phone, now that we have
+> the lower commands we can use them directly."* So **What stays** below is no longer wholly true
+> there: the row is the one place media is added on touch, and the ＋ the one place on a desktop.
+> Adding media on touch therefore needs the note to be in editing, which is where the row is.
+
 > **Amends** *the formatting bar appears on a selection on every device* (2026-09-11), which removed
 > touch's persistent strip, and *a note's header is its title and one ＋* (2026-09-11), whose ＋ stays
 > the one place every option lives. Neither is reversed; see **What stays**.
@@ -8615,4 +8621,34 @@ exercised by a hand-run of `release` on `main` (which publishes nothing) or by t
 
 **Read before** adding a platform build to `release.yml` directly: if it is ever wanted alone, make
 it a called workflow from the start.
+
+## 2026-10-11 — a test build is never offered a release older than the one it was built on `#toolchain` `#track-m`
+
+> Narrows *a build with no version can always return to the latest release* (2026-10-09), whose rule
+> was "a build with no version is behind every release".
+
+**What happened.** The owner's phone ran a test build made after v0.6.4. Settings offered **v0.6.3**,
+the release that copy had last seen weeks earlier: with no version of its own, every remembered
+release counted as newer. The phone downloaded it, verified it, and Android refused it — *"App not
+installed as package appears to be invalid"* — because it would not install `versionCode` 6003 over
+6004. The published v0.6.5 was fine; it was simply not what was offered until **Check now** was
+pressed.
+
+**Decision.** A build with no release version still has a **base**: the version in
+`tauri.conf.json`, which is what Android's `versionCode` is made from. `ci/android-release.sh` now
+passes it to every build as `FM_BASE_VERSION` (`fm_update::Version::base`), and it is a floor:
+- the check offers such a copy only releases **at or above** its base (`newer_than`);
+- the download refuses one below it (`acceptable`), even when asked for by name.
+The base itself is offered: a test build going onto the release it was made from is the common
+case, and Android allows the same `versionCode`.
+
+**What stays.** A release build compares against its own version and ignores the base. A desktop
+build from source has no base, is offered every release, and is told why it cannot install one.
+
+**The pattern, a third time.** "No version" was treated as "no information", twice: first the copy
+could not check, then it was behind everything. The phone always had the number; the updater was
+not given it. When a rule says *unknown*, ask whether the platform already knows.
+
+**Not done.** The installer bridge does not compare `versionCode` itself before handing the file to
+Android, so if this floor is ever wrong the person still sees Android's own unhelpful sentence.
 

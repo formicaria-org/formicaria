@@ -1078,10 +1078,13 @@ signed update without an uninstall, which would wipe the app's data.
   update itself to a published release from Settings (`decisions.md`, 2026-10-11: the 2026-10-09 fix
   covered the check and missed the download). **Not yet seen end to end**: it needs a test build
   older than a published release, which first exists after v0.6.5.
-- **The `android` workflow has run by hand** (2026-10-11, the build tested for v0.6.5). **Its call
-  from `release.yml` first ran on the v0.6.5 tag**; whether that run published the APK was not
-  visible from the development machine when this was written. If a release page lacks the APK, look
-  there first.
+- **The `android` workflow runs both ways** (2026-10-11): by hand, and called by `release.yml` for
+  v0.6.5, whose page has the signed APK.
+- **A test build made before the release after v0.6.5 has no floor.** It can be offered an older
+  release it remembers, and Android then refuses the install as a downgrade (*"App not installed
+  as package appears to be invalid"*). **Press Check now first**, which replaces the remembered
+  version with the latest. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
+  never offered a release older than the one it was built on*).
 
 ## A newer assistant model after an update — limits (2026-10-10)
 
