@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -3998,6 +3998,10 @@ The JS boot guard in `appearance.ts` is untouched — it is the layer that actua
 and a theme cannot style it away.
 
 ## 2026-08-31 — the feed gains an excerpt and a thread, and three tempting halves of it are refused `#ui` `#data` `#track-m`
+
+> **Amended 2026-10-11** by *a click on a note starts editing it*: point 3 below calls
+> "double-click means edit" the app's one written gesture rule. For a **note's own text** that rule is
+> now a single click or tap. What this entry decided about **list rows** is unchanged.
 
 **The ask.** *"Improve the feed… visualize the notes more than the first row but fading towards half
 of the note. Also, when tapping a note, continue discussions in it, like in instagram comments,
@@ -8665,4 +8669,73 @@ one ever reaches the installer the person is told what is wrong.
 on offer, so beside a stale v0.6.3 there was only *Get v0.6.3*. Settings now keeps *Check now*
 beside an offered version, with when it was found, except while a download is in flight or ready
 (looking again then could put a new version's name on an old version's file).
+
+## 2026-10-11 — one command puts a commit on the phone, with a token that can do nothing else `#toolchain` `#track-m`
+
+**What prompted it.** Four phone tests in one day, each six acts by hand: open GitHub, run the
+workflow, wait, download the artifact, say where it landed, have it installed. The owner: *"all
+this copying and pasting by me can actually be done by you automatically, including launching the
+android CI and getting the proper artifact."*
+
+**What stood in the way.** Starting a workflow and downloading an artifact both need a signed-in
+request, even on a public repository. The only credential on this machine was git's own, and
+taking it out of the credential helper to call the API was refused by the session's permission
+layer twice on 2026-09-11, the second time after the owner had agreed. That refusal was right and
+stands: a credential lent for pushing code is not thereby lent for everything its token can reach.
+
+**Decision.** `ci/phone-test.sh` does the whole route, and it uses a **separate token made for it**:
+fine-grained, this repository only, *Actions: read and write*, nothing else. The owner creates it
+and stores it with `ci/phone-test-setup.sh` in their own terminal; it lives in
+`~/.config/formicaria/github-actions-token`, readable by them alone, and reaches `curl` through a
+header file, never a command line.
+- **What the token can do:** start a workflow and read its results here. `android` publishes
+  nothing, so a leaked copy can spend runner minutes and no more.
+- **What it cannot:** push, publish or edit a release, read or change a secret. Those remain the
+  owner's, on the website, as before.
+- **What the script will not do:** install an APK whose certificate is not the published one, or
+  test a branch that differs from what GitHub has. It finds the run it started by commit and start
+  time, never "the latest run".
+
+**What stays.** The git credential is still used only by git. Tagging a release is still a separate
+act the owner asks for.
+
+**Not yet run end to end.** The steps that need no login were run against real builds (finding a
+run by commit, reading its state, locating its artifact), and both refusals were seen (no token, a
+bad token). Starting a build and downloading its artifact wait for the token to exist.
+
+## 2026-10-11 — a click on a note starts editing it, and the ＋ has no Edit `#ui` `#track-m`
+
+> **Reverses** the gesture rule recorded in passing on 2026-08-31 (*"double-click means edit", in the
+> manual, in Help, and pinned by a test*), and removes the *Edit* that *a note's header is its title
+> and one ＋* (2026-09-11) listed first in the ＋ window.
+
+**What prompted it.** The owner, looking at the ＋ on the phone after *Add media* had left it: *"I see
+an edit button under the plus. I think now it is not necessary in any OS: a click on the note body
+should be sufficient to start editing; it's redundant."*
+
+**Decision.** In the reading view, **one click or tap on the note's text opens the editor**, with the
+caret where the click landed. On every device. The ＋ no longer offers *Edit*.
+- **What a click already meant still wins**: a tick box, a callout's badge, a table cell, a link, a
+  chip to another note, a button, a control on a video or a recording.
+- **Selecting text is not a click.** A click that ends a drag-selection does nothing, so text can
+  still be selected and copied from the reading view with a mouse. (A long press on a phone selects
+  and sends no click.)
+- **The keyboard still has a way in**: the view is focusable and Enter opens the editor.
+- **A board keeps *Details*** in its ＋: it has no text to click into, and its details form is what
+  editing a board means.
+
+**What it costs, said plainly.** Double-clicking a word to select it in the reading view is gone: the
+first click opens the editor, where the same double-click selects the word in the source. And a
+stray click now starts an edit; ending one is a click on the title, Escape or Ctrl+S, and an edit
+with no changes writes nothing.
+
+**Where the caret lands.** The double-click used the word it had just selected to find its place in
+the source. A single click selects nothing, so the word is read from the point clicked
+(`caretPositionFromPoint`, or `caretRangeFromPoint` where that is what the engine has) and found by
+the same ordinal match, with the same rule that a caret never lands inside a reference. Where
+neither exists (jsdom) the caret goes to the end, as it did for a click on empty space.
+
+**Not verified on a device.** The tests pin that a click opens the editor, that the things listed
+above do not, that a selection does not, and that the ＋ has no *Edit*. Whether a tap while scrolling
+ever counts as a click on the phone is for the phone to say.
 
