@@ -167,6 +167,11 @@ android-inject-service = { cmd = "sh ci/android-inject-service.sh", depends-on =
 # NOT part of `pixi run ci`, which must stay green with no Android toolchain — run it after touching
 # the shell's startup, the boot gate, or before `android-release`. See the script's header.
 android-smoke = "sh ci/android-smoke.sh"
+# Put a commit on the phone, signed with the real key: runs the `android` workflow on GitHub,
+# downloads its APK, checks the certificate, saves what is on the phone, and installs by cable.
+# Needs the token `sh ci/phone-test-setup.sh` stores (this repo, Actions read and write, nothing else).
+#   pixi run -e android phone-test [branch]
+phone-test = "sh ci/phone-test.sh"
 # Build the APK. `PATH` puts our `rustup` shim (`ci/bin/rustup`) first — Tauri shells out to
 # `rustup target add` and this project has no rustup (targets come from conda-forge, pinned in
 # pixi.lock); the shim verifies rather than pretends. **It is tracked**: it sat in the gitignored

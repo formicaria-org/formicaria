@@ -73,6 +73,8 @@ afterwards is how a project stops being what it said it was, one reasonable step
   switching on the phone). Local signing may be unavailable; the route that always works is
   the **`android`** workflow run by hand on `main` (the same file `release.yml` calls, without the
   desktop and iOS builds) → its signed `android-apk` artifact → check the certificate →
-  `adb install -r` by cable. Details: `docs/context/known-issues.md`, *Signing a phone build locally*.
+  `adb install -r` by cable. **`pixi run -e android phone-test` does all of that in one step** once
+  the owner has stored its token (`sh ci/phone-test-setup.sh`). Details: `docs/context/known-issues.md`,
+  *Signing a phone build locally*.
 - In this environment, shell commands need `dangerouslyDisableSandbox: true`
   (sandboxed Bash hits a seccomp/`setgroups` error).
