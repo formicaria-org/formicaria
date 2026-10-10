@@ -463,7 +463,7 @@
     if (el?.closest('a, button, input, select, textarea, summary, video, audio, iframe')) return;
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && content?.contains(sel.anchorNode)) return;
-    void openEditor(offsetAtPoint(e.clientX, e.clientY));
+    void openEditor(offsetAtPoint(e.clientX, e.clientY), e.clientY);
   }
 
   // The byte offset of the state char inside each GFM task marker (`- [ ]` / `- [x]`), in document
@@ -1781,15 +1781,40 @@
     return outsideDestination(draft, hit + within);
   }
 
-  async function openEditor(at?: number) {
+  /// Open the editor with the caret at `at`. `anchorY` is where on the screen the click or tap
+  /// landed, when there was one: the caret is put on that same line of the screen, so the text does
+  /// not jump under the finger.
+  ///
+  /// **Two things scroll, and they swap.** The reading view has no scroll of its own: a long note
+  /// scrolls the *pane*. The editor scrolls *itself*, inside a pane that should then be at rest. So
+  /// a tap far down a long note used to open an editor whose pane was still scrolled to where the
+  /// reading view had been — the textarea partly or wholly off the top of the screen, and the
+  /// caret, correctly placed inside it, nowhere to be seen (the owner's phone, 2026-10-11). The
+  /// pane goes back to its top first; then the textarea scrolls to the caret.
+  async function openEditor(at?: number, anchorY?: number) {
     editing = true;
     await tick();
-    editorEl?.focus();
+    if (paneEl) paneEl.scrollTop = 0;
+    // `preventScroll`: focusing would otherwise let the browser scroll the pane to wherever it
+    // thinks the field is, undoing the line above before the caret is even set.
+    editorEl?.focus({ preventScroll: true });
     if (at === undefined || !editorEl) return;
     editorEl.selectionStart = editorEl.selectionEnd = at;
-    // focus() alone scrolls to the top, not to the caret — centre it by hand.
-    const { top } = caretXY(editorEl, at);
-    editorEl.scrollTop += top - editorEl.clientHeight / 2;
+    placeCaret(editorEl, at, anchorY);
+  }
+
+  /// Scroll the editor so the caret sits on the screen line `anchorY`, or in the middle of the
+  /// editor when there is no such line (Enter, a new note). Kept a line inside the editor's box at
+  /// either end, so a tap near an edge still shows the caret whole.
+  function placeCaret(el: HTMLTextAreaElement, at: number, anchorY?: number) {
+    const { top, lineHeight } = caretXY(el, at);
+    const lh = lineHeight || 22;
+    const room = Math.max(el.clientHeight - 2 * lh, lh);
+    const want =
+      anchorY === undefined
+        ? el.clientHeight / 2
+        : Math.min(Math.max(anchorY - el.getBoundingClientRect().top - lh / 2, lh), room);
+    el.scrollTop += top - want;
   }
 
   /// **Keep the line being written above the keyboard.** When the keyboard opens the editor gets
@@ -1799,10 +1824,17 @@
   function revealCaret() {
     const el = editorEl;
     if (!el || document.activeElement !== el) return;
-    el.scrollIntoView?.({ block: 'nearest' });
+    // The pane first, for the reason `openEditor` gives: a caret that is "in view" inside an
+    // editor that is itself scrolled off the screen is not in view. With the details form open
+    // the editor is not at the pane's top, so there it is brought in by its nearest edge.
+    if (paneEl && !detailsOpen) paneEl.scrollTop = 0;
+    else el.scrollIntoView?.({ block: 'nearest' });
     const { top, lineHeight } = caretXY(el, el.selectionEnd);
     const lh = lineHeight || 22;
-    if (top < 0 || top + lh > el.clientHeight) el.scrollTop += top - el.clientHeight / 3;
+    // "Out of sight" includes the last line of the box: a caret on the editor's bottom edge is
+    // measured as inside it and read as hidden, sitting against the keyboard with no line below
+    // it to show where the text goes next. So it needs a clear line under it to be left alone.
+    if (top < 0 || top + 2 * lh > el.clientHeight) el.scrollTop += top - el.clientHeight / 3;
   }
   $effect(() => {
     if (!editing) return;

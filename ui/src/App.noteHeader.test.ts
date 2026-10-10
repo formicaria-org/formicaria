@@ -96,6 +96,20 @@ test('one click on the note opens the editor, and the ＋ has no Edit', async ()
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 });
 
+// The reading view scrolls the pane; the editor scrolls itself. A tap far down a long note opened
+// an editor whose pane was still scrolled to where the reading had been, with the caret off the
+// screen (the owner's phone, 2026-10-11). jsdom has no layout, so where the caret lands is measured
+// in a real browser (`known-issues.md`); what can be pinned here is that the pane is put back.
+test('opening the editor puts the pane back at its top, wherever the reading was scrolled', async () => {
+  await openNote();
+  const read = await screen.findByTitle('Click to edit');
+  const pane = read.closest('article')!;
+  pane.scrollTop = 2600;
+  await fireEvent.click(read);
+  expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
+  expect(pane.scrollTop).toBe(0);
+});
+
 test('a click that already means something does not open the editor', async () => {
   await openNote();
   const read = await screen.findByTitle('Click to edit');

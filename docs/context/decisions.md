@@ -8743,6 +8743,17 @@ the source. A single click selects nothing, so the word is read from the point c
 the same ordinal match, with the same rule that a caret never lands inside a reference. Where
 neither exists (jsdom) the caret goes to the end, as it did for a click on empty space.
 
+**Added the same day: the caret stays under the finger.** On the phone the tap landed on the right
+word, but the caret was often off-centre and sometimes not on the screen at all. Two causes. The
+editor centred the caret in its own box whatever line had been tapped; and the reading view scrolls
+the *pane* while the editor scrolls *itself*, so an editor could open inside a pane still scrolled
+to where the reading had been. Now the pane is put back at its top, and the editor scrolls so the
+caret sits on the screen line that was tapped (kept a line inside the editor's box). When the
+keyboard then shortens the editor, a caret left without a clear line beneath it moves to the upper
+third; one that still has room is not moved. Measured in a phone-sized browser on a 150-paragraph
+note, four taps: the caret landed on the tapped line each time (to the pixel where the line was
+inside the editor's box), and was visible above the keyboard each time.
+
 **Not verified on a device.** The tests pin that a click opens the editor, that the things listed
 above do not, that a selection does not, and that the ＋ has no *Edit*. Whether a tap while scrolling
 ever counts as a click on the phone is for the phone to say.
