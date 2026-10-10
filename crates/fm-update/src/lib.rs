@@ -277,16 +277,38 @@ pub fn fetch_verified_manifest(tag: &str) -> Result<Manifest, String> {
             .map_err(|e| format!("could not read the signature for {tag}: {e}"))?;
     verify_release(&manifest_bytes, &signature)?;
     let manifest = Manifest::parse(&manifest_bytes)?;
-    let current = Version::running().ok_or("this copy has no version to compare")?;
-    if manifest.version <= current {
-        // Not "you are up to date": we asked for `tag` and were handed something that is not newer,
-        // which is a different fact and worth saying plainly.
-        return Err(format!(
-            "the download said it was {} rather than something newer, so it was not used",
-            manifest.version
-        ));
-    }
+    acceptable(manifest.version, Version::running(), Version::parse(tag))?;
     Ok(manifest)
+}
+
+/// May a correctly signed manifest saying it is `offered` be used by this copy?
+///
+/// - **A copy with a version** takes only something newer: a genuine signature over an old manifest
+///   is exactly what a replay looks like.
+/// - **A copy with no version** (a test build, a source build) is behind every release, the same
+///   rule [`newer_than`] applies to the *check*. This step used to refuse such a copy outright —
+///   *"this copy has no version to compare"* — so **Check now** offered the release and **Get**
+///   then failed, which is the half of the 2026-10-09 fix that was missed. With no version of its
+///   own to compare, it holds the manifest to the release that was **asked for** instead: the
+///   signature says it is formicaria's, and this says it is the one the person chose.
+fn acceptable(
+    offered: Version,
+    running: Option<Version>,
+    asked: Option<Version>,
+) -> Result<(), String> {
+    match running {
+        Some(current) if offered <= current => Err(format!(
+            // Not "you are up to date": we asked for a release and were handed something that is
+            // not newer, which is a different fact and worth saying plainly.
+            "the download said it was {offered} rather than something newer, so it was not used"
+        )),
+        Some(_) => Ok(()),
+        None if asked == Some(offered) => Ok(()),
+        None => Err(format!(
+            "the download said it was {offered}, which is not the version that was asked for, so \
+             it was not used"
+        )),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -600,6 +622,29 @@ mod tests {
         let v = Version::parse("v99.0.0").unwrap();
         assert!(!is_newer(&v, Some("v99.0.0")));
         assert!(!newer_than(&v, None, Some("v99.0.0")));
+    }
+
+    /// **Being offered a release is not the same as being able to take it.** The check and the
+    /// download are two functions, and on 2026-10-09 only the check learned that a copy with no
+    /// version is behind every release. So a test build showed *Check now*, found the release,
+    /// and then failed at **Get** with "this copy has no version to compare" — reported by the
+    /// owner two days later, from the phone. Both halves are pinned here, side by side.
+    #[test]
+    fn a_build_with_no_version_can_download_the_release_it_asked_for() {
+        let v = |s: &str| Version::parse(s).unwrap();
+        // No version of its own: the release that was asked for is accepted…
+        assert!(acceptable(v("v0.6.4"), None, Some(v("v0.6.4"))).is_ok());
+        // …and a correctly signed manifest for a *different* release is not.
+        let other = acceptable(v("v0.6.2"), None, Some(v("v0.6.4"))).unwrap_err();
+        assert!(other.contains("not the version that was asked for"), "{other}");
+        assert!(acceptable(v("v0.6.4"), None, None).is_err(), "nothing asked for: nothing taken");
+
+        // A copy with a version still takes only something newer — the replay guard is unchanged.
+        assert!(acceptable(v("v0.6.4"), Some(v("v0.6.3")), Some(v("v0.6.4"))).is_ok());
+        for stale in ["v0.6.3", "v0.6.2"] {
+            let e = acceptable(v(stale), Some(v("v0.6.3")), Some(v(stale))).unwrap_err();
+            assert!(e.contains("rather than something newer"), "{e}");
+        }
     }
 
     /// **A build with no version can always get back to the release** (2026-10-09). A test build put on
