@@ -94,8 +94,7 @@ beforeEach(() => {
 
 /// Open the body editor, the way `NotePanel.bigNote` does.
 async function openEditor() {
-  await fireEvent.click(await screen.findByLabelText('note options'));
-  await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   return (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
 }
 

@@ -106,7 +106,19 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
     // longer exist — a bolded **Edit**, a clickable view name, a scroll-wheel ring of views, and a
     // top-right button strip that became a side panel on 2026-08-30. A direction is the part that
     // rots fastest, which is why the note names the strip instead of a corner.
-    for gone in ["**Edit**", "top right", "top bar", "in the ring", "scroll the wheel"] {
+    //
+    // `double-click` joined the list on 2026-10-11, when a single click on a note's text became
+    // the way to edit it. This test had required the phrase until that day, which is the same
+    // trap the first paragraph describes, one gesture later.
+    for gone in [
+        "**Edit**",
+        "top right",
+        "top bar",
+        "in the ring",
+        "scroll the wheel",
+        "double-click",
+        "Double-click",
+    ] {
         assert!(
             !text.contains(gone),
             "the welcome note still teaches {gone:?}, which the app no longer has"
@@ -114,7 +126,7 @@ fn the_welcome_note_describes_the_app_that_actually_ships() {
     }
     // The affordance that replaced it. Named positively so the note cannot simply drop the subject.
     assert!(
-        text.contains("double-click") || text.contains("Double-click"),
+        text.contains("click or tap") || text.contains("Click a note's text"),
         "the note must say how a note is actually edited"
     );
     // The archive carries no assistant, so the note must not advertise one.

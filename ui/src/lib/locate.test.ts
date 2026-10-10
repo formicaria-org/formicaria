@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { countOf, nthIndexOf, outsideDestination } from './locate';
 
-// The pair backs the double-click-to-edit caret: count a word's ordinal in the
+// The pair backs the click-to-edit caret: count a word's ordinal in the
 // rendered text, find that ordinal in the source. Both halves must agree on what
 // "occurrence" means, so the overlap and overshoot cases below are the contract.
 describe('countOf', () => {

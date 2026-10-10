@@ -451,7 +451,19 @@
     if (cell && !cell.closest('.note-embed')) {
       e.preventDefault();
       openCellEditor(cell);
+      return;
     }
+    // **Anything else is "edit this"** — one click or tap, on every device (`decisions.md#ui`,
+    // 2026-10-11). It replaced a double-click and an Edit entry under the ＋.
+    //
+    // Two things are not a request to edit. A link, a button, an input or a player already has a
+    // meaning. And **a click that ends a drag-selection** is somebody selecting text to copy: the
+    // browser fires `click` on mouse-up all the same, so without this the reading view could no
+    // longer be selected from at all.
+    if (el?.closest('a, button, input, select, textarea, summary, video, audio, iframe')) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && content?.contains(sel.anchorNode)) return;
+    void openEditor(offsetAtPoint(e.clientX, e.clientY));
   }
 
   // The byte offset of the state char inside each GFM task marker (`- [ ]` / `- [x]`), in document
@@ -1711,48 +1723,62 @@
     void toggleEdit();
   }
 
-  // Double-click the read view to edit it — there is no Edit button any more.
-  async function startEdit(e: MouseEvent) {
-    // Skip the targets that already mean something: a reference chip navigates, a
-    // link follows, media has its own controls, and double-clicking to select a
-    // word inside them should not throw you into the editor.
-    if (
-      (e.target as HTMLElement | null)?.closest(
-        '.note-chip, a, button, input, video, audio, iframe',
-      )
-    ) {
-      return;
-    }
-    await openEditor(clickedOffset());
-  }
-
   /**
-   * Which source offset did the double-click land on? The gesture has already
-   * selected the word under the pointer, so we count which occurrence of that
-   * word it is in the rendered text and find the same one in the source — the
-   * HTML carries no source positions to consult (see locate.ts).
+   * Which source offset did the click land on? The reading view is rendered HTML and carries no
+   * source positions (see locate.ts), so the word under the pointer is found in the rendered text,
+   * counted — "the third `lambda`" — and the same occurrence is found in the source.
    *
-   * Must run *before* `editing` flips: the swap destroys the rendered DOM this
-   * reads. Falls back to the end of the note, which is what a double-click in
-   * the whitespace under a short note means anyway.
+   * The double-click this replaced read the word from the selection the gesture had just made. A
+   * single click selects nothing, so the browser is asked what text sits at that point instead.
+   *
+   * Must run *before* `editing` flips: the swap destroys the rendered DOM this reads. Falls back
+   * to the end of the note — a click on the space under a short note, an engine with neither API
+   * (jsdom), or a word the source spells differently.
    */
-  function clickedOffset(): number {
-    const sel = window.getSelection();
-    const word = sel?.toString().trim() ?? '';
-    if (!word || !sel?.anchorNode || !content) return draft.length;
+  function offsetAtPoint(x: number, y: number): number {
+    if (!content) return draft.length;
+    type Caret = { offsetNode: Node; offset: number } | null;
+    const doc = document as Document & {
+      caretPositionFromPoint?: (x: number, y: number) => Caret;
+      caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    };
+    let node: Node | null = null;
+    let at = 0;
+    const pos = doc.caretPositionFromPoint?.(x, y);
+    if (pos) {
+      node = pos.offsetNode;
+      at = pos.offset;
+    } else {
+      const r = doc.caretRangeFromPoint?.(x, y);
+      if (r) {
+        node = r.startContainer;
+        at = r.startOffset;
+      }
+    }
+    if (!node || node.nodeType !== Node.TEXT_NODE || !content.contains(node)) return draft.length;
+    // The word at the point: letters and digits only, which is what the source is sure to share
+    // with the rendered text (punctuation beside a word may be Markdown that rendering removed).
+    const text = node.textContent ?? '';
+    const wordy = (c: string | undefined) => !!c && /[\p{L}\p{N}]/u.test(c);
+    let end = at;
+    while (end > 0 && !wordy(text[end - 1]) && !wordy(text[end])) end--; // on a gap: the word before
+    let from = end;
+    while (from > 0 && wordy(text[from - 1])) from--;
+    let to = end;
+    while (to < text.length && wordy(text[to])) to++;
+    const word = text.slice(from, to);
+    if (!word) return draft.length;
     const before = document.createRange();
     before.selectNodeContents(content);
-    try {
-      before.setEnd(sel.anchorNode, sel.anchorOffset);
-    } catch {
-      return draft.length; // selection escaped the read view — no ordinal to count
-    }
+    before.setEnd(node, from);
     const hit = nthIndexOf(draft, word, countOf(before.toString(), word));
+    if (hit < 0) return draft.length;
     // **Never inside a reference.** The ordinal is a hint (see `locate.ts`), and a hint used as a
     // caret put an insertion five characters into an image's hash on the owner's phone, corrupting
     // the note permanently. Snapping costs a caret that is occasionally a few words off; not
     // snapping costs the note.
-    return hit >= 0 ? outsideDestination(draft, hit) : draft.length;
+    const within = Math.min(Math.max(at - from, 0), word.length);
+    return outsideDestination(draft, hit + within);
   }
 
   async function openEditor(at?: number) {
@@ -2284,7 +2310,10 @@
                 >
               </div>
               <!-- No Done: editing ends by tapping the title, Escape, Ctrl+S, or leaving the note. -->
-              {#if !isDiscussion && !editing}
+              <!-- **No Edit either** (2026-10-11): a click on the note's text opens the editor, on
+                   every device. A board has no text to click into, so its details form — which is
+                   what editing a board means — keeps its entry. -->
+              {#if isBoard && !editing}
                 <button
                   class="opt"
                   onclick={() => {
@@ -2292,7 +2321,7 @@
                     void toggleEdit();
                   }}
                 >
-                  {isBoard ? 'Details' : 'Edit'}
+                  Details
                 </button>
               {/if}
               {#if !isBoard && !isDiscussion}
@@ -2809,10 +2838,10 @@
              .note-chip, and each chip is a real <button> — so the keyboard path
              works natively and this stays a click-target shortcut, not the only
              way in.
-             Double-click anywhere else here opens the editor; there is no Edit
-             button any more. dblclick has no keyboard equivalent, so the view is
-             focusable and Enter does the same job — otherwise dropping the button
-             would leave the keyboard with no way in at all. -->
+             A click anywhere else here opens the editor (`onReadClick`); there is
+             no Edit button. A pointer gesture has no keyboard equivalent, so the
+             view is focusable and Enter does the same job — otherwise the keyboard
+             would have no way in at all. -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -2821,7 +2850,6 @@
         bind:this={content}
         tabindex="0"
         onclick={onReadClick}
-        ondblclick={startEdit}
         onkeydown={(e) => {
           // Only when the view itself has focus — never when a chip inside it does.
           if (e.key === 'Enter' && e.target === content) {
@@ -2829,7 +2857,7 @@
             void openEditor();
           }
         }}
-        title="Double-click to edit"
+        title="Click to edit"
       ></div>
     {/if}
 

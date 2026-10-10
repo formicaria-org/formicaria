@@ -64,7 +64,7 @@ test('an untitled note is named by its first line, not "note"', async () => {
 
 test('the ＋ holds what a note offers, and at its foot whose note it is', async () => {
   const win = await openOptions(await openNote());
-  for (const name of ['Edit', 'Add media', 'Delete', 'Close']) {
+  for (const name of ['Add media', 'Delete', 'Close']) {
     expect(within(win).getByRole('button', { name })).toBeTruthy();
   }
   // One at a time, a note already fills the window, so widening it is not offered.
@@ -72,13 +72,59 @@ test('the ＋ holds what a note offers, and at its foot whose note it is', async
   expect(win.querySelector('.options-info')?.textContent?.trim()).toBeTruthy();
 });
 
-test('there is no Done: while editing, the ＋ offers neither Done nor Edit', async () => {
+test('there is no Done and no Edit: the ＋ offers neither, reading or editing', async () => {
   const plus = await openNote();
-  await fireEvent.click(within(await openOptions(plus)).getByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 
   const win = await openOptions(plus);
   expect(within(win).queryByRole('button', { name: /^(Done|Edit)$/ })).toBeNull();
+});
+
+// **A click on the note's text is the way in** (`decisions.md#ui`, 2026-10-11). It replaced a
+// double-click and an Edit entry under the ＋, on every device. What is pinned: one click opens the
+// editor; the ＋ has no Edit while reading either; a click that already means something does not
+// open it; and a click that ends a text selection does not, or nothing could be copied from a note.
+test('one click on the note opens the editor, and the ＋ has no Edit', async () => {
+  const plus = await openNote();
+  const win = await openOptions(plus);
+  expect(within(win).queryByRole('button', { name: 'Edit' })).toBeNull();
+  await fireEvent.click(within(win).getByRole('button', { name: 'close options' }));
+
+  expect(editor()).toBeNull();
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
+  expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
+});
+
+test('a click that already means something does not open the editor', async () => {
+  await openNote();
+  const read = await screen.findByTitle('Click to edit');
+  // A link in the note: following it is what the click means.
+  const link = document.createElement('a');
+  link.href = '#somewhere';
+  link.textContent = 'a link';
+  read.appendChild(link);
+  await fireEvent.click(link);
+  expect(editor()).toBeNull();
+});
+
+test('selecting text in the note is not a request to edit it', async () => {
+  await openNote();
+  const read = await screen.findByTitle('Click to edit');
+  await waitFor(() => expect(read.textContent?.length).toBeGreaterThan(10));
+  // What a drag leaves behind: a selection inside the note, then the click the browser fires on
+  // mouse-up.
+  const range = document.createRange();
+  range.selectNodeContents(read);
+  const sel = window.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  await fireEvent.click(read);
+  expect(editor()).toBeNull();
+
+  sel.removeAllRanges();
+  await fireEvent.click(read);
+  expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 });
 
 test('Add media from reading opens the editor, because media goes in at the caret', async () => {
@@ -93,7 +139,7 @@ test('Add media from reading opens the editor, because media goes in at the care
 
 test('switching to another window ends editing', async () => {
   const plus = await openNote();
-  await fireEvent.click(within(await openOptions(plus)).getByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 
   await fireEvent.click(await screen.findByRole('button', { name: 'open Agenda' }));
@@ -102,7 +148,7 @@ test('switching to another window ends editing', async () => {
 
 test("the phone's Back ends editing", async () => {
   const plus = await openNote();
-  await fireEvent.click(within(await openOptions(plus)).getByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 
   history.back();

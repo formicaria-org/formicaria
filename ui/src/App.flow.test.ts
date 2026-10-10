@@ -68,10 +68,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// The two gestures that replaced the Edit/Done button: double-click the read
+// The two gestures that replaced the Edit/Done button: click the read
 // view to start editing, Ctrl+S to flush the write and go back to reading.
 async function openEditor(): Promise<void> {
-  await fireEvent.dblClick(await screen.findByTitle('Double-click to edit'));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
 }
 /// Close a note the way its header offers it since 2026-09-11: the ＋ beside the title, then Close.
 /// `which` picks among several open notes, counting from the end when negative.
@@ -162,7 +162,7 @@ describe('the app, driven end to end as a user', () => {
     await waitFor(() => expect(katexRender).toHaveBeenCalled());
     await waitFor(() => expect(mermaidRender).toHaveBeenCalled());
 
-    // 6. Double-click the read view to edit the body → Ctrl+S (which flushes the
+    // 6. Click the read view to edit the body → Ctrl+S (which flushes the
     //    save and leaves edit mode) → the read view re-renders the new content.
     await openEditor();
     const editor = screen.getByLabelText(/note body/);

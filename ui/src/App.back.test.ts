@@ -72,10 +72,7 @@ test('Back closes an open panel first, and stays where it was', async () => {
 test('Back first ends editing, then leaves the note', async () => {
   render(App);
   await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
-  const plus = await screen.findByRole('button', { name: 'note options' });
-  await fireEvent.click(plus);
-  const opts = await screen.findByRole('dialog', { name: 'note options' });
-  await fireEvent.click(within(opts).getByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
 
   history.back();

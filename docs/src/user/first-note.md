@@ -30,8 +30,8 @@ already a file on your disk, and formicaria writes it as you go.
 **Give it a title.** The first line is the title. A note called *Reading list* is one you will find
 again; a note called *Untitled* is one you will not.
 
-**To change it later, double-click it.** The note opens as a page to read; double-clicking turns it
-back into the editor, and clicking its header — or pressing **Escape** — puts the pen down again.
+**To change it later, click it.** The note opens as a page to read; a click or tap on its text turns
+it back into the editor, and clicking its header — or pressing **Escape** — puts the pen down again.
 There is no Edit button to look for.
 
 ## Find it again

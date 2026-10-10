@@ -35,8 +35,8 @@
     <h3>Writing something</h3>
     <p>
       Press <strong>+</strong> and choose <strong>New note</strong>. There is no folder to pick and
-      no title to invent first. To change a note later, <strong>double-click</strong> it. While
-      editing, typing <strong>/</strong> offers to link another note or drop in a file.
+      no title to invent first. To change a note later, <strong>click or tap</strong> its text.
+      While editing, typing <strong>/</strong> offers to link another note or drop in a file.
     </p>
 
     <h3>Finding it again</h3>
@@ -57,7 +57,7 @@
 
     <h3>Giving a note a shape</h3>
     <p>
-      Double-click a note to edit it, then use the <strong>+</strong> in its header to add a title, tags,
+      Click a note's text to edit it, then use the <strong>+</strong> in its header to add a title, tags,
       a status or dates. A status puts it on the Board; a date puts it on the Agenda. None of it is required.
     </p>
 

@@ -30,9 +30,10 @@ actually reuse) — the new note is its own untitled note, not another template,
 ## Editing a note
 
 Click any card to open it. It shows the rendered read view, under a header that is just the
-note's title and a **＋**. To edit, tap the **＋** and pick **Edit**, or — quicker — **double-click
-anywhere in the note**; both land in the same place. Double-clicking a reference chip, a link, or
-embedded media does what that element does instead of opening the editor.
+note's title and a **＋**. **To edit, click or tap anywhere in the note's text**: the editor opens
+with the cursor where you clicked. A tick box, a table cell, a link, a chip to another note or a
+player does what it does instead of opening the editor, and selecting text to copy it is not a
+click. From the keyboard, press **Enter** with the note in focus.
 
 **There is no Done button.** To finish, **tap the title**, press **Escape** or **Ctrl+S** — or simply
 leave the note: switch to another window, close it, or press Back on a phone. Your typing is autosaved
@@ -273,7 +274,7 @@ custom properties like `project`. Add any property you like — a new key in a
 note's frontmatter flows straight through to grouping with no configuration.
 
 **Every property is editable in the app.** Open a note's **＋ options** window and pick
-**Edit**: below the fields formicaria knows about (status, dates, title, tags) you get a row for
+**Details**: below the fields formicaria knows about (status, dates, title, tags) you get a row for
 every other property the note carries — `project`, `author`, whatever you have added — and an
 **Add** row for a new one. Leaving a value empty removes that property.
 

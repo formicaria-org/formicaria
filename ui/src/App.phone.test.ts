@@ -168,8 +168,7 @@ describe('the touch shell', () => {
     await screen.findByText(/GAE lambda interacts badly/);
 
     await fireEvent.click(await screen.findByText(/Seeded 0/));
-    await fireEvent.click(await screen.findByLabelText('note options'));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await fireEvent.click(await screen.findByTitle('Click to edit'));
     const body = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
 
     // Nothing selected: no bar at all — not a strip waiting beside the text.
@@ -199,8 +198,7 @@ describe('the quick row above the keyboard', () => {
     await screen.findByText(/GAE lambda interacts badly/);
     await fireEvent.click(await screen.findByText(/Seeded 0/));
     expect(screen.queryByRole('toolbar', { name: 'quick actions' })).toBeNull();
-    await fireEvent.click(await screen.findByLabelText('note options'));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await fireEvent.click(await screen.findByTitle('Click to edit'));
     const el = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
     el.focus();
     el.selectionStart = el.selectionEnd = 4; // a bare caret inside the first line
@@ -283,8 +281,7 @@ describe('the quick row above the keyboard', () => {
     await mock.handle('update_body', { id: ids[0], body: 'something to edit', base: '' });
     render(App);
     await fireEvent.click(await screen.findByText(/Seeded 0/));
-    await fireEvent.click(await screen.findByLabelText('note options'));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await fireEvent.click(await screen.findByTitle('Click to edit'));
     await screen.findByLabelText('note body (Markdown)');
     expect(screen.queryByRole('toolbar', { name: 'quick actions' })).toBeNull();
   });

@@ -52,7 +52,7 @@ async function setDate(el: HTMLElement, value: string): Promise<void> {
   await fireEvent.change(el, { target: { value } });
 }
 
-// There is no Edit button: you double-click the note to edit it.
+// There is no Edit button: you click the note's text to edit it.
 /// Close a note the way its header offers it since 2026-09-11: the ＋ beside the title, then Close.
 /// `which` picks among several open notes, counting from the end when negative.
 async function closeNote(which = 0): Promise<void> {
@@ -62,7 +62,7 @@ async function closeNote(which = 0): Promise<void> {
 }
 
 async function openEditor(): Promise<void> {
-  await fireEvent.dblClick(await screen.findByTitle('Double-click to edit'));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
 }
 
 /// The properties, folded away while you write since 2026-10-08: the note's ＋, then Details.
@@ -154,8 +154,7 @@ describe('v2: property editing, timeline, delete', () => {
     await screen.findByText(/Muesli/);
     await fireEvent.click(screen.getByText(/Muesli/));
 
-    await fireEvent.click(await screen.findByLabelText('note options'));
-    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await fireEvent.click(await screen.findByTitle('Click to edit'));
     expect(await screen.findByLabelText('note body (Markdown)')).toBeTruthy();
     expect(screen.queryByLabelText('status')).toBeNull();
   });

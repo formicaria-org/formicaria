@@ -83,10 +83,9 @@ beforeEach(() => {
   agentActivity.mockResolvedValue({ active: false });
 });
 
-/// Open the body editor. There is no Edit button any more — it lives in the options popover.
+/// Open the body editor: a click on the note's text, which is the only way in since 2026-10-11.
 async function openEditor() {
-  await fireEvent.click(await screen.findByLabelText('note options'));
-  await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  await fireEvent.click(await screen.findByTitle('Click to edit'));
   return screen.findByLabelText('note body (Markdown)');
 }
 
