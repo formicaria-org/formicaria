@@ -241,9 +241,21 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
             sort: vec![SortKey::desc("updated")],
             ..Default::default()
         };
-        let t = Instant::now();
-        let page = store.query(&q).unwrap();
-        (t.elapsed(), page.total)
+        // **The fastest of several runs, not one run.** A single sample measures the machine as
+        // much as the code: on 2026-10-10 a shared CI runner returned 2.4x from one pair of
+        // readings on a commit that had not touched this crate, and failed the gate. Noise only
+        // ever adds time, so the minimum is the honest estimate of each side — and the thing this
+        // guards against is not noise: without the pushdown every query re-reads every asset body,
+        // so the slow side stays slow on every one of the runs.
+        let mut best = std::time::Duration::MAX;
+        let mut total = 0;
+        for _ in 0..5 {
+            let t = Instant::now();
+            let page = store.query(&q).unwrap();
+            best = best.min(t.elapsed());
+            total = page.total;
+        }
+        (best, total)
     }
 
     let (bare, bare_total) = timed_board(false);
@@ -252,9 +264,9 @@ fn a_planning_view_does_not_hydrate_the_assets_it_filters_out() {
     assert_eq!(bare_total, NOTES, "the notes-only vault holds only notes");
     assert_eq!(mixed_total, NOTES, "and the mixed vault answers with the same notes");
 
-    // Measured: ~1.4-1.6x with the pushdown (stable across seven unloaded and three CPU-loaded
-    // runs — load raises both halves, so it *compresses* the ratio rather than inflating it), and
-    // ~4.9x without. 2.0 keeps ~25% headroom over the honest value while still failing a clean 2x
+    // Measured with single readings: ~1.4-1.6x with the pushdown, across seven unloaded and three
+    // CPU-loaded runs on the development machine, and ~4.9x without. (The claim that load only
+    // *compresses* the ratio did not survive a shared runner; see `timed_board`.) 2.0 keeps ~25% headroom over the honest value while still failing a clean 2x
     // regression, which 3.0 would have waved through.
     let ratio = mixed.as_secs_f64() / bare.as_secs_f64().max(1e-9);
     println!(
