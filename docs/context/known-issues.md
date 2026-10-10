@@ -1043,9 +1043,13 @@ note, invitations made meetings).
 
 ## The quick row above the keyboard — limits (2026-10-11)
 
-- **Seen in a phone-sized browser, not on a device.** Measured in headless Chromium at 360×740 with
-  a simulated keyboard inset (`decisions.md#ui`, 2026-10-11): the row ends where the keyboard
-  begins. A real Android keyboard, the selection handles and iOS are unverified.
+- **First seen on the owner's phone on 2026-10-11, and it was under the keyboard.** The browser
+  check had simulated a keyboard and **no navigation bar**. `--kb` is the keyboard *beyond* the
+  navigation bar, so with the bottom bar hidden the note's last `--safe-bottom` (47px there) was
+  covered, which is the whole row. Fixed by `.body` paying that strip while the bar is hidden;
+  `ci/checks.sh` keeps the two rules together. **The fix itself is measured only in the browser**,
+  now with the strip simulated; a real keyboard, the selection handles and iOS remain unverified.
+  **Trap:** when simulating the Android keyboard, set `--safe-bottom` as well as `--kb`.
 - **The app's bar hides while a note is typed with the keyboard up**, and comes back when the
   keyboard goes. It relies on CSS `:has()` (Android WebView 105+, iOS 15.4+); on an older engine the
   bar simply stays, as before.

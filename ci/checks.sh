@@ -854,6 +854,22 @@ PY
     fi
 fi
 
+echo "[check] hiding the bottom bar for the keyboard hands its navigation-bar strip to the body..."
+# `--kb` is the keyboard **beyond** the navigation bar, so `--app-h` stops that strip's height below
+# the top of the keyboard, and the bottom bar's padding is what fills it. Hide the bar while typing
+# and nothing fills it: the last `--safe-bottom` of the note goes under the keyboard. That is how
+# the quick row, 44px tall, sat entirely under a 47px strip on the owner's phone (2026-10-11) after
+# passing a browser check that had simulated a keyboard and no navigation bar.
+kb_sel='html\[data-keyboard\]:has(textarea.editor:focus)'
+if grep -q "$kb_sel) .topbar" ui/src/App.svelte; then
+    if ! grep -A2 "$kb_sel) .body" ui/src/App.svelte | grep -q 'padding-bottom: var(--safe-bottom)'; then
+        echo "  FAIL: ui/src/App.svelte hides the bottom bar while a note is typed, but '.body' does not"
+        echo "        take over 'padding-bottom: var(--safe-bottom)' under the same selector. The note's"
+        echo "        last strip, and the quick row in it, would be under the keyboard."
+        fail=1
+    fi
+fi
+
 echo "[check] the mobile study agent stays behind the feature AND Android (notes-only pays nothing)..."
 # The desktop core proves "rm -rf agents/ is byte-identical" with fm-serve's `agent` feature; the
 # mobile shell must give the same guarantee, or a notes-only APK silently links the whole model

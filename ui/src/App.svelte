@@ -3338,6 +3338,15 @@
     :global(html[data-keyboard]:has(textarea.editor:focus)) .topbar {
       display: none;
     }
+    /* **And the body then pays what the bar was paying.** `--kb` is the keyboard *beyond* the
+       navigation bar, so `--app-h` ends that strip's height **below** the top of the keyboard, and
+       it was the bar's bottom padding that filled it. With the bar gone and nothing in its place,
+       the last `--safe-bottom` of the note was under the keyboard — 47px on the owner's phone,
+       which is the whole of the 44px quick row (reported the first time it reached a device,
+       2026-10-11). The same selector as the rule above, so the two can only apply together. */
+    :global(html[data-keyboard]:has(textarea.editor:focus)) .body {
+      padding-bottom: var(--safe-bottom);
+    }
     /* Only a panel can be collapsed; a bar is already as small as it gets.
 
        **`.topbar` is load-bearing here, and this is the second time.** A bare `.panel-toggle`
