@@ -10,9 +10,7 @@
 /** Inline colour tokens for `[text]{.token}`. **Semantic intent, not colour** — `accent`/`ok`/… —
  *  so the meaning survives theme changes (`app.css` maps each to a token that is themed). */
 export const TEXT_TOKENS = ['accent', 'info', 'ok', 'warn', 'muted'] as const;
-export type TextToken = (typeof TEXT_TOKENS)[number];
 
 /** Callout kinds for `> [!type]` blockquotes. GitHub/Obsidian standard; unknown kinds stay plain
  *  blockquotes, so the bytes always degrade to readable Markdown. */
 export const CALLOUT_TYPES = ['note', 'tip', 'info', 'warning', 'danger', 'quote'] as const;
-export type CalloutType = (typeof CALLOUT_TYPES)[number];

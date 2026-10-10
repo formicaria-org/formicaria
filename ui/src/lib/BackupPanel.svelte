@@ -1358,7 +1358,6 @@
     display: flex;
     justify-content: flex-end;
   }
-  input[type='text'],
   .row input {
     flex: 1;
     min-width: 0;

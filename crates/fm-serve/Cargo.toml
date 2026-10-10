@@ -48,7 +48,6 @@ mail = ["calendar"]
 
 [dependencies]
 fm-model = { workspace = true }
-fm-query = { workspace = true }
 fm-core = { workspace = true }
 fm-app = { path = "../fm-app" }
 # The in-app provisioner. `download` is what compiles `fetch.rs` (resumable, checksum-verified) and

@@ -296,13 +296,6 @@ export function plainError(raw: string): string {
   return raw;
 }
 
-/** Vaults whose last sync ended somewhere the user needs to look at. */
-export function needsAttention(): { vault: string; state: VaultSync }[] {
-  return Object.entries(state.byVault)
-    .filter(([, s]) => s.phase === 'conflicts' || s.phase === 'failed')
-    .map(([vault, state]) => ({ vault, state }));
-}
-
 /** Forget a terminal state once the user has seen it (or once a later sync supersedes it). */
 export function clearSync(vault: string): void {
   set(vault, { phase: 'idle', conflicts: [], error: undefined, merged: 0, kept: [] });

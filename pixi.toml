@@ -64,10 +64,6 @@ mdbook = "*"         # renders docs/ to a static site; built in CI
 # header directory can reach the compile any more.
 LIBZ_SYS_STATIC = "1"
 
-[feature.media.dependencies]
-ffmpeg = "*"
-tesseract = "*"
-
 # Android cross-compilation. **A feature and an environment, never a platform** — the plan's
 # ruling: adding `linux-aarch64`-style android entries to `platforms` would claim we build and
 # test there, which we do not. This only adds the Rust standard library for the two targets
@@ -253,7 +249,6 @@ cargo check --target aarch64-apple-ios-sim -p fm-agent
 
 [environments]
 default = { features = [] }
-media = { features = ["media"] }
 android = { features = ["android"] }
 cross = { features = ["cross"] }
 
