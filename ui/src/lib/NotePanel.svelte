@@ -463,7 +463,7 @@
     if (el?.closest('a, button, input, select, textarea, summary, video, audio, iframe')) return;
     const sel = window.getSelection();
     if (sel && !sel.isCollapsed && content?.contains(sel.anchorNode)) return;
-    void openEditor(offsetAtPoint(e.clientX, e.clientY), e.clientY);
+    void openEditor(offsetAtPoint(e.clientX, e.clientY));
   }
 
   // The byte offset of the state char inside each GFM task marker (`- [ ]` / `- [x]`), in document
@@ -1781,17 +1781,23 @@
     return outsideDestination(draft, hit + within);
   }
 
-  /// Open the editor with the caret at `at`. `anchorY` is where on the screen the click or tap
-  /// landed, when there was one: the caret is put on that same line of the screen, so the text does
-  /// not jump under the finger.
+  /// Open the editor with the caret at `at`, **in the middle of what the person can see**.
+  ///
+  /// The owner's wording, after trying a version that kept the caret under the finger: *"the
+  /// location of the cursor is correct. However, it should be centred in the user view."* A caret
+  /// on the tapped line is right about *where in the text*; it says nothing about *where on the
+  /// screen*, and the middle is where the eye goes when a page changes under it.
   ///
   /// **Two things scroll, and they swap.** The reading view has no scroll of its own: a long note
   /// scrolls the *pane*. The editor scrolls *itself*, inside a pane that should then be at rest. So
-  /// a tap far down a long note used to open an editor whose pane was still scrolled to where the
-  /// reading view had been — the textarea partly or wholly off the top of the screen, and the
-  /// caret, correctly placed inside it, nowhere to be seen (the owner's phone, 2026-10-11). The
-  /// pane goes back to its top first; then the textarea scrolls to the caret.
-  async function openEditor(at?: number, anchorY?: number) {
+  /// the pane goes back to its top first; then the editor scrolls to the caret.
+  ///
+  /// **And the middle moves.** On a phone the keyboard opens a moment after the editor does and
+  /// takes half its height, so the middle found here is not the middle a second later. For a short
+  /// while after opening, each change in the keyboard re-centres (`revealCaret`); after that the
+  /// caret is only moved when it would otherwise be out of sight, so nothing shifts under someone
+  /// who is typing.
+  async function openEditor(at?: number) {
     editing = true;
     await tick();
     if (paneEl) paneEl.scrollTop = 0;
@@ -1800,21 +1806,22 @@
     editorEl?.focus({ preventScroll: true });
     if (at === undefined || !editorEl) return;
     editorEl.selectionStart = editorEl.selectionEnd = at;
-    placeCaret(editorEl, at, anchorY);
+    centreCaret(editorEl, at);
+    settlingUntil = performance.now() + SETTLE_MS;
   }
 
-  /// Scroll the editor so the caret sits on the screen line `anchorY`, or in the middle of the
-  /// editor when there is no such line (Enter, a new note). Kept a line inside the editor's box at
-  /// either end, so a tap near an edge still shows the caret whole.
-  function placeCaret(el: HTMLTextAreaElement, at: number, anchorY?: number) {
+  /// How long after opening the editor a keyboard change still re-centres the caret. Long enough
+  /// for a phone's keyboard to finish sliding in (it reports its height several times on the way),
+  /// short enough that it is over before anyone has typed a word.
+  const SETTLE_MS = 1500;
+  let settlingUntil = 0;
+
+  /// Scroll the editor so the caret's line is in the middle of its box. Near the top of a note
+  /// there is nothing above to scroll, so the caret stays where the text puts it; near the end the
+  /// editor's bottom padding on touch (`.editor`) is what gives it room.
+  function centreCaret(el: HTMLTextAreaElement, at: number) {
     const { top, lineHeight } = caretXY(el, at);
-    const lh = lineHeight || 22;
-    const room = Math.max(el.clientHeight - 2 * lh, lh);
-    const want =
-      anchorY === undefined
-        ? el.clientHeight / 2
-        : Math.min(Math.max(anchorY - el.getBoundingClientRect().top - lh / 2, lh), room);
-    el.scrollTop += top - want;
+    el.scrollTop += top + (lineHeight || 22) / 2 - el.clientHeight / 2;
   }
 
   /// **Keep the line being written above the keyboard.** When the keyboard opens the editor gets
@@ -1831,10 +1838,12 @@
     else el.scrollIntoView?.({ block: 'nearest' });
     const { top, lineHeight } = caretXY(el, el.selectionEnd);
     const lh = lineHeight || 22;
-    // "Out of sight" includes the last line of the box: a caret on the editor's bottom edge is
-    // measured as inside it and read as hidden, sitting against the keyboard with no line below
-    // it to show where the text goes next. So it needs a clear line under it to be left alone.
-    if (top < 0 || top + 2 * lh > el.clientHeight) el.scrollTop += top - el.clientHeight / 3;
+    // Just opened: the keyboard is still arriving, so centre in whatever is visible now. Later:
+    // only when out of sight, which includes the last line of the box — a caret on the editor's
+    // bottom edge is measured as inside it and read as hidden, against the keyboard with no line
+    // below it. Either way it goes to the middle, so the two cases cannot disagree about where.
+    const settling = performance.now() < settlingUntil;
+    if (settling || top < 0 || top + 2 * lh > el.clientHeight) centreCaret(el, el.selectionEnd);
   }
   $effect(() => {
     if (!editing) return;
@@ -3743,6 +3752,23 @@
     font-family: var(--font-mono);
     font-size: var(--text-sm);
     line-height: 1.6;
+  }
+  /* **Room below the last line, on touch.** The caret is centred when the editor opens, and the
+     last lines of a note can only reach the middle if there is something beneath them to scroll.
+     About half the editor's own height is that something.
+
+     **Sized from `--app-h`, never from `vh`.** A textarea cannot be shorter than its padding, and
+     the editor has to shrink when the keyboard takes half the screen: a first version used `50vh`,
+     which is taller than the editor is with the keyboard up, so the editor stopped shrinking and
+     its lower half went under the keyboard. `--app-h` already has the keyboard taken out, and 14rem
+     is about what the header, the quick row and the app's bar take from it.
+
+     Not with a precise pointer, where a desktop editor ending in half a screen of blank would only
+     look broken. */
+  @media (pointer: coarse) {
+    .editor {
+      padding-bottom: max(var(--space-6), calc((var(--app-h) - 14rem) / 2));
+    }
   }
   /* With the keyboard up the editor fits what is left rather than holding 22rem, which on a phone is
      taller than the room above the keyboard — the note would scroll as a whole and its last lines,

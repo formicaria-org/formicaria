@@ -8743,16 +8743,22 @@ the source. A single click selects nothing, so the word is read from the point c
 the same ordinal match, with the same rule that a caret never lands inside a reference. Where
 neither exists (jsdom) the caret goes to the end, as it did for a click on empty space.
 
-**Added the same day: the caret stays under the finger.** On the phone the tap landed on the right
-word, but the caret was often off-centre and sometimes not on the screen at all. Two causes. The
-editor centred the caret in its own box whatever line had been tapped; and the reading view scrolls
-the *pane* while the editor scrolls *itself*, so an editor could open inside a pane still scrolled
-to where the reading had been. Now the pane is put back at its top, and the editor scrolls so the
-caret sits on the screen line that was tapped (kept a line inside the editor's box). When the
-keyboard then shortens the editor, a caret left without a clear line beneath it moves to the upper
-third; one that still has room is not moved. Measured in a phone-sized browser on a 150-paragraph
-note, four taps: the caret landed on the tapped line each time (to the pixel where the line was
-inside the editor's box), and was visible above the keyboard each time.
+**Added the same day, and corrected the same day: the caret goes to the middle of what is seen.**
+On the phone the tap landed on the right word, but the caret was often off-centre and sometimes
+not on the screen at all. A first fix put the caret on the screen line that had been tapped, so the
+text would not jump under the finger. The owner, having tried it: *"the location of the cursor is
+correct. However, it should be centred in the user view."* So:
+- the pane is put back at its top (the reading view scrolls the pane; the editor scrolls itself);
+- the editor scrolls so the caret's line is in the **middle of its box**;
+- for 1.5 s after opening, each change in the keyboard re-centres, because on a phone the keyboard
+  arrives after the editor and halves it; after that the caret moves only when it would otherwise
+  be out of sight, so nothing shifts under someone typing;
+- on touch the editor has about half its own height of padding under the last line, so the end of
+  a note can reach the middle too. It is sized from `--app-h`, not `vh`: a textarea cannot be
+  shorter than its padding, and `50vh` stopped the editor shrinking for the keyboard.
+The first lines of a note cannot be centred, having nothing above them to scroll. Measured in a
+phone-sized browser on a 150-paragraph note, six taps: the caret was exactly at the middle of the
+editor before the keyboard and again after it, for every tap but the one on the first paragraph.
 
 **Not verified on a device.** The tests pin that a click opens the editor, that the things listed
 above do not, that a selection does not, and that the ＋ has no *Edit*. Whether a tap while scrolling
