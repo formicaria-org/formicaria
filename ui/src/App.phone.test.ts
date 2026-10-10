@@ -263,6 +263,20 @@ describe('the quick row above the keyboard', () => {
     expect(within(list).getByRole('button', { name: 'From the library' })).toBeTruthy();
   });
 
+  it('is the one place to add media on touch: the ＋ no longer offers it there', async () => {
+    // Two routes to the same thing is one too many on a small screen. The row has record and
+    // add-a-file while writing, so the ＋ keeps Edit, Delete and the rest, and drops Add media.
+    await editing('something to edit');
+    await fireEvent.click(await screen.findByLabelText('note options'));
+    const win = await screen.findByRole('dialog', { name: 'note options' });
+    expect(within(win).queryByRole('button', { name: 'Add media' })).toBeNull();
+    expect(within(win).getByRole('button', { name: 'Delete' })).toBeTruthy();
+    // And the row still has both.
+    const row = await screen.findByRole('toolbar', { name: 'quick actions' });
+    expect(within(row).getByRole('button', { name: 'record audio' })).toBeTruthy();
+    expect(within(row).getByRole('button', { name: 'add a photo or file' })).toBeTruthy();
+  });
+
   it('is not there with a mouse: a keyboard types these marks and there is none to sit above', async () => {
     asDesktop();
     const ids = mock.seed({ notes: 5 });

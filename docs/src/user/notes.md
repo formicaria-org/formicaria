@@ -126,7 +126,8 @@ the things you reach for mid-sentence:
 | **Text style** | headings, a numbered list, a quote or a callout for the line you are on |
 
 The keyboard stays up when you press one, and the cursor stays at the end of the line so you can
-keep typing. Everything in the row is also under the **＋**; the row is only the shorter way. With a
+keep typing. On a phone or tablet this row is where media is added: the **＋** there has no **Add
+media**, since the row does it in one tap. The line styles are also on the selection toolbar. With a
 mouse and keyboard there is no row: the marks are quick to type and there is no on-screen keyboard
 to put it above.
 

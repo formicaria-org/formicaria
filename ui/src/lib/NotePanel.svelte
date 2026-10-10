@@ -2314,8 +2314,12 @@
                   {editing && detailsOpen ? 'Hide details' : 'Details'}
                 </button>
               {/if}
-              {#if !isBoard && !isDiscussion}
-                <!-- **Opened in place, inside this window** — never a menu hanging off a menu, which is
+              {#if !isBoard && !isDiscussion && !coarsePointer}
+                <!-- **Not on a touch screen**, where the quick row above the keyboard has record and
+                     add-a-file one tap away while writing (the owner, 2026-10-11: *"now that we have
+                     the lower commands we can use them directly"*). One place per device, not two.
+
+                     **Opened in place, inside this window** — never a menu hanging off a menu, which is
                      how ＋ Media ended up half off the left edge of a phone. -->
                 <button
                   class="opt"
