@@ -83,7 +83,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -7728,6 +7728,11 @@ are pinned in `ViewBar.windows.svelte.test.ts`, and the width by screenshot.
 
 ## 2026-09-11 — the formatting bar appears on a selection on every device, and below it on touch `#ui` `#track-m`
 
+> **Amended 2026-10-11** by *while writing on a touch screen, a row of quick actions sits above the
+> keyboard*: the bar for **formatting a selection** is unchanged, but touch is no longer without
+> anything when nothing is selected. What this entry rejected was a strip of formatting buttons drawn
+> beside the text; the new row is for **putting things in** and sits under it.
+
 **What was there.** A precise pointer got a bar floating above the selection, shown only while text is
 selected. Touch got a persistent strip instead, because on Android the float hid behind the system's
 own Cut/Copy menu, which opens above any selection.
@@ -8503,4 +8508,76 @@ newer engine would have to wait for that.
 
 **Read before** making anything download on its own after an update, or adding a second place that
 decides which model runs.
+
+## 2026-10-11 — while writing on a touch screen, a row of quick actions sits above the keyboard `#ui` `#track-m`
+
+> **Amends** *the formatting bar appears on a selection on every device* (2026-09-11), which removed
+> touch's persistent strip, and *a note's header is its title and one ＋* (2026-09-11), whose ＋ stays
+> the one place every option lives. Neither is reversed; see **What stays**.
+
+**What prompted it.** The owner, with a screenshot of the phone's own notes app: *"we should have
+fast buttons to add media and recording and shortcuts for options like audio and bullet points down
+in a dedicated panel above the keyboard. It helps to access fast options that are useful in the
+phone."* On a phone, recording or adding a photo while writing meant leaving the text for the ＋,
+opening *Add media*, and choosing; a bullet or a checkbox meant typing its marks on a keyboard that
+hides them two layers down.
+
+**Decision.** While a note's text is being edited on a touch screen, one row sits at the bottom of the
+note, which is the top of the keyboard when it is up: **record audio · add a photo or file · checklist
+item · bullet · text style**. Each is something the app already did; the row is a shorter way to it.
+- **Record** and **add** call the same functions the ＋ window does (`startRecordingFlow`, `capture`).
+- **Checklist** and **bullet** act on the line the caret is on, or the lines selected, and are toggles.
+  With nothing selected the caret stays at the end of the line, so the next key continues writing.
+- **Text style** opens the block list the selection bar has (headings, numbered, quote, callout).
+- Pressing a button does not take focus from the text, so the keyboard stays up.
+- **The app's own bar steps aside while a note is being typed with the keyboard up** (narrow
+  screens, where it is a bar along the bottom). It sat between the note and the keyboard, took about
+  a third of the room left above the keys, and would have put itself under the row. Only for the
+  note's text (`html[data-keyboard]:has(textarea.editor:focus)`): the bar's own search field raises
+  the keyboard too and must not hide the bar it is in. Putting the keyboard away brings it back.
+
+**Why the 2026-09-11 objection does not apply.** That strip failed twice over: it was drawn *beside*
+the text (a flex row), a third of the screen wide; and it offered **formatting with nothing
+selected**, which is not how a phone offers formatting. This row is the pane's last child, `position: sticky` with
+`margin-top: auto`, so it is the pane's bottom edge on its own line and cannot sit beside the text; and bold, italic,
+colour and link stay where they were, on a selection.
+
+**What stays.** The ＋ is still where everything is, on every device; nothing was moved out of it.
+The selection bar is unchanged. **Touch only** (`pointer: coarse`), which is Android, iOS and touch
+tablets alike: a precise pointer has a keyboard for these marks and no on-screen keyboard to sit
+above. That is a difference in the device, which is the one ground *same behaviour on every OS*
+allows for a split.
+
+**Checked in a phone-sized browser, not on a device.** The tests pin that the row appears only
+while editing on touch, is absent with a precise pointer, and what each line action writes. Its
+layout was then measured in headless Chromium at 360×740 with touch and a 300 px keyboard inset
+simulated: five 70×44 px buttons in one row, the row ending exactly where the keyboard begins, the
+app's bar gone, the text area 228 px tall where it had been 118, and the style menu wholly on
+screen. A real keyboard, the selection handles and iOS are for a phone to say, before release.
+
+**Read before** adding a sixth button: five fit a 320 px screen at a comfortable size, and the row is
+for what is reached for *while typing*. Anything else belongs in the ＋.
+
+## 2026-10-11 — a copy with no version may also *download* the release it asked for `#toolchain` `#track-m`
+
+> Completes *a build with no version can always return to the latest release* (2026-10-09), which
+> fixed only the check.
+
+**What was wrong.** That entry made `newer_than` treat a versionless copy as behind every release,
+so **Check now** appeared and found the release. The download is a second function,
+`fetch_verified_manifest`, with its own comparison, and it still said *"this copy has no version to
+compare"*. So a test build offered the release and failed at **Get**. Found by the owner on the
+phone, on the test build for v0.6.4, two days after the first half shipped.
+
+**Decision.** `fm_update::acceptable` decides it, in one place and tested:
+- a copy **with** a version takes only something newer (the replay guard, unchanged);
+- a copy **with no version** takes a correctly signed manifest **for the release that was asked
+  for**, and no other. It has no version of its own to compare, so the comparison is against the
+  request: the signature says it is formicaria's, and this says it is the one the person chose.
+
+**The lesson is about the fix, not the bug.** One rule lived in two functions and the fix found one.
+The test now pins both halves side by side; a rule with two enforcers needs a test that names both.
+
+**Until a release carries this**, a test build still cannot update itself, and the way onto the
+published release is the cable (`known-issues.md`, *Signing a phone build locally*).
 

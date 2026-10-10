@@ -1,7 +1,9 @@
 # The assistant, simplified — one assistant, two lanes, one secretary (plan, 2026-10-09)
 
-**Status: proposal, not adopted.** No code has changed. Adopting it earns `decisions.md` entries
-(the subject is `#agent`). Built from two read-only maps of the code taken today (fm-agent: 5,233
+**Status: partly done and shipped in v0.6.4 (2026-10-11).** P0, P1, the closed command list, the
+image-reader rule and the newer-model offer are in; each dated section below says what. Not
+started: the Myrme name and device identity, a question about a picture in chat, the secretary's
+jobs. Its rulings are in `decisions.md` (`#agent`, 2026-10-10). Built from two read-only maps of the code taken today (fm-agent: 5,233
 lines, 14 modules, 105 tests; fm-agent-run: 4,087 lines; fm-serve `agent.rs`: 1,097; mobile
 `agent.rs`: 566), plus the owner's direction.
 
@@ -193,14 +195,12 @@ No change in behaviour; the gate is green and the phone crate compiles.
   and set aside (`agents/bench/results.md`).
 - **The reader rule is built** (`decisions.md`, 2026-10-10): dedicated reader → main model if it
   can see → nobody. One function decides it, one function passes a projector for desktop and phone,
-  and a model can carry its own reading instruction. **Still to do for the phone to read an image:**
-  pick its vision model (LFM2.5-VL-450M measured; LFM2.5-VL-1.6B not), add it to `models.toml` with
-  a pinned revision and checksum, test on the phone, release. **Not built:** a question about a
-  picture in chat.
+  and a model can carry its own reading instruction. **Done since:** the phone's model was chosen and released (v0.6.4).
+  **Not built:** a question about a picture in chat.
 - **The phone's default is now `lfm2.5-vl-450m`** (`models.toml`), and **a changed model is
   offered, not pushed** (`decisions.md`, 2026-10-10): the downloaded model keeps running, Settings
-  offers the new one with its size, and the catalogue now reaches downloaded desktop apps too. Not
-  yet released or tried on a device.
+  offers the new one with its size, and the catalogue now reaches downloaded desktop apps too.
+  Released in v0.6.4 after the owner ran it on the phone.
 - **The owner's ruling for the laptop (2026-10-10):** the reader stays on the processor for now.
 - **Still needed:** the owner's own handwritten and photographed pages; a phone run beside the main
   model; and a size cap for photos.

@@ -1041,6 +1041,18 @@ note, invitations made meetings).
   exactly what you saw.
 - **Search typing is not history**: a search window is one place, however many queries you type.
 
+## The quick row above the keyboard — limits (2026-10-11)
+
+- **Seen in a phone-sized browser, not on a device.** Measured in headless Chromium at 360×740 with
+  a simulated keyboard inset (`decisions.md#ui`, 2026-10-11): the row ends where the keyboard
+  begins. A real Android keyboard, the selection handles and iOS are unverified.
+- **The app's bar hides while a note is typed with the keyboard up**, and comes back when the
+  keyboard goes. It relies on CSS `:has()` (Android WebView 105+, iOS 15.4+); on an older engine the
+  bar simply stays, as before.
+- **"Discussion" sits between the text and the row**, because the row is the pane's bottom edge and
+  the discussion is part of the pane.
+- **The record button needs the microphone permission**, the same as *Record audio* under the ＋.
+
 ## Signing a phone build locally (2026-10-09)
 
 On the owner's machine, `~/.config/formicaria/android-release.properties` held a byte-copy of the
@@ -1070,9 +1082,11 @@ is left:
   include the engine in what the offer downloads.
 - **On a computer the new model starts at the next launch**, not at once: `fm-serve` keeps no handle
   on the running assistant (the same reason "off" applies at the next launch).
-- **Not run on a real device.** The rule is unit-tested (`installed.rs`), the Settings row is
-  tested against a mock, and the phone crate compiles; nobody has yet accepted an offer on a phone
-  or a downloaded desktop app.
+- **Run on the phone, not on a downloaded desktop app.** The owner accepted the offer on the
+  phone before v0.6.4 was tagged (2026-10-11): the old model kept working, the offer appeared, the
+  download switched the assistant, and `/transcribe` read a photo. Nobody has yet accepted one on
+  a computer running the downloaded app, where the catalogue refresh and the next-launch switch
+  are the untested parts.
 - **Models never come from GitHub.** A release carries only the catalogue (names, pinned Hugging
   Face revisions, checksums); every device downloads weights from Hugging Face itself.
 - **Trap:** the phone's default is `enabled: true`. An update therefore reaches phones whose owners

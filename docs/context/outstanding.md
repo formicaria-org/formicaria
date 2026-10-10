@@ -905,6 +905,32 @@ Next, roughly in order:
 4. **Outlook** (Phase 4): Graph `Mail.Read`. The NUS tenant may refuse consent, so dropping
    `.eml`/`.ics` files is the fallback.
 
+### 2.17 The assistant after v0.6.4 — what the rework left open (2026-10-11)
+
+Shipped in v0.6.4 and run on the owner's phone: one way to do each thing in the assistant's code,
+the rule for who reads an image, a vision model as the phone's default, and a newer model offered
+after an update (`decisions.md#agent`, 2026-10-10; `agent-simplification-plan-2026-10-09.md`).
+
+Next, roughly in order:
+1. **Measure `lfm2.5-vl-450m` as a chat model** against `lfm2.5-1.2b`, which it replaced on the
+   phone and which is more than twice its size. Only its image reading was measured. If chat is
+   clearly worse, `lfm2.5-vl-1.6b` is the candidate (unmeasured; its image step may be slow).
+   `agents/bench/run.py`, one model at a time, never beside the running app.
+2. **The owner's own handwritten and photographed pages.** Every image measurement so far used
+   five typeset fixtures (`agents/bench/vision/`).
+3. **Accept an offer on a downloaded desktop copy**: the catalogue refresh and the next-launch
+   switch have only unit tests behind them (`known-issues.md`).
+4. **A computer's model engine should follow the app** the way the catalogue now does
+   (`known-issues.md`, same section).
+5. **A question about a picture in chat.** `/transcribe` is still the only thing that uses an image.
+6. **The Myrme name and one identity per device** (the plan's P2): one stable name, and exactly one
+   device answering a message that reaches two.
+7. **Two commands with no button:** `clear_restic_password` and `clear_git_credential`. The owner
+   has not said whether the Backup panel should offer them
+   (`sessions/2026-10-10-stale-code-audit.md`).
+8. **The developer route in `agents/`** (a second search back end and second download path): keep
+   or remove is the owner's call, same audit.
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.

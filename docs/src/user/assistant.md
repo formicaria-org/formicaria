@@ -20,7 +20,7 @@ Before anything else, the honest matrix.
 | **Windows**, from the download | yes\* | yes\* | yes\* |
 | **macOS**, from the download | yes\* | no — see below | yes\* |
 | **Linux**, from a checkout | yes | yes | yes |
-| **Android** | yes, bundled in the app | yes, bundled | no — the phone's model cannot see |
+| **Android** | yes, bundled in the app | yes, bundled | yes, with the recommended model (since v0.6.4) |
 
 \* **Compiled and type-checked, never yet run.** Linux and Android are the two platforms this has
 actually been used on. The per-operating-system parts — chiefly the check that reads how much
@@ -261,7 +261,7 @@ These are the three the picker offers, with the download sizes it will show you:
 | Device | Recommended | Download | Why |
 |---|---|---|---|
 | **Laptop or desktop** | `qwen3-vl-4b` | 2.5 GB (+0.84 GB to read images) | The default. Grounds its answers best of the ones measured, and the only one that can read a photographed page. |
-| **A lighter machine, or a slow connection** | `lfm2.5-1.2b` | 0.73 GB | Best instruction-following and tool-use in its size; also the phone's pick. Text only. |
+| **A lighter machine, or a slow connection** | `lfm2.5-1.2b` | 0.73 GB | Best instruction-following and tool-use in its size; the phone's pick until v0.6.4. Text only. |
 | **If the default disappoints** | `qwen3-4b-2507` | 2.5 GB | The validated fallback, text-only — the laptop pick until 2026-07-24. |
 
 On a phone the app chooses for you: `lfm2.5-vl-450m` (0.57 GB with its image reader), a small
