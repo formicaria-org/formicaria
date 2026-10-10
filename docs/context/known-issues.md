@@ -1041,6 +1041,18 @@ note, invitations made meetings).
   exactly what you saw.
 - **Search typing is not history**: a search window is one place, however many queries you type.
 
+## Where the caret is — a browser cannot stand in for the phone (2026-10-11)
+
+- **A desktop browser has no text zoom**, and Android's WebView has one (the phone's *Font size*
+  setting). Anything that copies a computed font size onto another element is right in every
+  measurement made here and can be wrong on the phone. `caretXY` was, for long notes: the editor
+  scrolled past the caret. It now measures height in a twin of the textarea itself
+  (`ui/src/lib/caret.ts`).
+- **Unverified at the time of writing:** that this was the cause. It is the explanation that fits
+  an error growing with distance down the note; nothing on the phone could be inspected.
+- **Trap:** the caret's *left* still comes from the styled copy (corrected by `undoubled`). It only
+  places menus, which `popup` then keeps on screen.
+
 ## The quick row above the keyboard — limits (2026-10-11)
 
 - **First seen on the owner's phone on 2026-10-11, and it was under the keyboard.** The browser

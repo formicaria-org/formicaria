@@ -33,6 +33,30 @@ const MIRRORED = [
   'tab-size',
 ] as const;
 
+/** The properties a phone's text size setting scales. See [`undoubled`]. */
+const ZOOMED = ['font-size', 'line-height'] as const;
+
+/**
+ * What to set on the mirror so that it *renders* at `want`, given that setting `want` rendered
+ * as `got`. `null` when they already agree, which is every desktop browser.
+ *
+ * **Why they can disagree.** Android's WebView applies the phone's *Font size* setting as a text
+ * zoom, and it is already inside what `getComputedStyle` reports: a textarea styled at 14px on a
+ * phone set to 1.3x reports 18.2px. Copy that number onto the mirror and the zoom is applied to it
+ * **again**, so the mirror draws at 23.7px, wraps sooner and stands taller than the textarea it is
+ * supposed to be a clone of. Every line adds to the error, so a caret far down a long note was
+ * measured hundreds of pixels below where it was: the editor scrolled past it, "leaving it even
+ * outside the view" (the owner's phone, 2026-10-11), while every desktop measurement was exact.
+ *
+ * So the mirror is corrected against itself rather than against a guess at the zoom: set the value,
+ * read back what it became, and if it grew by some factor, ask for that much less.
+ */
+export function undoubled(want: number, got: number): number | null {
+  if (!Number.isFinite(want) || !Number.isFinite(got) || want <= 0 || got <= 0) return null;
+  if (Math.abs(got - want) < 0.01) return null;
+  return (want * want) / got;
+}
+
 export type CaretPos = {
   /** Offset from the textarea's top-left, in CSS px, of the caret's line box. */
   top: number;
@@ -71,10 +95,63 @@ export function caretXY(el: HTMLTextAreaElement, index: number): CaretPos {
   mirror.appendChild(marker);
 
   document.body.appendChild(mirror);
-  const top = marker.offsetTop - el.scrollTop;
+  for (const prop of ZOOMED) {
+    const want = parseFloat(style.getPropertyValue(prop));
+    const got = parseFloat(window.getComputedStyle(mirror).getPropertyValue(prop));
+    const fixed = undoubled(want, got);
+    if (fixed !== null) mirror.style.setProperty(prop, `${fixed}px`);
+  }
   const left = marker.offsetLeft - el.scrollLeft;
-  const lineHeight = marker.offsetHeight || parseFloat(style.lineHeight) || 0;
+  const lineHeight = parseFloat(style.lineHeight) || marker.offsetHeight || 0;
+  // The twin's answer when there is one: it is the textarea's own layout, not a likeness of it.
+  const top = (twinTop(el, index, lineHeight) ?? marker.offsetTop) - el.scrollTop;
   mirror.remove();
 
   return { top, left, lineHeight: Number.isFinite(lineHeight) ? lineHeight : 0 };
+}
+
+/**
+ * How far down the text the caret's line starts, measured in **a second copy of the textarea
+ * itself** — or `null` where there is no layout to measure (jsdom).
+ *
+ * The div mirror above is a likeness: it is told the textarea's computed styles and trusted to lay
+ * text out the same way. That trust failed on a phone (see `undoubled`), and a likeness can fail
+ * again for a reason nobody has met yet — a font the engine substitutes in form controls only, a
+ * text setting applied to one kind of element and not the other. So for the number that matters
+ * most, the vertical position, nothing is copied: the twin is the same element with the same
+ * classes in the same parent, so whatever the engine does to the original it does to the twin.
+ * Its height is forced to nothing, which makes `scrollHeight` exactly the height of its text.
+ *
+ * The text goes on to the end of the word the caret is in, so that word wraps where it does in
+ * the original rather than fitting on the line above for want of its last letters.
+ */
+function twinTop(el: HTMLTextAreaElement, index: number, lineHeight: number): number | null {
+  const parent = el.parentElement;
+  if (!parent || !lineHeight) return null;
+  const twin = el.cloneNode(false) as HTMLTextAreaElement;
+  twin.removeAttribute('id');
+  twin.removeAttribute('aria-label');
+  twin.setAttribute('aria-hidden', 'true');
+  twin.tabIndex = -1;
+  twin.readOnly = true;
+  const rest = /^\S*/.exec(el.value.slice(index));
+  twin.value = el.value.slice(0, index) + (rest ? rest[0] : '');
+  const t = twin.style;
+  t.position = 'absolute';
+  t.visibility = 'hidden';
+  t.pointerEvents = 'none';
+  t.left = '0';
+  t.top = '0';
+  t.width = `${el.offsetWidth}px`;
+  t.height = '0';
+  t.minHeight = '0';
+  t.maxHeight = 'none';
+  t.paddingBottom = '0';
+  t.overflow = 'hidden';
+  t.flex = 'none';
+  t.resize = 'none';
+  parent.appendChild(twin);
+  const height = twin.scrollHeight; // padding-top + the text, with nothing beneath it
+  twin.remove();
+  return height > 0 ? height - lineHeight : null;
 }

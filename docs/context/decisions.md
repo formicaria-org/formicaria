@@ -8760,6 +8760,21 @@ The first lines of a note cannot be centred, having nothing above them to scroll
 phone-sized browser on a 150-paragraph note, six taps: the caret was exactly at the middle of the
 editor before the keyboard and again after it, for every tap but the one on the first paragraph.
 
+**And then the phone disagreed with the browser.** With the caret centred to the pixel in every
+measurement here, the owner's phone still scrolled *past* it: fine at the top of a note, further
+off the further down the tap. An error that grows with distance is a measuring error, and the
+measure was `caretXY`'s hidden copy of the textarea. The explanation that fits, and that no desktop
+browser can show: Android's WebView applies the phone's *Font size* setting as a text zoom that is
+already inside `getComputedStyle`, so copying the computed font size onto the copy applied the zoom
+twice, and the copy wrapped sooner and stood taller than the textarea. **This is a diagnosis, not
+an observation**: a release build cannot be inspected on the phone. So two things were done, one
+for the diagnosis and one that does not depend on it:
+- the copy corrects itself (`undoubled`): set a size, read back what it became, ask for less by
+  that factor;
+- the vertical position no longer comes from a likeness at all (`twinTop`): it is measured in a
+  second copy of **the textarea itself**, same element, same classes, same parent, so whatever the
+  engine does to the original it does to the twin.
+
 **Not verified on a device.** The tests pin that a click opens the editor, that the things listed
 above do not, that a selection does not, and that the ＋ has no *Edit*. Whether a tap while scrolling
 ever counts as a click on the phone is for the phone to say.
