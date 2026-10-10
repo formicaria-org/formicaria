@@ -3329,6 +3329,15 @@
       grid-row: 1;
       min-height: 0;
     }
+    /* **While a note is being written with the on-screen keyboard up, the bar steps aside.** It
+       sat between the note and the keyboard, taking a third of what little room is left above
+       the keys and putting itself under the note's quick row, which is meant to be the keyboard's
+       top edge (`decisions.md#ui`, 2026-10-11). Only for the note's own text: the bar's search
+       field also raises the keyboard, and must not hide the bar it lives in. Putting the keyboard
+       away brings it back. */
+    :global(html[data-keyboard]:has(textarea.editor:focus)) .topbar {
+      display: none;
+    }
     /* Only a panel can be collapsed; a bar is already as small as it gets.
 
        **`.topbar` is load-bearing here, and this is the second time.** A bare `.panel-toggle`

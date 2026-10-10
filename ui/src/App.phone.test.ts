@@ -183,3 +183,95 @@ describe('the touch shell', () => {
     expect(await screen.findByRole('toolbar', { name: 'format selection' })).toBeTruthy();
   });
 });
+
+// **The quick row** (`decisions.md#ui`, 2026-10-11): while a note's text is being edited on a touch
+// screen, five buttons sit under it — record, add a photo or file, checklist, bullet, text style —
+// so the things reached for while typing are one tap away instead of behind the ＋.
+//
+// jsdom has no layout, so *where* the row sits is for a phone to say. Pinned here: it exists only
+// while editing and only on touch; a line action writes the right marks and leaves a bare caret at
+// the end of the line (a selected line would be replaced by the next key); and its two menus open.
+describe('the quick row above the keyboard', () => {
+  async function editing(body: string) {
+    const ids = mock.seed({ notes: 5 });
+    await mock.handle('update_body', { id: ids[0], body, base: '' });
+    render(App);
+    await screen.findByText(/GAE lambda interacts badly/);
+    await fireEvent.click(await screen.findByText(/Seeded 0/));
+    expect(screen.queryByRole('toolbar', { name: 'quick actions' })).toBeNull();
+    await fireEvent.click(await screen.findByLabelText('note options'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    const el = (await screen.findByLabelText('note body (Markdown)')) as HTMLTextAreaElement;
+    el.focus();
+    el.selectionStart = el.selectionEnd = 4; // a bare caret inside the first line
+    return el;
+  }
+
+  it('appears while editing, with its five actions', async () => {
+    await editing('something to edit');
+    const row = await screen.findByRole('toolbar', { name: 'quick actions' });
+    for (const name of [
+      'record audio',
+      'add a photo or file',
+      'checklist item',
+      'bullet',
+      'text style',
+    ]) {
+      expect(within(row).getByRole('button', { name })).toBeTruthy();
+    }
+  });
+
+  it('turns the line being written into a bullet and back, keeping the caret at its end', async () => {
+    const el = await editing('something to edit\nsecond line');
+    const row = await screen.findByRole('toolbar', { name: 'quick actions' });
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'bullet' }));
+    await waitFor(() => expect(el.value).toBe('- something to edit\nsecond line'));
+    // Collapsed at the end of the changed line: the next key continues the line.
+    expect([el.selectionStart, el.selectionEnd]).toEqual([19, 19]);
+    // No selection was left behind, so the selection bar did not open.
+    expect(screen.queryByRole('toolbar', { name: 'format selection' })).toBeNull();
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'bullet' }));
+    await waitFor(() => expect(el.value).toBe('something to edit\nsecond line'));
+  });
+
+  it('makes a checklist item, upgrading a bullet rather than doubling it', async () => {
+    const el = await editing('- buy milk');
+    const row = await screen.findByRole('toolbar', { name: 'quick actions' });
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'checklist item' }));
+    await waitFor(() => expect(el.value).toBe('- [ ] buy milk'));
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'checklist item' }));
+    await waitFor(() => expect(el.value).toBe('buy milk'));
+  });
+
+  it('offers the text styles and the ways to add a file from its two menus', async () => {
+    const el = await editing('a title');
+    const row = await screen.findByRole('toolbar', { name: 'quick actions' });
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'text style' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Heading 2' }));
+    await waitFor(() => expect(el.value).toBe('## a title'));
+    // Choosing puts the menu away.
+    expect(screen.queryByRole('button', { name: 'Heading 2' })).toBeNull();
+
+    await fireEvent.click(within(row).getByRole('button', { name: 'add a photo or file' }));
+    const list = await screen.findByRole('listbox', { name: 'add a photo or file' });
+    expect(within(list).getByRole('button', { name: 'Take a photo' })).toBeTruthy();
+    expect(within(list).getByRole('button', { name: 'From the library' })).toBeTruthy();
+  });
+
+  it('is not there with a mouse: a keyboard types these marks and there is none to sit above', async () => {
+    asDesktop();
+    const ids = mock.seed({ notes: 5 });
+    await mock.handle('update_body', { id: ids[0], body: 'something to edit', base: '' });
+    render(App);
+    await fireEvent.click(await screen.findByText(/Seeded 0/));
+    await fireEvent.click(await screen.findByLabelText('note options'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+    await screen.findByLabelText('note body (Markdown)');
+    expect(screen.queryByRole('toolbar', { name: 'quick actions' })).toBeNull();
+  });
+});

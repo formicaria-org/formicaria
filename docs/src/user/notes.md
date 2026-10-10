@@ -114,6 +114,22 @@ byte-for-byte and readable anywhere, so it's the fast way to format on a phone â
 over the same text to remove it. (A callout drops in a `[!note]`; then tap its badge in the read view
 to change the type.)
 
+**On a phone or tablet, a row of five buttons sits just above the keyboard** while you write, for
+the things you reach for mid-sentence:
+
+| Button | What it does |
+|---|---|
+| **Record audio** | starts recording; the clip lands in the note where the cursor is |
+| **Add a photo or file** | take a photo, record a video, or pick one from the library or your files |
+| **Checklist item** | turns the line you are on into a tick-box line; again to turn it back |
+| **Bullet** | turns the line you are on into a bullet; again to turn it back |
+| **Text style** | headings, a numbered list, a quote or a callout for the line you are on |
+
+The keyboard stays up when you press one, and the cursor stays at the end of the line so you can
+keep typing. Everything in the row is also under the **ï¼‹**; the row is only the shorter way. With a
+mouse and keyboard there is no row: the marks are quick to type and there is no on-screen keyboard
+to put it above.
+
 On top of standard Markdown there are three light additions, each chosen so the raw text stays
 readable in **any** Markdown editor (nothing here is app-only HTML):
 

@@ -856,6 +856,45 @@
       ),
     );
 
+  // Checklist item — a toggle like `bullets`: every line already a box loses it, otherwise each
+  // line becomes one (a plain bullet is upgraded rather than doubled).
+  const checklist = () =>
+    transformLines((lines) =>
+      lines.every((l) => /^\s*[-*+]\s+\[[ xX]\]\s/.test(l))
+        ? lines.map((l) => l.replace(/^(\s*)[-*+]\s+\[[ xX]\]\s+/, '$1'))
+        : lines.map((l) => '- [ ] ' + l.replace(/^\s*[-*+]\s+(\[[ xX]\]\s+)?/, '')),
+    );
+
+  // ---- The quick row: what is reached for while typing on a touch screen ----
+  //
+  // One row at the bottom of the note — the top of the keyboard when it is up — with record, add a
+  // photo or file, checklist, bullet and text style (`decisions.md#ui`, 2026-10-11). Every button
+  // calls something the ＋ window or the selection bar already does; nothing lives only here.
+  // **Touch only**: a precise pointer has a keyboard for these marks and no on-screen one to sit
+  // above. It is `position: sticky` under the text, so it can never sit beside it — the failure
+  // that retired the last persistent strip.
+  let quickMedia = $state(false);
+  let quickText = $state(false);
+  function closeQuick() {
+    quickMedia = false;
+    quickText = false;
+  }
+
+  /** Run a line format from the quick row. `transformLines` reselects the lines it changed, which
+   *  is right for a selection and wrong for a bare caret: the next key would replace the line. So
+   *  when nothing was selected the caret goes to the end of the line and writing continues. */
+  async function quickLines(run: () => Promise<void>) {
+    const el = editorEl;
+    if (!el) return;
+    closeQuick();
+    const bare = el.selectionStart === el.selectionEnd;
+    await run();
+    if (bare) {
+      el.selectionStart = el.selectionEnd;
+      fmtBar = null;
+    }
+  }
+
   // Debounced save: typing stops -> 500 ms -> atomic write via update_body.
   // Also re-evaluate the slash-menu trigger against the new caret.
   function onInput() {
@@ -2990,6 +3029,148 @@
       {/each}
     </ul>
   {/if}
+  {#if editing && coarsePointer && !isBoard && !isDiscussion}
+    <!-- Last in the pane, so with `margin-top: auto` and `position: sticky` it is the pane's bottom
+         edge whatever is above it: the top of the keyboard when one is up. `pointerdown` is prevented
+         so a press keeps the caret in the text and the keyboard up. -->
+    <div
+      class="quick-bar"
+      role="toolbar"
+      tabindex="-1"
+      aria-label="quick actions"
+      onpointerdown={(e) => e.preventDefault()}
+      use:clickOutside={closeQuick}
+    >
+      <button
+        class="quick-btn"
+        aria-label="record audio"
+        title="Record audio"
+        onclick={() => {
+          closeQuick();
+          startRecordingFlow();
+        }}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" /></svg
+        >
+      </button>
+      <div class="fmt-color">
+        <button
+          class="quick-btn"
+          aria-label="add a photo or file"
+          title="Add a photo or file"
+          aria-expanded={quickMedia}
+          onclick={() => {
+            quickText = false;
+            quickMedia = !quickMedia;
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"
+            ><rect x="3" y="5" width="18" height="14" rx="2" /><circle
+              cx="8.5"
+              cy="10"
+              r="1.5"
+            /><path d="M21 16l-5-5-8 8" /></svg
+          >
+        </button>
+        {#if quickMedia}
+          <ul
+            class="fmt-colors"
+            role="listbox"
+            aria-label="add a photo or file"
+            use:popup={{ prefer: 'above' }}
+          >
+            {#each CAPTURE as kind (kind.label)}
+              <li>
+                <button
+                  class="fmt-block-opt"
+                  onclick={() => {
+                    closeQuick();
+                    capture(kind);
+                  }}>{kind.label}</button
+                >
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+      <button
+        class="quick-btn"
+        aria-label="checklist item"
+        title="Checklist item"
+        onclick={() => quickLines(checklist)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8 12l3 3 5-6" /></svg
+        >
+      </button>
+      <button
+        class="quick-btn"
+        aria-label="bullet"
+        title="Bullet"
+        onclick={() => quickLines(bullets)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><circle cx="5" cy="7" r="1.2" /><circle cx="5" cy="12" r="1.2" /><circle
+            cx="5"
+            cy="17"
+            r="1.2"
+          /><path d="M10 7h10M10 12h10M10 17h10" /></svg
+        >
+      </button>
+      <div class="fmt-color">
+        <button
+          class="quick-btn"
+          aria-label="text style"
+          title="Text style"
+          aria-expanded={quickText}
+          onclick={() => {
+            quickMedia = false;
+            quickText = !quickText;
+          }}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M12 6v13" /></svg>
+        </button>
+        {#if quickText}
+          <ul
+            class="fmt-colors"
+            role="listbox"
+            aria-label="text style"
+            use:popup={{ prefer: 'above', align: 'end' }}
+          >
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(() => heading(1))}
+                >Heading 1</button
+              >
+            </li>
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(() => heading(2))}
+                >Heading 2</button
+              >
+            </li>
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(() => heading(3))}
+                >Heading 3</button
+              >
+            </li>
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(numbered)}
+                >1. Numbered list</button
+              >
+            </li>
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(quoteSel)}>❝ Quote</button>
+            </li>
+            <li>
+              <button class="fmt-block-opt" onclick={() => quickLines(calloutBlock)}
+                >▍ Callout</button
+              >
+            </li>
+          </ul>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </article>
 
 <style>
@@ -4118,6 +4299,44 @@
     .disc-send {
       min-height: 2.75rem;
     }
+  }
+  /* The quick row. Sticky at the bottom of the pane, which ends at the top of the keyboard
+     (`--app-h`), so it rides just above it and takes its own line under the text. Five equal
+     cells, each a 44px target, fit a 320px screen. */
+  .quick-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto; /* a short note: still at the bottom of the pane, not under its last line */
+    z-index: 5;
+    flex: none;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  .quick-bar > .fmt-color {
+    display: grid;
+  }
+  .quick-btn {
+    display: grid;
+    place-items: center;
+    min-height: 2.75rem;
+    background: none;
+    border: none;
+    color: var(--text);
+  }
+  .quick-btn:active,
+  .quick-btn[aria-expanded='true'] {
+    background: var(--surface-hover);
+  }
+  .quick-btn svg {
+    width: 1.4rem;
+    height: 1.4rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .editor-hint {
     margin: 0;
