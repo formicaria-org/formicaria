@@ -35,11 +35,11 @@ small a decade from now.
 pixi run ci
 ```
 
-**That is the whole gate, and it runs on your machine.** Four of the five GitHub workflows —
-`ci`, `cross`, `docs` and `ios` — are `workflow_dispatch:` only, so nothing checks your branch but
-you. If `pixi run ci` is green, the change is testable.
+**That is the whole gate, and it runs on your machine.** GitHub runs it again on Linux for every
+push to `main` and every pull request (`ci`). `cross`, `ios`, `docs` and `android` are started by
+hand. If `pixi run ci` is green, the change is testable.
 
-**The fifth is `release.yml`, and it fires unattended on a `v*` tag.** Pushing a tag publishes a
+**`release.yml` is the one that fires unattended, on a `v*` tag.** Pushing a tag publishes a
 release. It is the one workflow you can start by accident. It used to say "and bills three jobs";
 that stopped being true when the repo went public, since GitHub does not charge for standard
 runners there — but the tag still publishes, which is the part worth being careful about.

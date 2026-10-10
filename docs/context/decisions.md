@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -8580,4 +8580,39 @@ The test now pins both halves side by side; a rule with two enforcers needs a te
 
 **Until a release carries this**, a test build still cannot update itself, and the way onto the
 published release is the cable (`known-issues.md`, *Signing a phone build locally*).
+
+## 2026-10-11 — the Android build is its own workflow, and the release calls it `#toolchain` `#track-m`
+
+**What prompted it.** Testing on a phone before a release (the rule since v0.6.2) meant running the
+whole of `release.yml` by hand: three desktop archives and an iOS app, to get one APK. The owner:
+*a dedicated Android workflow, exactly the same one the full release calls, to avoid double files;
+to test on a phone we do not need the full release job.*
+
+**Decision.** `android.yml` holds `android-build` and `android-sign`, moved without change. It has
+two triggers and no others:
+- `workflow_dispatch` — a phone test. It ends in the `android-apk` artifact and publishes nothing.
+- `workflow_call` — `release.yml`'s `android` job, which passes the four `ANDROID_*` secrets **by
+  name**, not with `secrets: inherit`, so the release file still states which secrets leave it.
+
+So there is one copy of the build, and the build a phone was tested with is made by the steps that
+make the published one.
+
+**What had to be re-proved, because the guards were written against the old layout.**
+- *A phone build can never cost the desktop release.* A job that calls a workflow cannot carry
+  `continue-on-error`, so `ci/checks.sh` now reads the property through the call: every job of the
+  called file must be `continue-on-error`. `manifest` and `attach` gate on `!cancelled()` and on
+  `binaries` succeeding, not on the phone legs, so they publish whatever `android` reports.
+- *The unsigned intermediate never reaches the release page*, *the key is shredded on a path a
+  failure cannot skip*, and *the build job holds no secret*: the guards now read `android.yml`, and
+  fail if `release.yml` stops calling it. A guard that looks for a name in the file it has just
+  moved out of passes for ever by finding nothing.
+- *It never fires on its own*: no `push`, `pull_request` or `schedule`, checked.
+Each new guard was shown to fail by breaking the property it protects.
+
+**Not yet run on GitHub.** The files parse and the guards pass; nothing here can start a workflow.
+The first hand-run of `android` tests the file itself. The call from `release.yml` is first
+exercised by a hand-run of `release` on `main` (which publishes nothing) or by the next tag.
+
+**Read before** adding a platform build to `release.yml` directly: if it is ever wanted alone, make
+it a called workflow from the start.
 

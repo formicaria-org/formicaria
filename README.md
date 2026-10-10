@@ -280,16 +280,18 @@ pixi run ci        # test + test-agent-download + test-ui + check-ui + deny + ch
                    # + third-party-check + docs — the single gate
 ```
 
-**`pixi run ci` locally *is* the gate.** Four of the five GitHub workflows — `ci`, `cross`,
-`docs` and `ios` — are `workflow_dispatch:` only: nothing runs on a push or a pull request.
-That was originally about money — the repo was private, where Actions minutes are billed, at 10x
-on macOS. **That reason is gone**: this repo is public, and GitHub does not charge for standard
-runners in public repositories. What keeps the triggers manual now is that the gate runs here, on
-one machine, before anything is pushed — a second opinion that fires on every push tells you what
-`pixi run ci` already told you.
+**`pixi run ci` locally *is* the gate.** Run it before you push. GitHub then runs the same gate on
+Linux for every push to `main` and every pull request (`ci`), as a second opinion, not the first.
 
-**The exception is `release.yml`, which fires unattended on a `v*` tag.** Pushing a tag
-publishes a release. It is the one workflow you can start by accident.
+The other workflows are started by hand, each for a question that is not asked on every push:
+`cross` (does it still build and pass on macOS and Windows), `ios` (does the iOS app still
+package), `docs` (publish the manual), and **`android`** (build and sign the Android app, which is
+how a build is tried on a phone before a release).
+
+**The exception is `release`, which fires unattended on a `v*` tag.** Pushing a tag publishes a
+release. It is the one workflow you can start by accident. It builds the desktop archives and the
+iOS app itself and **calls `android`** for the phone app, so the build you tested and the build that
+is published are made by the same steps.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli

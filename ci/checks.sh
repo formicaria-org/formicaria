@@ -640,6 +640,14 @@ for wf in .github/workflows/cross.yml .github/workflows/ios.yml; do
         fail=1
     fi
 done
+# `android.yml` for a different reason: it ends in a job that holds the signing key. It is started by
+# a person (a phone test) or called by `release.yml` on a tag, and by nothing else.
+if [ -f .github/workflows/android.yml ] \
+    && sed -n '/^on:/,/^[a-z]/p' .github/workflows/android.yml | grep -qE '^\s+(push|pull_request|schedule):'; then
+    echo "  FAIL: .github/workflows/android.yml fires on its own. Its last job signs with the release"
+    echo "        key; keep it to workflow_dispatch and workflow_call."
+    fail=1
+fi
 
 echo "[check] every setup-pixi block pins pixi-version (an unpinned one misses the cache every run)..."
 # **This is the difference between a warm environment and rebuilding it every job.**
@@ -703,13 +711,25 @@ try:
 except ImportError:
     sys.exit(0)  # nothing to say without a parser; the yaml check below is the backstop
 d = yaml.safe_load(open('.github/workflows/release.yml'))
+# **A job that calls another workflow cannot carry `continue-on-error`** — GitHub does not allow the
+# key there — so for a call the property is read where it lives: every job of the called file must
+# be `continue-on-error`. That is what lets the Android legs sit in `android.yml`, shared with a
+# phone test, without the release losing the guarantee.
+def soft_job(j):
+    if j.get('continue-on-error') is True:
+        return True
+    uses = str(j.get('uses', ''))
+    if uses.startswith('./'):
+        called = (yaml.safe_load(open(uses[2:])) or {}).get('jobs') or {}
+        return bool(called) and all(c.get('continue-on-error') is True for c in called.values())
+    return False
 bad = [n for n, j in (d.get('jobs') or {}).items()
-       if n not in ('binaries', 'attach') and j.get('continue-on-error') is not True]
+       if n not in ('binaries', 'attach') and not soft_job(j)]
 # A job that needs a `continue-on-error` leg must also survive that leg being *cancelled* (no runner),
 # which `continue-on-error` does not cover: without `!cancelled()` in its `if:`, GitHub skips it.
 # That skipped `manifest` and `attach` for v0.5.8 and published nothing (2026-10-08).
 jobs = d.get('jobs') or {}
-soft = {n for n, j in jobs.items() if j.get('continue-on-error') is True}
+soft = {n for n, j in jobs.items() if soft_job(j)}
 for n, j in jobs.items():
     needs = j.get('needs') or []
     needs = [needs] if isinstance(needs, str) else needs
@@ -723,7 +743,8 @@ PY
     if [ -n "$non_blocking" ]; then
         echo "  FAIL: a release.yml job can block the release that is not allowed to:"
         echo "$non_blocking" | sed 's/^/          /'
-        echo "        Every job but 'binaries' and 'attach' must carry 'continue-on-error: true',"
+        echo "        Every job but 'binaries' and 'attach' must carry 'continue-on-error: true' (or,"
+        echo "        for a job that calls another workflow, every job of that workflow must),"
         echo "        so a phone build that fails costs an asset and never the release itself."
         echo "        See decisions.md, 'every platform is published by the tag'."
         fail=1
@@ -778,25 +799,56 @@ if ls .github/workflows/*.yml >/dev/null 2>&1; then
     # hands to the signing job. Published, it would install for nobody and update nothing, while
     # looking exactly as official as the real one. The naming convention and the deletion are one
     # mechanism: if either half goes, this fails.
-    if grep -q 'android-unsigned' .github/workflows/release.yml 2>/dev/null; then
+    # The build lives in `android.yml` since 2026-10-11 and the publishing in `release.yml`, so the
+    # two halves are read from the two files — and each must be there, because a guard that looks
+    # for a name in the file it has just moved out of passes for ever by finding nothing.
+    apk_wf=.github/workflows/android.yml
+    if [ ! -f "$apk_wf" ] || ! grep -q "uses: ./$apk_wf" .github/workflows/release.yml; then
+        echo "  FAIL: release.yml no longer calls $apk_wf, which is where the Android build and"
+        echo "        its signing are. The guards below read that file; restore the call or move them."
+        fail=1
+    else
+        if ! grep -q 'unsigned-android-arm64.apk' "$apk_wf"; then
+            echo "  FAIL: the unsigned intermediate is no longer named 'unsigned-…' in $apk_wf, so the"
+            echo "        deletion in release.yml's 'attach' cannot match it. The name and the rm are"
+            echo "        one mechanism."
+            fail=1
+        fi
         if ! grep -q 'rm -f dist/unsigned-' .github/workflows/release.yml; then
-            echo "  FAIL: release.yml builds an unsigned intermediate APK but 'attach' never deletes"
-            echo "        it from dist/ — so 'merge-multiple' would publish it beside the signed one."
-            echo "        Restore the 'drop the intermediates' step."
+            echo "  FAIL: $apk_wf builds an unsigned intermediate APK but release.yml's 'attach' never"
+            echo "        deletes it from dist/ — so 'merge-multiple' would publish it beside the signed"
+            echo "        one. Restore the 'drop the intermediates' step."
             fail=1
         fi
-        if ! grep -q 'unsigned-android-arm64.apk' .github/workflows/release.yml; then
-            echo "  FAIL: the unsigned intermediate is no longer named 'unsigned-…', so the deletion"
-            echo "        in 'attach' cannot match it. The name and the rm are one mechanism."
-            fail=1
-        fi
-    fi
-    # A job that writes a signing key to the runner must remove it on a path a failure cannot skip.
-    # Syncthing's cleanup sits after ./gradlew under 'set -e', so a failed build leaves the key.
-    if grep -q 'ANDROID_KEYSTORE_B64' .github/workflows/release.yml 2>/dev/null; then
-        if ! grep -A3 'shred the signing key' .github/workflows/release.yml | grep -q 'if: always()'; then
-            echo "  FAIL: release.yml writes a signing key to the runner but its cleanup step is not"
+        # A job that writes a signing key to the runner must remove it on a path a failure cannot
+        # skip. Syncthing's cleanup sits after ./gradlew under 'set -e', so a failed build leaves it.
+        if ! grep -A3 'shred the signing key' "$apk_wf" | grep -q 'if: always()'; then
+            echo "  FAIL: $apk_wf writes a signing key to the runner but its cleanup step is not"
             echo "        'if: always()', so a failed build would leave the key on the machine."
+            fail=1
+        fi
+        # **Built with no secret, signed with nothing but the signer.** The split is the point
+        # (decisions.md, 2026-09-09): hundreds of build scripts must never share a machine with
+        # the key. Moving the jobs must not have merged them.
+        if ! python3 - "$apk_wf" <<'PY'
+import sys, yaml
+jobs = (yaml.safe_load(open(sys.argv[1])) or {}).get("jobs") or {}
+build, sign = jobs.get("android-build"), jobs.get("android-sign")
+bad = []
+if not build or not sign:
+    bad.append("it must have an 'android-build' and an 'android-sign' job")
+else:
+    if "secrets." in yaml.safe_dump(build):
+        bad.append("'android-build' names a secret — the job that compiles must hold none")
+    if "android-build" not in str(sign.get("needs", "")):
+        bad.append("'android-sign' does not wait for 'android-build'")
+    if "rust-cache" in yaml.safe_dump(sign):
+        bad.append("'android-sign' restores a compiler cache — the job holding the key compiles nothing")
+if bad:
+    print("  FAIL: " + sys.argv[1] + ": " + "\n        ".join(bad))
+    sys.exit(1)
+PY
+        then
             fail=1
         fi
     fi

@@ -1064,11 +1064,14 @@ signed update without an uninstall, which would wipe the app's data.
 - **To restore it:** `pixi run -e android sh ci/android-signing-setup.sh`, run by the owner in their
   own terminal. It asks for the store password, alias and key password (the GitHub secrets'
   values), checks them against the keystore with `keytool`, and only then writes the file, owner-only.
-- **Meanwhile, to test on the phone before a release:** run `release.yml` by hand on `main`. It
-  builds and signs with the official key, publishes nothing, and leaves an `android-apk` artifact.
+- **Meanwhile, to test on the phone before a release:** run the **`android`** workflow by hand on
+  `main` (since 2026-10-11; before, the whole of `release.yml`). It is the file the release itself
+  calls: it builds and signs with the official key, publishes nothing, and leaves an `android-apk`
+  artifact.
   Download that, then install it by cable with `adb install -r` after checking the certificate
-  against `android/signing-certificate.sha256`. Used for v0.6.3. Since 2026-10-09 such a test build can update itself
-  back to the published release from Settings (*Check now*); before, its `dev-<sha>` version hid it.
+  against `android/signing-certificate.sha256`. Used for v0.6.3. A test build can update itself back to the
+  published release from Settings only from the release after v0.6.4 (`decisions.md`, 2026-10-11:
+  the 2026-10-09 fix covered the check and missed the download); until then, the cable.
 
 ## A newer assistant model after an update — limits (2026-10-10)
 
