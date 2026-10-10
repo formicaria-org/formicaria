@@ -1082,8 +1082,17 @@ signed update without an uninstall, which would wipe the app's data.
   v0.6.5, whose page has the signed APK.
 - **A test build made before the release after v0.6.5 has no floor.** It can be offered an older
   release it remembers, and Android then refuses the install as a downgrade (*"App not installed
-  as package appears to be invalid"*). **Press Check now first**, which replaces the remembered
-  version with the latest. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
+  as package appears to be invalid"*). **And it cannot be asked to look again**: in v0.6.5 and
+  earlier, *Check now* exists only in the "up to date" state, so an offered version has nothing
+  beside it but *Get*. Both are fixed after v0.6.5 (*Check now* stays beside an offer, with when it
+  was found); for such a copy the way out is the cable. Automatic checks being off is what let the
+  remembered version go stale.
+- **Android's own sentence for an older package is the one for a corrupt file** (*"App not
+  installed as package appears to be invalid"*). After v0.6.5 the app's installer bridge checks the
+  `versionCode` first and says so in Settings instead. The Kotlin compiles in a local build; the
+  message itself has not been seen on a phone, since nothing offers an older release any more.
+- **Not fixed:** a download that is *ready* keeps its old name if a newer version appears, so
+  *Check now* is not offered over it; restarting the app clears it. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
   never offered a release older than the one it was built on*).
 
 ## A newer assistant model after an update — limits (2026-10-10)

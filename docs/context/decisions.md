@@ -8652,3 +8652,17 @@ not given it. When a rule says *unknown*, ask whether the platform already knows
 **Not done.** The installer bridge does not compare `versionCode` itself before handing the file to
 Android, so if this floor is ever wrong the person still sees Android's own unhelpful sentence.
 
+**Added the same day: the installer says why.** The *Not done* above was done after the owner
+pointed out the error itself was still there: `MainActivity`'s installer bridge now compares the
+download's `versionCode` with the installed one and, when the download is older, answers with a
+sentence in the app instead of handing it to Android (`olderThanInstalled`, in
+`ci/android-inject-service.sh`). Like the signer check beside it, it blocks only on a positive
+answer. So the same mistake now has two stops: the updater does not offer an older release, and if
+one ever reaches the installer the person is told what is wrong.
+
+**Added the same day: an offer is never the end of the road.** The advice that went with this fix —
+*press Check now first* — could not be followed: Settings showed *Check now* only when nothing was
+on offer, so beside a stale v0.6.3 there was only *Get v0.6.3*. Settings now keeps *Check now*
+beside an offered version, with when it was found, except while a download is in flight or ready
+(looking again then could put a new version's name on an old version's file).
+
