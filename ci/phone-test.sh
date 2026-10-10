@@ -23,9 +23,16 @@
 # the script before `adb` is touched: Android would refuse it anyway, and the only way past that
 # refusal is an uninstall, which deletes the notes on the phone.
 #
+# **Or the login git already has**, when the owner says so. `FM_PHONE_TEST_GIT_LOGIN=1` makes this
+# ask git's credential helper for the GitHub login it pushes with, and use that. It is off unless
+# asked for: that login can do far more than start a build, and lending it to this script is the
+# owner's decision each time, made by typing the variable. An assistant does not set it; the
+# owner runs the command (in Claude Code, with a leading `!`).
+#
 #   pixi run -e android phone-test            # main
 #   pixi run -e android phone-test my-branch  # another branch
 #   FM_PHONE_TEST_KEEP=1 …                    # download and check, do not install
+#   FM_PHONE_TEST_GIT_LOGIN=1 …               # no token file: use git's stored GitHub login
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -39,14 +46,26 @@ package="dev.formicaria.notes"
 say() { printf 'phone-test: %s\n' "$*"; }
 die() { printf 'phone-test: %s\n' "$*" >&2; exit 1; }
 
-[ -s "$token_file" ] || die "there is no token at $token_file. Make one once with:
-    sh ci/phone-test-setup.sh"
-
 work=$(mktemp -d "${TMPDIR:-/tmp}/fm-phone-test.XXXXXX")
 headers="$work/headers"
 cleanup() { rm -f "$headers"; }
 trap cleanup EXIT INT TERM
-( umask 177; printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\nUser-Agent: formicaria-phone-test\n' "$(tr -d '[:space:]' < "$token_file")" > "$headers" )
+# Where the sign-in comes from. Either way it goes straight into the header file and is never
+# printed, exported or put on a command line.
+if [ -s "$token_file" ]; then
+    secret=$(tr -d '[:space:]' < "$token_file")
+elif [ -n "${FM_PHONE_TEST_GIT_LOGIN:-}" ]; then
+    secret=$(printf 'protocol=https\nhost=github.com\n\n' | git credential fill 2>/dev/null | sed -n 's/^password=//p' | head -1 | tr -d '[:space:]')
+    [ -n "$secret" ] || die "git has no stored GitHub login to use."
+    say "using the GitHub login git pushes with (FM_PHONE_TEST_GIT_LOGIN)"
+else
+    die "there is no token at $token_file. Either make one once with
+    sh ci/phone-test-setup.sh
+or, to use the GitHub login git already has, run it yourself as
+    FM_PHONE_TEST_GIT_LOGIN=1 pixi run -e android phone-test"
+fi
+( umask 177; printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\nUser-Agent: formicaria-phone-test\n' "$secret" > "$headers" )
+secret=
 gh() { curl -fsS -m 60 -H @"$headers" "$@"; }
 field() { python3 -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 
@@ -60,7 +79,7 @@ fi
 say "asking GitHub to build $ref at $(git rev-parse --short "$sha")"
 started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 gh -X POST "$api/actions/workflows/android.yml/dispatches" -d "{\"ref\":\"$ref\"}" >/dev/null \
-    || die "GitHub refused to start the build. Is the token still valid, and does it have Actions: read and write?"
+    || die "GitHub refused to start the build. Is the sign-in still valid, and may it start workflows (Actions: read and write; for a classic token, the 'workflow' scope)?"
 
 # 2. Find the run this request started — same commit, started by hand, not before the request —
 #    and wait for it. Never "the latest run": that could be an older build of another commit.

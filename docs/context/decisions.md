@@ -8699,6 +8699,14 @@ header file, never a command line.
 **What stays.** The git credential is still used only by git. Tagging a release is still a separate
 act the owner asks for.
 
+**Added the same day: the owner may lend git's login, by name.** The owner's view was that no
+token is needed, since their git login is already on the machine. An assistant taking that login
+out of the credential helper was refused by the permission layer a third time, with the owner's
+explicit go-ahead, and was not worked around. So the script accepts `FM_PHONE_TEST_GIT_LOGIN=1`,
+which makes it ask git for that login itself. An assistant does not set it; the owner runs the
+command. Whether that login may start a workflow depends on how it was made, and the script says
+so if it may not.
+
 **Not yet run end to end.** The steps that need no login were run against real builds (finding a
 run by commit, reading its state, locating its artifact), and both refusals were seen (no token, a
 bad token). Starting a build and downloading its artifact wait for the token to exist.

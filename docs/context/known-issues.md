@@ -1071,8 +1071,8 @@ signed update without an uninstall, which would wipe the app's data.
   values), checks them against the keystore with `keytool`, and only then writes the file, owner-only.
 - **The short way, once its token exists:** `pixi run -e android phone-test`. It starts the
   `android` build, waits, downloads the APK, checks the certificate, saves what is on the phone and
-  installs. `sh ci/phone-test-setup.sh` stores the token (`decisions.md`, 2026-10-11). Not yet run
-  end to end.
+  installs. `sh ci/phone-test-setup.sh` stores the token (`decisions.md`, 2026-10-11); or the owner runs it
+  with `FM_PHONE_TEST_GIT_LOGIN=1` to use the login git pushes with. Not yet run end to end.
 - **By hand:** run the **`android`** workflow on
   `main` (since 2026-10-11; before, the whole of `release.yml`). It is the file the release itself
   calls: it builds and signs with the official key, publishes nothing, and leaves an `android-apk`
