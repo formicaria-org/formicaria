@@ -249,7 +249,7 @@ what it reversed), and they are not a description of how to use the app. The man
 
 ## Project status
 
-**v0.6.3, and young.** The first commit is dated 2026-07-14; this is one person's project,
+**v0.6.4, and young.** The first commit is dated 2026-07-14; this is one person's project,
 built alongside their research rather than as a product. It is used daily on **Linux and
 Android**, the two platforms the author works on and the only two anything here is checked
 against.
