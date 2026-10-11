@@ -66,6 +66,33 @@ for (const [name, Editor] of [['the editor', LiveEditor]] as const) {
 }
 
 describe('the editor that renders as you write', () => {
+  it('links selected words to an address pasted over them, and pastes anything else as it is', async () => {
+    const { component, container } = render(
+      LiveEditor as never,
+      {
+        value: 'read the paper today',
+      } as never,
+    );
+    await tick();
+    const ed = component as unknown as EditorHandle;
+    const content = container.querySelector<HTMLElement>('.cm-content')!;
+    const paste = (text: string) => {
+      const e = new Event('paste', { bubbles: true, cancelable: true });
+      Object.defineProperty(e, 'clipboardData', { value: { getData: () => text } });
+      content.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    ed.select(5, 14);
+    expect(paste('https://example.org/x')).toBe(true);
+    expect(ed.text()).toBe('read [the paper](https://example.org/x) today');
+    // The cursor is after the link, ready to go on writing.
+    expect(ed.selection().from).toBe('read [the paper](https://example.org/x)'.length);
+    // Anything that is not one address replaces the selection, as a paste always has.
+    ed.select(0, 4);
+    paste('not an address');
+    expect(ed.text()).toBe('not an address [the paper](https://example.org/x) today');
+  });
+
   /// What is on screen is not the text: the marks are hidden and the note is drawn finished. The
   /// text it holds is still every character of the note.
   it('draws a note finished and still holds it as written', async () => {

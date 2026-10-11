@@ -9186,3 +9186,19 @@ it was added; the tests that would have said so were still pointed at the textar
 above the keyboard by exact scroll arithmetic (`NotePanel.keyboard`). It measured a textarea's
 scroll; the editor scrolls itself, and there is no layout in the test environment to see it. That
 behaviour is now checked only on a phone.
+
+## An address pasted over selected words links them (2026-10-11, `#ui`)
+
+**What prompted it.** The owner: *"if I select a sentence or word and copy a link I mean to link
+it to the text automatically."*
+
+**Decision.** In the editor, pasting one address over a selection writes `[the words](address)`
+instead of replacing the words, and leaves the cursor after it. `editor/paste.ts` says when, as a
+pure function with tests:
+- what is pasted is one address and nothing else: a web or mail address, or a note's;
+- what is selected is words on one line, and is not itself an address (one address pasted over
+  another replaces it).
+
+Anything else is an ordinary paste. A `]` in the words and a bracket in the address are written
+so they cannot end the link early. Undo takes it back as one step, being one change.
+

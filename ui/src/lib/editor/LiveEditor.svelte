@@ -15,6 +15,7 @@
   import type { EditorHandle } from './handle';
   import { smallestChange } from './change';
   import { livePreview } from './livePreview';
+  import { linkOnPaste } from './paste';
 
   let {
     value = $bindable(''),
@@ -91,6 +92,22 @@
                   if (at !== null) v.dispatch({ selection: { anchor: at } });
                   v.focus();
                 }
+                return true;
+              },
+              // An address pasted over selected words links them (`paste.ts` says when).
+              paste: (e, v) => {
+                const main = v.state.selection.main;
+                const link = linkOnPaste(
+                  v.state.sliceDoc(main.from, main.to),
+                  e.clipboardData?.getData('text/plain') ?? '',
+                );
+                if (link === null) return false;
+                e.preventDefault();
+                v.dispatch({
+                  changes: { from: main.from, to: main.to, insert: link },
+                  selection: { anchor: main.from + link.length },
+                  userEvent: 'input.paste',
+                });
                 return true;
               },
               keydown: (e) => {
