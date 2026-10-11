@@ -1045,6 +1045,18 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
    safety limits, Regulation 1169/2011's own text, EFSA's EU Menu guidance, Mifflin–St Jeor and
    Henry, the ACSM 2026 paper. Nothing that would need them is built.
 8. **Never run**: the food list on iOS, macOS or Windows; any of the new screens on an iPhone.
+9. **v0.7.0 was tagged without a phone test of its own commit.** The owner's phone had a build of
+   `a9b3f02`; the tag is on `db9614a`, three commits later, one of which changes what the phone's
+   view menu lists. He was told and said to tag. The rule in `CLAUDE.md` stands; this is the
+   record that it was set aside once, knowingly.
+10. **Following a diet or a regime** — the owner's next direction (2026-10-12): cards of sourced
+   options and a custom one, in Food and in Fitness, and then being held to what was chosen; for
+   fitness, a weekly pattern of routines. Eight reviews of primary sources are in
+   `sources-2026-10-11.md` (§6b and the sections after it): what each diet, fasting pattern and
+   training regime requires, the numbers as read, and whose pictures and videos may be shown.
+   **Nothing is built.** A proposal for a *Plan* tab was put to him and not yet answered. It
+   needs first: a profile (sex, birth year, height, weight, activity level), weight logged again,
+   an entry for an activity with its minutes and effort, and routines as notes.
 
 ### 2.22 After v0.6.9 — releases and the version check (2026-10-11)
 
