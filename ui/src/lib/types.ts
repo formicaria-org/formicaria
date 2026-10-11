@@ -614,6 +614,8 @@ export interface NoteDraft {
 export interface FoodHit {
   id: string;
   name: string;
+  /** Which table the food is from: `ciqual`, `bls` or `usda`. */
+  src: string;
   /** Energy per 100 g. */
   kcal: number;
 }
@@ -624,6 +626,9 @@ export interface FoodPortion {
 export interface FoodDetail {
   id: string;
   name: string;
+  src: string;
+  /** The food's group in its own table. Empty where the table gives none. */
+  grp: string;
   /** Every value per 100 g, keyed like an entry's properties. */
   per100: Record<string, number>;
   portions: FoodPortion[];

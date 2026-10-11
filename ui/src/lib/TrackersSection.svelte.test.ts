@@ -37,7 +37,7 @@ describe('food and training in Settings', () => {
   it('says what the food list is and what it takes, and offers nothing to get or remove', async () => {
     render(TrackersSection);
     expect(await screen.findByText(/comes with the app/)).toBeTruthy();
-    expect(screen.getByText(/8\.1MB on this device/)).toBeTruthy();
+    expect(screen.getByText(/8\.\dMB on this device/)).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
   });
 

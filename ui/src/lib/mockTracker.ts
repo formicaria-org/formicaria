@@ -238,7 +238,7 @@ export function packStatus(): PackStatus {
       attribution: 'Not nutrition data.',
       foods: FOODS.length,
     },
-    bytes: 8_134_656,
+    bytes: 8_753_152,
   };
 }
 
@@ -247,11 +247,21 @@ export function foodSearch(q: string, limit = 20): FoodHit[] {
   if (!words.length) return [];
   return FOODS.filter((f) => words.every((w) => f.name.toLowerCase().includes(w)))
     .slice(0, limit)
-    .map((f) => ({ id: f.id, name: f.name, kcal: f.v[0] }));
+    .map((f) => ({ id: f.id, name: f.name, src: 'demo', kcal: f.v[0] }));
 }
 export function foodGet(id: string): FoodDetail | null {
   const f = FOODS.find((x) => x.id === id.split('@')[0] || `${PACK}/${x.id}` === id);
-  return f ? { id: f.id, name: f.name, per100: per100(f), portions: f.portions, pack: PACK } : null;
+  return f
+    ? {
+        id: f.id,
+        name: f.name,
+        src: 'demo',
+        grp: '',
+        per100: per100(f),
+        portions: f.portions,
+        pack: PACK,
+      }
+    : null;
 }
 
 // ── entries ──────────────────────────────────────────────────────────────────────────────────────

@@ -39,6 +39,9 @@
   let { view, def, day, slot, entry = null, onclose, onwrote }: Props = $props();
 
   const AMOUNT = 'amount_g';
+  /// The food tables the list is made from, as a person would name them
+  /// (`decisions.md#data`, 2026-10-11).
+  const TABLES: Record<string, string> = { ciqual: 'Ciqual', bls: 'BLS', usda: 'USDA' };
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   const secondary = $derived(def.metrics.filter((m) => m.role === 'secondary'));
 
@@ -478,7 +481,8 @@
             <li>
               <button type="button" class="row" onclick={() => openHit(h)}>
                 <span class="t">{h.name}</span>
-                <span class="a">per 100 g</span>
+                <!-- Which table: two may both list a banana, and they are not one measurement. -->
+                <span class="a">{TABLES[h.src] ?? h.src} · per 100 g</span>
                 <span class="v">{show(primary.key, h.kcal).text}</span>
               </button>
             </li>

@@ -497,15 +497,20 @@ the app before anything is fetched and recorded per model in `models.toml`.
 
 ## Data carried in the binary (the food list)
 
-A list of generic foods, compiled into the app. Built by `ci/pack-foods.py` from three
-datasets of USDA FoodData Central, each pinned by URL **and SHA-256** in that script; the
-list itself is pinned by SHA-256 in `crates/fm-app/src/packs.rs`.
+A list of foods, compiled into the app. Built by `ci/pack-foods.py` from the tables
+below, each pinned by SHA-256 in that script; the list itself is pinned by SHA-256 in
+`crates/fm-app/src/packs.rs`. **Changes made:** a subset of each table's constituents is
+kept, and every value is converted to a whole number per 100 g; Ciqual's *traces* and
+*below the limit of detection* are stored as zero. No value is averaged across tables.
 
-| Component | Licence | Source |
+| Table | Licence | Source |
 |---|---|---|
-| Foundation Foods, SR Legacy, Survey Foods (FNDDS) | U.S. Government work, public domain | <https://fdc.nal.usda.gov> |
+| Ciqual 2025, French food composition table — Anses | Etalab Open Licence 2.0 | <https://ciqual.anses.fr>, doi:10.57745/RDMHWY |
+| Bundeslebensmittelschlüssel (BLS), Version 4.0 — Max Rubner-Institut (2025) | CC BY 4.0 | <https://blsdb.de>, doi:10.25826/Data20251217-134202-0 |
+| FoodData Central: Foundation Foods, Survey Foods (FNDDS) — U.S. Department of Agriculture, Agricultural Research Service | U.S. Government work | <https://fdc.nal.usda.gov> |
 
-U.S. Department of Agriculture, Agricultural Research Service. FoodData Central.
+Etalab 2.0: <https://www.etalab.gouv.fr/licence-ouverte-open-licence>. CC BY 4.0:
+<https://creativecommons.org/licenses/by/4.0/>.
 
 Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,
 in `LICENSE`.

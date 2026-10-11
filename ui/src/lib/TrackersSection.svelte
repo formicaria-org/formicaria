@@ -38,7 +38,8 @@
   {#if status?.installed}
     <p class="muted">
       Foods are looked up in a list that comes with the app: {status.installed.foods.toLocaleString()}
-      generic foods, {humanSize(status.bytes)} on this device, no connection needed.
+      foods, {humanSize(status.bytes)} on this device, no connection needed. It is made from two European
+      food tables, with a third used for what they do not have.
       {status.installed.attribution}
       {status.installed.licence}.
     </p>

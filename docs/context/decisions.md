@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -9526,3 +9526,89 @@ the person did last time, or empty).
 table has been fetched; the food list has no food-group field, which a vegetarian or vegan check
 would need; and no source has been chosen for safety limits.
 
+## 2026-10-11 — the food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's `#data` `#toolchain`
+
+> Changes which tables the carried list is made from. Does not touch *the food list is carried in
+> the app* (same day), which stands.
+
+**What prompted it.** The owner, reading the source register: *"is there a non USA based source,
+anything european?"* — then, offered the choice: replace the USDA list with a European one, *"both
+integrated might help"* (of Ciqual and BLS), and *"keep usda only for those things that the eu does
+not have."* For reference values and energy estimates he chose **European and WHO**.
+
+**Decision.**
+- **The list is Ciqual 2025 (ANSES, France) and BLS 4.0 (Max Rubner-Institut, Germany), together.**
+  Both licences were read on the publishers' own pages: Etalab Open Licence 2.0, and CC BY 4.0.
+  Both carry English food names. Neither is public domain, so the publishers are named in
+  Settings and in the licence notice, with what was changed.
+- **Together, not merged.** A food from one table is never treated as the same food as one from
+  the other, and no value is averaged across them. A search shows both, each marked with its table.
+- **USDA is the fallback, for two things the European tables do not have.** *Household portions*
+  ("1 cup", "1 medium"): neither Ciqual nor BLS has any. And *foods they do not list*: a USDA food
+  is offered only when the European tables leave room in the results. Only Foundation Foods and
+  the survey foods are kept; SR Legacy, frozen since 2018, is dropped.
+- **A USDA portion is never attached to a European food.** That would assert two foods are the
+  same on the strength of a name, which is the kind of thing *nothing is invented* forbids. So a
+  European food is logged by weight, and a person who wants "1 cup" picks the USDA food.
+- **Where the tables mean different things by one word, the list says so in its keys** or leaves
+  the value out: vitamin A as retinol equivalents and as retinol *activity* equivalents are two
+  keys; BLS's folate columns are left out; carbohydrate is *available* in the European tables and
+  *by difference*, fibre included, in USDA's. `ci/pack-foods.py` carries the full account.
+  *(The particulars in this bullet were corrected the same day by* every nutrient key has one
+  international definition*, below; the principle stands.)*
+- **Reference values and energy estimates default to European and WHO sources** — EFSA's dietary
+  reference values and its energy method, WHO's limits — and are always shown with the source's
+  name. None is built yet; the register says which have been read.
+
+**Costs.** The carried file grows from 3.3 MB to 3.8 MB compressed. Ciqual's *traces* and *below
+the limit of detection* are stored as zero. Entries logged from the earlier USDA-only list keep
+their own numbers; those from SR Legacy no longer find their food when their amount is changed,
+and fall back to scaling what they hold.
+
+## 2026-10-11 — every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones `#data`
+
+> Corrects the last bullet but one of *the food list is European* (same day): its particulars —
+> which column goes under which key — were wrong in three places. Its principle stands.
+
+**What prompted it.** The owner: *"Make sure the categories you use are well grounded in the
+literature, not ambiguous ones"*, then *"also United Nations and other international bodies are a
+good source, just not focus on a single country"* — *"preferring Europe."*
+
+**What reading the tables' own documentation found.** The first build matched columns by their
+names. Three were wrong, and one was a plain misreading of a file:
+- **Vitamin A.** Ciqual's column is named "retinol equivalent" but its documentation computes it
+  as retinol + β-carotene/12 and its constituent file tags it RAE. It had been filed apart from
+  BLS's and USDA's retinol *activity* equivalents, which are the same thing.
+- **Folate.** Ciqual's and USDA's "total folate" had been filed together; Ciqual says of that
+  column that it may not state what was counted. All three publish *dietary folate equivalents*
+  with the same formula, and BLS's had been left out.
+- **Carbohydrate.** One key held *available* carbohydrate for European foods and carbohydrate
+  *by difference, fibre included* for USDA's.
+- **USDA nutrient numbers were cut at the dot**, so `323.99` (all tocopherols) could be read as
+  `323` (alpha-tocopherol).
+
+**Decision.**
+- **A nutrient key is tied to one FAO/INFOODS food component identifier**, written beside it in
+  `ci/pack-foods.py`. A table's column goes under a key only where that table's documentation
+  gives it that definition; otherwise the table has no value there. INFOODS is the UN's (FAO)
+  vocabulary for this, and Ciqual and BLS both label their own columns with it.
+- **The definitions**, each read in the tables' documentation: carbohydrate is *available*
+  (CHOAVL; USDA's is its by-difference figure minus its fibre, INFOODS's CHOAVLDF); vitamin A is
+  retinol activity equivalents (VITA_RAE), key `vitamin_a_rae_ug`; folate is dietary folate
+  equivalents (FOLDFE), key `folate_dfe_ug`; vitamin E is alpha-tocopherol alone (TOCPHA), as
+  EFSA defines its reference value; niacin is preformed (NIA); vitamin K is K1; protein is
+  nitrogen × 6.25 in the European tables, the EU labelling definition (Regulation 1169/2011).
+- **A food's group is the name its own table publishes, or nothing.** Ciqual publishes names.
+  BLS 4.0 publishes only a code letter, so the letter is no longer stored as if it were a group.
+  No grouping of our own is laid over the tables.
+- **Which source, when several exist:** an international body's (FAO, WHO, EFSA) before any one
+  country's, and European before others. A national source is used for what only it has — as
+  each food table is — and never as the definition of a term.
+
+**Costs and what is left unequal.** Ciqual has a dietary-folate-equivalent value for a quarter of
+its foods and alpha-tocopherol for half; the looser columns that covered more are dropped.
+Retinol equivalents, the unit EFSA's vitamin A reference is written in, are not stored. Two
+differences remain that no identifier removes, and they are stated where the list is built:
+USDA's protein uses food-specific nitrogen factors, and its energy uses Atwater factors where the
+European tables use the EU labelling ones. Entries logged before this hold `vitamin_a_ug`,
+`vitamin_a_re_ug` or `folate_ug`; no shipped view totals those keys.

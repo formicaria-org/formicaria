@@ -18,9 +18,22 @@ add. The first control on the left brings the usual bar back.
 
 ## The food list
 
-To look a food up — its energy, protein, vitamins, and how much "one cup" weighs — formicaria uses
-a list of about 13,600 generic foods from the U.S. Department of Agriculture. **It comes with the
-app**: there is nothing to get and no connection is needed. It takes about 8 MB on the device.
+To look a food up — its energy, protein, vitamins and minerals — formicaria uses a list of about
+16,000 foods that **comes with the app**: there is nothing to get and no connection is needed. It
+takes about 9 MB on the device.
+
+It is made from two European food tables:
+
+- **Ciqual 2025**, the French table, from Anses;
+- **BLS 4.0**, the German table, from the Max Rubner-Institut.
+
+A third, **FoodData Central** from the U.S. Department of Agriculture, is used only for what those
+two do not have: foods they do not list, and household portions ("1 cup", "1 medium"), which
+neither European table gives. A search shows European foods first, and each result says which
+table it is from — two tables may both list a banana, and they are two measurements, not one.
+
+A food from a European table is logged by weight. If you want to log "1 cup", pick the food from
+the U.S. table, which is offered when the European ones leave room in the results.
 
 There are no branded products and no barcode reading. Anything not in the list can still be
 logged by name — see *Quick add* below.
@@ -32,7 +45,8 @@ Open **Food → Day** and press **＋**, or the **＋** beside a meal.
 - **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
   logs it again with the amount it had. Tapping the row lets you change the amount first.
 - **Search** — a food from the list. Choose one, then say how much: the **−** and **＋** change the
-  amount, and the chips are household portions ("1 cup", "1 medium").
+  amount. Where the food's table gives household portions ("1 cup", "1 medium") they are offered
+  as chips; the European tables give none.
 - **Quick add** — any name and its energy. Protein, carbohydrate and fat are optional.
 
 Tap a logged entry to change its amount or remove it. Removing one offers **Undo** at once; undo
@@ -95,14 +109,14 @@ Each logged food or set is a note with a `log` property (`food`, `workout`), the
 to, and whole numbers whose unit is in the name — `kcal`, `protein_mg`, `iron_ug`:
 
 ```yaml
-title: Banana, raw
+title: Banana raw
 start: 2026-10-11
 amount_g: 118
-kcal: 105
+kcal: 112
 log: food
-protein_mg: 1286
+protein_mg: 1357
 slot: breakfast
-source: usda-foods@2026.10/2709224
+source: foods@2026.10.1/bls:F503100
 ```
 
 These notes are kept out of the board, the agenda, the timeline and search, so a year of meals

@@ -6,7 +6,8 @@
 //! transport shell; nothing in this crate reaches the network.
 //!
 //! The one pack so far is food: every value per 100 g as a whole number in the unit its key names
-//! (`kcal`, `protein_mg`, `iron_ug`), and household portions in grams. Its layout is `pack.sql`,
+//! (`kcal`, `protein_mg`, `iron_ug`), from two European tables with USDA as the fallback, and
+//! household portions in grams where a table gives them. Its layout is `pack.sql`,
 //! which the builder (`ci/pack-foods.py`) runs too.
 //!
 //! **A pack is opened for each ask and never held.** It may be downloaded, replaced or removed
@@ -21,7 +22,7 @@ use std::path::Path;
 /// The layout of a food pack. See `pack.sql`.
 pub const FOOD_LAYOUT: &str = include_str!("pack.sql");
 /// The food pack's file name inside the packs folder.
-pub const FOOD_FILE: &str = "usda-foods.sqlite";
+pub const FOOD_FILE: &str = "foods.sqlite";
 
 fn sql(e: rusqlite::Error) -> StoreError {
     StoreError::Io(format!("the food list could not be read: {e}"))
@@ -40,8 +41,12 @@ pub struct PackInfo {
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]
 pub struct FoodHit {
+    /// The food's own identifier in its table, prefixed with the table: `ciqual:1000`.
     pub id: String,
     pub name: String,
+    /// Which table it is from: `ciqual`, `bls` or `usda`. Shown beside the name, because two
+    /// tables may both list "banana" and they are not the same measurement.
+    pub src: String,
     /// Energy per 100 g.
     pub kcal: i64,
 }
@@ -56,6 +61,10 @@ pub struct FoodPortion {
 pub struct FoodDetail {
     pub id: String,
     pub name: String,
+    pub src: String,
+    /// The food's group in its own table, by the name that table publishes. Empty where it
+    /// publishes none — a group is never made up.
+    pub grp: String,
     /// Every value per 100 g, keyed like a logged entry's properties.
     pub per100: BTreeMap<String, i64>,
     pub portions: Vec<FoodPortion>,
@@ -100,9 +109,13 @@ impl FoodPack {
     /// Foods whose name has a word beginning with each word typed.
     ///
     /// **The index finds them; this orders them.** Relevance by word statistics puts *"Bananas,
-    /// dehydrated, or banana powder"* above *"Banana, raw"* and *"Eggnog"* above *"Egg"*. What a
-    /// person logging a meal wants first is the plain food: so a name that *starts* with what was
-    /// typed leads, then foods as people report eating them, then the shorter name.
+    /// dehydrated, or banana powder"* above *"Banana raw"* and *"Egg nog"* above *"Egg, raw"*. What
+    /// a person logging a meal wants first is the plain food: so a name that *starts* with what
+    /// was typed leads, then the shorter name.
+    ///
+    /// **European tables first; USDA only where they leave room** (`decisions.md#data`,
+    /// 2026-10-11). A USDA food is offered when the European tables do not fill the results — a
+    /// food they do not list — and never ahead of one of theirs.
     pub fn search(&self, q: &str, limit: usize) -> Result<Vec<FoodHit>, StoreError> {
         let terms: Vec<String> = q
             .split(|c: char| !c.is_alphanumeric())
@@ -117,57 +130,57 @@ impl FoodPack {
         let mut stmt = self
             .db
             .prepare(
-                "SELECT f.id, f.name, f.src, coalesce(a.per100, 0)
+                "SELECT f.code, f.name, f.src, coalesce(a.per100, 0)
                    FROM names
                    JOIN food f ON f.id = names.rowid
                    LEFT JOIN amount a
                      ON a.food = f.id AND a.n = (SELECT n FROM nutrient WHERE key = 'kcal')
                   WHERE names MATCH ?1
-                  ORDER BY bm25(names)
-                  LIMIT 400",
+                  ORDER BY (f.src = 'usda'), bm25(names)
+                  LIMIT 600",
             )
             .map_err(sql)?;
         let mut found: Vec<(u8, u8, usize, FoodHit)> = stmt
             .query_map([&expr], |r| {
-                let id: i64 = r.get(0)?;
-                let name: String = r.get(1)?;
-                let src: String = r.get(2)?;
-                Ok((id, name, src, r.get::<_, i64>(3)?))
+                Ok(FoodHit { id: r.get(0)?, name: r.get(1)?, src: r.get(2)?, kcal: r.get(3)? })
             })
             .map_err(sql)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql)?
             .into_iter()
-            .map(|(id, name, src, kcal)| {
-                let starts = u8::from(!name.to_lowercase().starts_with(&terms[0]));
-                let origin = match src.as_str() {
-                    "survey" => 0,
-                    "foundation" => 1,
-                    _ => 2,
-                };
-                let len = name.chars().count();
-                (starts, origin, len, FoodHit { id: id.to_string(), name, kcal })
+            .map(|hit| {
+                let fallback = u8::from(hit.src == "usda");
+                let starts = u8::from(!hit.name.to_lowercase().starts_with(&terms[0]));
+                let len = hit.name.chars().count();
+                (fallback, starts, len, hit)
             })
             .collect();
         found.sort_by(|a, b| (a.0, a.1, a.2).cmp(&(b.0, b.1, b.2)).then(a.3.name.cmp(&b.3.name)));
         Ok(found.into_iter().take(limit.max(1)).map(|f| f.3).collect())
     }
 
-    /// One food, by its id — or by an entry's `source` (`usda-foods@2026.10/173944`), whatever
-    /// version of the pack that entry was logged from: the id is the USDA's and does not change.
+    /// One food, by its id — or by an entry's `source` (`foods@2026.10.1/ciqual:1000`), whatever
+    /// version of the list that entry was logged from: the id is the table's own and does not
+    /// change. A bare number is an entry from the first, USDA-only list, whose ids were FoodData
+    /// Central's.
     pub fn get(&self, id: &str) -> Result<Option<FoodDetail>, StoreError> {
-        let Ok(id) = id.rsplit('/').next().unwrap_or("").trim().parse::<i64>() else {
-            return Ok(None);
+        let last = id.rsplit('/').next().unwrap_or("").trim();
+        let code = if !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit()) {
+            format!("usda:{last}")
+        } else {
+            last.to_string()
         };
-        let name: Option<String> = self
+        let found: Option<(i64, String, String, String)> = self
             .db
-            .query_row("SELECT name FROM food WHERE id = ?1", [id], |r| r.get(0))
+            .query_row("SELECT id, name, src, grp FROM food WHERE code = ?1", [&code], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })
             .map(Some)
             .or_else(|e| match e {
                 rusqlite::Error::QueryReturnedNoRows => Ok(None),
                 e => Err(sql(e)),
             })?;
-        let Some(name) = name else { return Ok(None) };
+        let Some((row, name, src, grp)) = found else { return Ok(None) };
 
         let mut stmt = self
             .db
@@ -176,7 +189,7 @@ impl FoodPack {
             )
             .map_err(sql)?;
         let per100 = stmt
-            .query_map([id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+            .query_map([row], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
             .map_err(sql)?
             .collect::<Result<BTreeMap<_, _>, _>>()
             .map_err(sql)?;
@@ -185,13 +198,15 @@ impl FoodPack {
             .prepare("SELECT label, grams FROM portion WHERE food = ?1 ORDER BY seq")
             .map_err(sql)?;
         let portions = stmt
-            .query_map([id], |r| Ok(FoodPortion { label: r.get(0)?, grams: r.get(1)? }))
+            .query_map([row], |r| Ok(FoodPortion { label: r.get(0)?, grams: r.get(1)? }))
             .map_err(sql)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(sql)?;
         Ok(Some(FoodDetail {
-            id: id.to_string(),
+            id: code,
             name,
+            src,
+            grp,
             per100,
             portions,
             pack: format!("{}@{}", self.info.name, self.info.version),
@@ -203,85 +218,105 @@ impl FoodPack {
 mod tests {
     use super::*;
 
-    /// A pack of five foods, made with the same layout the builder uses.
+    /// A list of a few foods from three tables, made with the same layout the builder uses.
     fn pack() -> (tempfile::TempDir, std::path::PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(FOOD_FILE);
         let db = Connection::open(&path).unwrap();
         db.execute_batch(FOOD_LAYOUT).unwrap();
         for (k, v) in [
-            ("name", "usda-foods"),
+            ("name", "foods"),
             ("version", "test"),
             ("title", "Test foods"),
-            ("licence", "public domain"),
-            ("attribution", "USDA"),
+            ("licence", "open"),
+            ("attribution", "Anses; Max Rubner-Institut; USDA"),
         ] {
             db.execute("INSERT INTO meta VALUES (?1, ?2)", [k, v]).unwrap();
         }
         db.execute_batch(
             "INSERT INTO nutrient VALUES (0, 'kcal'), (1, 'protein_mg'), (2, 'iron_ug');
-             INSERT INTO food VALUES
-               (1, 'Bananas, dehydrated, or banana powder', 'sr'),
-               (2, 'Banana, raw', 'survey'),
-               (3, 'Bananas, raw', 'sr'),
-               (4, 'Eggnog', 'sr'),
-               (5, 'Egg, whole, raw', 'survey'),
-               (6, 'Crème fraîche', 'survey');
-             INSERT INTO amount VALUES (2, 0, 89), (2, 1, 1090), (2, 2, 260), (5, 0, 143), (6, 0, 300);
-             INSERT INTO portion VALUES (2, 0, '1 medium', 118), (2, 1, '1 cup, sliced', 150);
+             INSERT INTO food(id, code, name, src, grp) VALUES
+               (1, 'bls:F503400', 'Banana dried', 'bls', ''),
+               (2, 'bls:F503100', 'Banana raw', 'bls', ''),
+               (3, 'ciqual:13005', 'Banana, flesh without skin, raw', 'ciqual', 'fruits'),
+               (4, 'usda:2709224', 'Banana, raw', 'usda', ''),
+               (5, 'bls:P8A3000', 'Egg nog', 'bls', ''),
+               (6, 'ciqual:22000', 'Egg, raw', 'ciqual', 'meat, egg and fish'),
+               (7, 'ciqual:19024', 'Crème fraîche', 'ciqual', 'milk'),
+               (8, 'usda:2705660', 'Poi', 'usda', '');
+             INSERT INTO amount VALUES (2, 0, 95), (2, 1, 1150), (2, 2, 350), (4, 0, 97), (6, 0, 140),
+                                       (7, 0, 300), (8, 0, 112);
+             INSERT INTO portion VALUES (4, 0, '1 medium', 118), (4, 1, '1 cup, sliced', 150);
              INSERT INTO names(rowid, name) SELECT id, name FROM food;",
         )
         .unwrap();
         (dir, path)
+    }
+    fn names(p: &FoodPack, q: &str, limit: usize) -> Vec<String> {
+        p.search(q, limit).unwrap().into_iter().map(|h| h.name).collect()
     }
 
     #[test]
     fn a_pack_says_what_it_is() {
         let (_d, path) = pack();
         let p = FoodPack::open(&path).unwrap();
-        assert_eq!((p.info().name.as_str(), p.info().foods), ("usda-foods", 6));
+        assert_eq!((p.info().name.as_str(), p.info().foods), ("foods", 8));
     }
 
     #[test]
     fn the_plain_food_comes_first() {
         let (_d, path) = pack();
         let p = FoodPack::open(&path).unwrap();
-        let names = |q: &str| -> Vec<String> {
-            p.search(q, 10).unwrap().into_iter().map(|h| h.name).collect()
-        };
-        // Starts with what was typed, as people report eating it, shorter — in that order.
-        assert_eq!(
-            names("banana"),
-            ["Banana, raw", "Bananas, raw", "Bananas, dehydrated, or banana powder"]
-        );
-        assert_eq!(names("egg")[0], "Egg, whole, raw");
+        // Starts with what was typed, then the shorter name.
+        assert_eq!(names(&p, "banana", 2), ["Banana raw", "Banana dried"]);
+        assert_eq!(names(&p, "egg", 10)[0], "Egg nog");
+        assert_eq!(names(&p, "egg r", 10), ["Egg, raw"]);
         // A word is found by its first letters, and by any of its words.
-        assert_eq!(names("ra ban").len(), 2);
+        assert_eq!(names(&p, "ra ban", 10).len(), 3);
         // Folded like the app's own search.
-        assert_eq!(names("creme"), ["Crème fraîche"]);
-        assert!(names("").is_empty() && names("  ,,  ").is_empty());
+        assert_eq!(names(&p, "creme", 10), ["Crème fraîche"]);
+        assert!(names(&p, "", 10).is_empty() && names(&p, "  ,,  ", 10).is_empty());
         // What is typed is never syntax.
-        assert!(names("\"banana\" OR *").len() <= 3);
+        assert!(names(&p, "\"banana\" OR *", 10).len() <= 4);
+    }
+
+    /// `decisions.md#data`, 2026-10-11: USDA is the fallback. Its banana is offered only once the
+    /// European tables have nothing more to give — and a food only it lists is still found.
+    #[test]
+    fn european_tables_first_and_usda_only_where_they_leave_room() {
+        let (_d, path) = pack();
+        let p = FoodPack::open(&path).unwrap();
+        let three = p.search("banana", 3).unwrap();
+        assert!(three.iter().all(|h| h.src != "usda"), "three European bananas fill three places");
+        let four = p.search("banana", 4).unwrap();
+        assert_eq!(four[3].src, "usda", "the fourth place is the fallback's");
+        assert_eq!(names(&p, "poi", 5), ["Poi"]);
     }
 
     #[test]
-    fn a_hit_carries_its_energy_and_a_food_its_values_and_portions() {
+    fn a_hit_says_which_table_it_is_from_and_a_food_carries_its_values() {
         let (_d, path) = pack();
         let p = FoodPack::open(&path).unwrap();
-        assert_eq!(p.search("banana", 1).unwrap()[0].kcal, 89);
-        let f = p.get("2").unwrap().unwrap();
-        assert_eq!(f.per100["protein_mg"], 1090);
-        assert_eq!(f.portions[0], FoodPortion { label: "1 medium".into(), grams: 118 });
-        assert_eq!(f.pack, "usda-foods@test");
+        let hit = &p.search("banana", 1).unwrap()[0];
+        assert_eq!((hit.id.as_str(), hit.src.as_str(), hit.kcal), ("bls:F503100", "bls", 95));
+        let f = p.get(&hit.id).unwrap().unwrap();
+        assert_eq!((f.per100["protein_mg"], f.grp.as_str()), (1150, ""));
+        assert!(f.portions.is_empty(), "the European tables give no household portions");
+        assert_eq!(f.pack, "foods@test");
+        // Only the fallback has portions.
+        let us = p.get("usda:2709224").unwrap().unwrap();
+        assert_eq!(us.portions[0], FoodPortion { label: "1 medium".into(), grams: 118 });
     }
 
-    /// An entry logged from an older pack still finds its food: the id is the USDA's.
+    /// An entry logged from an older list still finds its food: the id is the table's own. A bare
+    /// number is from the first list, whose ids were FoodData Central's.
     #[test]
     fn a_food_is_found_by_an_entrys_source_whatever_version_it_names() {
         let (_d, path) = pack();
         let p = FoodPack::open(&path).unwrap();
-        assert_eq!(p.get("usda-foods@2025.04/2").unwrap().unwrap().name, "Banana, raw");
-        assert!(p.get("999").unwrap().is_none());
+        assert_eq!(p.get("foods@2026.10.1/ciqual:22000").unwrap().unwrap().name, "Egg, raw");
+        assert_eq!(p.get("usda-foods@2026.10/2709224").unwrap().unwrap().name, "Banana, raw");
+        assert!(p.get("usda-foods@2026.10/173944").unwrap().is_none(), "a food no longer carried");
         assert!(p.get("not a food").unwrap().is_none());
     }
 

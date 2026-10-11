@@ -19,8 +19,10 @@ fn the_list_the_app_carries_is_unpacked_on_first_use_and_put_right_when_it_is_wr
 
     // Nobody installs anything: a search is enough.
     let hits = packs::food_search("banana", 5).unwrap();
-    assert_eq!(hits[0].name, "Banana, raw", "the plain food first");
+    assert!(hits[0].name.starts_with("Banana"), "the plain food first: {}", hits[0].name);
     assert!(hits[0].kcal > 50);
+    // European tables first: with five places and more than five European bananas, none is USDA's.
+    assert!(hits.iter().all(|h| h.src == "ciqual" || h.src == "bls"), "{hits:?}");
 
     // What landed is byte for byte the list the constants name — so a list rebuilt without
     // updating them fails here, not on someone's phone.
@@ -29,13 +31,17 @@ fn the_list_the_app_carries_is_unpacked_on_first_use_and_put_right_when_it_is_wr
     let s = packs::food_status();
     let info = s.installed.expect("it is there");
     assert_eq!(info.version, FOOD_VERSION);
-    assert!(info.foods > 13_000);
+    assert!(info.foods > 16_000);
+    assert!(info.attribution.contains("Anses") && info.attribution.contains("Max Rubner-Institut"));
     assert!(s.error.is_none());
 
     // A food's values and portions, and an entry's `source` finds it again.
     let food = packs::food_get(&hits[0].id).unwrap().unwrap();
     assert!(food.per100.contains_key("protein_mg") && food.per100.contains_key("iron_ug"));
-    assert!(!food.portions.is_empty());
+    // Household portions come only with a food from the fallback table.
+    let us = packs::food_search("cornbread", 3).unwrap();
+    assert_eq!(us[0].src, "usda", "a food the European tables do not list: {us:?}");
+    assert!(!packs::food_get(&us[0].id).unwrap().unwrap().portions.is_empty());
     let again = packs::food_get(&format!("{}/{}", food.pack, food.id)).unwrap().unwrap();
     assert_eq!(again.name, food.name);
 

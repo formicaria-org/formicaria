@@ -15,13 +15,13 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// The list, as `ci/pack-foods.py` leaves it: gzip of the SQLite file.
-static FOOD_GZ: &[u8] = include_bytes!("../packs/usda-foods.sqlite.gz");
+static FOOD_GZ: &[u8] = include_bytes!("../packs/foods.sqlite.gz");
 
 /// What the bytes above unpack to. **These three change together with the file**, and
 /// `tests/packs.rs` holds them to it: the version, the size, and the checksum the script prints.
-pub const FOOD_VERSION: &str = "2026.10";
-pub const FOOD_BYTES: u64 = 8_134_656;
-pub const FOOD_SHA256: &str = "daef8e92574b80bca40343a4db79845699dcf19c6f978973de13601a9bea850f";
+pub const FOOD_VERSION: &str = "2026.10.1";
+pub const FOOD_BYTES: u64 = 8_753_152;
+pub const FOOD_SHA256: &str = "8f909c31cb37405c61851d27980d519ba49847d9c84aa2f3f2a2ef46be8cc657";
 
 /// Where the list is unpacked: beside the assistant's models and runtime, outside every vault.
 /// `FM_PACKS_DIR` overrides it, for tests.

@@ -1249,14 +1249,30 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
 `fm-app/src/packs.rs`, `ci/pack-foods.py`). What is true today, and what is not:
 
 - **The food list is carried in the app, and that has only been run on Linux.** It is compiled
-  into `fm-app` (3.3 MB compressed) and unpacked to the packs folder on first use
-  (`decisions.md#toolchain`, 2026-10-11, *carried in the app, not fetched*). Tested here; **never
-  run on Android, iOS, macOS or Windows**, where the only platform-specific part is where the packs
-  folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that folder cannot
-  be written, search fails with a sentence and Settings says foods can only be added by name.
-- **Updating the list means committing a new 3 MB file.** `pixi run pack-foods` rewrites
-  `crates/fm-app/packs/usda-foods.sqlite.gz`; `FOOD_VERSION`, `FOOD_BYTES` and `FOOD_SHA256` in
-  `packs.rs` must change with it, and `tests/packs.rs` fails if they do not.
+  into `fm-app` (3.8 MB compressed, 8.8 MB unpacked) and unpacked to the packs folder on first use.
+  **Never run on Android, iOS, macOS or Windows**, where the only platform-specific part is where
+  the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
+  folder cannot be written, search fails with a sentence and Settings says foods can only be added
+  by name.
+- **The list is two European tables with a U.S. fallback, and the three do not cover the same things**
+  (`decisions.md#data`, 2026-10-11; the account is in `ci/pack-foods.py`). Each key
+  has one FAO/INFOODS definition and a table without it has no value there: BLS has no selenium,
+  USDA no iodine, and Ciqual has folate (as dietary folate equivalents) for a quarter of its
+  foods and vitamin E (alpha-tocopherol) for half. Two differences are left: USDA's protein uses
+  food-specific nitrogen factors and its energy Atwater factors, where the European tables use
+  the EU labelling ones. BLS foods carry no food group (its 4.0 files publish only a code
+  letter). So a day's total of a micronutrient mixes tables, and "from 6 of 8 entries" is the
+  only thing that says so.
+- **A European food has no household portions**, so its amount is typed or stepped in grams. A
+  USDA portion is deliberately never lent to a European food.
+- **The same food appears two or three times in a search**, once per table. That is the ruling
+  (*together, not merged*), and it is also clutter nobody has yet looked at on a phone.
+- **Ciqual's *traces* and *below the limit of detection* are stored as zero.**
+- **Updating the list means committing a new 4 MB file.** `pixi run pack-foods` rewrites
+  `crates/fm-app/packs/foods.sqlite.gz`; `FOOD_VERSION`, `FOOD_BYTES` and `FOOD_SHA256` in
+  `packs.rs` must change with it, and `tests/packs.rs` fails if they do not. BLS is fetched from a
+  link that carries a token made when its page is drawn; if that breaks, the archive is fetched
+  by hand into `target/packs/src/`.
 - **Not seen in an installed build, on a phone, or with a real notebook.** The screens were judged
   in a phone's browser against invented data. The keyboard over the sheet is unverified.
 - **Every logged entry still costs the board a read.** Only `Kind` and text reach the index, so the
@@ -1268,9 +1284,9 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   grows. **Not measured on a phone**, where it is the number that matters. The fix, if a phone says
   it is needed, is a `log` column in the index beside `kind` — a third pushdown; read
   `decisions.md#seams`, *`Kind` is the second predicate that reaches SQL*, first.
-- **The pack's licence is stated from memory.** USDA FoodData Central is a U.S. Government work
-  and widely described as public domain; the download page itself was fetched and no licence
-  sentence was found on it. The list now ships in every build on that understanding; confirm it.
+- **Two of the three licences were read at the source** (Etalab 2.0 for Ciqual on its dataset
+  record; CC BY 4.0 for BLS on its download page). **USDA's is still from memory**: no licence
+  sentence was found on its download page.
 - **Search ranking is a rule, not a measurement.** A name that starts with what was typed leads,
   then foods as people report eating them, then the shorter name. Tried on a handful of words.
 - **`create_notes` checks every note before writing any, and then writes them one after another.**
