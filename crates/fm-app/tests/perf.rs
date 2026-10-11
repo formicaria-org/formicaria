@@ -218,3 +218,64 @@ fn logged_entries_cost_the_board_no_more_per_object_than_notes_do() {
          exclusion has stopped being a cheap filter. Push `log` down into the index."
     );
 }
+
+/// **The Library's *Everything* lists logged entries — and must stay a list a phone can draw.**
+///
+/// It is the one view that leaves entries in (`decisions.md#ui`, 2026-10-12), so it is the one
+/// place ten thousand of them could reach a screen. Two things are pinned: it hands back no more
+/// than its `limit` while saying how many there are, and reading them costs no more per object
+/// than the board pays to read and drop them.
+#[test]
+fn everything_over_ten_thousand_entries_is_bounded_and_costs_what_the_board_does() {
+    use fm_app::commands::board;
+    use fm_app::log::{create_notes, NoteDraft};
+    use fm_app::views::run_shipped;
+
+    let notes = 1_000usize;
+    let entries = 10_000usize;
+    let (_dir, mut store, _) = vault(notes, 0);
+    let mut made = 0;
+    while made < entries {
+        let drafts: Vec<NoteDraft> = (0..200.min(entries - made))
+            .map(|i| {
+                serde_json::from_value(serde_json::json!({
+                    "title": format!("food {i}"),
+                    "start": "2026-01-01",
+                    "props": { "log": "food", "slot": "lunch", "kcal": 200 + i },
+                }))
+                .unwrap()
+            })
+            .collect();
+        made += drafts.len();
+        create_notes(&mut store, "", &drafts).unwrap();
+    }
+
+    let _ = board(&store, "status").unwrap(); // warm
+    let t = std::time::Instant::now();
+    let _ = board(&store, "status").unwrap();
+    let on_board = t.elapsed();
+
+    let t = std::time::Instant::now();
+    let all = run_shipped(&store, "Everything").expect("it ships with the app").unwrap();
+    let everything = t.elapsed();
+
+    let rows = all.rows.expect("a timeline view has rows");
+    assert_eq!(rows.len(), 300, "no more than its limit reaches the screen");
+    assert_eq!(all.total, Some(notes + entries), "and it says how many there are");
+    assert!(
+        rows.iter().any(|r| r.props.contains_key("log")),
+        "the newest are entries: this is the view that shows them"
+    );
+
+    let ratio = everything.as_secs_f64() / on_board.as_secs_f64();
+    eprintln!(
+        "Everything over {notes} notes and {entries} entries: {:.1} ms; board(): {:.1} ms ({ratio:.2}x)",
+        everything.as_secs_f64() * 1e3,
+        on_board.as_secs_f64() * 1e3,
+    );
+    assert!(
+        ratio < 2.5,
+        "Everything costs {ratio:.1}x the board over the same vault — sorting every entry to show \
+         300 has stopped being cheap. Push the order and the limit down into the index."
+    );
+}

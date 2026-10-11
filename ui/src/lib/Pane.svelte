@@ -20,7 +20,7 @@
   import ProposalReview from './ProposalReview.svelte';
   import TagChips from './library/TagChips.svelte';
   import BoardSummary from './tasks/BoardSummary.svelte';
-  import { BUILTIN_SPACES, spacesShown } from './spaces.svelte';
+  import { spacesShown, type SpaceTab } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
@@ -63,6 +63,9 @@
     headed: boolean;
     /// Counts up when a group's add control is pressed in the app's bar; only a tracker view listens.
     addSignal?: number;
+    /// The views of the group this window is in, drawn as tabs across its top; and the group's name.
+    spaceTabs?: SpaceTab[];
+    spaceName?: string;
   }
   let {
     pane,
@@ -89,6 +92,8 @@
     onfocus,
     headed,
     addSignal = 0,
+    spaceTabs = [],
+    spaceName = '',
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -193,14 +198,6 @@
       ? cards.filter((c) => c.tags.includes(tag ?? ''))
       : cards,
   );
-  /// The group this window's view belongs to, and the views of it a tab can show. Search is not
-  /// one: it has no window until something is typed.
-  const space = $derived(
-    spacesShown()
-      ? (BUILTIN_SPACES.find((s) => s.tabs.some((t) => t.kind === pane.kind)) ?? null)
-      : null,
-  );
-  const spaceTabs = $derived((space?.tabs ?? []).filter((t) => t.kind !== 'search'));
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -329,16 +326,28 @@
          instead. The same strip a group of tracker views draws for itself
          (`decisions.md#ui`, 2026-10-12). -->
     {#if spaceTabs.length > 1}
-      <div class="space-tabs" role="group" aria-label={space?.name}>
+      <div class="space-tabs" role="group" aria-label={spaceName}>
         {#each spaceTabs as t (t.key)}
+          {@const on = t.viewName
+            ? pane.kind === 'view' && pane.viewName === t.viewName
+            : pane.kind === t.kind}
           <button
             type="button"
-            class:on={t.kind === pane.kind}
-            aria-current={t.kind === pane.kind ? 'page' : undefined}
-            onclick={() => t.kind !== pane.kind && onchange({ kind: t.kind })}>{t.label}</button
+            class:on
+            aria-current={on ? 'page' : undefined}
+            onclick={() =>
+              !on &&
+              onchange(
+                t.viewName
+                  ? { kind: 'view', viewName: t.viewName }
+                  : { kind: t.kind, viewName: undefined },
+              )}>{t.label}</button
           >
         {/each}
       </div>
+    {/if}
+    {#if pane.kind === 'view' && shownView?.total && shownView.total > cards.length}
+      <p class="bounded">The newest {cards.length} of {shownView.total}.</p>
     {/if}
     {#if pane.kind === 'note'}
       {#if pane.noteId}
@@ -833,5 +842,11 @@
     .space-tabs {
       display: none;
     }
+  }
+  .bounded {
+    margin: 0;
+    padding: var(--space-2) var(--space-4) 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
   }
 </style>

@@ -11,7 +11,7 @@ The views are gathered into four groups, and they are all ways of looking at the
 
 | Group | What it is for | Its views |
 |---|---|---|
-| **Library** | everything you have written, browsed by tag | Timeline, Search |
+| **Library** | everything you have written, browsed by tag | Timeline, Search, Everything |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, weight | Day, Trends, Weight |
 | **Fitness** | sessions and sets | Session, Volume |
@@ -24,6 +24,11 @@ The views are gathered into four groups, and they are all ways of looking at the
   settings.
 - **Back** returns to the group you came from. Stepping between a group's own views does not add
   a step to walk back through.
+
+**Everything**, in the Library, is the one list that also holds what you logged — each meal,
+each set, each weighing — beside your notes, newest first. It shows the newest 300 and says how
+many there are in all. Everywhere else those entries stay out of the way: a year of meals is
+thousands of notes, and they would bury the rest.
 
 In the Library, the row of tags above the timeline shows every tag on your notes and how many
 carry it; tap one to see only those notes, and again to see them all. In Tasks, the board is
@@ -130,7 +135,11 @@ view: board          # board | agenda | timeline  (see the note below)
 group_by: status     # board only
 filter:              # every entry is ANDed onto the renderer's own filter
   - tag: lab
+limit: 100           # at most this many, the first by the view's order
 ```
+
+A `view: timeline` file may also say `entries: true` to list logged entries beside your notes,
+as *Everything* does. It must then give a `limit`.
 
 ### The filter
 

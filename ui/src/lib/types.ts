@@ -538,6 +538,8 @@ export interface ViewResult {
   filters: string[];
   board?: Board;
   rows?: ObjectMeta[];
+  /** How many notes the view matched, when it shows only the first of them (`limit:`). */
+  total?: number;
   /** What a `totals` view sums and how it names it. The data itself comes from `log_days`. */
   totals?: TotalsDef;
   /** The view's group and its sibling views, in order. It travels with the payload, like `filters`. */

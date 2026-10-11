@@ -69,6 +69,13 @@ struct ViewFile {
     /// The group of views this one belongs to. The chrome draws a group's views together.
     #[serde(default)]
     group: Option<String>,
+    /// `view: timeline` only — list logged entries too. **Needs a `limit`**: a year of meals is
+    /// thousands of rows, and a list is not a place to send them all.
+    #[serde(default)]
+    entries: bool,
+    /// At most this many rows, the first by the view's sort. The result says how many there were.
+    #[serde(default)]
+    limit: Option<usize>,
     // ── `view: totals` only ──────────────────────────────────────────────────────────────────
     /// Which logged entries: the value of their `log` property.
     #[serde(default)]
@@ -318,6 +325,9 @@ pub struct ViewResult {
     pub board: Option<Board>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rows: Option<Vec<ObjectMeta>>,
+    /// How many notes the view matched, when it has a `limit` and so may show fewer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<usize>,
     /// A `totals` view's definition. Its days are asked for separately (`log_days`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub totals: Option<TotalsDef>,
@@ -330,7 +340,7 @@ pub struct ViewResult {
 /// The base query for a renderer — the same shape the built-in `commands::{board,agenda,…}`
 /// build. Kept here so a `.view` starts from the identical filter; the string `"done"` and
 /// `Kind(Note)` live in exactly these arms.
-fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query {
+fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>, entries: bool) -> Query {
     // The same base the built-in commands use, from its single definition — so a `.view`
     // file cannot be the one surface that forgets the assets or the message exclusion.
     let notes = crate::thread::notes_base;
@@ -341,9 +351,12 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
-        Renderer::Timeline => {
-            Query { filter: notes(), sort: vec![SortKey::desc("created")], ..Default::default() }
-        }
+        Renderer::Timeline => Query {
+            // The one view that may widen the base, and only by asking in so many words.
+            filter: if entries { crate::thread::everything_base() } else { notes() },
+            sort: vec![SortKey::desc("created")],
+            ..Default::default()
+        },
         Renderer::Agenda => Query {
             filter: notes()
                 .and(Predicate::Prop {
@@ -383,7 +396,19 @@ fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query 
 /// Lower a parsed file to a ready-to-run `Query`. Errors are the caller-facing sentence a
 /// broken view shows, so they say what is wrong and (where useful) how to fix it.
 fn lower(file: &ViewFile) -> Result<Query, String> {
-    let mut q = base(file.view, file.group_by.as_deref(), file.log.as_deref());
+    if file.entries && file.view != Renderer::Timeline {
+        return Err("`entries: true` is for `view: timeline` only".into());
+    }
+    if file.entries && file.limit.is_none() {
+        return Err(
+            "a view with `entries: true` needs a `limit` — it lists every logged entry".into()
+        );
+    }
+    if file.limit == Some(0) {
+        return Err("`limit` must be at least 1".into());
+    }
+    let mut q = base(file.view, file.group_by.as_deref(), file.log.as_deref(), file.entries);
+    q.limit = file.limit;
     for (i, p) in file.filter.iter().enumerate() {
         q.filter.all.push(lower_pred(p).map_err(|e| format!("filter[{i}]: {e}"))?);
     }
@@ -819,6 +844,7 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
             filters: Vec::new(),
             board: None,
             rows: Some(Vec::new()),
+            total: None,
             totals: Some(def),
             group: None,
         });
@@ -848,6 +874,7 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
                 filters,
                 board: Some(Board { group_by, columns }),
                 rows: None,
+                total: None,
                 totals: None,
                 group: None,
             }
@@ -859,6 +886,7 @@ fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError>
             filters,
             board: None,
             rows: Some(res.rows.iter().map(ObjectMeta::from).collect()),
+            total: file.limit.map(|_| res.total),
             totals: None,
             group: None,
         },
@@ -889,6 +917,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("food-weight", include_str!("shipped/food-weight.view")),
     ("training-session", include_str!("shipped/training-session.view")),
     ("training-volume", include_str!("shipped/training-volume.view")),
+    ("library-everything", include_str!("shipped/library-everything.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

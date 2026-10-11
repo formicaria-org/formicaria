@@ -281,12 +281,30 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    assert_eq!(shipped.len(), 5);
+    assert_eq!(shipped.len(), 6);
+    let s = MemoryStore::new();
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
-        assert_eq!(v.renderer, Some(Renderer::Totals));
-        totals_named(&[], &v.name).unwrap_or_else(|e| panic!("{}: {e}", v.name));
+        if v.renderer == Some(Renderer::Totals) {
+            totals_named(&[], &v.name).unwrap_or_else(|e| panic!("{}: {e}", v.name));
+        }
+        run_shipped(&s, &v.name).unwrap().unwrap_or_else(|e| panic!("{}: {e}", v.name));
     }
+    // Five are a tracker's; the sixth is the Library's list of everything.
+    let lists: Vec<_> =
+        shipped.iter().filter(|v| v.renderer != Some(Renderer::Totals)).map(|v| &v.name).collect();
+    assert_eq!(lists, ["Everything"]);
+}
+
+#[test]
+fn everything_lists_logged_entries_beside_notes_and_says_how_many_there_are() {
+    let mut s = MemoryStore::new();
+    commands::capture(&mut s, "a plain note", "").unwrap();
+    create_notes(&mut s, "", &[food("Oats", "2026-10-11", "breakfast", 228, 0)]).unwrap();
+    let all = run_shipped(&s, "Everything").unwrap().unwrap();
+    assert_eq!((all.rows.unwrap().len(), all.total), (2, Some(2)));
+    // The timeline it sits beside still leaves the entry out.
+    assert_eq!(commands::recent(&s).unwrap().len(), 1);
 }
 
 #[test]

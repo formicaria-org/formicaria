@@ -100,7 +100,13 @@
   import SpacePicker from './lib/SpacePicker.svelte';
   import AddSheet from './lib/AddSheet.svelte';
   import { draftFrom, starters, templatesOf } from './lib/templates';
-  import { BUILTIN_SPACES, spaceOfGroup, spacesShown, type Space } from './lib/spaces.svelte';
+  import {
+    BUILTIN_SPACES,
+    spaceOfGroup,
+    spacesShown,
+    type Space,
+    type SpaceTab,
+  } from './lib/spaces.svelte';
   import { trackersShown } from './lib/trackers.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
@@ -650,7 +656,9 @@
       if (v.error || !v.group) continue;
       // Shown when this device asks for them (`trackers.svelte.ts`) — read here, so flipping the
       // switch in Settings shows or hides them at once.
-      if (v.shipped && !trackersShown()) continue;
+      // …but for a view of one of the groups every device has.
+      const builtIn = BUILTIN_SPACES.some((s) => s.name === v.group);
+      if (v.shipped && !trackersShown() && !builtIn) continue;
       const g = out.find((x) => x.name === v.group);
       if (g) g.views.push(v.name);
       else out.push({ name: v.group, views: [v.name] });
@@ -720,13 +728,16 @@
       })),
     // **A group is one entry, named for the group** — its views are reached from inside it
     // (`decisions.md#ui`, 2026-10-11). Opening it shows its first view, or wherever in it you were.
-    ...groupsOf(views ?? []).map((g) => ({
-      key: `group:${g.name}`,
-      label: g.name,
-      icon: 'chart',
-      saved: false,
-      run: () => openGroupView(g.views[0]),
-    })),
+    // (One of the four that a built-in view also belongs to is listed by the rail itself.)
+    ...groupsOf(views ?? [])
+      .filter((g) => !spacesShown() || !BUILTIN_SPACES.some((s) => s.name === g.name))
+      .map((g) => ({
+        key: `group:${g.name}`,
+        label: g.name,
+        icon: 'chart',
+        saved: false,
+        run: () => openGroupView(g.views[0]),
+      })),
   ];
 
   /// The rail: what you are invited to open, minus the rare one. **With the four groups it is the
@@ -737,6 +748,7 @@
     const grouped = new Set(BUILTIN_SPACES.flatMap((s) => s.tabs.map((t) => t.kind as string)));
     const rest = targetsFrom(RAIL_PANES.filter((b) => !grouped.has(b.kind)));
     const isGroup = (t: { key: string }) => t.key.startsWith('group:');
+    // (A shipped view of Library or Tasks is in the group's own entry, added just below.)
     return [
       ...BUILTIN_SPACES.map((s) => ({
         key: `group:${s.name}`,
@@ -954,6 +966,7 @@
         group_by: r.group_by,
         totals: r.totals,
         group: r.group,
+        total: r.total,
       };
       return r.board ? { board: r.board, view } : { cards: r.rows ?? [], view };
     }
@@ -1552,17 +1565,40 @@
   // ── the four groups (`decisions.md#ui`, 2026-10-12; `lib/spaces.svelte.ts`) ──────────────────────
   /// Every group there is to go to: the two the built-in views make, then the ones whose views ship
   /// with the app. Empty unless this device shows them.
-  const spaces = $derived<Space[]>(
-    spacesShown() ? [...BUILTIN_SPACES, ...groupsOf(views ?? []).map(spaceOfGroup)] : [],
-  );
+  const spaces = $derived.by<Space[]>(() => {
+    if (!spacesShown()) return [];
+    const shipped = groupsOf(views ?? []).map(spaceOfGroup);
+    const named = (n: string) => BUILTIN_SPACES.some((s) => s.name === n);
+    return [
+      // A shipped view may belong to one of these too: the Library's *Everything*.
+      ...BUILTIN_SPACES.map((s) => ({
+        ...s,
+        tabs: [...s.tabs, ...(shipped.find((g) => g.name === s.name)?.tabs ?? [])],
+      })),
+      ...shipped.filter((g) => !named(g.name)),
+    ];
+  });
+  /// Whether a window is showing this tab of a group.
+  const showsTab = (p: PaneT, t: SpaceTab) =>
+    t.viewName ? p.kind === 'view' && p.viewName === t.viewName : p.kind === t.kind;
+  /// The tabs a window draws across its top: the views of the group it is in — one of the two a
+  /// built-in view belongs to. (A group of tracker views draws its own.) Search is not a tab
+  /// there: it has no window until something is typed.
+  function tabsOf(p: PaneT): SpaceTab[] {
+    const s = spaces.find(
+      (x) => BUILTIN_SPACES.some((b) => b.name === x.name) && x.tabs.some((t) => showsTab(p, t)),
+    );
+    return (s?.tabs ?? []).filter((t) => t.kind !== 'search');
+  }
   /// **The group the window in front belongs to** — whose bar a phone wears. A group of shipped
   /// views is one whether or not this device shows the four; a built-in view is in one only if it
   /// does.
   const focusedSpace = $derived.by<Space | null>(() => {
-    if (focusedGroup) return spaceOfGroup(focusedGroup);
+    const g = focusedGroup;
+    if (g) return spaces.find((s) => s.name === g.name) ?? spaceOfGroup(g);
     const p = focusedPane;
     if (!p || !spacesShown()) return null;
-    return BUILTIN_SPACES.find((s) => s.tabs.some((t) => t.kind === p.kind)) ?? null;
+    return spaces.find((s) => s.tabs.some((t) => !t.viewName && t.kind === p.kind)) ?? null;
   });
   const focusedTab = $derived(
     focusedPane?.kind === 'view'
@@ -1574,7 +1610,13 @@
   function pickSpaceTab(key: string) {
     const tab = focusedSpace?.tabs.find((t) => t.key === key);
     if (!tab) return;
-    if (tab.viewName) return pickGroupView(tab.viewName);
+    const at = workspace.panes[focused];
+    if (tab.viewName && at?.kind === 'view') return pickGroupView(tab.viewName);
+    if (tab.viewName && at) {
+      changePane(at.id, { kind: 'view', viewName: tab.viewName });
+      nav.replace(here());
+      return;
+    }
     if (tab.kind === 'search') {
       // Search has no window until something is typed: show the field to type it in.
       groupBarOff = true;
@@ -1588,7 +1630,7 @@
       focused = open;
       persistWorkspace();
     } else {
-      changePane(pane.id, { kind: tab.kind });
+      changePane(pane.id, { kind: tab.kind, viewName: undefined });
     }
     nav.replace(here());
   }
@@ -1599,13 +1641,14 @@
     if (!s || s.name === focusedSpace?.name) return;
     const first = s.tabs[0];
     if (first.viewName) return openGroupView(first.viewName);
-    const open = workspace.panes.findIndex((p) => s.tabs.some((t) => t.kind === p.kind));
+    const open = workspace.panes.findIndex((p) => s.tabs.some((t) => showsTab(p, t)));
     if (open !== -1) selectWindow(open);
     else focusOrOpen(first.kind);
   }
   /// The bar's add control: a group of tracker views has its own sheet; the others make a note.
   function addToSpace() {
-    if (focusedGroup) groupAdd += 1;
+    const builtIn = BUILTIN_SPACES.some((s) => s.name === focusedSpace?.name);
+    if (focusedGroup && !builtIn) groupAdd += 1;
     else if (focusedSpace && templatesOf(templates, focusedSpace.name).length) addSheetOpen = true;
     else void onNew();
   }
@@ -3059,6 +3102,8 @@
               onfocus={() => (focused = i)}
               headed={workspace.layout === 'tiled'}
               addSignal={i === focused ? groupAdd : 0}
+              spaceTabs={tabsOf(pane)}
+              spaceName={spaces.find((x) => x.tabs.some((t) => showsTab(pane, t)))?.name ?? ''}
             />
           </div>
         {/each}

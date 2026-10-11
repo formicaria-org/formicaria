@@ -6,7 +6,7 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/sve
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
 import { clearFaults, handle, reset, seedTrackerDemo } from './lib/mock';
-import type { Board, ObjectMeta } from './lib/types';
+import type { Board, ObjectMeta, ViewResult } from './lib/types';
 import * as nav from './lib/nav.svelte';
 import { clear as clearUndo } from './lib/undo.svelte';
 import * as trackers from './lib/trackers.svelte';
@@ -164,4 +164,37 @@ test('starter templates are notes, and a group’s add control offers the ones t
       'which group offers a template is the template’s own',
     ).toBeUndefined();
   });
+});
+
+test('the Library has one view of everything, logged entries included, and says when it is bounded', async () => {
+  seedTrackerDemo();
+  render(App);
+  const bar = await screen.findByRole('navigation', { name: 'Tasks' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'groups' }));
+  await fireEvent.click(
+    within(await screen.findByRole('dialog', { name: 'groups' })).getByRole('button', {
+      name: /^Library/,
+    }),
+  );
+  const library = await screen.findByRole('navigation', { name: 'Library' });
+  // The timeline leaves a logged meal out…
+  await screen.findByRole('list', { name: 'tags' });
+  expect(screen.queryByText('Oats, rolled')).toBeNull();
+
+  // …and Everything, one step along the same bar, has it. Still the Library.
+  await fireEvent.click(within(library).getByRole('button', { name: 'Everything' }));
+  expect((await screen.findAllByText('Oats, rolled')).length).toBeGreaterThan(0);
+  const still = screen.getByRole('navigation', { name: 'Library' });
+  expect(
+    within(still).getByRole('button', { name: 'Everything' }).getAttribute('aria-current'),
+  ).toBe('page');
+  // Its add control makes a note: this is not a tracker's view.
+  await fireEvent.click(within(still).getByRole('button', { name: 'add to Library' }));
+  expect(await screen.findByRole('textbox')).toBeTruthy();
+});
+
+test('a view that shows only the first of its notes says how many there are', async () => {
+  const all = await handle<ViewResult>('run_view', { name: 'Everything' });
+  expect(all.rows!.length).toBeLessThanOrEqual(300);
+  expect(all.total).toBeGreaterThanOrEqual(all.rows!.length);
 });
