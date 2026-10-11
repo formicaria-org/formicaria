@@ -87,6 +87,7 @@
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
   import { TICK_MS, autoBackupOn, dueVaults, type Attempt } from './lib/autoBackup';
+  import { isTyping } from './lib/typing';
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
@@ -780,8 +781,7 @@
     // not be left without closing it: no navigation reached the handler at all. `WHILE_TYPING`
     // is the exemption, and every member of it requires a modifier, so none can eat a keystroke
     // someone meant to type.
-    const tag = (e.target as HTMLElement | null)?.tagName;
-    const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    const typing = isTyping(e.target);
     // The whiteboard has its own undo for what is drawn; the app's undo must not fire beside it.
     const inBoard = !!(e.target as HTMLElement | null)?.closest?.('.excalidraw');
 
@@ -1061,7 +1061,7 @@
   let autoRunning = false;
   function typing(): boolean {
     const el = document.activeElement as HTMLElement | null;
-    return !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
+    return isTyping(el);
   }
   async function autoBackup(leaving = false) {
     if (autoRunning || savingLabel || !autoBackupOn() || isRemote()) return;

@@ -1111,33 +1111,40 @@ signed update without an uninstall, which would wipe the app's data.
   *Check now* is not offered over it; restarting the app clears it. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
   never offered a release older than the one it was built on*).
 
-## The editor that renders as you write — where it stands (2026-10-11)
+## The editor — where it stands (2026-10-11)
 
-Decision: `decisions.md#ui`, *the editor renders as you write, and the text is still the file*.
+Decisions: `decisions.md#ui`, *the editor renders as you write, and the text is still the file*
+and *there is one editor*.
 
-- **Stages 1 and 2 are built; it does not render yet.** The note panel speaks to its editor
-  through `editor/handle.ts`; the plain editor is `PlainEditor.svelte`; `LiveEditor.svelte` is
-  CodeMirror showing the same plain text. Settings → Look → Editor chooses, per device, plain by
-  default. Rendering is stage 3.
-- **Seen in a desktop browser only**: opening on the clicked word, typing, selecting with the
-  mouse, Bold from the format bar, the slash menu. **Not on a phone**, which is where the risk is
-  (the keyboard's suggestions and autocorrect, the quick row, the caret above the keyboard).
-- **Size**: 268 kB (87 kB compressed), in a part of the app loaded only when the live editor is
-  switched on. Measured before the Markdown grammar is added.
-- **The plain editor has always rewritten a note's line endings.** A textarea turns `\r\n` and
-  `\r` into `\n` by itself; it is in the HTML standard. A note with Windows line endings is
-  therefore rewritten with plain ones the first time it is edited there. Found by the two
-  editors' shared test; one note in the owner's vault has such a line ending. The live editor
-  keeps them. Not fixed in the plain editor: it cannot be, short of not using a textarea.
-- **Trap: in the live editor every position is an index into the text only because `\n` is
-  declared the one line separator.** Remove that line and CodeMirror counts `\r\n` as one
-  position, and every caret the panel sets lands early by the number of Windows line endings
-  above it.
-- **Trap: the live editor arrives a moment after it is asked for** (it is loaded on first use).
-  `openEditor` waits for it; anything else that reaches for `editorEl` right after setting
-  `editing` must too.
-- **Trap: a test cannot set a selection in the live editor by changing the page's selection.**
-  It listens for the real thing. The browser check drives the mouse.
+- **One editor: `LiveEditor.svelte`**, CodeMirror, drawing what `editor/preview.ts` (pure,
+  tested) says: headings, bold, italic, struck, inline code, highlight, coloured text, links as
+  their words, bullets as dots, tick boxes that can be pressed, quotes, code blocks and rules.
+  The line the cursor is on shows its marks. The note panel reaches it only through
+  `editor/handle.ts`.
+- **Not drawn yet: pictures and attachments, formulas, diagrams, tables, embedded notes, callout
+  badges.** They show as their Markdown while editing and are drawn in the reading view.
+- **Never on a phone, and there is no fallback.** The textarea editor is gone. Typing with
+  suggestions and autocorrect, the quick row, the caret above the keyboard and a tap landing on
+  its word are all unseen on Android. **Do not tag a release until they are.**
+- **Seen in Firefox and Chromium on the desktop** (Firefox is the owner's): a click opening the
+  editor on the clicked word, typing, the format options, the slash menu, a link followed and
+  edited, a tick box.
+- **Size**: about 306 kB (100 kB compressed), now part of every note that is edited.
+- **Trap: every position is an index into the text only because `\n` is declared the one line
+  separator.** Remove that line and CodeMirror counts `\r\n` as one position, and every caret
+  the panel sets lands early by the number of Windows line endings above it. It is also what
+  keeps a note's own line endings: this editor does not rewrite them, as the textarea did.
+- **Trap: the panel's key and drop handlers must stay ahead of the editor's own**
+  (`Prec.highest` in `LiveEditor.svelte`). Behind them, Enter on the slash menu starts a new line.
+- **Trap: "is someone typing?" has one answer, `isTyping` (`ui/src/lib/typing.ts`).** The editor
+  is not a text box; asking about `TEXTAREA` by hand is how a bare *c* opened a new note.
+- **Trap: in tests the editor's element answers to `value`, `selectionStart` and
+  `selectionEnd`** (`test-setup.ts`). In the app it does not. A test that passes by setting
+  `value` is driving the real editor; app code that reads `.value` from it gets nothing.
+- **Trap: a test cannot set a selection by changing the page's selection.** The editor listens
+  for the real thing. The browser check drives the mouse.
+- **Not tested any more: the line being written coming above the keyboard.** That test measured
+  a textarea. Phone only.
 
 ## Settings by category — traps (2026-10-11)
 

@@ -497,9 +497,10 @@ describe('v2: property editing, timeline, delete', () => {
     await waitFor(() => expect(body.value).toBe('make this **[pop]{.ok}**'));
   });
 
-  // The block submenu applies line-level formats: heading, lists, quote, callout. Whole-line, so a
-  // selection anywhere in the line counts; the callout drops in a `[!note]` the read-view badge can retype.
-  it('the block menu applies heading and callout formats to the line', async () => {
+  // The block submenu applies line-level formats: heading, lists, quote. Whole-line, so a selection
+  // anywhere in the line counts. There is one entry for a quote and none for a callout: a callout
+  // is a quote with a kind on its first line (the owner, 2026-10-11).
+  it('the block menu applies heading and quote formats to the line, and offers no callout', async () => {
     render(App);
     await screen.findByRole('button', { name: 'make something new' });
     await runCommand('New note', 'create');
@@ -515,10 +516,11 @@ describe('v2: property editing, timeline, delete', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'Heading 2' }));
     await waitFor(() => expect(body.value).toBe('## a plain line'));
 
-    // Now Callout → a `[!note]` blockquote (the heading marker is inside the quoted text).
+    // Now Quote → a blockquote (the heading marker is inside the quoted text).
     await fireEvent.click(screen.getByRole('button', { name: 'block format' }));
-    await fireEvent.click(await screen.findByRole('button', { name: /Callout/ }));
-    await waitFor(() => expect(body.value).toBe('> [!note] ## a plain line'));
+    expect(screen.queryByRole('button', { name: /Callout/ })).toBeNull();
+    await fireEvent.click(await screen.findByRole('button', { name: /Quote/ }));
+    await waitFor(() => expect(body.value).toBe('> ## a plain line'));
   });
 
   // Tapping a table cell edits it in place, patching ONLY that cell's bytes — every other cell,

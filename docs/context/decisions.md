@@ -85,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -2764,8 +2764,7 @@ helpers (`urgency.ts`). CI greps enforce it.
 
 ## v1 editor = plain `<textarea>` + rendered read view `#ui`
 > SUPERSEDED IN PART 2026-10-11 by *the editor renders as you write, and the text is still the
-> file*: the deferred v2 has begun, behind a switch. The textarea stays, as the default and the
-> fallback, until the live editor is proven on a phone.
+> file*, and then in whole by *there is one editor*: the textarea is gone.
 
 **Why:** a live-preview CodeMirror 6 editor was assessed as the single biggest
 build risk. **Consequence:** editing is a textarea over the literal bytes
@@ -9052,6 +9051,9 @@ actions window, the phone's list and an open category. **Not seen on the phone.*
 
 ## The editor renders as you write, and the text is still the file (2026-10-11, `#ui` `#toolchain`)
 
+> SUPERSEDED IN PART the same day by *there is one editor*: "behind a switch, plain by default"
+> and the plain editor as fallback are gone, on the owner's word. The rest stands.
+
 > Begins the v2 that *v1 editor = plain `<textarea>` + rendered read view* deferred. Adds a
 > dependency, so it is recorded whatever comes of it.
 
@@ -9085,3 +9087,102 @@ must name both editors, and its guard with it); the slash menu being ours and st
 
 **Risks, in order.** Android keyboards in a content-editable editor; the keyboard-and-quick-row
 layout; size; layout that tests cannot see; iPhone and iPad, untested as ever.
+
+## With a mouse and keyboard the format bar is always there (2026-10-11, `#ui`)
+
+> Amends the note panel's own rule for its toolbar: *"one bar, shown only while text is selected…
+> a discrete presence, never a band across the editor."* On touch that rule stands.
+
+**What prompted it.** The owner, trying the new editor on the desktop: *"a floating menu in the
+desktop that has the same options that appear if I select the text, to allow a user to use the
+smart markdown faster and without selecting."* Asked where: along the top of the note.
+
+**Decision.**
+- **With a precise pointer the bar is always along the top of the note while it is edited**: bold,
+  italic, highlight, code, colour, link and the block styles. It stays in place as the note
+  scrolls and is part of the page, so it covers no line.
+- **It works at the cursor.** With nothing selected a mark is opened and closed around the caret;
+  a line style applies to the line being written. Nothing new was written for this: it is the
+  same buttons calling the same functions, which already handled an empty selection.
+- **The bar over a selection is gone with a precise pointer.** Two copies of the same buttons,
+  one of them over the text, would only be in the way; and they share the state of their menus.
+- **Touch is unchanged**: the quick row above the keyboard, and the bar under a selection. A
+  persistent strip on touch was retired on 2026-09-11 and this does not bring it back.
+- **Both editors**, since the bar belongs to the note panel and speaks to the editor through
+  `EditorHandle`.
+
+**Moved the same evening, from the top of the note to its foot.** Having seen the bar along the
+top, the owner asked for it there no longer: *"instead of a bar on top… a very short description
+of options below it, instead of 'Drag files in to attach…'"*. So the options are one short line
+under the note, where the line of tips was, each button followed by its name in a word (drawn
+from the button's own label, so the two cannot disagree). The tips it replaced (drag a file in,
+`/` and `//`, Ctrl+S) are no longer on screen; the manual has them.
+
+**Found the same hour, and fixed with it.** In the editor that renders as you write, typing the
+letter *c* opened a new note: single-key shortcuts were held back by asking whether the key came
+from a text box, and that editor is not one. `isTyping` (`ui/src/lib/typing.ts`) is now the one
+answer for the whole app, and it counts anything the browser lets a person edit.
+
+## In the live editor a press follows a finished link, and a double press edits it (2026-10-11, `#ui`)
+
+**What prompted it.** The owner, writing in the editor that renders as you write: a link drawn
+finished could not be followed, because every press in it put the cursor there and showed its
+marks, *"as if I want to modify it… a double click is necessary to actually modify a rendered
+block."*
+
+**Decision.**
+- **One press on a link drawn finished follows it**: a note opens beside this one, as a chip does
+  in the reading view; a web or mail address opens outside the app. **A double press puts the
+  cursor in it** and shows it as written.
+- **On the line being written, a press in a link is a press in text.** `preview` gives a link its
+  address only while it is drawn finished, so somebody correcting a link's words is not sent away.
+- **Following waits a quarter of a second**, because the first press of a double one cannot know
+  yet which it is.
+- **Ordinary text is unchanged**: one press places the cursor. The rule is for things that do
+  something when pressed. Tick boxes already followed it (a press ticks); pictures, embeds and
+  the rest take it when they are drawn (stage 4).
+
+**Decided the same evening: only *Quote* is offered.** The owner asked whether a quote and a
+callout are the same in practice, and chose to keep one entry. A callout is a quote whose first
+line names a kind (`> [!note]`); the reading view still draws it as a labelled box and its kind is
+still changed from its badge. What is gone is the *Callout* entry in the block menu and in the
+quick row. **Stated plainly: there is now no button that makes a callout.** It is written by
+typing `[!note]` after the `>`. Turning a plain quote into a callout from the reading view was
+offered when the choice was put and does not exist; it is in `outstanding.md`.
+
+## There is one editor (2026-10-11, `#ui` `#toolchain`)
+
+> Reverses, the day it was written, "behind a switch, plain by default… the textarea is the default
+> and the fallback until the live editor has been proven on the owner's phone" in *the editor
+> renders as you write*.
+
+**What prompted it.** With the rendering working on the desktop, the owner: *"keep only render
+while writing option so that we do not need to maintain multiple code bases."*
+
+**Decision.** The editor that renders as you write is the editor. Removed: the plain textarea
+editor (`PlainEditor.svelte`), the caret measurement written for it (`caret.ts`: the mirror, the
+twin textarea, the text-zoom correction), the Settings switch and its stored choice.
+
+**What this costs, stated before it is paid.**
+- **There is no fallback.** If the phone's keyboard misbehaves in this editor, the remedy is a
+  fix or going back to a release that had the textarea; nothing in Settings switches it off. The
+  phone test now gates the next release for real.
+- **The work of 2026-10-11 on the textarea's caret is deleted**, not kept in reserve. It is in
+  history at `c2ffb61` and before.
+
+**What is kept.**
+- `editor/handle.ts`. One editor still gets a seam: it is what stops the panel reaching into the
+  editor, and what a replacement would implement.
+- The forty tests that drove a textarea, unchanged. `test-setup.ts` gives the editor's element
+  `value`, `selectionStart` and `selectionEnd`, each a view onto the real editor, so a test still
+  sets text, sets a selection and reads text back, against the editor itself.
+
+**Found by doing it.** With the editor's own keys ahead of the panel's, *Enter* on the slash menu
+chose nothing and started a new line. The panel's handlers are now first by declaration
+(`Prec.highest`), which the two failing tests pinned. It had been wrong in the live editor since
+it was added; the tests that would have said so were still pointed at the textarea.
+
+**Deleted with the textarea, and not replaced:** the test that the line being written is brought
+above the keyboard by exact scroll arithmetic (`NotePanel.keyboard`). It measured a textarea's
+scroll; the editor scrolls itself, and there is no layout in the test environment to see it. That
+behaviour is now checked only on a phone.

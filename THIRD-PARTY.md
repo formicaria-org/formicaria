@@ -219,14 +219,8 @@ ship inside the binary. Generated from the production dependency closure
 | @chevrotain/regexp-to-ast | 11.0.3 | Apache-2.0 |
 | @chevrotain/types | 11.0.3, 11.1.2 | Apache-2.0 |
 | @chevrotain/utils | 11.0.3 | Apache-2.0 |
-| @codemirror/autocomplete | 6.20.3 | MIT |
 | @codemirror/commands | 6.11.1 | MIT |
-| @codemirror/lang-css | 6.3.1 | MIT |
-| @codemirror/lang-html | 6.4.12 | MIT |
-| @codemirror/lang-javascript | 6.2.5 | MIT |
-| @codemirror/lang-markdown | 6.5.2 | MIT |
 | @codemirror/language | 6.13.1 | MIT |
-| @codemirror/lint | 6.9.7 | MIT |
 | @codemirror/state | 6.7.6 | MIT |
 | @codemirror/streamparser | 6.0.0 | MIT |
 | @codemirror/view | 6.43.14 | MIT |
@@ -247,10 +241,7 @@ ship inside the binary. Generated from the production dependency closure
 | @jridgewell/sourcemap-codec | 1.5.5, 1.6.0 | MIT |
 | @jridgewell/trace-mapping | 0.3.31 | MIT |
 | @lezer/common | 1.5.3 | MIT |
-| @lezer/css | 1.3.9 | MIT |
 | @lezer/highlight | 1.2.5 | MIT |
-| @lezer/html | 1.3.13 | MIT |
-| @lezer/javascript | 1.5.6 | MIT |
 | @lezer/lr | 1.4.11 | MIT |
 | @lezer/markdown | 1.8.0 | MIT |
 | @marijn/find-cluster-break | 1.0.4 | MIT |

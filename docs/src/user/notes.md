@@ -136,8 +136,9 @@ On top of standard Markdown there are three light additions, each chosen so the 
 readable in **any** Markdown editor (nothing here is app-only HTML):
 
 - **Highlight** — `==important==` renders as a highlight. Elsewhere it reads as `==important==`.
-- **Callouts** — a blockquote whose first line is `[!type]` becomes a coloured callout
-  (GitHub/Obsidian style). The types are `note`, `tip`, `info`, `warning`, `danger`, `quote`:
+- **Callouts** — a quote whose first line is `[!type]` becomes a coloured callout
+  (GitHub/Obsidian style). Make a quote from the format options, then type `[!note]` after its
+  `>`; pressing a callout's label in the reading view changes its kind. The types are `note`, `tip`, `info`, `warning`, `danger`, `quote`:
 
   ```markdown
   > [!warning] Heads up

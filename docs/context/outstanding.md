@@ -1000,20 +1000,23 @@ Next, roughly in order:
    so. If another turns up, it needs a button.
 4. **A person updating by hand on a Mac or a Windows computer** (§2.19, item 1).
 
-### 2.21 The editor that renders as you write (begun 2026-10-11)
+### 2.21 The editor that renders as you write (2026-10-11)
 
-Plan and rulings: `decisions.md#ui`, *the editor renders as you write*. State and traps:
-`known-issues.md`, same title.
+Rulings: `decisions.md#ui`, *the editor renders as you write* and *there is one editor*. State
+and traps: `known-issues.md`, *The editor*.
 
-1. **Stage 2's phone test.** Switch the editor to *Rendered as you write* on the phone and write
-   in it: suggestions and autocorrect, the quick row above the keyboard, tapping a word in a long
-   note, a selection and the format bar, the `/` menu, a photo. Nothing renders yet; this is
-   about typing. If the keyboard cannot be made good, the switch stays off on the phone.
-2. **Stage 3: inline rendering** (headings, bold and the like, links, lists, tick boxes, quotes,
-   code), from a pure `preview()` with tests.
-3. **Stage 4: block rendering** (pictures, formulas, diagrams, tables, embeds) through
-   `renderInto`.
-4. **Stage 5: decide the default**, and what becomes of the reading view.
+1. **The phone test, which now gates the next release.** There is no other editor to fall back
+   to. Write in a note on the phone: suggestions and autocorrect, the quick row above the
+   keyboard, tapping a word in a long note, a selection and the format bar, the `/` menu, a
+   photo, a tick box pressed in place, a link pressed once and twice.
+2. **Draw the rest** (stage 4): pictures and attachments, formulas, diagrams, tables, embedded
+   notes, callout badges, through `renderInto`.
+3. **What becomes of the reading view** once the editor draws everything it does.
+4. **A plain quote cannot be made a callout from the app.** The *Callout* entry was removed on
+   the owner's word (2026-10-11); a kind can be chosen only on what is already a callout. Either
+   give a plain quote in the reading view the same badge, or accept that callouts are typed.
+5. **With real notes**: a long note's speed, nested lists, and whether marks appearing on the
+   line being written is comfortable or jumpy.
 
 ## 3. Known and accepted — do not "fix" without deciding
 

@@ -38,9 +38,8 @@
   import { noteName } from './noteName';
   import { deleteUndoable, recordTextEdit, setPropertyUndoable } from './undo.svelte';
   import { parseStamp, toStamp } from './stamp';
-  import PlainEditor from './editor/PlainEditor.svelte';
+  import LiveEditor from './editor/LiveEditor.svelte';
   import type { EditorHandle } from './editor/handle';
-  import { editorKind } from './editor/kind';
   import { KEYBOARD_EVENT } from './keyboard';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
@@ -850,15 +849,10 @@
   const numbered = () =>
     transformLines((lines) => lines.map((l, i) => `${i + 1}. ` + l.replace(/^\s*\d+\.\s+/, '')));
   const quoteSel = () => transformLines((lines) => lines.map((l) => `> ${l.replace(/^>\s?/, '')}`));
-  // Callout: a blockquote whose first line carries `[!note]` — the read-view badge then re-types it.
-  const calloutBlock = () =>
-    transformLines((lines) =>
-      lines.map((l, i) =>
-        i === 0
-          ? `> [!note] ${l.replace(/^>\s?(\[!\w+\]\s?)?/, '')}`
-          : `> ${l.replace(/^>\s?/, '')}`,
-      ),
-    );
+  // **There is no Callout entry** (the owner, 2026-10-11: a quote and a callout are the same thing
+  // in practice, keep only Quote). A callout is still a quote whose first line carries `[!kind]`,
+  // still drawn as a labelled box, and its kind is still changed from its badge; it is written by
+  // typing `[!note]` after the `>`.
 
   // Checklist item — a toggle like `bullets`: every line already a box loses it, otherwise each
   // line becomes one (a plain bullet is upgraded rather than doubled).
@@ -1790,20 +1784,9 @@
   /// while after opening, each change in the keyboard re-centres (`revealCaret`); after that the
   /// caret is only moved when it would otherwise be out of sight, so nothing shifts under someone
   /// who is typing.
-  let kind = $state(editorKind());
-  /** The editor, once it is on the page. The live one arrives a moment after the panel asks for
-   *  it (it is loaded on first use), so opening waits for it instead of acting on nothing. */
-  async function editorReady(): Promise<EditorHandle | undefined> {
-    for (let i = 0; i < 100 && editing && !editorEl; i++) {
-      await new Promise((r) => setTimeout(r, 20));
-    }
-    return editorEl;
-  }
   async function openEditor(at?: number) {
-    kind = editorKind();
     editing = true;
     await tick();
-    if (kind === 'live') await editorReady();
     if (paneEl) paneEl.scrollTop = 0;
     // `preventScroll`: focusing would otherwise let the browser scroll the pane to wherever it
     // thinks the field is, undoing the line above before the caret is even set.
@@ -1848,6 +1831,16 @@
       window.visualViewport?.removeEventListener('resize', later);
     };
   });
+
+  /// A link pressed in the editor that renders as you write. A note opens beside this one, as a
+  /// chip does in the reading view; a web or mail address opens outside the app. Anything else
+  /// (an attachment, an address of a kind this does not know) is left alone here: the reading
+  /// view is where those are opened.
+  function followLink(href: string) {
+    const other = /^note:([0-9A-Za-z]+)/.exec(href);
+    if (other) return void onnavigate?.(other[1]);
+    if (/^(https?:|mailto:)/i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+  }
 
   /** Does the keyboard focus live in *this* pane? */
   const focused = () => !!paneEl?.contains(document.activeElement);
@@ -2220,7 +2213,7 @@
 
   // What the `/` menu opens against (`popup`): the `/` you typed, in viewport coordinates, so the menu
   // opens under what you are typing — or over it, where there is more room. Where there is no layout
-  // engine (jsdom) caretXY reports zeros and this is the editor's corner — never a crash.
+  // engine (jsdom) the editor reports zeros and this is its corner — never a crash.
   function slashBox(): Box {
     const el = editorEl;
     if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
@@ -2781,39 +2774,23 @@
                 <li><button class="fmt-block-opt" onclick={bullets}>• Bullet list</button></li>
                 <li><button class="fmt-block-opt" onclick={numbered}>1. Numbered list</button></li>
                 <li><button class="fmt-block-opt" onclick={quoteSel}>❝ Quote</button></li>
-                <li><button class="fmt-block-opt" onclick={calloutBlock}>▍ Callout</button></li>
               </ul>
             {/if}
           </div>
         {/snippet}
-        <!-- Two editors, one interface (`editor/handle.ts`). Which one is this device's choice
-             (Settings → Look → Editor), read when the note is opened for editing. The live one is
-             loaded only when it is used. -->
-        {#if kind === 'live'}
-          {#await import('./editor/LiveEditor.svelte') then { default: LiveEditor }}
-            <LiveEditor
-              bind:this={editorEl}
-              bind:value={draft}
-              oninput={onInput}
-              onkeydown={onEditorKeydown}
-              onselect={onEditorSelect}
-              ondragover={onDragOver}
-              ondrop={onDrop}
-              onblur={() => (fmtBar = null)}
-            />
-          {/await}
-        {:else}
-          <PlainEditor
-            bind:this={editorEl}
-            bind:value={draft}
-            oninput={onInput}
-            onkeydown={onEditorKeydown}
-            onselect={onEditorSelect}
-            ondragover={onDragOver}
-            ondrop={onDrop}
-            onblur={() => (fmtBar = null)}
-          />
-        {/if}
+        <!-- The editor, behind `editor/handle.ts`: it draws the note finished while it is written
+             and holds its exact text. -->
+        <LiveEditor
+          bind:this={editorEl}
+          bind:value={draft}
+          oninput={onInput}
+          onkeydown={onEditorKeydown}
+          onselect={onEditorSelect}
+          ondragover={onDragOver}
+          ondrop={onDrop}
+          onblur={() => (fmtBar = null)}
+          onlink={followLink}
+        />
         {#if adding}<span class="adding">Adding…</span>{/if}
         {#if slash.open && slash.results.length}
           <ul
@@ -2853,10 +2830,11 @@
             </li>
           </ul>
         {/if}
-        {#if fmtBar && !slash.open}
-          <!-- The bar, only while text is selected: above the selection with a precise pointer, below
-               it on touch, placed by `popup` (see `onEditorSelect`). `pointerdown` is prevented so a
-               press keeps the selection. -->
+        {#if fmtBar && !slash.open && coarsePointer}
+          <!-- **Touch only**: the bar while text is selected, below the selection, placed by `popup`
+               (see `onEditorSelect`). With a precise pointer the same buttons are always along the
+               top of the note, so a second copy over the text would only be in the way.
+               `pointerdown` is prevented so a press keeps the selection. -->
           <div
             class="fmt-bar fmt-bar-float"
             class:touch={coarsePointer}
@@ -2873,11 +2851,24 @@
             {@render fmtButtons()}
           </div>
         {/if}
+        <!-- **With a mouse and keyboard the format options are always there, as one short line
+             under the note** (the owner, 2026-10-11; `decisions.md#ui`). It stands where the line
+             of tips used to be. Each option says what it is in a word and works at the cursor:
+             with nothing selected a mark is opened and closed around the caret, and a line style
+             applies to the line being written. A press keeps the editor's focus and selection.
+             On touch the quick row and the bar under a selection do this job. -->
+        {#if !coarsePointer}
+          <div
+            class="fmt-bar fmt-bar-foot"
+            role="toolbar"
+            tabindex="-1"
+            aria-label="format"
+            onpointerdown={(e) => e.preventDefault()}
+          >
+            {@render fmtButtons()}
+          </div>
+        {/if}
       </div>
-      <p class="editor-hint">
-        Drag files in to attach · <kbd>/</kbd> to link a note or asset,
-        <kbd>//</kbd> to embed one · <kbd>Ctrl</kbd>+<kbd>S</kbd> to save
-      </p>
     {:else}
       <!-- Chips are built by render.ts, so one delegated listener beats
              re-binding per chip on every render. The handler only acts on a
@@ -3238,11 +3229,6 @@
             </li>
             <li>
               <button class="fmt-block-opt" onclick={() => quickLines(quoteSel)}>❝ Quote</button>
-            </li>
-            <li>
-              <button class="fmt-block-opt" onclick={() => quickLines(calloutBlock)}
-                >▍ Callout</button
-              >
             </li>
           </ul>
         {/if}
@@ -3744,6 +3730,7 @@
     position: relative;
     flex: 1;
     display: flex;
+    flex-direction: column;
   }
   .adding {
     position: absolute;
@@ -3752,7 +3739,7 @@
     font-size: var(--text-xs);
     color: var(--accent);
   }
-  /* Anchored to the caret: `top`/`left` are set inline from caretXY on open, so
+  /* Anchored to the caret: `top`/`left` are set inline from the editor's `caretBox` on open, so
      the menu appears under what you are typing. The values here are only the
      fallback for a browser that never ran the measurement. */
   .slash-menu {
@@ -3786,8 +3773,8 @@
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  /* The formatting toolbar: one bar, shown only while text is selected. Kept small — a discrete
-     presence, never a band across the editor. */
+  /* The formatting toolbar. With a mouse and keyboard it is always under the note, one short
+     line (2026-10-11); on touch it appears under a selection. */
   .fmt-bar {
     display: flex;
     align-items: center;
@@ -3797,7 +3784,41 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
   }
-  /* A precise pointer: above the selection, positioned against `.editor-wrap`. */
+  /* A precise pointer: one short line under the note, always. Each button is followed by its
+     name in a word (taken from its label, so the two cannot disagree), which is the description
+     the line of tips used to give. It stays at the foot while the note scrolls, and is part of
+     the page, so it covers no line. */
+  .fmt-bar-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 0 var(--space-2);
+    padding: var(--space-1) var(--space-4) var(--space-2);
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background: var(--surface);
+    font-size: var(--text-xs);
+    color: var(--text-subtle);
+  }
+  .fmt-bar-foot :global(.fmt-btn) {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    padding-inline: 0.35rem;
+    gap: 0.3rem;
+  }
+  .fmt-bar-foot :global(.fmt-btn[aria-label])::after {
+    content: attr(aria-label);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: 400;
+    font-style: normal;
+    color: var(--text-muted);
+  }
+  /* The bar under a selection, on touch. */
   .fmt-bar-float {
     position: absolute;
     z-index: 55;
@@ -4392,24 +4413,6 @@
     stroke-width: 1.7;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-  .editor-hint {
-    margin: 0;
-    padding: var(--space-1) var(--space-5) var(--space-3);
-    font-size: var(--text-xs);
-    color: var(--text-subtle);
-  }
-  /* Dragging files, a `/` typed on a keyboard, Ctrl+S: none of it applies to a touch screen. */
-  @media (pointer: coarse) {
-    .editor-hint {
-      display: none;
-    }
-  }
-  .editor-hint kbd {
-    font-family: var(--font-mono);
-    background: var(--surface-hover);
-    border-radius: 4px;
-    padding: 0 0.3em;
   }
   /* Reading column capped at the measure and centered in wide/page mode. */
   .read {

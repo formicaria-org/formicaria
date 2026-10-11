@@ -11,6 +11,7 @@
 /// bounds only *waiting*: a `findBy*` that will succeed is unaffected, and a genuine failure costs a
 /// few extra seconds once. Deliberately not a `testTimeout` bump — that would hide a hang.
 import { configure } from '@testing-library/svelte';
+import { EditorView } from '@codemirror/view';
 
 configure({ asyncUtilTimeout: 5000 });
 
@@ -53,4 +54,68 @@ Object.defineProperty(window, 'matchMedia', {
       removeListener: () => {},
       dispatchEvent: () => false,
     }) as MediaQueryList,
+});
+
+/// **The editor measures text with ranges, and jsdom has that method on elements only.** Without
+/// these two, mounting it throws from its first measurement.
+Range.prototype.getClientRects ??= (() => ({
+  length: 0,
+  item: () => null,
+  [Symbol.iterator]: [][Symbol.iterator],
+})) as never;
+Range.prototype.getBoundingClientRect ??= (() => new DOMRect()) as never;
+
+/// **In a test, the editor answers as a text box does.**
+///
+/// The note's editor used to be a `<textarea>`, and some forty places in this suite drive it the
+/// way a textarea is driven: set `value` and fire `input`, set `selectionStart`/`selectionEnd`
+/// and fire `select`, read `value` back. The editor is now CodeMirror, whose text and selection
+/// live in its own state and not on an element. Rather than rewrite forty call sites into its
+/// vocabulary, the element they already find (`aria-label="note body (Markdown)"`) is given those
+/// three properties here, each a view onto the real editor: setting one dispatches a real change
+/// or a real selection, and reading one reads the real document. So the tests still exercise the
+/// editor itself, by the same gestures.
+///
+/// On every `div`, because the editor's element is one; on any other `div` they answer as if
+/// absent, which is what a `div` without them does.
+const editorOf = (el: Element) => EditorView.findFromDOM(el as HTMLElement);
+Object.defineProperties(HTMLDivElement.prototype, {
+  value: {
+    configurable: true,
+    get(this: HTMLDivElement) {
+      return editorOf(this)?.state.doc.toString();
+    },
+    set(this: HTMLDivElement, text: string) {
+      const view = editorOf(this);
+      if (!view) return;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+        selection: { anchor: text.length },
+      });
+    },
+  },
+  selectionStart: {
+    configurable: true,
+    get(this: HTMLDivElement) {
+      return editorOf(this)?.state.selection.main.from;
+    },
+    set(this: HTMLDivElement, at: number) {
+      const view = editorOf(this);
+      if (!view) return;
+      const head = Math.max(at, view.state.selection.main.to);
+      view.dispatch({ selection: { anchor: at, head } });
+    },
+  },
+  selectionEnd: {
+    configurable: true,
+    get(this: HTMLDivElement) {
+      return editorOf(this)?.state.selection.main.to;
+    },
+    set(this: HTMLDivElement, at: number) {
+      const view = editorOf(this);
+      if (!view) return;
+      const anchor = Math.min(view.state.selection.main.from, at);
+      view.dispatch({ selection: { anchor, head: at } });
+    },
+  },
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { smallestChange } from './kind';
+import { smallestChange } from './change';
 
 const apply = (was: string, c: { from: number; to: number; insert: string } | null) =>
   c ? was.slice(0, c.from) + c.insert + was.slice(c.to) : was;
