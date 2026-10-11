@@ -31,8 +31,12 @@ many there are in all. Everywhere else those entries stay out of the way: a year
 thousands of notes, and they would bury the rest.
 
 In the Library, the row of tags above the timeline shows every tag on your notes and how many
-carry it; tap one to see only those notes, and again to see them all. In Tasks, the board is
-headed by how many cards have reached its last column.
+carry it; tap one to see only those notes, and again to see them all. Above the tags, a row of
+bars shows how many notes you wrote on each of the last fourteen days; tap a day for that day's.
+
+In Tasks, the board is headed by how many cards have reached its last column, and the agenda's
+*List* layout by fourteen bars for what is due on each of the next fourteen days — tap one to see
+that day alone, and again for all of them.
 
 A group's **＋** makes something that belongs there: in Food and Fitness it opens their own
 sheets; in Library and Tasks it makes a note, and offers that group's
