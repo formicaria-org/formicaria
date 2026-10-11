@@ -64,6 +64,13 @@ and four opt-in suites that are not in it — of which **`pixi run test-native-g
 remember**: `cargo test --workspace` `cfg`s out the libgit2 backend, which is the backend the phone
 uses. Run it whenever you touch `commit_all` or `git_native.rs`.
 
+**`pixi run update-test`** is the other one worth knowing. It downloads the release before the
+newest, starts it in a temporary folder, and presses what Settings presses: Check now, Get, Restart,
+Go back. It needs the network, so it is not in the gate; the release workflow runs it on Linux,
+macOS and Windows after publishing. `pixi run update-test --from-source` does the same starting
+from the build in your checkout. Run one of them whenever you touch `crates/fm-serve/src/update.rs`,
+`crates/fm-update` or a launcher.
+
 ## How work is expected to be shown
 
 - **A test that has been seen fail.** A test that has never been red proves nothing, and this

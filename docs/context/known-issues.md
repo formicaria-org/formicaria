@@ -1092,8 +1092,8 @@ signed update without an uninstall, which would wipe the app's data.
   Download that, then install it by cable with `adb install -r` after checking the certificate
   against `android/signing-certificate.sha256`. Used for v0.6.3. A test build made from **v0.6.5 or later** can
   update itself to a published release from Settings (`decisions.md`, 2026-10-11: the 2026-10-09 fix
-  covered the check and missed the download). **Not yet seen end to end**: it needs a test build
-  older than a published release, which first exists after v0.6.5.
+  covered the check and missed the download). **Not yet seen end to end on a phone**: it needs a
+  test build older than a published release. The desktop's equivalent was seen on 2026-10-11 (below).
 - **The `android` workflow runs both ways** (2026-10-11): by hand, and called by `release.yml` for
   v0.6.5, whose page has the signed APK.
 - **A test build made before the release after v0.6.5 has no floor.** It can be offered an older
@@ -1110,6 +1110,36 @@ signed update without an uninstall, which would wipe the app's data.
 - **Not fixed:** a download that is *ready* keeps its old name if a newer version appears, so
   *Check now* is not offered over it; restarting the app clears it. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
   never offered a release older than the one it was built on*).
+
+## Updating on the desktop — what is proven and what is not (2026-10-11)
+
+Decisions: `decisions.md#toolchain`, the two entries of 2026-10-11 on testing the published files
+and on a copy built from source.
+
+- **Proven on Linux, with the published files:** 0.6.5 found 0.6.6, downloaded it, restarted as it
+  and went back, with a note unchanged (`pixi run update-test`). And the owner's own desktop, a
+  copy built from source, installed 0.6.6 from Settings, started from its icon.
+- **macOS and Windows have never updated themselves.** `update-test.yml` runs the same test there;
+  it is started by hand, or by the release after publishing. Until one of those runs is green, the
+  desktop updater is a Linux fact.
+- **In 0.6.6 and earlier the page says *restarting* for ever.** The update has finished; the page
+  never looked. Fixed after 0.6.6: Settings asks until a different version answers and reloads.
+  A copy on 0.6.6 meets the old message once more on its way to the next release.
+- **A copy built from source installs only when started from its icon** (`packaging/formicaria.sh`,
+  which is Linux). Started with `pixi run app` or `cargo run` it gives a reason instead. There is
+  no developer launcher for macOS or Windows.
+- **Trap: `pixi run build` undoes an installed release.** By design: the launcher runs whichever
+  is newer, the build or the install, and removes the install when the build wins. Do not rebuild
+  while testing an installed release.
+- **Trap: the installed release still uses the checkout's `agents/`** (models, runtime, catalogue),
+  because the launcher starts in the checkout. A released program is then reading a catalogue from
+  source that may be newer than it.
+- **The end-to-end test sets the launcher's variables itself.** It does not run
+  `Start formicaria.*` or the developer launcher, which open a browser; their rescue is rehearsed
+  separately in `ci/checks.sh`, with fake programs.
+- **A release cannot be tested before it is published.** `update-works` runs after `attach` and
+  can only go red afterwards. A red one means the previous version cannot reach this one from
+  inside the app, and the remedy is a fix release.
 
 ## A newer assistant model after an update — limits (2026-10-10)
 

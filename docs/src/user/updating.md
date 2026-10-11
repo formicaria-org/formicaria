@@ -8,8 +8,10 @@
 1. Press **Get v…**. It downloads the new version and checks that it is exactly what the release
    published, signed by us. Anything that does not match is refused, and nothing has changed yet.
 2. Press **Restart into v…**, then **Yes, restart**. What you have typed is saved first. formicaria
-   replaces its own program inside the folder it runs from, and this page reconnects by itself in a few
-   seconds. **Your notes do not move** — they stay in the `vault` folder beside it.
+   replaces its own program inside the folder it runs from, and the page loads again by itself once
+   the new version is up. **Your notes do not move** — they stay in the `vault` folder beside it.
+   (In 0.6.6 and earlier the page goes on saying *restarting*; the update has finished, and
+   reloading the page shows it.)
 3. The version you had is kept. If the new one does not suit you, **Settings → Go back to v…** puts it
    back.
 
@@ -19,6 +21,13 @@ start a few times in a row, the launcher puts the previous version back by itsel
 Settings says when a copy cannot update itself, and why — usually a folder the system protects (move
 it to your home folder), or a folder set up by a version older than 0.5.2, which needs the way below
 once. On a phone, see [formicaria on an Android phone](./android.md#updating).
+
+**While a newer version is on offer**, a second line says when it was found and has its own **Check
+now**, in case a newer one still has come out since.
+
+**A copy you built yourself from the source** can take a published release the same way, as long as
+you start it from its icon. The release is installed beside your build, not over it: **Go back to
+the build made here** returns to it, and so does building again.
 
 ## By hand, into a new folder
 

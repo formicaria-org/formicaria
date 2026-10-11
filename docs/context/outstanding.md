@@ -951,6 +951,29 @@ Next, roughly in order:
    clutter, collapse it away while the keyboard is up.
 5. Everything in §2.17 is still open.
 
+### 2.19 After v0.6.6 — tap to edit, and updating on the desktop (2026-10-11)
+
+Shipped in v0.6.6 and confirmed on the owner's phone: a tap on a note opens the editor with the
+caret on the tapped word and in the middle of the view; *Edit* is gone from the ＋ on every system
+and *Add media* from the ＋ on the phone; a test build is never offered an older release, *Check
+now* stays beside an offer, and an older package is named as such (`decisions.md#ui` and
+`#toolchain`, 2026-10-11). Since the tag, on `main`: the update test, a copy built from source
+installing the release, and the page that reloads after a restart (`known-issues.md`, *Updating on
+the desktop*).
+
+Next, roughly in order:
+1. **Run the `update-test` workflow by hand.** It is the first evidence there will be for macOS and
+   Windows. Only the owner can start it.
+2. **Watch `update-works` on the next release.** It is the first time the release workflow calls
+   another workflow after publishing; the guard was extended for it and it has never run.
+3. **See the page reload itself after *Restart*.** Unit-tested only. The owner's first install
+   showed the old message, because the fix was written after it.
+4. **Why the caret overshot on the phone is still a diagnosis.** The fix (measure in a twin of the
+   textarea) worked; whether the phone's font-size setting was the cause was never confirmed.
+5. **The phone-test command has not run end to end.** It needs the token from
+   `sh ci/phone-test-setup.sh`, or the owner running it with git's stored login.
+6. §2.18 items 2 to 4 and everything in §2.17 are still open.
+
 ## 3. Known and accepted — do not "fix" without deciding
 
 Recorded so nobody spends a session on these thinking they are bugs.

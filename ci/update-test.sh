@@ -127,8 +127,8 @@ kept() { cmp -s "$app/vault/notes/kept.md" "$work/kept.md" || die "the note chan
 
 # What `Start formicaria.*` sets, minus the browser; and a home of its own, so the copy under test
 # neither reads nor writes this computer's formicaria settings.
-mkdir -p "$work/home/config"
-HOME="$work/home" USERPROFILE="$work/home" XDG_CONFIG_HOME="$work/home/config" APPDATA="$work/home/config" \
+mkdir -p "$work/self/config"
+HOME="$work/self" USERPROFILE="$work/self" XDG_CONFIG_HOME="$work/self/config" APPDATA="$work/self/config" \
     FM_ADDR="127.0.0.1:$port" FM_VAULT="$app/vault" FM_VAULTS="$app/vaults.json" FM_LAUNCHER=2 FM_OPEN=0 \
     "$program" > "$log" 2>&1 &
 
