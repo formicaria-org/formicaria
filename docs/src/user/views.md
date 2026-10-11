@@ -19,7 +19,10 @@ date and who last touched it](../images/board.png)
 - **Agenda** — dated, unfinished items. Three layouts via the sub-toggle:
   - **Month** — a calendar grid; items land on their due day, tinted by urgency
     (overdue / soon / this week / later), hard deadlines marked ◆.
-  - **Week** — a denser single-week grid.
+  - **Week** — the seven days as columns and the hours down the side. An item with a time sits
+    in its slot, as tall as it is long; one with only a date, or one that runs across days, is a
+    bar above the hours. A line marks the time now. On a narrow screen the days scroll sideways
+    and open on today.
   - **List** — a sorted, soonest-first list.
 
   ![The Agenda in Month layout: a calendar grid for September with notes on their due

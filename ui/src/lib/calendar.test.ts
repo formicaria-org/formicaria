@@ -7,6 +7,8 @@ import {
   weekOf,
   ymd,
   type Day,
+  timedBlocks,
+  timedDay,
 } from './calendar';
 
 // The week of 2026-07-13 (a Monday) → 13..19 July, Monday-first.
@@ -116,5 +118,62 @@ describe('day grouping across the UTC boundary', () => {
     if (utcKey !== localKey) {
       expect(dayHeading(utcKey)).not.toBe('Today');
     }
+  });
+});
+
+describe('the week time grid', () => {
+  const note = (id: string, start: string | null, due: string | null) => ({ id, start, due });
+  const at = (blocks: ReturnType<typeof timedBlocks<ReturnType<typeof note>>>, id: string) =>
+    blocks.find((b) => b.card.id === id)!;
+
+  it('places a note by the clock only when it has a time and stays within one day', () => {
+    expect(timedDay(note('a', '2026-10-13T17:30', '2026-10-13T18:30'))).toBe('2026-10-13');
+    expect(timedDay(note('b', null, '2026-10-13T18:30'))).toBe('2026-10-13');
+    expect(timedDay(note('c', '2026-10-13', '2026-10-13T18:30'))).toBe('2026-10-13');
+    // A date with no time has no slot; a note across days is a bar across them.
+    expect(timedDay(note('d', null, '2026-10-12'))).toBeNull();
+    expect(timedDay(note('e', '2026-10-12T09:00', '2026-10-13T18:30'))).toBeNull();
+    expect(timedDay(note('f', null, null))).toBeNull();
+  });
+
+  it('runs a meeting from its start to its end, on its own day only', () => {
+    const cards = [note('m', '2026-10-13T17:30', '2026-10-13T18:30')];
+    expect(timedBlocks(cards, '2026-10-13')).toMatchObject([
+      { from: 17 * 60 + 30, to: 18 * 60 + 30, col: 0, cols: 1 },
+    ]);
+    expect(timedBlocks(cards, '2026-10-12')).toEqual([]);
+  });
+
+  it('draws a lone time as half an hour beginning at that time, and never less', () => {
+    const b = timedBlocks(
+      [
+        note('due', null, '2026-10-13T18:30'),
+        note('short', '2026-10-13T09:00', '2026-10-13T09:10'),
+      ],
+      '2026-10-13',
+    );
+    expect(at(b, 'due')).toMatchObject({ from: 18 * 60 + 30, to: 19 * 60 });
+    expect(at(b, 'short')).toMatchObject({ from: 9 * 60, to: 9 * 60 + 30 });
+  });
+
+  it('keeps the last half hour of the day on the day', () => {
+    const [b] = timedBlocks([note('late', null, '2026-10-13T23:50')], '2026-10-13');
+    expect(b).toMatchObject({ from: 23 * 60 + 30, to: 24 * 60 });
+  });
+
+  it('shares the width between notes that overlap, and gives it back afterwards', () => {
+    const b = timedBlocks(
+      [
+        note('a', '2026-10-13T09:00', '2026-10-13T11:00'),
+        note('b', '2026-10-13T10:00', '2026-10-13T12:00'),
+        note('c', '2026-10-13T11:00', '2026-10-13T11:30'), // a has ended: takes its column
+        note('alone', '2026-10-13T14:00', '2026-10-13T15:00'),
+      ],
+      '2026-10-13',
+    );
+    expect(at(b, 'a')).toMatchObject({ col: 0, cols: 2 });
+    expect(at(b, 'b')).toMatchObject({ col: 1, cols: 2 });
+    expect(at(b, 'c')).toMatchObject({ col: 0, cols: 2 });
+    expect(at(b, 'alone')).toMatchObject({ col: 0, cols: 1 });
   });
 });

@@ -50,6 +50,8 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   ***A resurrection is a fact about the merge, so that is where it is recorded*** (read before
   touching either keep branch, `KEPT_TRAILER` or `refs/fm/kept-seen` — it carries why the obvious
   frontmatter marker is a live bug, and why the ordering inside the keep branch is load-bearing) ·
+  ***Formicaria backs up by itself*** (2026-10-11; read before adding a second automatic path that
+  sends or gets, before changing when it runs, or before making a first backup automatic) ·
   ***The app says how long a vault has been quiet*** (read before adding another alert to the
   toolbar, or before folding `last_commit` into `backup_status` — it is the one signal that does not
   depend on a detector working, and why committer time is the right clock) ·
@@ -83,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -2021,7 +2023,11 @@ audit in [`mobile-design.md`](./mobile-design.md); sequence in [`plan.md`](./pla
   git-shaped). Backends default free & serverless (rclone → ~70 backends; a free private GitHub/
   GitLab repo is the zero-server option), self-hosted first-class. **Keeps "no CRDT / no sync
   framework" intact** — extends "a bare git remote is the coordinator" to "coordinator is a role."
-- **Auto-push is explicit, never silent** (`reject → pull → merge → re-push`), or the naive
+- > AMENDED 2026-10-11 by *formicaria backs up by itself*: sending no longer waits for a press. The
+  > ruling's substance stands and is what makes that safe: the only automatic path is the full
+  > loop, and its outcome is shown.
+
+  **Auto-push is explicit, never silent** (`reject → pull → merge → re-push`), or the naive
   "auto-push after commit" wedges into the documented best-effort-and-silent failure loop against
   `push_squashed`'s deliberate reject-on-moved-remote. **Build the real streaming `GET
   /api/blob/<hash>`** — ✅ SHIPPED 2026-07-18 as `GET /api/blob/<reference>` (`fm-serve/src/blob.rs`) — for both platforms. **Mobile shell stays trivially CSS**
@@ -8883,3 +8889,74 @@ saying *restarting as v0.6.6. This page reconnects by itself* for ever: nothing 
 true, on any copy, since the updater shipped. After *Restart* and after *Go back*, Settings now
 asks until a program with a different version answers, through the silence of the restart, and
 then loads the page again, so the tab also stops showing the previous version's interface.
+
+## The agenda's week is a time grid (2026-10-11, `#ui`)
+
+**What prompted it.** The owner: *in the weekly view of my agenda I should see the tasks in their
+time slot, not just a list, on all devices.* The week was the month's grid cut down to one row:
+bars by day, with the clock time written in the label and no effect on where the bar sat.
+
+**Decision.**
+- **The week has hours.** Seven day columns, twenty-four hour rows. A note with a clock time sits
+  in its day at that time, as tall as it is long. The month is unchanged: it has no room for hours.
+- **What is placed by the clock** (`timedDay`, `ui/src/lib/calendar.ts`): a note whose `due` has a
+  time and which does not begin on an earlier day. Everything else, a date with no time or a span
+  of days, stays a bar in a strip above the hours, drawn by the code the month uses. A note is
+  drawn once, never in both.
+- **A lone time is a mark of half an hour beginning at that time**, and half an hour is the least
+  any block is drawn. A deadline has no length; this gives it room for a time and a title and
+  something a finger can hit.
+- **Notes that overlap share the width** (`timedBlocks`), and get it back when the overlap ends.
+- **The same grid on every device.** A column is never narrower than 5.5rem; a screen that cannot
+  hold seven scrolls sideways inside the view, with the day names and the hours staying in place.
+  A week opens on today's column and an hour before its first entry, 07:00 at the latest.
+- **The layout rules are pure functions with tests**; the renderer only positions what they return
+  and holds no status or scheduling words.
+
+**Seen** in a browser at 1280 and at 360 wide, with the sample notes. **Not seen on the phone.**
+
+**Not done.** Dragging a block to change its time; a day or three-day mode; the same grid for
+notes that only have a start.
+
+## Formicaria backs up by itself (2026-10-11, `#sync` `#git` `#ui`)
+
+> Amends *auto-push is explicit, never silent* (2026-07) and the comment in `App.svelte` that
+> *"pushing is a thing worth doing on purpose"*. Completes *backing up is both halves*
+> (2026-09-09), which removed the thinking from the press and left the remembering.
+
+**What prompted it.** The owner changed dates on the phone and did not find them on the desktop.
+Nothing was broken: Back up had not been pressed on the phone. From the desktop, "nothing has
+arrived" and "we are level" look the same, and the chip for unsent work speaks only after days.
+The owner, having first chosen to leave it as a press: *"I would have some automatic backup and
+pull, a user can't always remember to do that."*
+
+**Decision.** The app presses Back up by itself.
+- **One path.** It calls `syncVault`, the function the button calls: save, get the other devices'
+  changes, send. There is no automatic path that only sends, which is what the 2026-07 ruling
+  was against, and none that only gets.
+- **When** (`ui/src/lib/autoBackup.ts`, pure and tested): a vault is due when it holds changes
+  never sent, or another device has sent some. It waits until writing has been still for half a
+  minute, keeps two minutes between backups of one vault and fifteen after a failure, and looks
+  once a minute while the app is on screen. Leaving the app backs up at once, because on a phone
+  there may be no later.
+- **Never while someone is typing.** Getting changes under an open editor is for between
+  sentences. Leaving the app is the one exception.
+- **Never a first backup.** A vault that was never sent has no chosen destination, or none yet
+  confirmed by a person; that stays a decision somebody makes.
+- **It is shown, and it can be turned off.** The same busy label as a pressed backup; a conflict
+  or a kept note is announced in the same words as after *Get their changes*. A failure is quiet
+  here and visible where it always was, in the Back up panel and the "not sent" chip. Settings has
+  the switch, on by default, per device, with what it does written beside it.
+- **Not for a paired device**, which may not back up at all.
+
+**The two guarantees.** *Nothing is lost*: no new operation exists; every merge, conflict and
+kept-note rule is `syncVault`'s. *There is a way back*: the switch, and everything the history
+already offers.
+
+**Costs, stated.** On mobile data it sends what a pressed backup sends: the notes, and attachments
+under the vault's own limit. A conflict can now appear without a press, announced.
+
+**Limits.** It runs only while the app is open; there is no background service. The backup on
+leaving is best effort: Android may stop the app before it finishes, and the next opening takes
+it up. **Not yet seen on a phone or between two real devices**: the rules are unit-tested and the
+wiring is type-checked.

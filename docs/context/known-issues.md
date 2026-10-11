@@ -1111,6 +1111,23 @@ signed update without an uninstall, which would wipe the app's data.
   *Check now* is not offered over it; restarting the app clears it. Fixed for later builds (`decisions.md`, 2026-10-11, *a test build is
   never offered a release older than the one it was built on*).
 
+## Backing up by itself — limits (2026-10-11)
+
+Decision: `decisions.md#sync`, *formicaria backs up by itself*.
+
+- **Not yet seen between two real devices.** The rules (`autoBackup.ts`) are unit-tested; the
+  wiring in `App.svelte` is type-checked and nothing more.
+- **Only while the app is open.** A phone in a pocket sends nothing; the backup made on leaving is
+  best effort, and Android may stop the app first.
+- **The phone learns of incoming changes only when it comes to the front**, at most every five
+  minutes (`remotePoll.ts`), so "gets their changes by itself" is prompt on the desktop and
+  coarse on the phone.
+- **Trap: the switch is per device and lives in the browser's storage.** Clearing site data, or a
+  new browser profile, turns it back on.
+- **Trap: typing in any field holds it off**, including the search box. A cursor left in a field
+  for hours means no automatic backup for hours, until the app is left.
+- **A release older than this one does none of it.** A device still on 0.6.6 sends only on a press.
+
 ## Updating on the desktop — what is proven and what is not (2026-10-11)
 
 Decisions: `decisions.md#toolchain`, the two entries of 2026-10-11 on testing the published files

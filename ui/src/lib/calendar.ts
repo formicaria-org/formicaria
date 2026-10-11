@@ -3,7 +3,7 @@
 // everywhere else — no timezone math beyond the viewer's local calendar. A
 // `start`/`due` may carry a time; the grid is day-granular, so every value is
 // narrowed with `dayOf` before it reaches the geometry below.
-import { dayOf } from './stamp';
+import { dayOf, parseStamp } from './stamp';
 
 export interface Day {
   date: string; // YYYY-MM-DD
@@ -156,4 +156,91 @@ export function dayHeading(dateIso: string): string {
     month: 'short',
     year: 'numeric',
   });
+}
+
+// ---------------------------------------------------------------------------------------------
+// The week's time grid: where a timed note sits inside its day
+// ---------------------------------------------------------------------------------------------
+
+/** How long a note with one clock time is drawn for. A deadline at 18:30 has no length of its own;
+ *  half an hour is enough to hold a time and a title, and it is also the least any block is drawn,
+ *  so a ten-minute meeting stays something a finger can hit. */
+export const MARK_MINUTES = 30;
+const DAY_MINUTES = 24 * 60;
+
+/** Minutes since midnight for an `HH:MM` wall-clock time. */
+export function minutesOf(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+interface Timed {
+  start: string | null;
+  due: string | null;
+}
+
+/** The day a note belongs to in the time grid, or null when it belongs in the all-day strip.
+ *
+ *  A note is placed by the clock when its `due` carries a time and it does not begin on an earlier
+ *  day. One that spans days is a bar across them, which the strip already draws; one with a date
+ *  and no time has no slot to sit in. */
+export function timedDay(card: Timed): string | null {
+  const due = parseStamp(card.due);
+  if (!due?.time) return null;
+  const start = parseStamp(card.start);
+  if (start && start.day !== due.day) return null;
+  return due.day;
+}
+
+/** A note placed in one day's column: `from`..`to` in minutes since midnight, and which of `cols`
+ *  side-by-side columns it takes when others overlap it. */
+export interface TimedBlock<T> {
+  card: T;
+  from: number;
+  to: number;
+  col: number;
+  cols: number;
+}
+
+/** Every note placed by the clock on `day`, laid out so that overlapping ones share the width.
+ *
+ *  With a start and an end time the block runs between them. With only the due time it is a mark
+ *  of [`MARK_MINUTES`] beginning at that time — a deadline is read downwards from its line, like
+ *  every other entry. Notes that overlap, directly or through a chain of others, form a group; each
+ *  takes the first free column, and the whole group is as wide as its busiest moment. */
+export function timedBlocks<T extends Timed>(cards: T[], day: string): TimedBlock<T>[] {
+  const placed = cards
+    .filter((c) => timedDay(c) === day)
+    .map((card) => {
+      const end = minutesOf(parseStamp(card.due)!.time!);
+      const startTime = parseStamp(card.start)?.time;
+      const begin = startTime ? minutesOf(startTime) : null;
+      let from = begin !== null && begin < end ? begin : end;
+      let to = begin !== null && begin < end ? end : end + MARK_MINUTES;
+      to = Math.max(to, from + MARK_MINUTES);
+      // The last half hour of the day still has to fit on the day.
+      if (to > DAY_MINUTES) {
+        from = Math.max(0, from - (to - DAY_MINUTES));
+        to = DAY_MINUTES;
+      }
+      return { card, from, to, col: 0, cols: 1 };
+    })
+    .sort((a, b) => a.from - b.from || b.to - a.to);
+
+  let group: typeof placed = [];
+  let groupEnd = -1;
+  const close = () => {
+    const cols = Math.max(0, ...group.map((b) => b.col)) + 1;
+    for (const b of group) b.cols = cols;
+    group = [];
+  };
+  for (const b of placed) {
+    if (group.length && b.from >= groupEnd) close();
+    const taken = new Set(group.filter((o) => o.to > b.from).map((o) => o.col));
+    while (taken.has(b.col)) b.col++;
+    group.push(b);
+    groupEnd = Math.max(groupEnd, b.to);
+  }
+  if (group.length) close();
+  return placed;
 }

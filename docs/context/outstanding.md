@@ -973,6 +973,9 @@ Next, roughly in order:
 5. **The phone-test command has not run end to end.** It needs the token from
    `sh ci/phone-test-setup.sh`, or the owner running it with git's stored login.
 6. §2.18 items 2 to 4 and everything in §2.17 are still open.
+7. **See the automatic backup work between the phone and the desktop**: change a date on one,
+   leave the app, and find it on the other without a press (`known-issues.md`, *Backing up by
+   itself*). And **see the week grid on the phone** (`decisions.md#ui`, 2026-10-11).
 
 ## 3. Known and accepted — do not "fix" without deciding
 

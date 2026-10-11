@@ -86,6 +86,7 @@
   import { isRemote } from './lib/remote';
   import { isPhone } from './lib/platform';
   import { pollIntervalMs, foregroundCheckDue } from './lib/remotePoll';
+  import { TICK_MS, autoBackupOn, dueVaults, type Attempt } from './lib/autoBackup';
   import { quietLabel, quietTitle, quietVaults } from './lib/quietVaults';
   import { unreachable } from './lib/reachable.svelte';
   import * as ipc from './lib/ipc';
@@ -967,21 +968,36 @@
   // are in the body, so those notes still open, and telling the user which ones is the whole
   // difference between a conflict and a mystery.
   //
-  // Pull only. Nothing here publishes: pulling is a thing worth doing on a nudge, and
-  // pushing is a thing worth doing on purpose.
+  // Pull only: this is the chip's press. Sending happens through Back up, pressed by a person or
+  // by `autoBackup` below.
   async function getTheirChanges() {
     const targets = movedVaults;
     movedVaults = [];
     for (const v of targets) {
       const phase = await pullVault(v, refresh);
+      if (phase === 'failed') {
+        report(plainError(syncFor(v).error ?? `could not get changes for '${v}'`));
+      }
+      await sayWhatCameBack(v, phase);
+    }
+    // **A pull is the event that creates both of these, so it is the moment to re-read them.**
+    // Until now `loadDemoted` ran at boot and from its own panel and nowhere else, so the chip for
+    // a disagreement this very pull produced did not appear until the app restarted — a persistent
+    // surface that was, in practice, less prompt than the banner it was meant to outlast. The same
+    // 2026-08-24 lesson as the "not in history" count: the number is a fact about git, and this is
+    // the moment git changed.
+    await Promise.all([loadDemoted(), loadKept()]);
+  }
+  /// What a person has to be told after their changes were brought down, whoever asked for it:
+  /// the press on the chip, or the backup the app makes by itself.
+  async function sayWhatCameBack(v: string, phase: string) {
+    {
       if (phase === 'conflicts') {
         const s = syncFor(v);
         const names = (await conflictLabels(s.conflicts)).join(', ');
         notice =
           `'${v}': ${s.conflicts.length} note(s) came back with conflicting edits — ` +
           `they still open, with both versions marked in the body. Open ${names} and merge the two.`;
-      } else if (phase === 'failed') {
-        report(plainError(syncFor(v).error ?? `could not get changes for '${v}'`));
       }
       // **Independent of the phase**: a pull can keep a note *and* still conflict on another, and
       // the keep is a decision the app made on the user's behalf. Said here as well as in the
@@ -996,13 +1012,6 @@
           `Delete ${kept.length === 1 ? 'it' : 'them'} again here if that is what you meant.`;
       }
     }
-    // **A pull is the event that creates both of these, so it is the moment to re-read them.**
-    // Until now `loadDemoted` ran at boot and from its own panel and nowhere else, so the chip for
-    // a disagreement this very pull produced did not appear until the app restarted — a persistent
-    // surface that was, in practice, less prompt than the banner it was meant to outlast. The same
-    // 2026-08-24 lesson as the "not in history" count: the number is a fact about git, and this is
-    // the moment git changed.
-    await Promise.all([loadDemoted(), loadKept()]);
   }
   $effect(() => {
     if (!import.meta.env.PROD) return; // network poll: production only (the mock has no remote)
@@ -1038,6 +1047,54 @@
       clearTimeout(first);
       if (id !== undefined) clearInterval(id);
       window.removeEventListener('focus', onFocus);
+    };
+  });
+
+  // **Backing up by itself** (`lib/autoBackup.ts` holds the when and the why; `decisions.md`,
+  // 2026-10-11). It presses Back up — `syncVault`, which saves, gets their changes and sends — for
+  // each vault that is due. Never while someone is typing: getting changes under an open editor
+  // is a thing to do between sentences, not during one. Leaving the app is the exception, because
+  // on a phone there may be no later. A failure says nothing here; the Back up panel and the
+  // "not sent" chip already say it, and a laptop on a train is not news every two minutes.
+  const autoAttempts: Record<string, Attempt> = {};
+  let autoRunning = false;
+  function typing(): boolean {
+    const el = document.activeElement as HTMLElement | null;
+    return !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || el.isContentEditable);
+  }
+  async function autoBackup(leaving = false) {
+    if (autoRunning || savingLabel || !autoBackupOn() || isRemote()) return;
+    if (!vaults?.length || syncingPhase() !== null || navigator.onLine === false) return;
+    if (!leaving && typing()) return;
+    autoRunning = true;
+    try {
+      const rows = await lastCommits().catch(() => []);
+      const due = dueVaults(rows, movedVaults, autoAttempts, Date.now(), leaving);
+      if (!due.length) return;
+      const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      for (const v of due) {
+        const phase = await syncVault(v, `backup: ${stamp}`, () => refresh());
+        autoAttempts[v] = { at: Date.now(), ok: phase === 'synced' };
+        if (phase !== 'failed') movedVaults = movedVaults.filter((m) => m !== v);
+        await sayWhatCameBack(v, phase);
+      }
+      await Promise.all([loadDemoted(), loadKept(), loadLastSaves()]);
+    } finally {
+      autoRunning = false;
+    }
+  }
+  $effect(() => {
+    if (!import.meta.env.PROD) return; // the mock has nowhere to send
+    const id = setInterval(() => {
+      if (!document.hidden) void autoBackup();
+    }, TICK_MS);
+    const onHide = () => {
+      if (document.hidden) void autoBackup(true);
+    };
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onHide);
     };
   });
 

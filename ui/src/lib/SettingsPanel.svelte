@@ -19,6 +19,7 @@
   import { onDestroy, onMount } from 'svelte';
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
+  import { autoBackupOn, setAutoBackup } from './autoBackup';
   import Appearance from './Appearance.svelte';
   import CalendarsSection from './CalendarsSection.svelte';
   import MailSection from './MailSection.svelte';
@@ -300,6 +301,7 @@
   let provisionedBytes = $state(0);
   /// What this copy could go back to, or null when there is nothing to go back to. Read from the
   /// server rather than remembered, so it stays true across a restart and a fresh clone.
+  let autoBackup = $state(autoBackupOn());
   let previousVersion = $state<string | null>(null);
   /// What the earlier program is called in the *Go back* row. A copy built from source has no
   /// version, so the folder it is kept in is named `previous`; say what it is instead.
@@ -1529,6 +1531,32 @@
              what it sends — a network call a person cannot see described is not one they agreed to.
              Getting and installing are never automatic; each is a press. On a phone the last step
              belongs to Android's installer, so that row offers *Install* rather than a restart. -->
+        <!-- **Backing up by itself.** On unless turned off, per device, and it says beside the
+             switch what it does and when: an automatic thing a person cannot see described is one
+             they did not agree to. Not offered to a paired device, which may not back up at all. -->
+        {#if !isRemote()}
+          <ul class="caps updates">
+            <li>
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  aria-label="back up by itself"
+                  checked={autoBackup}
+                  onchange={(e) => {
+                    autoBackup = e.currentTarget.checked;
+                    setAutoBackup(autoBackup);
+                  }}
+                />
+                <span class="k">{autoBackup ? 'On' : 'Off'}</span>
+                <span class="muted">
+                  Backs up by itself: a little after you stop writing, and when you leave the app,
+                  formicaria gets the changes from your other devices and sends yours. Never while
+                  you are typing, and never a vault that has not been backed up once by you.
+                </span>
+              </label>
+            </li>
+          </ul>
+        {/if}
         {#if upd && upd.can_check}
           <ul class="caps updates">
             <li>

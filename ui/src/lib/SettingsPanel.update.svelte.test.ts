@@ -265,6 +265,27 @@ describe('SettingsPanel — getting a newer version', () => {
     expect(screen.getByRole('button', { name: 'Check now' })).toBeTruthy();
   });
 
+  /// Backing up by itself is on unless turned off, and the switch is the only place it is said.
+  it('offers backing up by itself, on, and remembers when it is turned off', async () => {
+    const kept = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => kept.get(k) ?? null,
+      setItem: (k: string, v: string) => void kept.set(k, v),
+      removeItem: (k: string) => void kept.delete(k),
+    });
+    try {
+      updateStatus.mockResolvedValue(status());
+      panel();
+      const box = (await screen.findByLabelText('back up by itself')) as HTMLInputElement;
+      expect(box.checked).toBe(true);
+      expect(screen.getByText(/Never while\s+you are typing/)).toBeTruthy();
+      await fireEvent.click(box);
+      expect(kept.get('fm-auto-backup')).toBe('off');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   /// It used to show nothing: no rows and no reason, so "there is no Check now" had no answer.
   it('says why, and where to download, when this copy cannot look at all', async () => {
     updateStatus.mockResolvedValue(
