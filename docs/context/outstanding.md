@@ -976,6 +976,10 @@ Next, roughly in order:
 7. **See the automatic backup work between the phone and the desktop**: change a date on one,
    leave the app, and find it on the other without a press (`known-issues.md`, *Backing up by
    itself*). And **see the week grid on the phone** (`decisions.md#ui`, 2026-10-11).
+8. **See the new Settings on the phone**: the list of categories, an open category and its way
+   back, and search (`decisions.md#ui`, 2026-10-11, *Settings shows one category
+   at a time*). Seen in a browser only. Still open from that entry: offering fewer settings, and
+   moving options to the screen they affect.
 
 ## 3. Known and accepted — do not "fix" without deciding
 

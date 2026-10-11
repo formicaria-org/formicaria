@@ -57,6 +57,7 @@ function panel() {
     theme: 'system',
     ontheme: () => {},
     commands: [],
+    category: 'about',
   } as never);
 }
 
@@ -263,6 +264,73 @@ describe('SettingsPanel — getting a newer version', () => {
     answer(status({ available: null, last_check: Math.floor(Date.now() / 1000) }));
     expect(await screen.findByText(/^Last looked today at .+\.$/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check now' })).toBeTruthy();
+  });
+
+  /// One category at a time: the list of them is how you move, and it says what each is set to.
+  it("shows one category at a time, and says each one's state beside its name", async () => {
+    updateStatus.mockResolvedValue(status());
+    const { container } = panel();
+    await screen.findByText(/This machine/);
+    const nav = container.querySelector('nav.jump')!;
+    const names = [...nav.querySelectorAll('.cat-name')].map((b) => b.textContent);
+    expect(names).toEqual(
+      expect.arrayContaining(['Look', 'Keyboard', 'Notes & backup', 'About & updates']),
+    );
+    expect(nav.textContent).toMatch(/System · One view/);
+    const section = (title: RegExp) =>
+      [...container.querySelectorAll<HTMLElement>('section')].find((s) =>
+        title.test(s.querySelector('h3')?.textContent ?? ''),
+      )!;
+    // Opened on About: its sections are on screen, the others are not.
+    expect(section(/^This machine/).hidden).toBe(false);
+    expect(section(/^Theme/).hidden).toBe(true);
+    await fireEvent.click(
+      [...nav.querySelectorAll('button')].find((b) => /^Look/.test(b.textContent!))!,
+    );
+    expect(section(/^Theme/).hidden).toBe(false);
+    expect(section(/^This machine/).hidden).toBe(true);
+    // The actions are not part of Settings at all.
+    expect(container.querySelector<HTMLElement>('section[data-cat="actions"]')!.hidden).toBe(true);
+    expect(screen.getByLabelText('close')).toBeTruthy();
+  });
+
+  it('searches every category at once and says where each match lives', async () => {
+    updateStatus.mockResolvedValue(status());
+    const { container } = panel();
+    await screen.findByText(/This machine/);
+    await fireEvent.input(screen.getByLabelText('search settings'), { target: { value: 'theme' } });
+    const hits = [...container.querySelectorAll<HTMLElement>('section')].filter((s) => !s.hidden);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((s) => /theme/i.test(s.textContent!))).toBe(true);
+    expect(hits.some((s) => s.dataset.found === 'Look')).toBe(true);
+    await fireEvent.input(screen.getByLabelText('search settings'), { target: { value: 'zzzz' } });
+    expect(await screen.findByText(/Nothing in Settings matches/)).toBeTruthy();
+  });
+
+  /// The ＋ opens the actions, and only them.
+  it('is a window of actions and nothing else when the ＋ opened it', async () => {
+    updateStatus.mockResolvedValue(status());
+    const { container } = render(SettingsPanel, {
+      onclose: () => {},
+      onbackup: () => {},
+      layout: 'auto',
+      onlayout: () => {},
+      columns: 2,
+      oncolumns: () => {},
+      theme: 'dark',
+      ontheme: () => {},
+      commands: [{ group: 'Create', label: 'New note', run: () => {} }],
+      section: 'commands',
+    } as never);
+    expect(await screen.findByRole('button', { name: /New note/ })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Do something' })).toBeTruthy();
+    expect(container.querySelector('nav.jump')).toBeNull();
+    expect(screen.queryByLabelText('search settings')).toBeNull();
+    await screen.findByText(/This machine/);
+    const visible = [...container.querySelectorAll<HTMLElement>('section')].filter(
+      (s) => !s.hidden,
+    );
+    expect(visible.map((s) => s.dataset.cat)).toEqual(['actions']);
   });
 
   /// Backing up by itself is on unless turned off, and the switch is the only place it is said.

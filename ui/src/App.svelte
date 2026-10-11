@@ -722,7 +722,8 @@
   function run(cmd: keys.Command) {
     switch (cmd) {
       case 'palette':
-        openSettings();
+        // The shortcut asks for the actions; Settings is the gear's.
+        openSettings('commands');
         break;
       case 'nextPane':
         cyclePane(1);

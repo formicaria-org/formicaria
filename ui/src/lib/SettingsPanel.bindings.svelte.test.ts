@@ -34,6 +34,7 @@ function panel(commands: unknown[]) {
     theme: 'dark',
     ontheme: () => {},
     commands,
+    section: 'commands',
   } as never);
 }
 

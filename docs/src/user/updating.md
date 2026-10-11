@@ -2,7 +2,7 @@
 
 ## From 0.5.2 on, formicaria updates itself
 
-**Settings → This machine** says when a newer version is out. formicaria asks GitHub once a day, and
+**Settings → About & updates** says when a newer version is out. formicaria asks GitHub once a day, and
 **Check now** asks straight away; nothing about you, this computer or your notes is sent.
 
 1. Press **Get v…**. It downloads the new version and checks that it is exactly what the release
@@ -112,6 +112,6 @@ Different mechanics, same question.
 
 ## Which version am I running?
 
-**Settings → This machine → version.** A release shows its tag; a build made from
+**Settings → About & updates → version.** A release shows its tag; a build made from
 source says `dev`. It is worth checking when you have two folders and are not sure
 which one your browser is showing.

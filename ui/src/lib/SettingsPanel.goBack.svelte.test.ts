@@ -39,6 +39,7 @@ function panel() {
     theme: 'system',
     ontheme: () => {},
     commands: [],
+    category: 'about',
   } as never);
 }
 

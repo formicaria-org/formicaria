@@ -104,15 +104,21 @@
 
 <section data-testid="calendars">
   <h3>Calendars</h3>
-  <p class="muted">
-    Meetings from your own calendar, as notes. Paste the calendar's <strong>private address</strong>
-    once — in Google Calendar it is under
-    <em>Settings → your calendar → Integrate calendar → Secret address in iCal format</em>. This
-    computer reads it every hour: new meetings appear, a moved one moves, a cancelled one is marked.
-    Your own writing in a meeting note is never changed, and nothing is ever deleted. The address
-    can only be read, never written to, and it stays on this computer — it is not saved in your
-    notes.
-  </p>
+  <p class="muted lede">Meetings from your own calendar, as notes.</p>
+  <details class="more">
+    <summary>More</summary>
+    <p class="muted">
+      Meetings from your own calendar, as notes. Paste the calendar's <strong
+        >private address</strong
+      >
+      once — in Google Calendar it is under
+      <em>Settings → your calendar → Integrate calendar → Secret address in iCal format</em>. This
+      computer reads it every hour: new meetings appear, a moved one moves, a cancelled one is
+      marked. Your own writing in a meeting note is never changed, and nothing is ever deleted. The
+      address can only be read, never written to, and it stays on this computer — it is not saved in
+      your notes.
+    </p>
+  </details>
 
   {#if cal}
     <ul class="feeds">

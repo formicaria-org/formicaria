@@ -73,7 +73,7 @@ repository, with an expiry date.
 gets the changes from your other devices and sends yours: the same thing the **Back up** button
 does. It never does it while you are typing, and never for a vault you have not backed up once
 yourself. If two devices changed the same sentence, it says which notes to look at, exactly as
-after a backup you pressed. **Settings → This machine** has the switch if you would rather press.
+after a backup you pressed. **Settings → Notes & backup** has the switch if you would rather press.
 It works while the app is open; a device that is closed sends when you next open it.
 
 Click **Back up** — that is the whole action. It commits anything outstanding and pushes —

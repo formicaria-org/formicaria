@@ -85,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -8960,3 +8960,88 @@ under the vault's own limit. A conflict can now appear without a press, announce
 leaving is best effort: Android may stop the app before it finishes, and the next opening takes
 it up. **Not yet seen on a phone or between two real devices**: the rules are unit-tested and the
 wiring is type-checked.
+
+## Settings is one page with a list of its sections, and its controls are drawn by the app (2026-10-11, `#ui`)
+
+> SUPERSEDED IN PART the same day by *Settings shows one category at a time, and the actions have
+> a window of their own*: "it stays one page, not tabs" did not survive being used. The look
+> (cards, switches, fields, the header) stands.
+
+**What prompted it.** The owner: *make the settings window more beautiful and professional*, then:
+*same options but better looking.* Looked at as a picture it was one column 5,300 pixels long with
+no way to move in it, browser-default tick boxes and buttons, three sizes of section title, and
+two whole sections (appearance; the calendar and mail forms) showing the browser's own white
+fields and grey buttons.
+
+**Decision.** Nothing was added, removed, reworded or reordered. What changed:
+- **A header that stays**, with a close button; **a list of the sections**, beside the page on a
+  wide screen and as a row of chips under the header on a narrow one. It is built from the
+  sections that are on the page, so one this copy does not have is not listed, and it marks the
+  one on screen.
+- **Each section is a card**; one size of section title whichever component wrote it; a row is a
+  name in its own column and what is true of it, with a faint line between rows.
+- **Controls are the app's**: a switch for a tick box, a ring for one-of-several, the house button
+  and field wherever the browser's had been left.
+- **It stays one page**, not tabs: every *＋* and link that lands on a section still scrolls to it,
+  and searching the page still finds everything.
+
+**Why two sections had no styling.** `Appearance`, `CalendarsSection` and `MailSection` use this
+panel's class names, and a component's styles do not reach its children. The panel now says those
+few rules once for anything inside it (`:global`, at the end of its style block, kept together).
+
+**Trap.** On a narrow screen the panel is a plain stack, not a one-column grid: a sticky element
+inside a grid stays within its own cell, and the list of sections scrolled away.
+
+**Seen** in a browser at 1280 and 360 wide, dark and light, with the sample data. **Not seen on
+the phone**, and not with a real calendar or mail account connected.
+
+## Settings shows one category at a time, and the actions have a window of their own (2026-10-11, `#ui`)
+
+> Reverses "it stays one page, not tabs" in the entry above, written earlier the same day.
+
+**What prompted it.** The restyle changed how Settings looked and not how it worked. The owner:
+*"look at settings sections of other apps and take inspiration from there; now it is not easy to
+use at all; settings should be simple."*
+
+**What other apps and their guidelines do**, and what Settings did against them:
+- *Commands that are part of the normal workflow do not belong on a settings page* (Microsoft,
+  *Guidelines for app settings*). Settings opened on a list of fifty actions.
+- *A list or list-detail layout; an overview showing settings with their current values*
+  (Android, *Settings pattern*). Settings was one page some 5,300 pixels long.
+- *Version and other rarely used information has its own place* (Microsoft). Facts about the
+  machine sat among the choices.
+- *Keep it approachable; too many settings at once make an app harder to use* (Apple HIG,
+  *Settings*). Most options were a paragraph with a control under it.
+- *A search box that filters to what matches, beside the categories* (VS Code's settings editor).
+
+**Decision.** Nothing is removed; every option and sentence stays reachable.
+- **The actions have their own window** ("Do something"), which Settings no longer opens on.
+  Its shortcut opens it. Settings has no door to it: an *All actions* entry was built and the
+  owner had it removed the same hour as redundant, since everything on the list is already a
+  button somewhere (the rail, the **＋**, Back up). **Consequence, stated:** on a device with no
+  keyboard the list as a whole cannot be opened. The gear opens Settings and nothing else.
+- **One category at a time**: *Look*, *Keyboard*, *Notes & backup*, *Assistant*, *Connections*,
+  *About & updates*. On a wide screen the categories are a list beside the chosen one; on a
+  narrow one the list is the first screen and a category the second, with a way back. Each
+  category says its current state beside its name. A category this copy has nothing in is not
+  listed.
+- **Search** filters across every category and says which category each match is in.
+- **The long explanation of a section sits under *More***, closed, with one sentence in view.
+  A sentence that says what an automatic thing sends or does stays in view, where its switch is.
+- **Read-only facts live in *About & updates***, with the version and the update rows.
+- **It opens where it was left**, or on what a link asked for: every old section id still lands
+  on its section.
+
+**How it is built, and why that way.** The sections stay mounted and are shown or hidden by
+category (`data-cat`, `settingsMap.ts`); nothing is created or destroyed on a change of category.
+So a download in progress keeps reporting, a half-typed field keeps its text, and every existing
+test that looks for a row still finds it.
+
+**Search knows other words for things.** The rows never say "update" or "shortcut"; people type
+them. A section can list what it is also called (`data-words`), and search reads that too.
+
+**Seen** in a browser at 1280 and 360 wide with the sample data: each category, a search, the
+actions window, the phone's list and an open category. **Not seen on the phone.**
+
+**Not done, on purpose.** Offering fewer settings, and moving options to the screen they affect
+(columns into the board): both change what the app offers and are separate decisions.

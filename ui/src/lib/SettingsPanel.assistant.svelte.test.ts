@@ -44,6 +44,7 @@ function panel() {
     theme: 'system',
     ontheme: () => {},
     commands: [],
+    category: 'assistant',
   } as never);
 }
 

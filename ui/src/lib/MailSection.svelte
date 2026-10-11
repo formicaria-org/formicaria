@@ -142,16 +142,22 @@
 
 <section data-testid="mail">
   <h3>Mail</h3>
-  <p class="muted">
-    Read Gmail to keep your meetings and conversations up to date. formicaria can <strong
-      >only read</strong
-    >
-    — Google gives it no way to send, delete or change mail — and it reads only mail with
-    <strong>your label</strong>, from <strong>the date you choose</strong>. Each conversation
-    becomes one note holding the whole exchange — who wrote to whom, when, and what they said. The
-    exchange goes wherever that notebook goes: if it is copied online, so is your mail. An
-    invitation in a message becomes a meeting straight away.
+  <p class="muted lede">
+    Read Gmail to keep your meetings and conversations up to date. formicaria can only read.
   </p>
+  <details class="more">
+    <summary>More</summary>
+    <p class="muted">
+      Read Gmail to keep your meetings and conversations up to date. formicaria can <strong
+        >only read</strong
+      >
+      — Google gives it no way to send, delete or change mail — and it reads only mail with
+      <strong>your label</strong>, from <strong>the date you choose</strong>. Each conversation
+      becomes one note holding the whole exchange — who wrote to whom, when, and what they said. The
+      exchange goes wherever that notebook goes: if it is copied online, so is your mail. An
+      invitation in a message becomes a meeting straight away.
+    </p>
+  </details>
 
   {#if st}
     {#if st.connected}

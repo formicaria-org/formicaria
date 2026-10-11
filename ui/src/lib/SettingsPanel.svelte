@@ -20,6 +20,14 @@
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
   import { autoBackupOn, setAutoBackup } from './autoBackup';
+  import {
+    CATEGORIES,
+    isCat,
+    labelOf,
+    shown as sectionShown,
+    type Cat,
+    type Place,
+  } from './settingsMap';
   import Appearance from './Appearance.svelte';
   import CalendarsSection from './CalendarsSection.svelte';
   import MailSection from './MailSection.svelte';
@@ -105,6 +113,7 @@
     onusertheme = () => {},
     commands,
     section = '',
+    category,
     onkeyschanged,
   }: {
     onclose: () => void;
@@ -126,6 +135,8 @@
     commands: { label: string; run: () => void; group?: string; command?: keys.Command }[];
     /** Which heading to open at — `commands` when a "+" button sent you here. */
     section?: string;
+    /** The category to open on, when the caller knows it; otherwise the one last used. */
+    category?: import('./settingsMap').Cat;
     /** Told when a binding changes, so the shell re-reads it without a reload. */
     onkeyschanged?: () => void;
   } = $props();
@@ -209,7 +220,6 @@
     void refreshVaults();
     // Land on the requested heading, so a "+" button arrives where it meant to rather than at
     // the top of a long panel.
-    if (section) queueMicrotask(() => document.getElementById(section)?.scrollIntoView());
     try {
       cfg = await fetchConfig();
     } catch (e) {
@@ -510,6 +520,122 @@
     }, 1500);
   }
 
+  // ---- One category at a time (`settingsMap.ts`; `decisions.md`, 2026-10-11) ----
+  //
+  // The sections stay mounted and are shown or hidden: nothing is created or destroyed when the
+  // category changes, so a download keeps reporting, a half-typed field keeps its text, and a
+  // link to a section finds it whichever category was open. Each section says where it lives
+  // (`data-cat`, on itself or on what wraps it); this applies the answer.
+  const CAT_KEY = 'fm-settings-category';
+  /** The ＋ asks for the actions; they are a window of their own, not a part of Settings. */
+  const actionsMode = $derived(section === 'commands');
+  let panelEl = $state<HTMLElement | null>(null);
+  // svelte-ignore state_referenced_locally
+  let cat = $state<Cat>(category ?? lastCategory());
+  let query = $state('');
+  /** On a narrow screen: is a category open (true), or the list of them (false)? */
+  // svelte-ignore state_referenced_locally
+  let opened = $state(!!category);
+  let present = $state<Cat[]>([]);
+  let found = $state(0);
+  const atList = $derived(!actionsMode && !opened && !query.trim());
+  function lastCategory(): Cat {
+    try {
+      const was = localStorage.getItem(CAT_KEY);
+      return isCat(was) ? was : 'look';
+    } catch {
+      return 'look';
+    }
+  }
+  function choose(c: Cat) {
+    cat = c;
+    query = '';
+    opened = true;
+    try {
+      localStorage.setItem(CAT_KEY, c);
+    } catch {
+      /* it opens on Look next time */
+    }
+    if (panelEl) panelEl.scrollTop = 0;
+  }
+  function backToList() {
+    opened = false;
+    query = '';
+  }
+  /** What a link asked for (`section`), honoured once its section exists. */
+  let landed = false;
+  function applyView() {
+    const el = panelEl;
+    if (!el) return;
+    if (section && !actionsMode && !landed) {
+      const target = document.getElementById(section);
+      const where = target?.closest<HTMLElement>('[data-cat]')?.dataset.cat;
+      if (target && isCat(where)) {
+        landed = true;
+        cat = where;
+        opened = true;
+        queueMicrotask(() => target.scrollIntoView({ block: 'start' }));
+      }
+    }
+    const secs = [...el.querySelectorAll<HTMLElement>('section, p.group[data-cat]')].flatMap(
+      (sec) => {
+        const place = sec.closest<HTMLElement>('[data-cat]')?.dataset.cat as Place | undefined;
+        return place ? [{ sec, place, heading: sec.tagName === 'P' }] : [];
+      },
+    );
+    const have = new Set<Cat>();
+    for (const { place, heading } of secs) if (place !== 'actions' && !heading) have.add(place);
+    const now = CATEGORIES.map((c) => c.id).filter((c) => have.has(c));
+    if (now.join() !== present.join()) present = now;
+    // The chosen category may not be here (yet: the assistant's section arrives with its answer;
+    // or at all, on a copy without it). Show the first that is, and keep the choice.
+    const showing = have.has(cat) ? cat : (now[0] ?? cat);
+    let hits = 0;
+    for (const { sec, place, heading } of secs) {
+      const show = sectionShown({
+        actions: actionsMode,
+        cat: showing,
+        query,
+        place,
+        // What a section is also called, by someone who does not know our word for it.
+        text: `${sec.textContent ?? ''} ${sec.dataset.words ?? ''}`,
+        heading,
+      });
+      sec.hidden = !show;
+      // While searching, each result says which category it is in.
+      if (show && query.trim() && place !== 'actions') {
+        sec.dataset.found = labelOf(place);
+        hits++;
+      } else {
+        delete sec.dataset.found;
+      }
+    }
+    found = hits;
+  }
+  $effect(() => {
+    const el = panelEl;
+    if (!el) return;
+    void cat;
+    void query;
+    void actionsMode;
+    applyView();
+    // Sections arrive as their answers do (the assistant, sharing, the vault list).
+    const seen = new MutationObserver(applyView);
+    seen.observe(el, { childList: true, subtree: true });
+    return () => seen.disconnect();
+  });
+  /** What each category is set to right now, said beside its name. */
+  const states = $derived.by<Partial<Record<Cat, string>>>(() => ({
+    look: `${theme.charAt(0).toUpperCase()}${theme.slice(1)} · ${
+      layout === 'tiled' ? 'Tiled' : 'One view'
+    }`,
+    notes: `${vaults.length} vault${vaults.length === 1 ? '' : 's'} · backs up by itself ${
+      autoBackup ? 'on' : 'off'
+    }`,
+    assistant: agentOn === null ? undefined : agentOn ? 'On' : 'Off',
+    about: cfg ? (upd?.available ? `${cfg.version} · a newer one is out` : cfg.version) : undefined,
+  }));
+
   function reason(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
   }
@@ -730,11 +856,55 @@
 
 <div class="settings-overlay">
   <button class="settings-backdrop" aria-label="close settings" onclick={onclose}></button>
-  <div class="panel" role="dialog" aria-label="settings">
+  <div
+    class="panel"
+    class:actions-only={actionsMode}
+    class:at-list={atList}
+    class:searching={!!query.trim()}
+    role="dialog"
+    aria-label={actionsMode ? 'actions' : 'settings'}
+    bind:this={panelEl}
+  >
     <div class="panel-head">
-      <h2>Settings</h2>
-      <span class="sub">what this installation is configured as</span>
+      {#if !actionsMode && !atList}
+        <button class="back" aria-label="all settings" onclick={backToList}>‹</button>
+      {/if}
+      {#if actionsMode}
+        <h2>Do something</h2>
+      {:else}
+        <!-- On a narrow screen an open category is a screen of its own, and says its name. -->
+        <h2><span class="t-all">Settings</span><span class="t-cat">{labelOf(cat)}</span></h2>
+      {/if}
+      {#if !actionsMode}
+        <!-- **Search every category at once.** Typing here shows whatever matches, from anywhere
+             in Settings, each under the name of the category it lives in. -->
+        <input
+          class="find"
+          type="search"
+          placeholder="Search settings"
+          aria-label="search settings"
+          autocomplete="off"
+          spellcheck="false"
+          bind:value={query}
+        />
+      {/if}
+      <button class="x" aria-label="close" title="Close" onclick={onclose}>✕</button>
     </div>
+    <!-- **The categories.** One is on screen at a time; each says its current state beside its
+         name, so the list is also the overview. One this copy has nothing in is not listed. -->
+    {#if !actionsMode}
+      <nav class="jump" aria-label="settings categories">
+        {#each CATEGORIES.filter((c) => present.includes(c.id)) as c (c.id)}
+          <button class:on={c.id === cat && !query.trim()} onclick={() => choose(c.id)}>
+            <span class="cat-name">{c.label}</span>
+            {#if states[c.id]}<span class="cat-state">{states[c.id]}</span>{/if}
+          </button>
+        {/each}
+      </nav>
+    {/if}
+    {#if !actionsMode && query.trim() && found === 0}
+      <p class="muted nothing">Nothing in Settings matches “{query.trim()}”.</p>
+    {/if}
 
     {#if error}
       <p class="bad" role="alert">{error}</p>
@@ -749,9 +919,9 @@
       <!-- **Actions first, preferences second.** This is the surface the "+" buttons and the
            gear both land on, and what someone wants nine times out of ten is to open or make
            something — not to change a setting. -->
-      <p class="group" id="commands">Do something</p>
+      <p class="group" id="commands" data-cat="actions">Do something</p>
 
-      <section>
+      <section data-cat="actions">
         <input
           class="filter"
           placeholder="Filter actions…"
@@ -792,9 +962,11 @@
         </ul>
       </section>
 
-      <p class="group">Preferences <span class="muted">— this browser, no vault touched</span></p>
+      <p class="group" data-cat="look">
+        Preferences <span class="muted">— this browser, no vault touched</span>
+      </p>
 
-      <section>
+      <section data-cat="look" data-words="dark light mode colour color">
         <h3>Theme</h3>
         <p class="muted">
           Stored in this browser. It followed the system setting until you chose here.
@@ -812,15 +984,21 @@
       <!-- Colours and type. Sits next to the dark/light switch because that is where a person
            looks for "how this looks", even though this one writes a file in the vault while its
            neighbours touch only this browser — which the section says of itself. -->
-      <Appearance selected={userTheme} onselect={onusertheme} />
+      <div class="cat" data-cat="look">
+        <Appearance selected={userTheme} onselect={onusertheme} />
+      </div>
 
-      <section>
+      <section data-cat="look">
         <h3>Layout</h3>
-        <p class="muted">
-          How views are arranged. <strong>One view</strong> is the default everywhere, including this
-          machine — a narrow layout only a phone could run would be a second frontend wearing a setting,
-          and nothing would exercise it during ordinary desktop work.
-        </p>
+        <p class="muted lede">One view at a time, or several side by side.</p>
+        <details class="more">
+          <summary>More</summary>
+          <p class="muted">
+            How views are arranged. <strong>One view</strong> is the default everywhere, including this
+            machine — a narrow layout only a phone could run would be a second frontend wearing a setting,
+            and nothing would exercise it during ordinary desktop work.
+          </p>
+        </details>
         <ul class="caps">
           {#each [['single', 'One view', 'The default. One at a time; the strip along the bottom moves between the ones you have open.'], ['tiled', 'Tiled', 'The pane grid — several views side by side.']] as [value, label, why] (value)}
             <li>
@@ -840,16 +1018,22 @@
       </section>
 
       {#if agentOn !== null}
-        <section>
+        <section data-cat="assistant" data-words="ai model llm transcription agent">
           <h3>Study assistant</h3>
-          <p class="muted">
-            A small local model that reads your notes and answers in discussions — mention it by
-            name (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review,
-            and never touches your notes on its own. It runs entirely on this device, starts and
-            stops
-            <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change takes
-            effect at the next launch.
+          <p class="muted lede">
+            A small model on this device that answers in discussions and proposes edits you review.
           </p>
+          <details class="more">
+            <summary>More</summary>
+            <p class="muted">
+              A small local model that reads your notes and answers in discussions — mention it by
+              name (e.g. <code>@qwen3-vl-4b</code>) and it replies; it can propose edits you review,
+              and never touches your notes on its own. It runs entirely on this device, starts and
+              stops
+              <strong>with formicaria</strong>, and is <strong>off by default</strong>. A change
+              takes effect at the next launch.
+            </p>
+          </details>
           <ul class="caps">
             {#if !agentInstalled}
               <!-- No switch at all when there is nothing to switch on. The same shape git and restic
@@ -1079,15 +1263,19 @@
       <!-- Shown only on the computer doing the sharing. A paired tablet is refused every route
            behind this panel anyway, so rendering it there would be a menu of failures. -->
       {#if !isRemote()}
-        <section>
+        <section data-cat="connections" data-words="tablet phone pair pairing network">
           <h3>Share with another device</h3>
-          <p class="muted">
-            Open your notes on a tablet or phone on the same network — useful for touch and for
-            taking photos straight into a note. The notes stay <strong>on this computer</strong>;
-            the other device reads and writes them over your own network, and nothing is sent
-            anywhere else. <strong>Off by default</strong>, and a change takes effect at the next
-            launch.
-          </p>
+          <p class="muted lede">Open your notes on a tablet or phone on the same network.</p>
+          <details class="more">
+            <summary>More</summary>
+            <p class="muted">
+              Open your notes on a tablet or phone on the same network — useful for touch and for
+              taking photos straight into a note. The notes stay <strong>on this computer</strong>;
+              the other device reads and writes them over your own network, and nothing is sent
+              anywhere else. <strong>Off by default</strong>, and a change takes effect at the next
+              launch.
+            </p>
+          </details>
           <ul class="caps">
             <li>
               <label class="choice">
@@ -1189,11 +1377,13 @@
       <!-- Your own calendars. The computer holds the addresses and does the reading, so a paired
            tablet (refused every route) and the phone (no reader yet) are not offered it. -->
       {#if !isRemote() && !isPhone()}
-        <CalendarsSection />
-        <MailSection />
+        <div class="cat" data-cat="connections">
+          <CalendarsSection />
+          <MailSection />
+        </div>
       {/if}
 
-      <section>
+      <section data-cat="look" data-words="grid width panes">
         <h3>Columns</h3>
         <p class="muted">
           How wide the grid is in the tiled arrangement. <strong>Automatic</strong> follows the number
@@ -1216,7 +1406,7 @@
         </ul>
       </section>
 
-      <section>
+      <section data-cat="keyboard" data-words="shortcut shortcuts hotkey keys">
         <h3>Keyboard</h3>
         <p class="muted">
           Click a shortcut, then press the keys you want. <strong>Esc</strong> cancels. The
@@ -1251,11 +1441,11 @@
         </p>
       </section>
 
-      <p class="group">
+      <p class="group" data-cat="about">
         This installation <span class="muted">— read-only; the backend owns these</span>
       </p>
 
-      <section>
+      <section data-cat="about">
         <h3>Vault list</h3>
         {#if cfg.vault_list}
           <p class="path"><code>{cfg.vault_list}</code></p>
@@ -1277,8 +1467,37 @@
         {/if}
       </section>
 
-      <section>
+      <section
+        data-cat="notes"
+        data-words="backup back up sync send attachments vault vaults automatic"
+      >
         <h3>Vaults <span class="count">{vaults.length}</span></h3>
+        <!-- **Backing up by itself.** On unless turned off, per device, and it says beside the
+             switch what it does and when: an automatic thing a person cannot see described is one
+             they did not agree to. Not offered to a paired device, which may not back up at all. -->
+        {#if !isRemote()}
+          <ul class="caps updates">
+            <li>
+              <label class="choice">
+                <input
+                  type="checkbox"
+                  aria-label="back up by itself"
+                  checked={autoBackup}
+                  onchange={(e) => {
+                    autoBackup = e.currentTarget.checked;
+                    setAutoBackup(autoBackup);
+                  }}
+                />
+                <span class="k">{autoBackup ? 'On' : 'Off'}</span>
+                <span class="muted">
+                  Backs up by itself: a little after you stop writing, and when you leave the app,
+                  formicaria gets the changes from your other devices and sends yours. Never while
+                  you are typing, and never a vault that has not been backed up once by you.
+                </span>
+              </label>
+            </li>
+          </ul>
+        {/if}
         {#each vaults as v (v.name)}
           <div class="vault">
             <div class="line">
@@ -1409,7 +1628,7 @@
         </p>
       </section>
 
-      <section>
+      <section data-cat="about" data-words="update updates upgrade version release about">
         <h3>This machine</h3>
         <ul class="caps facts">
           <!-- **Which build this is.** First on the list because it is the one fact you need
@@ -1531,32 +1750,6 @@
              what it sends — a network call a person cannot see described is not one they agreed to.
              Getting and installing are never automatic; each is a press. On a phone the last step
              belongs to Android's installer, so that row offers *Install* rather than a restart. -->
-        <!-- **Backing up by itself.** On unless turned off, per device, and it says beside the
-             switch what it does and when: an automatic thing a person cannot see described is one
-             they did not agree to. Not offered to a paired device, which may not back up at all. -->
-        {#if !isRemote()}
-          <ul class="caps updates">
-            <li>
-              <label class="choice">
-                <input
-                  type="checkbox"
-                  aria-label="back up by itself"
-                  checked={autoBackup}
-                  onchange={(e) => {
-                    autoBackup = e.currentTarget.checked;
-                    setAutoBackup(autoBackup);
-                  }}
-                />
-                <span class="k">{autoBackup ? 'On' : 'Off'}</span>
-                <span class="muted">
-                  Backs up by itself: a little after you stop writing, and when you leave the app,
-                  formicaria gets the changes from your other devices and sends yours. Never while
-                  you are typing, and never a vault that has not been backed up once by you.
-                </span>
-              </label>
-            </li>
-          </ul>
-        {/if}
         {#if upd && upd.can_check}
           <ul class="caps updates">
             <li>
@@ -1719,7 +1912,7 @@
       </section>
 
       {#if cfg.env.length}
-        <section>
+        <section data-cat="about">
           <h3>Environment overrides</h3>
           <p class="muted">
             In effect right now, and they win over the config file. This is usually the answer to
@@ -1821,8 +2014,7 @@
     line-height: 1.5;
   }
   section {
-    border-top: 1px solid var(--border);
-    padding-top: var(--space-3);
+    min-width: 0;
   }
   .vault {
     padding: var(--space-2) 0;
@@ -1883,7 +2075,7 @@
   }
   .choice {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     gap: var(--space-2);
     cursor: pointer;
   }
@@ -2196,6 +2388,643 @@
     }
     .updates > li > button {
       margin-top: var(--space-2);
+    }
+  }
+
+  /* ============================================================================================
+     The look of the window (2026-10-11). Same options, same order, same words: this is the frame,
+     the cards and the controls. Kept in one block at the end so it reads as one decision.
+
+     - **A header that stays**, with a way to close that is always in reach.
+     - **A list of sections** beside the page on a wide screen and above it on a narrow one.
+     - **Each section is a card**, so where one ends is something you can see.
+     - **Controls drawn by the app**, not the browser: a switch for on/off, a ring for one-of,
+       the house button for any button that had no look of its own.
+     ============================================================================================ */
+  .panel {
+    width: min(58rem, 96vw);
+    padding: 0 0 var(--space-5);
+    display: grid;
+    grid-template-columns: 12.5rem minmax(0, 1fr);
+    align-content: start;
+    gap: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .panel > :global(*),
+  .panel > .cat > :global(*) {
+    grid-column: 2;
+    margin-inline: var(--space-5);
+  }
+  /* A wrapper that only says which category its sections are in. */
+  .cat {
+    display: contents;
+  }
+  .panel-head {
+    grid-column: 1 / -1;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    align-items: center;
+    margin: 0;
+    padding: var(--space-3) var(--space-5);
+    background: var(--surface-elevated);
+    border-bottom: 1px solid var(--border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+  h2 {
+    font-size: var(--text-lg);
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+  .find {
+    flex: 1 1 10rem;
+    min-width: 0;
+    max-width: 20rem;
+    margin-left: auto;
+    box-sizing: border-box;
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+  .find:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  /* A search result says which category it lives in. */
+  .panel :global(section[data-found])::before {
+    content: attr(data-found);
+    display: block;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+  .nothing {
+    padding: var(--space-5) 0;
+    text-align: center;
+  }
+  .t-cat {
+    display: none;
+  }
+  /* Only on a narrow screen, where a category is a screen of its own. */
+  .back {
+    display: none;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text);
+    font-size: var(--text-xl);
+    line-height: 1;
+    cursor: pointer;
+  }
+  /* The window of actions the ＋ opens: one column, no categories. */
+  .panel.actions-only {
+    width: min(38rem, 94vw);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .panel.actions-only > :global(*),
+  .panel.actions-only > .cat > :global(*) {
+    grid-column: 1;
+  }
+  .panel.actions-only .group {
+    display: none;
+  }
+  .panel.actions-only .x {
+    margin-left: auto;
+  }
+  .x {
+    margin-left: var(--space-2);
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-md);
+    cursor: pointer;
+  }
+  .x:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .jump {
+    grid-column: 1;
+    grid-row: 2 / span 40;
+    align-self: start;
+    position: sticky;
+    top: 3.4rem;
+    z-index: 2;
+    margin: 0;
+    padding: var(--space-3) var(--space-2) var(--space-3) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: calc(100% - 3.4rem);
+    box-sizing: border-box;
+  }
+  .jump button {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    text-align: left;
+    padding: 0.45rem 0.65rem;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    min-width: 0;
+  }
+  .cat-name,
+  .cat-state {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cat-name {
+    color: var(--text);
+  }
+  .cat-state {
+    font-size: var(--text-xs);
+    font-weight: 400;
+    color: var(--text-subtle);
+  }
+  .jump button:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+  .jump button.on {
+    background: var(--accent-subtle);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  /* The two labels that divide the page: what you can change here, and what is only shown. */
+  .group {
+    margin-top: var(--space-5);
+    margin-bottom: var(--space-2);
+    padding: 0;
+    border: none;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+  .group :global(.muted) {
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .panel :global(section) {
+    margin-block: var(--space-2);
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    scroll-margin-top: 4.2rem;
+  }
+  /* One size of section title, whichever component wrote it. */
+  .panel :global(section > :is(h2, h3)) {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-base);
+    font-weight: 650;
+    letter-spacing: -0.005em;
+    color: var(--text);
+  }
+  .panel :global(ul) {
+    list-style: none;
+    padding-left: 0;
+  }
+  .actions {
+    margin-top: var(--space-3);
+  }
+
+  /* ---- Controls ---- */
+  .panel :global(input[type='checkbox']) {
+    appearance: none;
+    flex: 0 0 auto;
+    position: relative;
+    width: 2.1rem;
+    height: 1.2rem;
+    margin: 0.1rem 0 0;
+    border-radius: 999px;
+    background: var(--border-strong);
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .panel :global(input[type='checkbox'])::before {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(1.2rem - 4px);
+    height: calc(1.2rem - 4px);
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+    transition: transform var(--dur-fast) var(--ease);
+  }
+  .panel :global(input[type='checkbox']:checked) {
+    background: var(--accent);
+  }
+  .panel :global(input[type='checkbox']:checked)::before {
+    transform: translateX(0.9rem);
+  }
+  .panel :global(input[type='radio']) {
+    appearance: none;
+    flex: 0 0 auto;
+    width: 1.05rem;
+    height: 1.05rem;
+    margin: 0.15rem 0 0;
+    border: 2px solid var(--border-strong);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  .panel :global(input[type='radio']:checked) {
+    border-color: var(--accent);
+    background: radial-gradient(circle, var(--accent) 0 45%, transparent 50%);
+  }
+  .panel :global(input:is([type='checkbox'], [type='radio']):focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .panel :global(input:is([type='checkbox'], [type='radio']):disabled) {
+    opacity: 0.5;
+    cursor: default;
+  }
+  /* Any button that was left to the browser. One with a class has a look of its own already. */
+  .panel :global(button:not([class])) {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .panel :global(button:not([class]):hover:not(:disabled)) {
+    border-color: var(--accent);
+  }
+  .panel :global(button:not([class]):disabled) {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* ---- The sections other components write (appearance, calendars, mail) ----
+     They use this panel's words for things (`caps`, `k`, `muted`, `choice`, `binding`, `group`) and,
+     being separate components, never received its styles: their buttons were the browser's own.
+     Said once here, for anything inside the panel. */
+  .panel :global(section .muted) {
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+  .panel :global(section ul.caps) {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+  }
+  .panel :global(section .k) {
+    color: var(--text-muted);
+  }
+  .panel :global(section label.choice) {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    cursor: pointer;
+    font-size: var(--text-sm);
+  }
+  .panel :global(section p.group) {
+    margin: var(--space-4) 0 var(--space-2);
+    padding: 0;
+    border: none;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+  .panel :global(button.binding) {
+    padding: 0.2rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .panel :global(button.binding:hover:not(:disabled)) {
+    border-color: var(--accent);
+  }
+  .panel :global(button.binding[aria-pressed='true']) {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    font-weight: 600;
+  }
+  .panel :global(button.binding:disabled) {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .panel :global(section .row) {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .panel :global(input[type='color']) {
+    width: 2rem;
+    height: 1.6rem;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    cursor: pointer;
+  }
+  /* Fields and the buttons these sections name by role (`primary`, `danger`, `link`). */
+  .panel :global(:where(input:not([type]), input[type='text'], input[type='url']):not([class])),
+  .panel :global(:where(input[type='password'], input[type='email']):not([class])),
+  .panel :global(:where(select, textarea):not([class])) {
+    box-sizing: border-box;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+  .panel :global(:where(input, select, textarea):not([class]):focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  .panel :global(section > :not(.caps) button:is(.primary, .danger)),
+  .panel :global(section > button:is(.primary, .danger)) {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .panel :global(section button.primary) {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+  .panel :global(section button.danger) {
+    border-color: var(--danger-bg);
+    color: var(--danger-fg);
+  }
+  .panel :global(section button:is(.primary, .danger):disabled) {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .panel :global(section button.link) {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--link);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  /* The calendar and mail forms: their fields and buttons, wherever their own rules left them
+     to the browser. */
+  .panel :global(section :is(.add, .offset, .line) :is(input, select)) {
+    box-sizing: border-box;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+  }
+  .panel :global(section :is(.add, .offset, .line) :is(input, select):focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+  .panel :global(section :is(.add, .offset, .line) button:not(.link)) {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+  }
+  .panel :global(section :is(.add, .offset, .line) button.primary) {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+  .panel :global(section :is(.add, .offset, .line) button:disabled) {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  /* Lists that follow one another inside a card are separate groups of rows. */
+  .panel :global(section ul.caps + ul.caps) {
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+
+  /* ---- One sentence in view, the rest under *More* ----
+     The explanation is all still there; it is closed until asked for. */
+  .panel :global(.lede) {
+    margin: 0 0 var(--space-2);
+  }
+  .panel :global(details.more) {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-sm);
+  }
+  .panel :global(details.more > summary) {
+    display: inline-block;
+    cursor: pointer;
+    color: var(--link);
+    list-style: none;
+    user-select: none;
+  }
+  .panel :global(details.more > summary::-webkit-details-marker) {
+    display: none;
+  }
+  .panel :global(details.more > summary)::after {
+    content: ' ›';
+  }
+  .panel :global(details.more[open] > summary)::after {
+    content: ' ⌄';
+  }
+  .panel :global(details.more > p) {
+    margin: var(--space-2) 0 0;
+  }
+
+  /* ---- Rows ----
+     A row is a name and what is true of it. The name hangs in its own column, so a long answer
+     wraps under the answer and not under the name; a faint line separates one row from the next. */
+  .panel :global(.caps li + li) {
+    padding-top: var(--space-2);
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+  .panel :global(.caps li:has(> .k:first-child)) {
+    position: relative;
+    padding-left: 11rem;
+    line-height: 1.5;
+  }
+  .panel :global(.caps li > .k:first-child) {
+    position: absolute;
+    left: 0;
+    width: 10.5rem;
+    min-width: 0;
+  }
+  .caps li > :global(button) {
+    margin-left: var(--space-2);
+  }
+  /* A switch row: the switch, its state in a word, then what it does. */
+  .choice {
+    gap: var(--space-3);
+  }
+  .panel :global(.choice .k) {
+    min-width: 4.2rem;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .panel :global(.choice .muted) {
+    margin: 0;
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  /* ---- A vault's block ---- */
+  .vault {
+    padding: var(--space-3) 0;
+  }
+  .vault + .vault {
+    border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  }
+  .vault .line {
+    font-size: var(--text-sm);
+    gap: var(--space-3);
+  }
+  .vault .line:first-child {
+    font-size: var(--text-base);
+  }
+  .vault label.line {
+    margin-block: var(--space-2);
+  }
+
+  /* A narrow screen: the list of sections lies across the top and scrolls sideways. */
+  @media (max-width: 46rem) {
+    /* A plain stack, not a one-column grid: a sticky row inside a grid stays within its own
+       cell, so the list of sections scrolled away with the first screenful. */
+    .panel {
+      display: block;
+      width: 100%;
+    }
+    .panel > :global(*),
+    .panel > .cat > :global(*) {
+      grid-column: 1;
+      margin-inline: var(--space-3);
+    }
+    .panel-head {
+      padding-inline: var(--space-3);
+    }
+    /* A switch, its word, and then the explanation on a line of its own. */
+    .panel :global(.choice) {
+      flex-wrap: wrap;
+    }
+    .panel :global(.choice .muted) {
+      flex-basis: 100%;
+    }
+    /* The list of categories is the first screen; a category is the second. */
+    .jump {
+      position: static;
+      max-height: none;
+      padding: var(--space-3);
+      gap: var(--space-2);
+    }
+    .jump button {
+      padding: 0.8rem 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      font-size: var(--text-base);
+    }
+    .jump button.on {
+      box-shadow: none;
+      background: var(--surface);
+      font-weight: 400;
+    }
+    .panel:not(.at-list) .jump {
+      display: none;
+    }
+    .panel.at-list :global(section),
+    .panel.at-list :global(p.group),
+    .panel.at-list .actions {
+      display: none;
+    }
+    .panel:not(.at-list):not(.actions-only) .back {
+      display: grid;
+      place-items: center;
+    }
+    /* An open category: its name, the way back and the way out. Searching is done from the list,
+       and while something is typed the field has the header to itself. */
+    .panel:not(.at-list):not(.searching) .find {
+      display: none;
+    }
+    .panel:not(.at-list):not(.searching) .t-all,
+    .panel.searching h2 {
+      display: none;
+    }
+    .panel:not(.at-list):not(.searching) .t-cat {
+      display: inline;
+    }
+    .panel:not(.at-list):not(.searching) .x {
+      margin-left: auto;
+    }
+    .panel.searching .find {
+      max-width: none;
+      margin-left: 0;
+    }
+    .panel :global(section) {
+      padding: var(--space-3);
+      scroll-margin-top: 4rem;
+    }
+    /* No room for two columns: the name sits above its answer. */
+    .panel :global(.caps li:has(> .k:first-child)) {
+      padding-left: 0;
+    }
+    .panel :global(.caps li > .k:first-child) {
+      position: static;
+      display: block;
+      width: auto;
+      font-size: var(--text-xs);
     }
   }
 </style>

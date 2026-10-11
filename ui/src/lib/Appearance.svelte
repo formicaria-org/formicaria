@@ -201,11 +201,16 @@
 
 <section>
   <h3>Appearance</h3>
-  <p class="muted">
-    Colours and type. Unlike the settings around it, this one <strong>is kept in your vault</strong
-    >, so it travels with your notes — but which one is switched on stays on this device, the same
-    as dark and light.
-  </p>
+  <p class="muted lede">Colours and type. Kept in your vault, so it travels with your notes.</p>
+  <details class="more">
+    <summary>More</summary>
+    <p class="muted">
+      Colours and type. Unlike the settings around it, this one <strong
+        >is kept in your vault</strong
+      >, so it travels with your notes — but which one is switched on stays on this device, the same
+      as dark and light.
+    </p>
+  </details>
 
   {#if handWritten}
     <p class="muted">
