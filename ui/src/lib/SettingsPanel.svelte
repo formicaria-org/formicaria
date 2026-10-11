@@ -872,8 +872,13 @@
       {#if actionsMode}
         <h2>Do something</h2>
       {:else}
-        <!-- On a narrow screen an open category is a screen of its own, and says its name. -->
-        <h2><span class="t-all">Settings</span><span class="t-cat">{labelOf(cat)}</span></h2>
+        <!-- On a narrow screen an open category is a screen of its own, and says its name. The
+             window is still called Settings to anything that asks for it by name. -->
+        <h2>
+          <span class="t-all">Settings</span><span class="t-cat" aria-hidden="true"
+            >{labelOf(cat)}</span
+          >
+        </h2>
       {/if}
       {#if !actionsMode}
         <!-- **Search every category at once.** Typing here shows whatever matches, from anywhere
