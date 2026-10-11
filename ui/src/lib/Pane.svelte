@@ -22,7 +22,7 @@
   import { spacesShown, type SpaceTab } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
-  import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
+  import { paneTitle, paneLabel, clampSpan, rendererKind } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
   import { orderColumns, moveValue } from './boardOrder';
 
@@ -221,9 +221,7 @@
   /// What stays in this header is what belongs to *this window* rather than to the choice of view:
   /// its grouping, its density, saving and renaming it, closing it, and dragging it to move.
   const currentLabel = $derived(
-    pane.kind === 'view'
-      ? (pane.viewName ?? 'View')
-      : (BUILTIN_PANES.find((b) => b.kind === pane.kind)?.label ?? 'Board'),
+    pane.kind === 'view' ? (pane.viewName ?? 'View') : paneLabel(pane.kind),
   );
 
   /// Which renderer a saved view draws through — read from the *feed*, so it arrives with the

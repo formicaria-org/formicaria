@@ -7,25 +7,28 @@
 //
 // **Shown everywhere since phase 2.** `localStorage['fm-spaces'] = '0'` still turns the group
 // chrome off on a device — a way back while it is new, with no switch in Settings.
-import type { PaneKind } from './panes';
+import { paneIcon, paneLabel, type Pane, type PaneKind } from './panes';
 import type { ViewGroup } from './types';
 
 export type SpaceTab = { key: string; label: string; kind: PaneKind; viewName?: string };
 export type Space = { name: string; icon: string; tabs: SpaceTab[] };
 
+/// A built-in view as a tab: **its name is the registry's**, never written again here
+/// (`decisions.md#ui`, 2026-10-12, *the names never differ*).
+const tab = (kind: PaneKind): SpaceTab => ({ key: kind, label: paneLabel(kind), kind });
+
+/// **The one place a group of built-in views is named.** Every screen on every system reads it:
+/// there is one UI, and the phone and the desktop are two layouts of it.
 export const BUILTIN_SPACES: Space[] = [
   {
     name: 'Library',
-    icon: 'timeline',
-    tabs: [{ key: 'timeline', label: 'Timeline', kind: 'timeline' }],
+    icon: paneIcon({ kind: 'timeline' } as Pane) ?? 'timeline',
+    tabs: [tab('timeline')],
   },
   {
     name: 'Tasks',
-    icon: 'board',
-    tabs: [
-      { key: 'board', label: 'Board', kind: 'board' },
-      { key: 'agenda', label: 'Agenda', kind: 'agenda' },
-    ],
+    icon: paneIcon({ kind: 'board' } as Pane) ?? 'board',
+    tabs: [tab('board'), tab('agenda')],
   },
 ];
 

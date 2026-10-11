@@ -304,29 +304,28 @@ export function clampSpan(span: number, cols: number): number {
   return Math.max(1, Math.min(span, cols));
 }
 
+/// **The one name of a built-in view**, read from the registry below — so the panel, the phone's
+/// menu, a group's tab, a window's title and the "Open …" actions cannot call one view two things
+/// (`decisions.md#ui`, 2026-10-12, *the names never differ*).
+export function paneLabel(kind: PaneKind): string {
+  return BUILTIN_PANES.find((b) => b.kind === kind)?.label ?? kind;
+}
+
 /** The label shown in a pane's header and its picker. `view`/`note` carry their own name. */
 export function paneTitle(p: Pane): string {
   switch (p.kind) {
     case 'board':
-      return `Board · ${p.groupBy}`;
-    case 'agenda':
-      return 'Agenda';
-    case 'timeline':
-      return 'Timeline';
+      return `${paneLabel('board')} · ${p.groupBy}`;
     case 'search':
-      return p.query ? `Search · ${p.query}` : 'Search';
-    case 'activity':
-      return 'Activity';
-    case 'collaboration':
-      return 'Collaboration';
-    case 'discussions':
-      return 'Discussions';
+      return p.query ? `${paneLabel('search')} · ${p.query}` : paneLabel('search');
     case 'view':
       return p.viewName ?? 'View';
     case 'note':
       // Its title — whose first letters are what a narrow list or tab shows — and "Note" only until
       // the note has loaded, or for a note that has no title.
       return p.noteTitle?.trim() || 'Note';
+    default:
+      return paneLabel(p.kind);
   }
 }
 

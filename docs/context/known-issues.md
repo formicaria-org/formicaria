@@ -1275,6 +1275,11 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   board. `localStorage['fm-spaces'] = '0'` turns the group chrome off on a device, with no switch.
   In Food and Fitness the plus cannot make a note. A group's tabs are one more row at the top of
   a phone's window.
+  **Where a name is written** (so it cannot differ between systems — there is one UI, which
+  the desktop serves and the phone's shell embeds): a built-in view's in `BUILTIN_PANES`
+  (`panes.ts`, read through `paneLabel`); Library and Tasks in `BUILTIN_SPACES`; Food, Fitness
+  and their views in `crates/fm-app/src/shipped/*.view`. Pinned by `lib/names.test.ts` and, for
+  the mock backend and Settings, by `tests/log.rs`.
   **Behaves differently from before the groups.** Stepping between the board and the agenda
   re-points the one window, on every screen: the side panel, the phone's view menu and
   the "Open …" actions all list the same places by the same names (`viewTargets`), so none of

@@ -488,3 +488,36 @@ fn a_recipe_note_is_a_visible_note_and_its_ingredients_are_not() {
     seen.sort();
     assert_eq!(seen, ["Dal", "Soup"]);
 }
+
+/// **The names of the shipped groups and views are these files' and nobody else's** — every
+/// system's backend reads them (`decisions.md#ui`, 2026-10-12, *the names never differ*). The two
+/// places in the front end that have to say them again are held to them here: the in-memory
+/// backend that `pnpm dev` and the UI's tests run on, and the Settings switch that names the groups.
+#[test]
+fn the_front_end_names_the_shipped_groups_and_views_as_the_files_do() {
+    let mock = include_str!("../../../ui/src/lib/mockTracker.ts");
+    let settings = include_str!("../../../ui/src/lib/TrackersSection.svelte");
+    let shipped = shipped_views();
+    assert!(!shipped.is_empty());
+    for v in &shipped {
+        let group = v.group.as_deref().unwrap();
+        assert!(
+            mock.contains(&format!("\n  {}: {{", v.name)),
+            "the in-memory backend has no view called {} — it is `{}` in the shipped file",
+            v.name,
+            v.name
+        );
+        assert!(
+            mock.contains(&format!("name: '{group}'")),
+            "the in-memory backend has no group called {group}"
+        );
+        assert!(settings.contains(group), "Settings does not name the group {group}");
+    }
+    // And it lists no view the app does not ship.
+    let defs = mock.split("const DEFS").nth(1).and_then(|t| t.split("\n};").next()).unwrap();
+    let listed = defs
+        .lines()
+        .filter(|l| l.starts_with("  ") && !l.starts_with("   ") && l.contains(": {"))
+        .count();
+    assert_eq!(listed, shipped.len(), "the in-memory backend lists a view that is not shipped");
+}
