@@ -164,18 +164,24 @@ test('a view can be opened when the chrome is a bar, where there is no rail', as
   const names = Array.from(menu.querySelectorAll('button')).map((b) =>
     (b.textContent ?? '').trim(),
   );
-  expect(names).toContain('Timeline');
+  // **The same places by the same names as the panel** (`decisions.md#ui`, 2026-10-12): a phone
+  // does not call them something a desktop does not.
+  const rail = screen.getByRole('navigation', { name: 'views' });
+  expect(names).toEqual(
+    Array.from(rail.querySelectorAll('button')).map((b) => (b.textContent ?? '').trim()),
+  );
+  expect(names).toContain('Library');
   expect(names).toContain('Active'); // a saved view, not just the built-ins
   expect(names).not.toContain('Search'); // nowhere offers an empty search pane
 
   const before = document.querySelectorAll('.pane').length;
-  await fireEvent.click(screen.getByRole('menuitem', { name: 'Agenda' }));
+  await fireEvent.click(screen.getByRole('menuitem', { name: 'Library' }));
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
 
   // The bar's menu is the other consumer of the same list, so it re-points too — one edit
   // covers both, and this is what proves they did not drift.
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
-  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Agenda' }));
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Library' }));
   expect(document.querySelectorAll('.pane').length).toBe(before + 1);
 });
 

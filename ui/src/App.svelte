@@ -758,11 +758,15 @@
       ...rest.filter((t) => !isGroup(t)),
     ];
   });
-  /// The bar's view menu, behind *everything else*: every view by its own name, as it always was —
-  /// the way to open one beside another.
-  let menuTargets = $derived(targetsFrom(RAIL_PANES));
-  /// The palette: the same, plus the rare one. A filterable list can afford it; a column cannot.
-  let paletteTargets = $derived(targetsFrom(OPENABLE_PANES));
+  /// The "Open …" actions: **the same places by the same names**, plus the rare one a column of
+  /// icons cannot afford and a list you filter can (`decisions.md#ui`, 2026-10-12, *the names
+  /// never differ*). The phone's view menu reads `viewTargets` itself.
+  let paletteTargets = $derived([
+    ...viewTargets,
+    ...targetsFrom(OPENABLE_PANES.filter((b) => !RAIL_PANES.includes(b))).filter(
+      (t) => !t.key.startsWith('group:') && !t.saved,
+    ),
+  ]);
 
   let commands = $derived([
     // **Grouped, and deliberately not a second Settings.** The palette used to carry
@@ -2461,7 +2465,7 @@
               </li>
               <li class="menu-sep view-switches" role="separator"></li>
             {/if}
-            {#each menuTargets as t (t.key)}
+            {#each viewTargets as t (t.key)}
               <li role="none">
                 <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
                   >{t.label}</button

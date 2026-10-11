@@ -44,8 +44,8 @@ const windowsButton = () => screen.getByRole('button', { name: /^open windows: \
 test('the counted button carries the number of open windows, and lists them', async () => {
   render(App);
   await screen.findByRole('button', { name: 'open a view' });
-  await openView('Agenda');
-  await openView('Timeline');
+  // The board the app opens on, and the Library's timeline beside it.
+  await openView('Library');
 
   const button = windowsButton();
   expect(button.getAttribute('aria-label')).toBe(`open windows: ${panes()}`);
@@ -57,7 +57,7 @@ test('the counted button carries the number of open windows, and lists them', as
     .getAllByRole('menuitem')
     .map((b) => b.textContent?.trim())
     .filter(Boolean);
-  expect(names).toEqual(expect.arrayContaining(['Agenda', 'Timeline']));
+  expect(names).toEqual(expect.arrayContaining(['Board · status', 'Timeline']));
   // The window in front of you is marked: the one opened last.
   expect(
     within(menu).getByRole('menuitem', { name: 'Timeline' }).getAttribute('aria-current'),
@@ -67,7 +67,7 @@ test('the counted button carries the number of open windows, and lists them', as
 test('a window in the list switches to it, and its × closes it', async () => {
   render(App);
   await screen.findByRole('button', { name: 'open a view' });
-  await openView('Agenda');
+  await openView('Library');
   const before = panes();
 
   await fireEvent.click(windowsButton());
@@ -86,22 +86,27 @@ test('a window in the list switches to it, and its × closes it', async () => {
   // the click is what let that through — this waits out the history step.
   await new Promise((r) => setTimeout(r, 100));
   expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(name);
-  // Switching is a move: Back returns to Agenda, where we were.
+  // Switching is a move: Back returns to the timeline, where we were.
   history.back();
   await waitFor(() =>
-    expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Agenda'),
+    expect(row.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe('Timeline'),
   );
 
   await fireEvent.click(windowsButton());
   menu = await screen.findByRole('menu', { name: 'open windows' });
-  await fireEvent.click(within(menu).getByRole('menuitem', { name: 'close Agenda' }));
+  await fireEvent.click(within(menu).getByRole('menuitem', { name: 'close Timeline' }));
   await waitFor(() => expect(panes()).toBe(before - 1));
 });
 
 test('the view menu starts with the switches of the view in front of you', async () => {
   render(App);
   await screen.findByRole('button', { name: 'open a view' });
-  await openView('Agenda');
+  // The agenda is a tab of Tasks, which is where the app opens.
+  await fireEvent.click(
+    within(await screen.findByRole('group', { name: 'Tasks' })).getByRole('button', {
+      name: 'Agenda',
+    }),
+  );
 
   await fireEvent.click(screen.getByRole('button', { name: 'open a view' }));
   const menu = await screen.findByRole('menu');

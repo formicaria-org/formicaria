@@ -1276,8 +1276,9 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   In Food and Fitness the plus cannot make a note. A group's tabs are one more row at the top of
   a phone's window.
   **Behaves differently from before the groups.** Stepping between the board and the agenda
-  re-points the one window; the phone's view menu still opens each view by name beside
-  the others. A saved board view still shows templates. The starter Task's
+  re-points the one window, on every screen: the side panel, the phone's view menu and
+  the "Open …" actions all list the same places by the same names (`viewTargets`), so none of
+  them opens the agenda as a window beside the board any more. A saved board view still shows templates. The starter Task's
   status is the first one the app has seen.   **The owner has seen the build of `0ba9894` on his phone; nothing after it has been seen by
   anyone.** Nothing says yet how a phone's layout should differ from a desktop's inside a view.
 - **Recipes** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of what went in*, and `#ui`,

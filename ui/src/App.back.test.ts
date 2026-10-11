@@ -102,10 +102,11 @@ test('a view picked from a menu stays picked, and Back returns from it', async (
   render(App);
   await screen.findByText(/GAE lambda interacts badly/);
   await fireEvent.click(await screen.findByRole('button', { name: 'open a view' }));
-  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Agenda' }));
-  await waitFor(() => expect(showing()).toMatch(/Agenda/));
+  // The menu names the same places the panel does: the Library is the timeline.
+  await fireEvent.click(await screen.findByRole('menuitem', { name: 'Library' }));
+  await waitFor(() => expect(showing()).toMatch(/Timeline/));
   await new Promise((r) => setTimeout(r, 100));
-  expect(showing()).toMatch(/Agenda/);
+  expect(showing()).toMatch(/Timeline/);
   history.back();
   await waitFor(() => expect(showing()).toMatch(/Board/));
 });
