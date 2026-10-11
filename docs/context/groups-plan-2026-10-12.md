@@ -1,5 +1,10 @@
 # Four groups over notes — the plan (2026-10-12)
 
+> **Partly withdrawn the day it was adopted.** After using it on his phone the owner took out the
+> group's own bar, *Everything*, *Weight* and every graph laid over a view: see the last four
+> 2026-10-12 entries of `decisions.md#ui`, which win over this file. What stands: the frame, the
+> four groups, templates, the side panel and the tabs, editable recipes.
+>
 > **Adopted by the owner on 2026-10-12** (*"as recommended, start with phase 0"*); the ruling is
 > `decisions.md`, 2026-10-12, *four groups over notes*. Where this disagrees with the code, the
 > code wins. It was made in three passes — a draft, a critic and an advocate reading the code

@@ -17,10 +17,7 @@ export const BUILTIN_SPACES: Space[] = [
   {
     name: 'Library',
     icon: 'timeline',
-    tabs: [
-      { key: 'timeline', label: 'Timeline', kind: 'timeline' },
-      { key: 'search', label: 'Search', kind: 'search' },
-    ],
+    tabs: [{ key: 'timeline', label: 'Timeline', kind: 'timeline' }],
   },
   {
     name: 'Tasks',

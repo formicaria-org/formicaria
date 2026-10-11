@@ -16,22 +16,22 @@ The views are gathered into four groups, and they are all ways of looking at the
 | **Food** | meals, recipes, targets | Day, Trends |
 | **Fitness** | sessions and sets | Session, Volume |
 
-- **On a wide window** the groups head the sidebar. Open one and its views are tabs across the
-  top of the pane: in Tasks, *Board* and *Agenda*.
-- **On a phone** the bar along the bottom always belongs to the group you are in: its views, and
-  a raised **＋** in the middle. The control at its left lists the four groups — one tap to any of
-  them — and, last on that list, *Everything else*: search, your open windows, backing up,
-  settings.
-- **Back** returns to the group you came from. Stepping between a group's own views does not add
-  a step to walk back through.
+- **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
+  Food, *Day* and *Trends*.
+- **On a wide window** the groups head the sidebar.
+- **On a phone** the bar along the bottom is the same on every screen: the **＋**, search, the
+  menu of views, your open windows, backing up, settings. Open a group, or any single view, from
+  the menu of views.
+- **The ＋ is one control, and what it makes follows what you are looking at.** In Food it logs a
+  food; in Fitness, an exercise; anywhere else it opens the list of things to make — a note, a
+  board, a discussion, a paper, and one entry for each of your
+  [templates](./notes.md#templates).
+- **Back** returns to where you came from. Stepping between a group's own views does not add a
+  step to walk back through.
 
 In the Library, the row of tags above the timeline shows every tag on your notes and how many
 carry it; tap one to see only those notes, and again to see them all. Otherwise the Library is
 the timeline, and the board and the agenda in Tasks are the ones described below.
-
-A group's **＋** makes something that belongs there: in Food and Fitness it opens their own
-sheets; in Library and Tasks it makes a note, and offers that group's
-[templates](./notes.md#templates) once you have some.
 
 ![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due
 date and who last touched it](../images/board.png)

@@ -4,10 +4,11 @@
 // A template is a note tagged `template`. The note made from it gets its body, its tags but for
 // that one, its status and its own properties — so it arrives with the structure a view reads.
 // What says *which* note something is, or *when*, never travels.
-import type { NoteDetail, NoteDraft, ObjectMeta } from './types';
+import type { NoteDetail, NoteDraft } from './types';
 
 export const TEMPLATE_TAG = 'template';
-/** The property by which a template says which group offers it. Never copied. */
+/** A property the first starter templates carried, to say which group offered them. Nothing reads
+ *  it since the plus became one menu again (2026-10-12); it is still never copied. */
 export const GROUP = 'group';
 
 const NEVER = new Set([
@@ -52,10 +53,6 @@ export function draftFrom(t: NoteDetail): NoteDraft {
   };
 }
 
-/** The templates a group offers: the ones that name it. */
-export const templatesOf = (all: ObjectMeta[], group: string) =>
-  all.filter((t) => t.props?.[GROUP] === group);
-
 /// **Starter templates are real notes**, written into a vault when a person asks — none is held
 /// in the app, because a template that is not a file would not be a note.
 ///
@@ -65,26 +62,20 @@ export const templatesOf = (all: ObjectMeta[], group: string) =>
 /// 2026-10-11, *nothing is invented*) — and no template for a program, whose targets are set
 /// from the day screen's own form.
 export function starters(firstStatus: string): NoteDraft[] {
-  const made = (title: string, tag: string, group: string, body: string, props = {}) => ({
+  const made = (title: string, tag: string, body: string, props = {}) => ({
     title,
     body,
     tags: [TEMPLATE_TAG, tag],
-    props: { [GROUP]: group, ...props },
+    props,
   });
   return [
     made(
       'Task',
       'task',
-      'Tasks',
       '# New task\n\n## What\n\n\n## Steps\n\n- [ ] \n',
       firstStatus ? { status: firstStatus } : {},
     ),
-    made(
-      'Meeting',
-      'meeting',
-      'Library',
-      '# Meeting\n\n## Who\n\n\n## Notes\n\n\n## Actions\n\n- [ ] \n',
-    ),
-    made('Recipe', RECIPE, 'Food', '# New recipe\n\n## Method\n\n1. \n', { servings: 1 }),
+    made('Meeting', 'meeting', '# Meeting\n\n## Who\n\n\n## Notes\n\n\n## Actions\n\n- [ ] \n'),
+    made('Recipe', RECIPE, '# New recipe\n\n## Method\n\n1. \n', { servings: 1 }),
   ];
 }

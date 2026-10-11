@@ -96,10 +96,7 @@
   import * as nav from './lib/nav.svelte';
   import { captureUndoable, createNotesUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
-  import GroupBar from './lib/GroupBar.svelte';
-  import SpacePicker from './lib/SpacePicker.svelte';
-  import AddSheet from './lib/AddSheet.svelte';
-  import { draftFrom, starters, templatesOf } from './lib/templates';
+  import { draftFrom, starters } from './lib/templates';
   import {
     BUILTIN_SPACES,
     spaceOfGroup,
@@ -1538,11 +1535,11 @@
     return null;
   });
   /// **The group the window in front belongs to**, read from its feed so it arrives with the view
-  /// itself. While there is one, a phone's bar is the group's own (`GroupBar`).
+  /// itself. While there is one that logs — Food, Fitness — the plus adds to it.
   ///
-  /// **The list of views is the fallback, and it is what keeps the bar still.** Stepping to another
+  /// **The list of views is the fallback, and it is what keeps the plus still.** Stepping to another
   /// of the group's views leaves that view's feed empty for a moment; read from the feed alone, the
-  /// group would vanish and come back, taking the bar — and whatever was about to be tapped — with it.
+  /// group would vanish and come back, and the plus would change its meaning under a thumb.
   const focusedGroup = $derived.by(() => {
     const p = focusedPane;
     if (p?.kind !== 'view' || !p.viewName) return null;
@@ -1551,16 +1548,6 @@
       focusedFeed?.view?.group ?? groupsOf(views ?? []).find((g) => g.views.includes(name)) ?? null
     );
   });
-  /// The group's bar steps aside for the app's own — search, windows, backing up, settings — until
-  /// the person goes back to the group or moves somewhere else.
-  let groupBarOff = $state(false);
-  $effect(() => {
-    void focusedSpace?.name;
-    void focused;
-    // Typing a search makes its window the one in front; the field being typed into stays.
-    if (!untrack(() => searchOpen)) groupBarOff = false;
-  });
-
   // ── the four groups (`decisions.md#ui`, 2026-10-12; `lib/spaces.svelte.ts`) ──────────────────────
   /// Every group there is to go to: the two the built-in views make, then the ones whose views ship
   /// with the app. Empty unless this device shows them.
@@ -1589,9 +1576,8 @@
     );
     return (s?.tabs ?? []).filter((t) => t.kind !== 'search');
   }
-  /// **The group the window in front belongs to** — whose bar a phone wears. A group of shipped
-  /// views is one whether or not this device shows the four; a built-in view is in one only if it
-  /// does.
+  /// **The group the window in front belongs to.** A group of shipped views is one whether or not
+  /// this device shows the four; a built-in view is in one only if it does.
   const focusedSpace = $derived.by<Space | null>(() => {
     const g = focusedGroup;
     if (g) return spaces.find((s) => s.name === g.name) ?? spaceOfGroup(g);
@@ -1599,43 +1585,8 @@
     if (!p || !spacesShown()) return null;
     return spaces.find((s) => s.tabs.some((t) => !t.viewName && t.kind === p.kind)) ?? null;
   });
-  const focusedTab = $derived(
-    focusedPane?.kind === 'view'
-      ? `view:${focusedPane.viewName ?? ''}`
-      : (focusedPane?.kind ?? null),
-  );
-  let spacePickerOpen = $state(false);
-  /// Step to another of the group's views. **Not a move**: Back leaves the group.
-  function pickSpaceTab(key: string) {
-    const tab = focusedSpace?.tabs.find((t) => t.key === key);
-    if (!tab) return;
-    const at = workspace.panes[focused];
-    if (tab.viewName && at?.kind === 'view') return pickGroupView(tab.viewName);
-    if (tab.viewName && at) {
-      changePane(at.id, { kind: 'view', viewName: tab.viewName });
-      nav.replace(here());
-      return;
-    }
-    if (tab.kind === 'search') {
-      // Search has no window until something is typed: show the field to type it in.
-      groupBarOff = true;
-      void openSearch();
-      return;
-    }
-    const pane = workspace.panes[focused];
-    if (!pane || pane.kind === tab.kind) return;
-    const open = workspace.panes.findIndex((p) => p.kind === tab.kind);
-    if (open !== -1) {
-      focused = open;
-      persistWorkspace();
-    } else {
-      changePane(pane.id, { kind: tab.kind, viewName: undefined });
-    }
-    nav.replace(here());
-  }
   /// Go to a group: the window of it already open, else its first view. **A move.**
   function openSpace(name: string) {
-    spacePickerOpen = false;
     const s = spaces.find((x) => x.name === name);
     if (!s || s.name === focusedSpace?.name) return;
     const first = s.tabs[0];
@@ -1644,27 +1595,15 @@
     if (open !== -1) selectWindow(open);
     else focusOrOpen(first.kind);
   }
-  /// The bar's add control: a group of tracker views has its own sheet; the others make a note.
-  function addToSpace() {
-    const builtIn = BUILTIN_SPACES.some((s) => s.name === focusedSpace?.name);
-    if (focusedGroup && !builtIn) groupAdd += 1;
-    else if (focusedSpace && templatesOf(templates, focusedSpace.name).length) addSheetOpen = true;
-    else void onNew();
-  }
-  let addSheetOpen = $state(false);
-  const addChoices = $derived([
-    { key: '', label: 'A plain note' },
-    ...templatesOf(templates, focusedSpace?.name ?? '').map((t) => ({
-      key: t.id,
-      label: t.title || t.preview || 'Untitled',
-    })),
-  ]);
-  function pickAdd(key: string) {
-    addSheetOpen = false;
-    if (key) void onNewFromTemplate(key);
-    else void onNew();
-  }
-  /// Counts up when the group bar's add control is pressed; the tracker view in front listens.
+  /// **The group the plus adds to**, when the view in front is one that logs: a group of tracker
+  /// views, never Library or Tasks. `null` means the plus opens the menu of things to make
+  /// (`decisions.md#ui`, 2026-10-12, *the plus means what the view in front makes*).
+  const addsTo = $derived(
+    focusedGroup && !BUILTIN_SPACES.some((s) => s.name === focusedGroup.name)
+      ? focusedGroup.name
+      : null,
+  );
+  /// Counts up when the plus is pressed over a view that logs; the tracker view in front listens.
   let groupAdd = $state(0);
   let helpOpen = $state(false);
   /// **Saving, renaming and deleting a view left the UI on 2026-08-31.** The dialog, its state and
@@ -2154,8 +2093,6 @@
     ['paper', () => paperOpen, () => (paperOpen = false)],
     ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
     ['deleted', () => deletedOpen, () => (deletedOpen = false)],
-    ['groups', () => spacePickerOpen, () => (spacePickerOpen = false)],
-    ['add-sheet', () => addSheetOpen, () => (addSheetOpen = false)],
   ];
   for (const [name, isOpen, close] of LAYERS) {
     $effect(() => {
@@ -2349,35 +2286,7 @@
        vertical space"). That rail sat *beside* a top bar and displaced nothing; this one replaces
        the top bar, so the workspace gets that row's height back — and it collapses, which the old
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
-    <header
-      class="topbar"
-      class:grouped={!!focusedSpace && !groupBarOff && workspace.layout !== 'tiled'}
-    >
-      <!-- **A group's own bar, in place of this one on a narrow screen** (`decisions.md#ui`,
-           2026-10-11). Everything below is still here, one tap away behind its first control. -->
-      {#if focusedSpace}
-        <div class="group-bar-slot">
-          <GroupBar
-            name={focusedSpace.name}
-            tabs={focusedSpace.tabs}
-            current={focusedTab}
-            onpick={pickSpaceTab}
-            onadd={addToSpace}
-            onmore={() => (spaces.length ? (spacePickerOpen = true) : (groupBarOff = true))}
-            more={spaces.length ? 'groups' : 'everything else'}
-          />
-        </div>
-        {#if groupBarOff}
-          <button
-            type="button"
-            class="group-return"
-            onclick={() => ((groupBarOff = false), (searchOpen = false))}
-          >
-            <Icon name="chevronLeft" size={16} />
-            {focusedSpace.name}
-          </button>
-        {/if}
-      {/if}
+    <header class="topbar">
       <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
@@ -2395,17 +2304,26 @@
              user-editable too, so any key spelled out here is one rebind away from lying again;
              `describe` renders whatever is actually bound. Found by a docs audit on 2026-09-09,
              alongside the same wrong key in `first-note.md`. -->
+        <!-- **One plus, where it always is; what it makes follows the view in front**
+             (`decisions.md#ui`, 2026-10-12). Over a view that logs — Food, Fitness — it adds to
+             that; anywhere else it opens the menu of things to make. Its name says which. -->
         <button
           type="button"
           class="plus-btn"
           onclick={() => {
+            if (addsTo) {
+              groupAdd += 1;
+              return;
+            }
             createOpen = !createOpen;
             if (createOpen) reloadTemplates(); // a note tagged since load may now be a template
           }}
-          aria-expanded={createOpen}
-          aria-haspopup="menu"
-          title={`Make something new (${keys.describe(keymap.newNote)})`}
-          aria-label="make something new"
+          aria-expanded={addsTo ? undefined : createOpen}
+          aria-haspopup={addsTo ? undefined : 'menu'}
+          title={addsTo
+            ? `Add to ${addsTo}`
+            : `Make something new (${keys.describe(keymap.newNote)})`}
+          aria-label={addsTo ? `add to ${addsTo}` : 'make something new'}
         >
           <Icon name="plus" size={18} />
         </button>
@@ -3136,23 +3054,6 @@
       {/await}
     {/if}
 
-    {#if addSheetOpen && focusedSpace}
-      <AddSheet
-        group={focusedSpace.name}
-        choices={addChoices}
-        onpick={pickAdd}
-        onclose={() => (addSheetOpen = false)}
-      />
-    {/if}
-    {#if spacePickerOpen}
-      <SpacePicker
-        {spaces}
-        current={focusedSpace?.name ?? null}
-        onpick={openSpace}
-        onrest={() => ((spacePickerOpen = false), (groupBarOff = true))}
-        onclose={() => (spacePickerOpen = false)}
-      />
-    {/if}
     {#if helpOpen}
       {#await import('./lib/HelpPanel.svelte') then { default: HelpPanel }}
         <HelpPanel onclose={() => (helpOpen = false)} />
@@ -3681,39 +3582,9 @@
     font-style: italic;
   }
 
-  /* The group's bar exists only where the bar is at the bottom; on a wide screen the group is a
-     heading in the panel and a control in the pane. */
-  .topbar .group-bar-slot,
-  .topbar .group-return {
-    display: none;
-  }
-
   @media (max-width: 59.999rem) {
     .app {
       grid-template-rows: minmax(0, 1fr) auto;
-    }
-    /* **While a group has the bar, nothing else is in it.** Its own first control brings the rest
-       back (`groupBarOff`), so this hides and never removes. */
-    .topbar.grouped > :global(*:not(.group-bar-slot)) {
-      display: none;
-    }
-    .topbar.grouped .group-bar-slot {
-      display: flex;
-      flex: 1;
-      min-width: 0;
-    }
-    .topbar .group-return {
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      min-height: 2.75rem;
-      padding-inline: var(--space-2);
-      border: 0;
-      border-radius: var(--radius-md);
-      background: var(--accent-subtle);
-      color: var(--accent);
-      font: inherit;
-      cursor: pointer;
     }
     .topbar {
       grid-row: 2;

@@ -399,22 +399,15 @@
     flex: 1;
     min-height: 0;
   }
-  /* Where the phone's group bar is not: a wide screen, or several windows side by side. */
+  /* The group's views, on every width: a phone's bar is the app's own
+     (`decisions.md#ui`, 2026-10-12), so this is where one steps from Day to Trends. */
   .tabs {
-    display: none;
+    display: flex;
     align-self: center;
     margin-top: var(--space-2);
     padding: 2px;
     border-radius: var(--radius-pill);
     background: var(--surface-hover);
-  }
-  .tracker.tabbed .tabs {
-    display: flex;
-  }
-  @media (min-width: 60rem) {
-    .tabs {
-      display: flex;
-    }
   }
   .tabs button {
     min-height: 2.25rem;

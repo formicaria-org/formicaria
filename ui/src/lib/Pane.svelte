@@ -321,9 +321,9 @@
   {/if}
 
   <div class="pane-body" class:note-body={pane.kind === 'note'}>
-    <!-- **A group's views, as tabs** — where there is width for them; a phone's bar carries them
-         instead. The same strip a group of tracker views draws for itself
-         (`decisions.md#ui`, 2026-10-12). -->
+    <!-- **A group's views, as tabs**, on every width: a phone's bar is the app's own, so this is
+         how one steps from the board to the agenda there too. The same strip a group of
+         tracker views draws for itself (`decisions.md#ui`, 2026-10-12). -->
     {#if spaceTabs.length > 1}
       <div class="space-tabs" role="group" aria-label={spaceName}>
         {#each spaceTabs as t (t.key)}
@@ -827,11 +827,5 @@
     background: var(--accent-subtle);
     color: var(--accent);
     font-weight: 600;
-  }
-  /* On a narrow screen the bar at the bottom is the group's, and carries these. */
-  @media (max-width: 59.999rem) {
-    .space-tabs {
-      display: none;
-    }
   }
 </style>

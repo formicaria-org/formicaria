@@ -1,7 +1,7 @@
 // What a template hands on, and what it keeps (`decisions.md#ui`, 2026-10-12).
 import { describe, expect, it } from 'vitest';
-import { draftFrom, starters, templatesOf } from './templates';
-import type { NoteDetail, ObjectMeta } from './types';
+import { draftFrom, starters } from './templates';
+import type { NoteDetail } from './types';
 
 const note = (over: Partial<NoteDetail>): NoteDetail =>
   ({
@@ -73,15 +73,6 @@ describe('a note made from a template', () => {
     expect(typeof a).toBe('string');
     expect(a).not.toBe('the-templates');
     expect(a).not.toBe(b);
-  });
-
-  it('a group offers the templates that name it', () => {
-    const all = [
-      { title: 'Task', props: { group: 'Tasks' } },
-      { title: 'Meeting', props: { group: 'Library' } },
-      { title: 'Loose', props: {} },
-    ] as unknown as ObjectMeta[];
-    expect(templatesOf(all, 'Tasks').map((t) => t.title)).toEqual(['Task']);
   });
 
   it('a starter template has something to see, and carries no target', () => {

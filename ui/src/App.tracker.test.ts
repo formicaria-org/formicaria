@@ -1,4 +1,5 @@
-// **A group of views**: one entry among the views, its own bar while it is open, and Back that
+// **A group of views**: one entry among the views, its views as tabs at the top of its window, a
+// plus that adds to it (`decisions.md#ui`, 2026-10-12: a phone's bar is the app's own), and Back that
 // leaves the group instead of walking back along its tabs — `decisions.md#ui`, 2026-10-11.
 //
 // The tracker's demo data is asked for here; the rest of the suite never sees it.
@@ -40,7 +41,7 @@ afterEach(() => {
 const openFood = async () => {
   const rail = await screen.findByRole('navigation', { name: 'views' });
   await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
-  return screen.findByRole('navigation', { name: 'Food' });
+  return screen.findByRole('group', { name: 'Food' });
 };
 
 test('the groups that come with the app are shown unless this device hides them', async () => {
@@ -86,28 +87,38 @@ test('stepping along a group’s views is not a move: one Back leaves the group'
   const depth = history.length;
   await fireEvent.click(within(bar).getByRole('button', { name: 'Trends' }));
   expect(await screen.findByText(/^Logged \d+ of 7 days$/)).toBeTruthy();
-  await fireEvent.click(within(bar).getByRole('button', { name: 'Day' }));
+  // The strip is drawn again with the view it steps to, so it is found again.
+  await fireEvent.click(
+    within(await screen.findByRole('group', { name: 'Food' })).getByRole('button', { name: 'Day' }),
+  );
   await screen.findByText('left');
   expect(history.length).toBe(depth);
 
   history.back();
-  await waitFor(() => expect(screen.queryByRole('navigation', { name: 'Food' })).toBeNull());
+  // The window in front is no longer the group's (its own stays open behind, tabs and all).
+  await waitFor(() =>
+    expect(
+      within(document.querySelector('.cell.active') as HTMLElement).queryByRole('group', {
+        name: 'Food',
+      }),
+    ).toBeNull(),
+  );
 });
 
-test('the bar’s add control opens the sheet, and Back closes the sheet before it leaves', async () => {
+test('over a view that logs, the plus opens its sheet, and Back closes the sheet before it leaves', async () => {
   seedTrackerDemo();
   showTrackers();
   render(App);
   const bar = await openFood();
   await screen.findByText('left');
 
-  await fireEvent.click(within(bar).getByRole('button', { name: 'add to Food' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
   expect(await screen.findByRole('dialog', { name: 'log a food' })).toBeTruthy();
 
   history.back();
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'log a food' })).toBeNull());
   // Still in the group.
-  expect(screen.getByRole('navigation', { name: 'Food' })).toBeTruthy();
+  expect(screen.getByRole('group', { name: 'Food' })).toBeTruthy();
 });
 
 test('removing an entry takes it out of the day and offers to put it back', async () => {
@@ -124,26 +135,6 @@ test('removing an entry takes it out of the day and offers to put it back', asyn
     within(said.parentElement as HTMLElement).getByRole('button', { name: 'Undo' }),
   );
   expect(await screen.findByText('Oats, rolled')).toBeTruthy();
-});
-
-test('the group’s first control brings the app’s own bar back, and a way to return', async () => {
-  seedTrackerDemo();
-  showTrackers();
-  render(App);
-  const bar = await openFood();
-  // Its first control lists the groups; the app's own bar is the last thing on that list.
-  await fireEvent.click(within(bar).getByRole('button', { name: 'groups' }));
-  await fireEvent.click(
-    within(await screen.findByRole('dialog', { name: 'groups' })).getByRole('button', {
-      name: 'Everything else',
-    }),
-  );
-  await waitFor(() => expect(document.querySelector('.group-return')).toBeTruthy());
-  const back = document.querySelector('.group-return') as HTMLElement;
-  expect(back.textContent?.trim()).toBe('Food');
-  // …and that way back puts the group's bar in charge again.
-  await fireEvent.click(back);
-  await waitFor(() => expect(document.querySelector('.group-return')).toBeNull());
 });
 
 test('logged entries stay out of the board', async () => {
@@ -199,10 +190,10 @@ test('training: an exercise is planned as sets, and ticking one counts it', asyn
   render(App);
   const rail = await screen.findByRole('navigation', { name: 'views' });
   await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
-  const bar = await screen.findByRole('navigation', { name: 'Fitness' });
+  const bar = await screen.findByRole('group', { name: 'Fitness' });
   expect(await screen.findByText(/^0 of 9 sets/)).toBeTruthy();
 
-  await fireEvent.click(within(bar).getByRole('button', { name: 'add to Fitness' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
   const sheet = await screen.findByRole('dialog', { name: 'add an exercise' });
   await fireEvent.input(within(sheet).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
   // Nothing is pre-filled with a number of the app's own: sets, reps and load are the person's.
