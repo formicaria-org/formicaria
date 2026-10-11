@@ -409,21 +409,50 @@ pub fn now() -> u64 {
         .unwrap_or(0)
 }
 
-/// The public release listing. **The only address a check ever contacts.**
+/// The public release listing, asked only when the release page does not answer (see [`ask`]).
 pub const LATEST: &str = "https://api.github.com/repos/formicaria-org/formicaria/releases/latest";
 
-/// The release page, for a person to read or download from by hand.
+/// The release page, for a person to read or download from by hand. **It is also the first
+/// address a check contacts**: it answers with a redirect to the newest release.
 pub const RELEASES_PAGE: &str = "https://github.com/formicaria-org/formicaria/releases/latest";
 
 /// A day between checks.
 pub const EVERY: u64 = 24 * 60 * 60;
 
+/// The version a release address names: what follows `/releases/tag/`, when it is a version.
+///
+/// Only a version is accepted. The address comes from the network, and what is done with the
+/// answer is to remember it and offer it; a string that is not `vX.Y.Z` is no answer.
+pub fn tag_in(location: &str) -> Option<String> {
+    let after = location.split("/releases/tag/").nth(1)?;
+    let tag = after.split(['?', '#', '/']).next()?;
+    Version::parse(tag).map(|_| tag.to_owned())
+}
+
 /// Ask which version is newest. Returns the tag, whatever it is — the comparison is the caller's.
 ///
-/// **What this discloses, in full:** one HTTPS GET to [`LATEST`], with a fixed `User-Agent:
-/// formicaria`, no query string, no identifier, and nothing about the machine, its vaults or its user.
-/// GitHub learns an IP and a time, which is what any download already tells it.
+/// **Two ways to ask, the cheap one first.**
+/// 1. Where does the release page lead? [`RELEASES_PAGE`] answers with a redirect to the newest
+///    release, and the version is in that address.
+/// 2. Failing that, the listing at [`LATEST`], as before.
+///
+/// **Why the page first.** GitHub rations the listing for anonymous callers to sixty questions an
+/// hour **per address, not per person**. Everybody behind one address shares them: an office, a
+/// university, a phone network, and GitHub's own build machines, where the test that updates the
+/// previous release failed with *status code 403* on the day the editor shipped (v0.6.9,
+/// 2026-10-11) and passed when run again from another machine. A person behind such an address
+/// pressing *Check now* was told the check failed. The page is not rationed that way.
+///
+/// **What this discloses, in full:** one HTTPS GET to the release page, and a second to the
+/// listing only if the first gave no answer; each with a fixed `User-Agent: formicaria`, no query
+/// string, no identifier, and nothing about the machine, its vaults or its user. GitHub learns an
+/// IP and a time, which is what any download already tells it.
 pub fn ask() -> Result<String, String> {
+    if let Ok(Some(tag)) =
+        fm_fetch::redirect_target(RELEASES_PAGE).map(|l| l.and_then(|l| tag_in(&l)))
+    {
+        return Ok(tag);
+    }
     // 256 KiB: the real answer is a few kilobytes, and the cap is what stops an endless body.
     let body = fm_fetch::get(LATEST, 256 * 1024).map_err(|e| e.to_string())?;
     let v: serde_json::Value =
@@ -494,6 +523,22 @@ pub fn check_at(path: &Path, force: bool) -> Result<Option<Version>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_version_is_read_from_a_release_address_and_nothing_else_is() {
+        let page = "https://github.com/formicaria-org/formicaria/releases/tag/";
+        assert_eq!(tag_in(&format!("{page}v0.6.9")).as_deref(), Some("v0.6.9"));
+        assert_eq!(tag_in(&format!("{page}v1.20.3?x=1")).as_deref(), Some("v1.20.3"));
+        // Not a version, or not a release address: no answer, and the listing is asked instead.
+        for bad in [
+            format!("{page}latest"),
+            format!("{page}../../evil"),
+            "https://github.com/login".to_string(),
+            String::new(),
+        ] {
+            assert_eq!(tag_in(&bad), None, "{bad}");
+        }
+    }
 
     #[test]
     fn a_release_tag_parses_and_orders() {

@@ -156,8 +156,34 @@ wait_for 30 can_check true "starting $from"
 [ "$(value can_install)" = true ] || die "$from says it cannot install an update: $(value why)"
 say "$from is running and offers to look for a newer version"
 
-press update_check
-wait_for 60 available "$to" "Check now"
+# **Check now, allowing for GitHub refusing the question.** Versions up to 0.6.9 ask GitHub's
+# listing, which answers anonymous callers sixty times an hour per address; GitHub's own Linux
+# build machines share addresses and are often past that, and then the answer is *status code
+# 403*. That says nothing about the release (the same run passed on macOS and Windows, and passed
+# on Linux when run again, v0.6.9, 2026-10-11). So: ask again for a few minutes, and if the
+# refusal persists, say plainly that this system could not be tested and do not call it a failure.
+# Any other outcome is judged as before. Versions after 0.6.9 ask the release page first and do
+# not meet this.
+tries=0
+while :; do
+    press update_check
+    sleep 3
+    press update_status
+    [ "$(value available)" != "$to" ] || break
+    case "$last" in
+        *"status code 403"* | *"status code 429"*) ;;
+        *) wait_for 60 available "$to" "Check now"; break ;;
+    esac
+    tries=$((tries + 1))
+    if [ "$tries" -ge 10 ]; then
+        msg="NOT TESTED on $target: GitHub refused $from's question about the newest version (too many anonymous questions from this machine's address) for five minutes. Run this job again."
+        say "$msg"
+        [ -z "${GITHUB_ACTIONS:-}" ] || echo "::warning title=update test not run::$msg"
+        exit 0
+    fi
+    say "GitHub refused the question (rate limit); asking again in 30 seconds ($tries of 10)"
+    sleep 30
+done
 say "Check now found $to"
 
 press update_start

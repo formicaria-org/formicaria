@@ -266,6 +266,32 @@ pub fn get(url: &str, limit: usize) -> Result<Vec<u8>, FetchError> {
     Ok(buf)
 }
 
+/// Where `url` redirects to, without going there: the `Location` of its answer, or `None` when it
+/// answers with a page of its own.
+///
+/// For a question whose whole answer is an address. GitHub's "latest release" page answers with a
+/// redirect to the release it names, so asking where it leads says which version is newest
+/// without reading a body at all, and without the API whose anonymous use is rationed per
+/// address (`fm_update::ask` says why that matters).
+pub fn redirect_target(url: &str) -> Result<Option<String>, FetchError> {
+    let agent = ureq::AgentBuilder::new()
+        .timeout_connect(CONNECT_TIMEOUT)
+        .timeout_read(READ_TIMEOUT)
+        .user_agent("formicaria")
+        // Not followed: the address it would follow to is the answer.
+        .redirects(0)
+        .build();
+    let resp = match agent.get(url).call() {
+        Ok(r) => r,
+        Err(ureq::Error::Status(_, r)) => r,
+        Err(e) => return Err(FetchError::Transient(format!("could not reach {url}: {e}"))),
+    };
+    if !(300..400).contains(&resp.status()) {
+        return Ok(None);
+    }
+    Ok(resp.header("location").map(str::to_owned))
+}
+
 /// One request with headers and an optional body, answering the status and a **capped** body.
 ///
 /// Added 2026-10-09 for the read-only Gmail connector, which needs an `Authorization` header and one
@@ -519,6 +545,44 @@ mod tests {
 
     /// A one-shot localhost HTTP/1.1 server that serves `body`, honouring a single `Range: bytes=N-`
     /// with a 206. Hermetic — no external network. Returns the bound `http://127.0.0.1:PORT/model`.
+    /// A server that answers one request with exactly these bytes, headers and all.
+    fn serve_raw(answer: &'static str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut s, _)) = listener.accept() {
+                use std::io::Write;
+                let mut buf = [0u8; 2048];
+                let _ = s.read(&mut buf);
+                let _ = s.write_all(answer.as_bytes());
+            }
+        });
+        format!("http://{addr}/")
+    }
+
+    #[test]
+    fn a_redirect_is_reported_and_not_followed() {
+        let url = serve_raw(
+            "HTTP/1.1 302 Found\r\nLocation: https://example.invalid/releases/tag/v1.2.3\r\n\
+             Content-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+        // Following it would fail: `example.invalid` does not resolve. Getting the address back
+        // is the proof it was not followed.
+        assert_eq!(
+            redirect_target(&url).unwrap().as_deref(),
+            Some("https://example.invalid/releases/tag/v1.2.3")
+        );
+    }
+
+    #[test]
+    fn a_page_that_does_not_redirect_has_no_target() {
+        let url = serve_raw("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+        assert_eq!(redirect_target(&url).unwrap(), None);
+        let url =
+            serve_raw("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        assert_eq!(redirect_target(&url).unwrap(), None);
+    }
+
     fn serve_once(body: Vec<u8>) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/model", listener.local_addr().unwrap());

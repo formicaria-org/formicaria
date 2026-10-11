@@ -1210,6 +1210,12 @@ and on a copy built from source.
 - **The end-to-end test sets the launcher's variables itself.** It does not run
   `Start formicaria.*` or the developer launcher, which open a browser; their rescue is rehearsed
   separately in `ci/checks.sh`, with fake programs.
+- **Trap: a green `update-works` may carry a "not run" warning.** GitHub rations the release
+  listing per address, and its build machines share addresses on every system. A release up to
+  0.6.9 asks that listing; when refused (403), the test asks again for five minutes and then
+  reports NOT TESTED for that system instead of failing. Read the run's warnings before taking
+  green to mean all three updated. From the release after 0.6.9 the app asks the release page
+  first and this stops happening.
 - **A release cannot be tested before it is published.** `update-works` runs after `attach` and
   can only go red afterwards. A red one means the previous version cannot reach this one from
   inside the app, and the remedy is a fix release.
