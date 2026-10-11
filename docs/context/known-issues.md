@@ -1254,6 +1254,13 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
   folder cannot be written, search fails with a sentence and Settings says foods can only be added
   by name.
+- **Recipes are the simple version** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of
+  what went in*; `log::log_recipes`, the Recipes tab of `food/LogSheet.svelte`). Not built: changing
+  a saved recipe (remove and remake), an ingredient typed in by hand, a cooked weight and so a
+  per-100 g figure for the dish, nutrient retention on cooking (the EuroFIR and USDA retention
+  tables are unread), and anything on the day screen that marks an entry as a recipe. A recipe's
+  notes show in *Recently deleted* one per ingredient. An entry logged from a recipe that was later
+  removed is rescaled from its own rounded numbers when its amount is changed.
 - **The list is two European tables with a U.S. fallback, and the three do not cover the same things**
   (`decisions.md#data`, 2026-10-11; the account is in `ci/pack-foods.py`). Each key
   has one FAO/INFOODS definition and a table without it has no value there: BLS has no selenium,

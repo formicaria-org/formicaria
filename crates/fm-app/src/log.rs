@@ -264,6 +264,98 @@ pub fn log_recent(
     Ok(out.into_iter().take(limit.max(1)).map(|s| s.item).collect())
 }
 
+// ── recipes ──────────────────────────────────────────────────────────────────────────────────────
+
+/// A recipe's notes share one word under this key: the recipe itself and each of its ingredients.
+pub const RECIPE: &str = "recipe";
+/// The note that carries this is the recipe; the others under the same word are what goes in it.
+pub const SERVINGS: &str = "servings";
+
+/// A recipe, and what its ingredients come to.
+#[derive(Debug, Serialize)]
+pub struct Recipe {
+    /// The word its notes share. An entry logged from it records `recipe/<this>` as its `source`.
+    pub recipe: String,
+    /// The recipe's own note.
+    pub id: String,
+    pub title: String,
+    /// How many servings the whole of it makes. A person says; nothing estimates it.
+    pub servings: i64,
+    /// How many ingredients it has.
+    pub of: usize,
+    /// The whole recipe: every whole-number value any ingredient carries, added up, with how many
+    /// ingredients carried it — so a total missing an ingredient's value says so.
+    pub sums: BTreeMap<String, MetricSum>,
+    pub ingredients: Vec<ObjectMeta>,
+}
+
+/// The recipes kept in this log, by name, each with the sum of its ingredients.
+///
+/// A recipe is saved, not eaten: its notes carry `log` and no `start`, so they are in no day and
+/// in no planning view. The recipe's note carries `servings`; an ingredient is an entry like any
+/// other — a food, an amount, the values that amount had — that names the recipe instead of a day.
+///
+/// **The sum is of the ingredients as entered**, raw or cooked as the person chose them. Nothing
+/// here knows what cooking does to a weight or to a vitamin, and nothing guesses
+/// (`decisions.md#data`, 2026-10-11, *a recipe is the sum of what went in*).
+pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, StoreError> {
+    let query = Query {
+        filter: log_base(&def.log),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    let mut heads: BTreeMap<String, (Object, i64)> = BTreeMap::new();
+    let mut parts: BTreeMap<String, Vec<Object>> = BTreeMap::new();
+    for o in store.query(&query)?.rows {
+        if o.start.is_some() {
+            continue;
+        }
+        let PropertyValue::Text(word) = o.get(RECIPE) else { continue };
+        if word.is_empty() {
+            continue;
+        }
+        match o.get(SERVINGS) {
+            PropertyValue::Int(n) if n >= 1 => {
+                heads.insert(word, (o, n));
+            }
+            _ => parts.entry(word).or_default().push(o),
+        }
+    }
+    let mut out = Vec::new();
+    for (word, (head, servings)) in heads {
+        let ingredients = parts.remove(&word).unwrap_or_default();
+        let mut keys: Vec<String> = Vec::new();
+        for o in &ingredients {
+            for (k, v) in &o.extra {
+                if matches!(v, PropertyValue::Int(_)) && !keys.contains(k) {
+                    keys.push(k.clone());
+                }
+            }
+        }
+        keys.sort();
+        let tallied =
+            fm_query::run(&Query { tally: keys.clone(), ..Default::default() }, &ingredients);
+        let sums = keys
+            .iter()
+            .map(|k| {
+                let t = tallied.tallies.get(k).cloned().unwrap_or_default();
+                (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd })
+            })
+            .collect();
+        out.push(Recipe {
+            recipe: word,
+            id: head.id.to_string(),
+            title: head.title.clone().unwrap_or_default(),
+            servings,
+            of: ingredients.len(),
+            sums,
+            ingredients: ingredients.iter().map(ObjectMeta::from).collect(),
+        });
+    }
+    out.sort_by_key(|r| r.title.to_lowercase());
+    Ok(out)
+}
+
 // ── writing ──────────────────────────────────────────────────────────────────────────────────────
 
 /// A note to make. Everything but the title is optional.

@@ -5,7 +5,7 @@
 //! says how complete it is, and an entry never shows up among the things you plan.
 
 use fm_app::commands;
-use fm_app::log::{create_notes, log_days, log_recent, set_properties, NoteDraft};
+use fm_app::log::{create_notes, log_days, log_recent, log_recipes, set_properties, NoteDraft};
 use fm_app::views::{group_of, run_shipped, shipped_views, totals_named, with_shipped, Renderer};
 use fm_core::MemoryStore;
 use serde_json::json;
@@ -390,4 +390,51 @@ fn a_program_with_an_end_stops_supplying_targets_the_day_after() {
         Some(&2400),
         "then the earlier one is in force again"
     );
+}
+
+#[test]
+fn a_recipe_is_the_sum_of_its_ingredients_and_says_what_an_ingredient_lacked() {
+    let mut s = MemoryStore::new();
+    let saved = |title: &str, props: serde_json::Value| -> NoteDraft {
+        serde_json::from_value(json!({ "title": title, "props": props })).unwrap()
+    };
+    create_notes(
+        &mut s,
+        "",
+        &[
+            saved("Dal", json!({ "log": "food", "recipe": "r1", "servings": 4 })),
+            saved(
+                "Lentils",
+                json!({ "log": "food", "recipe": "r1", "amount_g": 300, "kcal": 1050,
+                        "protein_mg": 75_000, "iron_ug": 19_500 }),
+            ),
+            saved(
+                "Onion",
+                json!({ "log": "food", "recipe": "r1", "amount_g": 150, "kcal": 60,
+                        "protein_mg": 1_650 }),
+            ),
+            // Another recipe's ingredient, and an ingredient of no recipe at all.
+            saved("Rice", json!({ "log": "food", "recipe": "r2", "kcal": 700 })),
+            food("Oats", "2026-10-11", "breakfast", 228, 8_000),
+        ],
+    )
+    .unwrap();
+
+    let all = log_recipes(&s, &day_view()).unwrap();
+    assert_eq!(all.len(), 1, "a recipe is the note with servings; `r2` has none");
+    let dal = &all[0];
+    assert_eq!((dal.title.as_str(), dal.servings, dal.of), ("Dal", 4, 2));
+    assert_eq!((dal.sums["kcal"].sum, dal.sums["kcal"].n), (1110, 2));
+    assert_eq!((dal.sums["amount_g"].sum, dal.sums["protein_mg"].sum), (450, 76_650));
+    assert_eq!(
+        (dal.sums["iron_ug"].sum, dal.sums["iron_ug"].n),
+        (19_500, 1),
+        "one of the two ingredients had an iron value, and the total says so"
+    );
+
+    // Saved, not eaten: in no day, and not offered as something logged before.
+    let day = &log_days(&s, &day_view(), "2026-10-11", "2026-10-11", false).unwrap().days[0];
+    assert_eq!((day.of, day.sums["kcal"].sum), (1, 228));
+    let recent = log_recent(&s, &day_view(), "", "", 20).unwrap();
+    assert_eq!(recent.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), ["Oats"]);
 }

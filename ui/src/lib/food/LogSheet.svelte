@@ -11,8 +11,13 @@
   // where the food came from, or from the values as they were when this sheet opened.
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { logRecent, foodSearch, foodGet } from '../ipc';
-  import { createNotesUndoable, setPropertiesUndoable, deleteUndoable } from '../undo.svelte';
+  import { logRecent, logRecipes, foodSearch, foodGet } from '../ipc';
+  import {
+    createNotesUndoable,
+    setPropertiesUndoable,
+    deleteUndoable,
+    deleteNotesUndoable,
+  } from '../undo.svelte';
   import { show, showWith, today, typed, whole } from '../units';
   import type {
     FoodHit,
@@ -21,6 +26,7 @@
     NoteDraft,
     ObjectMeta,
     RecentItem,
+    Recipe,
     TotalsDef,
   } from '../types';
 
@@ -45,25 +51,15 @@
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   const secondary = $derived(def.metrics.filter((m) => m.role === 'secondary'));
 
-  /// With no slot given, the part of the day it probably is: the day cut into as many pieces as
-  /// there are slots between six in the morning and ten at night, anything later in the last.
-  function byClock(): string {
-    if (!def.slots.length) return '';
-    const h = new Date().getHours();
-    const main = Math.max(def.slots.length - 1, 1);
-    const at =
-      h < 6 || h >= 22
-        ? def.slots.length - 1
-        : Math.min(Math.floor(((h - 6) / 16) * main), main - 1);
-    return def.slots[at].value;
-  }
+  // With no slot given, none is guessed. Which meal something belongs to is the person's to say:
+  // the labels are the ones a person picks from in dietary surveys, and no agreed rule turns a
+  // time of day into one of them (`docs/context/sources-2026-10-11.md`, *Meal occasions*).
   // Read once, on purpose: the sheet is opened for one slot or one entry and closed again.
-  let chosen = $state(
-    untrack(() => (entry ? String(entry.props.slot ?? '') : (slot ?? byClock()))),
-  );
+  let chosen = $state(untrack(() => (entry ? String(entry.props.slot ?? '') : (slot ?? ''))));
   const slotLabel = $derived(def.slots.find((s) => s.value === chosen)?.label ?? '');
+  const unplaced = $derived(def.slots.length > 0 && !chosen);
 
-  type Mode = 'recent' | 'search' | 'quick';
+  type Mode = 'recent' | 'search' | 'recipes' | 'quick';
   let mode = $state<Mode>('recent');
   let failed = $state('');
   let busy = $state(false);
@@ -74,7 +70,7 @@
   $effect(() => {
     if (entry) return;
     const s = chosen;
-    logRecent(view, { slot: s, limit: 20 })
+    logRecent(view, { ...(s ? { slot: s } : {}), limit: 20 })
       .then((r) => (recent = r))
       .catch((e) => (failed = String(e)));
   });
@@ -130,6 +126,7 @@
   const now = $derived(portion ? valuesAt(portion, portion.grams) : {});
 
   async function openPortion(title: string, props: Record<string, unknown>) {
+    if (whole(props[PCT]) !== null) return openServing(title, props);
     failed = '';
     const grams = whole(props[AMOUNT]) ?? 0;
     const source = typeof props.source === 'string' ? props.source : '';
@@ -172,6 +169,8 @@
   onMount(() => {
     if (entry) void openPortion(entry.title ?? '', entry.props);
   });
+  /// While an ingredient is being chosen, a serving of another recipe is not offered as one.
+  const offered = $derived((recent ?? []).filter((r) => !picking || whole(r.props[PCT]) === null));
 
   const stepSize = (g: number) => (g < 50 ? 5 : 10);
   function nudge(dir: 1 | -1) {
@@ -230,6 +229,18 @@
     write(async () => {
       if (!portion) return;
       const p = portion;
+      if (building) {
+        // An ingredient, not something eaten: it goes in the recipe being put together.
+        building.items.push({
+          title: p.title,
+          grams: p.grams,
+          values: valuesAt(p, p.grams),
+          source: p.source,
+        });
+        portion = null;
+        picking = false;
+        return;
+      }
       const props: Record<string, string | number> = { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) };
       if (p.source) props.source = p.source;
       await createNotesUndoable([draft(p.title, props)], `logged “${p.title}”`);
@@ -258,6 +269,187 @@
       await deleteUndoable(entry.id, title);
       onwrote({ removed: title });
       onclose();
+    });
+
+  // ── recipes ────────────────────────────────────────────────────────────────────────────────────
+  // A recipe is saved, not eaten: a note with `servings`, and one note per ingredient, all sharing
+  // one word under `recipe` and none of them on a day. What it comes to is the sum of what went
+  // in, as entered — nothing here estimates what cooking does to a weight or to a vitamin
+  // (`decisions.md#data`, 2026-10-11). A serving logged from it is an ordinary entry.
+  const PCT = 'servings_pct';
+  let recipes = $state<Recipe[] | null>(null);
+  const loadRecipes = () =>
+    logRecipes(view)
+      .then((r) => (recipes = r))
+      .catch((e) => (failed = String(e)));
+  $effect(() => {
+    if (!entry && mode === 'recipes' && untrack(() => recipes) === null) void loadRecipes();
+  });
+  /// A recipe's values, the amount left out: the weight that went in is not the weight served.
+  const wholeOf = (r: Recipe) =>
+    Object.fromEntries(
+      Object.entries(r.sums)
+        .filter(([k]) => k !== AMOUNT)
+        .map(([k, v]) => [k, v.sum]),
+    );
+  /// What is missing from a total, in words: “Iron from 1 of 2 ingredients”.
+  const gaps = (of: number, n: (key: string) => number) =>
+    def.metrics
+      .filter((m) => n(m.key) < of)
+      .map((m) => `${m.label} from ${n(m.key)} of ${of} ingredients`);
+
+  type Serving = {
+    title: string;
+    word: string;
+    /** How much of one serving, in hundredths. */
+    pct: number;
+    /** The whole recipe and how many servings it makes, when it is still kept. */
+    all: Record<string, number> | null;
+    servings: number;
+    /** Otherwise: the values as they were at `basePct`. */
+    base: Record<string, number>;
+    basePct: number;
+    made: Recipe | null;
+  };
+  let serving = $state<Serving | null>(null);
+  function servingAt(s: Serving, pct: number): Record<string, number> {
+    const scale = (v: number, by: number, over: number) => Math.round((v * by) / over);
+    if (s.all)
+      return Object.fromEntries(
+        Object.entries(s.all).map(([k, v]) => [k, scale(v, pct, 100 * s.servings)]),
+      );
+    if (s.basePct <= 0) return s.base;
+    return Object.fromEntries(
+      Object.entries(s.base).map(([k, v]) => [k, scale(v, pct, s.basePct)]),
+    );
+  }
+  const served = $derived(serving ? servingAt(serving, serving.pct) : {});
+  const openRecipe = (r: Recipe) =>
+    (serving = {
+      title: r.title,
+      word: r.recipe,
+      pct: 100,
+      all: wholeOf(r),
+      servings: r.servings,
+      base: {},
+      basePct: 0,
+      made: r,
+    });
+  async function openServing(title: string, props: Record<string, unknown>) {
+    failed = '';
+    const word = typeof props.source === 'string' ? props.source.replace(/^recipe\//, '') : '';
+    let made: Recipe | null = null;
+    try {
+      made = (await logRecipes(view)).find((r) => r.recipe === word) ?? null;
+    } catch {
+      made = null; // fall back to the entry's own numbers
+    }
+    const pct = whole(props[PCT]) ?? 100;
+    const base = Object.fromEntries(
+      Object.entries(props).flatMap(([k, v]) => {
+        const n = whole(v);
+        return n === null || k === PCT || k === 'planned' ? [] : [[k, n] as const];
+      }),
+    );
+    serving = {
+      title,
+      word,
+      pct,
+      all: made ? wholeOf(made) : null,
+      servings: made?.servings ?? 1,
+      base,
+      basePct: pct,
+      made,
+    };
+  }
+  const QUARTER = 25;
+  const lessOrMore = (dir: 1 | -1) =>
+    serving && (serving.pct = Math.max(QUARTER, serving.pct + dir * QUARTER));
+
+  const addServing = () =>
+    write(async () => {
+      if (!serving) return;
+      const s = serving;
+      const props = { [PCT]: s.pct, source: `recipe/${s.word}`, ...servingAt(s, s.pct) };
+      await createNotesUndoable([draft(s.title, props)], `logged “${s.title}”`);
+      added += 1;
+      serving = null;
+      onwrote();
+    });
+  const saveServing = () =>
+    write(async () => {
+      if (!serving || !entry) return;
+      const s = serving;
+      await setPropertiesUndoable(
+        entry.id,
+        { [PCT]: s.pct, slot: chosen, ...servingAt(s, s.pct) },
+        `changed “${s.title}”`,
+      );
+      onwrote();
+      onclose();
+    });
+  const removeRecipe = () =>
+    write(async () => {
+      const r = serving?.made;
+      if (!r) return;
+      await deleteNotesUndoable(
+        [r.id, ...r.ingredients.map((i) => i.id)],
+        `removed the recipe “${r.title}”`,
+      );
+      serving = null;
+      await loadRecipes();
+    });
+
+  // Putting a recipe together: a name, how many servings it makes, and foods by weight.
+  type Item = { title: string; grams: number; values: Record<string, number>; source: string };
+  let building = $state<{
+    name: string;
+    servings: number | string | null;
+    items: Item[];
+  } | null>(null);
+  /// Choosing an ingredient: the same search and the same amount step as logging a food.
+  let picking = $state(false);
+  const makes = $derived(Math.floor(Number(building?.servings ?? 0)));
+  const built = $derived.by(() => {
+    const sum: Record<string, number> = {};
+    for (const i of building?.items ?? [])
+      for (const [k, v] of Object.entries(i.values)) sum[k] = (sum[k] ?? 0) + v;
+    return sum;
+  });
+  const perServing = $derived(
+    makes >= 1
+      ? Object.fromEntries(Object.entries(built).map(([k, v]) => [k, Math.round(v / makes)]))
+      : {},
+  );
+  const recipeReady = $derived(
+    !!building && building.name.trim() !== '' && makes >= 1 && building.items.length > 0,
+  );
+  const word = () =>
+    globalThis.crypto?.randomUUID?.().slice(0, 13) ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const saveRecipe = () =>
+    write(async () => {
+      if (!building || !recipeReady) return;
+      const b = building;
+      const recipe = word();
+      const name = b.name.trim();
+      const drafts: NoteDraft[] = [
+        { title: name, props: { log: def.log, recipe, servings: makes } },
+        ...b.items.map((i) => ({
+          title: i.title,
+          props: {
+            log: def.log,
+            recipe,
+            [AMOUNT]: i.grams,
+            ...i.values,
+            ...(i.source ? { source: i.source } : {}),
+          },
+        })),
+      ];
+      await createNotesUndoable(drafts, `saved the recipe “${name}”`);
+      building = null;
+      mode = 'recipes';
+      await loadRecipes();
     });
 
   // ── typing a food in ───────────────────────────────────────────────────────────────────────────
@@ -336,6 +528,7 @@
         <label class="slot">
           <span class="sr">meal</span>
           <select bind:value={chosen}>
+            {#if !slot && !entry}<option value="" disabled>Which meal?</option>{/if}
             {#each def.slots as s (s.value)}
               <option value={s.value}>{s.label}</option>
             {/each}
@@ -413,13 +606,140 @@
         {:else}
           <div class="pair">
             <button type="button" class="quiet" onclick={() => (portion = null)}>Back</button>
-            <button type="button" class="go" onclick={addPortion} disabled={busy}>
-              Add{slotLabel ? ` to ${slotLabel}` : ''}
-            </button>
+            {#if building}
+              <button type="button" class="go" onclick={addPortion} disabled={busy}>
+                Add to the recipe
+              </button>
+            {:else}
+              <button type="button" class="go" onclick={addPortion} disabled={busy || unplaced}>
+                Add{slotLabel ? ` to ${slotLabel}` : ''}
+              </button>
+            {/if}
           </div>
         {/if}
       </section>
+    {:else if serving}
+      <!-- One recipe, how much of a serving, and what that comes to. -->
+      <section class="portion">
+        <h2>{serving.title}</h2>
+        <div class="stepper">
+          <button type="button" class="round" aria-label="less" onclick={() => lessOrMore(-1)}>
+            <Icon name="minus" size={22} />
+          </button>
+          <div class="grams">
+            <output aria-label="servings">{serving.pct / 100}</output>
+            <span class="unit">{serving.pct === 100 ? 'serving' : 'servings'}</span>
+          </div>
+          <button type="button" class="round" aria-label="more" onclick={() => lessOrMore(1)}>
+            <Icon name="plus" size={22} />
+          </button>
+        </div>
+        <p class="comes-to">
+          {#each summary(served) as part, i (i)}
+            <span class:lead={i === 0}>{part}</span>
+          {/each}
+        </p>
+        {#if serving.made}
+          {@const r = serving.made}
+          <p class="hint">
+            Makes {r.servings}. The sum of its ingredients as entered — nothing is adjusted for
+            cooking.
+          </p>
+          {#each gaps(r.of, (k) => r.sums[k]?.n ?? 0) as g (g)}<p class="hint">{g}</p>{/each}
+          <ul class="rows">
+            {#each r.ingredients as i (i.id)}
+              <li class="plain">
+                <span class="t">{i.title}</span>
+                <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        {#if entry}
+          <div class="pair">
+            <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
+            <button type="button" class="go" onclick={saveServing} disabled={busy}>Save</button>
+          </div>
+        {:else}
+          <div class="pair">
+            <button type="button" class="quiet" onclick={() => (serving = null)}>Back</button>
+            <button type="button" class="go" onclick={addServing} disabled={busy || unplaced}>
+              Add{slotLabel ? ` to ${slotLabel}` : ''}
+            </button>
+          </div>
+          {#if serving.made}
+            <button type="button" class="link" onclick={removeRecipe} disabled={busy}>
+              Remove this recipe
+            </button>
+          {/if}
+        {/if}
+      </section>
+    {:else if building && !picking}
+      <section class="quick">
+        <h2>New recipe</h2>
+        <label>
+          <span>Name</span>
+          <input class="field" type="text" bind:value={building.name} autocomplete="off" />
+        </label>
+        <label>
+          <span>Servings it makes</span>
+          <input
+            class="field"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            step="1"
+            bind:value={building.servings}
+          />
+        </label>
+        <ul class="rows">
+          {#each building.items as i, at (at)}
+            <li>
+              <span class="row still">
+                <span class="t">{i.title}</span>
+                <span class="a">{showWith(AMOUNT, i.grams)}</span>
+                <span class="v">{show(primary.key, i.values[primary.key] ?? 0).text}</span>
+              </span>
+              <button
+                type="button"
+                class="again"
+                onclick={() => building?.items.splice(at, 1)}
+                aria-label={`take ${i.title} out`}
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </li>
+          {/each}
+        </ul>
+        <button type="button" class="link" onclick={() => ((picking = true), (mode = 'search'))}>
+          Add an ingredient
+        </button>
+        {#if building.items.length && makes >= 1}
+          <p class="comes-to">
+            {#each summary(perServing) as part, i (i)}
+              <span class:lead={i === 0}>{part}</span>
+            {/each}
+          </p>
+          <p class="hint">
+            Per serving: the sum of the ingredients as entered, divided by {makes}.
+          </p>
+          {#each gaps(building.items.length, (k) => building?.items.filter((i) => k in i.values).length ?? 0) as g (g)}
+            <p class="hint">{g}</p>
+          {/each}
+        {/if}
+        <div class="pair">
+          <button type="button" class="quiet" onclick={() => (building = null)}>Cancel</button>
+          <button type="button" class="go" onclick={saveRecipe} disabled={busy || !recipeReady}>
+            Save recipe
+          </button>
+        </div>
+      </section>
     {:else}
+      {#if picking}
+        <button type="button" class="link" onclick={() => (picking = false)}>
+          Back to the recipe
+        </button>
+      {/if}
       <div class="modes" role="group" aria-label="how to add">
         <button type="button" class:on={mode === 'recent'} onclick={() => (mode = 'recent')}
           >Recent</button
@@ -427,9 +747,14 @@
         <button type="button" class:on={mode === 'search'} onclick={() => (mode = 'search')}
           >Search</button
         >
-        <button type="button" class:on={mode === 'quick'} onclick={() => (mode = 'quick')}
-          >Quick add</button
-        >
+        {#if !picking}
+          <button type="button" class:on={mode === 'recipes'} onclick={() => (mode = 'recipes')}
+            >Recipes</button
+          >
+          <button type="button" class:on={mode === 'quick'} onclick={() => (mode = 'quick')}
+            >Quick add</button
+          >
+        {/if}
       </div>
 
       {#if mode === 'recent'}
@@ -437,11 +762,11 @@
           <ul class="rows" aria-hidden="true">
             {#each [0, 1, 2, 3] as i (i)}<li class="ghost"></li>{/each}
           </ul>
-        {:else if recent.length === 0}
+        {:else if offered.length === 0}
           <p class="hint">Nothing logged yet. Search for a food, or type one in.</p>
         {:else}
           <ul class="rows">
-            {#each recent as r (r.title + String(r.props.source ?? ''))}
+            {#each offered as r (r.title + String(r.props.source ?? ''))}
               {@const grams = whole(r.props[AMOUNT])}
               <li>
                 <button type="button" class="row" onclick={() => openPortion(r.title, r.props)}>
@@ -449,15 +774,17 @@
                   <span class="a">{grams !== null ? showWith(AMOUNT, grams) : ''}</span>
                   <span class="v">{show(primary.key, whole(r.props[primary.key]) ?? 0).text}</span>
                 </button>
-                <button
-                  type="button"
-                  class="again"
-                  onclick={() => addAgain(r)}
-                  disabled={busy}
-                  aria-label={`add ${r.title} again`}
-                >
-                  <Icon name="plus" size={18} />
-                </button>
+                {#if !picking}
+                  <button
+                    type="button"
+                    class="again"
+                    onclick={() => addAgain(r)}
+                    disabled={busy || unplaced}
+                    aria-label={`add ${r.title} again`}
+                  >
+                    <Icon name="plus" size={18} />
+                  </button>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -488,6 +815,40 @@
             </li>
           {/each}
         </ul>
+      {:else if mode === 'recipes'}
+        {#if recipes === null}
+          <ul class="rows" aria-hidden="true">
+            {#each [0, 1] as i (i)}<li class="ghost"></li>{/each}
+          </ul>
+        {:else}
+          {#if recipes.length === 0}
+            <p class="hint">
+              No recipes yet. A recipe is foods by weight and the servings it makes; what a serving
+              comes to is added up for you.
+            </p>
+          {/if}
+          <ul class="rows">
+            {#each recipes as r (r.id)}
+              <li>
+                <button type="button" class="row" onclick={() => openRecipe(r)}>
+                  <span class="t">{r.title}</span>
+                  <span class="a">1 of {r.servings} servings</span>
+                  <span class="v"
+                    >{show(primary.key, Math.round((r.sums[primary.key]?.sum ?? 0) / r.servings))
+                      .text}</span
+                  >
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <button
+            type="button"
+            class="go wide"
+            onclick={() => (building = { name: '', servings: 1, items: [] })}
+          >
+            New recipe
+          </button>
+        {/if}
       {:else}
         <div class="quick">
           <label>
@@ -511,7 +872,12 @@
               Add {secondary.map((m) => m.label.toLowerCase()).join(', ')}
             </button>
           {/if}
-          <button type="button" class="go wide" onclick={addQuick} disabled={busy || !quickReady}>
+          <button
+            type="button"
+            class="go wide"
+            onclick={addQuick}
+            disabled={busy || !quickReady || unplaced}
+          >
             Add{slotLabel ? ` to ${slotLabel}` : ''}
           </button>
         </div>
@@ -805,6 +1171,21 @@
     font-variant-numeric: tabular-nums;
     -moz-appearance: textfield;
     appearance: textfield;
+  }
+  .grams output {
+    font-size: 2.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  /* A row that only tells: an ingredient in a recipe. */
+  .rows li.plain {
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 2.25rem;
+    color: var(--text-muted);
+  }
+  .row.still {
+    cursor: default;
   }
   .grams input::-webkit-outer-spin-button,
   .grams input::-webkit-inner-spin-button {

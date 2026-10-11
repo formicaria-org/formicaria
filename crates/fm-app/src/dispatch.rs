@@ -558,6 +558,7 @@ const READ_ONLY: &[&str] = &[
     "run_view",
     "log_days",
     "log_recent",
+    "log_recipes",
     // The food list is not in any vault. Reading it moves no note, so none of these should tell
     // a connected client the vault changed.
     "food_search",
@@ -2256,6 +2257,12 @@ fn dispatch_inner(
             let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(12) as usize;
             let store = g.store(scope);
             json(crate::log::log_recent(&store, &def, &s("slot"), &s("q"), limit).map_err(err)?)
+        }
+        "log_recipes" => {
+            let mut g = lock()?;
+            let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
+            let store = g.store(scope);
+            json(crate::log::log_recipes(&store, &def).map_err(err)?)
         }
         // ── The food list (`packs.rs`) — carried in the app and unpacked outside every vault, so
         // none of these takes the vault lock.

@@ -2170,6 +2170,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       const a = args as { view: string; slot?: string; q?: string; limit?: number };
       return tracker.logRecent(notes, a) as T;
     }
+    case 'log_recipes':
+      return tracker.logRecipes(notes, args as { view: string }) as T;
     case 'create_notes':
       return tracker.createNotes(notes, (args.notes ?? []) as NoteDraft[]) as T;
     case 'set_properties': {

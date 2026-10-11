@@ -159,6 +159,23 @@ export async function deleteUndoable(id: string, title: string): Promise<void> {
   });
 }
 
+/** Delete several notes as one step — a recipe and what goes in it. */
+export async function deleteNotesUndoable(ids: string[], label: string): Promise<void> {
+  let gone: { vault: string; file: string }[] = [];
+  const all = async () => {
+    gone = [];
+    for (const id of ids) gone.push(await deleteNote(id));
+  };
+  await all();
+  record({
+    label,
+    undo: async () => {
+      for (const g of gone) await restoreNote(g.vault, g.file);
+    },
+    redo: all,
+  });
+}
+
 /** Create a note, undoably: undo removes it (keeping what was typed for redo). */
 export async function captureUndoable(body: string, vault: string) {
   const meta = await capture(body, vault);

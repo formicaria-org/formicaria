@@ -33,6 +33,7 @@ import type {
   BackupRun,
   LogDays,
   RecentItem,
+  Recipe,
   NoteDraft,
   FoodHit,
   FoodDetail,
@@ -1204,6 +1205,8 @@ export const logDays = (view: string, from: string, to: string, rows = false) =>
 /** What was logged before, most used in this slot first. */
 export const logRecent = (view: string, opts: { slot?: string; q?: string; limit?: number } = {}) =>
   invoke<RecentItem[]>('log_recent', { view, ...opts });
+/** The recipes saved in a log, each with the sum of its ingredients. */
+export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 /** Create several notes in one write. */
 export const createNotes = (notes: NoteDraft[], vault = '') =>
   invoke<ObjectMeta[]>('create_notes', { notes, vault });

@@ -40,7 +40,8 @@ logged by name — see *Quick add* below.
 
 ## Logging a food
 
-Open **Food → Day** and press **＋**, or the **＋** beside a meal.
+Open **Food → Day** and press **＋**, or the **＋** beside a meal. From the bar's **＋** you say which meal it
+belongs to; the app does not guess one from the time of day.
 
 - **Recent** — what you have logged before, most often at this meal first. The **＋** on a row
   logs it again with the amount it had. Tapping the row lets you change the amount first.
@@ -53,6 +54,27 @@ Tap a logged entry to change its amount or remove it. Removing one offers **Undo
 also works from the ↶ menu, one step for each thing you did.
 
 An empty meal offers **Same as yesterday** when yesterday had something there.
+
+### Recipes
+
+The fourth way to add is **Recipes**. A recipe is a name, the number of servings it makes, and
+foods from the list by weight.
+
+- **New recipe** — give it a name and its servings, then **Add an ingredient**: search for a food
+  and set how many grams go in. What one serving comes to is shown as you go.
+- **Log it** — tap a recipe, choose how much of a serving (in quarters), and add it to a meal.
+  Every value the ingredients carry is logged, not only the ones on the day screen.
+- **Remove this recipe** takes the recipe and its ingredients away in one step, and can be undone.
+  What you already logged from it stays as it was.
+
+What a recipe comes to is **the sum of its ingredients as you entered them, divided by its
+servings**. Nothing is adjusted for cooking: the app does not estimate how much water a dish
+loses or how much of a vitamin survives the heat. Choose the cooked form of a food where the list
+has one ("Rice, cooked") if that is what you weighed. When an ingredient has no figure for
+something — a food with no iron value, say — the recipe says so: *Iron from 3 of 4 ingredients*.
+
+A recipe cannot be changed once saved, only removed and made again, and an ingredient has to be
+a food from the list.
 
 ## The day, and what it is measured against
 
@@ -98,7 +120,9 @@ beside it.
 - **Tick a set** when it is finished; a clock starts counting the time since. It does not tell
   you how long to rest.
 
-**Training → Volume** is the trend view over what you lifted.
+**Training → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
+load, added up over the sets you ticked — the usual meaning of the term in the training
+literature. It is a rough measure of work done, not a score.
 
 There is no list of exercises to choose from, no best-lift history, and no way to keep a named
 session plan.

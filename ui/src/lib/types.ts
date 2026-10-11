@@ -602,6 +602,19 @@ export interface RecentItem {
   count: number;
   last: string;
 }
+/** A saved recipe and what its ingredients come to (`log_recipes`). */
+export interface Recipe {
+  /** The word its notes share; an entry logged from it records `recipe/<this>` as its source. */
+  recipe: string;
+  id: string;
+  title: string;
+  servings: number;
+  /** How many ingredients it has. */
+  of: number;
+  /** The whole recipe, per value: the sum, and how many ingredients carried it. */
+  sums: Record<string, MetricSum>;
+  ingredients: ObjectMeta[];
+}
 /** A note to create. Several are created in one write (`create_notes`). */
 export interface NoteDraft {
   title: string;

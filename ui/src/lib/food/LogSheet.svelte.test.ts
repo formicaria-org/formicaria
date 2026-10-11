@@ -55,6 +55,54 @@ describe('the food sheet', () => {
     expect(await entriesToday('lunch')).toHaveLength(1);
   });
 
+  it('opened without a meal it guesses none, and adds nothing until one is named', async () => {
+    const { onwrote } = open({ slot: null });
+    const again = await screen.findAllByRole('button', { name: /^add .* again$/ });
+    expect((again[0] as HTMLButtonElement).disabled).toBe(true);
+
+    const meal = screen.getByRole('combobox') as HTMLSelectElement;
+    expect(meal.value).toBe('');
+    await fireEvent.change(meal, { target: { value: 'dinner' } });
+    const now = await screen.findAllByRole('button', { name: /^add .* again$/ });
+    await waitFor(() => expect((now[0] as HTMLButtonElement).disabled).toBe(false));
+    await fireEvent.click(now[0]);
+    await waitFor(() => expect(onwrote).toHaveBeenCalled());
+    expect(await entriesToday('dinner')).toHaveLength(1);
+  });
+
+  it('a recipe is foods by weight and its servings, and a serving of it is logged as their sum', async () => {
+    open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
+    expect(await screen.findByText(/No recipes yet/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'New recipe' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Rice bowl' } });
+    await fireEvent.input(screen.getByLabelText('Servings it makes'), { target: { value: '2' } });
+    const save = screen.getByRole('button', { name: 'Save recipe' }) as HTMLButtonElement;
+    expect(save.disabled, 'a recipe needs something in it').toBe(true);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Add an ingredient' }));
+    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'rice' } });
+    await fireEvent.click(await screen.findByText('Rice, brown, cooked'));
+    // 195 g of a food at 123 kcal per 100 g is 240 kcal; halved, a serving is 120.
+    await fireEvent.click(await screen.findByRole('button', { name: 'Add to the recipe' }));
+    expect(await screen.findByText(/divided by 2/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }));
+
+    await fireEvent.click(await screen.findByText('Rice bowl'));
+    expect(await screen.findByText(/nothing is adjusted for\s+cooking/)).toBeTruthy();
+    await fireEvent.click(screen.getByRole('button', { name: 'more' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Add to Lunch' }));
+    await waitFor(async () => expect(await entriesToday('lunch')).toHaveLength(1));
+    const [bowl] = await entriesToday('lunch');
+    expect([bowl.title, bowl.props.kcal, bowl.props.servings_pct]).toEqual(['Rice bowl', 150, 125]);
+    expect(String(bowl.props.source)).toMatch(/^recipe\//);
+    expect(bowl.props.amount_g, 'the weight that went in is not the weight served').toBeUndefined();
+
+    // Saving the recipe was one step, and the serving another.
+    expect(await undo()).toBe('logged “Rice bowl”');
+    expect(await undo()).toBe('saved the recipe “Rice bowl”');
+  });
+
   it('logging is one step to undo', async () => {
     open();
     await fireEvent.click((await screen.findAllByRole('button', { name: /^add .* again$/ }))[0]);

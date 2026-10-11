@@ -11,6 +11,7 @@ import type {
   DayTotals,
   LogDays,
   RecentItem,
+  Recipe,
   NoteDraft,
   FoodHit,
   FoodDetail,
@@ -47,7 +48,7 @@ const TRAINING: TotalsDef = {
   add: 'workout',
   span: 'day',
   metrics: [
-    { key: 'work_g', label: 'Volume', role: 'primary' },
+    { key: 'work_g', label: 'Volume load', role: 'primary' },
     { key: 'reps', label: 'Reps', role: 'secondary' },
   ],
   slots: [],
@@ -489,6 +490,39 @@ export function logRecent(
     .sort((a, b) => b.inSlot - a.inSlot || b.count - a.count || b.last.localeCompare(a.last))
     .slice(0, args.limit ?? 12)
     .map(({ inSlot: _inSlot, ...rest }) => rest);
+}
+
+export function logRecipes(notes: ObjectMeta[], args: { view: string }): Recipe[] {
+  const def = trackerDef(args.view)?.totals;
+  if (!def) throw new Error(`no such view: ${args.view}`);
+  const saved = notes.filter((x) => isLog(x, def.log) && !x.start && x.props.recipe);
+  const whole = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) ? v : null);
+  return saved
+    .filter((x) => (whole(x.props.servings) ?? 0) >= 1)
+    .map((head) => {
+      const ingredients = saved.filter(
+        (x) => x.props.recipe === head.props.recipe && whole(x.props.servings) === null,
+      );
+      const sums: Recipe['sums'] = {};
+      for (const x of ingredients)
+        for (const [k, v] of Object.entries(x.props)) {
+          const n = whole(v);
+          if (n === null) continue;
+          sums[k] ??= { sum: 0, n: 0 };
+          sums[k].sum += n;
+          sums[k].n += 1;
+        }
+      return {
+        recipe: String(head.props.recipe),
+        id: head.id,
+        title: head.title ?? '',
+        servings: whole(head.props.servings) ?? 1,
+        of: ingredients.length,
+        sums,
+        ingredients: ingredients.map((x) => JSON.parse(JSON.stringify(x)) as ObjectMeta),
+      };
+    })
+    .sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
 }
 
 export function createNotes(notes: ObjectMeta[], drafts: NoteDraft[]): ObjectMeta[] {
