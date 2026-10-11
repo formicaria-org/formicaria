@@ -1248,9 +1248,11 @@ Phases 1 to 5 are in: the log commands (`fm-app/src/log.rs`), the `totals` rende
 view groups, the screens, a Settings switch, and the food list (`fm-core/src/pack.rs`,
 `fm-app/src/packs.rs`, `ci/pack-foods.py`). What is true today, and what is not:
 
-- **The food list is carried in the app, and that has only been run on Linux.** It is compiled
-  into `fm-app` (3.8 MB compressed, 8.8 MB unpacked) and unpacked to the packs folder on first use.
-  **Never run on Android, iOS, macOS or Windows**, where the only platform-specific part is where
+- **The food list is carried in the app, and has been run on Linux and installed on one Android
+  phone.** It is compiled into `fm-app` (3.8 MB compressed, 8.8 MB unpacked) and unpacked to the
+  packs folder on first use. The owner used builds of `0ba9894` and `a9b3f02` on his phone on
+  2026-10-12 and said the day screen was fine; **whether a search found foods there was not
+  said.** **Never run on iOS, macOS or Windows**, where the only platform-specific part is where
   the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
   folder cannot be written, search fails with a sentence and Settings says foods can only be added
   by name.

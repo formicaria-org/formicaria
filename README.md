@@ -33,6 +33,7 @@ The following require only a browser.
 | **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
 | **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
 | **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
+| **Food and fitness** | A food log against targets, recipes as notes, and training sessions as sets — kept as notes like everything else. The food list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have none), each value under one international definition. |
 | **Timeline** | Notes ordered as a journal by day. |
 | **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
 | **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target in a pane alongside the source. |

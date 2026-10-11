@@ -1002,6 +1002,10 @@ search (`decisions.md#ui`, 2026-10-11). Before it, a build of `457c63f` was put 
 phone by cable and the owner reported *"it works"*. **v0.6.9** carries the editor that renders
 as you write (§2.21), tagged after a second phone test and **before GitHub's gate had finished on
 the version commit**; the commit before it, identical but for the version number, was green.
+**v0.6.9 is published** (the release run succeeded on its second attempt; the first failed in its
+last job on Linux, GitHub refusing the old version's question with a 403: `decisions.md`,
+2026-10-11, *the app asks the release page where it leads*). The gate on the commit after the
+version commit, which contains it, was green.
 
 Next, roughly in order:
 1. **What "it works" covered was not said.** The build held three things never on a phone before:
@@ -1014,6 +1018,47 @@ Next, roughly in order:
    found so far that was reached from it; it is also in the Back up panel, and the manual says
    so. If another turns up, it needs a button.
 4. **A person updating by hand on a Mac or a Windows computer** (§2.19, item 1).
+
+### 2.23 After v0.7.0 — food, fitness and the four groups (2026-10-12)
+
+Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-12 entries tagged
+`#ui` (the last of each subject wins: several of that day reverse one another). State and traps:
+`known-issues.md`, *The four groups*, *Recipes*, *Trackers — where they stand*. Session:
+`sessions/2026-10-12-food-fitness-four-groups-0.7.0.md`.
+
+1. **Weight is to be one of the trends.** The *Weight* view was removed on the owner's word; until
+   it is a choice on the Trends menu, with somewhere to log one, a weight cannot be logged at
+   all. This is the first thing a person who used 0.6.9's dev builds will miss.
+2. **The Library as the first screen** is ruled and not done: `defaultWorkspace` still opens the
+   board. It moves fifteen tests' starting point and what a new person sees first.
+3. **How a phone's layout should differ from a desktop's inside a view** is undecided. The rule so
+   far is negative (nothing laid over a view that worked, nothing shipped unseen, names the same
+   everywhere). The owner's test for a screen: *it shows what was picked, and at most scrolls*.
+4. **Graphs of tasks or of notes**, if wanted, are a tab of their own. The owner's "maybe".
+5. **Ask what was tried on the phone.** He used builds of `0ba9894` and `a9b3f02` and said *Day is
+   fine*; not said: whether a food search found foods (the list's first run off Linux), whether
+   a recipe was made, whether the tabs at the top of a phone's window crowd it.
+6. **Recipes**: an ingredient typed in by hand; a cooked weight; retention on cooking (the
+   EuroFIR and USDA tables are unread); deleting a recipe's note from the Library strands its
+   ingredients.
+7. **Sources still unread** (`sources-2026-10-11.md`): the micronutrient reference tables and
+   safety limits, Regulation 1169/2011's own text, EFSA's EU Menu guidance, Mifflin–St Jeor and
+   Henry, the ACSM 2026 paper. Nothing that would need them is built.
+8. **Never run**: the food list on iOS, macOS or Windows; any of the new screens on an iPhone.
+
+### 2.22 After v0.6.9 — releases and the version check (2026-10-11)
+
+1. **The next release is the first made docs-first** (the owner's standing instruction,
+   2026-10-11): manual and context notes updated and pushed before the tag, nothing pushed to
+   `main` between the version commit and its gate finishing.
+2. **The new way of asking ships in v0.7.0**, the first release to carry it. A copy still on
+   0.6.9 or earlier can be refused by *Check now* on a shared network until it has updated once
+   (the manual says what to do), and the update test, which starts from the release before, can
+   still report NOT TESTED on a system for this one release.
+3. **Read the warnings on `update-works`**, not only its colour: green may now include a system
+   that was not tested.
+4. **If the Linux gate on `main` ever fails and passes on a re-run**, that is a different cause
+   from the one found here; keep its log.
 
 ### 2.21 The editor that renders as you write (2026-10-11)
 

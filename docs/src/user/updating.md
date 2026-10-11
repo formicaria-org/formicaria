@@ -22,6 +22,12 @@ Settings says when a copy cannot update itself, and why — usually a folder the
 it to your home folder), or a folder set up by a version older than 0.5.2, which needs the way below
 once. On a phone, see [formicaria on an Android phone](./android.md#updating).
 
+**If *Check now* says it could not look**, and the message mentions *status code 403*, GitHub has
+refused the question, not formicaria: in versions up to 0.6.9 the check uses a GitHub service
+that answers only a limited number of anonymous questions an hour from one network, and everybody
+on an office, university or phone network shares that number. Wait a while and press **Check
+now** again, or try from another network. Later versions ask a different way and do not meet this.
+
 **While a newer version is on offer**, a second line says when it was found and has its own **Check
 now**, in case a newer one still has come out since.
 

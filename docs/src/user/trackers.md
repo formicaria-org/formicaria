@@ -4,8 +4,8 @@ formicaria can keep a food log and a training log beside your notes: what you at
 how a week went, and the sets of a session. What you log is
 kept as notes in your own notebook — plain files, like everything else.
 
-> **Early.** The screens were judged in a phone's browser against made-up data. The installed
-> app, on a phone, with a real notebook, has not been tried yet.
+> **Early.** New in 0.7.0, and used so far by one person on Linux and on an Android phone. On an
+> iPhone, a Mac or a Windows computer it has not been tried.
 
 ## Hiding it
 
