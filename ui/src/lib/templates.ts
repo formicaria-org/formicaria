@@ -26,6 +26,13 @@ const NEVER = new Set([
   GROUP,
 ]);
 
+/** The tag and the key of a recipe's own note (`decisions.md#ui`, 2026-10-12). */
+export const RECIPE = 'recipe';
+/** A fresh word for a recipe: what its note and its ingredients share, and nothing else does. */
+export const recipeWord = () =>
+  globalThis.crypto?.randomUUID?.().slice(0, 13) ??
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 /** The note a template makes: its structure, and nothing that was the template's own. */
 export function draftFrom(t: NoteDetail): NoteDraft {
   const props: Record<string, string | number> = {};
@@ -34,6 +41,9 @@ export function draftFrom(t: NoteDetail): NoteDraft {
     if (typeof v === 'string' || (typeof v === 'number' && Number.isInteger(v))) props[k] = v;
   }
   if (t.status) props.status = t.status;
+  // **A recipe gets a word of its own, never the template's.** The word is what joins a recipe to
+  // its ingredients, so two recipes sharing one would share their ingredients too.
+  if (t.tags.includes(RECIPE)) props[RECIPE] = recipeWord();
   return {
     title: '',
     body: t.body ?? '',
@@ -60,6 +70,7 @@ export function starters(firstStatus: string): NoteDraft[] {
   return [
     made('Task', 'task', 'Tasks', '', firstStatus ? { status: firstStatus } : {}),
     made('Meeting', 'meeting', 'Library', '## Who\n\n## Notes\n\n## Actions\n\n- [ ] \n'),
+    made('Recipe', RECIPE, 'Food', '## Method\n\n', { servings: 1 }),
     made('Diet program', 'program', 'Food', '', { program: 'food' }),
     made('Training program', 'program', 'Fitness', '', { program: 'training' }),
   ];

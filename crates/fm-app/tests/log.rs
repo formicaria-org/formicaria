@@ -456,3 +456,42 @@ fn a_recipe_is_the_sum_of_its_ingredients_and_says_what_an_ingredient_lacked() {
     let recent = log_recent(&s, &day_view(), "", "", 20).unwrap();
     assert_eq!(recent.iter().map(|r| r.title.as_str()).collect::<Vec<_>>(), ["Oats"]);
 }
+
+/// The recipe's own note is an ordinary, visible note; its ingredients are still entries
+/// (`decisions.md#ui`, 2026-10-12).
+#[test]
+fn a_recipe_note_is_a_visible_note_and_its_ingredients_are_not() {
+    let mut s = MemoryStore::new();
+    let saved = |title: &str, tags: &[&str], props: serde_json::Value| -> NoteDraft {
+        serde_json::from_value(json!({ "title": title, "tags": tags, "props": props })).unwrap()
+    };
+    create_notes(
+        &mut s,
+        "",
+        &[
+            saved("Dal", &["recipe"], json!({ "recipe": "r1", "servings": 4 })),
+            saved(
+                "Lentils",
+                &[],
+                json!({ "log": "food", "recipe": "r1", "amount_g": 300, "kcal": 1050 }),
+            ),
+            // A set of a workout that happens to carry the key is not an ingredient of anything.
+            saved("Squat", &[], json!({ "log": "workout", "recipe": "r1", "reps": 5 })),
+            // A recipe with nothing in it yet — made from a template, say — is still a recipe.
+            saved("Soup", &["recipe"], json!({ "recipe": "r2", "servings": 2 })),
+        ],
+    )
+    .unwrap();
+
+    let all = log_recipes(&s, &day_view()).unwrap();
+    let got: Vec<_> = all.iter().map(|r| (r.title.as_str(), r.servings, r.of)).collect();
+    assert_eq!(got, [("Dal", 4, 1), ("Soup", 2, 0)]);
+    assert_eq!(all[0].sums["kcal"].sum, 1050);
+    assert!(!all[0].sums.contains_key("reps"));
+
+    // In the Library: the two recipes, and none of what goes in them.
+    let mut seen: Vec<_> =
+        commands::recent(&s).unwrap().into_iter().filter_map(|n| n.title).collect();
+    seen.sort();
+    assert_eq!(seen, ["Dal", "Soup"]);
+}

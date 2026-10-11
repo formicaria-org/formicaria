@@ -19,6 +19,7 @@
     deleteNotesUndoable,
   } from '../undo.svelte';
   import { show, showWith, today, typed, whole } from '../units';
+  import { RECIPE, recipeWord } from '../templates';
   import type {
     FoodHit,
     FoodPortion,
@@ -229,6 +230,30 @@
     write(async () => {
       if (!portion) return;
       const p = portion;
+      if (into) {
+        // An ingredient for a recipe that is already kept: one more entry under its word.
+        const r = into;
+        const props = { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) };
+        await createNotesUndoable(
+          [
+            {
+              title: p.title,
+              props: {
+                log: def.log,
+                recipe: r.recipe,
+                ...props,
+                ...(p.source ? { source: p.source } : {}),
+              },
+            },
+          ],
+          `added “${p.title}” to “${r.title}”`,
+        );
+        portion = null;
+        picking = false;
+        into = null;
+        await reopen(r.recipe);
+        return;
+      }
       if (building) {
         // An ingredient, not something eaten: it goes in the recipe being put together.
         building.items.push({
@@ -400,6 +425,66 @@
       await loadRecipes();
     });
 
+  // ── changing a recipe that is kept ─────────────────────────────────────────────────────────────
+  /// The recipe an ingredient is being chosen for.
+  let into = $state<Recipe | null>(null);
+  /// The ingredient whose amount is being changed, and whose recipe it is.
+  let fixing = $state<{ word: string; id: string; title: string } | null>(null);
+  /// Read the recipes again and show this one as it now is.
+  async function reopen(word: string) {
+    await loadRecipes();
+    const r = (recipes ?? []).find((x) => x.recipe === word);
+    if (r) openRecipe(r);
+    else serving = null;
+  }
+  function addIngredientTo(r: Recipe) {
+    into = r;
+    serving = null;
+    picking = true;
+    mode = 'search';
+  }
+  async function fixIngredient(r: Recipe, i: ObjectMeta) {
+    fixing = { word: r.recipe, id: i.id, title: i.title ?? 'an ingredient' };
+    serving = null;
+    await openPortion(i.title ?? '', i.props);
+  }
+  const leaveFix = async () => {
+    const f = fixing;
+    fixing = null;
+    portion = null;
+    if (f) await reopen(f.word);
+  };
+  const saveIngredient = () =>
+    write(async () => {
+      if (!portion || !fixing) return;
+      const p = portion;
+      await setPropertiesUndoable(
+        fixing.id,
+        { [AMOUNT]: p.grams, ...valuesAt(p, p.grams) },
+        `changed “${p.title}”`,
+      );
+      await leaveFix();
+    });
+  const removeIngredient = () =>
+    write(async () => {
+      if (!fixing) return;
+      await deleteUndoable(fixing.id, fixing.title);
+      await leaveFix();
+    });
+  /// How many servings a kept recipe makes, as typed.
+  let makesNow = $state<number | string | null>(null);
+  $effect(() => {
+    makesNow = serving?.made?.servings ?? null;
+  });
+  const saveServings = () =>
+    write(async () => {
+      const r = serving?.made;
+      const n = Math.floor(Number(makesNow));
+      if (!r || !(n >= 1) || n === r.servings) return;
+      await setPropertiesUndoable(r.id, { servings: n }, `changed what “${r.title}” makes`);
+      await reopen(r.recipe);
+    });
+
   // Putting a recipe together: a name, how many servings it makes, and foods by weight.
   type Item = { title: string; grams: number; values: Record<string, number>; source: string };
   let building = $state<{
@@ -424,17 +509,15 @@
   const recipeReady = $derived(
     !!building && building.name.trim() !== '' && makes >= 1 && building.items.length > 0,
   );
-  const word = () =>
-    globalThis.crypto?.randomUUID?.().slice(0, 13) ??
-    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const saveRecipe = () =>
     write(async () => {
       if (!building || !recipeReady) return;
       const b = building;
-      const recipe = word();
+      const recipe = recipeWord();
       const name = b.name.trim();
       const drafts: NoteDraft[] = [
-        { title: name, props: { log: def.log, recipe, servings: makes } },
+        // The recipe's own note is an ordinary one: tagged, in the Library, with no `log`.
+        { title: name, tags: [RECIPE], props: { recipe, servings: makes } },
         ...b.items.map((i) => ({
           title: i.title,
           props: {
@@ -598,7 +681,15 @@
             <span class:lead={i === 0}>{part}</span>
           {/each}
         </p>
-        {#if entry}
+        {#if fixing}
+          <div class="pair">
+            <button type="button" class="quiet" onclick={removeIngredient} disabled={busy}>
+              Take out
+            </button>
+            <button type="button" class="go" onclick={saveIngredient} disabled={busy}>Save</button>
+          </div>
+          <button type="button" class="link" onclick={leaveFix}>Back to the recipe</button>
+        {:else if entry}
           <div class="pair">
             <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
             <button type="button" class="go" onclick={save} disabled={busy}>Save</button>
@@ -606,7 +697,7 @@
         {:else}
           <div class="pair">
             <button type="button" class="quiet" onclick={() => (portion = null)}>Back</button>
-            {#if building}
+            {#if building || into}
               <button type="button" class="go" onclick={addPortion} disabled={busy}>
                 Add to the recipe
               </button>
@@ -642,18 +733,54 @@
         {#if serving.made}
           {@const r = serving.made}
           <p class="hint">
-            Makes {r.servings}. The sum of its ingredients as entered — nothing is adjusted for
-            cooking.
+            The sum of its ingredients as entered — nothing is adjusted for cooking.
           </p>
           {#each gaps(r.of, (k) => r.sums[k]?.n ?? 0) as g (g)}<p class="hint">{g}</p>{/each}
-          <ul class="rows">
-            {#each r.ingredients as i (i.id)}
-              <li class="plain">
-                <span class="t">{i.title}</span>
-                <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
-              </li>
-            {/each}
-          </ul>
+          {#if entry}
+            <ul class="rows">
+              {#each r.ingredients as i (i.id)}
+                <li class="plain">
+                  <span class="t">{i.title}</span>
+                  <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
+                </li>
+              {/each}
+            </ul>
+          {:else}
+            <!-- The recipe itself, changed here: what it makes, and what goes in it. -->
+            <label class="makes">
+              <span>Servings it makes</span>
+              <input
+                class="field"
+                type="number"
+                inputmode="numeric"
+                min="1"
+                step="1"
+                bind:value={makesNow}
+                onchange={saveServings}
+              />
+            </label>
+            {#if r.of === 0}<p class="hint">Nothing in it yet.</p>{/if}
+            <ul class="rows">
+              {#each r.ingredients as i (i.id)}
+                <li>
+                  <button
+                    type="button"
+                    class="row"
+                    onclick={() => fixIngredient(r, i)}
+                    aria-label={`change ${i.title ?? 'ingredient'}`}
+                  >
+                    <span class="t">{i.title}</span>
+                    <span class="a">{showWith(AMOUNT, whole(i.props[AMOUNT]) ?? 0)}</span>
+                    <span class="v">{show(primary.key, whole(i.props[primary.key]) ?? 0).text}</span
+                    >
+                  </button>
+                </li>
+              {/each}
+            </ul>
+            <button type="button" class="link" onclick={() => addIngredientTo(r)}>
+              Add an ingredient
+            </button>
+          {/if}
         {/if}
         {#if entry}
           <div class="pair">
@@ -736,7 +863,16 @@
       </section>
     {:else}
       {#if picking}
-        <button type="button" class="link" onclick={() => (picking = false)}>
+        <button
+          type="button"
+          class="link"
+          onclick={() => {
+            picking = false;
+            const r = into;
+            into = null;
+            if (r) openRecipe(r);
+          }}
+        >
           Back to the recipe
         </button>
       {/if}
@@ -1256,5 +1392,15 @@
     padding: 0 var(--space-4);
     border: 1px solid var(--border);
     background: none;
+  }
+  .makes {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+  .makes .field {
+    width: 5rem;
+    text-align: right;
   }
 </style>

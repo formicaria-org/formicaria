@@ -11,7 +11,8 @@
 
 use crate::dto::ObjectMeta;
 use crate::thread::{
-    is_log, is_message, is_proposal, is_template, log_base, log_with_programs_base, LOG,
+    is_log, is_message, is_proposal, is_template, log_base, log_with_keyed_base,
+    log_with_programs_base, LOG,
 };
 use crate::views::TotalsDef;
 use fm_core::edit::apply_property;
@@ -38,6 +39,10 @@ fn is_planned(o: &Object) -> bool {
         o.get(PLANNED),
         PropertyValue::Null | PropertyValue::Bool(false) | PropertyValue::Int(0)
     )
+}
+
+fn is_log_of(o: &Object, kind: &str) -> bool {
+    o.get(LOG) == PropertyValue::Text(kind.to_string())
 }
 
 fn parse_day(which: &str, s: &str) -> Result<Date, StoreError> {
@@ -293,34 +298,45 @@ pub struct Recipe {
 
 /// The recipes kept in this log, by name, each with the sum of its ingredients.
 ///
-/// A recipe is saved, not eaten: its notes carry `log` and no `start`, so they are in no day and
-/// in no planning view. The recipe's note carries `servings`; an ingredient is an entry like any
-/// other — a food, an amount, the values that amount had — that names the recipe instead of a day.
+/// **The recipe's own note is an ordinary note** — tagged, visible in the Library, made from a
+/// template if a person likes — carrying `servings` and a word under `recipe`
+/// (`decisions.md#ui`, 2026-10-12). **An ingredient is an entry like any other** — a food, an
+/// amount, the values that amount had — that carries `log`, names the recipe by that word instead
+/// of a day, and so is in no day and in no planning view. A recipe's note made before that
+/// ruling carries `log` too, and is read the same.
 ///
 /// **The sum is of the ingredients as entered**, raw or cooked as the person chose them. Nothing
 /// here knows what cooking does to a weight or to a vitamin, and nothing guesses
 /// (`decisions.md#data`, 2026-10-11, *a recipe is the sum of what went in*).
 pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, StoreError> {
     let query = Query {
-        filter: log_base(&def.log),
+        filter: log_with_keyed_base(&def.log, RECIPE),
         sort: vec![SortKey::asc("created")],
         ..Default::default()
     };
     let mut heads: BTreeMap<String, (Object, i64)> = BTreeMap::new();
     let mut parts: BTreeMap<String, Vec<Object>> = BTreeMap::new();
     for o in store.query(&query)?.rows {
-        if o.start.is_some() || is_template(&o) {
+        if o.start.is_some() || is_template(&o) || is_message(&o) || is_proposal(&o) {
             continue;
         }
         let PropertyValue::Text(word) = o.get(RECIPE) else { continue };
         if word.is_empty() {
             continue;
         }
+        // An entry of another log is not this one's; a note with no `log` at all is a recipe's
+        // own note, and recipes are the food log's.
+        let logged = !o.get(LOG).is_null();
+        if logged && !is_log_of(&o, &def.log) {
+            continue;
+        }
         match o.get(SERVINGS) {
             PropertyValue::Int(n) if n >= 1 => {
                 heads.insert(word, (o, n));
             }
-            _ => parts.entry(word).or_default().push(o),
+            _ if logged => parts.entry(word).or_default().push(o),
+            // A note that names a recipe and is neither it nor an ingredient of it: not ours.
+            _ => {}
         }
     }
     let mut out = Vec::new();

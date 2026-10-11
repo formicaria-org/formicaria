@@ -496,15 +496,23 @@ export function logRecent(
 export function logRecipes(notes: ObjectMeta[], args: { view: string }): Recipe[] {
   const def = trackerDef(args.view)?.totals;
   if (!def) throw new Error(`no such view: ${args.view}`);
+  // A recipe's own note is an ordinary note (no `log`); its ingredients are entries of this log.
   const saved = notes.filter(
-    (x) => isLog(x, def.log) && !x.start && x.props.recipe && !x.tags.includes('template'),
+    (x) =>
+      (isLog(x, def.log) || !x.props.log) &&
+      !x.start &&
+      x.props.recipe &&
+      !x.tags.includes('template'),
   );
   const whole = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) ? v : null);
   return saved
     .filter((x) => (whole(x.props.servings) ?? 0) >= 1)
     .map((head) => {
       const ingredients = saved.filter(
-        (x) => x.props.recipe === head.props.recipe && whole(x.props.servings) === null,
+        (x) =>
+          x.props.recipe === head.props.recipe &&
+          whole(x.props.servings) === null &&
+          isLog(x, def.log),
       );
       const sums: Recipe['sums'] = {};
       for (const x of ingredients)

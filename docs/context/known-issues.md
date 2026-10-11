@@ -1254,15 +1254,15 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
   folder cannot be written, search fails with a sentence and Settings says foods can only be added
   by name.
-- **The four groups: phases 0 to 3 are in** (`decisions.md#ui`, 2026-10-12;
+- **The four groups: phases 0 to 4 are in** (`decisions.md#ui`, 2026-10-12;
   `groups-plan-2026-10-12.md`). Templates carry structure and are inert (`lib/templates.ts`,
   `thread::is_template`, `tasks_base`); the side panel lists the groups first and a built-in view
   is reached inside its group (`lib/spaces.svelte.ts`, the tab strip in `Pane.svelte`); a phone's
   bar is always a group's; Food and Fitness are shown unless a device hides them.
   `localStorage['fm-spaces'] = '0'` turns the group chrome off on a device, with no switch for it.
   *Everything* lists logged entries, the newest 300, with no way to page past them.
-  **Not built:** a recipe template (a recipe made outside the sheet has no word
-  joining it to its ingredients), a session-plan template, the visual pass.
+  **Not built:** a session-plan template (a session is several set notes, and a template makes
+  one note), the visual pass.
   **Decided and not done: the Library as the first screen.** A fresh workspace still opens on the
   board; changing `defaultWorkspace` moves fifteen tests' starting point and the first thing a
   new person sees, so it waits for the owner.
@@ -1272,13 +1272,19 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   board view still shows templates. The starter Task's status is the first one the app has seen,
   which is the board's first column only by the order cards arrive in. The Library's Search tab
   only opens the search field. **None of this has been looked at on a device.**
-- **Recipes are the simple version** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of
-  what went in*; `log::log_recipes`, the Recipes tab of `food/LogSheet.svelte`). Not built: changing
-  a saved recipe (remove and remake), an ingredient typed in by hand, a cooked weight and so a
-  per-100 g figure for the dish, nutrient retention on cooking (the EuroFIR and USDA retention
-  tables are unread), and anything on the day screen that marks an entry as a recipe. A recipe's
-  notes show in *Recently deleted* one per ingredient. An entry logged from a recipe that was later
-  removed is rescaled from its own rounded numbers when its amount is changed.
+- **Recipes** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of what went in*, and `#ui`,
+  2026-10-12; `log::log_recipes`, the Recipes tab of `food/LogSheet.svelte`). The recipe's own
+  note is an ordinary visible note tagged `recipe`; each ingredient is still a hidden entry
+  joined to it by a word. Servings, ingredients and amounts can be changed. **Not built:** an
+  ingredient typed in by hand, a cooked weight and so a per-100 g figure for the dish, nutrient
+  retention on cooking (the EuroFIR and USDA retention tables are unread), and anything on the
+  day screen that marks an entry as a recipe. **Traps.** Deleting the recipe's note from the
+  Library — rather than *Remove this recipe* in the sheet — leaves its ingredients behind, hidden,
+  and reachable only as files. Copying a recipe's note by
+  hand copies its word, and the two then share ingredients. A recipe's note carries no numbers:
+  open in the editor it shows its servings and nothing of what it comes to. An entry logged from
+  a recipe that was later removed is rescaled from its own rounded numbers when its amount is
+  changed. A recipe's notes show in *Recently deleted* one per ingredient.
 - **The list is two European tables with a U.S. fallback, and the three do not cover the same things**
   (`decisions.md#data`, 2026-10-11; the account is in `ci/pack-foods.py`). Each key
   has one FAO/INFOODS definition and a table without it has no value there: BLS has no selenium,

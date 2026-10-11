@@ -34,10 +34,10 @@ being one. It is still an ordinary note you can search for and edit. What it is 
 the things it makes: a template with a status is not a card on the board or the agenda, and a
 template for a diet program does not set your targets.
 
-**Add starter templates**, in the same ＋ menu, writes four ordinary notes into your vault — Task,
-Meeting, Diet program, Training program — which you can change or delete like any other. Each
-holds only structure: a tag and the property a view reads. None holds a number or a suggestion.
-The item disappears once you have all four.
+**Add starter templates**, in the same ＋ menu, writes five ordinary notes into your vault — Task,
+Meeting, Recipe, Diet program, Training program — which you can change or delete like any other.
+Each holds only structure: a tag and the property a view reads. None holds a target or a
+suggestion. The item disappears once you have all five.
 
 ## Editing a note
 

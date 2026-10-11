@@ -9762,3 +9762,24 @@ them to show 300 is not what costs. The test fails at 2.5×.
 
 **Costs.** Nothing pages: the 301st newest note is not reachable from *Everything*, only by
 search or its own day. Global search, the recent list and the link menu are unchanged.
+
+## 2026-10-12 — a recipe made from a template gets a word of its own `#data` `#ui`
+
+> Settles what *four groups over notes* (same day) left open: "how a recipe made from a template
+> gets the word that joins it to its ingredients is not designed."
+
+**Decision.**
+- **A note made from a template tagged `recipe` is given a fresh word under `recipe`**, whatever
+  the template carried (`lib/templates.ts`, `draftFrom`). The word is the only thing that joins a
+  recipe to its ingredients, so it is the one property a template never hands on as it is.
+- **A recipe with nothing in it is still a recipe**: `log_recipes` lists a note that has a word
+  and `servings` and no ingredients, so one started from a template can be filled from the sheet.
+- **A recipe's own note with no `log` belongs to the food log.** Ingredients must carry
+  `log: food`; a note of another log carrying the key is nobody's ingredient.
+- **The Recipe starter template carries `servings: 1`** — the one number among the starters, and
+  not a suggestion: a recipe cannot be read without it.
+- **No session-plan template.** A session is planned as several set notes (2026-10-11) and a
+  template makes one note; "the same as last time" stays the way to plan one.
+
+**Costs.** The word is assigned in the UI, so a recipe note written by hand, or copied, needs its
+`recipe` set by hand to something no other note uses.

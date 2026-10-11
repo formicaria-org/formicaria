@@ -133,6 +133,7 @@ test('starter templates are notes, and a group’s add control offers the ones t
     expect(list.map((t) => t.title).sort()).toEqual([
       'Diet program',
       'Meeting',
+      'Recipe',
       'Task',
       'Training program',
     ]);

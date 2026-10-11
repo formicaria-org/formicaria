@@ -229,6 +229,24 @@ pub fn log_with_programs_base(kind: &str, program_key: &str) -> Filter {
         .and(Predicate::Any(vec![is(LOG), is(program_key)]))
 }
 
+/// One log's entries **and** the notes that carry `key` — a recipe's own note, which is an ordinary
+/// visible note and names its ingredients by a word under that key (`decisions.md#ui`,
+/// 2026-10-12). One pass, as for programs; the caller tells the two apart.
+pub fn log_with_keyed_base(kind: &str, key: &str) -> Filter {
+    Filter::new().and(Predicate::Kind(vec![Kind::Note])).and(Predicate::Any(vec![
+        Predicate::Prop {
+            key: LOG.into(),
+            op: fm_query::Op::Eq,
+            value: fm_model::PropertyValue::Text(kind.to_string()),
+        },
+        Predicate::Prop {
+            key: key.into(),
+            op: fm_query::Op::Exists,
+            value: fm_model::PropertyValue::Null,
+        },
+    ]))
+}
+
 /// The base filter for one log: the entries of that kind, and nothing else. The complement of the
 /// entry exclusion in [`notes_base`], here for the same two reasons as [`proposals_base`].
 pub fn log_base(kind: &str) -> Filter {

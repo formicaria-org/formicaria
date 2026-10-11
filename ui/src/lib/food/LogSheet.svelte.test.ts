@@ -6,7 +6,7 @@ import LogSheet from './LogSheet.svelte';
 import { reset, seedTrackerDemo, handle } from '../mock';
 import { clear as clearUndo, nextUndo, undo } from '../undo.svelte';
 import { today } from '../units';
-import type { LogDays, TotalsDef, ViewResult } from '../types';
+import type { LogDays, Recipe, TotalsDef, ViewResult } from '../types';
 
 let def: TotalsDef;
 const entriesToday = async (slot: string) => {
@@ -101,6 +101,55 @@ describe('the food sheet', () => {
     // Saving the recipe was one step, and the serving another.
     expect(await undo()).toBe('logged “Rice bowl”');
     expect(await undo()).toBe('saved the recipe “Rice bowl”');
+  });
+
+  it('a kept recipe can be changed: what it makes, what goes in it, and how much', async () => {
+    await handle('create_notes', {
+      notes: [
+        { title: 'Rice bowl', tags: ['recipe'], props: { recipe: 'w1', servings: 2 } },
+        {
+          title: 'Rice, brown, cooked',
+          props: { log: 'food', recipe: 'w1', amount_g: 200, kcal: 246, source: 'demo/f011' },
+        },
+      ],
+    });
+    const recipe = async () =>
+      (await handle<Recipe[]>('log_recipes', { view: 'Day' })).find((r) => r.recipe === 'w1')!;
+    open();
+    await fireEvent.click(screen.getByRole('button', { name: 'Recipes' }));
+    await fireEvent.click(await screen.findByText('Rice bowl'));
+
+    // What it makes.
+    await fireEvent.input(screen.getByLabelText('Servings it makes'), { target: { value: '4' } });
+    await fireEvent.change(screen.getByLabelText('Servings it makes'));
+    await waitFor(async () => expect((await recipe()).servings).toBe(4));
+
+    // One more thing in it.
+    await fireEvent.click(await screen.findByRole('button', { name: 'Add an ingredient' }));
+    await fireEvent.input(screen.getByLabelText('search foods'), { target: { value: 'oats' } });
+    await fireEvent.click(await screen.findByText('Oats, rolled'));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Add to the recipe' }));
+    await waitFor(async () => expect((await recipe()).of).toBe(2));
+    // Back on the recipe, with both.
+    expect(await screen.findByRole('button', { name: 'change Oats, rolled' })).toBeTruthy();
+
+    // How much of one of them: recomputed from the food, not rescaled from a rounded number.
+    await fireEvent.click(screen.getByRole('button', { name: 'change Rice, brown, cooked' }));
+    await fireEvent.input(await screen.findByLabelText('amount in grams'), {
+      target: { value: '100' },
+    });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(async () => {
+      const rice = (await recipe()).ingredients.find((i) => i.title === 'Rice, brown, cooked')!;
+      expect([rice.props.amount_g, rice.props.kcal]).toEqual([100, 123]);
+    });
+
+    // And out again.
+    await fireEvent.click(await screen.findByRole('button', { name: 'change Oats, rolled' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Take out' }));
+    await waitFor(async () => expect((await recipe()).of).toBe(1));
+    expect(await undo()).toBe('deleted “Oats, rolled”');
+    await waitFor(async () => expect((await recipe()).of).toBe(2));
   });
 
   it('logging is one step to undo', async () => {

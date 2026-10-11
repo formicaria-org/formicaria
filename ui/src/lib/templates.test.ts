@@ -63,6 +63,18 @@ describe('a note made from a template', () => {
     expect(d.title).toBe('');
   });
 
+  it('a recipe made from a template gets a word of its own, never the template’s', () => {
+    const tpl = note({
+      tags: ['template', 'recipe'],
+      props: { recipe: 'the-templates', servings: 1 },
+    });
+    const a = draftFrom(tpl).props.recipe;
+    const b = draftFrom(tpl).props.recipe;
+    expect(typeof a).toBe('string');
+    expect(a).not.toBe('the-templates');
+    expect(a).not.toBe(b);
+  });
+
   it('a group offers the templates that name it', () => {
     const all = [
       { title: 'Task', props: { group: 'Tasks' } },
@@ -74,9 +86,17 @@ describe('a note made from a template', () => {
 
   it('the starter templates carry structure and no number', () => {
     const s = starters('todo');
-    expect(s.map((t) => t.title)).toEqual(['Task', 'Meeting', 'Diet program', 'Training program']);
+    expect(s.map((t) => t.title)).toEqual([
+      'Task',
+      'Meeting',
+      'Recipe',
+      'Diet program',
+      'Training program',
+    ]);
     expect(s.every((t) => t.tags?.includes('template'))).toBe(true);
     for (const t of s)
-      for (const v of Object.values(t.props)) expect(typeof v, t.title).toBe('string');
+      for (const [k, v] of Object.entries(t.props))
+        // The one number is a recipe's servings, which a recipe cannot be without: one.
+        expect(k === 'servings' ? v : typeof v, t.title).toBe(k === 'servings' ? 1 : 'string');
   });
 });

@@ -65,8 +65,15 @@ foods from the list by weight.
   and set how many grams go in. What one serving comes to is shown as you go.
 - **Log it** — tap a recipe, choose how much of a serving (in quarters), and add it to a meal.
   Every value the ingredients carry is logged, not only the ones on the day screen.
+- **Change it** — tap a recipe and it is all there to change: the servings it makes, **Add an
+  ingredient**, and each ingredient — tap one to change its amount or **Take out**. Each change
+  can be undone. What you already logged from the recipe stays as it was.
 - **Remove this recipe** takes the recipe and its ingredients away in one step, and can be undone.
-  What you already logged from it stays as it was.
+
+**A recipe is a note.** It is in the Library, tagged `recipe`, and you can open it, write the
+method in it, and tag it further like any other note. You can also start one from the **Recipe**
+[starter template](./notes.md#templates) — it arrives empty, and you put the ingredients in from
+here. The ingredients themselves are kept out of your notes, the way logged meals are.
 
 What a recipe comes to is **the sum of its ingredients as you entered them, divided by its
 servings**. Nothing is adjusted for cooking: the app does not estimate how much water a dish
@@ -74,8 +81,7 @@ loses or how much of a vitamin survives the heat. Choose the cooked form of a fo
 has one ("Rice, cooked") if that is what you weighed. When an ingredient has no figure for
 something — a food with no iron value, say — the recipe says so: *Iron from 3 of 4 ingredients*.
 
-A recipe cannot be changed once saved, only removed and made again, and an ingredient has to be
-a food from the list.
+An ingredient has to be a food from the list.
 
 ## The day, and what it is measured against
 
