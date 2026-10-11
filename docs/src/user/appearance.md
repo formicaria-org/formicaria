@@ -1,12 +1,12 @@
 # Appearance
 
-Formicaria ships with a dark look and a warm light one, switched in **Settings → Theme**. Beyond
+Formicaria ships with a dark look and a warm light one, switched in **Settings → Look → Theme**. Beyond
 that you can change how it looks yourself — and because the result is a file in your vault, it
 travels with your notes.
 
 ## The quick way
 
-**Settings → Appearance** asks three questions:
+**Settings → Look → Appearance** asks three questions:
 
 - **Accent** — the colour of links, buttons and the focus ring. Four presets, or any colour you like.
 - **Text size** — small, normal or large.

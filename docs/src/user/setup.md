@@ -71,7 +71,7 @@ If it is another copy of formicaria, it will simply open your browser at the cop
 ## The study assistant
 
 formicaria has an optional local AI assistant, and on Linux **this download can run it**. Turn it on
-in **Settings → Study assistant**. The first time, it asks which model you want, tells you how large
+in **Settings → Assistant → Study assistant**. The first time, it asks which model you want, tells you how large
 it is and under what licence, and downloads it — between 0.7 and 2.5 GB depending on your choice,
 once, kept on this computer and used offline afterwards. Letting it read photographed pages adds a
 further 0.84 GB, and is offered as its own choice. You can stop part-way; what has arrived is kept.

@@ -962,10 +962,9 @@ installing the release, and the page that reloads after a restart (`known-issues
 the desktop*).
 
 Next, roughly in order:
-1. **Run the `update-test` workflow by hand.** It is the first evidence there will be for macOS and
-   Windows. Only the owner can start it.
-2. **Watch `update-works` on the next release.** It is the first time the release workflow calls
-   another workflow after publishing; the guard was extended for it and it has never run.
+1. **A person updating by hand on a Mac or a Windows computer.** The v0.6.7 release's own last
+   job updated 0.6.6 to 0.6.7 and back on all three desktop systems; that used the test's
+   variables, not the launcher somebody double-clicks.
 3. **See the page reload itself after *Restart*.** Unit-tested only. The owner's first install
    showed the old message, because the fix was written after it.
 4. **Why the caret overshot on the phone is still a diagnosis.** The fix (measure in a twin of the
@@ -980,6 +979,25 @@ Next, roughly in order:
    back, and search (`decisions.md#ui`, 2026-10-11, *Settings shows one category
    at a time*). Seen in a browser only. Still open from that entry: offering fewer settings, and
    moving options to the screen they affect.
+
+### 2.20 After v0.6.7 — the week grid, backing up by itself, and Settings (2026-10-11)
+
+**v0.6.7 is published** with the week as a time grid, backing up by itself, the page that reloads
+after an update, and the reason shown when a copy cannot look for one. **It was tagged without the
+phone test**, on the owner's word; its notes say so. Since the tag, on `main`: Settings as six
+categories with search (`decisions.md#ui`, 2026-10-11).
+
+Next, roughly in order:
+1. **Put a build on the phone and look**: the week grid, a date changed on one device arriving on
+   the other without a press, and the new Settings (§2.19 items 7 and 8). None of the three has
+   been on a phone.
+2. **Settings, the part left out on purpose**: fewer settings, and options moved to the screen
+   they affect (columns into the board).
+3. **The actions list has no door on a device without a keyboard.** *New vault* is the one action
+   found so far that was reached from it; it is also in the Back up panel, and the manual now
+   says so. If another turns up, it needs a button.
+4. **The full gate did not run locally** for the last two changes (the assistant was running);
+   GitHub's did. Run it once with the assistant off.
 
 ## 3. Known and accepted — do not "fix" without deciding
 

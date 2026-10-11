@@ -46,7 +46,7 @@ its address to see the names used below.
 1. In Gmail, create a label called `formicaria`, and a filter that applies it to the mail you want
    read: a sender, a mailing list, or a subject. When you create the filter, tick *Also apply to
    matching conversations* so existing mail is included.
-2. In formicaria, open **Settings → Mail**. Paste the Client ID and secret, check the label, choose
+2. In formicaria, open **Settings → Connections → Mail**. Paste the Client ID and secret, check the label, choose
    **Read mail from** (two weeks ago by default) and the notebook, and press **Save**.
 3. Press **Sign in with Google**. Google opens in a new tab and warns that it has not verified the
    app. That is because the app is your own project. Choose **Continue**. Google lists one
@@ -55,7 +55,7 @@ its address to see the names used below.
 ## Things to know
 
 - **Every 7 days Google asks you to sign in again**, while your Google Cloud project is in testing.
-  Settings → Mail says when; press *Sign in with Google* again.
+  Settings → Connections → Mail says when; press *Sign in with Google* again.
 - **Changing the label or the start date** reads that mail from the beginning. Notes already made
   stay, and nothing is duplicated.
 - **Disconnect** stops all reading and asks Google to cancel the sign-in. The notes already made
@@ -63,7 +63,7 @@ its address to see the names used below.
 
 ## The assistant finds the meetings
 
-With the study assistant switched on (Settings → Study assistant), it reads each conversation once a
+With the study assistant switched on (Settings → Assistant → Study assistant), it reads each conversation once a
 new message arrives, and **proposes** the meetings the exchange fixes. You find the proposals in
 *Collaboration*, and each one says the date, time and place it would set, in plain view.
 

@@ -10,7 +10,7 @@ to do anything after the first step.
    calendar under *Settings for my calendars*, then *Integrate calendar*, and copy **Secret address
    in iCal format**. In Outlook, *Settings → Calendar → Shared calendars → Publish a calendar* gives
    an ICS link (your organisation may have switched this off).
-2. In formicaria, open **Settings → Calendars**. Give it a short name such as `work`, paste the
+2. In formicaria, open **Settings → Connections → Calendars**. Give it a short name such as `work`, paste the
    address, choose which notebook the meetings go into, and press **Add calendar**.
 
 The calendar is read straight away, and then every hour while formicaria is open.

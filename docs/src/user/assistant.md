@@ -57,7 +57,7 @@ of this.
 
 There is nothing to install first, and no terminal involved.
 
-1. **Settings → Study assistant → on.**
+1. **Settings → Assistant → Study assistant → on.**
 2. **It asks which model**, and shows what each one costs: the download size, the licence, and
    whether it can read images. The image reader is a further download and is offered as its own
    choice, because it buys exactly one capability.
@@ -90,7 +90,7 @@ finds it where the old one left it. And copying the app folder to a USB stick ta
 
 ### Getting the space back
 
-Turn the assistant off and delete the model in **Settings → Study assistant → Remove the model**. It
+Turn the assistant off and delete the model in **Settings → Assistant → Study assistant → Remove the model**. It
 tells you how much it will free, asks once, and deletes only the downloaded files — never your
 notes. Turning the assistant on afterwards simply asks which model you want again.
 
@@ -270,7 +270,7 @@ model that can also read a picture.
 ### When an update brings a newer model
 
 A new version of formicaria can recommend a different model. **It never downloads one by itself.**
-The model you already have keeps working, and **Settings → Study assistant** shows a line such as
+The model you already have keeps working, and **Settings → Assistant → Study assistant** shows a line such as
 *"This version of formicaria comes with a newer model for the assistant"*, with its name and the
 size of the download.
 

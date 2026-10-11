@@ -1136,9 +1136,10 @@ and on a copy built from source.
 - **Proven on Linux, with the published files:** 0.6.5 found 0.6.6, downloaded it, restarted as it
   and went back, with a note unchanged (`pixi run update-test`). And the owner's own desktop, a
   copy built from source, installed 0.6.6 from Settings, started from its icon.
-- **macOS and Windows have never updated themselves.** `update-test.yml` runs the same test there;
-  it is started by hand, or by the release after publishing. Until one of those runs is green, the
-  desktop updater is a Linux fact.
+- **macOS and Windows updated themselves for the first time on 2026-10-11**: the v0.6.7 release
+  ran `update-works` after publishing, and 0.6.6 reached 0.6.7 and went back on all three desktop
+  systems, on GitHub's machines. Nobody has yet done it by hand on a Mac or a Windows computer,
+  where the launcher a person double-clicks is involved and the test's own variables are not.
 - **In 0.6.6 and earlier the page says *restarting* for ever.** The update has finished; the page
   never looked. Fixed after 0.6.6: Settings asks until a different version answers and reloads.
   A copy on 0.6.6 meets the old message once more on its way to the next release.

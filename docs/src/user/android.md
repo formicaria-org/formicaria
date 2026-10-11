@@ -43,8 +43,8 @@ part of the chain that depends on you rather than on us.
 ## Updating
 
 **From 0.5.2 on, formicaria tells you when there is a newer version.** Once a day it asks GitHub which
-version is newest — nothing about you, the phone or your notes is sent — and **Settings → This
-machine** says so. **Check now** asks straight away.
+version is newest — nothing about you, the phone or your notes is sent — and **Settings → About &
+updates** says so. **Check now** asks straight away.
 
 1. Press **Get v…**. formicaria downloads the new version and checks that it is exactly what the
    release published, signed by us. Anything that does not match is refused.

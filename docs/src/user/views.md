@@ -27,6 +27,11 @@ date and who last touched it](../images/board.png)
 
   ![The Agenda in Month layout: a calendar grid for September with notes on their due
   days](../images/agenda.png)
+- **Settings** (the gear) is a short list of categories: *Look*, *Keyboard*, *Notes & backup*,
+  *Assistant*, *Connections*, *About & updates*. Each says what it is set to beside its name; pick
+  one to see only its options, or type in **Search settings** to find an option wherever it is
+  (it understands "update", "backup", "shortcut" and the like). A longer explanation is under
+  **More**. On a phone the list is the first screen and a category the second.
 - **Timeline** — a journal: every note grouped under the day it was created,
   newest first.
 - **Collaboration** — the open [proposals](./collaboration.md#proposals) across
