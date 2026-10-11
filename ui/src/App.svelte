@@ -3393,7 +3393,7 @@
        top edge (`decisions.md#ui`, 2026-10-11). Only for the note's own text: the bar's search
        field also raises the keyboard, and must not hide the bar it lives in. Putting the keyboard
        away brings it back. */
-    :global(html[data-keyboard]:has(textarea.editor:focus)) .topbar {
+    :global(html[data-keyboard]:has(.editor:focus-within)) .topbar {
       display: none;
     }
     /* **And the body then pays what the bar was paying.** `--kb` is the keyboard *beyond* the
@@ -3402,7 +3402,7 @@
        the last `--safe-bottom` of the note was under the keyboard — 47px on the owner's phone,
        which is the whole of the 44px quick row (reported the first time it reached a device,
        2026-10-11). The same selector as the rule above, so the two can only apply together. */
-    :global(html[data-keyboard]:has(textarea.editor:focus)) .body {
+    :global(html[data-keyboard]:has(.editor:focus-within)) .body {
       padding-bottom: var(--safe-bottom);
     }
     /* Only a panel can be collapsed; a bar is already as small as it gets.

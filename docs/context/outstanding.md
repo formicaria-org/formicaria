@@ -980,24 +980,40 @@ Next, roughly in order:
    at a time*). Seen in a browser only. Still open from that entry: offering fewer settings, and
    moving options to the screen they affect.
 
-### 2.20 After v0.6.7 — the week grid, backing up by itself, and Settings (2026-10-11)
+### 2.20 After v0.6.7 and v0.6.8 — the week grid, backing up by itself, and Settings (2026-10-11)
 
-**v0.6.7 is published** with the week as a time grid, backing up by itself, the page that reloads
-after an update, and the reason shown when a copy cannot look for one. **It was tagged without the
-phone test**, on the owner's word; its notes say so. Since the tag, on `main`: Settings as six
-categories with search (`decisions.md#ui`, 2026-10-11).
+**v0.6.7** carried the week as a time grid, backing up by itself, the page that reloads after an
+update, and the reason shown when a copy cannot look for one. It was tagged without the phone
+test, on the owner's word; its notes say so. **v0.6.8** carries Settings as six categories with
+search (`decisions.md#ui`, 2026-10-11). Before it, a build of `457c63f` was put on the owner's
+phone by cable and the owner reported *"it works"*.
 
 Next, roughly in order:
-1. **Put a build on the phone and look**: the week grid, a date changed on one device arriving on
-   the other without a press, and the new Settings (§2.19 items 7 and 8). None of the three has
-   been on a phone.
+1. **What "it works" covered was not said.** The build held three things never on a phone before:
+   the new Settings, the week grid, and a change on one device arriving on the other without a
+   press. Ask before treating all three as seen; `known-issues.md` still lists the automatic
+   backup as unproven between two devices.
 2. **Settings, the part left out on purpose**: fewer settings, and options moved to the screen
    they affect (columns into the board).
 3. **The actions list has no door on a device without a keyboard.** *New vault* is the one action
-   found so far that was reached from it; it is also in the Back up panel, and the manual now
-   says so. If another turns up, it needs a button.
-4. **The full gate did not run locally** for the last two changes (the assistant was running);
-   GitHub's did. Run it once with the assistant off.
+   found so far that was reached from it; it is also in the Back up panel, and the manual says
+   so. If another turns up, it needs a button.
+4. **A person updating by hand on a Mac or a Windows computer** (§2.19, item 1).
+
+### 2.21 The editor that renders as you write (begun 2026-10-11)
+
+Plan and rulings: `decisions.md#ui`, *the editor renders as you write*. State and traps:
+`known-issues.md`, same title.
+
+1. **Stage 2's phone test.** Switch the editor to *Rendered as you write* on the phone and write
+   in it: suggestions and autocorrect, the quick row above the keyboard, tapping a word in a long
+   note, a selection and the format bar, the `/` menu, a photo. Nothing renders yet; this is
+   about typing. If the keyboard cannot be made good, the switch stays off on the phone.
+2. **Stage 3: inline rendering** (headings, bold and the like, links, lists, tick boxes, quotes,
+   code), from a pure `preview()` with tests.
+3. **Stage 4: block rendering** (pictures, formulas, diagrams, tables, embeds) through
+   `renderInto`.
+4. **Stage 5: decide the default**, and what becomes of the reading view.
 
 ## 3. Known and accepted — do not "fix" without deciding
 

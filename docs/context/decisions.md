@@ -85,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -2763,6 +2763,10 @@ tints keyed by `[data-value]`, urgency by `[data-urgency]`, labels sourced from
 helpers (`urgency.ts`). CI greps enforce it.
 
 ## v1 editor = plain `<textarea>` + rendered read view `#ui`
+> SUPERSEDED IN PART 2026-10-11 by *the editor renders as you write, and the text is still the
+> file*: the deferred v2 has begun, behind a switch. The textarea stays, as the default and the
+> fallback, until the live editor is proven on a phone.
+
 **Why:** a live-preview CodeMirror 6 editor was assessed as the single biggest
 build risk. **Consequence:** editing is a textarea over the literal bytes
 (`update_body`, byte round-trip tested) with a separate rendered read view
@@ -9045,3 +9049,39 @@ actions window, the phone's list and an open category. **Not seen on the phone.*
 
 **Not done, on purpose.** Offering fewer settings, and moving options to the screen they affect
 (columns into the board): both change what the app offers and are separate decisions.
+
+## The editor renders as you write, and the text is still the file (2026-10-11, `#ui` `#toolchain`)
+
+> Begins the v2 that *v1 editor = plain `<textarea>` + rendered read view* deferred. Adds a
+> dependency, so it is recorded whatever comes of it.
+
+**What prompted it.** The owner: *"to render a note I have to click away on the heading of the
+block. On my phone my note app renders automatically while writing."* Asked whether that is
+possible on every supported system: yes, because the editor is one piece of web code everywhere.
+
+**Decision.**
+- **Live preview, not a rich-text editor.** The Markdown stays the text that is edited and saved,
+  byte for byte; the editor draws it rendered and shows the marks only on the line the cursor is
+  on. An editor that keeps its own document and writes the file from it is **rejected**: it
+  changes bytes nobody typed, which breaks files-as-truth, the byte-idempotent save and
+  sentence-level merging, and it mangles what it does not understand (attachment references,
+  embedded boards).
+- **CodeMirror 6**, loaded only when the live editor is used, the way KaTeX and Mermaid are.
+- **Behind a switch, plain by default.** The textarea is the default and the fallback until the
+  live editor has been proven on the owner's phone. Making it the default is a later decision,
+  and so is retiring the separate reading view.
+- **One interface, two editors** (`ui/src/lib/editor/handle.ts`). The note panel keeps the draft,
+  the save debounce, the version guard, the slash menu, the format bar and the quick row; an
+  editor only holds text and a selection and says where things are on screen. **The panel never
+  touches a textarea or a CodeMirror view directly again.**
+- **In stages, each one usable**: the interface with the plain editor and no change in behaviour;
+  CodeMirror as a plain editor, tested on the phone, because typing and the keyboard are the risk
+  and do not depend on rendering; inline rendering; block rendering through the existing
+  `renderInto`, so nothing new writes HTML.
+
+**What must not change.** The bytes of a note opened and saved untouched, including its own line
+endings; who owns saving; the phone's keyboard layout rules (their selector names a textarea and
+must name both editors, and its guard with it); the slash menu being ours and staying on screen.
+
+**Risks, in order.** Android keyboards in a content-editable editor; the keyboard-and-quick-row
+layout; size; layout that tests cannot see; iPhone and iPad, untested as ever.

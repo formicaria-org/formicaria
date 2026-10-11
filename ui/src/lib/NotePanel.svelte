@@ -38,7 +38,9 @@
   import { noteName } from './noteName';
   import { deleteUndoable, recordTextEdit, setPropertyUndoable } from './undo.svelte';
   import { parseStamp, toStamp } from './stamp';
-  import { caretXY } from './caret';
+  import PlainEditor from './editor/PlainEditor.svelte';
+  import type { EditorHandle } from './editor/handle';
+  import { editorKind } from './editor/kind';
   import { KEYBOARD_EVENT } from './keyboard';
   import { countOf, nthIndexOf, outsideDestination } from './locate';
   import { AGENT_COMMANDS, withCommand } from './agentCommands';
@@ -236,7 +238,7 @@
   }
 
   // The body editor, for caret-based insertion (drag-drop + slash-menu).
-  let editorEl = $state<HTMLTextAreaElement | undefined>(undefined);
+  let editorEl = $state<EditorHandle | undefined>(undefined);
   let adding = $state(false);
 
   // Slash-menu (Notion-style `/` → insert a note or asset reference) state.
@@ -750,8 +752,7 @@
   function onEditorSelect() {
     const el = editorEl;
     if (!el) return;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
+    const { from: s, to: e } = el.selection();
     if (s === e) {
       fmtBar = null;
       colorOpen = false;
@@ -760,11 +761,8 @@
     }
     // Touch: the selection's last line, since the bar goes below it; otherwise its first. `popup` keeps
     // the bar on the screen and above the keyboard, which is what the clamps here used to guess at.
-    const r = el.getBoundingClientRect();
-    const at = caretXY(el, coarsePointer ? e : s);
-    const x = r.left + at.left;
-    const top = r.top + at.top;
-    fmtBar = { top, bottom: top + (at.lineHeight || 22), left: x, right: x };
+    const at = el.caretBox(coarsePointer ? e : s);
+    fmtBar = { top: at.top, bottom: at.top + (at.lineHeight || 22), left: at.left, right: at.left };
   }
 
   // A touch selection is made with a long press and moved with drag handles, which send no `mouseup`
@@ -772,7 +770,7 @@
   $effect(() => {
     if (!coarsePointer) return;
     const follow = () => {
-      if (editorEl && document.activeElement === editorEl) onEditorSelect();
+      if (editorEl?.hasFocus()) onEditorSelect();
     };
     document.addEventListener('selectionchange', follow);
     return () => document.removeEventListener('selectionchange', follow);
@@ -783,8 +781,7 @@
     const el = editorEl;
     if (!el) return;
     colorOpen = false;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
+    const { from: s, to: e } = el.selection();
     const inner = draft.slice(s, e);
     const wrapped =
       draft.slice(s - before.length, s) === before && draft.slice(e, e + after.length) === after;
@@ -793,16 +790,14 @@
       onInput();
       await tick();
       el.focus();
-      el.selectionStart = s - before.length;
-      el.selectionEnd = e - before.length;
+      el.select(s - before.length, e - before.length);
     } else {
       const text = inner || placeholder;
       draft = draft.slice(0, s) + before + text + after + draft.slice(e);
       onInput();
       await tick();
       el.focus();
-      el.selectionStart = s + before.length;
-      el.selectionEnd = s + before.length + text.length;
+      el.select(s + before.length, s + before.length + text.length);
     }
     onEditorSelect();
   }
@@ -811,15 +806,14 @@
   async function insertLink() {
     const el = editorEl;
     if (!el) return;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
+    const { from: s, to: e } = el.selection();
     const text = draft.slice(s, e) || 'text';
     draft = draft.slice(0, s) + `[${text}]()` + draft.slice(e);
     onInput();
     await tick();
     el.focus();
     const caret = s + text.length + 3; // after "[text]("
-    el.selectionStart = el.selectionEnd = caret;
+    el.select(caret);
     fmtBar = null;
   }
 
@@ -830,8 +824,7 @@
     if (!el) return;
     colorOpen = false;
     blockOpen = false;
-    const s = el.selectionStart;
-    const e = el.selectionEnd;
+    const { from: s, to: e } = el.selection();
     const from = draft.lastIndexOf('\n', s - 1) + 1;
     const nl = draft.indexOf('\n', e);
     const to = nl === -1 ? draft.length : nl;
@@ -840,8 +833,7 @@
     onInput();
     await tick();
     el.focus();
-    el.selectionStart = from;
-    el.selectionEnd = from + out.length;
+    el.select(from, from + out.length);
     onEditorSelect();
   }
 
@@ -899,10 +891,11 @@
     const el = editorEl;
     if (!el) return;
     closeQuick();
-    const bare = el.selectionStart === el.selectionEnd;
+    const before = el.selection();
+    const bare = before.from === before.to;
     await run();
     if (bare) {
-      el.selectionStart = el.selectionEnd;
+      el.select(el.selection().to);
       fmtBar = null;
     }
   }
@@ -1797,16 +1790,27 @@
   /// while after opening, each change in the keyboard re-centres (`revealCaret`); after that the
   /// caret is only moved when it would otherwise be out of sight, so nothing shifts under someone
   /// who is typing.
+  let kind = $state(editorKind());
+  /** The editor, once it is on the page. The live one arrives a moment after the panel asks for
+   *  it (it is loaded on first use), so opening waits for it instead of acting on nothing. */
+  async function editorReady(): Promise<EditorHandle | undefined> {
+    for (let i = 0; i < 100 && editing && !editorEl; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return editorEl;
+  }
   async function openEditor(at?: number) {
+    kind = editorKind();
     editing = true;
     await tick();
+    if (kind === 'live') await editorReady();
     if (paneEl) paneEl.scrollTop = 0;
     // `preventScroll`: focusing would otherwise let the browser scroll the pane to wherever it
     // thinks the field is, undoing the line above before the caret is even set.
     editorEl?.focus({ preventScroll: true });
     if (at === undefined || !editorEl) return;
-    editorEl.selectionStart = editorEl.selectionEnd = at;
-    centreCaret(editorEl, at);
+    editorEl.select(at);
+    editorEl.centre(at);
     settlingUntil = performance.now() + SETTLE_MS;
   }
 
@@ -1816,34 +1820,23 @@
   const SETTLE_MS = 1500;
   let settlingUntil = 0;
 
-  /// Scroll the editor so the caret's line is in the middle of its box. Near the top of a note
-  /// there is nothing above to scroll, so the caret stays where the text puts it; near the end the
-  /// editor's bottom padding on touch (`.editor`) is what gives it room.
-  function centreCaret(el: HTMLTextAreaElement, at: number) {
-    const { top, lineHeight } = caretXY(el, at);
-    el.scrollTop += top + (lineHeight || 22) / 2 - el.clientHeight / 2;
-  }
-
   /// **Keep the line being written above the keyboard.** When the keyboard opens the editor gets
   /// shorter (`--app-h`), and a textarea does not scroll to its caret on a resize — only on typing — so
   /// the line you tapped stayed where it was, now behind the keyboard. Put it in the upper third of what
   /// is left. Only when the caret is out of sight: a caret already visible is not moved under you.
   function revealCaret() {
     const el = editorEl;
-    if (!el || document.activeElement !== el) return;
+    if (!el || !el.hasFocus()) return;
     // The pane first, for the reason `openEditor` gives: a caret that is "in view" inside an
     // editor that is itself scrolled off the screen is not in view. With the details form open
     // the editor is not at the pane's top, so there it is brought in by its nearest edge.
     if (paneEl && !detailsOpen) paneEl.scrollTop = 0;
-    else el.scrollIntoView?.({ block: 'nearest' });
-    const { top, lineHeight } = caretXY(el, el.selectionEnd);
-    const lh = lineHeight || 22;
+    else el.intoView();
     // Just opened: the keyboard is still arriving, so centre in whatever is visible now. Later:
     // only when out of sight, which includes the last line of the box — a caret on the editor's
     // bottom edge is measured as inside it and read as hidden, against the keyboard with no line
     // below it. Either way it goes to the middle, so the two cases cannot disagree about where.
-    const settling = performance.now() < settlingUntil;
-    if (settling || top < 0 || top + 2 * lh > el.clientHeight) centreCaret(el, el.selectionEnd);
+    el.reveal(el.selection().to, performance.now() < settlingUntil);
   }
   $effect(() => {
     if (!editing) return;
@@ -1981,13 +1974,12 @@
   async function insertAtCaret(text: string) {
     const el = editorEl;
     if (!el) return;
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
+    const { from: start, to: end } = el.selection();
     draft = draft.slice(0, start) + text + draft.slice(end);
     onInput(); // schedule the debounced save
     await tick(); // let bind:value flush before moving the caret
     const pos = start + text.length;
-    el.selectionStart = el.selectionEnd = pos;
+    el.select(pos);
     el.focus();
   }
 
@@ -2208,7 +2200,7 @@
   function detectSlash() {
     const el = editorEl;
     if (!el) return closeSlash();
-    const caret = el.selectionStart;
+    const caret = el.selection().from;
     let i = caret - 1;
     while (i >= 0 && !/\s/.test(draft[i]) && draft[i] !== '/') i--;
     if (i < 0 || draft[i] !== '/') return closeSlash();
@@ -2232,14 +2224,13 @@
   function slashBox(): Box {
     const el = editorEl;
     if (!el) return { top: 0, bottom: 0, left: 0, right: 0 };
-    const r = el.getBoundingClientRect();
+    const r = el.box();
     // **Touch: the top of the editor.** Below the caret is usually *behind the keyboard* on a phone, so
     // a menu anchored there opened where it could not be seen; the top of the textarea is above it.
     if (coarsePointer)
       return { top: r.top, bottom: r.top + 2, left: r.left + 2, right: r.left + 2 };
-    const { top, left, lineHeight } = caretXY(el, slash.from);
-    const x = r.left + left;
-    return { top: r.top + top, bottom: r.top + top + lineHeight, left: x, right: x };
+    const { top, left, lineHeight } = el.caretBox(slash.from);
+    return { top, bottom: top + lineHeight, left, right: left };
   }
 
   async function runSlashSearch() {
@@ -2265,14 +2256,14 @@
   async function chooseSlash(meta: ObjectMeta, forceEmbed = false) {
     const el = editorEl;
     if (!el) return;
-    const caret = el.selectionStart;
+    const caret = el.selection().from;
     const ref = forceEmbed || slash.embed ? embedFor(meta) : refFor(meta);
     draft = draft.slice(0, slash.from) + ref + draft.slice(caret);
     closeSlash();
     onInput();
     await tick();
     const pos = slash.from + ref.length;
-    el.selectionStart = el.selectionEnd = pos;
+    el.select(pos);
     el.focus();
   }
 </script>
@@ -2795,20 +2786,34 @@
             {/if}
           </div>
         {/snippet}
-        <textarea
-          class="editor"
-          bind:this={editorEl}
-          bind:value={draft}
-          oninput={onInput}
-          onkeydown={onEditorKeydown}
-          onselect={onEditorSelect}
-          onmouseup={onEditorSelect}
-          onkeyup={onEditorSelect}
-          ondragover={onDragOver}
-          ondrop={onDrop}
-          onblur={() => (fmtBar = null)}
-          spellcheck="false"
-          aria-label="note body (Markdown)"></textarea>
+        <!-- Two editors, one interface (`editor/handle.ts`). Which one is this device's choice
+             (Settings → Look → Editor), read when the note is opened for editing. The live one is
+             loaded only when it is used. -->
+        {#if kind === 'live'}
+          {#await import('./editor/LiveEditor.svelte') then { default: LiveEditor }}
+            <LiveEditor
+              bind:this={editorEl}
+              bind:value={draft}
+              oninput={onInput}
+              onkeydown={onEditorKeydown}
+              onselect={onEditorSelect}
+              ondragover={onDragOver}
+              ondrop={onDrop}
+              onblur={() => (fmtBar = null)}
+            />
+          {/await}
+        {:else}
+          <PlainEditor
+            bind:this={editorEl}
+            bind:value={draft}
+            oninput={onInput}
+            onkeydown={onEditorKeydown}
+            onselect={onEditorSelect}
+            ondragover={onDragOver}
+            ondrop={onDrop}
+            onblur={() => (fmtBar = null)}
+          />
+        {/if}
         {#if adding}<span class="adding">Adding…</span>{/if}
         {#if slash.open && slash.results.length}
           <ul
@@ -3739,46 +3744,6 @@
     position: relative;
     flex: 1;
     display: flex;
-  }
-  .editor {
-    width: 100%;
-    min-height: 22rem;
-    resize: vertical;
-    box-sizing: border-box;
-    padding: var(--space-4) var(--space-5);
-    border: none;
-    background: transparent;
-    color: var(--text);
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    line-height: 1.6;
-  }
-  /* **Room below the last line, on touch.** The caret is centred when the editor opens, and the
-     last lines of a note can only reach the middle if there is something beneath them to scroll.
-     About half the editor's own height is that something.
-
-     **Sized from `--app-h`, never from `vh`.** A textarea cannot be shorter than its padding, and
-     the editor has to shrink when the keyboard takes half the screen: a first version used `50vh`,
-     which is taller than the editor is with the keyboard up, so the editor stopped shrinking and
-     its lower half went under the keyboard. `--app-h` already has the keyboard taken out, and 14rem
-     is about what the header, the quick row and the app's bar take from it.
-
-     Not with a precise pointer, where a desktop editor ending in half a screen of blank would only
-     look broken. */
-  @media (pointer: coarse) {
-    .editor {
-      padding-bottom: max(var(--space-6), calc((var(--app-h) - 14rem) / 2));
-    }
-  }
-  /* With the keyboard up the editor fits what is left rather than holding 22rem, which on a phone is
-     taller than the room above the keyboard — the note would scroll as a whole and its last lines,
-     the ones being typed, would be under the keyboard again. */
-  :global(html[data-keyboard]) .editor {
-    min-height: 0;
-  }
-  .editor:focus-visible {
-    outline: none;
-    box-shadow: inset 2px 0 0 var(--accent);
   }
   .adding {
     position: absolute;

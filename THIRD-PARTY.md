@@ -219,6 +219,17 @@ ship inside the binary. Generated from the production dependency closure
 | @chevrotain/regexp-to-ast | 11.0.3 | Apache-2.0 |
 | @chevrotain/types | 11.0.3, 11.1.2 | Apache-2.0 |
 | @chevrotain/utils | 11.0.3 | Apache-2.0 |
+| @codemirror/autocomplete | 6.20.3 | MIT |
+| @codemirror/commands | 6.11.1 | MIT |
+| @codemirror/lang-css | 6.3.1 | MIT |
+| @codemirror/lang-html | 6.4.12 | MIT |
+| @codemirror/lang-javascript | 6.2.5 | MIT |
+| @codemirror/lang-markdown | 6.5.2 | MIT |
+| @codemirror/language | 6.13.1 | MIT |
+| @codemirror/lint | 6.9.7 | MIT |
+| @codemirror/state | 6.7.6 | MIT |
+| @codemirror/streamparser | 6.0.0 | MIT |
+| @codemirror/view | 6.43.14 | MIT |
 | @excalidraw/excalidraw | 0.18.1 | MIT |
 | @excalidraw/laser-pointer | 1.3.1 | MIT |
 | @excalidraw/markdown-to-text | 0.1.2 | MIT |
@@ -235,6 +246,14 @@ ship inside the binary. Generated from the production dependency closure
 | @jridgewell/resolve-uri | 3.1.2 | MIT |
 | @jridgewell/sourcemap-codec | 1.5.5, 1.6.0 | MIT |
 | @jridgewell/trace-mapping | 0.3.31 | MIT |
+| @lezer/common | 1.5.3 | MIT |
+| @lezer/css | 1.3.9 | MIT |
+| @lezer/highlight | 1.2.5 | MIT |
+| @lezer/html | 1.3.13 | MIT |
+| @lezer/javascript | 1.5.6 | MIT |
+| @lezer/lr | 1.4.11 | MIT |
+| @lezer/markdown | 1.8.0 | MIT |
+| @marijn/find-cluster-break | 1.0.4 | MIT |
 | @mermaid-js/parser | 0.6.3, 1.2.1 | MIT |
 | @radix-ui/primitive | 1.0.0, 1.1.1 | MIT |
 | @radix-ui/react-arrow | 1.1.2 | MIT |
@@ -314,6 +333,7 @@ ship inside the binary. Generated from the production dependency closure
 | commander | 7.2.0, 15.0.0 | MIT |
 | cose-base | 1.0.3, 2.2.0 | MIT |
 | crc-32 | 0.3.0 | Apache-2.0 |
+| crelt | 1.0.7 | MIT |
 | cross-env | 7.0.3 | MIT |
 | cross-spawn | 7.0.6 | MIT |
 | csstype | 3.2.3 | MIT |
@@ -426,6 +446,7 @@ ship inside the binary. Generated from the production dependency closure
 | sliced | 1.0.1 | MIT |
 | source-map-js | 1.2.2 | BSD-3-Clause |
 | strictdom | 1.0.1 | MIT |
+| style-mod | 4.1.4 | MIT |
 | stylis | 4.4.0 | MIT |
 | svelte | 5.57.2 | MIT |
 | tinyexec | 1.3.1 | MIT |
@@ -442,6 +463,7 @@ ship inside the binary. Generated from the production dependency closure
 | vscode-languageserver-textdocument | 1.0.12 | MIT |
 | vscode-languageserver-types | 3.17.5 | MIT |
 | vscode-uri | 3.0.8 | MIT |
+| w3c-keyname | 2.2.8 | MIT |
 | webworkify | 1.5.0 | MIT |
 | which | 2.0.2 | ISC |
 | zimmerframe | 1.1.5 | MIT |

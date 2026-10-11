@@ -20,6 +20,7 @@
   import type { UpdateStatus } from './ipc';
   import { isPhone } from './platform';
   import { autoBackupOn, setAutoBackup } from './autoBackup';
+  import { editorKind, setEditorKind, type EditorKind } from './editor/kind';
   import {
     CATEGORIES,
     isCat,
@@ -312,6 +313,7 @@
   /// What this copy could go back to, or null when there is nothing to go back to. Read from the
   /// server rather than remembered, so it stays true across a restart and a fresh clone.
   let autoBackup = $state(autoBackupOn());
+  let editor = $state<EditorKind>(editorKind());
   let previousVersion = $state<string | null>(null);
   /// What the earlier program is called in the *Go back* row. A copy built from source has no
   /// version, so the folder it is kept in is named `previous`; say what it is instead.
@@ -992,6 +994,32 @@
       <div class="cat" data-cat="look">
         <Appearance selected={userTheme} onselect={onusertheme} />
       </div>
+
+      <!-- **Which editor.** Per device, plain unless chosen: the one that renders as you write is
+           new, and the plain one is what has been proven on a phone (`decisions.md`, 2026-10-11). -->
+      <section data-cat="look" data-words="editor preview render markdown live writing">
+        <h3>Editor</h3>
+        <p class="muted lede">How a note looks while you write it.</p>
+        <ul class="caps">
+          {#each [['plain', 'Plain text', 'The note exactly as it is written, marks and all.'], ['live', 'Rendered as you write', 'Headings, lists and the rest look finished while you type. New: tell us what goes wrong.']] as [k, label, why] (k)}
+            <li>
+              <label class="choice">
+                <input
+                  type="radio"
+                  name="editor-kind"
+                  checked={editor === k}
+                  onchange={() => {
+                    editor = k as EditorKind;
+                    setEditorKind(editor);
+                  }}
+                />
+                <span class="k">{label}</span>
+                <span class="muted">{why}</span>
+              </label>
+            </li>
+          {/each}
+        </ul>
+      </section>
 
       <section data-cat="look">
         <h3>Layout</h3>

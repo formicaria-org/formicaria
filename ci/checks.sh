@@ -866,7 +866,16 @@ echo "[check] hiding the bottom bar for the keyboard hands its navigation-bar st
 # and nothing fills it: the last `--safe-bottom` of the note goes under the keyboard. That is how
 # the quick row, 44px tall, sat entirely under a 47px strip on the owner's phone (2026-10-11) after
 # passing a browser check that had simulated a keyboard and no navigation bar.
-kb_sel='html\[data-keyboard\]:has(textarea.editor:focus)'
+# **The selector names both editors.** It used to say `textarea.editor:focus`; the editor that
+# renders as you write is not a textarea, so that rule would have stopped applying to it and this
+# check would have passed with nothing to check (`decisions.md`, 2026-10-11). `:focus-within` is
+# true of a focused textarea and of anything focused inside the other editor.
+if grep -q 'has(textarea.editor:focus)' ui/src/App.svelte; then
+    echo "  FAIL: ui/src/App.svelte keys a keyboard rule on 'textarea.editor:focus', which the editor"
+    echo "        that renders as you write never matches. Use '.editor:focus-within'."
+    fail=1
+fi
+kb_sel='html\[data-keyboard\]:has(.editor:focus-within)'
 if grep -q "$kb_sel) .topbar" ui/src/App.svelte; then
     if ! grep -A2 "$kb_sel) .body" ui/src/App.svelte | grep -q 'padding-bottom: var(--safe-bottom)'; then
         echo "  FAIL: ui/src/App.svelte hides the bottom bar while a note is typed, but '.body' does not"
