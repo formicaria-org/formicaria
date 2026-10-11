@@ -64,9 +64,19 @@ either to set a status you already have without opening the editor; use the form
 Status field to invent a new one (it joins the rotation as soon as a note carries it).
 
 Every change writes back to the note's YAML frontmatter immediately. The body is
-plain Markdown, edited as literal text (KaTeX math and Mermaid diagrams render in
-the read view). Nothing is ever rewritten behind your back — the file round-trips
-byte-for-byte.
+plain Markdown, and **the editor draws it finished while you write**: a heading looks like a
+heading, bold is bold, a link shows its words, a list has its dots and a task its tick box.
+**The line you are writing on shows its Markdown marks**, so what you type is always in view;
+move to another line and it is drawn finished. Pictures, formulas, diagrams, tables and embedded
+notes still show as their Markdown while you edit, and are drawn when you leave the editor.
+Nothing is ever rewritten behind your back — the file is exactly the Markdown you wrote,
+byte for byte.
+
+**In the editor a link works.** One press on a finished link opens it (another note opens beside
+this one); a double press puts the cursor in it to change it. A tick box is pressed in place.
+
+**To link words you have already written**, select them and paste the address: they become the
+link's text.
 
 ## Undo, and getting back a deleted note
 
@@ -106,14 +116,16 @@ A note's body is Markdown, so **bold**, *italic*, lists, tables, headings, `code
 fenced ```mermaid diagrams / `$math$` all render in the read view. For a **mind-map or tree**,
 a Mermaid flowchart (`graph TD`) draws the hierarchy — no plugin and no extra download.
 
-**You don't have to type the syntax.** Select any text in the editor and a small **toolbar** appears
-beside it — above the selection with a mouse, and below it on a phone, where the phone's own
-Cut/Copy menu takes the space above — **Bold · Italic · Highlight · Code · Colour · Link**, and a **¶ block menu** for
-**headings, bullet/numbered lists, quote, and callout**. Inline buttons wrap the selection in the
-plain-Markdown (or `[…]{.token}`) form; the block menu re-formats the whole line(s). Everything stays
-byte-for-byte and readable anywhere, so it's the fast way to format on a phone — tap a button again
-over the same text to remove it. (A callout drops in a `[!note]`; then tap its badge in the read view
-to change the type.)
+**You don't have to type the syntax.** The format options are **Bold · Italic · Highlight · Code ·
+Colour · Link**, and a **¶ block menu** for **headings, bullet and numbered lists, and quote**.
+- **With a mouse and keyboard** they are one line under the note, always there. They work where
+  the cursor is: with nothing selected, a mark is opened and closed around the cursor and you
+  type inside it; a block style applies to the line you are on.
+- **On a phone** select some text and the same options appear below it, where the phone's own
+  Cut/Copy menu leaves room.
+
+Inline options wrap the selection in the plain-Markdown (or `[…]{.token}`) form; the block menu
+re-formats the whole line or lines. Press an option again over the same text to remove it.
 
 **On a phone or tablet, a row of five buttons sits just above the keyboard** while you write, for
 the things you reach for mid-sentence:

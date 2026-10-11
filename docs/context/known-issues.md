@@ -1123,9 +1123,11 @@ and *there is one editor*.
   `editor/handle.ts`.
 - **Not drawn yet: pictures and attachments, formulas, diagrams, tables, embedded notes, callout
   badges.** They show as their Markdown while editing and are drawn in the reading view.
-- **Never on a phone, and there is no fallback.** The textarea editor is gone. Typing with
-  suggestions and autocorrect, the quick row, the caret above the keyboard and a tap landing on
-  its word are all unseen on Android. **Do not tag a release until they are.**
+- **On the owner's phone since 2026-10-11, and shipped in v0.6.9.** A build of `2649ef4` was
+  installed by cable and the owner reported *"it works"*. Which of the things on the list were
+  tried (suggestions and autocorrect, the quick row, a tap landing on its word, the caret above
+  the keyboard, a tick box, a link) was not said. **There is still no fallback**: the textarea
+  editor is gone, so a fault found later on a phone is fixed in this editor or not at all.
 - **Seen in Firefox and Chromium on the desktop** (Firefox is the owner's): a click opening the
   editor on the clicked word, typing, the format options, the slash menu, a link followed and
   edited, a tick box.

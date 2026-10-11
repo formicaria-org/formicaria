@@ -980,13 +980,15 @@ Next, roughly in order:
    at a time*). Seen in a browser only. Still open from that entry: offering fewer settings, and
    moving options to the screen they affect.
 
-### 2.20 After v0.6.7 and v0.6.8 — the week grid, backing up by itself, and Settings (2026-10-11)
+### 2.20 After v0.6.7 to v0.6.9 — the week grid, backing up by itself, Settings, the editor (2026-10-11)
 
 **v0.6.7** carried the week as a time grid, backing up by itself, the page that reloads after an
 update, and the reason shown when a copy cannot look for one. It was tagged without the phone
 test, on the owner's word; its notes say so. **v0.6.8** carries Settings as six categories with
 search (`decisions.md#ui`, 2026-10-11). Before it, a build of `457c63f` was put on the owner's
-phone by cable and the owner reported *"it works"*.
+phone by cable and the owner reported *"it works"*. **v0.6.9** carries the editor that renders
+as you write (§2.21), tagged after a second phone test and **before GitHub's gate had finished on
+the version commit**; the commit before it, identical but for the version number, was green.
 
 Next, roughly in order:
 1. **What "it works" covered was not said.** The build held three things never on a phone before:
@@ -1005,10 +1007,10 @@ Next, roughly in order:
 Rulings: `decisions.md#ui`, *the editor renders as you write* and *there is one editor*. State
 and traps: `known-issues.md`, *The editor*.
 
-1. **The phone test, which now gates the next release.** There is no other editor to fall back
-   to. Write in a note on the phone: suggestions and autocorrect, the quick row above the
-   keyboard, tapping a word in a long note, a selection and the format bar, the `/` menu, a
-   photo, a tick box pressed in place, a link pressed once and twice.
+1. **Shipped in v0.6.9 after the owner's phone test** (*"it works"*, 2026-10-11, build
+   `2649ef4`). Not said: which gestures were tried. Worth asking about the two the editor has no
+   test for any more: the line being written staying above the keyboard, and a tap in a long
+   note landing on its word.
 2. **Draw the rest** (stage 4): pictures and attachments, formulas, diagrams, tables, embedded
    notes, callout badges, through `renderInto`.
 3. **What becomes of the reading view** once the editor draws everything it does.
