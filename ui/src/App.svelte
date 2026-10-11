@@ -94,9 +94,13 @@
   import * as ipc from './lib/ipc';
   import * as undo from './lib/undo.svelte';
   import * as nav from './lib/nav.svelte';
-  import { captureUndoable, setPropertyUndoable } from './lib/undo.svelte';
+  import { captureUndoable, createNotesUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
   import GroupBar from './lib/GroupBar.svelte';
+  import SpacePicker from './lib/SpacePicker.svelte';
+  import AddSheet from './lib/AddSheet.svelte';
+  import { draftFrom, starters, templatesOf } from './lib/templates';
+  import { BUILTIN_SPACES, spaceOfGroup, spacesShown, type Space } from './lib/spaces.svelte';
   import { trackersShown } from './lib/trackers.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
@@ -504,6 +508,10 @@
   // hosts the "New from …" actions) opens — not polled. Declared here, above `commands`, because
   // the palette reads it.
   let templates = $state<ObjectMeta[]>([]);
+  /// The starter templates this vault does not have yet, by title.
+  const missingStarters = $derived(
+    starters(knownStatuses[0] ?? '').filter((s) => !templates.some((t) => t.title === s.title)),
+  );
   function reloadTemplates() {
     void fetchTemplates()
       .then((t) => (templates = t))
@@ -629,6 +637,10 @@
       label: `New from “${t.title || t.preview || 'Untitled'}”`,
       run: () => onNewFromTemplate(t.id),
     })),
+    // Offered while any of them is missing; writes only those (`lib/templates.ts`).
+    ...(missingStarters.length
+      ? [{ group: 'Template', label: 'Add starter templates', run: onAddStarters }]
+      : []),
   ]);
 
   /// The groups among the saved views, each with its views in listed order.
@@ -1510,10 +1522,85 @@
   /// the person goes back to the group or moves somewhere else.
   let groupBarOff = $state(false);
   $effect(() => {
-    void focusedGroup?.name;
+    void focusedSpace?.name;
     void focused;
-    groupBarOff = false;
+    // Typing a search makes its window the one in front; the field being typed into stays.
+    if (!untrack(() => searchOpen)) groupBarOff = false;
   });
+
+  // ── the four groups (`decisions.md#ui`, 2026-10-12; `lib/spaces.svelte.ts`) ──────────────────────
+  /// Every group there is to go to: the two the built-in views make, then the ones whose views ship
+  /// with the app. Empty unless this device shows them.
+  const spaces = $derived<Space[]>(
+    spacesShown() ? [...BUILTIN_SPACES, ...groupsOf(views ?? []).map(spaceOfGroup)] : [],
+  );
+  /// **The group the window in front belongs to** — whose bar a phone wears. A group of shipped
+  /// views is one whether or not this device shows the four; a built-in view is in one only if it
+  /// does.
+  const focusedSpace = $derived.by<Space | null>(() => {
+    if (focusedGroup) return spaceOfGroup(focusedGroup);
+    const p = focusedPane;
+    if (!p || !spacesShown()) return null;
+    return BUILTIN_SPACES.find((s) => s.tabs.some((t) => t.kind === p.kind)) ?? null;
+  });
+  const focusedTab = $derived(
+    focusedPane?.kind === 'view'
+      ? `view:${focusedPane.viewName ?? ''}`
+      : (focusedPane?.kind ?? null),
+  );
+  let spacePickerOpen = $state(false);
+  /// Step to another of the group's views. **Not a move**: Back leaves the group.
+  function pickSpaceTab(key: string) {
+    const tab = focusedSpace?.tabs.find((t) => t.key === key);
+    if (!tab) return;
+    if (tab.viewName) return pickGroupView(tab.viewName);
+    if (tab.kind === 'search') {
+      // Search has no window until something is typed: show the field to type it in.
+      groupBarOff = true;
+      void openSearch();
+      return;
+    }
+    const pane = workspace.panes[focused];
+    if (!pane || pane.kind === tab.kind) return;
+    const open = workspace.panes.findIndex((p) => p.kind === tab.kind);
+    if (open !== -1) {
+      focused = open;
+      persistWorkspace();
+    } else {
+      changePane(pane.id, { kind: tab.kind });
+    }
+    nav.replace(here());
+  }
+  /// Go to a group: the window of it already open, else its first view. **A move.**
+  function openSpace(name: string) {
+    spacePickerOpen = false;
+    const s = spaces.find((x) => x.name === name);
+    if (!s || s.name === focusedSpace?.name) return;
+    const first = s.tabs[0];
+    if (first.viewName) return openGroupView(first.viewName);
+    const open = workspace.panes.findIndex((p) => s.tabs.some((t) => t.kind === p.kind));
+    if (open !== -1) selectWindow(open);
+    else focusOrOpen(first.kind);
+  }
+  /// The bar's add control: a group of tracker views has its own sheet; the others make a note.
+  function addToSpace() {
+    if (focusedGroup) groupAdd += 1;
+    else if (focusedSpace && templatesOf(templates, focusedSpace.name).length) addSheetOpen = true;
+    else void onNew();
+  }
+  let addSheetOpen = $state(false);
+  const addChoices = $derived([
+    { key: '', label: 'A plain note' },
+    ...templatesOf(templates, focusedSpace?.name ?? '').map((t) => ({
+      key: t.id,
+      label: t.title || t.preview || 'Untitled',
+    })),
+  ]);
+  function pickAdd(key: string) {
+    addSheetOpen = false;
+    if (key) void onNewFromTemplate(key);
+    else void onNew();
+  }
   /// Counts up when the group bar's add control is pressed; the tracker view in front listens.
   let groupAdd = $state(0);
   let helpOpen = $state(false);
@@ -1608,16 +1695,32 @@
     }
   }
 
-  // "New from template": start a note pre-filled with a template's body. A template is just a
-  // note tagged `template`, so this copies its **body** (the scaffold — headings, checklists,
-  // callouts) into a fresh note and opens it in the editor. Only the body travels: the copy is
-  // its own untitled note, not another template, so the `template` tag (and the rest of the
-  // frontmatter) is deliberately left behind rather than cloned.
+  // "New from template": a note that arrives with the template's **structure** — its body, its tags
+  // but for `template`, its status and its own properties — written in one step and opened in the
+  // editor. Until 2026-10-12 only the body travelled; what is copied and what never is lives in
+  // `lib/templates.ts` (`decisions.md#ui`, *a template carries structure*).
   async function onNewFromTemplate(id: string) {
     try {
       const tpl = await getNote(id);
-      const meta = await captureUndoable(tpl?.body ?? '', createTarget);
+      if (!tpl) throw new Error('that template is no longer there');
+      const name = tpl.title || tpl.preview || 'a template';
+      const [meta] = await createNotesUndoable(
+        [draftFrom(tpl)],
+        `made a note from “${name}”`,
+        createTarget,
+      );
       openNoteInPane(meta.id, { editing: true });
+      await refresh();
+      scheduleCommit();
+    } catch (err) {
+      error = String(err);
+    }
+  }
+  async function onAddStarters() {
+    try {
+      await createNotesUndoable(missingStarters, 'added the starter templates', createTarget);
+      reloadTemplates();
+      await refresh();
       scheduleCommit();
     } catch (err) {
       error = String(err);
@@ -1988,6 +2091,8 @@
     ['paper', () => paperOpen, () => (paperOpen = false)],
     ['undo-menu', () => undoMenuOpen, () => (undoMenuOpen = false)],
     ['deleted', () => deletedOpen, () => (deletedOpen = false)],
+    ['groups', () => spacePickerOpen, () => (spacePickerOpen = false)],
+    ['add-sheet', () => addSheetOpen, () => (addSheetOpen = false)],
   ];
   for (const [name, isOpen, close] of LAYERS) {
     $effect(() => {
@@ -2183,24 +2288,30 @@
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
     <header
       class="topbar"
-      class:grouped={!!focusedGroup && !groupBarOff && workspace.layout !== 'tiled'}
+      class:grouped={!!focusedSpace && !groupBarOff && workspace.layout !== 'tiled'}
     >
       <!-- **A group's own bar, in place of this one on a narrow screen** (`decisions.md#ui`,
            2026-10-11). Everything below is still here, one tap away behind its first control. -->
-      {#if focusedGroup}
+      {#if focusedSpace}
         <div class="group-bar-slot">
           <GroupBar
-            group={focusedGroup}
-            current={focusedPane?.viewName ?? null}
-            onpick={pickGroupView}
-            onadd={() => (groupAdd += 1)}
-            onmore={() => (groupBarOff = true)}
+            name={focusedSpace.name}
+            tabs={focusedSpace.tabs}
+            current={focusedTab}
+            onpick={pickSpaceTab}
+            onadd={addToSpace}
+            onmore={() => (spaces.length ? (spacePickerOpen = true) : (groupBarOff = true))}
+            more={spaces.length ? 'groups' : 'everything else'}
           />
         </div>
         {#if groupBarOff}
-          <button type="button" class="group-return" onclick={() => (groupBarOff = false)}>
+          <button
+            type="button"
+            class="group-return"
+            onclick={() => ((groupBarOff = false), (searchOpen = false))}
+          >
             <Icon name="chevronLeft" size={16} />
-            {focusedGroup.name}
+            {focusedSpace.name}
           </button>
         {/if}
       {/if}
@@ -2956,6 +3067,23 @@
       {/await}
     {/if}
 
+    {#if addSheetOpen && focusedSpace}
+      <AddSheet
+        group={focusedSpace.name}
+        choices={addChoices}
+        onpick={pickAdd}
+        onclose={() => (addSheetOpen = false)}
+      />
+    {/if}
+    {#if spacePickerOpen}
+      <SpacePicker
+        {spaces}
+        current={focusedSpace?.name ?? null}
+        onpick={openSpace}
+        onrest={() => ((spacePickerOpen = false), (groupBarOff = true))}
+        onclose={() => (spacePickerOpen = false)}
+      />
+    {/if}
     {#if helpOpen}
       {#await import('./lib/HelpPanel.svelte') then { default: HelpPanel }}
         <HelpPanel onclose={() => (helpOpen = false)} />

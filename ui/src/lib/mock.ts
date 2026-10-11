@@ -243,7 +243,10 @@ const isNote = (n: ObjectMeta) =>
 export const MOCK_VIEW_HIDDEN = { key: 'status', value: 'done' } as const;
 
 function buildBoard(groupBy: string): Board {
-  const sorted = notes.filter(isNote).sort((a, b) => b.created.localeCompare(a.created));
+  // A template is not a task, whatever status it carries for the notes made from it.
+  const sorted = notes
+    .filter((n) => isNote(n) && !n.tags.includes('template'))
+    .sort((a, b) => b.created.localeCompare(a.created));
   const cols = new Map<string, Column>();
   for (const n of sorted) {
     const value = valueOf(n, groupBy);
@@ -1124,7 +1127,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'agenda': {
       const dated: ObjectMeta[] = notes
-        .filter((n) => isNote(n) && n.due && n.status !== 'done')
+        .filter((n) => isNote(n) && n.due && n.status !== 'done' && !n.tags.includes('template'))
         .sort((a, b) => (a.due ?? '').localeCompare(b.due ?? ''));
       return dated as T;
     }
@@ -2172,8 +2175,26 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'log_recipes':
       return tracker.logRecipes(notes, args as { view: string }) as T;
-    case 'create_notes':
-      return tracker.createNotes(notes, (args.notes ?? []) as NoteDraft[]) as T;
+    case 'create_notes': {
+      const drafts = (args.notes ?? []) as NoteDraft[];
+      const made = tracker.createNotes(notes, drafts);
+      // As the server builds one: a status is the note's own field, the body is kept, and a note
+      // with no title is known by its first line.
+      return made.map((m, i) => {
+        const x = notes.find((n) => n.id === m.id)!;
+        const d = drafts[i];
+        if (typeof x.props.status === 'string') {
+          x.status = x.props.status;
+          delete x.props.status;
+        }
+        bodyOverrides.set(x.id, d.body ?? '');
+        if (!x.title) {
+          x.title = null;
+          x.preview = (d.body ?? '').split('\n').find((l) => l.trim()) ?? '';
+        }
+        return JSON.parse(JSON.stringify(x)) as ObjectMeta;
+      }) as T;
+    }
     case 'set_properties': {
       const props = (args.props ?? {}) as Record<string, string | number>;
       return tracker.setProperties(notes, String(args.id), props) as T;

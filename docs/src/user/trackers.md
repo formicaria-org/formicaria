@@ -9,10 +9,10 @@ kept as notes in your own notebook — plain files, like everything else.
 
 ## Turning it on
 
-**Settings → Notes & backup → Food and training → Show Food and Training on this device.**
+**Settings → Notes & backup → Food and training → Show Food and Fitness on this device.**
 
 The choice is this device's own, like the theme that is on: turning it on at your desk does not
-turn it on on your phone. **Food** and **Training** then appear among your views. On a phone, the
+turn it on on your phone. **Food** and **Fitness** then appear among your views. On a phone, the
 bar at the bottom becomes that group's own while you are in it — its views, and one control to
 add. The first control on the left brings the usual bar back.
 
@@ -106,9 +106,9 @@ those were. A target you changed shows as a step on the day it changed.
 **Food → Weight** is a line of your weight over the same spans: where it is now and how far it has
 moved. Press **＋** to write one down. Two readings on one day count as one, their average.
 
-## Training
+## Fitness
 
-**Training → Session** is today's session: each exercise, each set, and what you did last time
+**Fitness → Session** is today's session: each exercise, each set, and what you did last time
 beside it.
 
 - **Add an exercise** — its name, how many sets, the reps and the load. Exercises you have done
@@ -120,7 +120,7 @@ beside it.
 - **Tick a set** when it is finished; a clock starts counting the time since. It does not tell
   you how long to rest.
 
-**Training → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
+**Fitness → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
 load, added up over the sets you ticked — the usual meaning of the term in the training
 literature. It is a rough measure of work done, not a score.
 

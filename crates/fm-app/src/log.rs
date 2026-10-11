@@ -10,7 +10,9 @@
 //! same rule `run_view` keeps.
 
 use crate::dto::ObjectMeta;
-use crate::thread::{is_log, is_message, is_proposal, log_base, log_with_programs_base, LOG};
+use crate::thread::{
+    is_log, is_message, is_proposal, is_template, log_base, log_with_programs_base, LOG,
+};
 use crate::views::TotalsDef;
 use fm_core::edit::apply_property;
 use fm_core::{Store, StoreError};
@@ -117,7 +119,7 @@ pub fn log_days(
             if let Some(s) = o.start.filter(|s| s.date >= from && s.date <= to) {
                 by_day.entry(s.date).or_default().push(o);
             }
-        } else if !is_message(&o) && !is_proposal(&o) {
+        } else if !is_message(&o) && !is_proposal(&o) && !is_template(&o) {
             // A program is something you plan: an ordinary note, never a hidden one.
             programs.push(o);
         }
@@ -307,7 +309,7 @@ pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, St
     let mut heads: BTreeMap<String, (Object, i64)> = BTreeMap::new();
     let mut parts: BTreeMap<String, Vec<Object>> = BTreeMap::new();
     for o in store.query(&query)?.rows {
-        if o.start.is_some() {
+        if o.start.is_some() || is_template(&o) {
             continue;
         }
         let PropertyValue::Text(word) = o.get(RECIPE) else { continue };

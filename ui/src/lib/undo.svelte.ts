@@ -194,8 +194,8 @@ export async function captureUndoable(body: string, vault: string) {
 
 /** Create several notes as **one** step: undo removes them all, redo puts them all back. A logged
  *  meal copied from yesterday is several notes and one thing a person did. */
-export async function createNotesUndoable(drafts: NoteDraft[], label: string) {
-  const made = await createNotes(drafts);
+export async function createNotesUndoable(drafts: NoteDraft[], label: string, vault = '') {
+  const made = await createNotes(drafts, vault);
   let kept: { vault: string; file: string }[] = [];
   record({
     label,

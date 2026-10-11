@@ -1,6 +1,6 @@
 name: Session
 view: totals
-group: Training
+group: Fitness
 log: workout
 add: workout
 span: day

@@ -67,10 +67,10 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Day: { totals: FOOD, group: FOOD_GROUP },
   Trends: { totals: { ...FOOD, span: 'range' }, group: FOOD_GROUP },
   Weight: { totals: BODY, group: FOOD_GROUP },
-  Session: { totals: TRAINING, group: { name: 'Training', views: ['Session', 'Volume'] } },
+  Session: { totals: TRAINING, group: { name: 'Fitness', views: ['Session', 'Volume'] } },
   Volume: {
     totals: { ...TRAINING, span: 'range' },
-    group: { name: 'Training', views: ['Session', 'Volume'] },
+    group: { name: 'Fitness', views: ['Session', 'Volume'] },
   },
 };
 
@@ -104,6 +104,7 @@ function targetsOn(notes: ObjectMeta[], log: string, day: string, keys: string[]
     (x) =>
       x.props?.program === log &&
       !x.props.log &&
+      !x.tags.includes('template') &&
       (!x.start || x.start <= day) &&
       (!x.due || x.due >= day),
   );
@@ -495,7 +496,9 @@ export function logRecent(
 export function logRecipes(notes: ObjectMeta[], args: { view: string }): Recipe[] {
   const def = trackerDef(args.view)?.totals;
   if (!def) throw new Error(`no such view: ${args.view}`);
-  const saved = notes.filter((x) => isLog(x, def.log) && !x.start && x.props.recipe);
+  const saved = notes.filter(
+    (x) => isLog(x, def.log) && !x.start && x.props.recipe && !x.tags.includes('template'),
+  );
   const whole = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) ? v : null);
   return saved
     .filter((x) => (whole(x.props.servings) ?? 0) >= 1)

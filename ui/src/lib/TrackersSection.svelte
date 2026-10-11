@@ -28,7 +28,7 @@
       checked={trackersShown()}
       onchange={(e) => showTrackers((e.currentTarget as HTMLInputElement).checked)}
     />
-    <span>Show Food and Training on this device</span>
+    <span>Show Food and Fitness on this device</span>
   </label>
   <p class="muted">
     A day of meals against a target, and training sessions, among your views. What you log is kept

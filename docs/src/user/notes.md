@@ -15,17 +15,29 @@ you ingest a file. With more than one vault, the ＋ menu ends with a
 
 ## Templates
 
-To reuse a layout — a meeting scaffold, a paper-reading checklist, a daily log — make
-a note with that body and **tag it `template`** (in the editor's Tags field). It then
-shows up in the **＋ "make something new" menu** as **New from "…"**, once per template
-— and in **Settings** too, where you can filter to one by name. Picking it opens a
-fresh note pre-filled with the template's body, ready to edit.
+If you keep writing the same kind of note — a meeting, a task, a weekly review — make one note
+shaped the way you want and **tag it `template`** (in the editor's Tags field). It then shows up
+in the **＋ "make something new" menu** as **New from "…"**, once per template.
 
-A template is nothing special: **just a note with the `template` tag**. Untag it and it
-stops being one; there is no separate "template type" to manage, and the template itself
-stays a normal, searchable note. "New from" copies only the **body** (the scaffold you
-actually reuse) — the new note is its own untitled note, not another template, so the
-`template` tag is left behind rather than cloned.
+A note made from a template arrives with the template's **structure**:
+
+- its body (headings, checklists);
+- its tags, except `template` itself;
+- its status, and any properties you gave it.
+
+It does **not** get the template's title, its dates, or anything that says which note the
+template was. So a template tagged `meeting` makes notes tagged `meeting`, and a template with a
+status makes notes that land in that column of the board.
+
+A template is nothing special: **just a note with the `template` tag**. Untag it and it stops
+being one. It is still an ordinary note you can search for and edit. What it is *not* is one of
+the things it makes: a template with a status is not a card on the board or the agenda, and a
+template for a diet program does not set your targets.
+
+**Add starter templates**, in the same ＋ menu, writes four ordinary notes into your vault — Task,
+Meeting, Diet program, Training program — which you can change or delete like any other. Each
+holds only structure: a tag and the property a view reads. None holds a number or a suggestion.
+The item disappears once you have all four.
 
 ## Editing a note
 

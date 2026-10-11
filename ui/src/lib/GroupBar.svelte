@@ -1,41 +1,42 @@
 <script lang="ts">
-  // The bar a group of views wears on a phone: a way to everything else, the group's views, and one
-  // raised control to add (`decisions.md#ui`, 2026-10-11 — the owner chose that a group's own bar
-  // replaces the app's while the group is open).
+  // The bar a group of views wears on a phone: a way to the other groups and everything else, the
+  // group's views, and one raised control to add (`decisions.md#ui`, 2026-10-11 and 2026-10-12).
   import Icon from './Icon.svelte';
-  import type { ViewGroup } from './types';
 
   interface Props {
-    group: ViewGroup;
+    name: string;
+    tabs: { key: string; label: string }[];
     current: string | null;
-    onpick: (view: string) => void;
+    onpick: (key: string) => void;
     onadd: () => void;
-    /** Show the app's own bar again — search, windows, backing up, settings. */
+    /** The first control: the list of groups, or the app's own bar. */
     onmore: () => void;
+    /** What that control is called. */
+    more?: string;
   }
-  let { group, current, onpick, onadd, onmore }: Props = $props();
-  const half = $derived(Math.ceil(group.views.length / 2));
+  let { name, tabs, current, onpick, onadd, onmore, more = 'everything else' }: Props = $props();
+  const half = $derived(Math.ceil(tabs.length / 2));
 </script>
 
-<nav class="group-bar" aria-label={group.name}>
-  <button type="button" class="side" onclick={onmore} aria-label="everything else">
+<nav class="group-bar" aria-label={name}>
+  <button type="button" class="side" onclick={onmore} aria-label={more}>
     <Icon name="more" size={20} />
   </button>
-  {#snippet tab(v: string)}
+  {#snippet tab(t: { key: string; label: string })}
     <button
       type="button"
       class="tab"
-      class:on={v === current}
-      aria-current={v === current ? 'page' : undefined}
-      onclick={() => onpick(v)}>{v}</button
+      class:on={t.key === current}
+      aria-current={t.key === current ? 'page' : undefined}
+      onclick={() => onpick(t.key)}>{t.label}</button
     >
   {/snippet}
   <!-- The add control sits in the middle of the views, where a thumb rests. -->
-  {#each group.views.slice(0, half) as v (v)}{@render tab(v)}{/each}
-  <button type="button" class="add" onclick={onadd} aria-label={`add to ${group.name}`}>
+  {#each tabs.slice(0, half) as t (t.key)}{@render tab(t)}{/each}
+  <button type="button" class="add" onclick={onadd} aria-label={`add to ${name}`}>
     <Icon name="plus" size={24} />
   </button>
-  {#each group.views.slice(half) as v (v)}{@render tab(v)}{/each}
+  {#each tabs.slice(half) as t (t.key)}{@render tab(t)}{/each}
   <!-- Balances the control on the left, so the add control is in the true middle. -->
   <span class="side" aria-hidden="true"></span>
 </nav>

@@ -18,6 +18,9 @@
   import FeedThread from './FeedThread.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
+  import TagChips from './library/TagChips.svelte';
+  import BoardSummary from './tasks/BoardSummary.svelte';
+  import { spacesShown } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
@@ -182,6 +185,14 @@
   // Which proposals have their diff expanded — so a proposal's diff is fetched only when opened,
   // not once per proposal on render.
   let openProposal = $state<Record<string, boolean>>({});
+  /// The Library's one tag, chosen from its chips: the notes that carry it. Kept by the window,
+  /// not written anywhere (`decisions.md#ui`, 2026-10-12).
+  let tag = $state<string | null>(null);
+  const tagged = $derived(
+    tag && pane.kind === 'timeline' && spacesShown()
+      ? cards.filter((c) => c.tags.includes(tag ?? ''))
+      : cards,
+  );
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -330,6 +341,11 @@
       {/if}
     {:else if pane.kind === 'board' || (pane.kind === 'view' && board)}
       {#if board}
+        {#if pane.kind === 'board' && spacesShown()}
+          <BoardSummary
+            columns={ordered(board).columns.map((c) => ({ label: c.label, count: c.cards.length }))}
+          />
+        {/if}
         <Board
           board={ordered(board)}
           onmove={(id, value, beforeId) => onmove(pane.groupBy, id, value, beforeId)}
@@ -457,8 +473,11 @@
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
+      {#if pane.kind === 'timeline' && spacesShown()}
+        <TagChips tags={cards.map((c) => c.tags)} chosen={tag} onpick={(t) => (tag = t)} />
+      {/if}
       <Timeline
-        {cards}
+        cards={tagged}
         {onopen}
         {statuses}
         {onstatus}

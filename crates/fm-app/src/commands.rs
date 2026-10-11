@@ -24,7 +24,7 @@ use ulid::Ulid;
 /// and [`recent`]; `search` and [`gallery`] deliberately still see assets.
 pub fn board(store: &dyn Store, group_by: &str) -> Result<Board, StoreError> {
     let q = Query {
-        filter: crate::thread::notes_base(),
+        filter: crate::thread::tasks_base(),
         group_by: Some(group_by.to_string()),
         sort: vec![SortKey::desc("created")],
         ..Default::default()
@@ -69,7 +69,7 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// it stays out of the renderers (a `.view` file could override it).
 pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
-        filter: crate::thread::notes_base()
+        filter: crate::thread::tasks_base()
             .and(Predicate::Prop { key: "due".into(), op: Op::Exists, value: PropertyValue::Null })
             .and(Predicate::Prop {
                 key: "status".into(),
@@ -1736,15 +1736,16 @@ pub struct DuplicateFamily {
     pub extras: Vec<String>,
 }
 
-/// The tag that marks a note as a template — a starting point to spin new notes from.
-pub const TEMPLATE_TAG: &str = "template";
+pub use crate::thread::TEMPLATE_TAG;
 
 /// Every note tagged [`TEMPLATE_TAG`] — the "New from template" list, most-recently-touched first.
 ///
 /// **A template is just a tagged note**, nothing more: no new `Kind`, no reserved property, no
 /// hidden note-class. Tag any note `template` (in the editor's Tags field) and it becomes a
-/// starting point; untag it and it stops being one. Because it stays an ordinary note it still
-/// shows on the board/timeline and is fully searchable — the honest cost of not inventing a type.
+/// starting point; untag it and it stops being one. It stays an ordinary note — in the timeline,
+/// fully searchable — but it is **inert**: not a card on the board or the agenda, not a program in
+/// force, not a recipe (`thread::is_template`; `decisions.md#ui`, 2026-10-12). Until then a
+/// template with a status sat among the tasks.
 ///
 /// Same in-memory `TagsAll` filter and O(corpus) `load_all()` cost as [`recent`]/[`backlinks`] —
 /// templates are a rare handful, so there is deliberately no index.

@@ -1,6 +1,6 @@
 name: Volume
 view: totals
-group: Training
+group: Fitness
 log: workout
 add: workout
 span: range

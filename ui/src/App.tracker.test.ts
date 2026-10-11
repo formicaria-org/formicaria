@@ -184,11 +184,11 @@ test('training: an exercise is planned as sets, and ticking one counts it', asyn
   showTrackers();
   render(App);
   const rail = await screen.findByRole('navigation', { name: 'views' });
-  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Training' }));
-  const bar = await screen.findByRole('navigation', { name: 'Training' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  const bar = await screen.findByRole('navigation', { name: 'Fitness' });
   expect(await screen.findByText(/^0 of 9 sets/)).toBeTruthy();
 
-  await fireEvent.click(within(bar).getByRole('button', { name: 'add to Training' }));
+  await fireEvent.click(within(bar).getByRole('button', { name: 'add to Fitness' }));
   const sheet = await screen.findByRole('dialog', { name: 'add an exercise' });
   await fireEvent.input(within(sheet).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
   // Nothing is pre-filled with a number of the app's own: sets, reps and load are the person's.

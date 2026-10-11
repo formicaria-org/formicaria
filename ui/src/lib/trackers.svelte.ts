@@ -1,4 +1,4 @@
-// Whether the groups that come with the app — Food, Training — are shown **on this device**.
+// Whether the groups that come with the app — Food, Fitness — are shown **on this device**.
 //
 // Their views are always listed (`ViewInfo.shipped`); showing them is a choice, kept per device
 // like the theme that is on (`decisions.md#ui`, 2026-10-11). One place holds it, so the switch in

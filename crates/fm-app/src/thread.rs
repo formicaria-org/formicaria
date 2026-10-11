@@ -190,6 +190,23 @@ pub fn not_logged() -> Predicate {
     Predicate::Not(Box::new(Predicate::LogKind { key: LOG.into() }))
 }
 
+/// The tag that marks a note as a template — a starting point to make new notes from.
+pub const TEMPLATE_TAG: &str = "template";
+
+/// Whether a note is a template. **A template is inert** (`decisions.md#ui`, 2026-10-12): it
+/// carries the structure the notes made from it will have — a `status`, a `program`, a `recipe` —
+/// so that it never acts as one of them is said here, once, and asked by everything that reads
+/// such a key.
+pub fn is_template(o: &fm_model::Object) -> bool {
+    o.tags.iter().any(|t| t == TEMPLATE_TAG)
+}
+
+/// What the board and the agenda draw: the notes you plan with, and not the templates you make
+/// them from. A template with a `status` would otherwise sit among the tasks for ever.
+pub fn tasks_base() -> Filter {
+    notes_base().and(Predicate::Not(Box::new(Predicate::TagsAll(vec![TEMPLATE_TAG.into()]))))
+}
+
 /// One log's entries **and** the notes holding its targets, in one filter — so a day's totals and
 /// the targets they are measured against cost one pass over the vault, not two. The caller tells
 /// the two apart (`is_log`); a program is an ordinary note carrying `program: <kind>`.
