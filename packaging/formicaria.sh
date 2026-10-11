@@ -90,8 +90,64 @@ export FM_AUTO_SHUTDOWN=1 # ...and quit the server when the tab is closed
 # The fallback matters: with no env installed yet there is nothing to put on PATH, so hand over to
 # pixi, which will build it. That is the first-run path, where 1.4s is irrelevant next to a build.
 ENV_BIN="$REPO/.pixi/envs/default/bin"
-if [ -x "$REPO/target/release/fm-serve" ] && [ -d "$ENV_BIN" ]; then
+
+# **Which program: the one built here, or a release installed over it from Settings.**
+#
+# A copy built from source can install the published release the way the phone's test build can
+# (`decisions.md`, 2026-10-11). Its program lives in the build tree, which cannot be renamed aside,
+# so the app installs into a folder of its own, `target/app/`, laid out like a downloaded copy:
+# `program/`, and `.fm-backup-*` for the way back. This launcher says where that is (`FM_APP_DIR`)
+# and that it can rescue a bad install (`FM_LAUNCHER=2`); without both the app refuses to install.
+#
+# Three choices, in this order:
+#   1. **Built since the install** (`target/release/fm-serve` is newer than the stamp), or nothing
+#      installed: the build made here runs, and what was installed is removed. Building is how you
+#      come back to your own code.
+#   2. **A release is installed and starts**: it runs. Each start is counted and the app clears the
+#      count once it has been serving for a moment, exactly as in `launcher/Start formicaria.sh`.
+#   3. **It is missing or failed three starts**: the program it replaced is put back; and if there
+#      is nothing to put back, the build made here runs. That one is always there.
+export FM_LAUNCHER=2
+export FM_APP_DIR="$REPO/target/app"
+APP="$FM_APP_DIR"
+BUILT="$REPO/target/release/fm-serve"
+RUN="$BUILT"
+fm_restore() {
+    for b in "$APP"/.fm-backup-*; do
+        if [ -x "$b/fm-serve" ]; then
+            rm -rf "$APP/program"
+            mv "$b" "$APP/program"
+            rm -f "$APP/.fm-attempts"
+            return 0
+        fi
+    done
+    return 1
+}
+if [ -e "$APP" ]; then
+    if [ ! -f "$APP/.fm-installed" ] || [ "$BUILT" -nt "$APP/.fm-installed" ]; then
+        rm -rf "$APP"
+    else
+        attempts="$(cat "$APP/.fm-attempts" 2>/dev/null || echo 0)"
+        # Anything that is not a plain number counts as none: a corrupted counter rolls nobody back.
+        case "$attempts" in '' | *[!0-9]*) attempts=0 ;; esac
+        if [ ! -x "$APP/program/fm-serve" ] || [ "$attempts" -ge 3 ]; then
+            if fm_restore; then
+                echo "formicaria: putting the previous version back." >&2
+                attempts=0
+            else
+                echo "formicaria: the installed release will not start; running the build made here." >&2
+                rm -rf "$APP"
+            fi
+        fi
+        if [ -x "$APP/program/fm-serve" ]; then
+            echo $((attempts + 1)) > "$APP/.fm-attempts" 2>/dev/null || true
+            RUN="$APP/program/fm-serve"
+        fi
+    fi
+fi
+
+if [ -x "$RUN" ] && [ -d "$ENV_BIN" ]; then
     export PATH="$ENV_BIN:$PATH"
-    exec "$REPO/target/release/fm-serve"
+    exec "$RUN"
 fi
 exec "$PIXI" run app

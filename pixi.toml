@@ -366,6 +366,13 @@ build-debug = { cmd = "pnpm -C ui install && pnpm -C ui build && cargo build -p 
 # see ./vault — it reads your real ~/.config/formicaria/vaults.json, like a
 # released install would.
 app = "target/release/fm-serve"
+# **Can a downloaded copy update itself from inside the app?** Downloads the release before the
+# newest, starts it in a temporary folder, presses Check now / Get / Restart / Go back, and requires
+# the right version to answer each time with a note left untouched. Real published files and the
+# network, so it is not in `ci`; `release.yml` runs it on all three desktop systems after publishing.
+#   pixi run update-test [from-version]
+#   pixi run update-test --from-source   # the build made here → the newest release, and back
+update-test = "sh ci/update-test.sh"
 test-ui = "pnpm -C ui install && pnpm -C ui test"   # Vitest: the markdown->HTML render seam (jsdom, no window)
 # svelte-check over every component. `vite build` does NOT typecheck — it strips types and
 # emits — so a `.svelte` file that calls a function it never imported *builds clean* and

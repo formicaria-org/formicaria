@@ -1,0 +1,52 @@
+# **Can a downloaded copy update itself from inside the app?** On Linux, macOS and Windows.
+#
+# One script (`ci/update-test.sh`) does what a person does: takes the release before the newest,
+# starts it, presses Check now, Get and Restart, requires the newest version to answer, presses Go
+# back, and requires a note to be untouched throughout. It uses the published archives and the
+# signed manifest, because "you never need to open GitHub to update" is a claim about those and no
+# unit test can make it.
+#
+# - **By hand**, for "does it work on the other systems right now?".
+# - **Called by `release.yml` after publishing**, with the tag it just published. It runs too late
+#   to stop that release, on purpose: only a published release can be updated *to*. A red run here
+#   means people on the previous version cannot reach this one from inside the app, which is worth
+#   a fix release, and nobody would otherwise know.
+#
+# It reads the public release page and writes nothing: no secret, no token, no toolchain.
+name: update-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: 'start from this version (empty = the release before the newest)'
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      to:
+        description: 'the version that must answer at the end'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: updates itself (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never fail-fast: the point is to learn *which* system cannot update.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      # Through the environment, never pasted into the script: an input is text somebody typed.
+      - name: the previous release updates itself to the newest, and goes back
+        shell: bash
+        env:
+          FM_UPDATE_TEST_TO: ${{ inputs.to }}
+          FROM: ${{ inputs.from }}
+        run: sh ci/update-test.sh ${FROM:+"$FROM"}

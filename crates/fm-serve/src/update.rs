@@ -61,7 +61,7 @@ pub fn is_ours(p: &Path) -> bool {
     const DIRS: &[&str] = &[".fm-update", "program", "manual"];
     // Exact files at the top level. The launchers are matched by prefix because their names differ
     // per platform (`Start formicaria.sh` / `.command` / `.vbs` / ` (show messages).bat`).
-    const FILES: &[&str] = &["README.txt", "Manual.html"];
+    const FILES: &[&str] = &["README.txt", "Manual.html", STAMP];
     const PREFIXES: &[&str] = &["Start formicaria", "Update from an older folder", ".fm-backup-"];
     // The failed-start counter the launcher keeps. Ours to delete, and named here so the sweep and
     // the swap can both touch it without a special case.
@@ -99,6 +99,73 @@ pub fn app_dir() -> Option<std::path::PathBuf> {
     Some(program.parent()?.to_path_buf())
 }
 
+/// The stamp [`seed`] leaves in the app folder of a copy built from source: *a release was installed
+/// here, at this time*. The developer launcher compares the source build against it, so a build
+/// made afterwards wins.
+pub const STAMP: &str = ".fm-installed";
+
+/// Where this copy installs an update: the folder the swap, the way back and the rescue work in.
+///
+/// For a downloaded copy that is [`app_dir`], and nothing else is consulted. A copy built from
+/// source has no such folder — its program sits in the build tree, which cannot be renamed aside —
+/// so its launcher names one in `FM_APP_DIR` (`<checkout>/target/app`), and at *Restart* [`seed`]
+/// turns that into an ordinary app folder holding the source build. From there the update is the
+/// one everybody runs (`decisions.md`, 2026-10-11, *a copy built from source installs the release
+/// into a folder of its own*).
+///
+/// **Not a check on the operating system**: the capability is "a launcher that can rescue said
+/// where", the same shape as `FM_LAUNCHER`.
+pub fn install_dir() -> Option<std::path::PathBuf> {
+    install_dir_from(app_dir(), std::env::var_os("FM_APP_DIR"))
+}
+
+/// [`install_dir`] with its two inputs passed in, so the rule can be tested without an environment.
+/// A relative name is refused: it would mean a different folder from every working directory.
+fn install_dir_from(
+    downloaded: Option<std::path::PathBuf>,
+    named: Option<std::ffi::OsString>,
+) -> Option<std::path::PathBuf> {
+    downloaded.or_else(|| named.map(std::path::PathBuf::from).filter(|p| p.is_absolute()))
+}
+
+/// Make the app folder of a copy built from source hold that copy, so the ordinary swap can keep it
+/// as the way back.
+///
+/// Called at *Restart* and not before: downloading must leave everything as it was. It copies the
+/// running programs and the catalogue into `program/` — build artifacts, every one — and writes
+/// [`STAMP`]. A `program/` already there is from an earlier attempt that never finished, because
+/// the launcher removes this whole folder before it ever runs the source build again.
+fn seed(app: &Path) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| format!("could not find formicaria: {e}"))?;
+    let from = exe.parent().ok_or("could not find formicaria's own folder")?;
+    #[cfg(feature = "agent")]
+    let catalogue = crate::agent::manifest_path();
+    #[cfg(not(feature = "agent"))]
+    let catalogue: Option<std::path::PathBuf> = None;
+    seed_from(app, from, catalogue.as_deref())
+}
+
+fn seed_from(app: &Path, from: &Path, catalogue: Option<&Path>) -> Result<(), String> {
+    let program = app.join("program");
+    let _ = std::fs::remove_dir_all(&program);
+    std::fs::create_dir_all(&program)
+        .map_err(|e| format!("could not prepare {}: {e}", program.display()))?;
+    let suffix = std::env::consts::EXE_SUFFIX;
+    for name in [exe_name().to_string(), format!("fm{suffix}"), format!("agent-serve{suffix}")] {
+        let src = from.join(&name);
+        // Only the server is required: a build without the assistant has no `agent-serve`.
+        if name != exe_name() && !src.exists() {
+            continue;
+        }
+        std::fs::copy(&src, program.join(&name))
+            .map_err(|e| format!("could not keep a copy of {}: {e}", src.display()))?;
+    }
+    if let Some(c) = catalogue.filter(|c| c.exists()) {
+        let _ = std::fs::copy(c, program.join("models.toml"));
+    }
+    write_atomic(&app.join(STAMP), Vec::new())
+}
+
 /// Why this copy cannot even *look* for a newer version, or `None` when it can.
 ///
 /// **Kept apart from [`cannot_install`], because they are different capabilities and conflating
@@ -131,10 +198,10 @@ pub fn cannot_install() -> Option<String> {
     if let Some(why) = cannot_check() {
         return Some(why);
     }
-    let Some(app) = app_dir() else {
+    let Some(app) = install_dir() else {
         return Some(
-            "This copy is not running from a downloaded formicaria folder, so it cannot update \
-             itself."
+            "This copy was built from source and was not started from its icon, so it has nowhere \
+             to install an update. Start formicaria from its icon and it can."
                 .into(),
         );
     };
@@ -164,7 +231,10 @@ pub fn cannot_install() -> Option<String> {
 /// the whole story — read-only mounts, Controlled Folder Access and antivirus policy all produce a
 /// folder that looks writable and is not — so this creates a file and deletes it.
 fn writable(app: &Path) -> Result<(), String> {
-    let probe = app.join(".fm-update-probe");
+    // A copy built from source has no app folder until its first install, and asking must not
+    // make one: probe the folder it would be created in.
+    let dir = if app.exists() { app } else { app.parent().unwrap_or(app) };
+    let probe = dir.join(".fm-update-probe");
     match std::fs::write(&probe, b"") {
         Ok(()) => {
             let _ = std::fs::remove_file(&probe);
@@ -857,7 +927,7 @@ fn status_json(state: &UpdateState) -> serde_json::Value {
     let why_check = cannot_check();
     let why_install = cannot_install();
     // The way back, read from the folder rather than remembered.
-    let previous = app_dir().and_then(|a| backup_dir(&a)).map(|(_, v)| v);
+    let previous = install_dir().and_then(|a| backup_dir(&a)).map(|(_, v)| v);
     let s = settings();
     let available = s.last_seen.as_deref().and_then(Version::parse).filter(newer);
     serde_json::json!({
@@ -971,7 +1041,7 @@ pub fn route(
         // before this process goes away, or the tab sees a dropped connection instead of being told
         // to expect one.
         "/api/update_apply" => {
-            let app = app_dir();
+            let app = install_dir();
             match (cannot_install(), app) {
                 (Some(why), _) => (
                     "400 Bad Request",
@@ -981,18 +1051,26 @@ pub fn route(
                 (None, None) => (
                     "400 Bad Request",
                     "application/json",
-                    serde_json::json!({ "error": "this copy is not running from a downloaded formicaria folder" })
+                    serde_json::json!({ "error": "this copy has nowhere to install an update" })
                         .to_string()
                         .into_bytes(),
                 ),
-                (None, Some(_app)) if u.handing_over.swap(true, std::sync::atomic::Ordering::SeqCst) => (
-                    "409 Conflict",
-                    "application/json",
-                    serde_json::json!({ "error": "formicaria is already restarting" })
-                        .to_string()
-                        .into_bytes(),
-                ),
-                (None, Some(app)) => match hand_over(state, &app) {
+                (None, Some(_app))
+                    if u.handing_over.swap(true, std::sync::atomic::Ordering::SeqCst) =>
+                {
+                    (
+                        "409 Conflict",
+                        "application/json",
+                        serde_json::json!({ "error": "formicaria is already restarting" })
+                            .to_string()
+                            .into_bytes(),
+                    )
+                }
+                // A copy built from source first becomes the contents of its own app folder, so
+                // the swap has a `program/` to keep as the way back.
+                (None, Some(app)) => match (if app_dir().is_none() { seed(&app) } else { Ok(()) })
+                    .and_then(|()| hand_over(state, &app))
+                {
                     Ok(()) => {
                         // The successor is already waiting for this port to go quiet. Give the
                         // response time to be written and read, then leave — the swap happens in
@@ -1022,7 +1100,7 @@ pub fn route(
         // **Go back to the version you were on.** Same choreography as installing, in reverse, and
         // behind the same one-restart-at-a-time flag.
         "/api/update_rollback" => {
-            let app = app_dir();
+            let app = install_dir();
             match (cannot_install(), app) {
                 (Some(why), _) => (
                     "400 Bad Request",
@@ -1032,17 +1110,21 @@ pub fn route(
                 (None, None) => (
                     "400 Bad Request",
                     "application/json",
-                    serde_json::json!({ "error": "this copy is not running from a downloaded formicaria folder" })
+                    serde_json::json!({ "error": "this copy has nowhere to install an update" })
                         .to_string()
                         .into_bytes(),
                 ),
-                (None, Some(_)) if u.handing_over.swap(true, std::sync::atomic::Ordering::SeqCst) => (
-                    "409 Conflict",
-                    "application/json",
-                    serde_json::json!({ "error": "formicaria is already restarting" })
-                        .to_string()
-                        .into_bytes(),
-                ),
+                (None, Some(_))
+                    if u.handing_over.swap(true, std::sync::atomic::Ordering::SeqCst) =>
+                {
+                    (
+                        "409 Conflict",
+                        "application/json",
+                        serde_json::json!({ "error": "formicaria is already restarting" })
+                            .to_string()
+                            .into_bytes(),
+                    )
+                }
                 (None, Some(app)) => match hand_back(state, &app) {
                     Ok((_going_to, _)) => {
                         // Remember what was turned down, so the panel does not offer it back the
@@ -1084,7 +1166,7 @@ fn start(state: &Arc<crate::AppState>) -> Result<(), String> {
     if let Some(why) = cannot_install() {
         return Err(why);
     }
-    let app = app_dir().ok_or("this copy is not running from a downloaded formicaria folder")?;
+    let app = install_dir().ok_or("this copy has nowhere to install an update")?;
     let tag = settings()
         .last_seen
         .filter(|t| Version::parse(t).is_some_and(|v| newer(&v)))
@@ -1524,18 +1606,85 @@ mod tests {
     /// 2026-10-09 it may **check** (it is behind every release, so it is told one exists), but it still
     /// cannot **install** itself, and it says why rather than offering a button that fails.
     #[test]
-    fn a_source_build_may_check_but_cannot_install_and_says_why() {
+    fn a_source_build_may_check_and_without_its_launcher_cannot_install_and_says_why() {
         if target().is_some() {
             assert!(
                 cannot_check().is_none(),
                 "a build with no version may still ask what is published"
             );
         }
-        let why = cannot_install().expect("a source build cannot replace itself");
-        assert!(
-            why.contains("downloaded formicaria folder") || why.contains("no download published"),
-            "the reason must be actionable: {why}"
-        );
+        // `cargo test` is a source build started by no launcher: nothing named an app folder.
+        if std::env::var_os("FM_APP_DIR").is_none() {
+            let why = cannot_install().expect("with nowhere to install, it must refuse");
+            assert!(
+                why.contains("from its icon") || why.contains("no download published"),
+                "the reason must be actionable: {why}"
+            );
+        }
+    }
+
+    /// A downloaded copy installs where it is and listens to nothing else; a copy built from source
+    /// installs where its launcher said, and only if that is a whole path.
+    #[test]
+    fn a_copy_installs_into_its_own_folder_or_the_one_its_launcher_named() {
+        let here = Some(std::path::PathBuf::from("/apps/formicaria"));
+        let named = |s: &str| Some(std::ffi::OsString::from(s));
+        let abs = if cfg!(windows) { "C:\\repo\\target\\app" } else { "/repo/target/app" };
+        assert_eq!(install_dir_from(here.clone(), named(abs)), here, "the downloaded folder wins");
+        assert_eq!(install_dir_from(None, named(abs)), Some(abs.into()));
+        assert_eq!(install_dir_from(None, named("target/app")), None, "a relative name is refused");
+        assert_eq!(install_dir_from(None, None), None);
+    }
+
+    /// The whole path a copy built from source takes, with the real swap and the real way back:
+    /// seeded, replaced by the release, and put back. Nothing but build artifacts is copied.
+    #[test]
+    fn a_source_build_is_seeded_then_replaced_by_the_release_and_can_come_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let built = dir.path().join("target/release");
+        std::fs::create_dir_all(built.join("deps")).unwrap();
+        let suffix = std::env::consts::EXE_SUFFIX;
+        std::fs::write(built.join(exe_name()), b"SOURCE BUILD").unwrap();
+        std::fs::write(built.join(format!("fm{suffix}")), b"cli").unwrap();
+        std::fs::write(built.join(format!("agent-serve{suffix}")), b"assistant").unwrap();
+        std::fs::write(built.join("deps/libsomething.rlib"), b"build tree").unwrap();
+        let catalogue = dir.path().join("models.toml");
+        std::fs::write(&catalogue, b"catalogue").unwrap();
+        let app = dir.path().join("target/app");
+
+        seed_from(&app, &built, Some(&catalogue)).unwrap();
+
+        let mut seeded: Vec<String> = std::fs::read_dir(app.join("program"))
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        seeded.sort();
+        let mut want =
+            vec![format!("agent-serve{suffix}"), format!("fm{suffix}"), exe_name().to_string()];
+        want.push("models.toml".into());
+        want.sort();
+        assert_eq!(seeded, want, "the programs and the catalogue, and nothing from the build tree");
+        assert!(app.join(STAMP).exists() && is_ours(Path::new(STAMP)));
+
+        // The release, downloaded and armed by a copy that has no version of its own.
+        let staged = app.join(".fm-update/staged/program");
+        std::fs::create_dir_all(&staged).unwrap();
+        std::fs::write(staged.join(exe_name()), b"RELEASE").unwrap();
+        std::fs::write(app.join(".fm-update/plan.json"), br#"{"phase":"armed","from":null}"#)
+            .unwrap();
+
+        swap(&app).unwrap();
+        assert_eq!(std::fs::read(app.join("program").join(exe_name())).unwrap(), b"RELEASE");
+        let (backup, name) = backup_dir(&app).expect("the source build is kept as the way back");
+        assert_eq!(name, "previous");
+        assert_eq!(std::fs::read(backup.join(exe_name())).unwrap(), b"SOURCE BUILD");
+
+        go_back(&app, ".fm-backup-previous").unwrap();
+        assert_eq!(std::fs::read(app.join("program").join(exe_name())).unwrap(), b"SOURCE BUILD");
+        // The build tree was only ever read.
+        assert_eq!(std::fs::read(built.join(exe_name())).unwrap(), b"SOURCE BUILD");
+        assert_eq!(std::fs::read(built.join("deps/libsomething.rlib")).unwrap(), b"build tree");
     }
 
     /// Refused rather than normalised: `..` is how a path that looks local reaches the vault.

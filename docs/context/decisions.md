@@ -139,7 +139,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***A copy built from source installs the release into a folder of its own*** (2026-10-11; read before touching `install_dir`, `seed`, `FM_APP_DIR` or `packaging/formicaria.sh`, or before writing a second swap) · ***Updating from inside the app is tested on the published files, after they are published*** (2026-10-11; read before adding a job after `attach`, or before trusting the updater's unit tests to say a release is reachable) · ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -8437,6 +8437,9 @@ from there to align to the GitHub latest."*
 is still never offered again. `cannot_check` no longer refuses such a build, on the phone or the
 desktop (same behaviour on every OS).
 
+> SUPERSEDED 2026-10-11 for the desktop, by *a copy built from source installs the release into a
+> folder of its own*: such a copy can now install, when its launcher says where.
+
 **What stays.** Installing is still `cannot_install`'s question. A copy run from source on a
 computer is not a downloaded folder, so it is told a release exists and why it cannot install it
 there. The phone hands the APK to Android's installer, which refuses anything not signed with the
@@ -8779,3 +8782,104 @@ for the diagnosis and one that does not depend on it:
 above do not, that a selection does not, and that the ＋ has no *Edit*. Whether a tap while scrolling
 ever counts as a click on the phone is for the phone to say.
 
+## Updating from inside the app is tested on the published files, after they are published (2026-10-11, `#toolchain`)
+
+**What prompted it.** The owner saw no *Check now* and no way to install on their Linux desktop and
+concluded, reasonably, that desktop updating was broken on every system but Android. It was not:
+their copy is built from this checkout, and the program running was built before 2026-10-09, when
+a build with no version was still refused the check. But nothing here could have *shown* that the
+downloaded app works. The updater has some thirty unit tests and a rehearsal of the manifest
+scripts, and none of them says "a person on the last release can reach this one without opening
+GitHub".
+
+**What was done by hand, then written down as a test.** The published 0.6.5 Linux archive, unpacked
+in a temporary folder and started as its launcher starts it: *Check now* found 0.6.6, *Get*
+downloaded and verified it, *Restart* brought the copy back as 0.6.6 with 0.6.5 kept, *Go back*
+returned to 0.6.5, and a note written beforehand was byte-identical after each step.
+`ci/update-test.sh` (`pixi run update-test`) is that, in about forty seconds.
+
+**Decisions.**
+- **It tests published files, so it runs after publishing.** `release.yml` ends with `update-works`,
+  which calls `update-test.yml` on Linux, macOS and Windows with the tag just published. It cannot
+  stop that release: only a published release can be updated *to*. Testing the candidate earlier
+  would need the updater to accept a release from somewhere other than the signed public one, and
+  a switch that does that is a hole in the trust root. A red `update-works` means a fix release.
+- **The guard is extended, not relaxed.** `ci/checks.sh` requires every `release.yml` job but
+  `binaries` and `attach` to be `continue-on-error`, so nothing but a failed desktop build can cost
+  a release. A job that *needs `attach`* is now exempt, because it runs once the release is out and
+  blocks nothing; and it must be able to go red, since being seen is its use.
+- **`update-test.yml` can be run by hand.** It is the first evidence available for macOS and
+  Windows, where the updater has never been run.
+- **It is not in `pixi run ci`.** It needs the network and GitHub's release page; the gate stays
+  hermetic.
+- **A copy that cannot look now says why.** Settings showed no update rows at all when the app
+  answered that it could not check, which is the "greyed out with no reason" the updater's own
+  comments forbid. It shows the app's reason and the download page.
+
+> SUPERSEDED the same day by the next entry: the owner ruled that a copy built from source must be
+> able to install the release, as the phone's test build can.
+
+**Not changed, on purpose.** A copy run from a source checkout can look but cannot install: it is
+not a downloaded folder, and replacing a developer's `target/` with a release is not an update.
+The way to update such a copy is to build it.
+
+**Limits, stated.** The test sets the launcher's variables itself instead of running
+`Start formicaria.*`, which opens a browser. The launcher's own rescue path keeps its separate
+guard in `ci/checks.sh`.
+
+## A copy built from source installs the release into a folder of its own (2026-10-11, `#toolchain` `#track-m`)
+
+> Reverses the "What stays" paragraph of *a build with no version can always return to the latest
+> release* (2026-10-09) and the "Not changed, on purpose" paragraph of the entry above.
+
+**What prompted it.** On the phone a test build can look for, download and install the latest
+release. On the desktop the same kind of copy could only look: it said a release existed and gave
+a link. The owner: the behaviour must be the same, and nobody should need GitHub to update. Asked
+what installing should mean for a copy built in a checkout, the owner chose **replace the program
+in place**: vaults and settings untouched, the old program kept for *Go back*, and the next build
+puts the source build back.
+
+**The obstacle.** The swap, the rescue and *Go back* all rest on one shape: a folder holding
+`program/`, renamed whole. A source build lives in `target/release/`, which is the build tree and
+cannot be renamed aside.
+
+**Decision: no second swap.** A source copy gets an app folder of its own, `<checkout>/target/app/`
+(already ignored by git), and the existing update runs on it unchanged.
+- `install_dir()` is where a copy installs to: the downloaded folder when the program is in one
+  (`app_dir()`, still read from the program's own location), otherwise the folder named by
+  `FM_APP_DIR`. Only the developer launcher (`packaging/formicaria.sh`) sets that. There is no
+  check on the operating system: the capability is "a launcher that can rescue said where", the
+  same pattern as `FM_LAUNCHER`.
+- At *Restart*, and only then, `seed` copies the running programs and the catalogue into
+  `target/app/program/` and writes a stamp. From that moment the folder is an ordinary app folder
+  that happens to hold the source build, and `hand_over` and `swap` do what they do for everyone:
+  the source build becomes `.fm-backup-previous`, the release becomes `program/`.
+- *Go back* is the existing one. It restores the source build, and the release that was turned
+  down is not offered again.
+- The developer launcher is now generation 2. It runs `target/app/program` when a release is
+  installed, counts failed starts and puts the backup back like the shipped launchers, and falls
+  back to the source build, which is always there. **A build made after the release was installed
+  wins**: the launcher removes `target/app` and runs it.
+
+**The two guarantees.**
+- *No note is lost.* Nothing new is written outside the app folder; `is_ours` gains one name, the
+  stamp. The vault list and settings stay in the config directory, where a source copy already
+  keeps them, so the installed release sees the same vaults.
+- *There is always a way back.* *Go back* in Settings; the launcher's rescue after three failed
+  starts or a missing program; and beneath both, the source build in `target/release/`.
+
+**Limits.**
+- Only where the developer launcher is used, which is Linux today. A source copy started some
+  other way (`pixi run app`, `cargo run`) keeps a reason, which now says to start it from its icon.
+- The launcher starts in the checkout, so the installed release keeps using the checkout's
+  `agents/` (models, runtime, catalogue). The assistant keeps the files it has.
+
+**Tests.** Unit tests for `seed` and for a seeded folder going through the existing swap and back;
+a rehearsal of the launcher's three choices in `ci/checks.sh`; and `pixi run update-test
+--from-source`, which does it for real with the local build.
+
+**Found by the owner's first real use, the same hour.** The install worked and the page went on
+saying *restarting as v0.6.6. This page reconnects by itself* for ever: nothing made that sentence
+true, on any copy, since the updater shipped. After *Restart* and after *Go back*, Settings now
+asks until a program with a different version answers, through the silence of the restart, and
+then loads the page again, so the tab also stops showing the previous version's interface.

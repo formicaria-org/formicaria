@@ -723,8 +723,14 @@ def soft_job(j):
         called = (yaml.safe_load(open(uses[2:])) or {}).get('jobs') or {}
         return bool(called) and all(c.get('continue-on-error') is True for c in called.values())
     return False
+# **A job that waits for `attach` runs after the release is published, so it cannot block it** — and
+# it must be allowed to go red, because being seen is its whole use (`update-works`, 2026-10-11:
+# "can the previous version update to this one?" is only answerable once this one is out).
+def after_publishing(j):
+    needs = j.get('needs') or []
+    return 'attach' in ([needs] if isinstance(needs, str) else needs)
 bad = [n for n, j in (d.get('jobs') or {}).items()
-       if n not in ('binaries', 'attach') and not soft_job(j)]
+       if n not in ('binaries', 'attach') and not soft_job(j) and not after_publishing(j)]
 # A job that needs a `continue-on-error` leg must also survive that leg being *cancelled* (no runner),
 # which `continue-on-error` does not cover: without `!cancelled()` in its `if:`, GitHub skips it.
 # That skipped `manifest` and `attach` for v0.5.8 and published nothing (2026-10-08).
@@ -1415,6 +1421,60 @@ else
         echo "  FAIL: with nothing to go back to, the launcher must say so and name the download."
         echo "        Output: $last"
         fail=1
+    fi
+
+    # 7. **The developer launcher makes the same promise** (`decisions.md`, 2026-10-11): a copy
+    #    built from source installs a release into `target/app/`, and `packaging/formicaria.sh` is
+    #    what chooses between that and the build made here. Its three choices, with the real script
+    #    in a fake checkout and only its final `exec` replaced.
+    dev="packaging/formicaria.sh"
+    if ! grep -q 'FM_LAUNCHER=2' "$dev" || ! grep -q 'FM_APP_DIR=' "$dev"; then
+        echo "  FAIL: $dev does not set FM_LAUNCHER=2 and FM_APP_DIR, so a copy built from source"
+        echo "        cannot install a release from Settings."
+        fail=1
+    else
+        co="$rescue_tmp/checkout"
+        setup_checkout() {
+            rm -rf "$co"
+            mkdir -p "$co/packaging" "$co/target/release" "$co/ui/dist" "$co/.pixi/envs/default/bin"
+            sed 's|^    exec "$RUN"$|    echo "LAUNCHED ${RUN#$REPO/}"; exit 0|' "$dev" > "$co/packaging/formicaria.sh"
+            printf '#!/bin/sh\n' > "$co/target/release/fm-serve"; chmod +x "$co/target/release/fm-serve"
+        }
+        install_release() {
+            mkdir -p "$co/target/app/program" "$co/target/app/.fm-backup-previous"
+            for d in program .fm-backup-previous; do
+                printf '#!/bin/sh\n' > "$co/target/app/$d/fm-serve"; chmod +x "$co/target/app/$d/fm-serve"
+            done
+            touch -d '2 minutes ago' "$co/target/release/fm-serve"
+            touch "$co/target/app/.fm-installed"
+        }
+        dev_run() { FM_ADDR=127.0.0.1:1 bash "$co/packaging/formicaria.sh" 2>&1 | tail -1; }
+        expect_dev() {
+            if [ "$2" != "$3" ]; then
+                echo "  FAIL: $dev, $1: expected '$3', got '$2'."
+                fail=1
+            fi
+        }
+        setup_checkout
+        expect_dev "with nothing installed" "$(dev_run)" "LAUNCHED target/release/fm-serve"
+        install_release
+        expect_dev "with a release installed" "$(dev_run)" "LAUNCHED target/app/program/fm-serve"
+        [ "$(cat "$co/target/app/.fm-attempts" 2>/dev/null)" = 1 ] \
+            || { echo "  FAIL: $dev does not count a start of the installed release."; fail=1; }
+        # Three starts that never got far enough to clear the count: the kept program comes back.
+        echo 3 > "$co/target/app/.fm-attempts"
+        expect_dev "after three failed starts" "$(dev_run)" "LAUNCHED target/app/program/fm-serve"
+        [ ! -e "$co/target/app/.fm-backup-previous" ] \
+            || { echo "  FAIL: $dev did not put the kept program back after three failed starts."; fail=1; }
+        # Failing again with nothing left to put back: the build made here, and the install is gone.
+        echo 3 > "$co/target/app/.fm-attempts"
+        expect_dev "with nothing left to put back" "$(dev_run)" "LAUNCHED target/release/fm-serve"
+        [ ! -e "$co/target/app" ] || { echo "  FAIL: $dev left a dead install in place."; fail=1; }
+        # A build made after the install wins, and removes what was installed.
+        setup_checkout; install_release; touch "$co/target/release/fm-serve"
+        sleep 0.05; touch "$co/target/release/fm-serve"
+        expect_dev "after building again" "$(dev_run)" "LAUNCHED target/release/fm-serve"
+        [ ! -e "$co/target/app" ] || { echo "  FAIL: $dev kept an install older than the build."; fail=1; }
     fi
 
     # 6. The launcher must announce its generation, or the app refuses to update itself at all.

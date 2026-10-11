@@ -386,7 +386,7 @@ fn main() {
     // traffic by being opened. It is silent on failure.
     #[cfg(feature = "update")]
     {
-        if let Some(app) = update::app_dir() {
+        if let Some(app) = update::install_dir() {
             update::sweep(&app);
             // We are up and serving. Clear the launcher's failed-start counter shortly, so three
             // starts that never get this far are what triggers a rollback — and one that does

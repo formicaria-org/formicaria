@@ -30,6 +30,7 @@
     agentModels,
     removeAgentModel,
     updateRollback,
+    reloadPage,
     updateStatus,
     setAgent,
     updateAgentModel,
@@ -300,6 +301,11 @@
   /// What this copy could go back to, or null when there is nothing to go back to. Read from the
   /// server rather than remembered, so it stays true across a restart and a fresh clone.
   let previousVersion = $state<string | null>(null);
+  /// What the earlier program is called in the *Go back* row. A copy built from source has no
+  /// version, so the folder it is kept in is named `previous`; say what it is instead.
+  const previousName = $derived(
+    previousVersion === 'previous' ? 'the build made here' : previousVersion,
+  );
   /// Whether this copy may install anything at all — a folder the system protects, or one whose
   /// launcher predates the way back, can say what it is but not change it. Separate from
   /// `previousVersion` for the reason the assistant's `agentOn`/`agentInstalled` pair is separate:
@@ -483,6 +489,25 @@
     }, 1500);
   }
 
+  /** After *Restart* or *Go back*: wait for the other version to answer, then load the page from it.
+   *
+   *  The row said "this page reconnects by itself" and nothing made it true: the message stayed for
+   *  ever, over an app that had restarted long before (the owner's desktop, 2026-10-11), and the
+   *  tab kept the old version's interface. A missed answer is the restart itself, so it keeps
+   *  asking; it stops only when the program that answers is no longer the one that was running
+   *  (`was`: its version, or null for a build that has none). */
+  function watchRestart(was: string | null) {
+    clearTimeout(updTimer);
+    updTimer = setTimeout(async () => {
+      try {
+        if ((await updateStatus()).current !== was) return reloadPage();
+      } catch {
+        // Nobody answering yet: that is what a restart looks like.
+      }
+      watchRestart(was);
+    }, 1500);
+  }
+
   function reason(e: unknown): string {
     return e instanceof Error ? e.message : String(e);
   }
@@ -544,8 +569,10 @@
   async function restartIntoUpdate() {
     updateError = null;
     try {
+      const was = upd?.current ?? null;
       await updateApply();
       restarting = true;
+      watchRestart(was);
     } catch (e) {
       updateError = reason(e);
     } finally {
@@ -575,9 +602,11 @@
   async function goBack() {
     goBackError = null;
     try {
+      const was = upd?.current ?? null;
       await updateRollback();
       goingBack = false;
       previousVersion = null;
+      watchRestart(was);
     } catch (e) {
       goingBack = false;
       goBackError = e instanceof Error ? e.message : String(e);
@@ -1608,6 +1637,22 @@
               <li><span class="muted">{phoneMessage}</span></li>
             {/if}
           </ul>
+        {:else if upd}
+          <!-- **A copy that cannot look says so.** This branch showed nothing, so a person saw no
+               update rows and no reason — "why is there no Check now?" with nowhere to read the
+               answer (the owner's Linux desktop, 2026-10-11). The reason is the app's own, and the
+               download page is the way forward it can still offer. -->
+          <ul class="caps updates">
+            <li>
+              <span class="k">newer versions</span>
+              <span class="muted">{upd.why || 'This copy cannot look for a newer version.'}</span>
+              {#if !isPhone() && upd.page}
+                <a class="link" href={upd.page} target="_blank" rel="noopener noreferrer"
+                  >Open the download page</a
+                >
+              {/if}
+            </li>
+          </ul>
         {/if}
 
         <!-- **The way back.** An update replaces the program in place and keeps the one it
@@ -1622,20 +1667,20 @@
           <ul class="caps updates">
             <li>
               {#if goingBack}
-                <span class="k">go back to {previousVersion}?</span>
+                <span class="k">go back to {previousName}?</span>
                 <span class="muted">
-                  Formicaria will restart into {previousVersion}, which is the version you were
-                  using before. Your notes are not touched. Getting {cfg.version} again means downloading
-                  it again.
+                  Formicaria will restart into {previousName}, which is the version you were using
+                  before. Your notes are not touched. Getting {cfg.version} again means downloading it
+                  again.
                 </span>
                 <button class="primary" onclick={goBack}>Yes, go back</button>
                 <button onclick={() => (goingBack = false)}>Cancel</button>
               {:else}
                 <span class="k">earlier version</span>
                 <span class="muted">
-                  {previousVersion} is still in this folder, in case {cfg.version} does not suit you.
+                  {previousName} is still in this folder, in case {cfg.version} does not suit you.
                 </span>
-                <button onclick={() => (goingBack = true)}>Go back to {previousVersion}…</button>
+                <button onclick={() => (goingBack = true)}>Go back to {previousName}…</button>
               {/if}
             </li>
             {#if goBackError}

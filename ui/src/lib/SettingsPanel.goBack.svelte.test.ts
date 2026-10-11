@@ -14,15 +14,17 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import SettingsPanel from './SettingsPanel.svelte';
 
-const { updateStatus, updateRollback, agentStatus } = vi.hoisted(() => ({
+const { updateStatus, updateRollback, reloadPage, agentStatus } = vi.hoisted(() => ({
   updateStatus: vi.fn(),
   updateRollback: vi.fn(),
+  reloadPage: vi.fn(),
   agentStatus: vi.fn(),
 }));
 vi.mock('./ipc', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./ipc')>()),
   updateStatus,
   updateRollback,
+  reloadPage,
   agentStatus,
 }));
 
@@ -67,6 +69,13 @@ describe('SettingsPanel — going back to the earlier version', () => {
   it('offers the version it would go back to, by name', async () => {
     panel();
     expect(await screen.findByText(/Go back to v0\.5\.1/)).toBeTruthy();
+  });
+
+  /// A copy built from source has no version; its kept program is named for what it is.
+  it('names the build made here when the earlier program has no version', async () => {
+    updateStatus.mockResolvedValue(status({ previous: 'previous' }));
+    panel();
+    expect(await screen.findByText(/Go back to the build made here…/)).toBeTruthy();
   });
 
   /// The whole point of arming: one press must not replace the program.

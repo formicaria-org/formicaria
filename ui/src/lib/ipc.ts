@@ -1058,6 +1058,13 @@ export const restoreVault = (name: string, path: string, repo: string) =>
  *  remembered, so it stays true across a restart. Null when there is nothing to go back to. */
 export const updateStatus = () => invoke<UpdateStatus>('update_status');
 
+/** Load the page again, from the program that is running now. After an update the tab still holds
+ *  the previous version's interface; this is how it becomes the new one. A function of its own so a
+ *  test can watch it being called. */
+export function reloadPage(): void {
+  window.location.reload();
+}
+
 /** How far getting a newer version has got. Held in memory on the server only. `total` is null when
  *  the server sends no length, and the panel then says bytes rather than inventing a percentage. */
 export type UpdateProgress = {

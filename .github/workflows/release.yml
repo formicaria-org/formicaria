@@ -681,3 +681,14 @@ jobs:
               should match character for character. Android already stops anyone replacing an
               installed app with a differently-signed one — this is for the *first* install, where
               your phone has nothing to compare against yet.
+
+  # **Can the people on the previous version reach this one without opening GitHub?** Asked of the
+  # real thing, on all three desktop systems, once it is published (`update-test.yml` says why it
+  # cannot be asked earlier). It gates nothing; it is the release's last line, red or green.
+  update-works:
+    name: the previous release can update to this one
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.attach.result == 'success' }}
+    needs: attach
+    uses: ./.github/workflows/update-test.yml
+    with:
+      to: ${{ github.ref_name }}

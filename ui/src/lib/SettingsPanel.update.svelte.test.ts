@@ -20,6 +20,7 @@ const {
   updateCancel,
   updateApply,
   updateRollback,
+  reloadPage,
   agentStatus,
 } = vi.hoisted(() => ({
   updateStatus: vi.fn(),
@@ -29,6 +30,7 @@ const {
   updateCancel: vi.fn(),
   updateApply: vi.fn(),
   updateRollback: vi.fn(),
+  reloadPage: vi.fn(),
   agentStatus: vi.fn(),
 }));
 vi.mock('./ipc', async (importOriginal) => ({
@@ -40,6 +42,7 @@ vi.mock('./ipc', async (importOriginal) => ({
   updateCancel,
   updateApply,
   updateRollback,
+  reloadPage,
   agentStatus,
 }));
 
@@ -129,6 +132,32 @@ describe('SettingsPanel — getting a newer version', () => {
     expect(await screen.findByText(/your notes are not touched/)).toBeTruthy();
     await fireEvent.click(await screen.findByText(/Yes, restart/));
     expect(updateApply).toHaveBeenCalledOnce();
+  });
+
+  /// "This page reconnects by itself" was a sentence with nothing behind it: the message stayed
+  /// over an app that had long since restarted. It now asks until the new version answers, through
+  /// the silence of the restart, and then loads the page from it.
+  it('after restarting, loads the page again once the new version answers', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      updateStatus.mockResolvedValue(status({ progress: ready }));
+      panel();
+      await fireEvent.click(await screen.findByText(/Restart into v0\.6\.1/));
+      await fireEvent.click(await screen.findByText(/Yes, restart/));
+      expect(await screen.findByText(/restarting as v0\.6\.1/)).toBeTruthy();
+
+      updateStatus.mockRejectedValue(new Error('connection refused'));
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(reloadPage).not.toHaveBeenCalled();
+
+      updateStatus.mockResolvedValue(
+        status({ current: 'v0.6.1', available: null, progress: null }),
+      );
+      await vi.advanceTimersByTimeAsync(1600);
+      expect(reloadPage).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /// A phone cannot restart into a new version; Android's installer has to. The bridge is what the
@@ -234,6 +263,32 @@ describe('SettingsPanel — getting a newer version', () => {
     answer(status({ available: null, last_check: Math.floor(Date.now() / 1000) }));
     expect(await screen.findByText(/^Last looked today at .+\.$/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Check now' })).toBeTruthy();
+  });
+
+  /// It used to show nothing: no rows and no reason, so "there is no Check now" had no answer.
+  it('says why, and where to download, when this copy cannot look at all', async () => {
+    updateStatus.mockResolvedValue(
+      status({
+        can_check: false,
+        can_install: false,
+        available: null,
+        why: 'nothing is published for this computer',
+      }),
+    );
+    panel();
+    expect(await screen.findByText(/nothing is published for this computer/)).toBeTruthy();
+    expect(screen.getByText('Open the download page')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
+  });
+
+  /// The other half of the same promise: every copy that *can* look shows the button.
+  it('always has Check now when this copy can look, whether or not it can install', async () => {
+    for (const can_install of [true, false]) {
+      updateStatus.mockResolvedValue(status({ can_install, available: null, last_check: 0 }));
+      const { unmount } = panel();
+      expect(await screen.findByRole('button', { name: 'Check now' })).toBeTruthy();
+      unmount();
+    }
   });
 
   it('shows no update rows at all in a build without the updater', async () => {
