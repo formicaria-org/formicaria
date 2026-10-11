@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -9484,4 +9484,45 @@ the offer's address and the `FM_PACK_URL` override.
 
 **Not changed.** A pack is read by `fm-core`, which fetches nothing; no HTTP client enters
 `fm-core` or `fm-app`; an entry copies the values it used and names the list's version.
+
+## 2026-10-11 — nothing is invented: every label, formula and suggested number names its source `#data` `#ui`
+
+**What prompted it.** The owner, with the trackers on `main`: *"we need to have a well documented
+and grounded set of datasets we use for the food informations… the user might want to follow a
+mediterranean diet but its definition might not be unique at all, if this label is used we should
+have a clear and reputable source to base it… regimes and workouts options should be grounded on
+science and well reputable sources… inference about the calorie intake and other user specific
+suggestions… should use well known, reputable and grounded formulas. In essence, we need not to
+invent anything."*
+
+**Decision.**
+- **Anything the app asserts about food, a diet or training names a source**, and the source is in
+  the register: `sources-2026-10-11.md`. That covers a diet label and what it means, a target the
+  app suggests, a formula it runs on a person's measurements, a training suggestion, and any
+  default that reads as advice. It does not cover what the person types: their own target is
+  theirs.
+- **A source counts when it has been read at the source.** The register marks each row *source*,
+  *search* or *memory*, and nothing marked *search* or *memory* ships as a number, a definition or
+  a claim.
+- **Where reputable sources disagree, the app says whose number it is** and never blends them.
+  Protein per day is 0.8, 1.2–1.6 or 1.4–2.0 g/kg depending on who is asked; a screen that shows
+  one shows whose.
+- **A label with no single definition is offered with the instrument it uses**, named — a
+  "Mediterranean" day is measured against a named screener or serving table, never against a
+  definition coined here.
+- **A person's measurements are a note in their vault**, and a formula runs on them only when
+  asked. Its result is shown as an estimate, with the formula's name, and the person may overrule
+  it.
+- **No source, no feature.** Where the register has nothing read for a question — the lowest
+  sensible energy target, who should not be offered a deficit — the app offers nothing of its own
+  on it.
+
+**What it removed the same day.** Two defaults that read as advice and had no source: a rest of
+ninety seconds after a set (the timer now counts up from the last set and prescribes nothing), and
+an exercise pre-filled as three sets of eight at twenty kilograms (the fields now start from what
+the person did last time, or empty).
+
+**What it does not settle, and the register lists:** most rows are still *search*; no micronutrient
+table has been fetched; the food list has no food-group field, which a vegetarian or vegan check
+would need; and no source has been chosen for safety limits.
 

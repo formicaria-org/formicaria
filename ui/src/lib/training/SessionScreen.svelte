@@ -45,21 +45,22 @@
   };
   const finished = $derived(sets.filter((s) => !s.props.planned).length);
 
-  // The rest between sets: a count that starts when a set is ticked.
-  const REST = 90;
-  let rest = $state(0);
+  // Time since the last set, counted up. **It prescribes nothing**: how long to rest is advice,
+  // and advice needs a source (`decisions.md#data`, 2026-10-11, *nothing is invented*). A count
+  // of what has passed is only a clock.
+  let since = $state<number | null>(null);
   let clock: ReturnType<typeof setInterval> | null = null;
-  function startRest(seconds = REST) {
-    rest = seconds;
+  function startClock() {
+    since = 0;
     if (clock) clearInterval(clock);
     clock = setInterval(() => {
-      rest -= 1;
-      if (rest <= 0 && clock) {
-        clearInterval(clock);
-        clock = null;
-        rest = 0;
-      }
+      if (since !== null) since += 1;
     }, 1000);
+  }
+  function stopClock() {
+    if (clock) clearInterval(clock);
+    clock = null;
+    since = null;
   }
   $effect(() => () => {
     if (clock) clearInterval(clock);
@@ -68,7 +69,7 @@
   function tick(s: ObjectMeta) {
     if (!s.props.planned) return;
     onfinish(s, whole(s.props.reps) ?? 0, whole(s.props.load_g) ?? 0);
-    startRest();
+    startClock();
   }
 </script>
 
@@ -126,12 +127,11 @@
     <button type="button" class="quiet wide" onclick={onadd}>Add an exercise</button>
   {/if}
 
-  {#if rest > 0}
-    <div class="rest" role="timer" aria-label="rest">
-      <span>Rest {show('duration_s', rest).text}</span>
-      <div class="track"><div class="left" style="width:{(rest / REST) * 100}%"></div></div>
-      <button type="button" onclick={() => startRest(rest + 30)}>+30 s</button>
-      <button type="button" onclick={() => (rest = 0)}>Skip</button>
+  {#if since !== null}
+    <div class="rest" role="timer" aria-label="since the last set">
+      <span>Since the last set</span>
+      <strong>{show('duration_s', since).text}</strong>
+      <button type="button" onclick={stopClock}>Clear</button>
     </div>
   {/if}
 </div>
@@ -261,7 +261,7 @@
     position: sticky;
     bottom: 0;
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-columns: 1fr auto auto;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
@@ -269,17 +269,6 @@
     background: var(--surface-elevated);
     box-shadow: var(--shadow-md);
     font-variant-numeric: tabular-nums;
-  }
-  .track {
-    height: 0.4rem;
-    border-radius: var(--radius-pill);
-    background: var(--surface-hover);
-    overflow: hidden;
-  }
-  .left {
-    height: 100%;
-    background: var(--accent);
-    transition: width 1s linear;
   }
   .rest button {
     min-height: 2.5rem;

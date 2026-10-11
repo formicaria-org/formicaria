@@ -76,11 +76,13 @@ moved. Press **＋** to write one down. Two readings on one day count as one, th
 beside it.
 
 - **Add an exercise** — its name, how many sets, the reps and the load. Exercises you have done
-  before are offered, with the numbers they had.
+  before are offered, with the numbers they had. Nothing is filled in for you otherwise: the
+  app does not suggest sets, reps or loads.
 - **Same as last time** — when nothing is planned for today, this plans the sets of your last
   session again, ready to change.
 - Tap a set's numbers to change them or remove the set.
-- **Tick a set** when it is finished; a rest timer starts.
+- **Tick a set** when it is finished; a clock starts counting the time since. It does not tell
+  you how long to rest.
 
 **Training → Volume** is the trend view over what you lifted.
 

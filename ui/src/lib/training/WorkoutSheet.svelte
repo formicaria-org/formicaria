@@ -27,9 +27,13 @@
 
   const KG = 1000;
   let name = $state(untrack(() => String(set?.props.exercise ?? set?.title ?? '')));
-  let sets = $state(3);
-  let reps = $state(untrack(() => whole(set?.props.reps) ?? 8));
-  let kg = $state(untrack(() => (whole(set?.props.load_g) ?? 20 * KG) / KG));
+  // **Nothing here is pre-filled with a number of our own.** How many sets, how many reps and how
+  // heavy is advice, and advice needs a source (`decisions.md#data`, 2026-10-11, *nothing is
+  // invented*). The fields start from the set being changed, or from what this exercise was last
+  // time once it is chosen — and otherwise empty.
+  let sets = $state(1);
+  let reps = $state(untrack(() => whole(set?.props.reps) ?? 0));
+  let kg = $state(untrack(() => (whole(set?.props.load_g) ?? 0) / KG));
   let busy = $state(false);
   let failed = $state('');
 
@@ -180,7 +184,7 @@
         1,
         (v) => (sets = Math.min(Math.round(v), 12)),
       )}{/if}
-    {@render stepper('Reps', reps, 1, 1, (v) => (reps = Math.round(v)))}
+    {@render stepper('Reps', reps, 1, 0, (v) => (reps = Math.round(v)))}
     {@render stepper('Load (kg)', kg, 2.5, 0, (v) => (kg = v))}
 
     {#if failed}<p class="failed" role="alert">{failed}</p>{/if}

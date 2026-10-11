@@ -191,10 +191,20 @@ test('training: an exercise is planned as sets, and ticking one counts it', asyn
   await fireEvent.click(within(bar).getByRole('button', { name: 'add to Training' }));
   const sheet = await screen.findByRole('dialog', { name: 'add an exercise' });
   await fireEvent.input(within(sheet).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
+  // Nothing is pre-filled with a number of the app's own: sets, reps and load are the person's.
+  const add = () =>
+    within(sheet).getByRole('button', { name: /^Add \d+ × \d+$/ }) as HTMLButtonElement;
+  expect(add().disabled).toBe(true);
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'more Sets' }));
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'more Sets' }));
+  await fireEvent.input(within(sheet).getByLabelText('Reps'), { target: { value: '8' } });
+  await fireEvent.input(within(sheet).getByLabelText('Load (kg)'), { target: { value: '30' } });
   await fireEvent.click(within(sheet).getByRole('button', { name: 'Add 3 × 8' }));
   expect(await screen.findByText(/^0 of 12 sets/)).toBeTruthy();
   expect(screen.getByText('Lunge')).toBeTruthy();
 
   await fireEvent.click(screen.getByRole('button', { name: 'set 1 of Lunge' }));
   expect(await screen.findByText(/^1 of 12 sets/)).toBeTruthy();
+  // A clock of what has passed since, and no prescribed rest.
+  expect(await screen.findByRole('timer', { name: 'since the last set' })).toBeTruthy();
 });
