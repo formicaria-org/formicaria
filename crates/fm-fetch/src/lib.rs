@@ -25,8 +25,6 @@
 //! **Deliberately dependency-light**, like the crate it came from: no `tempfile`, no async, no HTTP
 //! framework. It cross-compiles to Android, and that is a constraint, not an accident.
 
-pub mod job;
-
 use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};

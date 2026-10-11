@@ -37,8 +37,6 @@ mod update;
 // `fm-app`, and because the addresses are a secret only this machine holds.
 #[cfg(feature = "calendar")]
 mod calendar;
-#[cfg(feature = "packs")]
-mod packs;
 // Gmail, read-only: the sign-in, and reading labelled mail into conversation notes.
 #[cfg(feature = "mail")]
 mod mail;
@@ -464,11 +462,6 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/mail_read_now",
     "/api/mail_disconnect",
     "/api/oauth_google",
-    // **The food list is the host's disk.** A guest neither starts the download nor removes the
-    // file. Reading it (`food_search`, `pack_status`) stays open: it is the same public table for
-    // everyone, and a paired tablet logging a meal needs it.
-    "/api/pack_download",
-    "/api/pack_remove",
     // Spawns a process, or writes host-level state.
     "/api/set_agent",
     // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
@@ -1168,13 +1161,6 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Your own calendars. Every route here is in `REMOTE_DENIED`: the addresses are secrets.
     #[cfg(feature = "calendar")]
     if let Some(done) = calendar::route(reader.get_mut(), &path, &body, state) {
-        return done;
-    }
-
-    // Fetching the food list. Both routes are in `REMOTE_DENIED`: a guest does not spend the
-    // host's disk.
-    #[cfg(feature = "packs")]
-    if let Some(done) = packs::route(reader.get_mut(), &path, &body) {
         return done;
     }
 

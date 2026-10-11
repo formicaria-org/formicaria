@@ -1,42 +1,30 @@
-//! Reference packs: what this installation can fetch, where it keeps them, and what is there.
+//! The food list: carried in the app, unpacked where `fm-core` can read it.
 //!
-//! `decisions.md#toolchain`, 2026-10-11 — *a reference pack is fetched on request, like a model,
-//! and is not the assistant's.* So none of this is in an agent crate, and none of it fetches:
-//! **no HTTP client enters `fm-app`.** A transport shell downloads the file named here
-//! (`fm_fetch`); this module says what to download, where it goes, and reads what arrived.
+//! `decisions.md#toolchain`, 2026-10-11 — *the food list is carried in the app, not fetched.* It
+//! is compiled in here, compressed, and written to the packs folder the first time something
+//! reads it. So every system has it the same way — a desktop archive, the Android app and the
+//! iPhone app are all just the binary — with nothing to host and nothing to download. **No HTTP
+//! client enters `fm-app`**, and none is needed.
+//!
+//! It is still a file outside every vault, still read-only, still read by `fm-core`; and a logged
+//! entry still copies the values it used, so nothing already logged depends on this file.
 
 use fm_core::pack::{FoodDetail, FoodHit, FoodPack, PackInfo, FOOD_FILE};
 use serde::Serialize;
-use std::path::PathBuf;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
-/// A pack this version of the app knows how to use. **The catalogue follows the app**
-/// (`decisions.md#agent`, 2026-10-10): it is compiled in, so a build always offers the pack whose
-/// layout it can read.
-pub struct Offer {
-    pub title: &'static str,
-    pub version: &'static str,
-    pub bytes: u64,
-    pub sha256: &'static str,
-    /// Where it is fetched from. `None` until a pack is published: the app then says the list is
-    /// not available yet, and offers nothing it cannot deliver (*advice that cannot succeed is
-    /// worse than none*).
-    pub url: Option<&'static str>,
-    pub licence: &'static str,
-}
+/// The list, as `ci/pack-foods.py` leaves it: gzip of the SQLite file.
+static FOOD_GZ: &[u8] = include_bytes!("../packs/usda-foods.sqlite.gz");
 
-/// The generic-foods pack `ci/pack-foods.py` builds. Its `bytes` and `sha256` are that script's
-/// output and change with it.
-pub const FOOD: Offer = Offer {
-    title: "Generic foods (USDA FoodData Central)",
-    version: "2026.10",
-    bytes: 8_134_656,
-    sha256: "daef8e92574b80bca40343a4db79845699dcf19c6f978973de13601a9bea850f",
-    url: None,
-    licence: "U.S. Government work, public domain",
-};
+/// What the bytes above unpack to. **These three change together with the file**, and
+/// `tests/packs.rs` holds them to it: the version, the size, and the checksum the script prints.
+pub const FOOD_VERSION: &str = "2026.10";
+pub const FOOD_BYTES: u64 = 8_134_656;
+pub const FOOD_SHA256: &str = "daef8e92574b80bca40343a4db79845699dcf19c6f978973de13601a9bea850f";
 
-/// Where packs live: beside the assistant's models and runtime, outside every vault.
-/// `FM_PACKS_DIR` overrides it — for tests, and for trying a pack built by hand.
+/// Where the list is unpacked: beside the assistant's models and runtime, outside every vault.
+/// `FM_PACKS_DIR` overrides it, for tests.
 pub fn dir() -> Option<PathBuf> {
     if let Some(d) = std::env::var_os("FM_PACKS_DIR").filter(|d| !d.is_empty()) {
         return Some(PathBuf::from(d));
@@ -48,25 +36,40 @@ pub fn food_path() -> Option<PathBuf> {
     dir().map(|d| d.join(FOOD_FILE))
 }
 
-/// Where the food pack is fetched from and what it must hash to. `FM_PACK_URL` (with
-/// `FM_PACK_SHA256`) overrides the compiled-in offer, so a pack can be tried from a local server
-/// before one is published.
-pub fn food_source() -> Option<(String, String)> {
-    if let Ok(url) = std::env::var("FM_PACK_URL") {
-        if !url.trim().is_empty() {
-            let sha = std::env::var("FM_PACK_SHA256").unwrap_or_else(|_| FOOD.sha256.to_string());
-            return Some((url, sha));
-        }
-    }
-    FOOD.url.map(|u| (u.to_string(), FOOD.sha256.to_string()))
+/// Is the file at `path` the list this build carries? Asked of its size first, which is free, and
+/// of its own `version` second — never of its checksum, which would read 8 MB on every search.
+fn is_current(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|m| m.len() == FOOD_BYTES)
+        && FoodPack::open(path).is_ok_and(|p| p.info().version == FOOD_VERSION)
 }
 
-const MISSING: &str =
-    "The food list is not on this device yet. Get it in Settings, or add a food by name.";
+/// Make sure the list this build carries is in the packs folder, and answer where it is.
+///
+/// Written when the file is missing, or is not the version carried — an older one left by an
+/// earlier build, or one cut short. **Unpacked to a sidecar, checked, then renamed into place**, so
+/// a reader never opens half a file and a full disk leaves whatever was there before.
+pub fn ensure_food() -> Result<PathBuf, String> {
+    let path = food_path().ok_or("this device has nowhere to keep the food list")?;
+    if is_current(&path) {
+        return Ok(path);
+    }
+    let mut bytes = Vec::with_capacity(FOOD_BYTES as usize);
+    flate2::read::GzDecoder::new(FOOD_GZ)
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("the food list this app carries could not be unpacked: {e}"))?;
+    if fm_core::blob::sha256_hex(&bytes) != FOOD_SHA256 {
+        return Err("the food list this app carries is not the one it was built with".into());
+    }
+    let dir = path.parent().ok_or("the food list has no folder to go in")?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let part = path.with_extension("sqlite.part");
+    std::fs::write(&part, &bytes).map_err(|e| format!("{}: {e}", part.display()))?;
+    std::fs::rename(&part, &path).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(path)
+}
 
 fn open_food() -> Result<FoodPack, String> {
-    let path = food_path().filter(|p| p.exists()).ok_or(MISSING)?;
-    FoodPack::open(&path).map_err(|e| e.to_string())
+    FoodPack::open(&ensure_food()?).map_err(|e| e.to_string())
 }
 
 pub fn food_search(q: &str, limit: usize) -> Result<Vec<FoodHit>, String> {
@@ -77,48 +80,20 @@ pub fn food_get(id: &str) -> Result<Option<FoodDetail>, String> {
     open_food()?.get(id).map_err(|e| e.to_string())
 }
 
-/// What Settings shows: what is offered, whether it can be fetched, and what is on the device.
+/// What Settings says about the list: what it is, how much of the device it takes, whose it is.
 #[derive(Serialize)]
 pub struct PackStatus {
-    pub title: &'static str,
-    pub version: &'static str,
-    /// What fetching it will spend, stated before it is spent.
-    pub bytes: u64,
-    pub licence: &'static str,
-    /// There is somewhere to fetch it from.
-    pub available: bool,
-    /// What is on this device, read from the file itself.
+    /// What the list says about itself, or `None` with `error` when it could not be put in place.
     pub installed: Option<PackInfo>,
-    /// What removing it hands back.
-    pub installed_bytes: u64,
+    /// What it takes on this device.
+    pub bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 pub fn food_status() -> PackStatus {
-    let path = food_path().filter(|p| p.exists());
-    let installed = path.as_ref().and_then(|p| FoodPack::open(p).ok()).map(|p| p.info().clone());
-    let installed_bytes =
-        path.as_ref().and_then(|p| std::fs::metadata(p).ok()).map(|m| m.len()).unwrap_or(0);
-    PackStatus {
-        title: FOOD.title,
-        version: FOOD.version,
-        bytes: FOOD.bytes,
-        licence: FOOD.licence,
-        available: food_source().is_some(),
-        installed,
-        installed_bytes,
+    match open_food() {
+        Ok(p) => PackStatus { installed: Some(p.info().clone()), bytes: FOOD_BYTES, error: None },
+        Err(e) => PackStatus { installed: None, bytes: FOOD_BYTES, error: Some(e) },
     }
-}
-
-/// Remove the food pack and anything half-fetched beside it. Entries already logged keep their
-/// numbers — each carries its own.
-pub fn food_remove() -> Result<(), String> {
-    let Some(path) = food_path() else { return Ok(()) };
-    for p in [path.clone(), path.with_extension("sqlite.part")] {
-        match std::fs::remove_file(&p) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("could not remove {}: {e}", p.display())),
-        }
-    }
-    Ok(())
 }

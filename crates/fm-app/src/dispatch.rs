@@ -558,13 +558,11 @@ const READ_ONLY: &[&str] = &[
     "run_view",
     "log_days",
     "log_recent",
-    // The food list is not in any vault. Reading it — or removing it — moves no note, so none of
-    // these should tell a connected client the vault changed.
+    // The food list is not in any vault. Reading it moves no note, so none of these should tell
+    // a connected client the vault changed.
     "food_search",
     "food_get",
     "pack_status",
-    "pack_remove",
-    "pack_progress",
     // Reading a theme changes nothing. Writing or deleting one deliberately stays *off* this list:
     // the generation bump is what makes another machine (or the other pane) notice a theme edit,
     // for free, without a timer of its own.
@@ -2259,25 +2257,14 @@ fn dispatch_inner(
             let store = g.store(scope);
             json(crate::log::log_recent(&store, &def, &s("slot"), &s("q"), limit).map_err(err)?)
         }
-        // ── The food list (`packs.rs`) — a file outside every vault, so none of these takes the
-        // vault lock. Fetching it is a transport's job; these only read and remove.
+        // ── The food list (`packs.rs`) — carried in the app and unpacked outside every vault, so
+        // none of these takes the vault lock.
         "food_search" => {
             let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(20) as usize;
             json(crate::packs::food_search(&s("q"), limit)?)
         }
         "food_get" => json(crate::packs::food_get(&s("id"))?),
         "pack_status" => json(crate::packs::food_status()),
-        "pack_remove" => {
-            crate::packs::food_remove()?;
-            json(crate::packs::food_status())
-        }
-        // **Answered here only by a build that cannot fetch.** A shell that can (`fm-serve`'s
-        // `packs` feature, the phone's updater feature) answers `pack_progress` itself, before
-        // this is reached — so what arrives here is the honest "this build has no way to".
-        "pack_progress" => json(serde_json::json!({
-            "can_download": false, "running": false, "received": 0, "total": null,
-            "error": null, "done": false,
-        })),
         // Several notes in one write, each made whole. The vault is validated up front, as for
         // `capture`.
         "create_notes" => {

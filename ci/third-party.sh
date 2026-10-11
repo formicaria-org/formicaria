@@ -222,15 +222,14 @@ npm_licences() {
     echo "Model **weights** are downloaded from Hugging Face and carry their own terms, stated in"
     echo "the app before anything is fetched and recorded per model in \`models.toml\`."
     echo
-    # **Part four: a reference pack.** Data, not software, and fetched only when someone asks for
-    # it in Settings — but it is something this project built, pinned and offers to put on a
-    # person's disk, so it is named here like the rest (`decisions.md#toolchain`, 2026-10-11).
-    echo "## Downloaded at runtime (the optional food list)"
+    # **Part four: data the binary carries.** The food list is not software and `cargo tree`
+    # cannot see it, but it is compiled into every binary that links `fm-app`
+    # (`decisions.md#toolchain`, 2026-10-11) — so it is named here like everything else they carry.
+    echo "## Data carried in the binary (the food list)"
     echo
-    echo "Not part of these binaries and not present unless someone gets it in Settings. Built by"
-    echo "\`ci/pack-foods.py\` from three datasets of USDA FoodData Central, each pinned by URL"
-    echo "**and SHA-256** in that script; the pack itself is pinned by SHA-256 in"
-    echo "\`crates/fm-app/src/packs.rs\`."
+    echo "A list of generic foods, compiled into the app. Built by \`ci/pack-foods.py\` from three"
+    echo "datasets of USDA FoodData Central, each pinned by URL **and SHA-256** in that script; the"
+    echo "list itself is pinned by SHA-256 in \`crates/fm-app/src/packs.rs\`."
     echo
     echo "| Component | Licence | Source |"
     echo "|---|---|---|"

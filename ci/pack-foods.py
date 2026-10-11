@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Build the food reference pack: one read-only SQLite file made from USDA FoodData Central.
 
-    pixi run pack-foods            # writes target/packs/usda-foods.sqlite and prints its checksum
+    pixi run pack-foods            # writes the list, and the compressed copy the app carries
 
-**What it is.** `decisions.md#toolchain`, 2026-10-11: *a reference pack is fetched on request, like
-a model*. This is the script that makes the one for food. It is run by a maintainer, by hand, when a
-new pack is wanted; the app never runs it and nothing in the build depends on it.
+**What it is.** `decisions.md#toolchain`, 2026-10-11: *the food list is carried in the app*. This
+is the script that makes it. It is run by a maintainer, by hand, when a
+new list is wanted. The app never runs it, and the build reads only the compressed file it leaves in
+`crates/fm-app/packs/` — which is committed, so building formicaria needs neither this script nor
+the network.
 
 **What goes in.** Three of FoodData Central's datasets — the generic foods, not the branded ones:
 
@@ -24,6 +26,7 @@ Standard library only.
 """
 import argparse
 import csv
+import gzip
 import hashlib
 import io
 import os
@@ -195,7 +198,7 @@ def read(data, keep, src):
         yield int(fdc), name, src, v, portions.get(fdc, [])
 
 
-def build(cache, out):
+def build(cache, out, embed):
     if os.path.exists(out):
         os.remove(out)
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
@@ -237,11 +240,21 @@ def build(cache, out):
     print(f"  bytes:   {len(data)}")
     print(f"  sha256:  {hashlib.sha256(data).hexdigest()}")
     print(f"  version: {NAME}@{VERSION}")
+    if embed:
+        # What the app carries (`decisions.md#toolchain`, 2026-10-11). `mtime=0` and a fixed name,
+        # so the same list always compresses to the same bytes.
+        os.makedirs(os.path.dirname(embed), exist_ok=True)
+        with open(embed, "wb") as raw, gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as z:
+            z.write(data)
+        print(f"{embed}")
+        print(f"  bytes:   {os.path.getsize(embed)}")
 
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--cache", default="target/packs/src", help="where the USDA archives are kept")
     p.add_argument("--out", default="target/packs/usda-foods.sqlite")
+    p.add_argument("--embed", default="crates/fm-app/packs/usda-foods.sqlite.gz",
+                   help="the compressed copy the app carries; empty to skip")
     a = p.parse_args()
-    build(a.cache, a.out)
+    build(a.cache, a.out, a.embed)

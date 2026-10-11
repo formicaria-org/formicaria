@@ -1244,20 +1244,19 @@ is left:
 
 ## Trackers — where they stand (2026-10-11)
 
-Phases 1 to 3 are in: the log commands (`fm-app/src/log.rs`), the `totals` renderer and shipped
+Phases 1 to 5 are in: the log commands (`fm-app/src/log.rs`), the `totals` renderer and shipped
 view groups, the screens, a Settings switch, and the food list (`fm-core/src/pack.rs`,
 `fm-app/src/packs.rs`, `ci/pack-foods.py`). What is true today, and what is not:
 
-- **The food list has nowhere to be fetched from.** `packs::FOOD.url` is `None`: where a pack is
-  hosted is the owner's decision and its upload is the owner's act. Until then Settings says the
-  list is *not available to get yet*, and the only way onto a desktop is `pixi run
-  pack-foods-install`. **A phone has no way to get it at all.** Publishing one is: host
-  `target/packs/usda-foods.sqlite`, put its address in `FOOD.url`, and check `bytes` and `sha256`
-  there still match what `pixi run pack-foods` prints.
-- **The fetch was run for real on the desktop only, against a local server**
-  (`FM_PACK_URL=http://127.0.0.1:…`): fetched, verified, read, removed; a wrong checksum is refused
-  after its retries and nothing is kept. **The phone's half compiles for Android and has never
-  run.** `fm_fetch::job` has no test of its own — it needs a server.
+- **The food list is carried in the app, and that has only been run on Linux.** It is compiled
+  into `fm-app` (3.3 MB compressed) and unpacked to the packs folder on first use
+  (`decisions.md#toolchain`, 2026-10-11, *carried in the app, not fetched*). Tested here; **never
+  run on Android, iOS, macOS or Windows**, where the only platform-specific part is where the packs
+  folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that folder cannot
+  be written, search fails with a sentence and Settings says foods can only be added by name.
+- **Updating the list means committing a new 3 MB file.** `pixi run pack-foods` rewrites
+  `crates/fm-app/packs/usda-foods.sqlite.gz`; `FOOD_VERSION`, `FOOD_BYTES` and `FOOD_SHA256` in
+  `packs.rs` must change with it, and `tests/packs.rs` fails if they do not.
 - **Not seen in an installed build, on a phone, or with a real notebook.** The screens were judged
   in a phone's browser against invented data. The keyboard over the sheet is unverified.
 - **Every logged entry still costs the board a read.** Only `Kind` and text reach the index, so the
@@ -1271,7 +1270,7 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   `decisions.md#seams`, *`Kind` is the second predicate that reaches SQL*, first.
 - **The pack's licence is stated from memory.** USDA FoodData Central is a U.S. Government work
   and widely described as public domain; the download page itself was fetched and no licence
-  sentence was found on it. Confirm before publishing a pack.
+  sentence was found on it. The list now ships in every build on that understanding; confirm it.
 - **Search ranking is a rule, not a measurement.** A name that starts with what was typed leads,
   then foods as people report eating them, then the shorter name. Tried on a handful of words.
 - **`create_notes` checks every note before writing any, and then writes them one after another.**

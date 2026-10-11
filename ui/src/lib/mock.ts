@@ -799,7 +799,6 @@ export function reset(): void {
   mockKept = [];
   mockPlatform = 'linux';
   trackerOn = false;
-  tracker.resetPack();
 }
 
 /// Fill the vault to a realistic size.
@@ -2183,13 +2182,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return tracker.foodGet(String(args.id)) as T;
     case 'pack_status':
       return tracker.packStatus() as T;
-    case 'pack_remove':
-      return tracker.packRemove() as T;
-    case 'pack_progress':
-      return tracker.packProgress() as T;
-    // Answered by a transport shell on a real device, never by the command surface.
-    case 'pack_download':
-      return tracker.packDownload(Boolean(args.cancel)) as T;
     case 'run_view': {
       const def = tracker.trackerDef(String(args.name ?? ''));
       if (def) {

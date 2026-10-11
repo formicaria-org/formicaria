@@ -37,7 +37,6 @@ import type {
   FoodHit,
   FoodDetail,
   PackStatus,
-  PackProgress,
 } from './types';
 import * as mock from './mock';
 import { blobBase } from './blobBase';
@@ -1213,13 +1212,8 @@ export const setProperties = (id: string, props: Record<string, string | number>
   invoke<{ previous: Record<string, string | null> }>('set_properties', { id, props });
 export const foodSearch = (q: string, limit = 20) => invoke<FoodHit[]>('food_search', { q, limit });
 export const foodGet = (id: string) => invoke<FoodDetail | null>('food_get', { id });
-/** The food list: what is offered and what is on this device. Reading it changes nothing. */
+/** The food list this app carries. Reading it changes nothing. */
 export const packStatus = () => invoke<PackStatus>('pack_status');
-export const packRemove = () => invoke<PackStatus>('pack_remove');
-/** Answered by the shell that can fetch; by the core, as "this build cannot", where none can. */
-export const packProgress = () => invoke<PackProgress>('pack_progress');
-/** Start fetching the food list, or — with `cancel` — stop. Only ever on a person's press. */
-export const packDownload = (cancel = false) => invoke<PackProgress>('pack_download', { cancel });
 
 /** One of your own calendars, as this machine reads it. **The address is never sent back** — it is a
  *  secret (anyone holding it reads the whole calendar), so the server returns only its `host`.

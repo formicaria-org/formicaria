@@ -540,11 +540,12 @@ that ship with the app. The general ask — *"show me everything tagged X, group
 asked for without a query builder — is still open. The plan and its rulings:
 [`tools-plan-2026-10-11.md`](./tools-plan-2026-10-11.md), `decisions.md#ui`.
 
-**Next for trackers, in order:** publish the food list (the owner decides where; then
-`packs::FOOD.url`) — without it a phone cannot have one; try the whole thing in an installed build
-on the phone; **measure the board with thousands of entries on the phone**, which decides whether
-`log` is pushed down into the index; then Progress (Phase 4) and Programs (Phase 5). The limits as
-they stand: `known-issues.md`, *Trackers — where they stand*.
+**Next for trackers, in order:** try the whole thing in an installed build on the phone — the
+screens, the keyboard over the sheet, and the food list unpacking itself, none of which has been
+seen outside Linux; **measure the board with thousands of entries on the phone**, which decides
+whether `log` is pushed down into the index; then what the plan left unbuilt (an exercise list,
+best lifts, a kept session plan, a week's meal plan). The limits as they stand: `known-issues.md`,
+*Trackers — where they stand*.
 
 ### 2.6 Restraint in the first-run form — CLOSED
 **Tombstone** (`decisions.md`, *a closed section in the queue leaves a tombstone*). Deleted when it

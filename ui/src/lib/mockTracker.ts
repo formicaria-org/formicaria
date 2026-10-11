@@ -16,7 +16,6 @@ import type {
   FoodDetail,
   FoodPortion,
   PackStatus,
-  PackProgress,
 } from './types';
 import { addDays, today, whole } from './units';
 
@@ -228,52 +227,22 @@ export function valuesFor(per: Record<string, number>, grams: number): Record<st
   );
 }
 
-// The food list is on this pretend device until someone removes it — so the sheet's Search works
-// in `pnpm dev`, and the "not here yet" path can still be reached and tested.
-let packInstalled = true;
-export const resetPack = () => (packInstalled = true);
-const MISSING =
-  'The food list is not on this device yet. Get it in Settings, or add a food by name.';
+// The app carries its food list; the pretend one here is the forty invented foods above.
 export function packStatus(): PackStatus {
   return {
-    title: 'Generic foods (pretend)',
-    version: '0',
+    installed: {
+      name: 'demo-foods',
+      version: '0',
+      title: 'Generic foods (pretend)',
+      licence: 'Invented for the demo',
+      attribution: 'Not nutrition data.',
+      foods: FOODS.length,
+    },
     bytes: 8_134_656,
-    licence: 'Invented for the demo',
-    available: true,
-    installed: packInstalled
-      ? {
-          name: 'demo-foods',
-          version: '0',
-          title: 'Generic foods (pretend)',
-          licence: 'Invented for the demo',
-          attribution: 'Not nutrition data.',
-          foods: FOODS.length,
-        }
-      : null,
-    installed_bytes: packInstalled ? 8_134_656 : 0,
   };
 }
-export function packRemove(): PackStatus {
-  packInstalled = false;
-  return packStatus();
-}
-/** A fetch that is over the moment it is asked for. */
-export function packDownload(cancel: boolean): PackProgress {
-  if (!cancel) packInstalled = true;
-  return packProgress();
-}
-export const packProgress = (): PackProgress => ({
-  can_download: true,
-  running: false,
-  received: 0,
-  total: null,
-  error: null,
-  done: packInstalled,
-});
 
 export function foodSearch(q: string, limit = 20): FoodHit[] {
-  if (!packInstalled) throw new Error(MISSING);
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   return FOODS.filter((f) => words.every((w) => f.name.toLowerCase().includes(w)))
@@ -281,7 +250,6 @@ export function foodSearch(q: string, limit = 20): FoodHit[] {
     .map((f) => ({ id: f.id, name: f.name, kcal: f.v[0] }));
 }
 export function foodGet(id: string): FoodDetail | null {
-  if (!packInstalled) throw new Error(MISSING);
   const f = FOODS.find((x) => x.id === id.split('@')[0] || `${PACK}/${x.id}` === id);
   return f ? { id: f.id, name: f.name, per100: per100(f), portions: f.portions, pack: PACK } : null;
 }

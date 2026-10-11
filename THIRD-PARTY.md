@@ -495,12 +495,11 @@ configuration directory.
 Model **weights** are downloaded from Hugging Face and carry their own terms, stated in
 the app before anything is fetched and recorded per model in `models.toml`.
 
-## Downloaded at runtime (the optional food list)
+## Data carried in the binary (the food list)
 
-Not part of these binaries and not present unless someone gets it in Settings. Built by
-`ci/pack-foods.py` from three datasets of USDA FoodData Central, each pinned by URL
-**and SHA-256** in that script; the pack itself is pinned by SHA-256 in
-`crates/fm-app/src/packs.rs`.
+A list of generic foods, compiled into the app. Built by `ci/pack-foods.py` from three
+datasets of USDA FoodData Central, each pinned by URL **and SHA-256** in that script; the
+list itself is pinned by SHA-256 in `crates/fm-app/src/packs.rs`.
 
 | Component | Licence | Source |
 |---|---|---|

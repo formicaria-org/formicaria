@@ -734,24 +734,10 @@ export interface PackInfo {
   attribution: string;
   foods: number;
 }
-/** The food list: what is offered, whether it can be fetched, and what is on this device. */
+/** The food list this app carries: what it says about itself and what it takes on this device. */
 export interface PackStatus {
-  title: string;
-  version: string;
-  /** What fetching it will spend. */
-  bytes: number;
-  licence: string;
-  available: boolean;
+  /** `null`, with `error`, when it could not be put in place. */
   installed: PackInfo | null;
-  /** What removing it hands back. */
-  installed_bytes: number;
-}
-/** A fetch in flight. `can_download` is false for a build with no way to fetch. */
-export interface PackProgress {
-  can_download: boolean;
-  running: boolean;
-  received: number;
-  total: number | null;
-  error: string | null;
-  done: boolean;
+  bytes: number;
+  error?: string;
 }

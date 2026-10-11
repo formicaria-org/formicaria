@@ -19,16 +19,11 @@ add. The first control on the left brings the usual bar back.
 ## The food list
 
 To look a food up — its energy, protein, vitamins, and how much "one cup" weighs — formicaria uses
-a list of about 13,600 generic foods from the U.S. Department of Agriculture. It is a file of about
-8 MB that is kept on the device, so looking things up afterwards needs no connection.
+a list of about 13,600 generic foods from the U.S. Department of Agriculture. **It comes with the
+app**: there is nothing to get and no connection is needed. It takes about 8 MB on the device.
 
-It is **not fetched until you ask**. The same Settings section shows its size and where it comes
-from, and a control to get it. Removing it gives the space back and changes nothing you have
-logged: every entry carries its own numbers.
-
-Without the list you can still log anything by name — see *Quick add* below.
-
-There are no branded products and no barcode reading.
+There are no branded products and no barcode reading. Anything not in the list can still be
+logged by name — see *Quick add* below.
 
 ## Logging a food
 

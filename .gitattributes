@@ -20,6 +20,7 @@
 *.pdf binary
 *.ico binary
 *.icns binary
+*.gz binary
 
 # Windows launchers are the one exception to LF-forever, and it is the platform's rule, not ours.
 # `cmd.exe` parses a batch file line by line as it executes it, and an LF-only file can lose the

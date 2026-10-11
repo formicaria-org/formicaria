@@ -141,7 +141,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***A reference pack is fetched on request, like a model, and is not the assistant's*** (2026-10-11; read before adding anything a tool downloads) · ***The app asks the release page where it leads before it asks the listing*** (2026-10-11; read before changing what a version check contacts, or before treating a 403 in the update test as a failure of the release) · ***A copy built from source installs the release into a folder of its own*** (2026-10-11; read before touching `install_dir`, `seed`, `FM_APP_DIR` or `packaging/formicaria.sh`, or before writing a second swap) · ***Updating from inside the app is tested on the published files, after they are published*** (2026-10-11; read before adding a job after `attach`, or before trusting the updater's unit tests to say a release is reachable) · ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***The food list is carried in the app, not fetched*** (2026-10-11; reverses in part the entry after it — read before adding a download for reference data, or a file the binary embeds) · ***A reference pack is fetched on request, like a model, and is not the assistant's*** (2026-10-11; read before adding anything a tool downloads) · ***The app asks the release page where it leads before it asks the listing*** (2026-10-11; read before changing what a version check contacts, or before treating a 403 in the update test as a failure of the release) · ***A copy built from source installs the release into a folder of its own*** (2026-10-11; read before touching `install_dir`, `seed`, `FM_APP_DIR` or `packaging/formicaria.sh`, or before writing a second swap) · ***Updating from inside the app is tested on the published files, after they are published*** (2026-10-11; read before adding a job after `attach`, or before trusting the updater's unit tests to say a release is reachable) · ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -9323,6 +9323,11 @@ lives in `ui/src/lib`. A renderer in `ui/src/renderers` stays generic.
 
 ## 2026-10-11 — a reference pack is fetched on request, like a model, and is not the assistant's `#toolchain` `#data`
 
+> **SUPERSEDED the same day, in part,** by *the food list is carried in the app, not fetched*
+> (below). What stands: a pack is read-only reference data, read by `fm-core`, outside every
+> vault and outside the assistant; an entry carries its own numbers. What is reversed: that it is
+> fetched on request, and everything that followed from that.
+
 **What prompted it.** Micronutrients cannot be typed by hand; the owner chose an offline pack of
 public-domain generic foods (USDA), without barcodes or branded products. **Ruled, not yet built.**
 
@@ -9437,4 +9442,46 @@ that the plan had left as phrases into choices.
 (a day's answer is by metric, not by exercise — it would need a grouping `log_days` does not
 have), a session template a person names and keeps, a meal plan laid out by week, and a target
 calculator.
+
+## 2026-10-11 — the food list is carried in the app, not fetched `#toolchain` `#data`
+
+> **Reverses, in part,** *a reference pack is fetched on request, like a model* (same day). Written
+> before the code that follows from it.
+
+**What prompted it.** The owner, with the trackers committed: *"I want to be able to see it in all
+OSs."* A fetched list could not get there. It had no address — where a pack is hosted was left
+undecided, and publishing one is an upload only the owner can make — so a phone had no way to it
+at all; and the iPhone build has no downloader, so no address would ever have reached an iPhone.
+Asked how the list should reach other devices, he chose to bundle it.
+
+**Decision.** **The food list ships inside the app.** It is compiled into `fm-app` compressed
+(about 3 MB), and written to the packs folder — still outside every vault — the first time
+something reads it, or when the app carries a newer one than the folder holds. Every system gets
+it the same way, with no packaging step of its own: a desktop archive, the Android app and the
+iPhone app are all just the binary.
+
+**Why the first ruling's reasons do not hold here.** It modelled the list on a model's weights:
+gigabytes, optional, fetched once someone asks. The list is 8 MB of public-domain numbers, and a
+food log without it is a different, lesser feature. *Never fetched unasked* and *the disk can be
+handed back* are rules about spending a person's disk and connection without a word; 8 MB that
+arrives with the app spends no connection and is stated in Settings.
+
+**What goes, in the same change — so none of it is left as dead code:** the download (`fm_fetch::job`,
+both shells' `packs.rs`, `pack_download`, `pack_progress`, the `packs` feature of `fm-serve`), the
+remove control and `pack_remove` (a list that is carried cannot be removed; it would come back),
+the offer's address and the `FM_PACK_URL` override.
+
+**What it costs, said plainly.**
+- **`fm-app` gains a dependency: `flate2`**, to unpack the list. Already in `Cargo.lock` and in
+  the binary through `fm-fetch`; pure Rust; no licence the notice does not already carry. This
+  extends an exception and is recorded as one (the four questions, #1 and #4).
+- **The repository carries a 3 MB binary file**, `crates/fm-app/packs/usda-foods.sqlite.gz`, and
+  another for every later version of the list. It is built by `ci/pack-foods.py` from inputs
+  pinned by checksum, and the build is reproducible, so the file can be re-derived and checked.
+- **Every binary that links `fm-app` grows by about 3 MB** — `fm-serve` roughly doubles — and
+  every device spends 8 MB for a list its owner may never open.
+- **The licence notice now covers data the binary carries**, not data fetched at runtime.
+
+**Not changed.** A pack is read by `fm-core`, which fetches nothing; no HTTP client enters
+`fm-core` or `fm-app`; an entry copies the values it used and names the list's version.
 

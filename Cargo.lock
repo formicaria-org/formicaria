@@ -349,10 +349,10 @@ dependencies = [
 name = "fm-app"
 version = "0.0.0"
 dependencies = [
+ "flate2",
  "fm-core",
  "fm-model",
  "fm-query",
- "rusqlite",
  "serde",
  "serde_json",
  "serde_yaml_ng",
