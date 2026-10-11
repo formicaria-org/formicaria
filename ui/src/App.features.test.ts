@@ -201,10 +201,9 @@ describe('v2: property editing, timeline, delete', () => {
     render(App);
     await screen.findByText(/GAE lambda interacts badly/);
 
-    // Open a Timeline from the panel. That is the only way to choose a view now — the pane header
-    // is a label, not a second switcher — and it *opens* one rather than re-pointing the window
-    // that was already there, which is why the same note is now on screen twice.
-    await fireEvent.click(await screen.findByRole('button', { name: 'open Timeline' }));
+    // The timeline is the Library's view: opening the group from the panel shows it, beside the
+    // board that was already there — which is why the same note is now on screen twice.
+    await fireEvent.click(await screen.findByRole('button', { name: 'open Library' }));
     // The seeded mock notes are created "now", so they land under Today.
     expect(await screen.findByText('Today')).toBeTruthy();
     expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);

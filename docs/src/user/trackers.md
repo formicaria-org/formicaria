@@ -1,20 +1,21 @@
 # Food and training
 
 formicaria can keep a food log and a training log beside your notes: what you ate against a target,
-how a week went, and the sets of a session. It is off until you turn it on, and what you log is
+how a week went, and the sets of a session. What you log is
 kept as notes in your own notebook — plain files, like everything else.
 
 > **Early.** The screens were judged in a phone's browser against made-up data. The installed
 > app, on a phone, with a real notebook, has not been tried yet.
 
-## Turning it on
+## Hiding it
+
+**Food** and **Fitness** are two of the app's [four groups](./views.md#the-four-groups) and are
+shown unless you hide them:
 
 **Settings → Notes & backup → Food and training → Show Food and Fitness on this device.**
 
-The choice is this device's own, like the theme that is on: turning it on at your desk does not
-turn it on on your phone. **Food** and **Fitness** then appear among your views. On a phone, the
-bar at the bottom becomes that group's own while you are in it — its views, and one control to
-add. The first control on the left brings the usual bar back.
+The choice is this device's own, like the theme that is on: hiding them at your desk does not
+hide them on your phone. Nothing you logged is touched either way.
 
 ## The food list
 

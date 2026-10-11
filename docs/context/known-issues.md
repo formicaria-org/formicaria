@@ -1254,18 +1254,23 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
   folder cannot be written, search fails with a sentence and Settings says foods can only be added
   by name.
-- **The four groups are in two states** (`decisions.md#ui`, 2026-10-12; `groups-plan-2026-10-12.md`).
-  *For everyone:* templates carry structure and are inert (`lib/templates.ts`, `thread::is_template`
-  and `tasks_base`), starter templates, *Training* is called *Fitness*. *Only on a device that
-  asks* (`localStorage['fm-spaces']`, on in `pnpm dev`; no switch in Settings yet): the phone's
-  group bar over the built-in views, the list of groups, tag chips in the Library, the board's
-  summary, and a group's add control offering its templates. **Not built:** the desktop panel and
-  tabs, *Everything*, Library as home, Food and Fitness on by default, a recipe template (a recipe
-  made outside the sheet has no word joining it to its ingredients), a session-plan template.
-  Stepping from the board to the agenda **re-points the one window** (`changePane` with a new
-  `kind`), which nothing did before. A saved board view still shows templates. The starter Task's
-  status is the first one the app has seen, which is the board's first column only by the order
-  cards arrive in. None of the new screens has been looked at on a device.
+- **The four groups: phases 0 to 2 are in** (`decisions.md#ui`, 2026-10-12;
+  `groups-plan-2026-10-12.md`). Templates carry structure and are inert (`lib/templates.ts`,
+  `thread::is_template`, `tasks_base`); the side panel lists the groups first and a built-in view
+  is reached inside its group (`lib/spaces.svelte.ts`, the tab strip in `Pane.svelte`); a phone's
+  bar is always a group's; Food and Fitness are shown unless a device hides them.
+  `localStorage['fm-spaces'] = '0'` turns the group chrome off on a device, with no switch for it.
+  **Not built:** *Everything*, a recipe template (a recipe made outside the sheet has no word
+  joining it to its ingredients), a session-plan template, the visual pass.
+  **Decided and not done: the Library as the first screen.** A fresh workspace still opens on the
+  board; changing `defaultWorkspace` moves fifteen tests' starting point and the first thing a
+  new person sees, so it waits for the owner.
+  **Things that behave differently now.** Stepping between the board and the agenda **re-points the
+  one window** (`changePane` with a new `kind`) where the panel used to open a second; the phone's
+  view menu, behind *Everything else*, still opens each view by name beside the others. A saved
+  board view still shows templates. The starter Task's status is the first one the app has seen,
+  which is the board's first column only by the order cards arrive in. The Library's Search tab
+  only opens the search field. **None of this has been looked at on a device.**
 - **Recipes are the simple version** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of
   what went in*; `log::log_recipes`, the Recipes tab of `food/LogSheet.svelte`). Not built: changing
   a saved recipe (remove and remake), an ingredient typed in by hand, a cooked weight and so a

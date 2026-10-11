@@ -43,11 +43,19 @@ const openFood = async () => {
   return screen.findByRole('navigation', { name: 'Food' });
 };
 
-test('the groups that come with the app are not shown until this device asks for them', async () => {
-  render(App);
+test('the groups that come with the app are shown unless this device hides them', async () => {
+  store.set('fm-trackers', '0');
+  trackers.reload();
+  const first = render(App);
   await screen.findByText(/GAE lambda interacts badly/);
   expect(screen.queryByRole('button', { name: 'open Food' })).toBeNull();
-  expect(screen.queryByRole('navigation', { name: 'Food' })).toBeNull();
+  first.unmount();
+
+  store.delete('fm-trackers');
+  trackers.reload();
+  render(App);
+  expect(await screen.findByRole('button', { name: 'open Food' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'open Fitness' })).toBeTruthy();
 });
 
 test('a group is one entry among the views, and opens on its first view', async () => {
@@ -123,7 +131,13 @@ test('the group’s first control brings the app’s own bar back, and a way to 
   showTrackers();
   render(App);
   const bar = await openFood();
-  await fireEvent.click(within(bar).getByRole('button', { name: 'everything else' }));
+  // Its first control lists the groups; the app's own bar is the last thing on that list.
+  await fireEvent.click(within(bar).getByRole('button', { name: 'groups' }));
+  await fireEvent.click(
+    within(await screen.findByRole('dialog', { name: 'groups' })).getByRole('button', {
+      name: 'Everything else',
+    }),
+  );
   await waitFor(() => expect(document.querySelector('.group-return')).toBeTruthy());
   const back = document.querySelector('.group-return') as HTMLElement;
   expect(back.textContent?.trim()).toBe('Food');

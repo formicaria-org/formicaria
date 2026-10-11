@@ -44,7 +44,7 @@ afterEach(() => {
 
 async function openAddPaper() {
   render(App);
-  await fireEvent.click(await screen.findByRole('button', { name: /new|create|add/i }));
+  await fireEvent.click(await screen.findByRole('button', { name: 'make something new' }));
   const item = await screen.findByText('New paper');
   await fireEvent.click(item);
   return await screen.findByRole('dialog', { name: /add a paper/i });

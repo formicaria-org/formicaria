@@ -5,8 +5,8 @@
 // agenda would lose its *Show as* and search its typed query. Food and Fitness are groups already,
 // by the `group:` key of the views that ship with the app.
 //
-// **Phase 0: this device only.** On in `pnpm dev`, off everywhere else until the owner has tried
-// it on the phone. With it off the chrome is exactly what it was.
+// **Shown everywhere since phase 2.** `localStorage['fm-spaces'] = '0'` still turns the group
+// chrome off on a device — a way back while it is new, with no switch in Settings.
 import type { PaneKind } from './panes';
 import type { ViewGroup } from './types';
 
@@ -18,7 +18,7 @@ export const BUILTIN_SPACES: Space[] = [
     name: 'Library',
     icon: 'timeline',
     tabs: [
-      { key: 'timeline', label: 'Notes', kind: 'timeline' },
+      { key: 'timeline', label: 'Timeline', kind: 'timeline' },
       { key: 'search', label: 'Search', kind: 'search' },
     ],
   },
@@ -48,7 +48,7 @@ function read(): boolean {
   } catch {
     /* no storage: the default */
   }
-  return import.meta.env.DEV && import.meta.env.MODE !== 'test';
+  return true;
 }
 
 const state = $state({ shown: read() });

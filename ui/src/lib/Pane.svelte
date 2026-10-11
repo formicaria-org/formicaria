@@ -20,7 +20,7 @@
   import ProposalReview from './ProposalReview.svelte';
   import TagChips from './library/TagChips.svelte';
   import BoardSummary from './tasks/BoardSummary.svelte';
-  import { spacesShown } from './spaces.svelte';
+  import { BUILTIN_SPACES, spacesShown } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
@@ -193,6 +193,14 @@
       ? cards.filter((c) => c.tags.includes(tag ?? ''))
       : cards,
   );
+  /// The group this window's view belongs to, and the views of it a tab can show. Search is not
+  /// one: it has no window until something is typed.
+  const space = $derived(
+    spacesShown()
+      ? (BUILTIN_SPACES.find((s) => s.tabs.some((t) => t.kind === pane.kind)) ?? null)
+      : null,
+  );
+  const spaceTabs = $derived((space?.tabs ?? []).filter((t) => t.kind !== 'search'));
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -317,6 +325,21 @@
   {/if}
 
   <div class="pane-body" class:note-body={pane.kind === 'note'}>
+    <!-- **A group's views, as tabs** — where there is width for them; a phone's bar carries them
+         instead. The same strip a group of tracker views draws for itself
+         (`decisions.md#ui`, 2026-10-12). -->
+    {#if spaceTabs.length > 1}
+      <div class="space-tabs" role="group" aria-label={space?.name}>
+        {#each spaceTabs as t (t.key)}
+          <button
+            type="button"
+            class:on={t.kind === pane.kind}
+            aria-current={t.kind === pane.kind ? 'page' : undefined}
+            onclick={() => t.kind !== pane.kind && onchange({ kind: t.kind })}>{t.label}</button
+          >
+        {/each}
+      </div>
+    {/if}
     {#if pane.kind === 'note'}
       {#if pane.noteId}
         {#await import('./NotePanel.svelte') then { default: NotePanel }}
@@ -784,5 +807,31 @@
     margin: var(--space-3);
     color: var(--muted);
     font-size: var(--text-sm);
+  }
+  .space-tabs {
+    display: flex;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3) 0;
+  }
+  .space-tabs button {
+    min-height: 2rem;
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    cursor: pointer;
+  }
+  .space-tabs button.on {
+    background: var(--accent-subtle);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  /* On a narrow screen the bar at the bottom is the group's, and carries these. */
+  @media (max-width: 59.999rem) {
+    .space-tabs {
+      display: none;
+    }
   }
 </style>

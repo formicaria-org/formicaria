@@ -729,8 +729,29 @@
     })),
   ];
 
-  /// The rail: what you are invited to open, minus the rare one.
-  let viewTargets = $derived(targetsFrom(RAIL_PANES));
+  /// The rail: what you are invited to open, minus the rare one. **With the four groups it is the
+  /// groups first** — a built-in view that belongs to one is reached inside it, exactly as a
+  /// shipped group's views are (`decisions.md#ui`, 2026-10-12) — then whatever is in no group.
+  let viewTargets = $derived.by(() => {
+    if (!spacesShown()) return targetsFrom(RAIL_PANES);
+    const grouped = new Set(BUILTIN_SPACES.flatMap((s) => s.tabs.map((t) => t.kind as string)));
+    const rest = targetsFrom(RAIL_PANES.filter((b) => !grouped.has(b.kind)));
+    const isGroup = (t: { key: string }) => t.key.startsWith('group:');
+    return [
+      ...BUILTIN_SPACES.map((s) => ({
+        key: `group:${s.name}`,
+        label: s.name,
+        icon: s.icon,
+        saved: false,
+        run: () => openSpace(s.name),
+      })),
+      ...rest.filter(isGroup),
+      ...rest.filter((t) => !isGroup(t)),
+    ];
+  });
+  /// The bar's view menu, behind *everything else*: every view by its own name, as it always was —
+  /// the way to open one beside another.
+  let menuTargets = $derived(targetsFrom(RAIL_PANES));
   /// The palette: the same, plus the rare one. A filterable list can afford it; a column cannot.
   let paletteTargets = $derived(targetsFrom(OPENABLE_PANES));
 
@@ -2480,7 +2501,7 @@
               </li>
               <li class="menu-sep view-switches" role="separator"></li>
             {/if}
-            {#each viewTargets as t (t.key)}
+            {#each menuTargets as t (t.key)}
               <li role="none">
                 <button type="button" role="menuitem" onclick={() => ((viewsOpen = false), t.run())}
                   >{t.label}</button
@@ -3026,7 +3047,11 @@
               counts={threadCounts}
               onnavigate={openNoteInPane}
               onsaved={scheduleCommit}
-              onchange={(patch) => changePane(pane.id, patch)}
+              onchange={(patch) => {
+                changePane(pane.id, patch);
+                // A tab of the group this window is in: the same place, another view of it.
+                if ('kind' in patch && i === focused) nav.replace(here());
+              }}
               ontitle={(title) => nameWindow(pane.id, title)}
               onreorder={movePane}
               onresize={(patch) => resizePane(pane.id, patch)}

@@ -25,13 +25,13 @@ afterEach(() => {
 });
 
 describe('food and training in Settings', () => {
-  it('is off until this device asks, and the switch is remembered here', async () => {
+  it('is on until this device says otherwise, and the switch is remembered here', async () => {
     render(TrackersSection);
     const sw = (await screen.findByRole('switch')) as HTMLInputElement;
-    expect(sw.checked).toBe(false);
+    expect(sw.checked).toBe(true);
     await fireEvent.click(sw);
-    expect(trackers.trackersShown()).toBe(true);
-    expect(store.get('fm-trackers')).toBe('1');
+    expect(trackers.trackersShown()).toBe(false);
+    expect(store.get('fm-trackers')).toBe('0');
   });
 
   it('says what the food list is and what it takes, and offers nothing to get or remove', async () => {

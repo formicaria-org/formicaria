@@ -1,7 +1,7 @@
 // **The four groups**: a phone's bar is always a group's, its first control lists the groups, a
 // step inside a group is not a move and a change of group is — `decisions.md#ui`, 2026-10-12.
 //
-// Phase 0: shown on a device that asks (`fm-spaces`). With it off the chrome is what it was.
+// Shown everywhere; a device can still turn it off (`fm-spaces` = 0) and have the chrome it had.
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import App from './App.svelte';
@@ -41,11 +41,14 @@ afterEach(() => {
   spaces.reload();
 });
 
-test('a device that has not asked sees no group bar over the built-in views', async () => {
+test('a device can turn the group chrome off, and has what it had before', async () => {
+  store.set('fm-spaces', '0');
+  spaces.reload();
   render(App);
   await screen.findByText(/GAE lambda interacts badly/);
   expect(screen.queryByRole('navigation', { name: 'Tasks' })).toBeNull();
   expect(screen.queryByRole('list', { name: 'tags' })).toBeNull();
+  expect(await screen.findByRole('button', { name: 'open Agenda' })).toBeTruthy();
 });
 
 test('the board is in Tasks, and stepping to the agenda is not a move', async () => {
@@ -83,9 +86,9 @@ test('the first control lists the four groups, and one tap goes to another', asy
   await fireEvent.click(within(list).getByRole('button', { name: /^Library/ }));
   const library = await screen.findByRole('navigation', { name: 'Library' });
   expect(screen.queryByRole('dialog', { name: 'groups' })).toBeNull();
-  expect(within(library).getByRole('button', { name: 'Notes' }).getAttribute('aria-current')).toBe(
-    'page',
-  );
+  expect(
+    within(library).getByRole('button', { name: 'Timeline' }).getAttribute('aria-current'),
+  ).toBe('page');
 
   // The Library's way in by tag: a tap keeps the notes that carry it.
   const tags = await screen.findByRole('list', { name: 'tags' });

@@ -82,35 +82,38 @@ test('the panel offers every view you can open, and opening one shows it', async
     (b.textContent ?? '').trim(),
   );
   // The list is fixed so it can be learned.
-  for (const v of ['Board', 'Agenda', 'Timeline', 'Collaboration', 'Discussions']) {
+  // Since 2026-10-12 a built-in view that belongs to a group is reached inside it, so the rail
+  // names the groups and then what is in none.
+  for (const v of ['Library', 'Tasks', 'Food', 'Fitness', 'Collaboration', 'Discussions']) {
     expect(names, `${v} missing from the rail`).toContain(v);
   }
   // **And two absences that are decisions, not omissions.** `Search` is offered nowhere: an empty
   // search pane does nothing, and the search box makes one when you type. `Activity` is off the
   // rail — a column costs attention per entry — and stays in the palette, which is filterable and
   // can afford it.
+  for (const v of ['Board', 'Agenda', 'Timeline']) expect(names).not.toContain(v);
   expect(names).not.toContain('Search');
   expect(names).not.toContain('Activity');
   // And the saved views, which is the half a fixed list of built-ins would miss.
   expect(names).toContain('Active');
 
-  // Clicking opens it: there was no agenda, so a window appears.
+  // Clicking opens it: there was no window of the Library, so one appears.
   const before = document.querySelectorAll('.pane').length;
-  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
   await waitFor(() => expect(document.querySelectorAll('.pane').length).toBe(before + 1));
 
   // **And clicking it again shows that one rather than stacking another.** With one view at a
   // time, tapping a name means "show me that"; appending a second agenda answers a question
   // nobody asked and, on a phone, spends a feed and a scroll position. jsdom applies no CSS, so
   // "showing" is asserted structurally — which cell carries `.active` — not by visibility.
-  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
-  await fireEvent.click(screen.getByRole('button', { name: 'open Agenda' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
+  await fireEvent.click(screen.getByRole('button', { name: 'open Library' }));
   expect(document.querySelectorAll('.pane').length).toBe(before + 1);
   expect(document.querySelectorAll('.cell.active').length, 'one active window').toBe(1);
   // The name is read off the bar that names it — a pane has no header of its own when one view
   // fills the window, which is the row this arrangement exists to reclaim.
   const bar = screen.getByRole('navigation', { name: 'open views' });
-  expect(bar.querySelector('[aria-current="page"]')?.textContent).toMatch(/Agenda/);
+  expect(bar.querySelector('[aria-current="page"]')?.textContent).toMatch(/Timeline/);
 });
 
 /// **The collapsed rail hides words; it must never crop them.**

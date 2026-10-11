@@ -1,9 +1,37 @@
 # Views
 
 Every view is the same data seen a different way — "a query plus a renderer".
-Open a view into a **pane** from the sidebar — down the left of a wide window, along the bottom of
+Open a group into a **pane** from the sidebar — down the left of a wide window, along the bottom of
 a narrow one; each pane has its own picker, so several
 views can be on screen at once, side by side.
+
+## The four groups
+
+The views are gathered into four groups, and they are all ways of looking at the same notes:
+
+| Group | What it is for | Its views |
+|---|---|---|
+| **Library** | everything you have written, browsed by tag | Timeline, Search |
+| **Tasks** | notes with a status or a date | Board, Agenda |
+| **Food** | meals, recipes, targets, weight | Day, Trends, Weight |
+| **Fitness** | sessions and sets | Session, Volume |
+
+- **On a wide window** the groups head the sidebar. Open one and its views are tabs across the
+  top of the pane: in Tasks, *Board* and *Agenda*.
+- **On a phone** the bar along the bottom always belongs to the group you are in: its views, and
+  a raised **＋** in the middle. The control at its left lists the four groups — one tap to any of
+  them — and, last on that list, *Everything else*: search, your open windows, backing up,
+  settings.
+- **Back** returns to the group you came from. Stepping between a group's own views does not add
+  a step to walk back through.
+
+In the Library, the row of tags above the timeline shows every tag on your notes and how many
+carry it; tap one to see only those notes, and again to see them all. In Tasks, the board is
+headed by how many cards have reached its last column.
+
+A group's **＋** makes something that belongs there: in Food and Fitness it opens their own
+sheets; in Library and Tasks it makes a note, and offers that group's
+[templates](./notes.md#templates) once you have some.
 
 ![The Board: three columns — todo, doing, done — of note cards, each showing its tags, its due
 date and who last touched it](../images/board.png)

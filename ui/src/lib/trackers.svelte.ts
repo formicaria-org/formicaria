@@ -14,7 +14,7 @@ function read(): boolean {
     /* no storage: the default */
   }
   // On in `pnpm dev`, so the screens can be worked on; off everywhere else until someone asks.
-  return import.meta.env.DEV && import.meta.env.MODE !== 'test';
+  return true;
 }
 
 const state = $state({ shown: read() });

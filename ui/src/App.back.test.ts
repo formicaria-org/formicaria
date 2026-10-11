@@ -30,6 +30,14 @@ afterEach(() => {
 });
 
 /** The view the bar marks as showing — a hidden window stays mounted, so this is what counts. */
+/// A built-in view is reached inside its group: open the group, then pick the view's tab.
+async function openTab(group: string, tab: string) {
+  await fireEvent.click(await screen.findByRole('button', { name: `open ${group}` }));
+  await fireEvent.click(
+    within(await screen.findByRole('group', { name: group })).getByRole('button', { name: tab }),
+  );
+}
+
 const showing = () =>
   screen.getByRole('navigation', { name: 'open views' }).querySelector('[aria-current="page"]')
     ?.textContent ?? '';
@@ -48,7 +56,7 @@ test('Back walks several steps in order: agenda → note → board', async () =>
   render(App);
   await fireEvent.click(await screen.findByText(/GAE lambda interacts badly/));
   await waitFor(() => expect(noteOpen()).toBeTruthy());
-  await fireEvent.click(await screen.findByRole('button', { name: 'open Agenda' }));
+  await openTab('Tasks', 'Agenda');
   await waitFor(() => expect(showing()).toMatch(/Agenda/));
 
   history.back();

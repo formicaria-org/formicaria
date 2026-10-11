@@ -134,19 +134,18 @@ describe('the app, driven end to end as a user', () => {
     await closeNote();
     expect(await screen.findByText('a freshly captured thought')).toBeTruthy();
 
-    // 3. Open another view from the panel. Views are chosen there and nowhere else now — a pane
-    //    header names its window rather than switching it, so this *opens* an Agenda beside the
-    //    board rather than turning the board into one.
-    await fireEvent.click(await screen.findByRole('button', { name: 'open Agenda' }));
+    // 3. Step to another view of the group. The board and the agenda are both Tasks: the tab
+    //    turns this window into the agenda rather than opening one beside it.
+    const tasks = await screen.findByRole('group', { name: 'Tasks' });
+    await fireEvent.click(within(tasks).getByRole('button', { name: 'Agenda' }));
     expect(await screen.findByText(/Reply to reviewer 2/)).toBeTruthy();
-    // The board is still there — that is the point of opening rather than switching.
-    expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);
 
-    // 4. Go back to the board. **Re-grouping left the UI on 2026-08-31** — a board is always
-    //    grouped by status now, so this step used to type `project` into a control that no longer
-    //    exists. What is still worth walking is the return trip: the tab row is how you get back to
-    //    a view you left, and the board is still there with its cards.
-    await fireEvent.click(screen.getByRole('button', { name: /^Board/ }));
+    // 4. And back to the board, which has its cards again.
+    await fireEvent.click(
+      within(await screen.findByRole('group', { name: 'Tasks' })).getByRole('button', {
+        name: 'Board',
+      }),
+    );
     expect((await screen.findAllByText(/GAE lambda interacts badly/)).length).toBeGreaterThan(0);
 
     // 5. Open a card → the read view renders the note's markdown, upgrades math +
