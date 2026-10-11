@@ -19,9 +19,6 @@
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
   import TagChips from './library/TagChips.svelte';
-  import DayStrip from './DayStrip.svelte';
-  import { addDays, dayString, daysBetween, today } from './units';
-  import BoardSummary from './tasks/BoardSummary.svelte';
   import { spacesShown, type SpaceTab } from './spaces.svelte';
   import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
@@ -195,24 +192,11 @@
   /// The Library's one tag, chosen from its chips: the notes that carry it. Kept by the window,
   /// not written anywhere (`decisions.md#ui`, 2026-10-12).
   let tag = $state<string | null>(null);
-  /// …and its one day, chosen from the fortnight above them: the notes written then.
-  let wrote = $state<string | null>(null);
-  const writtenOn = (c: ObjectMeta) => dayString(new Date(c.created));
   const tagged = $derived(
-    pane.kind === 'timeline' && spacesShown()
-      ? cards.filter((c) => (!tag || c.tags.includes(tag)) && (!wrote || writtenOn(c) === wrote))
+    tag && pane.kind === 'timeline' && spacesShown()
+      ? cards.filter((c) => c.tags.includes(tag ?? ''))
       : cards,
   );
-  /// The agenda's one day, the same way: what is due then. A day as written, not as a moment.
-  let dueDay = $state<string | null>(null);
-  const dueOn = (c: ObjectMeta) => (c.due ? c.due.slice(0, 10) : null);
-  const due = $derived(
-    dueDay && spacesShown() && pane.agendaMode === 'list'
-      ? cards.filter((c) => dueOn(c) === dueDay)
-      : cards,
-  );
-  const ahead = $derived(daysBetween(today(), addDays(today(), 13)));
-  const behind = $derived(daysBetween(addDays(today(), -13), today()));
   // A board with its cards vault-filtered (columns kept, even if emptied).
   const board = $derived(
     feed?.board
@@ -361,9 +345,6 @@
         {/each}
       </div>
     {/if}
-    {#if pane.kind === 'view' && shownView?.total && shownView.total > cards.length}
-      <p class="bounded">The newest {cards.length} of {shownView.total}.</p>
-    {/if}
     {#if pane.kind === 'note'}
       {#if pane.noteId}
         {#await import('./NotePanel.svelte') then { default: NotePanel }}
@@ -388,11 +369,6 @@
       {/if}
     {:else if pane.kind === 'board' || (pane.kind === 'view' && board)}
       {#if board}
-        {#if pane.kind === 'board' && spacesShown()}
-          <BoardSummary
-            columns={ordered(board).columns.map((c) => ({ label: c.label, count: c.cards.length }))}
-          />
-        {/if}
         <Board
           board={ordered(board)}
           onmove={(id, value, beforeId) => onmove(pane.groupBy, id, value, beforeId)}
@@ -513,31 +489,14 @@
         <p class="no-proposals">No open proposals.</p>
       {/if}
     {:else if pane.kind === 'agenda'}
-      <!-- In the list only: a calendar already is the days, and one day of it is a blank month. -->
-      {#if spacesShown() && pane.agendaMode === 'list'}
-        <DayStrip
-          caption="Due in the next two weeks"
-          days={ahead}
-          on={cards.map(dueOn)}
-          chosen={dueDay}
-          onpick={(d) => (dueDay = d)}
-        />
-      {/if}
       {#if pane.agendaMode === 'list'}
-        <Agenda cards={due} {onopen} />
+        <Agenda {cards} {onopen} />
       {:else}
-        <Calendar cards={due} {onopen} range={pane.agendaMode === 'week' ? 'week' : 'month'} />
+        <Calendar {cards} {onopen} range={pane.agendaMode === 'week' ? 'week' : 'month'} />
       {/if}
     {:else}
       <!-- timeline, or a flat-list saved view -->
       {#if pane.kind === 'timeline' && spacesShown()}
-        <DayStrip
-          caption="Written in the last two weeks"
-          days={behind}
-          on={cards.map(writtenOn)}
-          chosen={wrote}
-          onpick={(d) => (wrote = d)}
-        />
         <TagChips tags={cards.map((c) => c.tags)} chosen={tag} onpick={(t) => (tag = t)} />
       {/if}
       <Timeline
@@ -874,11 +833,5 @@
     .space-tabs {
       display: none;
     }
-  }
-  .bounded {
-    margin: 0;
-    padding: var(--space-2) var(--space-4) 0;
-    color: var(--text-muted);
-    font-size: 0.85rem;
   }
 </style>

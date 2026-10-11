@@ -84,19 +84,19 @@ describe('a note made from a template', () => {
     expect(templatesOf(all, 'Tasks').map((t) => t.title)).toEqual(['Task']);
   });
 
-  it('the starter templates carry structure and no number', () => {
+  it('a starter template has something to see, and carries no target', () => {
     const s = starters('todo');
-    expect(s.map((t) => t.title)).toEqual([
-      'Task',
-      'Meeting',
-      'Recipe',
-      'Diet program',
-      'Training program',
-    ]);
-    expect(s.every((t) => t.tags?.includes('template'))).toBe(true);
-    for (const t of s)
-      for (const [k, v] of Object.entries(t.props))
-        // The one number is a recipe's servings, which a recipe cannot be without: one.
-        expect(k === 'servings' ? v : typeof v, t.title).toBe(k === 'servings' ? 1 : 'string');
+    expect(s.map((t) => t.title)).toEqual(['Task', 'Meeting', 'Recipe']);
+    for (const t of s) {
+      expect(t.tags?.includes('template'), t.title).toBe(true);
+      // A note made from it must not open as a blank page.
+      expect(t.body?.startsWith('# '), t.title).toBe(true);
+      expect(t.body, t.title).toMatch(/\n## /);
+    }
+    // The one number is a recipe's servings, which a recipe cannot be read without.
+    const numbers = s.flatMap((t) =>
+      Object.entries(t.props).filter(([, v]) => typeof v === 'number'),
+    );
+    expect(numbers).toEqual([['servings', 1]]);
   });
 });

@@ -1254,29 +1254,28 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   the packs folder is — `config_dir()`, which the phone shells set (`configure_paths`). If that
   folder cannot be written, search fails with a sentence and Settings says foods can only be added
   by name.
-- **The four groups: all five phases are in, and none has been looked at** (`decisions.md#ui`, 2026-10-12;
-  `groups-plan-2026-10-12.md`). Templates carry structure and are inert (`lib/templates.ts`,
-  `thread::is_template`, `tasks_base`); the side panel lists the groups first and a built-in view
-  is reached inside its group (`lib/spaces.svelte.ts`, the tab strip in `Pane.svelte`); a phone's
-  bar is always a group's; Food and Fitness are shown unless a device hides them.
-  `localStorage['fm-spaces'] = '0'` turns the group chrome off on a device, with no switch for it.
-  *Everything* lists logged entries, the newest 300, with no way to page past them.
-  **The visual pass is the part done blind**: the fortnight strips (`DayStrip.svelte`, above the
-  agenda's list and the Library's timeline), the board's summary and the tag chips were built
-  and tested for what they count and do, never seen on a screen of any size — spacing, how the
-  strips sit above a long list, and whether three things stacked above the Library's timeline
-  leave room for the notes are all unjudged. No motion was added between tabs.
-  **Not built:** a session-plan template (a session is several set notes, and a template makes
-  one note).
-  **Decided and not done: the Library as the first screen.** A fresh workspace still opens on the
-  board; changing `defaultWorkspace` moves fifteen tests' starting point and the first thing a
-  new person sees, so it waits for the owner.
-  **Things that behave differently now.** Stepping between the board and the agenda **re-points the
-  one window** (`changePane` with a new `kind`) where the panel used to open a second; the phone's
-  view menu, behind *Everything else*, still opens each view by name beside the others. A saved
-  board view still shows templates. The starter Task's status is the first one the app has seen,
-  which is the board's first column only by the order cards arrive in. The Library's Search tab
-  only opens the search field. **None of this has been looked at on a device.**
+- **The four groups, as they stand after the owner used them on his phone** (`decisions.md#ui`,
+  the 2026-10-12 entries, of which *after the owner used it on the phone* is the last word;
+  `groups-plan-2026-10-12.md` is the plan and is ahead of the code in places). **In:** templates
+  carry structure and are inert (`lib/templates.ts`, `thread::is_template`, `tasks_base`), with
+  three starters that have a body; the side panel lists the groups first and a built-in view is
+  reached inside its group (`lib/spaces.svelte.ts`, the tab strip in `Pane.svelte`); a phone's bar
+  is always a group's; Food and Fitness are shown unless a device hides them; Trends draws the one
+  value picked from its menu. **Taken out again:** *Everything* (with the `entries:` and `limit:`
+  view keys), the *Weight* view, the ring over the board and the fortnight strips.
+  **Gaps this leaves.** **A weight cannot be logged**: `MeasureSheet.svelte`, `AddAction::Body`
+  and the mean aggregation are still there, reached by no shipped view — a vault's own `.view`
+  with `log: body` still works. The code that lets a shipped view join Library or Tasks
+  (`spaces` in `App.svelte`) now has nothing using it. A vault that already added the five
+  earlier starters keeps them, bodies empty, the two program ones included.
+  **Decided and not done: the Library as the first screen** — a fresh workspace still opens on the
+  board. `localStorage['fm-spaces'] = '0'` turns the group chrome off on a device, with no switch.
+  **Behaves differently from before the groups.** Stepping between the board and the agenda
+  re-points the one window; the phone's view menu, behind *Everything else*, still opens each
+  view by name beside the others. A saved board view still shows templates. The starter Task's
+  status is the first one the app has seen. The Library's Search tab only opens the search field.
+  **The owner has seen the build of `0ba9894` on his phone; nothing after it has been seen by
+  anyone.** Nothing says yet how a phone's layout should differ from a desktop's inside a view.
 - **Recipes** (`decisions.md#data`, 2026-10-11, *a recipe is the sum of what went in*, and `#ui`,
   2026-10-12; `log::log_recipes`, the Recipes tab of `food/LogSheet.svelte`). The recipe's own
   note is an ordinary visible note tagged `recipe`; each ingredient is still a hidden entry

@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A run of days: the first metric drawn against its target, the average of each of the others,
-  // and how many of the days have anything logged at all — a week's average over three logged days
+  // A run of days: **the one value picked from the menu** drawn against its target, the average of
+  // each of the others below it, and how many of the days have anything logged at all — a week's average over three logged days
   // is not a week's average, and the screen says so.
   //
   // A value that is added up (energy) is a bar a day; one that is measured (a weight) is a line,
@@ -41,7 +41,14 @@
     onadd,
   }: Props = $props();
 
-  const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
+  /// What is drawn: the value picked from the menu, the view's first until one is
+  /// (`decisions.md#ui`, 2026-10-12 — a screen shows what was picked, and at most scrolls).
+  let picked = $state<string | null>(null);
+  const primary = $derived(
+    def.metrics.find((m) => m.key === picked) ??
+      def.metrics.find((m) => m.role === 'primary') ??
+      def.metrics[0],
+  );
   const others = $derived(def.metrics.filter((m) => m !== primary));
   const TINTS = ['a', 'b', 'c'] as const;
   const measured = (m: Metric) => m.agg === 'mean';
@@ -83,6 +90,16 @@
         >
       {/each}
     </div>
+    {#if def.metrics.length > 1}
+      <label class="pick">
+        <span class="sr">what to show</span>
+        <select value={primary.key} onchange={(e) => (picked = e.currentTarget.value)}>
+          {#each def.metrics as m (m.key)}
+            <option value={m.key}>{m.label}</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
     {#if onadd}
       <button type="button" class="add" onclick={onadd} aria-label={`add ${primary.label}`}>
         <Icon name="plus" size={18} />
@@ -276,5 +293,22 @@
   .partial {
     font-size: var(--text-xs);
     color: var(--text-subtle);
+  }
+  .pick select {
+    min-height: 2.25rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 </style>

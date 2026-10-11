@@ -57,9 +57,13 @@ export const templatesOf = (all: ObjectMeta[], group: string) =>
   all.filter((t) => t.props?.[GROUP] === group);
 
 /// **Starter templates are real notes**, written into a vault when a person asks — none is held
-/// in the app, because a template that is not a file would not be a note. Each carries only
-/// structure: a tag, the group that offers it, the property a view reads. **No number, no target
-/// and no advice** (`decisions.md#data`, 2026-10-11, *nothing is invented*).
+/// in the app, because a template that is not a file would not be a note.
+///
+/// **Each has a body**: a heading and its sections. A note made from one whose structure was all
+/// in its tags and properties opened as a blank page (`decisions.md#ui`, 2026-10-12, the owner on
+/// his phone: "looks like empty notes?"). **No target and no advice** (`decisions.md#data`,
+/// 2026-10-11, *nothing is invented*) — and no template for a program, whose targets are set
+/// from the day screen's own form.
 export function starters(firstStatus: string): NoteDraft[] {
   const made = (title: string, tag: string, group: string, body: string, props = {}) => ({
     title,
@@ -68,10 +72,19 @@ export function starters(firstStatus: string): NoteDraft[] {
     props: { [GROUP]: group, ...props },
   });
   return [
-    made('Task', 'task', 'Tasks', '', firstStatus ? { status: firstStatus } : {}),
-    made('Meeting', 'meeting', 'Library', '## Who\n\n## Notes\n\n## Actions\n\n- [ ] \n'),
-    made('Recipe', RECIPE, 'Food', '## Method\n\n', { servings: 1 }),
-    made('Diet program', 'program', 'Food', '', { program: 'food' }),
-    made('Training program', 'program', 'Fitness', '', { program: 'training' }),
+    made(
+      'Task',
+      'task',
+      'Tasks',
+      '# New task\n\n## What\n\n\n## Steps\n\n- [ ] \n',
+      firstStatus ? { status: firstStatus } : {},
+    ),
+    made(
+      'Meeting',
+      'meeting',
+      'Library',
+      '# Meeting\n\n## Who\n\n\n## Notes\n\n\n## Actions\n\n- [ ] \n',
+    ),
+    made('Recipe', RECIPE, 'Food', '# New recipe\n\n## Method\n\n1. \n', { servings: 1 }),
   ];
 }

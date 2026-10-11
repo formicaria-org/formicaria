@@ -281,30 +281,13 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    assert_eq!(shipped.len(), 6);
-    let s = MemoryStore::new();
+    // Day and Trends for food; Session and Volume for training.
+    assert_eq!(shipped.len(), 4);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
-        if v.renderer == Some(Renderer::Totals) {
-            totals_named(&[], &v.name).unwrap_or_else(|e| panic!("{}: {e}", v.name));
-        }
-        run_shipped(&s, &v.name).unwrap().unwrap_or_else(|e| panic!("{}: {e}", v.name));
+        assert_eq!(v.renderer, Some(Renderer::Totals));
+        totals_named(&[], &v.name).unwrap_or_else(|e| panic!("{}: {e}", v.name));
     }
-    // Five are a tracker's; the sixth is the Library's list of everything.
-    let lists: Vec<_> =
-        shipped.iter().filter(|v| v.renderer != Some(Renderer::Totals)).map(|v| &v.name).collect();
-    assert_eq!(lists, ["Everything"]);
-}
-
-#[test]
-fn everything_lists_logged_entries_beside_notes_and_says_how_many_there_are() {
-    let mut s = MemoryStore::new();
-    commands::capture(&mut s, "a plain note", "").unwrap();
-    create_notes(&mut s, "", &[food("Oats", "2026-10-11", "breakfast", 228, 0)]).unwrap();
-    let all = run_shipped(&s, "Everything").unwrap().unwrap();
-    assert_eq!((all.rows.unwrap().len(), all.total), (2, Some(2)));
-    // The timeline it sits beside still leaves the entry out.
-    assert_eq!(commands::recent(&s).unwrap().len(), 1);
 }
 
 #[test]
@@ -336,7 +319,7 @@ fn a_group_is_its_views_in_listed_order_and_a_vaults_own_file_replaces_a_shipped
     assert!(!day[0].shipped, "and it is the vault's own");
 
     let group = group_of(&all, "Trends").unwrap();
-    assert_eq!((group.name.as_str(), group.views.len()), ("Food", 3));
+    assert_eq!((group.name.as_str(), group.views.len()), ("Food", 2));
     assert!(group.views.contains(&"Day".to_string()));
     assert!(group_of(&all, "nothing").is_none());
 
@@ -361,7 +344,17 @@ fn a_totals_view_that_cannot_be_drawn_names_itself() {
 #[test]
 fn a_measured_value_is_read_as_the_mean_of_the_days_entries() {
     use fm_app::views::Agg;
-    let def = totals_named(&[], "Weight").unwrap();
+    // No view that ships measures anything since *Weight* was withdrawn (`decisions.md#ui`,
+    // 2026-10-12), so the one read here is a vault's own — which is also how a person adds one.
+    let vault = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(vault.path().join("views")).unwrap();
+    std::fs::write(
+        vault.path().join("views/Weight.view"),
+        "name: Weight\nview: totals\nlog: body\nadd: body\nspan: range\nmetrics:\n  \
+         - { key: weight_g, label: Weight, role: primary, agg: mean }\n",
+    )
+    .unwrap();
+    let def = totals_named(&[vault.path().to_path_buf()], "Weight").unwrap();
     assert_eq!((def.log.as_str(), def.metrics[0].agg), ("body", Agg::Mean));
     assert_eq!(day_view().metrics[0].agg, Agg::Sum);
 

@@ -283,8 +283,6 @@ export interface Feed {
     group_by: string | null;
     /** A `totals` view's definition, and the group it belongs to with its sibling views. */
     totals?: TotalsDef;
-    /** How many notes the view matched, when it shows only the first of them. */
-    total?: number;
     group?: ViewGroup;
   };
 }

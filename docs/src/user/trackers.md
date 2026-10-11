@@ -106,12 +106,15 @@ beside it. *Same as yesterday* on a day ahead plans it too.
 
 ## Trends
 
-**Food → Trends** shows a week, four weeks or twelve: each day's energy against the target, and the
-average of everything else. Averages are over the days you logged, and the screen says how many
-those were. A target you changed shows as a step on the day it changed.
+**Food → Trends** shows a week, four weeks or twelve. A menu at the top picks **what to show** —
+energy, protein, carbohydrate, fat, or any other value the day screen has — and that one is drawn
+day by day against its target; the averages of the others are listed below it. It says how many of
+those days have anything logged, because an average over three logged days is not a week's
+average.
 
-**Food → Weight** is a line of your weight over the same spans: where it is now and how far it has
-moved. Press **＋** to write one down. Two readings on one day count as one, their average.
+There is no screen for your weight at the moment: it is to become one more thing to pick on this
+menu, and until it is, the app has no way to log one. Weights you logged earlier are still in
+your notebook.
 
 ## Fitness
 

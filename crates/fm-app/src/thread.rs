@@ -154,10 +154,9 @@ pub fn is_log(o: &Object) -> bool {
 /// The base filter for every "things you plan" view: notes, and not messages.
 ///
 /// **The only place `Predicate::Kind(vec![Kind::Note])` is written**, enforced by a grep in
-/// `ci/checks.sh` — so a future command cannot quietly reintroduce the un-excluded form. A
-/// `.view`'s conjuncts are `Vec::extend`ed onto this base, so its filter can only ever narrow;
-/// the one way a view widens it is by name — `entries: true`, which asks for
-/// [`everything_base`] and must come with a `limit`.
+/// `ci/checks.sh` — so a future command cannot quietly reintroduce the un-excluded form, and a
+/// `.view` cannot widen it (a `.view`'s conjuncts are `Vec::extend`ed onto this base, so it can
+/// only ever narrow).
 ///
 /// Four exclusions, one reason: none of an asset, a message, a proposal or a logged entry is
 /// something you *plan*.
@@ -175,20 +174,13 @@ pub fn is_log(o: &Object) -> bool {
 /// `search` and `gallery` deliberately do **not** use this: discussion (or a proposal) that is
 /// not findable in five years defeats the reason for keeping it in the vault at all.
 pub fn notes_base() -> Filter {
-    // **Logged entries** — five to ten a day. Left in, a year of meals is three thousand cards in
-    // the board's `(none)` column.
-    everything_base().and(not_logged())
-}
-
-/// Every note a person wrote or logged: [`notes_base`] **with the logged entries left in**. For
-/// one thing only — the Library's *Everything* (`decisions.md#ui`, 2026-10-12) — which asks for it
-/// by a view's `entries: true` and is always bounded by a `limit`. Messages and proposals stay
-/// out, as they do everywhere but search.
-pub fn everything_base() -> Filter {
     Filter::new()
         .and(Predicate::Kind(vec![Kind::Note]))
         .and(Predicate::Not(Box::new(Predicate::NoteRef { key: THREAD_OF.into(), id: None })))
         .and(Predicate::Not(Box::new(Predicate::BranchRef { key: PROPOSES.into() })))
+        // **Logged entries** — five to ten a day. Left in, a year of meals is three thousand
+        // cards in the board's `(none)` column.
+        .and(not_logged())
 }
 
 /// "…and not a logged entry." Written once, because `search` needs it without the rest of

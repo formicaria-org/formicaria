@@ -966,7 +966,6 @@
         group_by: r.group_by,
         totals: r.totals,
         group: r.group,
-        total: r.total,
       };
       return r.board ? { board: r.board, view } : { cards: r.rows ?? [], view };
     }

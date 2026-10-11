@@ -1,8 +1,0 @@
-name: Weight
-view: totals
-group: Food
-log: body
-add: body
-span: range
-metrics:
-  - { key: weight_g, label: Weight, role: primary, agg: mean }

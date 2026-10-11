@@ -2163,14 +2163,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       // The views that come with the app are always listed, as the server lists them; whether
       // their groups are *shown* is the device's choice (`trackersShown` in `App.svelte`).
       views.push(...tracker.TRACKER_VIEWS);
-      // The Library's one view of every note, logged entries included (`library-everything.view`).
-      views.push({
-        name: 'Everything',
-        renderer: 'timeline',
-        group_by: null,
-        group: 'Library',
-        shipped: true,
-      });
       return views as T;
     }
     case 'log_days': {
@@ -2214,22 +2206,6 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'pack_status':
       return tracker.packStatus() as T;
     case 'run_view': {
-      if (String(args.name ?? '') === 'Everything') {
-        // As the server runs it: the notes and the logged entries, newest first, bounded.
-        const all = notes
-          .filter((n) => n.type !== 'asset' && !isMessage(n) && !isProposal(n))
-          .sort((a, b) => b.created.localeCompare(a.created));
-        const result: ViewResult = {
-          name: 'Everything',
-          renderer: 'timeline',
-          group_by: null,
-          filters: [],
-          rows: all.slice(0, 300),
-          total: all.length,
-          group: { name: 'Library', views: ['Everything'] },
-        };
-        return result as T;
-      }
       const def = tracker.trackerDef(String(args.name ?? ''));
       if (def) {
         const result: ViewResult = {
