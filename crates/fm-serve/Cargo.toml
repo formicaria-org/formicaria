@@ -19,7 +19,7 @@ path = "src/main.rs"
 # `cargo build --no-default-features` compiles a provably agent-free core: "rm -rf agents/ is
 # byte-identical" becomes compiler-enforced, the way fm-query's purity is.
 [features]
-default = ["agent", "tls", "update", "calendar", "mail"]
+default = ["agent", "tls", "update", "calendar", "mail", "packs"]
 agent = ["dep:fm-agent-run"]
 # **The only feature that carries a dependency**, which is why it is a feature at all.
 #
@@ -45,6 +45,10 @@ calendar = ["dep:fm-fetch"]
 # Gmail, read-only (`decisions.md` 2026-10-09). Rides on `calendar`: an invite in a message is read
 # exactly as a calendar is, and the person's stated offset lives there.
 mail = ["calendar"]
+# Fetching a reference pack (`decisions.md#toolchain`, 2026-10-11) — the food list. Carries
+# `fm-fetch`, already in the binary behind `update`, so no new crate; and a feature of its own, not a
+# rider on `agent`, because a food log has to work with the assistant off.
+packs = ["dep:fm-fetch"]
 
 [dependencies]
 fm-model = { workspace = true }

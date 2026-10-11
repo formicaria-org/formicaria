@@ -759,6 +759,8 @@ const RESERVED_KEYS: &[&str] = &[
     "reply_to",
     "proposes",
     "base",
+    // A logged entry is hidden the same way; an imported `log:` must not take a note with it.
+    "log",
     SOURCE_KEY,
     SOURCE_LIBRARY,
 ];

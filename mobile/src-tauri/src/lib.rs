@@ -31,6 +31,8 @@ use fm_core::ColdStart;
 mod agent;
 #[cfg(update_shell)]
 mod update;
+#[cfg(update_shell)]
+mod packs;
 
 /// Android's answer to "hand this file to whatever owns it" is an `Intent`, which needs the JVM;
 /// iOS's is a `UIDocumentInteractionController`. Wiring either is a later milestone
@@ -618,6 +620,13 @@ fn fm(
         if let Some(r) = update::handle(&cmd, &args, &cache) {
             return r;
         }
+    }
+    // **Fetching the food list** — a transport concern for the same reason, answered with the same
+    // keys as fm-serve. A build without this (iOS) lets both fall through: `dispatch` answers
+    // `pack_progress` with "this build cannot", and refuses `pack_download` as unknown.
+    #[cfg(update_shell)]
+    if cmd == "pack_progress" || cmd == "pack_download" {
+        return packs::handle(&cmd, &args);
     }
     // A build that cannot update itself — iOS, or one made without the feature — still answers the
     // status the panel reads, so the rows hide instead of the panel meeting an unknown command.

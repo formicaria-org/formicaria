@@ -18,6 +18,7 @@
   import FeedThread from './FeedThread.svelte';
   import VaultBadge from './VaultBadge.svelte';
   import ProposalReview from './ProposalReview.svelte';
+  import TrackerPane from './TrackerPane.svelte';
   import type { Pane, PaneKind, Feed } from './panes';
   import { paneTitle, clampSpan, BUILTIN_PANES, rendererKind } from './panes';
   import type { ObjectMeta, ViewInfo, Board as BoardT, ConflictInfo } from './types';
@@ -57,6 +58,8 @@
     /// A prop rather than CSS because two rendered copies of `ViewControls` means two elements
     /// labelled `group by` — ambiguous to assistive tech and to `getByLabelText` alike.
     headed: boolean;
+    /// Counts up when a group's add control is pressed in the app's bar; only a tracker view listens.
+    addSignal?: number;
   }
   let {
     pane,
@@ -82,6 +85,7 @@
     onclose,
     onfocus,
     headed,
+    addSignal = 0,
   }: Props = $props();
 
   // A note pane can "maximize" to fill the workspace (the old full-screen toggle, repurposed
@@ -346,6 +350,9 @@
            search someone typed (see the comment in `Search.svelte`). -->
     {:else if pane.kind === 'view' && shownView?.renderer === 'search'}
       <Search {cards} {onopen} />
+    {:else if pane.kind === 'view' && shownView?.renderer === 'totals'}
+      <!-- A tracker's view asks for its own days; the feed only says which view it is. -->
+      <TrackerPane {pane} {feed} {addSignal} tabs={headed} {onchange} {onsaved} />
     {:else if pane.kind === 'activity'}
       <Activity {shown} {onopen} />
     {:else if pane.kind === 'discussions'}

@@ -36,3 +36,6 @@ time = { workspace = true }
 [dev-dependencies]
 fm-core = { workspace = true }
 tempfile = "3"
+# To write the small food pack `tests/packs.rs` reads. The same crate and version `fm-core` already
+# links, so it adds nothing to the tree.
+rusqlite = { version = "0.40.1", features = ["bundled"] }

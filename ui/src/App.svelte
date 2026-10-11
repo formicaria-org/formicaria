@@ -74,6 +74,7 @@
     ObjectMeta,
     VaultInfo,
     ViewInfo,
+    ViewGroup,
     ConflictInfo,
     DuplicateFamily,
     Unrecorded,
@@ -95,6 +96,8 @@
   import * as nav from './lib/nav.svelte';
   import { captureUndoable, setPropertyUndoable } from './lib/undo.svelte';
   import ViewBar from './lib/ViewBar.svelte';
+  import GroupBar from './lib/GroupBar.svelte';
+  import { trackersShown } from './lib/trackers.svelte';
   import ViewControls from './lib/ViewControls.svelte';
   import * as keys from './lib/keys';
 
@@ -161,12 +164,18 @@
   function onNavPop(e: PopStateEvent) {
     const t = nav.popped(e.state);
     if (!t || !t.kind) return;
-    nav.restore(() =>
+    nav.restore(() => {
+      // A view of a group goes back into the group's own window, whichever of its views that
+      // window is on now — otherwise Back would open a second window beside it.
+      if (t.kind === 'view' && t.viewName && groupWindow(t.viewName) !== -1) {
+        openGroupView(t.viewName, false);
+        return;
+      }
       focusOrOpen(t.kind as PaneKind, {
         ...(t.noteId ? { noteId: t.noteId } : {}),
         ...(t.viewName ? { viewName: t.viewName } : {}),
-      }),
-    );
+      });
+    });
   }
   /** Switch to an open window — a move like any other, so Back returns from it. **Recorded here, not
    *  left implicit:** the phone picks windows from a menu, and closing that menu used to step history
@@ -622,6 +631,52 @@
     })),
   ]);
 
+  /// The groups among the saved views, each with its views in listed order.
+  function groupsOf(list: ViewInfo[]): ViewGroup[] {
+    const out: ViewGroup[] = [];
+    for (const v of list) {
+      if (v.error || !v.group) continue;
+      // Shown when this device asks for them (`trackers.svelte.ts`) — read here, so flipping the
+      // switch in Settings shows or hides them at once.
+      if (v.shipped && !trackersShown()) continue;
+      const g = out.find((x) => x.name === v.group);
+      if (g) g.views.push(v.name);
+      else out.push({ name: v.group, views: [v.name] });
+    }
+    return out;
+  }
+  /// The window already showing some view of the group `viewName` belongs to, or -1.
+  function groupWindow(viewName: string): number {
+    const g = groupsOf(views ?? []).find((x) => x.views.includes(viewName));
+    if (!g) return -1;
+    return workspace.panes.findIndex(
+      (p) => p.kind === 'view' && !!p.viewName && g.views.includes(p.viewName),
+    );
+  }
+  /// **Show a view of a group in the group's one window.** A group has one window, and its views
+  /// are places inside it — so asking for one re-points that window instead of opening another.
+  /// `keep` leaves the window on the view it already shows (opening the group from the rail).
+  function openGroupView(viewName: string, keep = true) {
+    const at = groupWindow(viewName);
+    if (at === -1) {
+      focusOrOpen('view', { viewName });
+      return;
+    }
+    focused = at;
+    const pane = workspace.panes[at];
+    if (!keep && pane.viewName !== viewName) changePane(pane.id, { viewName });
+    else persistWorkspace();
+    moved();
+  }
+  /// The group's own bar: step to another of its views. **Not a move** — Back leaves the group, it
+  /// does not walk back along its tabs.
+  function pickGroupView(viewName: string) {
+    const pane = workspace.panes[focused];
+    if (!pane || pane.viewName === viewName) return;
+    changePane(pane.id, { viewName });
+    nav.replace(here());
+  }
+
   // Commands surfaced in the ⌘K palette (label + action). "Open …" shows that view.
   /// **Every view you can open, in one place.** The panel lists these down the left and the action
   /// list offers the same set as "Open …" — computed once so the two cannot say different things.
@@ -641,7 +696,7 @@
       run: () => focusOrOpen(b.kind),
     })),
     ...(views ?? [])
-      .filter((v) => !v.error)
+      .filter((v) => !v.error && !v.group)
       .map((v) => ({
         key: `view:${v.name}`,
         label: v.name,
@@ -651,6 +706,15 @@
         saved: true,
         run: () => focusOrOpen('view', { viewName: v.name }),
       })),
+    // **A group is one entry, named for the group** — its views are reached from inside it
+    // (`decisions.md#ui`, 2026-10-11). Opening it shows its first view, or wherever in it you were.
+    ...groupsOf(views ?? []).map((g) => ({
+      key: `group:${g.name}`,
+      label: g.name,
+      icon: 'chart',
+      saved: false,
+      run: () => openGroupView(g.views[0]),
+    })),
   ];
 
   /// The rail: what you are invited to open, minus the rare one.
@@ -851,7 +915,13 @@
       // same renderer as the built-in it shadows, so the pane needs this to explain a column (or a
       // note) that a filter removed. Carried here rather than looked up in `views`, which is
       // fetched once per vault change and can arrive late or not at all.
-      const view = { filters: r.filters ?? [], renderer: r.renderer, group_by: r.group_by };
+      const view = {
+        filters: r.filters ?? [],
+        renderer: r.renderer,
+        group_by: r.group_by,
+        totals: r.totals,
+        group: r.group,
+      };
       return r.board ? { board: r.board, view } : { cards: r.rows ?? [], view };
     }
     return {};
@@ -1422,6 +1492,30 @@
     if (p.kind === 'view' && (focusedFeed?.view?.filters?.length ?? 0) > 0) return 'This view';
     return null;
   });
+  /// **The group the window in front belongs to**, read from its feed so it arrives with the view
+  /// itself. While there is one, a phone's bar is the group's own (`GroupBar`).
+  ///
+  /// **The list of views is the fallback, and it is what keeps the bar still.** Stepping to another
+  /// of the group's views leaves that view's feed empty for a moment; read from the feed alone, the
+  /// group would vanish and come back, taking the bar — and whatever was about to be tapped — with it.
+  const focusedGroup = $derived.by(() => {
+    const p = focusedPane;
+    if (p?.kind !== 'view' || !p.viewName) return null;
+    const name = p.viewName;
+    return (
+      focusedFeed?.view?.group ?? groupsOf(views ?? []).find((g) => g.views.includes(name)) ?? null
+    );
+  });
+  /// The group's bar steps aside for the app's own — search, windows, backing up, settings — until
+  /// the person goes back to the group or moves somewhere else.
+  let groupBarOff = $state(false);
+  $effect(() => {
+    void focusedGroup?.name;
+    void focused;
+    groupBarOff = false;
+  });
+  /// Counts up when the group bar's add control is pressed; the tracker view in front listens.
+  let groupAdd = $state(0);
   let helpOpen = $state(false);
   /// **Saving, renaming and deleting a view left the UI on 2026-08-31.** The dialog, its state and
   /// the three functions that drove it are gone: *"views are basically fixed for now and view
@@ -2087,7 +2181,29 @@
        vertical space"). That rail sat *beside* a top bar and displaced nothing; this one replaces
        the top bar, so the workspace gets that row's height back — and it collapses, which the old
        one could not. Reasoning in `decisions.md`, 2026-08-30. -->
-    <header class="topbar">
+    <header
+      class="topbar"
+      class:grouped={!!focusedGroup && !groupBarOff && workspace.layout !== 'tiled'}
+    >
+      <!-- **A group's own bar, in place of this one on a narrow screen** (`decisions.md#ui`,
+           2026-10-11). Everything below is still here, one tap away behind its first control. -->
+      {#if focusedGroup}
+        <div class="group-bar-slot">
+          <GroupBar
+            group={focusedGroup}
+            current={focusedPane?.viewName ?? null}
+            onpick={pickGroupView}
+            onadd={() => (groupAdd += 1)}
+            onmore={() => (groupBarOff = true)}
+          />
+        </div>
+        {#if groupBarOff}
+          <button type="button" class="group-return" onclick={() => (groupBarOff = false)}>
+            <Icon name="chevronLeft" size={16} />
+            {focusedGroup.name}
+          </button>
+        {/if}
+      {/if}
       <!-- **One plus, one gear, and a lens.** `New` and `View` were two buttons that ran the
          *same* line of code — `openSettings('commands')` — so the toolbar spent three controls
          and a wordmark saying one thing. The wordmark went too: the app does not need to tell
@@ -2806,6 +2922,7 @@
               onclose={() => closePane(pane.id)}
               onfocus={() => (focused = i)}
               headed={workspace.layout === 'tiled'}
+              addSignal={i === focused ? groupAdd : 0}
             />
           </div>
         {/each}
@@ -3367,9 +3484,39 @@
     font-style: italic;
   }
 
+  /* The group's bar exists only where the bar is at the bottom; on a wide screen the group is a
+     heading in the panel and a control in the pane. */
+  .topbar .group-bar-slot,
+  .topbar .group-return {
+    display: none;
+  }
+
   @media (max-width: 59.999rem) {
     .app {
       grid-template-rows: minmax(0, 1fr) auto;
+    }
+    /* **While a group has the bar, nothing else is in it.** Its own first control brings the rest
+       back (`groupBarOff`), so this hides and never removes. */
+    .topbar.grouped > :global(*:not(.group-bar-slot)) {
+      display: none;
+    }
+    .topbar.grouped .group-bar-slot {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+    }
+    .topbar .group-return {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      min-height: 2.75rem;
+      padding-inline: var(--space-2);
+      border: 0;
+      border-radius: var(--radius-md);
+      background: var(--accent-subtle);
+      color: var(--accent);
+      font: inherit;
+      cursor: pointer;
     }
     .topbar {
       grid-row: 2;

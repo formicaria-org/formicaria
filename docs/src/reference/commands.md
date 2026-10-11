@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 98 of them are below**, grouped by what they are for. If you add an arm to
+**All 107 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -43,6 +43,8 @@ dispatch no longer has fails too.)
 |------------------|------------------------------|------------------------|-------|
 | `capture`        | `body`, `vault`              | `ObjectMeta`           | creates a note |
 | `set_property`   | `id`, `key`, `value`         | `{ previous }`         | writes one frontmatter field (see the table below), and answers the value it replaced (`null` if none), in the form it reads back — what undo sets again |
+| `set_properties` | `id`, `props`                | `{ previous }`         | several fields of one note in one write; an empty value removes a field. `previous` maps each key to the value it had (`null` if none). Nothing is written unless every key is accepted |
+| `create_notes`   | `notes`, `vault`             | `ObjectMeta[]`         | several notes in one call, each made whole: `{ title, body, tags, start, props }`. Every note is checked before any is written. A number in `props` must be whole. The only way to set `log` |
 | `update_body`    | `id`, `body`, `base`         | the new `version`      | byte-for-byte body write; `base` is the `version` you last saw — a mismatch is refused (see below). `''` opts out |
 | `delete`         | `id`                         | `DeletedNote`          | unlinks the file and both index rows, and answers the note's file and notebook so the UI's undo can put it back |
 | `restore_note`   | `vault`, `file`              | `ObjectMeta`           | put a deleted note back from its file; refused if a note with that id exists again |
@@ -166,7 +168,14 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 
 | Command          | Args                         | Returns                | Notes |
 |------------------|------------------------------|------------------------|-------|
-| `list_views` / `run_view` | `name` (run only)   | `ViewInfo[]` / `ViewResult` | saved `.view` files; no `Query` crosses the wire. A file with a mistake is still **listed, with its parse error** |
+| `list_views` / `run_view` | `name` (run only)   | `ViewInfo[]` / `ViewResult` | saved `.view` files; no `Query` crosses the wire. A file with a mistake is still **listed, with its parse error**. The views that come with the app are listed after a vault's own, marked `shipped` |
+| `log_days`       | `view`, `from`, `to`, `rows` | `{ days }`             | a span of days of one log, asked for by the **name** of a `totals` view. Each day: `sums` (`{ sum, n }` per metric, `n` being how many entries carried it), `of` (entries that day), `targets`, and its entries when `rows` |
+| `log_recent`     | `view`, `slot`, `q`, `limit` | `RecentItem[]`         | what a log holds already, one line per distinct thing, most used in `slot` first, each with the values it had the last time |
+| `food_search`    | `q`, `limit`                 | `FoodHit[]`            | foods in the food list whose name has a word beginning with each word typed, the plain food first. An error that says what to do when the list is not on this device |
+| `food_get`       | `id`                         | `FoodDetail` or `null` | one food: every value per 100 g, its household portions, and the pack it came from. `id` may be an entry's `source` |
+| `pack_status`    | —                            | `PackStatus`           | the food list: what is offered (name, size, licence), whether there is somewhere to fetch it from, and what is on this device |
+| `pack_remove`    | —                            | `PackStatus`           | removes the food list and anything half-fetched. Logged entries keep their numbers |
+| `pack_progress`  | —                            | `PackProgress`         | answered here only by a build that cannot fetch (`can_download: false`). Fetching itself is a transport's: `fm-serve` and the Android app answer `pack_progress` and `pack_download` themselves |
 | `save_view`      | `vault`, `name`, `view`, `group_by`, `tag` | `ViewInfo[]` | writes the file. A view filtered by hand **keeps its filter** — saving over it is refused rather than quietly dropping what a screen cannot describe |
 | `rename_view`    | `vault`, `from`, `to`        | `ViewInfo[]`           | moves the file and leaves its contents alone — which is why it is a rename and not "save under the new name, delete the old" |
 | `delete_view`    | `vault`, `name`              | `ViewInfo[]`           | removes only the view; the notes it was showing are untouched |
@@ -184,6 +193,7 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 | `title` | any string                                     | clears      |
 | `start` | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
 | `due`   | `YYYY-MM-DD` or `YYYY-MM-DDTHH:MM`              | clears      |
+| `log`   | **refused** — what kind of logged entry a note is, is set when `create_notes` makes it | refused |
 | `hard`  | `true`/`yes`/`1` → true, else false            | → false     |
 | `tags`  | comma-separated; a tag may contain spaces      | clears      |
 | *(other)* | free text → a custom frontmatter property    | removes it  |

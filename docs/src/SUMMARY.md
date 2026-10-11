@@ -12,6 +12,7 @@
 - [Creating & organizing notes](./user/notes.md)
 - [Importing from Logseq or Obsidian](./user/import.md)
 - [Views](./user/views.md)
+- [Food and training](./user/trackers.md)
 - [Meetings from your calendar](./user/calendars.md)
 - [Mail (Gmail)](./user/mail.md)
 - [Appearance](./user/appearance.md)

@@ -1,0 +1,9 @@
+name: Session
+view: totals
+group: Training
+log: workout
+add: workout
+span: day
+metrics:
+  - { key: work_g, label: Volume, role: primary }
+  - { key: reps, label: Reps, role: secondary }

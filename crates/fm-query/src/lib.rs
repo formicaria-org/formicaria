@@ -9,6 +9,7 @@
 
 use fm_model::{Id, Kind, Object, PropertyValue};
 use indexmap::IndexMap;
+use std::collections::BTreeMap;
 use time::Date;
 
 /// A full query: what to keep, how to order, whether to group, and a page window.
@@ -19,6 +20,9 @@ pub struct Query {
     /// Group rows by *any* property name. The renderer receives opaque groups
     /// and never learns what the property is — that is the whole thesis.
     pub group_by: Option<String>,
+    /// Properties to total, by name — over every matched row, and over each group's rows when
+    /// grouping. See [`Tally`]. Empty costs nothing.
+    pub tally: Vec<String>,
     pub limit: Option<usize>,
     pub offset: usize,
 }
@@ -95,6 +99,14 @@ pub enum Predicate {
     BranchRef {
         key: String,
     },
+    /// `key` holds a well-formed log kind (`food`, `workout`) — the mark of a *logged entry*.
+    ///
+    /// The third sibling of [`Predicate::NoteRef`] and [`Predicate::BranchRef`], for the same
+    /// reason: entries are a hidden note-class, hidden only when the value passes a shape test
+    /// (`fm_model::parse_log_kind`), never on bare presence.
+    LogKind {
+        key: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -137,7 +149,38 @@ pub struct Group {
     pub key: PropertyValue,
     pub label: String,
     pub rows: Vec<Object>,
+    /// One [`Tally`] per property named in [`Query::tally`], over this group's rows.
+    pub tallies: BTreeMap<String, Tally>,
 }
+
+/// What a property adds up to across some rows — the answer to *"how much, today?"*.
+///
+/// **Whole numbers only, and it says what it left out.** A tracked value is an `Int` whose unit is
+/// in its key (`kcal`, `protein_mg`); `12.5` in frontmatter parses as text and is not a number
+/// here. A row that carries such a value is **counted in `odd`, never skipped silently** — a total
+/// that quietly dropped an entry would be a confident wrong answer, the same failure the
+/// `PropertyValue` ordering trap is kept out of `.view` files for.
+///
+/// `n` is how many rows carried a whole number at all, which is what lets a caller say *"from 9 of
+/// 10 entries"* instead of presenting a partial total as a whole one.
+///
+/// A key beginning `conflict-` is never tallied: that is where a merge keeps the value that lost
+/// (`fm-core`'s `merge_objects`), and adding it in would count one entry twice.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Tally {
+    /// The sum of the whole numbers. Saturates rather than wrapping.
+    pub sum: i64,
+    /// The largest of them, or `None` when no row carried one.
+    pub max: Option<i64>,
+    /// How many rows carried a whole number.
+    pub n: usize,
+    /// How many rows carried something else under this key.
+    pub odd: usize,
+}
+
+/// Where a merge keeps a value that lost. Mirrors `fm_core::merge::DEMOTED_PREFIX`; this crate
+/// cannot depend on that one, and a test beside that constant holds the two together.
+pub const DEMOTED_PREFIX: &str = "conflict-";
 
 /// The result of a query: a paginated flat page, optional groups (all rows,
 /// ungated by the page window), and the total match count before pagination.
@@ -146,6 +189,9 @@ pub struct QueryResult {
     pub rows: Vec<Object>,
     pub groups: Option<Vec<Group>>,
     pub total: usize,
+    /// One [`Tally`] per property named in [`Query::tally`], over **every** matched row — like
+    /// `groups` and `total`, not gated by the page window.
+    pub tallies: BTreeMap<String, Tally>,
 }
 
 /// Run a query over a slice of objects. Pure and filesystem-free: the one stable
@@ -156,7 +202,8 @@ pub fn run(query: &Query, objects: &[Object]) -> QueryResult {
     sort_rows(&mut matched, &query.sort);
     let total = matched.len();
 
-    let groups = query.group_by.as_deref().map(|key| group_rows(&matched, key));
+    let groups = query.group_by.as_deref().map(|key| group_rows(&matched, key, &query.tally));
+    let tallies = tally_rows(matched.iter().copied(), &query.tally);
 
     let start = query.offset.min(matched.len());
     let end = match query.limit {
@@ -165,7 +212,7 @@ pub fn run(query: &Query, objects: &[Object]) -> QueryResult {
     };
     let rows = matched[start..end].iter().map(|o| (*o).clone()).collect();
 
-    QueryResult { rows, groups, total }
+    QueryResult { rows, groups, total, tallies }
 }
 
 fn matches(filter: &Filter, obj: &Object) -> bool {
@@ -198,6 +245,10 @@ fn eval(pred: &Predicate, obj: &Object) -> bool {
             // Shape test only: a value counts when it parses as `branch:<name>`, so a stray
             // word (a board drop, a typo) never reads as a proposal pointer.
             PropertyValue::Text(s) => fm_model::parse_branch_ref(&s).is_some(),
+            _ => false,
+        },
+        Predicate::LogKind { key } => match obj.get(key) {
+            PropertyValue::Text(s) => fm_model::parse_log_kind(&s).is_some(),
             _ => false,
         },
     }
@@ -255,13 +306,143 @@ fn sort_rows(rows: &mut [&Object], keys: &[SortKey]) {
     });
 }
 
-fn group_rows(rows: &[&Object], key: &str) -> Vec<Group> {
+fn group_rows(rows: &[&Object], key: &str, tally: &[String]) -> Vec<Group> {
     // IndexMap preserves first-seen order, so columns appear in a stable order.
     let mut buckets: IndexMap<PropertyValue, Vec<Object>> = IndexMap::new();
     for o in rows {
         buckets.entry(o.get(key)).or_default().push((*o).clone());
     }
-    buckets.into_iter().map(|(k, rows)| Group { label: k.display(), key: k, rows }).collect()
+    buckets
+        .into_iter()
+        .map(|(k, rows)| Group {
+            label: k.display(),
+            key: k,
+            tallies: tally_rows(rows.iter(), tally),
+            rows,
+        })
+        .collect()
+}
+
+/// Total each named property over `rows`. See [`Tally`] for what counts.
+fn tally_rows<'a>(
+    rows: impl Iterator<Item = &'a Object> + Clone,
+    keys: &[String],
+) -> BTreeMap<String, Tally> {
+    let mut out = BTreeMap::new();
+    for key in keys {
+        if key.starts_with(DEMOTED_PREFIX) {
+            continue;
+        }
+        let mut t = Tally::default();
+        for o in rows.clone() {
+            match o.get(key) {
+                PropertyValue::Null => {}
+                PropertyValue::Int(v) => {
+                    t.sum = t.sum.saturating_add(v);
+                    t.max = Some(t.max.map_or(v, |m| m.max(v)));
+                    t.n += 1;
+                }
+                _ => t.odd += 1,
+            }
+        }
+        out.insert(key.clone(), t);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tally_tests {
+    use super::*;
+    use fm_model::{Kind, Object};
+
+    fn entry(day: &str, props: &[(&str, PropertyValue)]) -> Object {
+        let mut o = Object::new(Kind::Note, "");
+        o.extra.insert("day".into(), PropertyValue::Text(day.into()));
+        for (k, v) in props {
+            o.extra.insert((*k).into(), v.clone());
+        }
+        o
+    }
+    fn q(group: bool, keys: &[&str]) -> Query {
+        Query {
+            group_by: group.then(|| "day".to_string()),
+            tally: keys.iter().map(|k| (*k).to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_property_is_summed_over_every_row_and_over_each_group() {
+        let rows = [
+            entry("mon", &[("kcal", PropertyValue::Int(200))]),
+            entry("mon", &[("kcal", PropertyValue::Int(350))]),
+            entry("tue", &[("kcal", PropertyValue::Int(90))]),
+        ];
+        let r = run(&q(true, &["kcal"]), &rows);
+        assert_eq!(r.tallies["kcal"], Tally { sum: 640, max: Some(350), n: 3, odd: 0 });
+        let groups = r.groups.unwrap();
+        assert_eq!(groups[0].tallies["kcal"].sum, 550);
+        assert_eq!(groups[1].tallies["kcal"], Tally { sum: 90, max: Some(90), n: 1, odd: 0 });
+    }
+
+    /// The count is what lets a screen say "from 2 of 3 entries" rather than pass a partial
+    /// total off as a whole one.
+    #[test]
+    fn a_row_without_the_property_is_not_counted_and_not_an_error() {
+        let rows = [
+            entry(
+                "mon",
+                &[("kcal", PropertyValue::Int(200)), ("iron_ug", PropertyValue::Int(900))],
+            ),
+            entry("mon", &[("kcal", PropertyValue::Int(700))]),
+        ];
+        let r = run(&q(false, &["kcal", "iron_ug"]), &rows);
+        assert_eq!(r.tallies["kcal"].n, 2);
+        assert_eq!(r.tallies["iron_ug"], Tally { sum: 900, max: Some(900), n: 1, odd: 0 });
+    }
+
+    /// `12.5` in frontmatter is text. It must not be added, and it must not vanish.
+    #[test]
+    fn a_value_that_is_not_a_whole_number_is_reported_never_dropped_silently() {
+        let rows = [
+            entry("mon", &[("kcal", PropertyValue::Int(200))]),
+            entry("mon", &[("kcal", PropertyValue::Text("12.5".into()))]),
+            entry("mon", &[("kcal", PropertyValue::Bool(true))]),
+        ];
+        let r = run(&q(false, &["kcal"]), &rows);
+        assert_eq!(r.tallies["kcal"], Tally { sum: 200, max: Some(200), n: 1, odd: 2 });
+    }
+
+    /// A merge keeps the losing value under `conflict-<key>`. Adding it in would count one
+    /// entry twice.
+    #[test]
+    fn a_demoted_value_is_never_tallied() {
+        let rows = [entry(
+            "mon",
+            &[("kcal", PropertyValue::Int(200)), ("conflict-kcal", PropertyValue::Int(180))],
+        )];
+        let r = run(&q(false, &["kcal", "conflict-kcal"]), &rows);
+        assert_eq!(r.tallies["kcal"].sum, 200);
+        assert!(!r.tallies.contains_key("conflict-kcal"));
+    }
+
+    #[test]
+    fn nothing_asked_for_is_nothing_computed_and_nothing_matched_is_zero() {
+        let rows = [entry("mon", &[("kcal", PropertyValue::Int(200))])];
+        assert!(run(&q(true, &[]), &rows).tallies.is_empty());
+        let none: [Object; 0] = [];
+        let r = run(&q(false, &["kcal"]), &none);
+        assert_eq!(r.tallies["kcal"], Tally::default());
+    }
+
+    #[test]
+    fn a_sum_saturates_instead_of_wrapping() {
+        let rows = [
+            entry("mon", &[("x", PropertyValue::Int(i64::MAX))]),
+            entry("mon", &[("x", PropertyValue::Int(5))]),
+        ];
+        assert_eq!(run(&q(false, &["x"]), &rows).tallies["x"].sum, i64::MAX);
+    }
 }
 
 #[cfg(test)]

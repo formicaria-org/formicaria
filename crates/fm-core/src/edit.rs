@@ -68,6 +68,15 @@ pub fn apply_property(obj: &mut Object, key: &str, raw: &str) -> Result<(), Stor
                 "`{key}` is discussion structure — reply to a note instead of setting it"
             )))
         }
+        // **What kind of logged entry a note is, is decided when it is made.** `log` hides a note
+        // from every planning view (`thread::notes_base`), so it gets the same guard as
+        // `thread_of`: a board grouped by it, plus one drag, would otherwise take a note off every
+        // board, agenda and feed. An entry is created as one; it is removed by deleting it.
+        "log" => {
+            return Err(StoreError::Parse(
+                "`log` is what kind of entry this is — it is set when the entry is made".into(),
+            ))
+        }
         other => {
             if raw.is_empty() {
                 obj.extra.remove(other);

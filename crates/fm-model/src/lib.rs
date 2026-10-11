@@ -253,6 +253,38 @@ pub fn parse_branch_ref(s: &str) -> Option<&str> {
     Some(name)
 }
 
+/// The guard that distinguishes "this note is a logged entry" from "a word landed in `log`".
+///
+/// A logged entry — a meal, a set, a weighing — is a note carrying `log: <kind>`, and such a note
+/// is kept out of every planning view (`decisions.md#data`, 2026-10-11). So, like
+/// [`parse_note_ref`] and [`parse_branch_ref`], the value is **shape-tested before a note is
+/// hidden**: a kind is one short lower-case word (`food`, `workout`, `body`) — a letter, then
+/// letters, digits, `-` or `_`, thirty-two characters at most. A sentence, a title or a column
+/// name with a capital or a space in it is not one.
+pub fn parse_log_kind(s: &str) -> Option<&str> {
+    let mut chars = s.chars();
+    let first = chars.next()?;
+    let ok = first.is_ascii_lowercase()
+        && s.len() <= 32
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_');
+    ok.then_some(s)
+}
+
+#[cfg(test)]
+mod log_kind_tests {
+    use super::parse_log_kind;
+
+    #[test]
+    fn a_kind_is_one_short_lower_case_word() {
+        for good in ["food", "workout", "body", "blood-pressure", "sleep_2"] {
+            assert_eq!(parse_log_kind(good), Some(good));
+        }
+        for bad in ["", "Food", "to do", "2food", "-x", "food!", &"a".repeat(33)] {
+            assert_eq!(parse_log_kind(bad), None, "{bad:?} must not read as a log kind");
+        }
+    }
+}
+
 #[cfg(test)]
 mod ref_tests {
     use super::*;

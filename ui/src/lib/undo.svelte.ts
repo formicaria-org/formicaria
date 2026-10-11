@@ -11,8 +11,17 @@
 // device changed it since — it refuses and says so. A deleted note is put back only if no note with
 // that id exists again; edited text uses the server's own lost-update guard.
 
-import { capture, deleteNote, getNote, restoreNote, setProperty, updateBody } from './ipc';
-import type { NoteDetail } from './types';
+import {
+  capture,
+  createNotes,
+  deleteNote,
+  getNote,
+  restoreNote,
+  setProperties,
+  setProperty,
+  updateBody,
+} from './ipc';
+import type { NoteDetail, NoteDraft } from './types';
 
 export type Undoable = {
   /** What happened, in the person's words: `deleted “Lab meeting”`. */
@@ -164,6 +173,43 @@ export async function captureUndoable(body: string, vault: string) {
     },
   });
   return meta;
+}
+
+/** Create several notes as **one** step: undo removes them all, redo puts them all back. A logged
+ *  meal copied from yesterday is several notes and one thing a person did. */
+export async function createNotesUndoable(drafts: NoteDraft[], label: string) {
+  const made = await createNotes(drafts);
+  let kept: { vault: string; file: string }[] = [];
+  record({
+    label,
+    undo: async () => {
+      kept = [];
+      for (const m of made) kept.push(await deleteNote(m.id));
+    },
+    redo: async () => {
+      for (const k of kept) await restoreNote(k.vault, k.file);
+    },
+  });
+  return made;
+}
+
+/** Set several properties as one step. */
+export async function setPropertiesUndoable(
+  id: string,
+  props: Record<string, string | number>,
+  label: string,
+): Promise<void> {
+  const { previous } = await setProperties(id, props);
+  const back = Object.fromEntries(Object.entries(previous).map(([k, v]) => [k, v ?? '']));
+  record({
+    label,
+    undo: async () => {
+      await setProperties(id, back);
+    },
+    redo: async () => {
+      await setProperties(id, props);
+    },
+  });
 }
 
 /** Record a finished editing session on a note's text: undo puts the text back as it was before. */

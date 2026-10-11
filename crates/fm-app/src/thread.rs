@@ -136,6 +136,21 @@ pub fn is_proposal(o: &Object) -> bool {
         if fm_model::parse_branch_ref(&s).is_some())
 }
 
+/// The property that marks a **logged entry** — a meal, a set, a weighing — and says which kind.
+///
+/// `decisions.md#data`, 2026-10-11: an entry is a note with `log: <kind>`, a day in `start`, and
+/// whole numbers whose unit is in the key. There are thousands of them a year, so they are a hidden
+/// note-class like messages and proposals. `apply_property` refuses the key, so nothing but the
+/// command that makes an entry can set it.
+pub const LOG: &str = "log";
+
+/// Is this object a logged entry? The entry twin of [`is_message`], for the surfaces a filter
+/// cannot reach.
+pub fn is_log(o: &Object) -> bool {
+    matches!(o.get(LOG), fm_model::PropertyValue::Text(s)
+        if fm_model::parse_log_kind(&s).is_some())
+}
+
 /// The base filter for every "things you plan" view: notes, and not messages.
 ///
 /// **The only place `Predicate::Kind(vec![Kind::Note])` is written**, enforced by a grep in
@@ -143,8 +158,8 @@ pub fn is_proposal(o: &Object) -> bool {
 /// `.view` cannot widen it (a `.view`'s conjuncts are `Vec::extend`ed onto this base, so it can
 /// only ever narrow).
 ///
-/// Three exclusions, one reason: none of an asset, a message, or a proposal is something you
-/// *plan*.
+/// Four exclusions, one reason: none of an asset, a message, a proposal or a logged entry is
+/// something you *plan*.
 /// - **Assets** — a blob a note references. Findable via `search` or via its note.
 /// - **Messages** — a 40-message thread is 40 notes. Left in, they fill the board's `(none)`
 ///   column, bury real notes in the timeline, and flood `recent()` — which is what the editor's
@@ -163,6 +178,40 @@ pub fn notes_base() -> Filter {
         .and(Predicate::Kind(vec![Kind::Note]))
         .and(Predicate::Not(Box::new(Predicate::NoteRef { key: THREAD_OF.into(), id: None })))
         .and(Predicate::Not(Box::new(Predicate::BranchRef { key: PROPOSES.into() })))
+        // **Logged entries** — five to ten a day. Left in, a year of meals is three thousand
+        // cards in the board's `(none)` column.
+        .and(not_logged())
+}
+
+/// "…and not a logged entry." Written once, because `search` needs it without the rest of
+/// [`notes_base`]: it must still find messages and proposals, but three hundred notes titled
+/// "Coffee" would bury everything it is for.
+pub fn not_logged() -> Predicate {
+    Predicate::Not(Box::new(Predicate::LogKind { key: LOG.into() }))
+}
+
+/// One log's entries **and** the notes holding its targets, in one filter — so a day's totals and
+/// the targets they are measured against cost one pass over the vault, not two. The caller tells
+/// the two apart (`is_log`); a program is an ordinary note carrying `program: <kind>`.
+pub fn log_with_programs_base(kind: &str, program_key: &str) -> Filter {
+    let is = |key: &str| Predicate::Prop {
+        key: key.into(),
+        op: fm_query::Op::Eq,
+        value: fm_model::PropertyValue::Text(kind.to_string()),
+    };
+    Filter::new()
+        .and(Predicate::Kind(vec![Kind::Note]))
+        .and(Predicate::Any(vec![is(LOG), is(program_key)]))
+}
+
+/// The base filter for one log: the entries of that kind, and nothing else. The complement of the
+/// entry exclusion in [`notes_base`], here for the same two reasons as [`proposals_base`].
+pub fn log_base(kind: &str) -> Filter {
+    Filter::new().and(Predicate::Kind(vec![Kind::Note])).and(Predicate::Prop {
+        key: LOG.into(),
+        op: fm_query::Op::Eq,
+        value: fm_model::PropertyValue::Text(kind.to_string()),
+    })
 }
 
 /// The base filter for the Collaboration surface: notes that **are** proposals — the exact

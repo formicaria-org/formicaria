@@ -27,7 +27,9 @@ import type {
   ConflictInfo,
   DuplicateFamily,
   Unrecorded,
+  NoteDraft,
 } from './types';
+import * as tracker from './mockTracker';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -227,7 +229,10 @@ const isDiscussion = (n: ObjectMeta) => n.props?.thread_of === `note:${n.id}`;
 /** What the planning views show. Mirrors `fm_app::thread::notes_base()`: not an asset, not a
  *  discussion message, and not a proposal. **Keep these in step** — a mock that disagrees with
  *  the server is a mock that hides a server bug (and vice versa). */
-const isNote = (n: ObjectMeta) => n.type !== 'asset' && !isMessage(n) && !isProposal(n);
+// …and not a logged entry: a note carrying `log` is kept out of every planning view
+// (`decisions.md#data`, 2026-10-11).
+const isNote = (n: ObjectMeta) =>
+  n.type !== 'asset' && !isMessage(n) && !isProposal(n) && !n.props?.log;
 
 /// The one property/value the mock's saved **board** view filters out — i.e. the column a test
 /// should find missing from `run_view('Active')` and present on the built-in board.
@@ -743,6 +748,17 @@ export function clearFaults(): void {
 /// **without re-running `makeNote`** — which would mint new ids and re-stamp `created`/`updated`
 /// from a later `Date.now()`, shifting the dates other tests group by. Snapshot, not recipe.
 const FIXTURES = notes.map((n) => JSON.parse(JSON.stringify(n)) as ObjectMeta);
+
+/// **The tracker's demo data is in `pnpm dev` and not in the test suite.** A fortnight of entries
+/// and four more views would change what every existing test counts, so a test that wants them
+/// asks ([`seedTrackerDemo`]) and `reset()` takes them away again.
+let trackerOn = false;
+export function seedTrackerDemo(): void {
+  if (trackerOn) return;
+  trackerOn = true;
+  tracker.seedTracker(notes);
+}
+if (import.meta.env.MODE !== 'test') seedTrackerDemo();
 const FIXTURE_SEQ = seq;
 /// The vault list as imported. `create_vault`/`forget_vault` mutate `mockVaults` in place, so a
 /// test that creates one leaks it into every later test in the file unless `reset()` puts it back.
@@ -782,6 +798,8 @@ export function reset(): void {
   mockAssetBatches = [];
   mockKept = [];
   mockPlatform = 'linux';
+  trackerOn = false;
+  tracker.resetPack();
 }
 
 /// Fill the vault to a realistic size.
@@ -2140,9 +2158,52 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'list_views': {
       const views: ViewInfo[] = mockSavedViews.slice();
+      // The views that come with the app are always listed, as the server lists them; whether
+      // their groups are *shown* is the device's choice (`trackersShown` in `App.svelte`).
+      views.push(...tracker.TRACKER_VIEWS);
       return views as T;
     }
+    case 'log_days': {
+      const a = args as { view: string; from: string; to: string; rows?: boolean };
+      return tracker.logDays(notes, a) as T;
+    }
+    case 'log_recent': {
+      const a = args as { view: string; slot?: string; q?: string; limit?: number };
+      return tracker.logRecent(notes, a) as T;
+    }
+    case 'create_notes':
+      return tracker.createNotes(notes, (args.notes ?? []) as NoteDraft[]) as T;
+    case 'set_properties': {
+      const props = (args.props ?? {}) as Record<string, string | number>;
+      return tracker.setProperties(notes, String(args.id), props) as T;
+    }
+    case 'food_search':
+      return tracker.foodSearch(String(args.q ?? ''), Number(args.limit ?? 20)) as T;
+    case 'food_get':
+      return tracker.foodGet(String(args.id)) as T;
+    case 'pack_status':
+      return tracker.packStatus() as T;
+    case 'pack_remove':
+      return tracker.packRemove() as T;
+    case 'pack_progress':
+      return tracker.packProgress() as T;
+    // Answered by a transport shell on a real device, never by the command surface.
+    case 'pack_download':
+      return tracker.packDownload(Boolean(args.cancel)) as T;
     case 'run_view': {
+      const def = tracker.trackerDef(String(args.name ?? ''));
+      if (def) {
+        const result: ViewResult = {
+          name: String(args.name),
+          renderer: 'totals',
+          group_by: null,
+          filters: [],
+          rows: [],
+          totals: def.totals,
+          group: def.group,
+        };
+        return result as T;
+      }
       // The board view answers a board with its filtered column genuinely absent — the same thing
       // the server does, and the only way a test can assert that the column comes back.
       if (String(args.name ?? '') === 'Active') {

@@ -634,7 +634,11 @@ pub fn search(store: &dyn Store, query: &str) -> Result<Vec<ObjectMeta>, StoreEr
         return Ok(vec![]);
     }
     let q = Query {
-        filter: Filter::new().and(Predicate::Text(query.to_string())),
+        // Messages and proposals stay findable; logged entries do not — a food log is searched
+        // from its own sheet (`decisions.md#data`, 2026-10-11).
+        filter: Filter::new()
+            .and(Predicate::Text(query.to_string()))
+            .and(crate::thread::not_logged()),
         sort: vec![SortKey::desc("updated")],
         ..Default::default()
     };
@@ -2198,7 +2202,10 @@ pub fn resolve_touches(
         // one surface a predicate cannot reach. Every reply and every proposal is a new file and
         // therefore a git touch: without this a busy thread (or a pile of proposals) floods the
         // recent-edits feed, the contributor filter and the `EditedBy` labels.
-        if crate::thread::is_message(&obj) || crate::thread::is_proposal(&obj) {
+        if crate::thread::is_message(&obj)
+            || crate::thread::is_proposal(&obj)
+            || crate::thread::is_log(&obj)
+        {
             continue;
         }
         events.push(EditEvent {

@@ -222,6 +222,22 @@ npm_licences() {
     echo "Model **weights** are downloaded from Hugging Face and carry their own terms, stated in"
     echo "the app before anything is fetched and recorded per model in \`models.toml\`."
     echo
+    # **Part four: a reference pack.** Data, not software, and fetched only when someone asks for
+    # it in Settings — but it is something this project built, pinned and offers to put on a
+    # person's disk, so it is named here like the rest (`decisions.md#toolchain`, 2026-10-11).
+    echo "## Downloaded at runtime (the optional food list)"
+    echo
+    echo "Not part of these binaries and not present unless someone gets it in Settings. Built by"
+    echo "\`ci/pack-foods.py\` from three datasets of USDA FoodData Central, each pinned by URL"
+    echo "**and SHA-256** in that script; the pack itself is pinned by SHA-256 in"
+    echo "\`crates/fm-app/src/packs.rs\`."
+    echo
+    echo "| Component | Licence | Source |"
+    echo "|---|---|---|"
+    echo "| Foundation Foods, SR Legacy, Survey Foods (FNDDS) | U.S. Government work, public domain | <https://fdc.nal.usda.gov> |"
+    echo
+    echo "U.S. Department of Agriculture, Agricultural Research Service. FoodData Central."
+    echo
     echo "Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,"
     echo "in \`LICENSE\`."
 } > "$OUT"

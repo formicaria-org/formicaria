@@ -144,3 +144,77 @@ fn a_feed_row_never_carries_an_unbounded_body() {
         json.len() / rows.len(),
     );
 }
+
+/// **A year or three of logged entries must not change the complexity of the planning views.**
+///
+/// A logged entry (`decisions.md#data`, 2026-10-11) is excluded from the board by a predicate the
+/// index cannot answer — only `Kind` and text reach SQL — so every entry is still read and parsed
+/// on every board fetch, then dropped. That is a cost in proportion to the entries, and this pins
+/// that it is *only* that: the cost per object must not grow when nine in ten objects are entries.
+///
+/// It prints the absolute numbers, because the ratio guards the complexity class and the number is
+/// what says whether the exclusion needs to be pushed down into the index. **If this fails, that is
+/// the fix** — a third pushdown beside `Kind` and text — not a cache.
+#[test]
+fn logged_entries_cost_the_board_no_more_per_object_than_notes_do() {
+    use fm_app::commands::board;
+    use fm_app::log::{create_notes, log_days, NoteDraft};
+    use fm_app::views::totals_named;
+
+    fn timed(notes: usize, entries: usize) -> (std::time::Duration, std::time::Duration) {
+        let (_dir, mut store, _) = vault(notes, 0);
+        let per_day = 8;
+        let mut made = 0;
+        let mut day = time::Date::from_calendar_date(2024, time::Month::January, 1).unwrap();
+        while made < entries {
+            let drafts: Vec<NoteDraft> = (0..per_day.min(entries - made))
+                .map(|i| {
+                    serde_json::from_value(serde_json::json!({
+                        "title": format!("food {i}"),
+                        "start": format!("{:04}-{:02}-{:02}", day.year(), day.month() as u8, day.day()),
+                        "props": { "log": "food", "slot": "lunch", "kcal": 200 + i, "protein_mg": 9000 },
+                    }))
+                    .unwrap()
+                })
+                .collect();
+            made += drafts.len();
+            create_notes(&mut store, "", &drafts).unwrap();
+            day = day.next_day().unwrap();
+        }
+        let _ = board(&store, "status").unwrap(); // warm
+        let t = std::time::Instant::now();
+        let b = board(&store, "status").unwrap();
+        let on_board = t.elapsed();
+        let cards: usize = b.columns.iter().map(|c| c.cards.len()).sum();
+        assert_eq!(cards, notes, "no entry may reach the board");
+
+        let def = totals_named(&[], "Day").unwrap();
+        let t = std::time::Instant::now();
+        let r = log_days(&store, &def, "2024-01-01", "2024-01-14", true).unwrap();
+        let one_fortnight = t.elapsed();
+        assert_eq!(r.days.len(), 14);
+        (on_board, one_fortnight)
+    }
+
+    let notes = 1_000usize;
+    let entries = 9_000usize;
+    let (alone, _) = timed(notes, 0);
+    let (crowded, fortnight) = timed(notes, entries);
+    let per_alone = alone.as_secs_f64() / notes as f64;
+    let per_crowded = crowded.as_secs_f64() / (notes + entries) as f64;
+    let growth = per_crowded / per_alone;
+    eprintln!(
+        "board(): {:.1} ms over {notes} notes; {:.1} ms with {entries} entries beside them \
+         ({:.1} vs {:.1} µs/object, {growth:.2}x). log_days(14 days of {entries}): {:.1} ms",
+        alone.as_secs_f64() * 1e3,
+        crowded.as_secs_f64() * 1e3,
+        per_alone * 1e6,
+        per_crowded * 1e6,
+        fortnight.as_secs_f64() * 1e3,
+    );
+    assert!(
+        growth < 2.5,
+        "an excluded entry costs the board {growth:.1}x what a note does per object — the \
+         exclusion has stopped being a cheap filter. Push `log` down into the index."
+    );
+}

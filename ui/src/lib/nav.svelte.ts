@@ -81,6 +81,20 @@ export function visit(t: Target) {
   }
 }
 
+/** The place showing changed **without a move**: rewrite the entry on top instead of adding one.
+ *  Stepping between a group's views is this — five taps along its tabs must not be five Backs
+ *  (`decisions.md#ui`, 2026-10-11). */
+export function replace(t: Target) {
+  if (restoring) return;
+  try {
+    const top = current();
+    if (top?.layer) return; // a panel's entry is on top; it keeps its own
+    history.replaceState({ fm: 1, nav: t } satisfies State, '');
+  } catch {
+    /* no history — nothing to rewrite */
+  }
+}
+
 // ── layers ───────────────────────────────────────────────────────────────────────────────────
 
 type Layer = { name: string; close: () => void };

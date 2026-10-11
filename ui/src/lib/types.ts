@@ -491,7 +491,7 @@ export interface ImportReport {
 }
 
 /** The renderer a `.view` draws through — the same set the built-in nav offers. */
-export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery';
+export type Renderer = 'board' | 'agenda' | 'timeline' | 'search' | 'gallery' | 'totals';
 
 /** One saved `.view`, as the sidebar lists it. A view that would not parse still appears,
  *  with `error` set and `renderer` null — a broken view names itself, never vanishes. */
@@ -510,6 +510,10 @@ export interface ViewInfo {
   name: string;
   renderer: Renderer | null;
   group_by: string | null;
+  /** The group this view belongs to (`decisions.md#ui`, 2026-10-11). Absent for an ordinary view. */
+  group?: string;
+  /** Came with the app, not from a vault. Whether its group is shown is this device's choice. */
+  shipped?: boolean;
   /** Which vault holds the file. Needed to delete it: without it the command resolves against the
    *  default vault, where a view belonging to another one is simply not found — and a delete that
    *  reports success while deleting nothing is the worst answer available. */
@@ -534,6 +538,97 @@ export interface ViewResult {
   filters: string[];
   board?: Board;
   rows?: ObjectMeta[];
+  /** What a `totals` view sums and how it names it. The data itself comes from `log_days`. */
+  totals?: TotalsDef;
+  /** The view's group and its sibling views, in order. It travels with the payload, like `filters`. */
+  group?: ViewGroup;
+}
+
+// ── Trackers (`decisions.md#data`, `#ui`, 2026-10-11) ────────────────────────────────────────────
+// A logged entry is a note with a reserved `log` property, a day in `start`, a `slot`, and whole
+// numbers whose unit is in the key (`kcal`, `protein_mg`). These are the shapes its commands answer.
+
+/** One value a view sums. `role` decides how prominently it is drawn; the unit comes from the key. */
+export interface Metric {
+  key: string;
+  label: string;
+  role: 'primary' | 'secondary' | 'detail';
+  /** How a day's entries become the day's value: added up (the default), or averaged — a weight
+   *  taken twice in a day is not two weights. */
+  agg?: 'sum' | 'mean';
+}
+/** A part of the day an entry belongs to — a meal, for a food log. */
+export interface Slot {
+  value: string;
+  label: string;
+}
+export interface TotalsDef {
+  /** Which entries: the value of their `log` property. */
+  log: string;
+  /** Which of the closed set of add actions the group's add control opens. */
+  add: 'food' | 'workout' | 'body';
+  span: 'day' | 'range';
+  metrics: Metric[];
+  slots: Slot[];
+}
+export interface ViewGroup {
+  name: string;
+  views: string[];
+}
+/** A sum, and how many of the day's entries carried the value at all. */
+export interface MetricSum {
+  sum: number;
+  n: number;
+  /** How many entries carried something that is not a whole number. Absent when none did. */
+  odd?: number;
+}
+export interface DayTotals {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  /** How many entries the day has. */
+  of: number;
+  sums: Record<string, MetricSum>;
+  /** The targets in force that day, by metric key. Empty when there is no program. */
+  targets: Record<string, number>;
+  rows?: ObjectMeta[];
+}
+export interface LogDays {
+  days: DayTotals[];
+}
+/** Something logged before, offered again with the amount last used. */
+export interface RecentItem {
+  title: string;
+  props: Record<string, unknown>;
+  count: number;
+  last: string;
+}
+/** A note to create. Several are created in one write (`create_notes`). */
+export interface NoteDraft {
+  title: string;
+  body?: string;
+  tags?: string[];
+  start?: string;
+  props: Record<string, string | number>;
+  vault?: string;
+}
+export interface FoodHit {
+  id: string;
+  name: string;
+  /** Energy per 100 g. */
+  kcal: number;
+}
+export interface FoodPortion {
+  label: string;
+  grams: number;
+}
+export interface FoodDetail {
+  id: string;
+  name: string;
+  /** Every value per 100 g, keyed like an entry's properties. */
+  per100: Record<string, number>;
+  portions: FoodPortion[];
+  /** The pack and version the values came from; an entry records it as its `source`. */
+  pack: string;
 }
 
 /** What this installation is configured as — the Settings screen's whole payload.
@@ -628,4 +723,35 @@ export interface AssetBatch {
   cap: number;
   count: number;
   bytes: number;
+}
+
+/** What a reference pack says about itself (`fm_core::pack::PackInfo`). */
+export interface PackInfo {
+  name: string;
+  version: string;
+  title: string;
+  licence: string;
+  attribution: string;
+  foods: number;
+}
+/** The food list: what is offered, whether it can be fetched, and what is on this device. */
+export interface PackStatus {
+  title: string;
+  version: string;
+  /** What fetching it will spend. */
+  bytes: number;
+  licence: string;
+  available: boolean;
+  installed: PackInfo | null;
+  /** What removing it hands back. */
+  installed_bytes: number;
+}
+/** A fetch in flight. `can_download` is false for a build with no way to fetch. */
+export interface PackProgress {
+  can_download: boolean;
+  running: boolean;
+  received: number;
+  total: number | null;
+  error: string | null;
+  done: boolean;
 }

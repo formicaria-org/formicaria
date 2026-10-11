@@ -534,6 +534,18 @@ question this has to answer is: what is the small, sentence-shaped question a pe
 
 Not started. Do not treat the rejected query builder as the only shape this could take.
 
+**Partly answered 2026-10-11.** `fm-query` totals a property over every matched row and over each
+group (`Query::tally`), and a `totals` view draws days of a log from it — but only for the views
+that ship with the app. The general ask — *"show me everything tagged X, grouped by Y, added up"*,
+asked for without a query builder — is still open. The plan and its rulings:
+[`tools-plan-2026-10-11.md`](./tools-plan-2026-10-11.md), `decisions.md#ui`.
+
+**Next for trackers, in order:** publish the food list (the owner decides where; then
+`packs::FOOD.url`) — without it a phone cannot have one; try the whole thing in an installed build
+on the phone; **measure the board with thousands of entries on the phone**, which decides whether
+`log` is pushed down into the index; then Progress (Phase 4) and Programs (Phase 5). The limits as
+they stand: `known-issues.md`, *Trackers — where they stand*.
+
 ### 2.6 Restraint in the first-run form — CLOSED
 **Tombstone** (`decisions.md`, *a closed section in the queue leaves a tombstone*). Deleted when it
 closed, before that ruling existed — and `ui/src/App.welcome.test.ts` and `Welcome.svelte.test.ts`

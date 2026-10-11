@@ -30,6 +30,7 @@
   } from './settingsMap';
   import Appearance from './Appearance.svelte';
   import CalendarsSection from './CalendarsSection.svelte';
+  import TrackersSection from './TrackersSection.svelte';
   import MailSection from './MailSection.svelte';
   import {
     config as fetchConfig,
@@ -1471,6 +1472,18 @@
           </p>
         {/if}
       </section>
+
+      <!-- Food and training: a switch for this device, and the food list. Not offered to a paired
+           device — the list is the host's disk, and what it shows is its own choice. -->
+      {#if !isRemote()}
+        <div
+          class="cat"
+          data-cat="notes"
+          data-words="food meals calories nutrition diet training workout exercise tracker"
+        >
+          <TrackersSection />
+        </div>
+      {/if}
 
       <section
         data-cat="notes"

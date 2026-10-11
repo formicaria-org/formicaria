@@ -147,6 +147,16 @@ pub fn merge_texts(
 /// else. One constant is what stops the app and the merge disagreeing about which keys are ours.
 pub const DEMOTED_PREFIX: &str = "conflict-";
 
+#[cfg(test)]
+mod demoted_prefix_is_one_string {
+    /// `fm-query` leaves a demoted value out of every total, and cannot depend on this crate to
+    /// learn the prefix. If the two ever differ, a merge's losing value is counted twice.
+    #[test]
+    fn the_query_engine_knows_the_same_prefix() {
+        assert_eq!(super::DEMOTED_PREFIX, fm_query::DEMOTED_PREFIX);
+    }
+}
+
 /// Merge everything except the body. `None` only when the two sides are not the same note at all —
 /// every field-level disagreement is settled here, never escalated to the caller.
 fn merge_objects(base: &Object, ours: &Object, theirs: &Object) -> Option<Object> {

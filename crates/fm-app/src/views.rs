@@ -45,6 +45,10 @@ pub enum Renderer {
     /// used to fall through to the timeline in silence, which is the one thing `list_views` exists
     /// to prevent: it reports a view it cannot draw, it never quietly draws a different one.
     Gallery,
+    /// The days of a log: sums of named properties against targets, entries under their slots
+    /// (`decisions.md#ui`, 2026-10-11). Its rows come from `log_days`, which is asked for a span of
+    /// days; `run_view` answers only what the view *is* ([`TotalsDef`]).
+    Totals,
 }
 
 /// One `.view` file, as written. Everything but `name`/`view` is optional, so the simplest
@@ -62,6 +66,133 @@ struct ViewFile {
     /// ANDed onto the renderer's base filter.
     #[serde(default)]
     filter: Vec<PredDto>,
+    /// The group of views this one belongs to. The chrome draws a group's views together.
+    #[serde(default)]
+    group: Option<String>,
+    // ── `view: totals` only ──────────────────────────────────────────────────────────────────
+    /// Which logged entries: the value of their `log` property.
+    #[serde(default)]
+    log: Option<String>,
+    /// Which of the closed set of add actions the group's add control opens.
+    #[serde(default)]
+    add: Option<AddAction>,
+    #[serde(default)]
+    span: Span,
+    /// The properties summed, and what each is called.
+    #[serde(default)]
+    metrics: Vec<Metric>,
+    /// The parts of a day an entry belongs to.
+    #[serde(default)]
+    slots: Vec<Slot>,
+}
+
+/// One value a `totals` view sums. **No unit and no scale**: the unit is the end of the key
+/// (`protein_mg`), read in one place on the other side (`ui/src/lib/units.ts`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Metric {
+    pub key: String,
+    pub label: String,
+    #[serde(default)]
+    pub role: Role,
+    /// How a day's entries become the day's value. Left out for a sum, which is nearly all of them.
+    #[serde(default, skip_serializing_if = "Agg::is_sum")]
+    pub agg: Agg,
+}
+
+/// **Added up, or averaged.** Energy eaten in a day is the sum of its entries. A weight taken twice
+/// in a day is not two weights: it is measured, and the day's value is the mean. A day's answer
+/// carries the sum and the count either way (`log::MetricSum`), so this changes how a value is
+/// *read*, not what is computed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Agg {
+    #[default]
+    Sum,
+    Mean,
+}
+impl Agg {
+    fn is_sum(&self) -> bool {
+        *self == Agg::Sum
+    }
+}
+
+/// How prominently a metric is drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Primary,
+    #[default]
+    Secondary,
+    Detail,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Slot {
+    pub value: String,
+    pub label: String,
+}
+
+/// **A closed set, like [`Renderer`]** — what a group's add control opens. Adding to it is a
+/// ruling (`decisions.md#ui`, 2026-10-11), not a line in a file: a group that could name any
+/// action would be an app inside the app.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AddAction {
+    Food,
+    Workout,
+    Body,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Span {
+    #[default]
+    Day,
+    Range,
+}
+
+/// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
+/// names comes from here, which is what keeps the renderer free of them.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct TotalsDef {
+    pub log: String,
+    pub add: AddAction,
+    pub span: Span,
+    pub metrics: Vec<Metric>,
+    pub slots: Vec<Slot>,
+}
+
+/// A group, with its views in the order they are listed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ViewGroup {
+    pub name: String,
+    pub views: Vec<String>,
+}
+
+/// Read a `totals` view's own keys, refusing what would otherwise fail later and less clearly.
+fn totals_def(file: &ViewFile) -> Result<TotalsDef, String> {
+    let log = file.log.as_deref().unwrap_or("").trim();
+    if fm_model::parse_log_kind(log).is_none() {
+        return Err(
+            "a totals view needs `log:` — one short lower-case word, like `food`".to_string()
+        );
+    }
+    if file.metrics.is_empty() {
+        return Err("a totals view needs at least one entry under `metrics:`".to_string());
+    }
+    for m in &file.metrics {
+        if m.key.trim().is_empty() || m.key.starts_with(fm_query::DEMOTED_PREFIX) {
+            return Err(format!("`{}` cannot be a metric", m.key));
+        }
+    }
+    let add = file.add.ok_or("a totals view needs `add:` — food, workout or body")?;
+    Ok(TotalsDef {
+        log: log.to_string(),
+        add,
+        span: file.span,
+        metrics: file.metrics.clone(),
+        slots: file.slots.clone(),
+    })
 }
 
 #[derive(Deserialize)]
@@ -139,6 +270,14 @@ pub struct ViewInfo {
     pub name: String,
     pub renderer: Option<Renderer>,
     pub group_by: Option<String>,
+    /// The group this view belongs to, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    /// **Came with the app, not from a vault.** A shipped view is listed for every installation;
+    /// whether its group is shown is the device's own choice, so the other side needs to tell the
+    /// two apart. A vault file of the same name replaces one, and is then not `shipped`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub shipped: bool,
     /// **Which vault holds this file.** `list_views` walks one vault at a time and cannot know its
     /// name, so it leaves this empty and `dispatch` stamps it while iterating the configs. Without
     /// it the UI has a list of views and no idea where any of them live — and "delete" resolves
@@ -179,12 +318,19 @@ pub struct ViewResult {
     pub board: Option<Board>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rows: Option<Vec<ObjectMeta>>,
+    /// A `totals` view's definition. Its days are asked for separately (`log_days`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub totals: Option<TotalsDef>,
+    /// The view's group and its sibling views, in order — with the payload, like `filters`, so a
+    /// screen can draw the group's tabs without waiting on the view list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<ViewGroup>,
 }
 
 /// The base query for a renderer — the same shape the built-in `commands::{board,agenda,…}`
 /// build. Kept here so a `.view` starts from the identical filter; the string `"done"` and
 /// `Kind(Note)` live in exactly these arms.
-fn base(renderer: Renderer, group_by: Option<&str>) -> Query {
+fn base(renderer: Renderer, group_by: Option<&str>, log: Option<&str>) -> Query {
     // The same base the built-in commands use, from its single definition — so a `.view`
     // file cannot be the one surface that forgets the assets or the message exclusion.
     let notes = crate::thread::notes_base;
@@ -223,13 +369,21 @@ fn base(renderer: Renderer, group_by: Option<&str>) -> Query {
             sort: vec![SortKey::desc("created")],
             ..Default::default()
         },
+        // **Its own base, not `notes_base`** — which excludes exactly the entries this view is
+        // for, and a view's own filter can only narrow. Defined in `thread.rs` beside the
+        // exclusion, so the two cannot come to disagree about what a logged entry is.
+        Renderer::Totals => Query {
+            filter: crate::thread::log_base(log.unwrap_or("")),
+            sort: vec![SortKey::asc("start"), SortKey::asc("created")],
+            ..Default::default()
+        },
     }
 }
 
 /// Lower a parsed file to a ready-to-run `Query`. Errors are the caller-facing sentence a
 /// broken view shows, so they say what is wrong and (where useful) how to fix it.
 fn lower(file: &ViewFile) -> Result<Query, String> {
-    let mut q = base(file.view, file.group_by.as_deref());
+    let mut q = base(file.view, file.group_by.as_deref(), file.log.as_deref());
     for (i, p) in file.filter.iter().enumerate() {
         q.filter.all.push(lower_pred(p).map_err(|e| format!("filter[{i}]: {e}"))?);
     }
@@ -496,6 +650,11 @@ pub fn save_view(
 ) -> Result<PathBuf, String> {
     // The app must not author a view it cannot draw. `list_views` now reports a gallery view as
     // broken, and writing a fresh one would be manufacturing that breakage from inside the app.
+    // …and one it cannot *write*: a totals view carries metrics and slots this function has no
+    // way to express, and nothing in the app authors one (`decisions.md#ui`, 2026-10-11).
+    if view == Renderer::Totals {
+        return Err("a totals view comes with the app or is written by hand".into());
+    }
     if view == Renderer::Gallery {
         return Err(GALLERY_GONE.into());
     }
@@ -529,6 +688,7 @@ pub fn save_view(
         Renderer::Timeline => "timeline",
         Renderer::Search => "search",
         Renderer::Gallery => "gallery",
+        Renderer::Totals => "totals",
     };
     // Written as the same YAML a person would write by hand — this is a file they own, in their
     // vault, tracked by git and read by collaborators, not an opaque app artifact.
@@ -589,13 +749,29 @@ pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
                 name: file.name,
                 renderer: None,
                 group_by: None,
+                group: None,
+                shipped: false,
                 vault: String::new(),
                 error: Some(GALLERY_GONE.into()),
             }),
+            // A totals view that cannot be drawn names itself, like any other broken view.
+            Ok(file) if file.view == Renderer::Totals && totals_def(&file).is_err() => {
+                out.push(ViewInfo {
+                    error: totals_def(&file).err(),
+                    name: file.name,
+                    renderer: None,
+                    group_by: None,
+                    group: None,
+                    shipped: false,
+                    vault: String::new(),
+                })
+            }
             Ok(file) => out.push(ViewInfo {
                 name: file.name,
                 renderer: Some(file.view),
                 group_by: file.group_by,
+                group: file.group,
+                shipped: false,
                 vault: String::new(),
                 error: None,
             }),
@@ -603,6 +779,8 @@ pub fn list_views(vault: &Path) -> Vec<ViewInfo> {
                 name: stem,
                 renderer: None,
                 group_by: None,
+                group: None,
+                shipped: false,
                 vault: String::new(),
                 error: Some(e),
             }),
@@ -616,6 +794,35 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
     let path =
         find_view(vault, name).ok_or_else(|| StoreError::Io(format!("no view named '{name}'")))?;
     let file = read_view(&path).map_err(StoreError::Io)?;
+    run_file(store, file)
+}
+
+/// Run a view that came with the app. `None` when there is none of that name.
+pub fn run_shipped(store: &dyn Store, name: &str) -> Option<Result<ViewResult, StoreError>> {
+    let (_, text) = SHIPPED.iter().find(|(_, text)| shipped_name(text) == Some(name))?;
+    Some(
+        parse_view(text, "a view that came with the app")
+            .map_err(StoreError::Io)
+            .and_then(|f| run_file(store, f)),
+    )
+}
+
+fn run_file(store: &dyn Store, file: ViewFile) -> Result<ViewResult, StoreError> {
+    // A totals view answers what it *is*; its days are asked for by span (`log_days`). Running
+    // its query here would hand back every entry ever logged to a screen that shows one day.
+    if file.view == Renderer::Totals {
+        let def = totals_def(&file).map_err(StoreError::Io)?;
+        return Ok(ViewResult {
+            name: file.name,
+            renderer: Renderer::Totals,
+            group_by: None,
+            filters: Vec::new(),
+            board: None,
+            rows: Some(Vec::new()),
+            totals: Some(def),
+            group: None,
+        });
+    }
     let q = lower(&file).map_err(StoreError::Io)?;
     let res = store.query(&q)?;
     // Described from the same parse that just ran, so the words and the rows can never disagree.
@@ -641,6 +848,8 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
                 filters,
                 board: Some(Board { group_by, columns }),
                 rows: None,
+                totals: None,
+                group: None,
             }
         }
         _ => ViewResult {
@@ -650,13 +859,99 @@ pub fn run_view(store: &dyn Store, vault: &Path, name: &str) -> Result<ViewResul
             filters,
             board: None,
             rows: Some(res.rows.iter().map(ObjectMeta::from).collect()),
+            totals: None,
+            group: None,
         },
     })
 }
 
 fn read_view(path: &Path) -> Result<ViewFile, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_yaml_ng::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+    parse_view(&text, &path.display().to_string())
+}
+
+fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
+    serde_yaml_ng::from_str(text).map_err(|e| format!("{origin}: {e}"))
+}
+
+// ── views that come with the app ─────────────────────────────────────────────────────────────────
+
+/// **The views a feature needs, carried in the binary** (`decisions.md#ui`, 2026-10-11).
+///
+/// Written in the same grammar and read by the same parser as a vault's own, so there is one
+/// definition of what a view is. They are embedded and not copied into a vault for two reasons: a
+/// build that predates a renderer never meets a file naming it, and turning a feature on writes
+/// nothing into anybody's notes. A vault file of the same name wins — that is how a person changes
+/// what a shipped view calls things.
+const SHIPPED: &[(&str, &str)] = &[
+    ("food-day", include_str!("shipped/food-day.view")),
+    ("food-trends", include_str!("shipped/food-trends.view")),
+    ("food-weight", include_str!("shipped/food-weight.view")),
+    ("training-session", include_str!("shipped/training-session.view")),
+    ("training-volume", include_str!("shipped/training-volume.view")),
+];
+
+/// A shipped view's `name:`, read without parsing the rest.
+fn shipped_name(text: &str) -> Option<&str> {
+    text.lines().find_map(|l| l.strip_prefix("name:")).map(str::trim)
+}
+
+/// The shipped views, as the view list reports them.
+pub fn shipped_views() -> Vec<ViewInfo> {
+    SHIPPED
+        .iter()
+        .filter_map(|(_, text)| parse_view(text, "shipped").ok())
+        .map(|f| ViewInfo {
+            name: f.name,
+            renderer: Some(f.view),
+            group_by: f.group_by,
+            group: f.group,
+            shipped: true,
+            vault: String::new(),
+            error: None,
+        })
+        .collect()
+}
+
+/// A vault's views followed by the shipped ones no listed view has already named.
+pub fn with_shipped(mut listed: Vec<ViewInfo>) -> Vec<ViewInfo> {
+    for v in shipped_views() {
+        if !listed.iter().any(|x| x.name == v.name) {
+            listed.push(v);
+        }
+    }
+    listed
+}
+
+/// The group a view belongs to, with every listed view of that group in order.
+pub fn group_of(all: &[ViewInfo], name: &str) -> Option<ViewGroup> {
+    let group = all.iter().find(|v| v.name == name)?.group.clone()?;
+    let views = all
+        .iter()
+        .filter(|v| v.error.is_none() && v.group.as_deref() == Some(group.as_str()))
+        .map(|v| v.name.clone())
+        .collect();
+    Some(ViewGroup { name: group, views })
+}
+
+/// The definition of the `totals` view named `name`: a vault's own file first, then the shipped
+/// one. This is how `log_days` and `log_recent` learn what to total **from a name** — no query and
+/// no property list crosses the wire.
+pub fn totals_named(vaults: &[PathBuf], name: &str) -> Result<TotalsDef, String> {
+    let file = match vaults.iter().find_map(|v| find_view(v, name)) {
+        Some(path) => read_view(&path)?,
+        None => {
+            let (_, text) = SHIPPED
+                .iter()
+                .find(|(_, text)| shipped_name(text) == Some(name))
+                .ok_or_else(|| format!("no view named '{name}'"))?;
+            parse_view(text, "a view that came with the app")?
+        }
+    };
+    if file.view != Renderer::Totals {
+        return Err(format!("'{name}' is not a totals view"));
+    }
+    totals_def(&file)
 }
 
 /// A view is addressed by its `name:` field first, then its filename stem — so a file whose

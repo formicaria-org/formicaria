@@ -556,6 +556,15 @@ const READ_ONLY: &[&str] = &[
     "list_vaults",
     "list_views",
     "run_view",
+    "log_days",
+    "log_recent",
+    // The food list is not in any vault. Reading it — or removing it — moves no note, so none of
+    // these should tell a connected client the vault changed.
+    "food_search",
+    "food_get",
+    "pack_status",
+    "pack_remove",
+    "pack_progress",
     // Reading a theme changes nothing. Writing or deleting one deliberately stays *off* this list:
     // the generation bump is what makes another machine (or the other pane) notice a theme edit,
     // for free, without a timer of its own.
@@ -2205,7 +2214,8 @@ fn dispatch_inner(
                 // report; this loop is the only place both are in hand.
                 all.extend(views_of(&v.name, &v.path));
             }
-            json(all)
+            // …then the views that came with the app, unless a vault's own file has the name.
+            json(crate::views::with_shipped(all))
         }
         // Run one view by name. The file is read from whichever vault holds it; the query
         // runs against the full store. A parse error surfaces as the error body, so a broken
@@ -2213,13 +2223,79 @@ fn dispatch_inner(
         "run_view" => {
             let name = s("name");
             let mut g = lock()?;
-            let vault_path = g
-                .configs()
-                .iter()
-                .find(|v| crate::views::list_views(&v.path).iter().any(|vi| vi.name == name))
-                .map(|v| v.path.clone())
-                .ok_or_else(|| format!("no view named '{name}'"))?;
-            json(crate::views::run_view(&g.store(scope), &vault_path, &name).map_err(err)?)
+            let mut listed = Vec::new();
+            let mut vault_path = None;
+            for v in g.configs() {
+                let here = crate::views::list_views(&v.path);
+                if vault_path.is_none() && here.iter().any(|vi| vi.name == name) {
+                    vault_path = Some(v.path.clone());
+                }
+                listed.extend(here);
+            }
+            // A vault's own file first; then one that came with the app.
+            let mut result = match vault_path {
+                Some(path) => crate::views::run_view(&g.store(scope), &path, &name).map_err(err)?,
+                None => crate::views::run_shipped(&g.store(scope), &name)
+                    .ok_or_else(|| format!("no view named '{name}'"))?
+                    .map_err(err)?,
+            };
+            result.group = crate::views::group_of(&crate::views::with_shipped(listed), &name);
+            json(result)
+        }
+        // ── Logged entries (`log.rs`; `decisions.md#data`, 2026-10-11) ───────────────────────────
+        // A span of days of one log, asked for by the **name** of a totals view: what each day's
+        // entries come to, how complete that is, its targets, and the entries when `rows`.
+        "log_days" => {
+            let mut g = lock()?;
+            let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
+            let rows = args.get("rows").and_then(Value::as_bool).unwrap_or(false);
+            let store = g.store(scope);
+            json(crate::log::log_days(&store, &def, &s("from"), &s("to"), rows).map_err(err)?)
+        }
+        "log_recent" => {
+            let mut g = lock()?;
+            let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(12) as usize;
+            let store = g.store(scope);
+            json(crate::log::log_recent(&store, &def, &s("slot"), &s("q"), limit).map_err(err)?)
+        }
+        // ── The food list (`packs.rs`) — a file outside every vault, so none of these takes the
+        // vault lock. Fetching it is a transport's job; these only read and remove.
+        "food_search" => {
+            let limit = args.get("limit").and_then(Value::as_u64).unwrap_or(20) as usize;
+            json(crate::packs::food_search(&s("q"), limit)?)
+        }
+        "food_get" => json(crate::packs::food_get(&s("id"))?),
+        "pack_status" => json(crate::packs::food_status()),
+        "pack_remove" => {
+            crate::packs::food_remove()?;
+            json(crate::packs::food_status())
+        }
+        // **Answered here only by a build that cannot fetch.** A shell that can (`fm-serve`'s
+        // `packs` feature, the phone's updater feature) answers `pack_progress` itself, before
+        // this is reached — so what arrives here is the honest "this build has no way to".
+        "pack_progress" => json(serde_json::json!({
+            "can_download": false, "running": false, "received": 0, "total": null,
+            "error": null, "done": false,
+        })),
+        // Several notes in one write, each made whole. The vault is validated up front, as for
+        // `capture`.
+        "create_notes" => {
+            let mut g = lock()?;
+            let into = g.config(scope, &s("vault"))?;
+            let drafts: Vec<crate::log::NoteDraft> =
+                serde_json::from_value(args.get("notes").cloned().unwrap_or(Value::Array(vec![])))
+                    .map_err(|e| format!("notes: {e}"))?;
+            json(crate::log::create_notes(&mut g.store(scope), &into.name, &drafts).map_err(err)?)
+        }
+        "set_properties" => {
+            let props: std::collections::BTreeMap<String, Value> = serde_json::from_value(
+                args.get("props").cloned().unwrap_or(Value::Object(Default::default())),
+            )
+            .map_err(|e| format!("props: {e}"))?;
+            let previous = crate::log::set_properties(&mut lock()?.store(scope), &s("id"), &props)
+                .map_err(err)?;
+            json(serde_json::json!({ "previous": previous }))
         }
         // **Chunked upload, one slice at a time.** The raw `body` is this chunk; `session` and
         // `seq` say which upload and which position. See `fm_core::chunked` for why the session
@@ -2534,6 +2610,11 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 /// the UI keeps whatever comes back, so an unstamped reply silently blanks the vault on every row
 /// and the *next* delete or rename resolves against the default vault instead. Found by running the
 /// built binary and reading the JSON, not by a test.
+/// The vault folders this caller may read a view from — what `totals_named` searches.
+fn view_paths(g: &Vaults, scope: &Scope) -> Vec<std::path::PathBuf> {
+    g.configs().into_iter().filter(|c| scope.allows(&c.name)).map(|c| c.path).collect()
+}
+
 fn views_of(name: &str, path: &std::path::Path) -> Vec<crate::views::ViewInfo> {
     crate::views::list_views(path)
         .into_iter()

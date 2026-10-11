@@ -352,6 +352,7 @@ dependencies = [
  "fm-core",
  "fm-model",
  "fm-query",
+ "rusqlite",
  "serde",
  "serde_json",
  "serde_yaml_ng",

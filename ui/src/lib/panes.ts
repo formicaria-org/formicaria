@@ -5,7 +5,15 @@
 //
 // Pure data + helpers here (unit-testable); the rendering lives in Pane.svelte and App.svelte.
 
-import type { ObjectMeta, Board, DiscussionSummary, Renderer, ConflictInfo } from './types';
+import type {
+  ObjectMeta,
+  Board,
+  DiscussionSummary,
+  Renderer,
+  ConflictInfo,
+  TotalsDef,
+  ViewGroup,
+} from './types';
 
 /** What a pane shows. The built-in renderers (including the git `activity` stream), a specific
  *  note (which also covers a whiteboard — a board-note), or a saved `.view`. */
@@ -269,7 +277,14 @@ export interface Feed {
    *  own data source. `list_views` is fetched once per `vaults` change and has failed on the phone
    *  before (`App.boot.test.ts`); `run_view` arrives with the board itself and cannot disagree
    *  with it. */
-  view?: { filters: string[]; renderer: Renderer; group_by: string | null };
+  view?: {
+    filters: string[];
+    renderer: Renderer;
+    group_by: string | null;
+    /** A `totals` view's definition, and the group it belongs to with its sibling views. */
+    totals?: TotalsDef;
+    group?: ViewGroup;
+  };
 }
 
 /** Move the pane at `from` to `to`, returning a new array (drag-to-reorder). Out-of-range or

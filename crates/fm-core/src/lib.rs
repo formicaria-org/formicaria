@@ -17,6 +17,7 @@ pub use file::FileStore;
 mod multi;
 pub use multi::{ColdStart, MultiStore, Scoped};
 pub mod edit;
+pub mod pack;
 pub use edit::apply_property;
 pub mod blob;
 pub mod chunked;

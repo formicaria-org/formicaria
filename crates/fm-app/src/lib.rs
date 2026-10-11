@@ -22,6 +22,8 @@ pub mod ca_bundle;
 pub mod commands;
 pub mod dispatch;
 pub mod dto;
+pub mod log;
+pub mod packs;
 pub mod paper;
 pub mod refs;
 pub mod scope;

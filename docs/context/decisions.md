@@ -22,7 +22,7 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): ***A poisoned lock is recovered, not propagated*** ·
+- **`#seams`** (the compile-time invariants): ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
   ***The vault lock is not held across a subprocess or a revwalk*** (read before adding a `dispatch`
   arm that shells out or walks git) · ***`Kind` is the second predicate that reaches SQL***
   (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
@@ -85,7 +85,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   command — a blocking one freezes the screen, and CI greps for it) · *Android trusts its persisted
   index on open* (the `ColdStart` seam) · ***A file is sliced, so its size stops being a memory limit*** (read before touching `fm_core::chunked`, `MAX_INGEST`, or the boot sweep) · *The Android attachment ceiling is 16 MB* (partly superseded by it) · *An emulator
   may be installed to; the owner's phone may only be looked at*.
-- **`#ui`** (workspace/views/render): ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
+- **`#ui`** (workspace/views/render): ***A sixth renderer and view groups, inside the notebook*** (2026-10-11; read before adding a renderer, a group, or anything a group carries beyond views, a filter and an add action) · ***There is one editor*** (2026-10-11; read before adding a second editor, a setting that chooses one, or a test that reaches for a textarea) · ***In the live editor a press follows a finished link, and a double press edits it*** (2026-10-11; read before giving any drawn element in the editor a meaning for a single press) · ***With a mouse and keyboard the format options are always there, one line under the note*** (2026-10-11; read before making them appear only on a selection again, moving them back to the top, or adding a persistent bar on touch) · ***The editor renders as you write, and the text is still the file*** (2026-10-11; read before touching the editor, adding an editor library, letting anything but the note panel own the draft, or proposing a rich-text editor) · ***Settings shows one category at a time, and the actions have a window of their own*** (2026-10-11; read before adding a setting, a category, or anything that is not a setting to Settings) · ***Settings is one page with a list of its sections, and its controls are drawn by the app*** (2026-10-11; read before splitting Settings into tabs, or before styling a control inside it) · ***The agenda's week is a time grid*** (2026-10-11; read before changing what the week or the month draws, or where a timed note is placed) · ***A click on a note starts editing it, and the ＋ has no Edit*** (2026-10-11; read before adding a click meaning to the reading view, or an Edit control anywhere) · ***While writing on a touch screen, a row of quick actions sits above the keyboard*** (2026-10-11; read before adding a button to it, or a persistent bar anywhere else) · ***Back walks what you opened, and panels close first*** and its refinement ***a move made from a menu replaces the menu's history entry*** (2026-10-09; read before adding a menu or panel — it joins `App.svelte`'s `LAYERS` list — or before setting `focused` anywhere without `moved()`) · ***Undo is a session stack of the app's own writes, and a deleted note is never more than a list away*** (2026-10-09; read before adding a write the person should be able to undo — route it through `undo.svelte.ts`) · ***A note opens on its text, and the keyboard is taken off the screen*** (read before touching the note's property form, `--app-h`/`--kb`, or `MainActivity`'s inset bridge) · ***Everything that opens is placed by one action, and stays on the screen*** (read before adding a menu, picker or anything else that opens, or before positioning one by hand) · ***A note's header is its title and one ＋, and leaving a note ends editing*** (read before adding a control to a note's header, or before bringing back a Done button) · ***On a phone there is no top row: the windows and the view's switches live at the bottom*** (read before adding anything to the top of a phone screen, or before moving a view's switches out of the view menu) · ***On a phone, the open windows are one counted button*** (read before changing `ViewBar` at a narrow width, or before moving where a window is closed) · ***The formatting bar appears on a selection on every device, and below it on touch*** (read before bringing back a persistent format strip on touch, or before moving the bar above a selection there) · ***Back up asks before it acts, and gets their changes before it sends*** (read before changing what a toolbar control does on press, before splitting get-changes from send again, or before adding a case to `plainError`) · ***The top strip belongs to the device, and the number for it is never guessed*** (read before touching `--safe-*`, the coarse-pointer floor, or `MainActivity`'s inset bridge) · ***Slow work says so, and a refused send says what to do about it*** (read before adding anything that waits on a network, and before assuming a helper with no callers is dead code) · ***An alert that measures saving cannot see sending*** (read before adding a toolbar chip, before putting a fact on `backup_status`, or before trusting any indicator that a successful auto-save also resets) · ***The app speaks the user's words, not git's*** (read before writing ANY string a person reads, and before adding a word to `ci/plain-words.py`) · ***A panel adapts to width too, not only to the pointer*** (read before adding a rule to either settings sheet, before reusing `.caps`/`.k` for a new kind of row, or before assuming a jsdom test can see a layout) · ***A snapshot says what it held*** (filed under `#vault`;
   the panel half — why the step line stopped printing a fixed phrase — is there too) ·
   ***An overlay is bounded by the visible viewport, and it
   has exactly one scroll surface*** (read before writing any dialog, or before capping any
@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -141,7 +141,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   markers* · *The lost-update token is a content hash* ·
   *The poll answers a comparison, not a report* (the generation counter — read this before
   touching `ping` or assuming one client).
-- **`#toolchain`**: ***The app asks the release page where it leads before it asks the listing*** (2026-10-11; read before changing what a version check contacts, or before treating a 403 in the update test as a failure of the release) · ***A copy built from source installs the release into a folder of its own*** (2026-10-11; read before touching `install_dir`, `seed`, `FM_APP_DIR` or `packaging/formicaria.sh`, or before writing a second swap) · ***Updating from inside the app is tested on the published files, after they are published*** (2026-10-11; read before adding a job after `attach`, or before trusting the updater's unit tests to say a release is reachable) · ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
+- **`#toolchain`**: ***A reference pack is fetched on request, like a model, and is not the assistant's*** (2026-10-11; read before adding anything a tool downloads) · ***The app asks the release page where it leads before it asks the listing*** (2026-10-11; read before changing what a version check contacts, or before treating a 403 in the update test as a failure of the release) · ***A copy built from source installs the release into a folder of its own*** (2026-10-11; read before touching `install_dir`, `seed`, `FM_APP_DIR` or `packaging/formicaria.sh`, or before writing a second swap) · ***Updating from inside the app is tested on the published files, after they are published*** (2026-10-11; read before adding a job after `attach`, or before trusting the updater's unit tests to say a release is reachable) · ***One command puts a commit on the phone, with a token that can do nothing else*** (2026-10-11; read before widening that token's permissions or using git's credential for the API) · ***A test build is never offered a release older than the one it was built on*** (2026-10-11; read before touching what the updater offers a build with no version) · ***The Android build is its own workflow, and the release calls it*** (2026-10-11; read before moving a job between workflow files — the gate's guards name files) · ***The feed parser sits in `fm-core` beside the importer*** (2026-09-12; read before putting anything the notes-only build needs into an agent crate) · ***The release keys were made in a kept session, and a failed signature is re-run, not re-tagged*** (read before cutting a release whose signing failed, or before rotating or moving a key) · ***A release is signed by a job that runs no toolchain, against keys that survive losing one*** (read before touching `manifest-sign`, `ci/release-*.sh` or `release-keys.txt`) · ***An extractor is proven against the archives the pipeline actually publishes*** (read before changing `unpack_tree` or the `stage` step) · ***The trust root lives in one crate that both shells link*** (`#seams`) · ***The way back is a button as well as a rescue*** (read before touching `update_rollback`, the launcher's failed-start counter, or anything that names a `.fm-backup-*` — it carries three real bugs the design review caught in the freshly-written updater) · ***An index from the future is discarded, not adopted*** (`#data`; read before changing `INDEX_SCHEMA` or `init_schema` — going backwards is now an ordinary user action) · ***The app updates itself in place, and the folder stops moving*** (read before touching the updater, `packaging/launcher/`, the release manifest or its signing job — it carries the two guarantees the mechanism exists to satisfy, and why a supervisor process and a sibling folder were both rejected) · ***A wall-clock growth assertion needs a filesystem that scales*** (read before widening a timing threshold, or before assuming a slow CI number is a regression) · ***The gate checks pull requests, and a measurement is the minimum of several*** (read before adding a workflow trigger, before making `cross`/`ios` automatic, or before writing any assertion on elapsed time) · ***Every platform is published by the tag, and a phone build cannot cost you the release*** (read before adding a job to `release.yml`, before touching the Android signing secrets, or before assuming iOS is still barred from it) · ***The gate refuses to run without the tools its tests need*** (read before
   adding a test that skips on a missing binary) ·
   ***A test that names somebody's private repo, and three that only passed
   here*** (read before writing a test that touches a remote, and before trusting a suite that
@@ -9233,4 +9233,208 @@ back (`pixi run update-test --from-source`).
 
 **Limit.** A green `update-works` can now mean "not tested on one system". The warning says so;
 nothing fails. If all three were refused, nothing was tested and the run is still green.
+
+
+## 2026-10-11 — a tool is a deterministic command in a non-agent crate; the assistant calls it like everyone else `#seams` `#agent`
+
+**What prompted it.** The owner wants a meal tracker and programs, and asked for *"a very general
+plan that fits well with fm and uses its constructs, so an agent using a tool looks easy."* The
+plan he approved the same day is `tools-plan-2026-10-11.md`; this entry is its first ruling.
+**Ruled, not yet built.**
+
+**Decision.** formicaria has had deterministic tools since `create_paper`, the calendar reader and
+the importer; the word is now defined from them. **A tool is a deterministic function in a
+non-agent crate, reached through one `dispatch` command, whose only effect on a vault is notes and
+properties.** It follows that:
+- the UI, `fm-cli` and the assistant reach it through the same door, so nothing is built for
+  "agent tool use" beyond a `VaultAccess` method;
+- it works with the assistant off and on iOS (*anything the notes-only build must be able to do
+  cannot live in an agent crate*, 2026-09-12);
+- it makes no network request when called. What it needs from outside arrives beforehand, through
+  `fm-fetch`, in a transport shell;
+- a model never chooses it. A command, a file's type or a schedule does (the narrowed scope of
+  2026-10-10). Around a tool the model only points; Rust reads and computes.
+
+**There is no registry.** The `dispatch` match is the list of tools. A plugin system, a second
+table or a tool description language would each be a new construct, and none is needed.
+
+## 2026-10-11 — a logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key `#data` `#seams`
+
+> **REFINED the same day** by *the tracker's domain parts are a closed set* (below), after a design
+> review. Where the two differ, that entry holds.
+
+**What prompted it.** A food log is five to ten entries a day. The owner chose **one note per
+logged item**, with its numbers copied into its own frontmatter. **Ruled, not yet built.**
+
+**Decision.**
+- **A logged item is a `Kind::Note` carrying `log: <kind>`** (`food`, `workout`, `body`). No new
+  `Kind` and no new file type.
+- **`log` is structure, like `thread_of`.** `apply_property` refuses it, so it is set only when the
+  entry is created. It joins `thread_of` and `proposes` as an exclusion in `thread::notes_base`,
+  which keeps a few thousand entries a year out of the board, the agenda and the feed.
+- **Why a reserved property and not a tag.** Every exclusion so far is a guarded property and never
+  mere presence, because a tag can be typed, or set by dragging a card on a board grouped by tags,
+  and one gesture would then hide a note from every planning view.
+- **Numbers are whole, and the key says the unit**: `kcal`, `protein_mg`, `iron_ug`, `load_g`.
+  `12.5` in frontmatter parses as text today; a decimal type would touch the merge, the index and
+  the `Ord` trap, and buys nothing a smaller unit does not. Sums are exact and the file reads
+  without the app.
+- **The note carries its own numbers.** A reference pack is replaceable and absent on some devices.
+  An entry copies the values it used and names the pack version; it never only points into a pack.
+- **Totals are derived and stored nowhere** (the status ruling, applied to sums and streaks).
+- **A sum ignores `conflict-*` keys** and reports a value that is not a whole number; it does not
+  skip one silently.
+
+**Consequence.** Entries are still parsed on every board fetch, because only `Kind` and text reach
+SQL. That is measured at 10,000 entries before anything else is built on it; if the budget fails,
+`log` becomes the third predicate pushed down.
+
+## 2026-10-11 — a sixth renderer and view groups, inside the notebook; the views they need ship with the app `#ui` `#seams`
+
+> **REFINED the same day** by *the tracker's domain parts are a closed set* (below), after a design
+> review. Where the two differ, that entry holds.
+
+**What prompted it.** The owner: *"the views till now were good but very bare"*, and *"we might
+want to add the concept of grouped views"* — a person goes from the main views to a food day, a
+progress screen, a training screen. Asked where the tracker should live, he chose **inside
+formicaria**. **Ruled, not yet built.**
+
+**Decision.**
+- **A `totals` renderer joins the five.** It groups by day, sums named properties, compares them
+  with targets and lists entries under a `slot`. It stays generic and literal-free: labels, units
+  and which properties it shows come from the view's definition.
+- **A view may name a `group`.** The chrome draws views under their group; on a phone the bar shows
+  the current group's views. The built-in views are the default group.
+- **A group carries views, one shared `log` filter and one add action. Nothing else.** More than
+  that is an app inside the app and needs its own ruling.
+- **Shipped views are embedded in the binary** and parsed by the same `views.rs` parser; a vault
+  file of the same name overrides one. So an older build never meets a renderer name it cannot
+  read, and nothing is written into a vault to turn a feature on.
+- **Nothing is authored in the app.** This is consistent with the 2026-08-31 withdrawal and with
+  the owner's 2026-08-30 *stop deepening view personalization*. It also answers
+  `outstanding.md` §2.5b for the cases that ship, without the query builder rejected twice.
+
+**Why this is not the papers ruling.** Papers became a *separate app* because they need a PDF
+reader, an annotation model and a library the notebook must not carry. This needs one generic
+component and no new dependency: charts are hand-written SVG, motion is Svelte's own.
+
+**Domain forms are not renderers.** A sheet for logging a food is a form, like *Add a paper*, and
+lives in `ui/src/lib`. A renderer in `ui/src/renderers` stays generic.
+
+## 2026-10-11 — a reference pack is fetched on request, like a model, and is not the assistant's `#toolchain` `#data`
+
+**What prompted it.** Micronutrients cannot be typed by hand; the owner chose an offline pack of
+public-domain generic foods (USDA), without barcodes or branded products. **Ruled, not yet built.**
+
+**Decision.** A **reference pack** is a read-only, checksum-verified file a tool reads. It extends
+the fetched-artifact exception (2026-09-02) under the same terms as a model:
+- **never fetched unasked**; Settings states its name, size and licence first (2026-10-10);
+- **the disk can be handed back**, by a two-step control that states the figure (2026-09-02);
+- it lands beside `models/` and `runtime/`, outside every vault, and is named in the licence
+  notice's *downloaded at runtime* section.
+
+**It must work with the assistant off.** The model catalogue's parser and `agents_dir()` sit behind
+the `agent` feature, so a pack does not reuse them: its catalogue reader and its download live
+outside the agent crates, behind a feature of their own, with the shell fetching and `fm-core`
+reading (the `calendar.rs` shape). `fm-core` already links SQLite, so reading one adds no
+dependency. **No HTTP client enters `fm-core` or `fm-app`.**
+
+**Not decided:** where a pack is hosted.
+
+## 2026-10-11 — the tracker's domain parts are a closed set, a group's bar replaces the phone's, and an entry is dated by day `#ui` `#data`
+
+> Refines the two entries above (*a logged entry is a note…*, *a sixth renderer and view groups…*).
+
+**What prompted it.** A design review of the plan, read by the owner, found that the front end as
+first drawn would look bare again: a generic form with one number field per metric is a spreadsheet
+row, and one `totals` renderer cannot be a day screen, a training session and a program screen
+without its definition turning into a view language. The owner answered its four questions.
+**Ruled, not yet built.**
+
+**Decision — the front end.**
+- **`Totals.svelte` stays generic and small. The behaviour lives in a closed set of domain
+  components** in `ui/src/lib/food/` and `ui/src/lib/training/`: the logging sheet, the portion
+  step, the session screen, the targets form. A group's `add` names one of `food`, `workout`,
+  `body` — a closed set, like `Renderer`, so there is still no registry. Adding to it is a new entry
+  here. This widens the earlier *"a group carries views, one filter and one add action; nothing
+  else"*.
+- **A view definition says less, not more**: `group`, `log`, `add`, `span`, `metrics` (key, label,
+  role), `slots`. No scale and no unit: one helper reads them from the key's suffix. Per-view scale
+  and layout is the personalisation depth the owner stopped on 2026-08-30.
+- **On a phone, in the single layout, a group's own bar replaces the app's bar** (owner's choice):
+  a way out, the group's views, a raised add control and one menu holding search, windows, vault,
+  backup, undo and settings. Tabs inside the pane stacked on the app's bar would be two bars. On a
+  wide screen and in the tiled layout it is a heading in the side panel and a control in the pane.
+- **Moving between a group's views replaces the history entry.** Back leaves the group for the view
+  you came from; with a sheet open it closes the sheet first.
+- **The food day's large number is what remains of the target, and going over is not an alarm**
+  (owner's choice): a second lap and a plain label, in no warning colour.
+
+**Decision — the data.**
+- **An entry's `start` is a day, never a time.** A timed stamp files a 00:30 snack under the wrong
+  day. Order within a day is `slot`, then `created`. So the engine's existing grouping already
+  groups by day, and this feature needs a sum and a maximum from it and nothing else.
+- **An entry names its `source`** (a pack id and version, or a saved food's id), and an amount
+  change recomputes from the source. Rescaling stored whole numbers 100 g → 37 g → 100 g drifts.
+- **A saved food or meal is a `log: food` note with no `start`**: never in a day's sum, never in a
+  planning view, and no new reserved key.
+- **A planned entry carries `planned: 1`** and is left out of sums; confirming it clears the key.
+  It cannot be a `log` value, because `log` is refused by `apply_property`.
+- **Targets and programs are found by a property, `program: food` or `training`**, never by a tag
+  alone, which would let a training program supply food targets. The one in force on a day is the
+  latest `start` on or before it, then the latest `updated`, resolved in the core.
+- **Training is one note per set** (owner's choice): `exercise`, `session`, `set`, `reps`,
+  `load_g`. One note per exercise cannot record 8, 8, 6 at different loads.
+- **`work_g` is stored on a set.** It is `reps × load_g`, which a sum cannot compute. This is the
+  same act as copying a nutrient value into an entry — a fact about that entry, fixed when it is
+  written — and not a stored total, which stays forbidden.
+- **A session note's body is a person's plan and is never parsed.** The session screen reads
+  properties.
+- **Entries stay out of global search and the link menu, and appear in Recently deleted**, so a
+  removed entry can always be brought back. (The assistant's default; the owner was told and did
+  not object.)
+- **A day's figure says how complete it is.** For each value the core answers the sum, how many
+  entries carried it, and how many entries the day has, so a micronutrient total cannot silently
+  under-report when an entry typed by hand lacks it.
+
+**Consequence for the commands.** Creation is plural and atomic (`create_notes`), because copying a
+meal or starting a session makes several notes that must be one write and one undo step. A day's
+data is asked for by **view name** (`log_days`), so no query crosses the wire; `run_view` gains no
+parameters.
+
+## 2026-10-11 — a measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets `#data` `#ui`
+
+> Phases 4 and 5 of the tracker plan (`tools-plan-2026-10-11.md`). Extends *a logged entry is a
+> note…* and *the tracker's domain parts are a closed set* (same day); reverses nothing.
+
+**What prompted it.** The owner: *"continue with phase 4 and 5."* Building them turned four things
+that the plan had left as phrases into choices.
+
+**Decision.**
+- **A metric says whether it is added up or averaged** (`agg: mean` in a `totals` view; a sum
+  when left out). A weight taken twice in a day is one weight. `log_days` already answers a sum
+  and a count for every value, so this changes how a value is *read* — as a line, as "where it is
+  now and how far it moved" — and nothing about what is computed. A weight is a `log: body` entry
+  and the view that shows it is a third view in the Food group.
+- **An entry made for a day still to come is a plan.** It carries `planned: 1`, is on its day, and
+  is in no total until confirmed with one press, which clears the mark. There is no separate
+  "planning mode": the date decides. A day screen reaches a week ahead and no further.
+- **A program's `due` is its last day.** After it, whatever program was in force before is in
+  force again — so "eight weeks at 1,900, then maintenance" is two notes and no bookkeeping.
+  Each change of targets is still its own note, which is what keeps earlier days measured against
+  the targets they had.
+- **A training session is planned as set notes, and "the same as last time" is the template.**
+  Adding an exercise makes one planned note per set; ticking a set confirms it and stores its
+  work. Planning today from the last session copies that day's sets as planned. This is the
+  smallest thing that gives progression from one session to the next, and it needs no session
+  template, no second pack, and no parsing of a note's body — the last of which stays ruled out.
+- **An exercise's name is whatever the person types.** The ones used before are offered with the
+  numbers they had. A list of exercises fetched as a second reference pack was in the plan and is
+  **not built**: names typed once and offered afterwards cover the same need for one person, and a
+  second pack is a second thing to host.
+
+**Not built from the plan, and said so here rather than left implied:** best lifts per exercise
+(a day's answer is by metric, not by exercise — it would need a grouping `log_days` does not
+have), a session template a person names and keeps, a meal plan laid out by week, and a target
+calculator.
 

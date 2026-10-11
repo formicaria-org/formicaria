@@ -412,6 +412,12 @@ third-party-check = { cmd = "sh ci/third-party-check.sh" }
 # Regenerate the manual's screenshots from a throwaway demo vault. NOT in `ci`: it needs a
 # browser and a running server, and the pictures only change when the UI does.
 shots = { cmd = "sh ci/shots.sh" }
+# The food reference pack (`decisions.md#toolchain`, 2026-10-11): built from three USDA datasets,
+# each pinned by checksum, into `target/packs/usda-foods.sqlite`. Run by hand when a new pack is
+# wanted; it prints the size and checksum `crates/fm-app/src/packs.rs` must then carry.
+pack-foods = "python3 ci/pack-foods.py"
+# Put the pack just built where this machine's app looks for one, to try it before it is published.
+pack-foods-install = { cmd = "python3 ci/pack-foods.py && sh ci/pack-install.sh" }
 # Renders the manual FOR THIS MACHINE'"'"'S OS — the setup chapter is assembled from
 # `user/setup-<os>.md` first, because each release archive should carry instructions for its own
 # platform and nobody else'"'"'s. Broken links still fail the build. `FM_DOCS_OS=windows pixi run docs`

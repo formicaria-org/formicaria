@@ -1242,6 +1242,61 @@ is left:
 - **Trap:** the phone's default is `enabled: true`. An update therefore reaches phones whose owners
   never opened Settings; the offer waits there, and nothing tells them outside Settings.
 
+## Trackers — where they stand (2026-10-11)
+
+Phases 1 to 3 are in: the log commands (`fm-app/src/log.rs`), the `totals` renderer and shipped
+view groups, the screens, a Settings switch, and the food list (`fm-core/src/pack.rs`,
+`fm-app/src/packs.rs`, `ci/pack-foods.py`). What is true today, and what is not:
+
+- **The food list has nowhere to be fetched from.** `packs::FOOD.url` is `None`: where a pack is
+  hosted is the owner's decision and its upload is the owner's act. Until then Settings says the
+  list is *not available to get yet*, and the only way onto a desktop is `pixi run
+  pack-foods-install`. **A phone has no way to get it at all.** Publishing one is: host
+  `target/packs/usda-foods.sqlite`, put its address in `FOOD.url`, and check `bytes` and `sha256`
+  there still match what `pixi run pack-foods` prints.
+- **The fetch was run for real on the desktop only, against a local server**
+  (`FM_PACK_URL=http://127.0.0.1:…`): fetched, verified, read, removed; a wrong checksum is refused
+  after its retries and nothing is kept. **The phone's half compiles for Android and has never
+  run.** `fm_fetch::job` has no test of its own — it needs a server.
+- **Not seen in an installed build, on a phone, or with a real notebook.** The screens were judged
+  in a phone's browser against invented data. The keyboard over the sheet is unverified.
+- **Every logged entry still costs the board a read.** Only `Kind` and text reach the index, so the
+  `log` exclusion is applied after each entry has been read and parsed. Measured on the owner's
+  laptop, release build (`cargo test --release -p fm-app --test perf logged_entries -- --nocapture`):
+  `board()` over 1,000 notes takes **6.4 ms**; with 9,000 entries beside them — three years of
+  logging — **94 ms**. A fortnight from `log_days` over the same vault is **100 ms**, one pass, and
+  the day screen makes one ask. The per-object cost is 1.5x a note's, and the test fails if that
+  grows. **Not measured on a phone**, where it is the number that matters. The fix, if a phone says
+  it is needed, is a `log` column in the index beside `kind` — a third pushdown; read
+  `decisions.md#seams`, *`Kind` is the second predicate that reaches SQL*, first.
+- **The pack's licence is stated from memory.** USDA FoodData Central is a U.S. Government work
+  and widely described as public domain; the download page itself was fetched and no licence
+  sentence was found on it. Confirm before publishing a pack.
+- **Search ranking is a rule, not a measurement.** A name that starts with what was typed leads,
+  then foods as people report eating them, then the shorter name. Tried on a handful of words.
+- **`create_notes` checks every note before writing any, and then writes them one after another.**
+  A refused value writes nothing. A disk failing half-way leaves the first few behind; the error
+  says how many. `Store` has no batch write.
+- **`log_recent` reads every entry of the log, of any age,** and counts frequency over all of them.
+- **"Today" is the device's.** Two devices in different time zones will file a late-night entry
+  under different days.
+- **A vault view named like a shipped one replaces it — also by accident.** A view someone had
+  already called `Day` or `Trends` takes the place of the shipped view of that name.
+- **Entries are made in the default vault.** The sheet has no "create in"; with several vaults the
+  log goes to the first.
+- **Training has no exercise list, no best lifts and no kept plan.** An exercise's name is typed
+  and offered again afterwards; "the same as last time" is the only template; a best lift per
+  exercise would need a grouping `log_days` does not have (`decisions.md#data`, 2026-10-11).
+- **A weight, once written down, cannot be changed or removed from its screen.** The line shows
+  it; nothing lists the entries. Undo removes the last one; after that it is a note with no way in.
+- **A plan reaches seven days ahead.** The day screen's strip ends a week after today.
+- **A `totals` view's own keys are documented only in `views.rs`** (`log`, `add`, `span`,
+  `metrics` with `role` and `agg`, `slots`, `group`). The user manual describes the screens, not
+  the file.
+- **Undoing a target change removes the note; the day screen then shows the earlier target.** As
+  intended, but each change is its own note, so a person who changes targets often accumulates
+  them on the agenda.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).
