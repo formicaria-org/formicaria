@@ -102,3 +102,21 @@ menu for several days and amounts as ranges; asked for it to be grounded in sour
 - **Found on the way**: a timed `start` broke every place that compared it to a day; a title
   crammed into a third of a phone row on the first Menu; a test that passed only because a
   reload used to be faster.
+
+## And v0.7.4: the look-up, the kitchen, recipes from outside
+
+The owner: *"continue with the barcode lookup, the kitchen and outside recipes"*, then *"continue
+with what is missing"*, *"tackle all the remaining open points"*, *"release 0.7.4"*.
+
+- **Built**: one read of one product at Open Food Facts when asked (the 2026-10-11 ruling against
+  barcodes reversed, dated, first); a barcode read from a photograph with `zxing-wasm`, so no
+  camera permission; a kitchen of names on the Menu; the NHLBI's 54 recipes carried word for
+  word with their notes (one agent, about 97k tokens, fetched and checked them); dishes for what
+  a day is short of; each Menu day against the diet as planned. Six decision entries.
+- **Checked**: the look-up live from the desktop build; the reader on a drawn EAN-13 in a
+  browser; the phone shell compiled for Android by hand. **Not on a phone**, and never a real
+  photograph of a pack.
+- **What went wrong, and is written down**: a new advisory turned the gate red (waived, with a
+  migration queued); three test locks over one environment failed one run in six (fixed); a
+  test-runner teardown error seen once (open); and twice an edit step failed while its gate ran
+  on — once into a commit whose message claimed docs it did not have.

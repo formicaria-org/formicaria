@@ -7,7 +7,8 @@ kept as notes in your own notebook — plain files, like everything else.
 > **Early.** New in 0.7.0, and used so far by one person on Linux and on an Android phone. On an
 > iPhone, a Mac or a Windows computer it has not been tried. Following a diet or a regime (0.7.1),
 > weight as a trend and routines (0.7.2), and meal times, the menu, packaged foods and the
-> nutrient list (0.7.3) were released before being tried on a phone.
+> nutrient list (0.7.3), and the barcode look-up, the kitchen and the recipes that come with the
+> app (0.7.4) were released before being tried on a phone.
 
 ## Hiding it
 
