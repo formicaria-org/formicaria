@@ -2192,6 +2192,25 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             }
           : null
       ) as T;
+    case 'recipe_library':
+      // One recipe, in the shape of the carried file; the real ones are `recipes-nhlbi.json`.
+      return {
+        source: 'National Heart, Lung, and Blood Institute',
+        home: 'https://www.nhlbi.nih.gov/',
+        seen: '2026-10-12',
+        recipes: [
+          {
+            id: 'nhlbi-vegetable-stew',
+            title: 'Vegetable Stew',
+            url: 'https://www.nhlbi.nih.gov/vegetable-stew',
+            yield: '8 servings; Serving Size: 1¼ C',
+            servings: 8,
+            ingredients: ['3 C water', '1 C diced tomatoes'],
+            steps: ['Heat water in a large pot.', 'Serve hot.'],
+            per_serving: { kcal: 119, fat_mg: 1000, sodium_ug: 196_000 },
+          },
+        ],
+      } as T;
     case 'log_kitchen':
       return notes
         .filter((x) => x.props.kitchen && !x.props.log)

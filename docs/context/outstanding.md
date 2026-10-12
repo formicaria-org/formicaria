@@ -1092,11 +1092,12 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    sheet once saved; a label's vitamins have no fields.
 6. **What is in the kitchen** — built as a list of names on the Menu (`decisions.md#data`,
    2026-10-12). Left: the match is by exact name; a ticked shopping list is not read back.
-7. **Recipes and suggestions.** The person's own recipes first; then NHLBI's 54 (public domain,
-   its own values per serving) carried unchanged and named. Wikibooks and based.cooking may be
-   carried but have no values and no grams. A suggestion says why — what it would bring the
-   day to, how many ingredients are in the kitchen — and is arithmetic, not the assistant.
-
+7. **Recipes and suggestions** — the NHLBI's 54 are carried and shown as published
+   (`decisions.md#data`, 2026-10-12). **Left:** proposing meals that fit the diet and the
+   kitchen, which needs recipes whose ingredients are foods by weight (the person's own are;
+   the carried ones are not) and a better match than an exact name; the recipes' tips and
+   notes; a search over the 54; the "Recipe Source" line of each page; the Institute's
+   no-endorsement condition should the app ever be sold.
 8. **A view to plan meals over several days** — built as *Menu* (`decisions.md#ui`, 2026-10-12).
    Left: the kitchen taken off the shopping list (item 6); recipes from outside (item 7); each
    planned day against the diet's checks; proposing meals to fill the gaps; a source for how

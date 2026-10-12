@@ -85,6 +85,16 @@ something — a food with no iron value, say — the recipe says so: *Iron from 
 
 An ingredient has to be a food from the list.
 
+### Recipes that come with the app
+
+Under your own recipes, **From the NHLBI** lists 54 recipes from the U.S. National Heart, Lung,
+and Blood Institute, which publishes them in the public domain. Open one to read its ingredients
+and directions exactly as published, with a link to its own page for the tips and notes. **Add a
+serving** logs it — or plans it, from the Menu — with the Institute's own figures for a serving.
+
+Their amounts are in cups and spoons, so the app does not add their ingredients up: on the Menu
+and on a shopping list they are listed as the recipe gives them.
+
 ## The day, and what it is measured against
 
 The large number is what is left of your energy target for the day. Going past it is shown plainly

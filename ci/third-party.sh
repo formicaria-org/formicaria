@@ -242,6 +242,23 @@ npm_licences() {
     echo "Etalab 2.0: <https://www.etalab.gouv.fr/licence-ouverte-open-licence>. CC BY 4.0:"
     echo "<https://creativecommons.org/licenses/by/4.0/>."
     echo
+    echo "## Recipes carried in the binary"
+    echo
+    echo "Fifty-four recipes, their ingredients and directions word for word, with the publisher's"
+    echo "own values per serving. Source: National Heart, Lung, and Blood Institute; National"
+    echo "Institutes of Health; U.S. Department of Health and Human Services —"
+    echo "<https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes>."
+    echo "The Institute states that information on its website is in the public domain unless noted"
+    echo "otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's"
+    echo "tips and notes are on its own page and are not carried."
+    echo
+    echo "## Data fetched when a person asks"
+    echo
+    echo "A packaged food looked up by its barcode contains data from Open Food Facts"
+    echo "(<https://openfoodfacts.org>), available under the Open Database License"
+    echo "(<https://opendatacommons.org/licenses/odbl/1-0/>). One product is read per request;"
+    echo "none of it is carried in the binary."
+    echo
     echo "Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,"
     echo "in \`LICENSE\`."
 } > "$OUT"

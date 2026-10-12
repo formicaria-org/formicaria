@@ -11,7 +11,15 @@
   // where the food came from, or from the values as they were when this sheet opened.
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { logRecent, logRecipes, logProducts, productLookup, foodSearch, foodGet } from '../ipc';
+  import {
+    logRecent,
+    logRecipes,
+    logProducts,
+    productLookup,
+    recipeLibrary,
+    foodSearch,
+    foodGet,
+  } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
   import {
     createNotesUndoable,
@@ -22,6 +30,7 @@
   import { show, showWith, today, typed, whole, nowClock, clockOf, dayOf } from '../units';
   import { RECIPE, recipeWord } from '../templates';
   import type {
+    CarriedRecipe,
     FoodHit,
     FoodPortion,
     Metric,
@@ -30,6 +39,7 @@
     Product,
     RecentItem,
     Recipe,
+    RecipeLibrary,
     TotalsDef,
   } from '../types';
 
@@ -255,6 +265,30 @@
       source: `product/${p.id}`,
     };
   }
+
+  // ── recipes carried in the app ─────────────────────────────────────────────────────────────────
+  // The NHLBI's, word for word (`decisions.md#data`, 2026-10-12). Asked for when the Recipes tab
+  // is first opened. A serving is logged with the Institute's own values; nothing is worked out.
+  let carried = $state<RecipeLibrary | null>(null);
+  let reading = $state<CarriedRecipe | null>(null);
+  $effect(() => {
+    if (mode === 'recipes' && !carried)
+      recipeLibrary()
+        .then((r) => (carried = r))
+        .catch(() => (carried = null));
+  });
+  const addCarried = () =>
+    write(async () => {
+      const r = reading;
+      if (!r) return;
+      await createNotesUndoable(
+        [draft(r.title, { ...r.per_serving, source: `nhlbi/${r.id}` })],
+        `logged a serving of “${r.title}”`,
+      );
+      added += 1;
+      reading = null;
+      onwrote();
+    });
 
   // ── the portion step ───────────────────────────────────────────────────────────────────────────
   type Portion = {
@@ -1072,6 +1106,36 @@
           </button>
         </div>
       </section>
+    {:else if reading}
+      <section class="quick" aria-label="a recipe, as published">
+        <h2>{reading.title}</h2>
+        {#if reading.yield}<p class="hint">{reading.yield}</p>{/if}
+        <p class="comes-to">
+          {#each summary(reading.per_serving) as part, i (i)}
+            <span class:lead={i === 0}>{part}</span>
+          {/each}
+        </p>
+        <p class="hint">A serving, by the Institute's own figures. Nothing here is worked out.</p>
+        <h3>Ingredients</h3>
+        <ul class="asis">
+          {#each reading.ingredients as line, i (i)}<li>{line}</li>{/each}
+        </ul>
+        <h3>Directions</h3>
+        <ol class="asis">
+          {#each reading.steps as step, i (i)}<li>{step}</li>{/each}
+        </ol>
+        <p class="hint">
+          Source: {carried?.source ?? ''}. Ingredients and directions as published; the
+          <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a> has its
+          tips and notes.
+        </p>
+        <div class="pair">
+          <button type="button" class="quiet" onclick={() => (reading = null)}>Back</button>
+          <button type="button" class="go" onclick={addCarried} disabled={busy || unplaced}>
+            Add a serving{slotLabel ? ` to ${slotLabel}` : ''}
+          </button>
+        </div>
+      </section>
     {:else if labelling}
       <section class="quick" aria-label="a packaged food, from its label">
         <h2>From the label</h2>
@@ -1283,6 +1347,20 @@
           >
             New recipe
           </button>
+          {#if carried?.recipes.length}
+            <h3 class="shelf">From the NHLBI ({carried.recipes.length})</h3>
+            <ul class="rows">
+              {#each carried.recipes as r (r.id)}
+                <li>
+                  <button type="button" class="row" onclick={() => (reading = r)}>
+                    <span class="t">{r.title}</span>
+                    <span class="a">1 serving{r.servings ? ` of ${r.servings}` : ''}</span>
+                    <span class="v">{show(primary.key, r.per_serving[primary.key] ?? 0).text}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
         {/if}
       {:else}
         <div class="quick">
@@ -1550,6 +1628,18 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+  }
+  .asis {
+    margin: 0;
+    padding-left: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  .shelf {
+    margin: var(--space-3) 0 0;
     font-size: var(--text-sm);
     color: var(--text-muted);
   }

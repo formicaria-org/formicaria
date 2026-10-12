@@ -512,5 +512,22 @@ kept, and every value is converted to a whole number per 100 g; Ciqual's *traces
 Etalab 2.0: <https://www.etalab.gouv.fr/licence-ouverte-open-licence>. CC BY 4.0:
 <https://creativecommons.org/licenses/by/4.0/>.
 
+## Recipes carried in the binary
+
+Fifty-four recipes, their ingredients and directions word for word, with the publisher's
+own values per serving. Source: National Heart, Lung, and Blood Institute; National
+Institutes of Health; U.S. Department of Health and Human Services —
+<https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes>.
+The Institute states that information on its website is in the public domain unless noted
+otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's
+tips and notes are on its own page and are not carried.
+
+## Data fetched when a person asks
+
+A packaged food looked up by its barcode contains data from Open Food Facts
+(<https://openfoodfacts.org>), available under the Open Database License
+(<https://opendatacommons.org/licenses/odbl/1-0/>). One product is read per request;
+none of it is carried in the binary.
+
 Full licence texts: <https://spdx.org/licenses/>. formicaria's own licence is MIT,
 in `LICENSE`.

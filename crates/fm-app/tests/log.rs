@@ -736,3 +736,26 @@ fn the_kitchen_is_the_notes_that_say_so_by_name() {
     let got: Vec<String> = log_kitchen(&s).unwrap().into_iter().map(|k| k.title).collect();
     assert_eq!(got, ["Olive oil", "rice"]);
 }
+
+/// The recipes carried in the app read, each names its page and has what a recipe has, and every
+/// value per serving is a whole number under a key a logged food uses.
+#[test]
+fn the_carried_recipes_read_and_are_whole() {
+    let lib = fm_app::log::recipe_library().unwrap();
+    assert!(lib["source"].as_str().unwrap().contains("National Heart, Lung, and Blood Institute"));
+    let recipes = lib["recipes"].as_array().unwrap();
+    assert!(recipes.len() >= 40);
+    let mut ids = std::collections::BTreeSet::new();
+    for r in recipes {
+        let id = r["id"].as_str().unwrap();
+        assert!(ids.insert(id.to_string()), "{id} is listed twice");
+        assert!(r["url"].as_str().unwrap().starts_with("https://www.nhlbi.nih.gov/"), "{id}");
+        assert!(!r["title"].as_str().unwrap().is_empty(), "{id}");
+        assert!(r["ingredients"].as_array().unwrap().len() >= 2, "{id}");
+        assert!(!r["steps"].as_array().unwrap().is_empty(), "{id}");
+        for (k, v) in r["per_serving"].as_object().unwrap() {
+            assert!(k == "kcal" || k.ends_with("_mg") || k.ends_with("_ug"), "{id}: {k}");
+            assert!(v.as_i64().is_some_and(|n| n >= 0), "{id}: {k}");
+        }
+    }
+}

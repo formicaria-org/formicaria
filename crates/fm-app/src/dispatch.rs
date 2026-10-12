@@ -562,6 +562,7 @@ const READ_ONLY: &[&str] = &[
     "log_routines",
     "log_products",
     "log_kitchen",
+    "recipe_library",
     "log_nutrients",
     // The library is carried in the app; a profile, a preview and a week's progress are read
     // from notes and change none.
@@ -2280,6 +2281,7 @@ fn dispatch_inner(
             let store = g.store(scope);
             json(crate::nutrients::log_nutrients(&store, &def, &s("day")).map_err(err)?)
         }
+        "recipe_library" => json(crate::log::recipe_library().map_err(err)?),
         "log_kitchen" => {
             let mut g = lock()?;
             let store = g.store(scope);

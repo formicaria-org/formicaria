@@ -7,10 +7,17 @@
   // the day screen shows and confirms — put there with the same sheet. The shopping list is an
   // ordinary note with a box to tick on each line.
   import Icon from '../Icon.svelte';
-  import { logDays, logKitchen, logRecipes } from '../ipc';
+  import { logDays, logKitchen, logRecipes, recipeLibrary } from '../ipc';
   import { createNotesUndoable, deleteNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, show, showWith, whole } from '../units';
-  import type { DayTotals, NoteDraft, ObjectMeta, Recipe, TotalsDef } from '../types';
+  import type {
+    CarriedRecipe,
+    DayTotals,
+    NoteDraft,
+    ObjectMeta,
+    Recipe,
+    TotalsDef,
+  } from '../types';
 
   interface Props {
     view: string;
@@ -173,9 +180,27 @@
   /// What is needed and not at home.
   const toBuy = $derived(needs.filter((n) => !had(n.title)));
 
+  /// Planned dishes from the recipes carried in the app: their ingredient lines as published —
+  /// in cups and spoons, tied to no food, so they are listed and not added up.
+  let library = $state<CarriedRecipe[]>([]);
+  $effect(() => {
+    recipeLibrary()
+      .then((r) => (library = r.recipes))
+      .catch(() => (library = []));
+  });
+  const asPublished = $derived.by(() => {
+    const ids = new Set<string>();
+    for (const d of days)
+      for (const r of d.rows ?? []) {
+        const s = String(r.props.source ?? '');
+        if (r.props.planned && s.startsWith('nhlbi/')) ids.add(s.slice('nhlbi/'.length));
+      }
+    return library.filter((r) => ids.has(r.id));
+  });
+
   let busy = $state(false);
   async function shoppingList() {
-    if (busy || !toBuy.length) return;
+    if (busy || (!toBuy.length && !asPublished.length)) return;
     busy = true;
     const from = dayLabel(today);
     const to = dayLabel(addDays(today, span - 1));
@@ -191,6 +216,13 @@
               .map((n) => n.title)
               .join(', ')}.`
           : '') +
+        asPublished
+          .map(
+            (r) =>
+              `\n\nFor ${r.title} (${r.yield ?? 'as published'}), as its source lists them:\n\n` +
+              r.ingredients.map((line) => `- [ ] ${line}`).join('\n'),
+          )
+          .join('') +
         '\n',
       props: {},
     };
@@ -303,7 +335,7 @@
 
   <section class="card">
     <h3>What it needs</h3>
-    {#if needs.length}
+    {#if needs.length || asPublished.length}
       <ul class="plain needs">
         {#each needs as n (n.title)}
           {@const mine = had(n.title)}
@@ -322,7 +354,18 @@
           </li>
         {/each}
       </ul>
-      <button type="button" class="go" onclick={shoppingList} disabled={busy || !toBuy.length}>
+      {#each asPublished as r (r.id)}
+        <p class="says">For {r.title} ({r.yield ?? 'as published'}), as its source lists them:</p>
+        <ul class="plain">
+          {#each r.ingredients as line, i (i)}<li><span>{line}</span></li>{/each}
+        </ul>
+      {/each}
+      <button
+        type="button"
+        class="go"
+        onclick={shoppingList}
+        disabled={busy || (!toBuy.length && !asPublished.length)}
+      >
         Make a shopping list{toBuy.length < needs.length ? ` of ${toBuy.length}` : ''}
       </button>
       {#if said}<p class="says" role="status">{said}</p>{/if}

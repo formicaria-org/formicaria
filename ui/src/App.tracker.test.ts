@@ -458,3 +458,18 @@ test('what you say you have in your kitchen is a list of names, kept from the me
   await fireEvent.click(within(kitchen).getByRole('button', { name: 'no longer have Rice' }));
   await waitFor(() => expect(within(kitchen).queryByText('Rice')).toBeNull());
 });
+
+test('a recipe carried in the app is shown as published and logged by its source’s own figures', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  const sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Recipes' }));
+  await fireEvent.click(await within(sheet).findByRole('button', { name: /Vegetable Stew/ }));
+  const recipe = await within(sheet).findByRole('region', { name: 'a recipe, as published' });
+  expect(within(recipe).getByText('3 C water')).toBeTruthy();
+  expect(within(recipe).getByText('Heat water in a large pot.')).toBeTruthy();
+  expect(within(recipe).getByText(/National Heart, Lung, and Blood Institute/)).toBeTruthy();
+  expect(within(recipe).getByRole('link', { name: "recipe's own page" })).toBeTruthy();
+});

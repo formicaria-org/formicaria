@@ -665,6 +665,25 @@ export interface ProductFound {
   /** The product's own page there, to link to and to credit. */
   page: string;
 }
+/** A recipe carried in the app, as its source published it (`recipe_library`). */
+export interface CarriedRecipe {
+  id: string;
+  title: string;
+  url: string;
+  /** The page's own words for what it makes. */
+  yield?: string;
+  servings?: number;
+  ingredients: string[];
+  steps: string[];
+  /** The source's own values for a serving, by the keys every food uses. */
+  per_serving: Record<string, number>;
+}
+export interface RecipeLibrary {
+  source: string;
+  home: string;
+  seen: string;
+  recipes: CarriedRecipe[];
+}
 /** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
 export interface Routine {
   /** The word its notes share. */

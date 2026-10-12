@@ -553,6 +553,23 @@ pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
     Ok(out)
 }
 
+// ── recipes carried in the app ───────────────────────────────────────────────────────────────────
+
+/// The recipes that come with the app, as their source published them.
+///
+/// **Carried, never written into a vault, and never changed** (`decisions.md#data`, 2026-10-12,
+/// *recipes from outside are carried word for word*): the U.S. National Heart, Lung, and Blood
+/// Institute's, which it says are in the public domain and asks not to be altered. Each has its
+/// own ingredient lines and steps, and **the values per serving are the Institute's own** — the
+/// app works none out, since the amounts are in cups and spoons and tie to no food table.
+/// `ci/pack-recipes.py` makes the file.
+pub const RECIPES_NHLBI: &str = include_str!("shipped/recipes-nhlbi.json");
+
+pub fn recipe_library() -> Result<serde_json::Value, StoreError> {
+    serde_json::from_str(RECIPES_NHLBI)
+        .map_err(|e| StoreError::Parse(format!("the carried recipes do not read: {e}")))
+}
+
 // ── what is in the kitchen ───────────────────────────────────────────────────────────────────────
 
 /// The note carrying this is something the person has at home.

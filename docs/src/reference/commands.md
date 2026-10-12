@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 114 of them are below**, grouped by what they are for. If you add an arm to
+**All 115 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -173,6 +173,7 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 | `log_recent`     | `view`, `slot`, `q`, `limit` | `RecentItem[]`         | what a log holds already, one line per distinct thing, most used in `slot` first, each with the values it had the last time |
 | `log_recipes`    | `view`                       | `Recipe[]`             | the recipes saved in a log, by name. Each: `servings`, its ingredient entries, `of` (how many), and `sums` — every whole-number value the ingredients carry, added up, with how many of them carried it. Nothing is adjusted for cooking |
 | `log_nutrients`  | `view`, `day`                | `Nutrients`            | every vitamin and mineral of one day: per value its `sum`, how many entries carried it, the `reference` for an adult of the person's sex and age where there is one figure (EFSA 2017), an `upper` level where it applies to food, and the day's entries. `needs_sex` when figures were left out for want of it |
+| `recipe_library` | —                            | `{ source, home, seen, recipes }` | the recipes carried in the app, as published: each with its `ingredients` and `steps` word for word, its page, and its publisher's own values `per_serving` |
 | `log_kitchen`    | —                            | `{ id, title }[]`      | what the person says they have at home: notes carrying `kitchen`, by name. No amounts |
 | `log_products`   | —                            | `Product[]`            | the packaged foods a person wrote down from their labels: notes carrying `product`, each with its `per100` values (the keys every food uses), and `barcode` and `serving_g` when given. In no log and no day |
 | `log_routines`   | `view`                       | `Routine[]`            | the sessions kept under a name in a log: each with the `weekdays` it is meant for (`mon` … `sun`) and its `sets` — entries that name the routine instead of a day, so they are in no day until planned onto one |

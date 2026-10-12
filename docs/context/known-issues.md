@@ -2259,3 +2259,13 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   `ci/checks.sh` fails on any other Open Food Facts address.
 - **They answer sodium in grams**; the note keeps micrograms and the form shows salt.
 - **A kitchen item is matched by its exact name**, case aside.
+
+## Carried recipes — traps (2026-10-12)
+
+- **A serving of a carried recipe is an entry with no amount** and a source of `nhlbi/<id>`. It
+  must not carry `servings_pct`: that key makes the sheet look for one of the person's own
+  recipes by `recipe/<word>`.
+- **Its values are missing where the page gave none** (fibre for 11 of 54, potassium for 12), so
+  a day with one reads "from n of m entries" for those.
+- **The file is made by `ci/pack-recipes.py`** (about 60 polite requests); the build only reads
+  it. Regenerating it changes `seen` and nothing else unless the site changed.
