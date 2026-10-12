@@ -423,3 +423,34 @@ fn every_fitness_regime_has_a_week_to_start_from() {
         }
     }
 }
+
+/// A diet's example day is either a body's own, as published, or chosen by arithmetic from the
+/// carried recipes — and then names recipes that exist, and says what it falls short of.
+#[test]
+fn a_diets_example_day_is_published_or_chosen_from_recipes_that_exist() {
+    let lib = fm_app::plan::plan_library("food").unwrap();
+    let recipes = fm_app::log::recipe_library().unwrap();
+    let ids: std::collections::BTreeSet<&str> =
+        recipes["recipes"].as_array().unwrap().iter().map(|r| r["id"].as_str().unwrap()).collect();
+    let mut with = 0;
+    for p in &lib.plans {
+        for e in &p.examples {
+            with += 1;
+            assert!(e["note"].as_str().unwrap().len() > 20, "{}", p.id);
+            match e["kind"].as_str().unwrap() {
+                "published" => {
+                    assert!(!e["day"]["meals"].as_array().unwrap().is_empty(), "{}", p.id)
+                }
+                "selected" => {
+                    assert!(e["against"].as_str().unwrap().len() > 20, "{}", p.id);
+                    for r in e["recipes"].as_array().unwrap() {
+                        let id = r["recipe"].as_str().unwrap();
+                        assert!(ids.contains(id), "{}: no recipe {id}", p.id);
+                    }
+                }
+                other => panic!("{}: an example of kind {other}", p.id),
+            }
+        }
+    }
+    assert!(with >= 7);
+}

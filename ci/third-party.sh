@@ -271,6 +271,13 @@ npm_licences() {
     echo "\`zxing-wasm\` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:"
     echo "<https://github.com/zxing-cpp/zxing-cpp>, Apache-2.0."
     echo
+    echo "## Example days carried in the binary"
+    echo
+    echo "One day of \"A Week With the DASH Eating Plan\", unchanged. Source: National Heart, Lung,"
+    echo "and Blood Institute; National Institutes of Health; U.S. Department of Health and Human"
+    echo "Services. Fast-day meals from Klempel MC et al., Nutrition Journal 2010;9:35, Table 1,"
+    echo "under CC BY 2.0 (<https://creativecommons.org/licenses/by/2.0/>)."
+    echo
     echo "## Data fetched when a person asks"
     echo
     echo "A packaged food looked up by its barcode contains data from Open Food Facts"

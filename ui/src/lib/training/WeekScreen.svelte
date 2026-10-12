@@ -215,12 +215,16 @@
       <details class="fold">
         <summary>A week to start from, for {progress.plan.name}</summary>
         {#each progress.plan.examples as example, i (i)}
-          <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+          {#if 'week' in example}
+            <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+          {/if}
         {/each}
       </details>
     {:else}
       {#each progress.plan.examples as example, i (i)}
-        <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+        {#if 'week' in example}
+          <ExampleWeek {example} onsaved={() => (onsaved(), void load())} />
+        {/if}
       {/each}
     {/if}
   {/if}

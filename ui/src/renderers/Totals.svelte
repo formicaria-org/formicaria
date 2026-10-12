@@ -16,10 +16,12 @@
   import { clockOf, show, showWith, whole, dayLabel, dayLetter, dayNumber } from '../lib/units';
   import { dayAgainst, dishesFor, gap, shownAsk, shownValue } from '../lib/plan/measure';
   import type { Dish } from '../lib/plan/measure';
+  import ExampleDay from '../lib/plan/ExampleDay.svelte';
   import type {
     DayTotals,
     ObjectMeta,
     PlanCheckProgress,
+    PlanFoodExample,
     PlanProgress,
     TotalsDef,
   } from '../lib/types';
@@ -47,6 +49,8 @@
     plan?: PlanProgress | null;
     /** Open every vitamin and mineral of the day. Offered only when its owner can show them. */
     onnutrients?: () => void;
+    /** Something was planned from an example day: ask for the day again. */
+    onexample?: () => void;
     /** Dishes a serving of which could be had: the person's recipes and the carried ones. */
     dishes?: Dish[];
     /** A dish offered was chosen: open it, to have or to plan. */
@@ -69,7 +73,13 @@
     onnutrients,
     dishes = [],
     onidea,
+    onexample,
   }: Props = $props();
+
+  /// The diet's own examples of a day, for the fold in its strip.
+  const dayExamples = $derived(
+    (plan?.plan?.examples ?? []).filter((e): e is PlanFoodExample => !('week' in e)),
+  );
 
   const against = $derived(plan?.plan ? dayAgainst(plan.checks) : null);
   /// Which check is opened to show what made it up.
@@ -352,6 +362,14 @@
             </li>
           {/each}
         </ul>
+      {/if}
+      {#if dayExamples.length && onexample}
+        <details class="start">
+          <summary>A day to start from</summary>
+          {#each dayExamples as example, i (i)}
+            <ExampleDay {example} {today} onsaved={onexample} />
+          {/each}
+        </details>
       {/if}
       {#each against.weekly as c (c.id)}
         <p class="weekly">
@@ -782,6 +800,11 @@
     font-size: var(--text-xs);
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+  }
+  .start summary {
+    min-height: 2.5rem;
+    cursor: pointer;
+    font-size: var(--text-sm);
   }
   .diet {
     display: flex;

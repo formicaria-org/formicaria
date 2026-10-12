@@ -545,6 +545,13 @@ Films of exercises are links to YouTube and are not carried.
 `zxing-wasm` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:
 <https://github.com/zxing-cpp/zxing-cpp>, Apache-2.0.
 
+## Example days carried in the binary
+
+One day of "A Week With the DASH Eating Plan", unchanged. Source: National Heart, Lung,
+and Blood Institute; National Institutes of Health; U.S. Department of Health and Human
+Services. Fast-day meals from Klempel MC et al., Nutrition Journal 2010;9:35, Table 1,
+under CC BY 2.0 (<https://creativecommons.org/licenses/by/2.0/>).
+
 ## Data fetched when a person asks
 
 A packaged food looked up by its barcode contains data from Open Food Facts

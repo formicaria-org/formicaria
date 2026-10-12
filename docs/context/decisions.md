@@ -10420,6 +10420,17 @@ regime with a week. Each number still names whose it is. Recorded here first.
   week (the 4×4's build-up) is given as its first week, with the rest in words.
 - **A planned activity is ticked when done**, as a set is.
 
+- **A diet has a day to start from**, on the Diet view and folded into the Day screen's strip.
+  *Published*: one day of the U.S. heart institute's *A Week With the DASH Eating Plan*, carried
+  unchanged (public domain; it asks for no changes), on the three general diets, with what it
+  meets of each by its own printed totals; and, for the two fasting patterns, the fast-day meals
+  one trial gave its participants (Klempel et al. 2010, CC BY) — dish names, no amounts, not a
+  recommendation. *Chosen by arithmetic* from the 54 carried recipes for every diet, a serving
+  each, **with what the day falls short of said and not padded**: three recipes are about half a
+  day's energy and none reaches the potassium floor. *Plan it for today* writes them as planned
+  meals. No body publishes an example day for WHO's or EFSA's figures, the Nordic
+  recommendations or the planetary diet; the Nordic report is © and may only be linked.
+
 **Costs.** A workspace saved on 0.7.5 with a window on *Session* or *Volume* finds no such view.
 An assembled week is the app's judgement however carefully sourced its parts are: the muscle-growth
 week is four machines three times a week because that reaches ten sets, not because anyone

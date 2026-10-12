@@ -42,6 +42,18 @@ const who: PlanOption = {
     },
   ],
   unmeasured: ['Free sugars: the food tables give total sugars.'],
+  examples: [
+    {
+      kind: 'selected',
+      by: 'formicaria, by arithmetic from the recipes it carries',
+      title: 'NHLBI Healthy Eating Recipes',
+      url: 'https://www.nhlbi.nih.gov/',
+      note: 'Chosen by arithmetic from the carried recipes; only an indication to start from.',
+      recipes: [{ meal: 'Lunch', recipe: 'nhlbi-vegetable-stew', servings: 1 }],
+      totals: { kcal: 119, fiber_g: 4 },
+      against: 'Fibre 4 g: short by 21 g of 25 g. About a twentieth of a day’s energy.',
+    },
+  ],
   guides: [],
 };
 const energy: PlanOption = {

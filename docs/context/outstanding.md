@@ -1129,25 +1129,22 @@ well known sources and when not available from trainers that have high views".
   find it?"* It was in the register as one unnamed trial. The searches were framed by issuing
   body. **A search for what people can follow is made both ways: by body, and by the names
   people use.** Ten names not yet looked up are listed in the register.
+- **Since v0.7.5** (`decisions.md#ui`, 2026-10-12, *Fitness is the week, the exercises and the
+  regime*): three views; a day opens in the week's place; what is added is picked from a list
+  and arrives with numbers; every regime has a week to start from and every diet a day.
 - **Left:**
-  - **Never seen on a phone**: five tabs in Fitness (the bar scrolls), the cards, every link out.
-  - The Army's text is a drill manual: "Soldiers", counts, commands, figure numbers that point at
-    nothing, position names defined in a chapter not carried. It is shown as written, and says
-    so. A plain-words version would be the app's wording and could not be credited to anyone.
-  - A card's exercise is added to a session by its name, and a session's exercise opens its
-    card (*How*) when their names match, a plural or a hyphen aside. A routine cannot be built
-    by picking cards in one go.
-  - **Films**: 157 links on 78 cards (105 counting a whole drill's), checked to exist on
-    2026-10-12 and never watched. A trainer's qualification is as their own site states it,
-    not verified elsewhere. Nine films had no card to go on (plank, dead bug, leg extension
-    machine, single-leg deadlift, bench dip): those exercises have no carriable text. Links
-    rot: nothing re-checks them.
-  - Sets and repetitions on a card are its source's (five for the NHS's, a soldier's for the
-    Army's); the regime followed is what says how many.
-  - No pictures. The NHS's alternative text describes each pose and is text; not carried yet.
-  - The NHS copy is dated; `pixi run pack-exercises` refreshes it and needs `pdftotext`.
-  - Not offered: 10-20-30 as a regime (no weekly figure read), Tabata, Zone 2, the 7-minute
-    workout, 5BX — each with its reason in the register.
+  - **Never seen on a phone**: any of it.
+  - **An assembled week is the app's judgement.** Six regimes have no published day-by-day
+    example; theirs is arranged from the regime's figures and says so. Not re-read: the ACSM
+    2026 paper, Warneke 2025, the World Falls Guidelines — the figures are the register's.
+  - The 4×4's week 1 has no full 4×4 in it; its build-up sessions are logged under the same name.
+    Its weeks 2 to 7 are in words only: nothing steps a routine forward week by week.
+  - An example week makes routines with a load of 0 and the lowest number of a range
+    ("8 to 12" → 8); the person sets the load.
+  - A diet's day from recipes is half a day's energy; nothing fills the rest.
+  - The Army's text is a drill manual, shown as written. No pictures. Films are links, checked
+    once.
+  - A window saved on *Session* or *Volume* in 0.7.5 finds no such view.
   - Protein for someone losing weight while training: two abstracts disagree on the unit; unread.
 
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)

@@ -9,6 +9,7 @@
   //
   // The library, the formulas and the measuring are the core's (`plan.rs`); this draws what it
   // answers. Following writes one note; stopping gives that note a last day.
+  import ExampleDay from './ExampleDay.svelte';
   import ExampleWeek from './ExampleWeek.svelte';
   import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -458,7 +459,11 @@
     {@render sources(p)}
 
     {#each p.examples ?? [] as example, i (i)}
-      <ExampleWeek {example} {onsaved} />
+      {#if 'week' in example}
+        <ExampleWeek {example} {onsaved} />
+      {:else}
+        <ExampleDay {example} {today} {onsaved} />
+      {/if}
     {/each}
     {#if open.missing.length}
       <p class="why">Fill in “About you” to work out the numbers this needs.</p>
@@ -526,7 +531,11 @@
       </section>
     {/if}
     {#each p.examples ?? [] as example, i (i)}
-      <ExampleWeek {example} {onsaved} />
+      {#if 'week' in example}
+        <ExampleWeek {example} {onsaved} />
+      {:else}
+        <ExampleDay {example} {today} {onsaved} />
+      {/if}
     {/each}
     {#if p.guides.length}
       <section class="card">

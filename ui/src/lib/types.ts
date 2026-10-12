@@ -880,8 +880,8 @@ export interface PlanOption {
   unmeasured: string[];
   caution?: string;
   guides: PlanGuide[];
-  /** A week to start from, to be changed. */
-  examples?: PlanExample[];
+  /** A week (a regime) or a day (a diet) to start from, to be changed. */
+  examples?: (PlanExample | PlanFoodExample)[];
 }
 export interface PlanExampleItem {
   type: 'activity' | 'session';
@@ -891,6 +891,25 @@ export interface PlanExampleItem {
   counts_as?: string;
   exercises?: { card: string; sets: number; reps: string | number; said?: string }[];
   said?: string;
+}
+/** A diet's day to start from: a body's own, or chosen from the carried recipes. */
+export interface PlanFoodExample {
+  kind: 'published' | 'selected';
+  by: string;
+  title: string;
+  url: string;
+  note: string;
+  /** Published: the day as printed. */
+  day?: {
+    name?: string;
+    meals: { meal: string; items: string[] }[];
+    totals?: Record<string, string>;
+  };
+  fits?: string;
+  /** Selected: carried recipes by id, a serving each. */
+  recipes?: { meal: string; recipe: string; servings: number }[];
+  totals?: Record<string, number>;
+  against?: string;
 }
 export interface PlanExample {
   /** `published`: a body's own example. `assembled`: the app's arrangement of sourced figures. */

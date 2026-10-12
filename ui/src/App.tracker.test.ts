@@ -632,3 +632,24 @@ test('following a regime puts a week to start from on the first screen, and usin
     2,
   );
 });
+
+test('a diet followed offers a day to start from, said to be only an indication, and plans it', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Diet' }));
+  await fireEvent.click(await screen.findByRole('button', { name: /WHO healthy diet/ }));
+  // Before following: the example day, with what it falls short of.
+  const example = await screen.findByRole('region', { name: 'a day to start from' });
+  expect(within(example).getByText(/only an indication/)).toBeTruthy();
+  expect(within(example).getByText(/short by 21 g/)).toBeTruthy();
+  expect(await within(example).findByText(/Vegetable Stew/)).toBeTruthy();
+  await fireEvent.click(within(example).getByRole('button', { name: 'Plan it for today' }));
+  expect(await within(example).findByText(/Planned for today/)).toBeTruthy();
+  // It is a planned meal of today, to confirm or change on the Day tab.
+  const again = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(again).getByRole('button', { name: 'Day' }));
+  expect(await screen.findByRole('button', { name: 'confirm Vegetable Stew' })).toBeTruthy();
+});

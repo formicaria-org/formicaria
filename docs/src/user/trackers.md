@@ -286,6 +286,12 @@ body that wrote it, or your own. Press one to see, before anything is saved:
   tables; hours without eating cannot be told from entries that have a day and no time.
 - Its **sources**, as links.
 
+**A day to start from.** Most diets show an example day: one as a health body published it, where
+one did (a day of the U.S. heart institute's DASH menus, unchanged), and one chosen by arithmetic
+from the recipes that come with the app. The second kind says what it meets and what it falls
+short of — three recipes are about half a day's food — and **Plan it for today** puts it on your
+day as planned meals, to confirm or change. It is only an indication.
+
 **Follow this** starts it today.
 
 | In Food | In Fitness |

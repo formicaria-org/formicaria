@@ -568,6 +568,7 @@
         onconfirm={confirm}
         plan={followed}
         {dishes}
+        onexample={() => void wrote()}
         onidea={(dish) => (sheet = { slot: null, entry: null, open: dish.ref })}
         onnutrients={def.add === 'food' ? () => (nutrientsOpen = true) : undefined}
       />
