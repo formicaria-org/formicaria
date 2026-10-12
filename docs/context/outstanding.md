@@ -1094,27 +1094,11 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    carried but have no values and no grams. A suggestion says why — what it would bring the
    day to, how many ingredients are in the kitchen — and is arithmetic, not the assistant.
 
-8. **A view to plan meals over several days** (the owner, 2026-10-12: *"use the pantry, recipes
-   (both from outside and inside the notes) to plan meals for many days (user decides) … buying
-   appropriate stuff as well as maybe cooking things that can be consumed in the following
-   days … generate food plan notes with an easier interface"*). A fourth tab in Food; its name
-   must be unique among views (*Menu* proposed). Shape:
-   - **Days × meals**, for as many days as the person picks. A slot is filled from their
-     recipes, a carried recipe, or a food or product.
-   - **What it writes is what exists already**: entries with `planned: 1` on those days, which
-     the Day screen shows and confirms. No new kind of note. The Day strip's seven-day reach
-     ahead has to follow the plan's length.
-   - **Cook once, eat again**: a recipe makes its servings; placing it shows how many are left
-     and offers them to later slots. **How long a cooked dish keeps is advice and needs a
-     source** — none is read, so the app offers no limit of its own until one is.
-   - **A shopping list**: the planned recipes' ingredients added up, less what the kitchen has —
-     a note with tick boxes, so it is a file like the rest; ticking puts the item in the kitchen.
-   - **Each planned day against the diet**: the same checks, run over what is planned, so a day
-     shows what it would come to before it is eaten. *Fill the gaps* proposes recipes by that
-     arithmetic; the person accepts each.
-   Its first form needs only the person's own recipes and can come before items 5 to 7; the
-   shopping list waits for the kitchen (6), outside recipes for 7.
-
+8. **A view to plan meals over several days** — built as *Menu* (`decisions.md#ui`, 2026-10-12).
+   Left: the kitchen taken off the shopping list (item 6); recipes from outside (item 7); each
+   planned day against the diet's checks; proposing meals to fill the gaps; a source for how
+   long a cooked dish keeps; the shopping list is written once and does not follow later
+   changes to the menu.
 9. **An amount as a range** — built for a logged food. Left: a recipe's ingredients; a plan is
    measured on the middle of the range.
 

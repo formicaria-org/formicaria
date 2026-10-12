@@ -131,6 +131,25 @@ Step to a day after today — the day screen reaches a week ahead — and add as
 there is a **plan**: it is shown in a lighter hand, and is in no total until you press the tick
 beside it. *Same as yesterday* on a day ahead plans it too.
 
+## Menu
+
+**Food → Menu** is the days ahead, to fill in: today and the days after it, each with its meals.
+Set how many days with the minus and plus at the top.
+
+- The **+** beside a meal plans something for it, with the same sheet you log with: a food, or a
+  serving of one of your recipes. It is a plan until the day comes; on that day's screen you
+  confirm it when you eat it.
+- **next day** beside a planned meal plans the same again for the day after — for a dish you
+  cook once and eat twice.
+- **Dishes on this menu** says, for each of your recipes on it, how many of the servings it makes
+  you have planned.
+- **What it needs** adds up what the planned meals take: a recipe's ingredients for the servings
+  planned, and plain foods by their amount. **Make a shopping list** saves it as a note with a
+  box to tick on each line.
+
+Each day shows what it would come to against your energy target. The app does not say how long a
+cooked dish keeps.
+
 ## Trends
 
 **Food → Trends** shows a week, four weeks or twelve. A menu at the top picks **what to show** —

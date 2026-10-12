@@ -63,7 +63,7 @@ const BODY: TotalsDef = {
   metrics: [{ key: 'weight_g', label: 'Weight', role: 'primary', agg: 'mean' }],
   slots: [],
 };
-const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Trends', 'Diet'] };
+const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Menu', 'Trends', 'Diet'] };
 const FITNESS_GROUP: ViewGroup = { name: 'Fitness', views: ['Session', 'Volume', 'Regime'] };
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
@@ -80,6 +80,7 @@ const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
     group: FOOD_GROUP,
   },
   Diet: { totals: { ...FOOD, span: 'plan' }, group: FOOD_GROUP },
+  Menu: { totals: { ...FOOD, span: 'menu' }, group: FOOD_GROUP },
   Session: { totals: TRAINING, group: FITNESS_GROUP },
   Volume: { totals: { ...TRAINING, span: 'range' }, group: FITNESS_GROUP },
   Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },

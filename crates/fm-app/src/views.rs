@@ -158,6 +158,10 @@ pub enum Span {
     /// (`plan.rs`; `decisions.md#ui`, 2026-10-12). It is a view of its group like the others, so
     /// it is a tab like the others, and the group's add control means in it what it means in them.
     Plan,
+    /// Several days ahead at once: what is planned for each, to fill and to shop for
+    /// (`decisions.md#ui`, 2026-10-12, *a menu is the days ahead, filled*). It writes nothing of
+    /// its own kind: its meals are the planned entries the day screen already confirms.
+    Menu,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -894,6 +898,7 @@ fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
 /// what a shipped view calls things.
 const SHIPPED: &[(&str, &str)] = &[
     ("food-day", include_str!("shipped/food-day.view")),
+    ("food-menu", include_str!("shipped/food-menu.view")),
     ("food-trends", include_str!("shipped/food-trends.view")),
     ("food-plan", include_str!("shipped/food-plan.view")),
     ("training-session", include_str!("shipped/training-session.view")),

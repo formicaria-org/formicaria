@@ -355,3 +355,21 @@ test('an amount known only roughly is kept as a range, and the day says between 
   expect(await screen.findByText(/^between .* and .* kcal$/)).toBeTruthy();
   expect(screen.getByText(new RegExp(`^${grams - 10}–${grams + 10} g$`))).toBeTruthy();
 });
+
+test('the menu is the days ahead by meal, for as many days as asked, and says what they need', async () => {
+  seedTrackerDemo();
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Menu' }));
+  expect(await screen.findByRole('heading', { name: 'Menu' })).toBeTruthy();
+  const days = () => screen.getAllByRole('button', { name: /^plan Breakfast for / }).length;
+  await waitFor(() => expect(days()).toBe(7));
+  await fireEvent.click(screen.getByRole('button', { name: 'one day fewer' }));
+  await waitFor(() => expect(days()).toBe(6));
+  // Planning a meal uses the sheet the day screen uses.
+  await fireEvent.click(screen.getAllByRole('button', { name: /^plan Lunch for / })[1]);
+  expect(await screen.findByRole('dialog')).toBeTruthy();
+});

@@ -76,7 +76,7 @@
   let asked = 0;
   async function load() {
     // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
-    if (!def || !view || def.span === 'plan') return;
+    if (!def || !view || def.span === 'plan' || def.span === 'menu') return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -195,7 +195,10 @@
     onsaved();
   }
 
+  /// Counts what was written from this pane's sheets, for a screen that asks for its own days.
+  let wrotes = $state(0);
   async function wrote(what?: { removed?: string }) {
+    wrotes += 1;
     if (what?.removed) say(`Removed “${what.removed}”`);
     await load();
     onsaved();
@@ -362,6 +365,24 @@
     {:else if def.span === 'plan'}
       {#await import('./plan/PlanScreen.svelte') then { default: PlanScreen }}
         <PlanScreen {def} {today} signal={feed} {onsaved} />
+      {/await}
+    {:else if def.span === 'menu'}
+      {#await import('./food/MenuScreen.svelte') then { default: MenuScreen }}
+        <MenuScreen
+          {view}
+          {def}
+          {today}
+          signal={[feed, wrotes]}
+          onadd={(d, slot) => {
+            selected = d;
+            sheet = { slot, entry: null };
+          }}
+          onedit={(entry, d) => {
+            selected = d;
+            sheet = { slot: null, entry };
+          }}
+          {onsaved}
+        />
       {/await}
     {:else if def.span === 'range'}
       <Trends
