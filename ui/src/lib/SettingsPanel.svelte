@@ -31,6 +31,7 @@
   import Appearance from './Appearance.svelte';
   import CalendarsSection from './CalendarsSection.svelte';
   import TrackersSection from './TrackersSection.svelte';
+  import RemindersSection from './RemindersSection.svelte';
   import MailSection from './MailSection.svelte';
   import {
     config as fetchConfig,
@@ -1484,6 +1485,11 @@
           <TrackersSection />
         </div>
       {/if}
+
+      <!-- Reminders: a switch for this device. -->
+      <div class="cat" data-cat="notes" data-words="reminders notifications alerts deadline event">
+        <RemindersSection />
+      </div>
 
       <section
         data-cat="notes"

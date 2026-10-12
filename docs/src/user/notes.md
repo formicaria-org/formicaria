@@ -114,6 +114,33 @@ or gesture; on a computer it is the browser's Back button. If a menu or panel is
 first. If you are editing a note, Back stops editing and then takes you back. From the first screen,
 Back closes the app, as usual on Android.
 
+## Reminders
+
+A note with a date can remind you. Open **Settings** and turn on **Remind me of events and
+deadlines on this device**; the first time, your phone or browser asks whether formicaria may
+show notifications. It is off until you turn it on, and it is a choice for each device.
+
+- A note that has a **start** or a **due** date, and is not finished, is reminded of at its time.
+  A date with no time is reminded of at nine in the morning of that day.
+- To be told earlier, give the note the property `remind` with a number of minutes: `remind: 30`
+  tells you half an hour before. `remind: off` leaves that note out.
+- Finishing a note, or changing its date, changes its reminder: nothing else has to be done.
+
+**On an Android phone** a reminder arrives with the app closed, and after the phone has been
+restarted. Android may hold it back a few minutes while the phone is asleep. Reminders are set for
+the next fourteen days, fifty at most, each time the app is opened or something changes — so open
+the app now and then. A date that changed on another device is right once this one has got the
+change.
+
+**On a computer** a reminder arrives only while formicaria is open in your browser: as a line at
+the top of the app, and as a notification from the browser if you allowed it. One that came due
+while it was closed is not shown later.
+
+**On an iPhone or iPad** a reminder shows as a line in the app while it is open; nothing arrives
+when it is closed.
+
+This is new in 0.7.7 and has not yet been tried on a phone.
+
 ## Ticking things off
 
 A task list — `- [ ] milk` — renders with a real checkbox in the read view, and you can **tap it

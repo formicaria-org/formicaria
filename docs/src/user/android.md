@@ -82,6 +82,9 @@ behind it.
 
 ## What is on it
 
+Reminders for dated notes arrive on the phone with the app closed: see
+[Reminders](./notes.md#reminders).
+
 Everything the desktop has for writing: notes, search, dates and boards, attachments, whiteboards,
 and backing up. **The study assistant is included too** — it downloads its model on first enable and
 runs on the phone itself, with nothing sent anywhere. (That is the one thing the iPhone build cannot

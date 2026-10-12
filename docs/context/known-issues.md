@@ -1359,6 +1359,33 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   intended, but each change is its own note, so a person who changes targets often accumulates
   them on the agenda.
 
+## Reminders — where they stand (2026-10-13)
+
+Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt` written by
+`ci/android-inject-service.sh`). `decisions.md#ui`, 2026-10-13.
+
+- **Never run on a phone.** The Kotlin compiles and the manifest merges
+  (`:app:compileArm64ReleaseKotlin`), nothing more: no alarm has been seen to fire, the
+  permission question has not been seen, nor has a restart of the phone.
+- **Inexact on purpose.** `setAndAllowWhileIdle`, so no exact-alarm permission is asked for; in
+  Doze Android may deliver minutes late, and at most about one per nine minutes per app.
+- **Alarms are only as fresh as the last time the app ran.** Fourteen days, fifty slots. A date
+  changed on another device is wrong on the phone until the app is opened there after getting
+  the change. The agent's background service does not re-ask.
+- **A phone maker's battery manager can still stop them** (the known trouble with alarms on some
+  makes). Not looked into.
+- **The desktop only reminds while a page is open**, and keeps timers for twelve hours ahead,
+  re-asking every six. A reminder that came due while it was closed is not shown afterwards.
+  Keeping the program running in the background is the owner's decision, not taken.
+- **Browser notifications need the page to be allowed**, and Chrome on Android refuses
+  `new Notification` outside a service worker — there the line in the app is all there is
+  (the phone app does not go this way; it uses the alarm).
+- **Time is the device's own.** `2026-10-14T15:30` is 15:30 wherever the device is; a note
+  written in one time zone reminds at the same wall-clock time in another.
+- **`remind` is a property typed by hand.** There is no field for it in the note's own panel.
+- **A repeated note** (`weekdays`) is not reminded of: only `start` and `due`.
+- **iOS**: the line in the app only, untested like everything else there.
+
 ## Deferred (intentionally not built yet)
 
 - Global capture hotkey (was window-only; needs rethinking for the browser).

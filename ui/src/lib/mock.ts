@@ -2212,6 +2212,28 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           },
         ],
       } as T;
+    case 'reminders': {
+      // As `reminders.rs`, in small: unfinished notes with a date from that day on.
+      const from = String(args.from ?? '');
+      return notes
+        .filter((n) => !n.props.log && n.status !== 'done' && n.props.remind !== 'off')
+        .flatMap((n) =>
+          (['start', 'due'] as const).flatMap((what) => {
+            const at = n[what];
+            if (!at || at.slice(0, 10) < from) return [];
+            return [
+              {
+                id: n.id,
+                title: n.title ?? '',
+                at: at.length > 10 ? at.slice(0, 16) : `${at}T09:00`,
+                what,
+                all_day: at.length <= 10,
+              },
+            ];
+          }),
+        )
+        .sort((a, b) => a.at.localeCompare(b.at)) as T;
+    }
     case 'exercise_library':
       // Two cards and a video in the shape of the carried files (`exercises.json`).
       return {

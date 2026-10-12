@@ -168,3 +168,17 @@ same for food."*
   is only an indication. Recorded as a contradiction, first.
 - **Slips**: a `git checkout` of one file to undo a failed insertion also undid an uncommitted
   change in it (restored, caught by the next step). Not seen on a phone.
+
+## And v0.7.7: reminders
+
+The owner: *"Can we add notifications to the app on all the OSs? Like a reminder for an event or
+a deadline?"*, then *"go ahead and build it and then release, I am afk"*.
+
+- **Built**: one read-only command, `reminders`, works out the moments from the notes' own
+  `start` and `due`; nothing is stored. On Android the page hands the list to `__fmRemind` and
+  alarms show them with the app closed and after a restart; everywhere the open page shows a
+  line and, where allowed, the system's notification. Off until switched on in Settings.
+- **Not built, said so**: the desktop does not remind when closed (the owner's decision);
+  iOS has the in-app line only.
+- **Checked**: the core by test; the page by test and in a headless browser; the Kotlin only
+  by compiling. **Not seen on a phone.**

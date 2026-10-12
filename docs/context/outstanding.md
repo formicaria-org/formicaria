@@ -1147,6 +1147,18 @@ well known sources and when not available from trainers that have high views".
   - A window saved on *Session* or *Volume* in 0.7.5 finds no such view.
   - Protein for someone losing weight while training: two abstracts disagree on the unit; unread.
 
+### 2.27 Reminders — what is left (2026-10-13)
+
+Shipped in 0.7.7; limits in `known-issues.md`, *Reminders — where they stand*.
+
+1. **See one fire on the phone**: allow, a note due in five minutes, app closed; then after a
+   restart of the phone. Nothing is proven until then.
+2. **Owner's decision: keep the desktop program running in the background** so a computer
+   reminds with no page open (a tray program or a user service; it widens what runs).
+3. A field for *remind me … before* in the note's panel, instead of a property typed by hand.
+4. Re-ask from the phone's background service after a backup brings changes.
+5. iOS local notifications (needs a Mac to build and a device to try).
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12

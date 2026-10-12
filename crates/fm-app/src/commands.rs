@@ -58,6 +58,16 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     Ok(store.query(&q)?.rows.iter().map(ObjectMeta::from).collect())
 }
 
+/// What is still to be done or to happen: the things one plans, less the finished ones. **The one
+/// place the string "done" is written** — the agenda and the reminders both ask through here.
+pub fn unfinished() -> fm_query::Filter {
+    crate::thread::tasks_base().and(Predicate::Prop {
+        key: "status".into(),
+        op: Op::Ne,
+        value: PropertyValue::Text("done".into()),
+    })
+}
+
 /// The agenda: the closest-deadline view. Everything with a `due` date that is
 /// not done, soonest first. This is "zero new code" — it is the same engine and
 /// the same `ObjectMeta`, just a different filter and sort; urgency is *derived*
@@ -69,13 +79,11 @@ pub fn gallery(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
 /// it stays out of the renderers (a `.view` file could override it).
 pub fn agenda(store: &dyn Store) -> Result<Vec<ObjectMeta>, StoreError> {
     let q = Query {
-        filter: crate::thread::tasks_base()
-            .and(Predicate::Prop { key: "due".into(), op: Op::Exists, value: PropertyValue::Null })
-            .and(Predicate::Prop {
-                key: "status".into(),
-                op: Op::Ne,
-                value: PropertyValue::Text("done".into()),
-            }),
+        filter: unfinished().and(Predicate::Prop {
+            key: "due".into(),
+            op: Op::Exists,
+            value: PropertyValue::Null,
+        }),
         sort: vec![SortKey::asc("due")],
         ..Default::default()
     };

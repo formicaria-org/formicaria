@@ -564,6 +564,7 @@ const READ_ONLY: &[&str] = &[
     "log_kitchen",
     "recipe_library",
     "exercise_library",
+    "reminders",
     "log_nutrients",
     // The library is carried in the app; a profile, a preview and a week's progress are read
     // from notes and change none.
@@ -2284,6 +2285,13 @@ fn dispatch_inner(
         }
         "recipe_library" => json(crate::log::recipe_library().map_err(err)?),
         "exercise_library" => json(crate::log::exercise_library().map_err(err)?),
+        // The moments a reminder is due, from a day on. Read-only; what shows them is the shell's.
+        "reminders" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            let days = args.get("days").and_then(Value::as_i64).unwrap_or(14);
+            json(crate::reminders::reminders(&store, &s("from"), days).map_err(err)?)
+        }
         "log_kitchen" => {
             let mut g = lock()?;
             let store = g.store(scope);

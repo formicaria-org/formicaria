@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ReminderBanner from './lib/ReminderBanner.svelte';
+  import { sync as syncReminders } from './lib/reminders.svelte';
   import { tick, untrack } from 'svelte';
   import { popup } from './lib/popup';
   import Icon from './lib/Icon.svelte';
@@ -974,6 +976,9 @@
   }
 
   async function refresh() {
+    // Whatever changed may have moved a date: the reminders are asked for again (it waits and
+    // asks once, and is nothing when they are off).
+    void syncReminders();
     // Nothing to ask about, and asking anyway paints an error banner *behind* the
     // first-run screen — the app's first impression being a failure it caused itself.
     if (!vaults?.length) return;
@@ -3031,6 +3036,7 @@
       </div>
     </div>
 
+    <ReminderBanner />
     {#if settingsOpen}
       {#await import('./lib/SettingsPanel.svelte') then { default: SettingsPanel }}
         <SettingsPanel

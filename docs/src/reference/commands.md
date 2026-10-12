@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 116 of them are below**, grouped by what they are for. If you add an arm to
+**All 117 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -25,6 +25,7 @@ dispatch no longer has fails too.)
 |------------------|------------------------------|------------------------|-------|
 | `board`          | `groupBy`                    | `Board` (columns)      | group by any property |
 | `agenda`         | —                            | `ObjectMeta[]`         | dated & not done, soonest first |
+| `reminders`      | `from` (`YYYY-MM-DD`), `days?` (default 14, at most 60) | `Reminder[]` | read-only: the moments at which an unfinished note is due to be said — per note and per date (`start`, `due`) its `at` (`YYYY-MM-DDTHH:MM`, the note's time or 09:00 of its day, less its `remind` minutes), `what`, `when` (the note's own time where the reminder is earlier) and `all_day`. `remind: off` leaves a note out. Nothing is stored: the page asks again and hands the list to whatever shows it |
 | `recent`         | —                            | `ObjectMeta[]`         | all notes, newest-created first |
 | `gallery`        | —                            | `ObjectMeta[]`         | assets, newest first. **No renderer draws it** — the Gallery view was removed and a `.view` asking for `gallery` renders as a timeline; the command stays because `fm-cli` and the asset pickers use it |
 | `search`         | `query`                      | `ObjectMeta[]`         | FTS5; empty query → `[]` |

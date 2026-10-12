@@ -686,6 +686,17 @@ export interface RecipeLibrary {
   seen: string;
   recipes: CarriedRecipe[];
 }
+/** A moment a reminder is due (`reminders`), in the notes' own wall-clock time. */
+export interface Reminder {
+  id: string;
+  title: string;
+  /** `YYYY-MM-DDTHH:MM`. */
+  at: string;
+  what: 'start' | 'due';
+  /** The note's own time, when the reminder is earlier than it. */
+  when?: string;
+  all_day: boolean;
+}
 /** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
 export interface Routine {
   /** The word its notes share. */

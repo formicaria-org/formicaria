@@ -38,6 +38,7 @@ import type {
   Product,
   ProductFound,
   Recipe,
+  Reminder,
   RecipeLibrary,
   Routine,
   PlanLibrary,
@@ -1223,6 +1224,8 @@ export const logNutrients = (view: string, day: string) =>
 export const productLookup = (code: string) =>
   invoke<ProductFound | null>('product_lookup', { code });
 export const recipeLibrary = () => invoke<RecipeLibrary>('recipe_library', {});
+export const reminders = (from: string, days = 14) =>
+  invoke<Reminder[]>('reminders', { from, days });
 export const exerciseLibrary = () => invoke<ExerciseLibrary>('exercise_library', {});
 export const logKitchen = () => invoke<{ id: string; title: string }[]>('log_kitchen', {});
 export const logProducts = () => invoke<Product[]>('log_products', {});
