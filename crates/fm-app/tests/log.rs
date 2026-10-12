@@ -281,8 +281,8 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    // Day and Trends for food; Session and Volume for training.
-    assert_eq!(shipped.len(), 4);
+    // Day, Trends and Diet for food; Session, Volume and Regime for training.
+    assert_eq!(shipped.len(), 6);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));
@@ -319,7 +319,7 @@ fn a_group_is_its_views_in_listed_order_and_a_vaults_own_file_replaces_a_shipped
     assert!(!day[0].shipped, "and it is the vault's own");
 
     let group = group_of(&all, "Trends").unwrap();
-    assert_eq!((group.name.as_str(), group.views.len()), ("Food", 2));
+    assert_eq!((group.name.as_str(), group.views.len()), ("Food", 3));
     assert!(group.views.contains(&"Day".to_string()));
     assert!(group_of(&all, "nothing").is_none());
 

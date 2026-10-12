@@ -61,16 +61,16 @@ const BODY: TotalsDef = {
   metrics: [{ key: 'weight_g', label: 'Weight', role: 'primary', agg: 'mean' }],
   slots: [],
 };
-const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Trends'] };
+const FOOD_GROUP: ViewGroup = { name: 'Food', views: ['Day', 'Trends', 'Diet'] };
+const FITNESS_GROUP: ViewGroup = { name: 'Fitness', views: ['Session', 'Volume', 'Regime'] };
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Day: { totals: FOOD, group: FOOD_GROUP },
   Trends: { totals: { ...FOOD, span: 'range' }, group: FOOD_GROUP },
-  Session: { totals: TRAINING, group: { name: 'Fitness', views: ['Session', 'Volume'] } },
-  Volume: {
-    totals: { ...TRAINING, span: 'range' },
-    group: { name: 'Fitness', views: ['Session', 'Volume'] },
-  },
+  Diet: { totals: { ...FOOD, span: 'plan' }, group: FOOD_GROUP },
+  Session: { totals: TRAINING, group: FITNESS_GROUP },
+  Volume: { totals: { ...TRAINING, span: 'range' }, group: FITNESS_GROUP },
+  Regime: { totals: { ...TRAINING, span: 'plan' }, group: FITNESS_GROUP },
 };
 
 export const TRACKER_VIEWS: ViewInfo[] = Object.entries(DEFS).map(([name, d]) => ({
@@ -566,10 +566,13 @@ export function setProperties(
         ? x.title
         : k === 'start'
           ? x.start
-          : (x.props[k] as string | number | undefined);
+          : k === 'due'
+            ? x.due
+            : (x.props[k] as string | number | undefined);
     previous[k] = was === null || was === undefined ? null : String(was);
     if (k === 'title') x.title = String(v) || null;
     else if (k === 'start') x.start = String(v) || null;
+    else if (k === 'due') x.due = String(v) || null;
     else if (v === '') delete x.props[k];
     // Typed as the server types it: text that is a whole number is stored as one.
     else x.props[k] = typeof v === 'string' && /^-?\d+$/.test(v) ? Number(v) : v;

@@ -30,6 +30,7 @@ import type {
   NoteDraft,
 } from './types';
 import * as tracker from './mockTracker';
+import * as plan from './mockPlan';
 
 /** The mock's stand-in for Rust's `Stamp::from_str`: empty clears, a valid stamp
  *  is stored verbatim (the canonical form is what the server would write back),
@@ -2175,6 +2176,14 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     }
     case 'log_recipes':
       return tracker.logRecipes(notes, args as { view: string }) as T;
+    case 'plan_library':
+      return plan.planLibrary(args as { group: string }) as T;
+    case 'plan_profile':
+      return plan.planProfile(notes) as T;
+    case 'plan_preview':
+      return plan.planPreview(notes, args as { id: string }) as T;
+    case 'plan_progress':
+      return plan.planProgress(notes, args as { group: string; day: string }) as T;
     case 'create_notes': {
       const drafts = (args.notes ?? []) as NoteDraft[];
       const made = tracker.createNotes(notes, drafts);

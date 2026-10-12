@@ -149,6 +149,10 @@ pub enum Span {
     #[default]
     Day,
     Range,
+    /// Not a span of days at all: the screen where a diet or a regime is chosen and followed
+    /// (`plan.rs`; `decisions.md#ui`, 2026-10-12). It is a view of its group like the others, so
+    /// it is a tab like the others, and the group's add control means in it what it means in them.
+    Plan,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -886,8 +890,10 @@ fn parse_view(text: &str, origin: &str) -> Result<ViewFile, String> {
 const SHIPPED: &[(&str, &str)] = &[
     ("food-day", include_str!("shipped/food-day.view")),
     ("food-trends", include_str!("shipped/food-trends.view")),
+    ("food-plan", include_str!("shipped/food-plan.view")),
     ("training-session", include_str!("shipped/training-session.view")),
     ("training-volume", include_str!("shipped/training-volume.view")),
+    ("training-plan", include_str!("shipped/training-plan.view")),
 ];
 
 /// A shipped view's `name:`, read without parsing the rest.

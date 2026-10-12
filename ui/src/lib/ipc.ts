@@ -34,6 +34,10 @@ import type {
   LogDays,
   RecentItem,
   Recipe,
+  PlanLibrary,
+  PlanPreview,
+  PlanProfile,
+  PlanProgress,
   NoteDraft,
   FoodHit,
   FoodDetail,
@@ -1207,6 +1211,17 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
   invoke<RecentItem[]>('log_recent', { view, ...opts });
 /** The recipes saved in a log, each with the sum of its ingredients. */
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
+
+/** What can be followed in a group (`food` or `fitness`): the library carried in the app. */
+export const planLibrary = (group: string) => invoke<PlanLibrary>('plan_library', { group });
+/** The person's own measurements, from the note that holds them. Empty when there is none. */
+export const planProfile = () => invoke<PlanProfile>('plan_profile');
+/** A library option with its numbers worked out for this person. */
+export const planPreview = (id: string, day: string) =>
+  invoke<PlanPreview>('plan_preview', { id, day });
+/** The week holding `day`, measured against the plan in force. */
+export const planProgress = (group: string, day: string) =>
+  invoke<PlanProgress>('plan_progress', { group, day });
 /** Create several notes in one write. */
 export const createNotes = (notes: NoteDraft[], vault = '') =>
   invoke<ObjectMeta[]>('create_notes', { notes, vault });

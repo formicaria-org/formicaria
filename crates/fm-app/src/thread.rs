@@ -249,6 +249,26 @@ pub fn log_base(kind: &str) -> Filter {
     })
 }
 
+/// What a plan's progress is measured from, in one pass: the entries of some logs **and** the
+/// notes carrying any of some keys — a program note, a profile (`plan.rs`;
+/// `decisions.md#data`, 2026-10-12). The caller tells them apart.
+pub fn plan_base(logs: &[&str], keys: &[&str]) -> Filter {
+    let mut any: Vec<Predicate> = logs
+        .iter()
+        .map(|kind| Predicate::Prop {
+            key: LOG.into(),
+            op: fm_query::Op::Eq,
+            value: fm_model::PropertyValue::Text((*kind).to_string()),
+        })
+        .collect();
+    any.extend(keys.iter().map(|key| Predicate::Prop {
+        key: (*key).into(),
+        op: fm_query::Op::Exists,
+        value: fm_model::PropertyValue::Null,
+    }));
+    Filter::new().and(Predicate::Kind(vec![Kind::Note])).and(Predicate::Any(any))
+}
+
 /// The base filter for the Collaboration surface: notes that **are** proposals — the exact
 /// complement of the proposal exclusion in [`notes_base`].
 ///

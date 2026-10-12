@@ -567,7 +567,8 @@ export interface TotalsDef {
   log: string;
   /** Which of the closed set of add actions the group's add control opens. */
   add: 'food' | 'workout' | 'body';
-  span: 'day' | 'range';
+  /** `plan` is the screen where a diet or a regime is chosen and followed. */
+  span: 'day' | 'range' | 'plan';
   metrics: Metric[];
   slots: Slot[];
 }
@@ -758,4 +759,101 @@ export interface PackStatus {
   installed: PackInfo | null;
   bytes: number;
   error?: string;
+}
+
+// ── diets and regimes to follow (`plan.rs`; `decisions.md#data`, 2026-10-12) ─────────────────────
+export interface PlanSource {
+  by: string;
+  title: string;
+  url: string;
+}
+export interface PlanGuide {
+  label: string;
+  by: string;
+  url: string;
+  /** The day it was last seen to work. */
+  seen: string;
+}
+/** One thing a plan holds a person to. `kind` says how it is measured. */
+export interface PlanCheck {
+  id: string;
+  label: string;
+  kind: 'sum' | 'share' | 'low_days' | 'minutes' | 'days' | 'sets' | 'region_days' | 'kept';
+  key?: string;
+  min?: number;
+  max?: number;
+  /** Whose number it is, in the source's words. */
+  basis: string;
+}
+export interface PlanOption {
+  id: string;
+  group: 'food' | 'fitness';
+  name: string;
+  /** What kind of source it rests on. */
+  rests_on: 'guideline' | 'position' | 'review' | 'definition' | 'described' | 'own';
+  summary: string;
+  sources: PlanSource[];
+  needs: string[];
+  checks: PlanCheck[];
+  describes?: string[];
+  unmeasured: string[];
+  caution?: string;
+  guides: PlanGuide[];
+}
+export interface PlanActivity {
+  name: string;
+  kind: string;
+  by: string;
+}
+export interface PlanLibrary {
+  plans: PlanOption[];
+  activities: PlanActivity[];
+}
+/** A person's measurements, as far as they have given them. */
+export interface PlanProfile {
+  id?: string;
+  sex?: 'female' | 'male';
+  born?: number;
+  height_cm?: number;
+  weight_g?: number;
+  /** EFSA's activity level times ten: 14, 16, 18 or 20. */
+  pal_x10?: number;
+}
+export interface PlanBound {
+  min?: number;
+  max?: number;
+}
+export interface PlanPreview {
+  plan: PlanOption;
+  profile: PlanProfile;
+  missing: string[];
+  energy?: number;
+  bounds: Record<string, PlanBound>;
+}
+export interface PlanCheckProgress {
+  id: string;
+  label: string;
+  kind: PlanCheck['kind'];
+  /** A value's own key, or `percent`, `minutes`, `days`, `sets`. */
+  unit: string;
+  per: 'day' | 'week';
+  min?: number;
+  max?: number;
+  value?: number;
+  state: 'met' | 'under' | 'over' | 'none';
+  /** Monday to Sunday. */
+  days: (number | null)[];
+  basis: string;
+}
+export interface PlanProgress {
+  plan?: PlanOption;
+  note?: ObjectMeta;
+  /** The note names a plan this version does not have. */
+  unknown?: string;
+  from: string;
+  to: string;
+  day: string;
+  checks: PlanCheckProgress[];
+  /** The id of the note saying the person kept to it today. */
+  kept_today?: string;
 }

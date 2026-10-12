@@ -2178,3 +2178,28 @@ answer while the working tree holds ours. Marking it unmerged means *creating* c
 which is a merge-index change and not one to smuggle in beside a formatting feature. The audit could
 not construct a reaching input (a clean whole-file libgit2 merge implies a clean body merge on these
 inputs), which is why this is recorded rather than urgent.
+
+## Following a diet or a regime — where it stands (2026-10-12)
+
+`fm-app/src/plan.rs`, `shipped/plans.json`, `ui/src/lib/plan/`; ruling in `decisions.md#data`.
+Seen in a browser against the real core at 1280 and 360 wide; **never on a phone**.
+
+- **An entry's kind of activity is `counts_as`, not `kind`.** `kind` on any note answers with the
+  note's own kind, so a filter on it matches nothing. Found by a test that counted no minutes.
+- **A view's name is unique across the app**, so the two tabs are *Diet* and *Regime*; two views
+  both called *Plan* resolve to the first.
+- **The week is Monday to Sunday, measured up to the day asked.** A weekly check reads "so far"
+  until Sunday and is only called under or over once the week is done.
+- **A share of energy needs energy.** A day whose entries carry no `kcal` has no share and shows
+  "nothing logged", as does a day with no entries.
+- **A fasting day is measured against `p_energy` on the plan's note**, the estimate the person saw
+  when they followed it — not one recomputed from a profile changed since.
+- **Stopping sets the note's last day to yesterday**; following two options in one group means
+  the later start wins.
+- **The stand-in backend measures almost nothing** (`mockPlan.ts`: a day's sum, kept days). A UI
+  test proves the screens, never a formula; those are `plan.rs`'s unit tests and
+  `tests/plan.rs`.
+- **Links out** ("How to do it", sources) are plain links opening a new tab. Whether the Android
+  shell hands them to the browser has not been tried.
+- **Adding an option** is an entry in `plans.json` plus a row in `sources-2026-10-11.md`. A new
+  *kind* of check is an arm of `measure` and a decision.

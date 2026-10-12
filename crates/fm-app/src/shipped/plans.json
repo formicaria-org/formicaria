@@ -1,0 +1,411 @@
+{
+  "activities": [
+    { "name": "Brisk walking", "kind": "aerobic", "by": "NHS" },
+    { "name": "Cycling", "kind": "aerobic", "by": "NHS" },
+    { "name": "Water aerobics", "kind": "aerobic", "by": "NHS" },
+    { "name": "Running", "kind": "aerobic", "by": "NHS" },
+    { "name": "Swimming", "kind": "aerobic", "by": "NHS" },
+    { "name": "Yoga", "kind": "strength", "by": "NHS" },
+    { "name": "Pilates", "kind": "strength", "by": "NHS" },
+    { "name": "Body-weight exercises", "kind": "strength", "by": "NHS" },
+    { "name": "Tai chi", "kind": "balance", "by": "World Falls Guidelines 2022" },
+    { "name": "Balance exercises", "kind": "balance", "by": "World Falls Guidelines 2022" },
+    { "name": "Stretching", "kind": "flexibility", "by": "Warneke et al. 2025" }
+  ],
+  "plans": [
+    {
+      "id": "who-healthy-diet",
+      "group": "food",
+      "name": "WHO healthy diet",
+      "rests_on": "guideline",
+      "summary": "Limits on fat, saturated fat and sodium; at least 25 g of fibre and 3,510 mg of potassium a day.",
+      "sources": [
+        { "by": "World Health Organization", "title": "Healthy diet, fact sheet of 26 January 2026", "url": "https://www.who.int/news-room/fact-sheets/detail/healthy-diet" },
+        { "by": "European Union", "title": "Regulation (EU) No 1169/2011, Annex XIV: the energy in a gram of fat, protein and carbohydrate, used here to turn grams into a share of energy", "url": "https://eur-lex.europa.eu/eli/reg/2011/1169/oj" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "max": 30, "basis": "WHO: total fat 30% or less of total daily energy" },
+        { "id": "satfat", "label": "Saturated fat, share of energy", "kind": "share", "key": "saturated_fat_mg", "kcal_per_g": 9, "max": 10, "basis": "WHO: no more than 10% of total energy from saturated fat" },
+        { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "min": 45, "max": 75, "basis": "WHO: approximately 45–75% of total daily energy" },
+        { "id": "protein", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "min": 10, "max": 15, "basis": "WHO: 10–15% of total daily energy is generally sufficient for adults" },
+        { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 25000, "basis": "WHO: at least 25 g of naturally occurring dietary fibre a day" },
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "WHO: less than 5 g of salt a day (2 g of sodium)" },
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3510000, "basis": "WHO: at least 3,510 mg a day may be beneficial for adults" }
+      ],
+      "unmeasured": [
+        "Free sugars under 10% of energy: the food tables give total sugars, and cannot tell free sugars from the rest.",
+        "At least 400 g of fruit and vegetables a day: the food tables do not say which foods are fruit or vegetables.",
+        "No more than 1% of energy from trans fat: the food list carries no trans fat value."
+      ],
+      "guides": []
+    },
+    {
+      "id": "efsa-reference",
+      "group": "food",
+      "name": "European reference values",
+      "rests_on": "guideline",
+      "summary": "EFSA's adult reference intakes for protein, fat, carbohydrate, fibre and the main minerals and vitamins.",
+      "sources": [
+        { "by": "European Food Safety Authority", "title": "Dietary reference values for nutrients, summary report (2017); sodium 2019", "url": "https://www.efsa.europa.eu/en/topics/topic/dietary-reference-values" },
+        { "by": "European Union", "title": "Regulation (EU) No 1169/2011, Annex XIV: the energy in a gram of fat, protein and carbohydrate", "url": "https://eur-lex.europa.eu/eli/reg/2011/1169/oj" }
+      ],
+      "needs": ["sex", "born", "weight_g"],
+      "checks": [
+        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "EFSA: 0.83 g for each kg of body weight a day (population reference intake)" },
+        { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "min": 20, "max": 35, "basis": "EFSA: 20–35% of energy (reference intake range)" },
+        { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "min": 45, "max": 60, "basis": "EFSA: 45–60% of energy (reference intake range)" },
+        { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "min": 25000, "basis": "EFSA: 25 g a day (adequate intake)" },
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "max": 2000000, "basis": "EFSA 2019: 2.0 g a day is safe and adequate" },
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "min": 3500000, "basis": "EFSA: 3,500 mg a day (adequate intake)" },
+        { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "min": 950000, "min_young": 1000000, "max": 2500000, "basis": "EFSA: 950 mg a day, 1,000 mg at 18–24; upper level 2,500 mg" },
+        { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "min_male": 11000, "min_female": 16000, "basis": "EFSA: 11 mg a day for men; 16 mg for women before the menopause, 11 mg after" },
+        { "id": "magnesium", "label": "Magnesium", "kind": "sum", "key": "magnesium_ug", "min_male": 350000, "min_female": 300000, "basis": "EFSA: 350 mg a day for men, 300 mg for women (adequate intake)" },
+        { "id": "vitamin_c", "label": "Vitamin C", "kind": "sum", "key": "vitamin_c_ug", "min_male": 110000, "min_female": 95000, "basis": "EFSA: 110 mg a day for men, 95 mg for women" },
+        { "id": "vitamin_d", "label": "Vitamin D", "kind": "sum", "key": "vitamin_d_ug", "min": 15, "max": 100, "basis": "EFSA: 15 µg a day (adequate intake); upper level 100 µg" },
+        { "id": "vitamin_b12", "label": "Vitamin B12", "kind": "sum", "key": "vitamin_b12_ug", "min": 4, "basis": "EFSA: 4.0 µg a day (adequate intake)" },
+        { "id": "folate", "label": "Folate", "kind": "sum", "key": "folate_dfe_ug", "min": 330, "basis": "EFSA: 330 µg of dietary folate equivalents a day" }
+      ],
+      "unmeasured": [
+        "Saturated fat: EFSA says “as low as possible” and gives no number, so nothing is measured for it here.",
+        "Vitamin A: EFSA counts retinol equivalents, which the food list does not store."
+      ],
+      "guides": []
+    },
+    {
+      "id": "energy-for-me",
+      "group": "food",
+      "name": "Energy and protein for me",
+      "rests_on": "guideline",
+      "summary": "A daily energy estimate from your sex, age, height, weight and how active you are, and protein for your weight.",
+      "sources": [
+        { "by": "Henry CJK", "title": "Basal metabolic rate studies in humans. Public Health Nutrition 2005;8(7A):1133–52, Table 15: the equations EFSA adopted in 2013", "url": "https://doi.org/10.1079/PHN2005801" },
+        { "by": "European Food Safety Authority", "title": "Activity levels of 1.4, 1.6, 1.8 and 2.0 for low active, moderately active, active and very active lifestyles — “a rough indication”", "url": "https://www.efsa.europa.eu/en/topics/topic/dietary-reference-values" },
+        { "by": "WHO, FAO and UNU (2007); European Food Safety Authority", "title": "Protein: 0.83 g for each kg of body weight a day", "url": "https://www.efsa.europa.eu/en/topics/topic/dietary-reference-values" }
+      ],
+      "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
+      "checks": [
+        { "id": "energy", "label": "Energy", "kind": "sum", "key": "kcal", "max_energy_pct": 100, "basis": "Henry’s equation for your sex and age, times EFSA’s activity level. An estimate: change it if it does not fit you." },
+        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "min_mg_per_kg": 830, "basis": "0.83 g for each kg of body weight a day (WHO/FAO/UNU 2007; EFSA)" }
+      ],
+      "unmeasured": [
+        "Whether the estimate is right for you: it is an average for people of your sex, age, size and activity, and says nothing about gaining or losing weight."
+      ],
+      "guides": []
+    },
+    {
+      "id": "fasting-two-days",
+      "group": "food",
+      "name": "Two fasting days a week",
+      "rests_on": "definition",
+      "summary": "Two days a week on up to a quarter of your energy need. Defined by an international consensus; recommended by no public body found.",
+      "sources": [
+        { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “modified fasting”: “limiting energy intake to typically up to 25% of energy needs on modified fasting days”, for example “on 2 separate or consecutive days per week”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" },
+        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of: Henry’s equation times EFSA’s activity level", "url": "https://doi.org/10.1079/PHN2005801" }
+      ],
+      "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
+      "checks": [
+        { "id": "fastdays", "label": "Fasting days this week", "kind": "low_days", "pct": 25, "min": 2, "basis": "A day counts when what you logged comes to a quarter of your energy need or less (Koppold et al. 2024)" }
+      ],
+      "unmeasured": [
+        "A day you logged nothing on is not counted as a fasting day: formicaria cannot tell fasting from not writing it down."
+      ],
+      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician.",
+      "guides": []
+    },
+    {
+      "id": "fasting-alternate-days",
+      "group": "food",
+      "name": "Alternate-day modified fasting",
+      "rests_on": "definition",
+      "summary": "A day of eating freely, then a day on up to a quarter of your energy need. A definition, not a recommendation.",
+      "sources": [
+        { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — alternate-day modified fasting: “alternating a day of eating ad libitum and a day of modified fasting”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" },
+        { "by": "Henry CJK; European Food Safety Authority", "title": "The energy need the quarter is taken of", "url": "https://doi.org/10.1079/PHN2005801" }
+      ],
+      "needs": ["sex", "born", "height_cm", "weight_g", "pal_x10"],
+      "checks": [
+        { "id": "fastdays", "label": "Fasting days this week", "kind": "low_days", "pct": 25, "min": 3, "basis": "Every other day is three or four days of a week; a day counts at a quarter of your energy need or less" }
+      ],
+      "unmeasured": [
+        "That the days alternate: formicaria counts them and does not check their order.",
+        "A day you logged nothing on is not counted as a fasting day."
+      ],
+      "caution": "This is a definition, not advice. The consensus says therapeutic fasting is individually tailored and medically supervised fasting is led by a trained physician.",
+      "guides": []
+    },
+    {
+      "id": "time-restricted-eating",
+      "group": "food",
+      "name": "Time-restricted eating",
+      "rests_on": "definition",
+      "summary": "All eating inside a part of the day, leaving at least 14 hours without. You say each day whether you kept to it.",
+      "sources": [
+        { "by": "Koppold et al.", "title": "International consensus on fasting terminology. Cell Metabolism 2024;36(8):1779–94 — “a daily fasting window of at least 14 hours. There is no explicit limit on energy intake during eating hours”", "url": "https://doi.org/10.1016/j.cmet.2024.06.013" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day: what you log has a day and no time of day, so formicaria cannot measure the hours" }
+      ],
+      "unmeasured": [
+        "The hours themselves: a logged food has a day and no time."
+      ],
+      "caution": "This is a definition, not advice.",
+      "guides": []
+    },
+    {
+      "id": "nordic-2023",
+      "group": "food",
+      "name": "Nordic recommendations 2023",
+      "rests_on": "described",
+      "summary": "Food-group amounts from the Nordic Nutrition Recommendations. You say each day whether you kept to them.",
+      "sources": [
+        { "by": "Nordic Council of Ministers", "title": "Nordic Nutrition Recommendations 2023, Table 24", "url": "https://doi.org/10.6027/nord2023-003" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day" }
+      ],
+      "describes": [
+        "Vegetables, fruit and berries: 500–800 g a day",
+        "Whole grains: at least 90 g a day",
+        "Nuts: 20–30 g a day",
+        "Fish: 300–450 g a week, 200 g of it fatty",
+        "Red meat: at most 350 g a week",
+        "Low-fat dairy: 350–500 ml a day",
+        "Vegetable oil: at least 25 g a day"
+      ],
+      "unmeasured": [
+        "All of it: no food table used here tells whole grain from refined, says which group a mixed dish belongs to, or marks dairy as low-fat."
+      ],
+      "guides": []
+    },
+    {
+      "id": "planetary-health",
+      "group": "food",
+      "name": "Planetary health diet",
+      "rests_on": "described",
+      "summary": "The EAT-Lancet Commission's daily food-group amounts for about 2,400 kcal. You say each day whether you kept to them.",
+      "sources": [
+        { "by": "EAT-Lancet Commission", "title": "Summary report, 2025", "url": "https://eatforum.org/eat-lancet-commission/" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "min": 7, "basis": "You say so each day" }
+      ],
+      "describes": [
+        "Whole grains: 210 g a day",
+        "Vegetables: 300 g; fruit: 200 g",
+        "Dairy: 250 g",
+        "Legumes: 75 g; nuts: 50 g",
+        "Red meat: 15 g; poultry: 30 g; fish: 30 g; eggs: 15 g",
+        "Unsaturated oils: 40 g",
+        "Added sugars: at most 30 g"
+      ],
+      "unmeasured": [
+        "All of it: the food tables do not sort foods into these groups."
+      ],
+      "guides": []
+    },
+    {
+      "id": "own-food",
+      "group": "food",
+      "name": "My own",
+      "rests_on": "own",
+      "summary": "Set each number yourself. Leave empty what you do not want measured.",
+      "sources": [],
+      "needs": [],
+      "checks": [
+        { "id": "energy", "label": "Energy", "kind": "sum", "key": "kcal", "basis": "Yours" },
+        { "id": "protein", "label": "Protein", "kind": "sum", "key": "protein_mg", "basis": "Yours" },
+        { "id": "carbs_g", "label": "Carbohydrate", "kind": "sum", "key": "carbs_mg", "basis": "Yours" },
+        { "id": "fat_g", "label": "Fat", "kind": "sum", "key": "fat_mg", "basis": "Yours" },
+        { "id": "satfat_g", "label": "Saturated fat", "kind": "sum", "key": "saturated_fat_mg", "basis": "Yours" },
+        { "id": "sugars", "label": "Sugars", "kind": "sum", "key": "sugars_mg", "basis": "Yours" },
+        { "id": "fibre", "label": "Fibre", "kind": "sum", "key": "fiber_mg", "basis": "Yours" },
+        { "id": "sodium", "label": "Sodium", "kind": "sum", "key": "sodium_ug", "basis": "Yours" },
+        { "id": "potassium", "label": "Potassium", "kind": "sum", "key": "potassium_ug", "basis": "Yours" },
+        { "id": "calcium", "label": "Calcium", "kind": "sum", "key": "calcium_ug", "basis": "Yours" },
+        { "id": "iron", "label": "Iron", "kind": "sum", "key": "iron_ug", "basis": "Yours" },
+        { "id": "alcohol", "label": "Alcohol", "kind": "sum", "key": "alcohol_mg", "basis": "Yours" },
+        { "id": "caffeine", "label": "Caffeine", "kind": "sum", "key": "caffeine_ug", "basis": "Yours" },
+        { "id": "fat", "label": "Fat, share of energy", "kind": "share", "key": "fat_mg", "kcal_per_g": 9, "basis": "Yours" },
+        { "id": "carbs", "label": "Carbohydrate, share of energy", "kind": "share", "key": "carbs_mg", "kcal_per_g": 4, "basis": "Yours" },
+        { "id": "protein_share", "label": "Protein, share of energy", "kind": "share", "key": "protein_mg", "kcal_per_g": 4, "basis": "Yours" },
+        { "id": "kept", "label": "Days you kept to it this week", "kind": "kept", "basis": "You say so each day" }
+      ],
+      "unmeasured": [],
+      "guides": []
+    },
+    {
+      "id": "who-activity",
+      "group": "fitness",
+      "name": "WHO weekly activity",
+      "rests_on": "guideline",
+      "summary": "At least 150 minutes of moderate activity a week, or 75 of vigorous, and muscle strengthening on 2 days.",
+      "sources": [
+        { "by": "World Health Organization", "title": "Guidelines on physical activity and sedentary behaviour (2020), adults 18–64", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7719906/" },
+        { "by": "NHS", "title": "Physical activity guidelines for adults aged 19 to 64: which activities count as what, and the talk test", "url": "https://www.nhs.uk/live-well/exercise/physical-activity-guidelines-for-adults-aged-19-to-64/" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "minutes", "label": "Activity this week", "kind": "minutes", "min": 150, "basis": "WHO: at least 150–300 min of moderate activity a week, or 75–150 of vigorous, or a mix. A vigorous minute counts as two." },
+        { "id": "strength", "label": "Strengthening days this week", "kind": "days", "of": "strength", "min": 2, "basis": "WHO: muscle-strengthening activities involving all major muscle groups on 2 or more days a week" }
+      ],
+      "unmeasured": [
+        "That strengthening reaches all major muscle groups: follow a strength regime here if you want that counted."
+      ],
+      "caution": "WHO has separate recommendations for pregnancy, chronic conditions and disability, which formicaria does not assess.",
+      "guides": [
+        { "label": "Strength exercises to do at home", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-flexibility-exercises/strength-exercises/", "seen": "2026-10-12" },
+        { "label": "Strength and resistance videos", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-resistance/", "seen": "2026-10-12" }
+      ]
+    },
+    {
+      "id": "who-activity-65",
+      "group": "fitness",
+      "name": "WHO weekly activity, 65 and over",
+      "rests_on": "guideline",
+      "summary": "The same weekly activity, with balance and strength work on 3 or more days.",
+      "sources": [
+        { "by": "World Health Organization", "title": "Guidelines on physical activity and sedentary behaviour (2020), adults 65 and over", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7719906/" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "minutes", "label": "Activity this week", "kind": "minutes", "min": 150, "basis": "WHO: at least 150–300 min of moderate activity a week, or 75–150 of vigorous. A vigorous minute counts as two." },
+        { "id": "strength", "label": "Strengthening days this week", "kind": "days", "of": "strength", "min": 2, "basis": "WHO: muscle strengthening on 2 or more days a week" },
+        { "id": "balance", "label": "Balance days this week", "kind": "days", "of": "balance", "min": 3, "basis": "WHO: varied multicomponent activity emphasising functional balance and strength on 3 or more days a week" }
+      ],
+      "unmeasured": [],
+      "caution": "UK Chief Medical Officers: with frailty, dementia, vertebral fractures or regular falls, new exercises may be better supervised by a trained professional at first.",
+      "guides": [
+        { "label": "Balance exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/", "seen": "2026-10-12" },
+        { "label": "Sitting exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/sitting-exercises/", "seen": "2026-10-12" }
+      ]
+    },
+    {
+      "id": "falls-prevention",
+      "group": "fitness",
+      "name": "Falls prevention",
+      "rests_on": "guideline",
+      "summary": "Balance-challenging and functional exercise in 3 or more sessions a week, for at least 12 weeks.",
+      "sources": [
+        { "by": "Montero-Odasso et al.", "title": "World guidelines for falls prevention and management for older adults (2022)", "url": "https://doi.org/10.1093/ageing/afac205" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "balance", "label": "Balance sessions this week", "kind": "days", "of": "balance", "min": 3, "basis": "World Falls Guidelines: 3 or more sessions a week, individualised and progressed, for at least 12 weeks" }
+      ],
+      "unmeasured": [
+        "That the exercise is individualised and progressed, which the guideline asks for."
+      ],
+      "caution": "The guideline expects this to be tailored to the person. Otago and similar named programmes are prescribed by a physiotherapist.",
+      "guides": [
+        { "label": "Balance exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/balance-exercises/", "seen": "2026-10-12" }
+      ]
+    },
+    {
+      "id": "strength-health",
+      "group": "fitness",
+      "name": "Strength, twice a week",
+      "rests_on": "position",
+      "summary": "Every major muscle group at least twice a week, at least 2 sets an exercise, stopping short of failure.",
+      "sources": [
+        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72 (read from a copy of the paper)", "url": "" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "regions", "label": "Each body region, days this week", "kind": "region_days", "regions": ["upper-push", "upper-pull", "lower-push", "lower-pull"], "min": 2, "basis": "ACSM 2026: “at least twice weekly, with all major muscle groups being engaged”. It names no muscles; formicaria counts four regions." }
+      ],
+      "unmeasured": [
+        "At least 2 sets an exercise, and stopping 2–3 repetitions short of failure: formicaria records the sets you do and not how hard each was."
+      ],
+      "guides": [
+        { "label": "Strength exercises to do at home", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/strength-and-flexibility-exercises/strength-exercises/", "seen": "2026-10-12" }
+      ]
+    },
+    {
+      "id": "strength-growth",
+      "group": "fitness",
+      "name": "Muscle growth",
+      "rests_on": "position",
+      "summary": "Ten or more sets a week for each muscle group, at any load, on as many days as you like.",
+      "sources": [
+        { "by": "American College of Sports Medicine", "title": "Currier et al., position stand on resistance training, Med Sci Sports Exerc 2026;58(4):851–72, Table 6 (read from a copy of the paper)", "url": "" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "upper_push", "label": "Upper body, pushing: sets this week", "kind": "sets", "regions": ["upper-push"], "min": 10, "basis": "ACSM 2026: 10 or more sets a week per muscle group; returns flatten near 18–20" },
+        { "id": "upper_pull", "label": "Upper body, pulling: sets this week", "kind": "sets", "regions": ["upper-pull"], "min": 10, "basis": "ACSM 2026: 10 or more sets a week per muscle group" },
+        { "id": "lower_push", "label": "Lower body, pushing: sets this week", "kind": "sets", "regions": ["lower-push"], "min": 10, "basis": "ACSM 2026: 10 or more sets a week per muscle group" },
+        { "id": "lower_pull", "label": "Lower body, pulling: sets this week", "kind": "sets", "regions": ["lower-pull"], "min": 10, "basis": "ACSM 2026: 10 or more sets a week per muscle group" }
+      ],
+      "unmeasured": [
+        "ACSM counts sets for each muscle group; formicaria counts them for four regions of the body, which is coarser."
+      ],
+      "guides": []
+    },
+    {
+      "id": "strength-minimal",
+      "group": "fitness",
+      "name": "Minimal strength",
+      "rests_on": "review",
+      "summary": "Three exercises — legs, an upper-body pull, an upper-body push — and at least 4 sets a week for each.",
+      "sources": [
+        { "by": "Iversen et al.", "title": "No time to lift? Designing time-efficient training programs for strength and hypertrophy: a narrative review. Sports Medicine 2021", "url": "https://doi.org/10.1007/s40279-021-01490-1" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "legs", "label": "Legs: sets this week", "kind": "sets", "regions": ["lower-push", "lower-pull"], "min": 4, "basis": "Iversen et al. 2021: at least 4 sets a week per muscle group, one lower-body exercise" },
+        { "id": "pull", "label": "Upper body, pulling: sets this week", "kind": "sets", "regions": ["upper-pull"], "min": 4, "basis": "Iversen et al. 2021: one upper-body pulling exercise" },
+        { "id": "push", "label": "Upper body, pushing: sets this week", "kind": "sets", "regions": ["upper-push"], "min": 4, "basis": "Iversen et al. 2021: one upper-body pushing exercise" }
+      ],
+      "unmeasured": [
+        "The load the review describes (a weight you can lift 6 to 15 times)."
+      ],
+      "guides": []
+    },
+    {
+      "id": "stretching-daily",
+      "group": "fitness",
+      "name": "Stretching for range of motion",
+      "rests_on": "position",
+      "summary": "Stretch daily: 2–3 sets for each muscle, each held 30–120 seconds.",
+      "sources": [
+        { "by": "Warneke et al.", "title": "Delphi consensus on stretching, 2025 — for range of motion; not for injury prevention, recovery or posture", "url": "" }
+      ],
+      "needs": [],
+      "checks": [
+        { "id": "flex", "label": "Stretching days this week", "kind": "days", "of": "flexibility", "min": 7, "basis": "Warneke et al. 2025: 2–3 sets daily, each held 30–120 s per muscle" }
+      ],
+      "unmeasured": [
+        "The sets and how long each was held."
+      ],
+      "guides": [
+        { "label": "Flexibility exercises", "by": "NHS", "url": "https://www.nhs.uk/live-well/exercise/flexibility-exercises/", "seen": "2026-10-12" }
+      ]
+    },
+    {
+      "id": "own-fitness",
+      "group": "fitness",
+      "name": "My own",
+      "rests_on": "own",
+      "summary": "Set each number yourself. Leave empty what you do not want measured.",
+      "sources": [],
+      "needs": [],
+      "checks": [
+        { "id": "minutes", "label": "Activity this week, minutes", "kind": "minutes", "basis": "Yours. A vigorous minute counts as two." },
+        { "id": "active", "label": "Active days this week", "kind": "days", "of": "any", "basis": "Yours" },
+        { "id": "strength", "label": "Strengthening days this week", "kind": "days", "of": "strength", "basis": "Yours" },
+        { "id": "balance", "label": "Balance days this week", "kind": "days", "of": "balance", "basis": "Yours" },
+        { "id": "flex", "label": "Stretching days this week", "kind": "days", "of": "flexibility", "basis": "Yours" },
+        { "id": "upper_push", "label": "Upper body, pushing: sets this week", "kind": "sets", "regions": ["upper-push"], "basis": "Yours" },
+        { "id": "upper_pull", "label": "Upper body, pulling: sets this week", "kind": "sets", "regions": ["upper-pull"], "basis": "Yours" },
+        { "id": "lower_push", "label": "Lower body, pushing: sets this week", "kind": "sets", "regions": ["lower-push"], "basis": "Yours" },
+        { "id": "lower_pull", "label": "Lower body, pulling: sets this week", "kind": "sets", "regions": ["lower-pull"], "basis": "Yours" }
+      ],
+      "unmeasured": [],
+      "guides": []
+    }
+  ]
+}

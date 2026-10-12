@@ -194,7 +194,7 @@ test('training: an exercise is planned as sets, and ticking one counts it', asyn
   expect(await screen.findByText(/^0 of 9 sets/)).toBeTruthy();
 
   await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
-  const sheet = await screen.findByRole('dialog', { name: 'add an exercise' });
+  const sheet = await screen.findByRole('dialog', { name: 'add to the session' });
   await fireEvent.input(within(sheet).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
   // Nothing is pre-filled with a number of the app's own: sets, reps and load are the person's.
   const add = () =>
@@ -212,4 +212,47 @@ test('training: an exercise is planned as sets, and ticking one counts it', asyn
   expect(await screen.findByText(/^1 of 12 sets/)).toBeTruthy();
   // A clock of what has passed since, and no prescribed rest.
   expect(await screen.findByRole('timer', { name: 'since the last set' })).toBeTruthy();
+});
+
+test('training: an activity is logged in minutes and effort, with nothing to tick', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
+  const sheet = await screen.findByRole('dialog', { name: 'add to the session' });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Activity, in minutes' }));
+  // The activities offered are the library's, each from a named source.
+  await fireEvent.click(await within(sheet).findByRole('button', { name: 'Brisk walking' }));
+  const log = () =>
+    within(sheet).getByRole('button', { name: /^Log \d+ min$/ }) as HTMLButtonElement;
+  expect(log().disabled).toBe(true);
+  for (let i = 0; i < 6; i++)
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'more Minutes' }));
+  for (let i = 0; i < 5; i++)
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'more Effort (0–10)' }));
+  expect(within(sheet).getByText(/^Moderate/)).toBeTruthy();
+  await fireEvent.click(log());
+  expect(await screen.findByText(/30 min of activity/)).toBeTruthy();
+  expect(screen.getByText(/Brisk walking · 30 min · effort 5/)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /set 1 of Brisk walking/ })).toBeNull();
+});
+
+test('a regime is chosen from the library, followed, measured, and stopped', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  const bar = await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Regime' }));
+  expect(await screen.findByRole('heading', { name: 'Choose a regime to follow' })).toBeTruthy();
+  await fireEvent.click(await screen.findByRole('button', { name: /WHO weekly activity/ }));
+  // What it would hold you to is shown before anything is written, and each number says whose it is.
+  expect(await screen.findByRole('heading', { name: 'What you will be held to' })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Follow this' }));
+  expect(await screen.findByRole('button', { name: 'Stop following' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'WHO weekly activity' })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Stop following' }));
+  expect(await screen.findByRole('heading', { name: 'Choose a regime to follow' })).toBeTruthy();
 });

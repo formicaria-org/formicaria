@@ -559,6 +559,12 @@ const READ_ONLY: &[&str] = &[
     "log_days",
     "log_recent",
     "log_recipes",
+    // The library is carried in the app; a profile, a preview and a week's progress are read
+    // from notes and change none.
+    "plan_library",
+    "plan_profile",
+    "plan_preview",
+    "plan_progress",
     // The food list is not in any vault. Reading it moves no note, so none of these should tell
     // a connected client the vault changed.
     "food_search",
@@ -2263,6 +2269,26 @@ fn dispatch_inner(
             let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
             let store = g.store(scope);
             json(crate::log::log_recipes(&store, &def).map_err(err)?)
+        }
+        // ── Diets and regimes to follow (`plan.rs`; `decisions.md#data`, 2026-10-12) ─────────────
+        // The library needs no vault. The other three read notes: the person's measurements, an
+        // option with its numbers worked out for them, and a week measured against what they
+        // follow. Following one is `create_notes`; stopping is `set_properties` — no write here.
+        "plan_library" => json(crate::plan::plan_library(&s("group")).map_err(err)?),
+        "plan_profile" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::plan::plan_profile(&store).map_err(err)?)
+        }
+        "plan_preview" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::plan::plan_preview(&store, &s("id"), &s("day")).map_err(err)?)
+        }
+        "plan_progress" => {
+            let mut g = lock()?;
+            let store = g.store(scope);
+            json(crate::plan::plan_progress(&store, &s("group"), &s("day")).map_err(err)?)
         }
         // ── The food list (`packs.rs`) — carried in the app and unpacked outside every vault, so
         // none of these takes the vault lock.

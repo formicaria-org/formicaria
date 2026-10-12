@@ -47,3 +47,19 @@ He installed two builds on his phone and each time said less was wanted:
 
 v0.7.0 is the first release made docs-first (the owner's standing instruction of 2026-10-11):
 this note, the manual and the context notes were pushed before the version commit.
+
+## The same day, later: something to follow (v0.7.1)
+
+The owner, away from the keyboard: a library of diets and regimes, a custom one fine-tuned, and
+being monitored against whichever is picked; release 0.7.1 without the phone check.
+
+- **Built**: `plan.rs` and `shipped/plans.json` (17 options, 11 named activities), four read
+  commands, the *Diet* and *Regime* tabs (`ui/src/lib/plan/`), activities by minutes and effort
+  and a body region on a set (`WorkoutSheet`, `SessionScreen`). Ruling: `decisions.md#data`.
+- **Seen**: in headless Chromium against the built program, 1280 and 360 wide — follow *Energy
+  and protein for me* (2,798 kcal from a profile), the Day screen taking its targets, a 30-minute
+  walk counted by *WHO weekly activity*, stop following. **Not seen on a phone.**
+- **Found on the way**: `kind` on an entry is the note's own kind (hence `counts_as`); two views
+  cannot share a name (hence *Diet* and *Regime*); the register's WHO fat range was a different
+  document from the fact sheet, which was re-read and used.
+- **Left**: routines on weekdays, weight over time — `outstanding.md` §2.23, item 10.

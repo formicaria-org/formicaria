@@ -1049,14 +1049,21 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
    `a9b3f02`; the tag is on `db9614a`, three commits later, one of which changes what the phone's
    view menu lists. He was told and said to tag. The rule in `CLAUDE.md` stands; this is the
    record that it was set aside once, knowingly.
-10. **Following a diet or a regime** — the owner's next direction (2026-10-12): cards of sourced
-   options and a custom one, in Food and in Fitness, and then being held to what was chosen; for
-   fitness, a weekly pattern of routines. Eight reviews of primary sources are in
-   `sources-2026-10-11.md` (§6b and the sections after it): what each diet, fasting pattern and
-   training regime requires, the numbers as read, and whose pictures and videos may be shown.
-   **Nothing is built.** A proposal for a *Plan* tab was put to him and not yet answered. It
-   needs first: a profile (sex, birth year, height, weight, activity level), weight logged again,
-   an entry for an activity with its minutes and effort, and routines as notes.
+10. **Following a diet or a regime is built** (v0.7.1; `decisions.md#data`, 2026-10-12;
+   `known-issues.md`, *Following a diet or a regime*). What it left open:
+   - **Never seen on a phone.** v0.7.1 was tagged without the phone test, on the owner's word.
+     Ask: do the *Diet* and *Regime* tabs fit, does *About you* save, does a "How to do it" link
+     open the phone's browser (never tried in the Android shell).
+   - **Routines**: a named session saved as notes and set on weekdays, for *My own* in Fitness.
+     The owner asked for "a weekly pattern of routines"; what ships counts a week, it does not
+     lay one out.
+   - **Weight over time.** The profile holds one current weight. Item 1 stands.
+   - **Hours of eating** cannot be measured (an entry has a day and no time); time-restricted
+     eating is a daily *I kept to it*.
+   - **Not offered**: Mediterranean, DASH, vegetarian, vegan, low-carbohydrate, Couch to 5K —
+     each for a reason in the decision; the first four need food groups the tables lack.
+   - **Vitamin A, thiamin, niacin** are left out of *European reference values* (units the list
+     does not store, or values that scale with energy).
 
 ### 2.22 After v0.6.9 — releases and the version check (2026-10-11)
 

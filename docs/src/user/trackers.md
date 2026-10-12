@@ -121,9 +121,17 @@ your notebook.
 **Fitness → Session** is today's session: each exercise, each set, and what you did last time
 beside it.
 
-- **Add an exercise** — its name, how many sets, the reps and the load. Exercises you have done
-  before are offered, with the numbers they had. Nothing is filled in for you otherwise: the
-  app does not suggest sets, reps or loads.
+- **Add an exercise or an activity** opens one sheet with two sides.
+  - *Exercise, in sets* — its name, how many sets, the reps and the load. Exercises you have done
+    before are offered, with the numbers they had. Nothing is filled in for you otherwise: the
+    app does not suggest sets, reps or loads. *It trains* says which part of the body the
+    exercise works (upper or lower body, pushing or pulling); a regime that counts sets per part
+    needs it, and nothing else does.
+  - *Activity, in minutes* — a walk, a swim, a yoga class. Say what it was, what it counts as
+    (aerobic, strengthening, balance or stretching), for how many minutes, and how hard it felt
+    from 0 to 10. The sheet tells you what your number means: 5 or 6 is moderate (you can talk,
+    not sing), 7 and above is vigorous. Lighter than that is recorded and does not count towards
+    a weekly total, which is how the World Health Organization counts it.
 - **Same as last time** — when nothing is planned for today, this plans the sets of your last
   session again, ready to change.
 - Tap a set's numbers to change them or remove the set.
@@ -136,6 +144,63 @@ literature. It is a rough measure of work done, not a score.
 
 There is no list of exercises to choose from, no best-lift history, and no way to keep a named
 session plan.
+
+## Following a diet or a regime
+
+**Food → Diet** and **Fitness → Regime** let you choose something to follow and then show how
+your week measures up to it.
+
+**Choosing.** Each option says where it comes from, and they are shelved by that: a public
+guideline, an expert position, a single research review, a definition, a diet described by the
+body that wrote it, or your own. Press one to see, before anything is saved:
+
+- **What you will be held to** — each number, with whose number it is. You can change any of
+  them; that is how you fit an option to yourself. **My own** is the same form with nothing
+  filled in.
+- **About you**, when the option needs it: sex, year of birth, height, weight and how active you
+  are. They are kept in one note of yours and used only to work out numbers that depend on you —
+  an energy estimate, protein for your weight, iron for your sex. The energy figure is an average
+  for people like you, not a prescription, and says so.
+- **What formicaria cannot measure** about it. Free sugars, for instance, are not in the food
+  tables; hours without eating cannot be told from entries that have a day and no time.
+- Its **sources**, as links.
+
+**Follow this** starts it today.
+
+| In Food | In Fitness |
+|---|---|
+| WHO healthy diet | WHO weekly activity |
+| European reference values (vitamins and minerals too) | WHO weekly activity, 65 and over |
+| Energy and protein for me | Falls prevention |
+| Two fasting days a week | Strength, twice a week |
+| Alternate-day modified fasting | Muscle growth |
+| Time-restricted eating | Minimal strength |
+| Nordic recommendations 2023 | Stretching for range of motion |
+| Planetary health diet | My own |
+| My own | |
+
+The fasting patterns are given as an international group of researchers defines them. No public
+health body was found recommending them, and the screen says that.
+
+**Being measured.** Once you follow something, the tab shows one row for each thing it asks:
+what was asked, where you are today or so far this week, and the seven days from Monday. A day
+you logged nothing on reads *nothing logged*, not zero. A weekly amount is only called short
+once the week is over.
+
+Some things only you can say — whether you ate inside your hours, whether you kept to a diet
+written in portions of food groups. For those there is **I kept to it today**.
+
+A diet's energy and protein numbers also become the targets on **Food → Day**.
+
+**How to do it** links to pages and videos by the body itself, such as the NHS's strength
+exercises. They open in your browser; nothing of theirs is kept in the app.
+
+**Change its numbers** starts a new set from today and leaves earlier weeks measured against what
+they had. **Choose another** replaces it. **Stop following** ends it; undo brings it back.
+
+Not offered: Mediterranean, DASH, vegetarian, vegan and low-carbohydrate diets. The food tables
+cannot say how many servings of a food group a day held, or that a mixed dish contains no meat,
+and nothing here is measured by guessing.
 
 ## What is kept, and where
 

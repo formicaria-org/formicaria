@@ -25,7 +25,11 @@
   let { def, day, last, onfinish, onadd, onedit, onrepeat }: Props = $props();
 
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
-  const sets = $derived(day?.rows ?? []);
+  /// A session holds two kinds of entry: a set of an exercise, ticked when done, and an activity
+  /// logged by its minutes and effort (`decisions.md#data`, 2026-10-12), which is done when it is
+  /// written.
+  const activities = $derived((day?.rows ?? []).filter((r) => r.props.activity !== undefined));
+  const sets = $derived((day?.rows ?? []).filter((r) => r.props.activity === undefined));
   const groups = $derived.by(() => {
     const m = new Map<string, ObjectMeta[]>();
     for (const s of sets) {
@@ -79,17 +83,42 @@
     <p>
       {finished} of {sets.length} sets
       {#if day}· {showWith(primary.key, day.sums[primary.key]?.sum ?? 0, 1000)}{/if}
+      {#if activities.length}
+        · {activities.reduce((t, a) => t + (whole(a.props.minutes) ?? 0), 0)} min of activity
+      {/if}
     </p>
   </header>
 
-  {#if day && sets.length === 0}
+  {#if day && sets.length === 0 && activities.length === 0}
     <p class="none">Nothing planned for today.</p>
     <div class="start">
       {#if last.length}
         <button type="button" class="go" onclick={onrepeat}>Same as last time</button>
       {/if}
-      <button type="button" class="quiet" onclick={onadd}>Add an exercise</button>
+      <button type="button" class="quiet" onclick={onadd}>Add an exercise or an activity</button>
     </div>
+  {/if}
+
+  {#if activities.length}
+    <section class="exercise">
+      <h3>Activities</h3>
+      <ul>
+        {#each activities as a (a.id)}
+          <li class="finished">
+            <button
+              type="button"
+              class="what wide-what"
+              onclick={() => onedit(a)}
+              aria-label={`change ${a.title ?? 'an activity'}`}
+            >
+              {a.title ?? a.props.activity} · {whole(a.props.minutes) ?? 0} min · effort {whole(
+                a.props.effort,
+              ) ?? 0}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 
   {#each groups as g (g.name)}
@@ -123,8 +152,8 @@
     </section>
   {/each}
 
-  {#if sets.length}
-    <button type="button" class="quiet wide" onclick={onadd}>Add an exercise</button>
+  {#if sets.length || activities.length}
+    <button type="button" class="quiet wide" onclick={onadd}>Add an exercise or an activity</button>
   {/if}
 
   {#if since !== null}
@@ -279,5 +308,10 @@
     font: inherit;
     color: inherit;
     cursor: pointer;
+  }
+  /* An activity has no set number, no "last time" and nothing to tick: its line is its words. */
+  .wide-what {
+    grid-column: 1 / -1;
+    text-align: left;
   }
 </style>

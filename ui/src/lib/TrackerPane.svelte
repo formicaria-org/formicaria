@@ -63,7 +63,8 @@
 
   let asked = 0;
   async function load() {
-    if (!def || !view) return;
+    // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
+    if (!def || !view || def.span === 'plan') return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -230,7 +231,8 @@
       const back = await logDays(view, addDays(today, -60), addDays(today, -1), true);
       const lastDay = back.days.filter((d) => (d.rows ?? []).some((r) => !r.props.planned)).at(-1);
       const drafts: NoteDraft[] = (lastDay?.rows ?? [])
-        .filter((r) => !r.props.planned)
+        // Sets only: an activity is logged when it is done, and has nothing to tick.
+        .filter((r) => !r.props.planned && r.props.activity === undefined)
         .map((r) => {
           const { work_g: _work, session: _session, ...keep } = r.props;
           const props = Object.fromEntries(
@@ -295,6 +297,10 @@
   <div class="screen">
     {#if !def}
       <p class="wait">Loading…</p>
+    {:else if def.span === 'plan'}
+      {#await import('./plan/PlanScreen.svelte') then { default: PlanScreen }}
+        <PlanScreen {def} {today} signal={feed} {onsaved} />
+      {/await}
     {:else if def.span === 'range'}
       <Trends
         {def}

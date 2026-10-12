@@ -5,11 +5,18 @@
   // One note per set (`decisions.md#data`, 2026-10-11), each planned until it is ticked. The name
   // of an exercise is whatever the person types; the ones used before are offered, with the
   // numbers they had last time already filled in.
+  //
+  // **Or an activity, by its minutes and how hard it felt** (`decisions.md#data`, 2026-10-12): a
+  // swim, a walk, a yoga class. That is the entry a weekly dose is measured from — WHO counts
+  // minutes at an intensity, and takes the intensity from effort on a scale of 0 to 10 — and it
+  // is one note, done when it is written. An exercise may also say which region of the body it
+  // trains, which is what a strength regime counts.
   import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import { createNotesUndoable, setPropertiesUndoable, deleteUndoable } from '../undo.svelte';
   import { whole } from '../units';
-  import type { NoteDraft, ObjectMeta, RecentItem, TotalsDef } from '../types';
+  import { planLibrary } from '../ipc';
+  import type { NoteDraft, ObjectMeta, PlanActivity, RecentItem, TotalsDef } from '../types';
 
   interface Props {
     def: TotalsDef;
@@ -37,11 +44,62 @@
   let busy = $state(false);
   let failed = $state('');
 
+  // ── an activity instead of sets ────────────────────────────────────────────────────────────────
+  /// Is the entry being changed an activity? Then this sheet changes its minutes and effort.
+  const isActivity = (o: ObjectMeta | null) => !!o && o.props.activity !== undefined;
+  let mode = $state<'sets' | 'activity'>(untrack(() => (isActivity(set) ? 'activity' : 'sets')));
+  let activity = $state(untrack(() => String(set?.props.activity ?? '')));
+  let countsAs = $state(untrack(() => String(set?.props.counts_as ?? 'aerobic')));
+  let minutes = $state(untrack(() => whole(set?.props.minutes) ?? 0));
+  let effort = $state(untrack(() => whole(set?.props.effort) ?? 0));
+  /// Activities a known body names, with what each counts as (`plan_library`). Offered, never
+  /// required: a name is whatever the person types.
+  let known = $state<PlanActivity[]>([]);
+  $effect(() => {
+    planLibrary('fitness')
+      .then((l) => (known = l.activities))
+      .catch(() => (known = []));
+  });
+  const KINDS: [string, string][] = [
+    ['aerobic', 'Aerobic'],
+    ['strength', 'Strengthening'],
+    ['balance', 'Balance'],
+    ['flexibility', 'Stretching'],
+  ];
+  function pickActivity(a: PlanActivity) {
+    activity = a.name;
+    countsAs = a.kind;
+  }
+  /// WHO's own wording for the scale (2020 guidelines): moderate is "a 5 or 6", vigorous "a 7 or
+  /// 8", of 10. The talk test is the NHS's.
+  const effortSays = $derived(
+    effort >= 7
+      ? 'Vigorous: you cannot say more than a few words without pausing for breath. A minute counts as two.'
+      : effort >= 5
+        ? 'Moderate: you can still talk, but not sing.'
+        : 'Lighter than moderate: it is recorded, and does not count towards weekly minutes.',
+  );
+  const activityReady = $derived(activity.trim() !== '' && minutes > 0);
+
+  // ── which region of the body an exercise trains ────────────────────────────────────────────────
+  /// ACSM's 2026 position stand names no muscles; four regions are enough to say "all major
+  /// muscle groups". Optional: an exercise with none is still a set done.
+  const REGIONS: [string, string][] = [
+    ['upper-push', 'Upper body, push'],
+    ['upper-pull', 'Upper body, pull'],
+    ['lower-push', 'Lower body, push'],
+    ['lower-pull', 'Lower body, pull'],
+  ];
+  let region = $state(untrack(() => String(set?.props.region ?? '')));
+
+  /// What was done before that is an exercise: an activity is offered under activities.
+  const exercises = $derived(last.filter((r) => r.props.activity === undefined));
   /// Choosing an exercise done before brings back what it was last time.
   function choose(r: RecentItem) {
     name = r.title;
     reps = whole(r.props.reps) ?? reps;
     kg = (whole(r.props.load_g) ?? kg * KG) / KG;
+    region = String(r.props.region ?? region);
   }
   const ready = $derived(name.trim() !== '' && reps > 0 && kg >= 0 && sets > 0);
   const step = (v: number, by: number, min: number) =>
@@ -77,9 +135,39 @@
           reps,
           load_g: Math.round(kg * KG),
           planned: 1,
+          ...(region ? { region } : {}),
         },
       }));
       await createNotesUndoable(drafts, `planned ${exercise}`);
+      onwrote();
+      onclose();
+    });
+
+  /// An activity is written as done: there is nothing to tick afterwards.
+  const addActivity = () =>
+    write(async () => {
+      const what = activity.trim();
+      await createNotesUndoable(
+        [
+          {
+            title: what,
+            start: day,
+            props: { log: def.log, activity: what, counts_as: countsAs, minutes, effort },
+          },
+        ],
+        `logged ${what}`,
+      );
+      onwrote();
+      onclose();
+    });
+  const saveActivity = () =>
+    write(async () => {
+      if (!set) return;
+      await setPropertiesUndoable(
+        set.id,
+        { minutes, effort, counts_as: countsAs },
+        `changed ${set.title ?? 'an activity'}`,
+      );
       onwrote();
       onclose();
     });
@@ -91,7 +179,7 @@
       await setPropertiesUndoable(
         set.id,
         // A set already ticked keeps its work in step with its numbers.
-        { reps, load_g, ...(set.props.planned ? {} : { work_g: reps * load_g }) },
+        { reps, load_g, region, ...(set.props.planned ? {} : { work_g: reps * load_g }) },
         `changed a set of ${set.title ?? 'an exercise'}`,
       );
       onwrote();
@@ -101,7 +189,9 @@
   const remove = () =>
     write(async () => {
       if (!set) return;
-      const title = `set ${whole(set.props.set) ?? ''} of ${set.title ?? 'an exercise'}`;
+      const title = isActivity(set)
+        ? (set.title ?? 'an activity')
+        : `set ${whole(set.props.set) ?? ''} of ${set.title ?? 'an exercise'}`;
       await deleteUndoable(set.id, title);
       onwrote({ removed: title });
       onclose();
@@ -116,23 +206,44 @@
     class="sheet"
     role="dialog"
     aria-modal="true"
-    aria-label={set ? 'change a set' : 'add an exercise'}
+    aria-label={set
+      ? isActivity(set)
+        ? 'change an activity'
+        : 'change a set'
+      : 'add to the session'}
   >
     <header>
-      <h2>{set ? `${name} · set ${whole(set.props.set) ?? ''}` : 'Add an exercise'}</h2>
+      <h2>
+        {set
+          ? isActivity(set)
+            ? activity
+            : `${name} · set ${whole(set.props.set) ?? ''}`
+          : 'Add to the session'}
+      </h2>
       <button type="button" class="x" onclick={onclose} aria-label="close">
         <Icon name="close" size={18} />
       </button>
     </header>
 
     {#if !set}
+      <div class="modes" role="group" aria-label="what to add">
+        <button type="button" class:on={mode === 'sets'} onclick={() => (mode = 'sets')}
+          >Exercise, in sets</button
+        >
+        <button type="button" class:on={mode === 'activity'} onclick={() => (mode = 'activity')}
+          >Activity, in minutes</button
+        >
+      </div>
+    {/if}
+
+    {#if !set && mode === 'sets'}
       <label class="field">
         <span>Exercise</span>
         <input type="text" bind:value={name} autocomplete="off" />
       </label>
-      {#if last.length}
+      {#if exercises.length}
         <div class="chips">
-          {#each last.slice(0, 8) as r (r.title)}
+          {#each exercises.slice(0, 8) as r (r.title)}
             <button type="button" class="chip" class:on={r.title === name} onclick={() => choose(r)}
               >{r.title}</button
             >
@@ -177,23 +288,94 @@
       </div>
     {/snippet}
 
-    {#if !set}{@render stepper(
-        'Sets',
-        sets,
+    {#if mode === 'activity'}
+      {#if !set}
+        <label class="field">
+          <span>Activity</span>
+          <input type="text" bind:value={activity} autocomplete="off" />
+        </label>
+        {#if known.length}
+          <div class="chips">
+            {#each known as a (a.name)}
+              <button
+                type="button"
+                class="chip"
+                class:on={a.name === activity}
+                title={`${a.by} counts it as ${a.kind}`}
+                onclick={() => pickActivity(a)}>{a.name}</button
+              >
+            {/each}
+          </div>
+        {/if}
+      {/if}
+      <div class="field">
+        <span>It counts as</span>
+        <div class="chips" role="radiogroup" aria-label="what it counts as">
+          {#each KINDS as [v, label] (v)}
+            <button
+              type="button"
+              role="radio"
+              class="chip"
+              class:on={countsAs === v}
+              aria-checked={countsAs === v}
+              onclick={() => (countsAs = v)}>{label}</button
+            >
+          {/each}
+        </div>
+      </div>
+      {@render stepper('Minutes', minutes, 5, 0, (v) => (minutes = Math.round(v)))}
+      {@render stepper(
+        'Effort (0–10)',
+        effort,
         1,
-        1,
-        (v) => (sets = Math.min(Math.round(v), 12)),
-      )}{/if}
-    {@render stepper('Reps', reps, 1, 0, (v) => (reps = Math.round(v)))}
-    {@render stepper('Load (kg)', kg, 2.5, 0, (v) => (kg = v))}
+        0,
+        (v) => (effort = Math.min(10, Math.round(v))),
+      )}
+      <p class="says">{effortSays}</p>
+    {:else}
+      {#if !set}{@render stepper(
+          'Sets',
+          sets,
+          1,
+          1,
+          (v) => (sets = Math.min(Math.round(v), 12)),
+        )}{/if}
+      {@render stepper('Reps', reps, 1, 0, (v) => (reps = Math.round(v)))}
+      {@render stepper('Load (kg)', kg, 2.5, 0, (v) => (kg = v))}
+      <div class="field">
+        <span>It trains</span>
+        <div class="chips" role="radiogroup" aria-label="the region it trains">
+          {#each REGIONS as [v, label] (v)}
+            <button
+              type="button"
+              role="radio"
+              class="chip"
+              class:on={region === v}
+              aria-checked={region === v}
+              onclick={() => (region = region === v ? '' : v)}>{label}</button
+            >
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     {#if failed}<p class="failed" role="alert">{failed}</p>{/if}
 
     {#if set}
       <div class="pair">
         <button type="button" class="quiet" onclick={remove} disabled={busy}>Remove</button>
-        <button type="button" class="go" onclick={save} disabled={busy || !ready}>Save</button>
+        {#if mode === 'activity'}
+          <button type="button" class="go" onclick={saveActivity} disabled={busy || minutes <= 0}
+            >Save</button
+          >
+        {:else}
+          <button type="button" class="go" onclick={save} disabled={busy || !ready}>Save</button>
+        {/if}
       </div>
+    {:else if mode === 'activity'}
+      <button type="button" class="go" onclick={addActivity} disabled={busy || !activityReady}>
+        Log {minutes} min
+      </button>
     {:else}
       <button type="button" class="go" onclick={add} disabled={busy || !ready}>
         Add {sets} × {reps}
@@ -280,6 +462,33 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
+  }
+  /* Two kinds of thing a session holds; one is on screen at a time. */
+  .modes {
+    display: flex;
+    padding: 2px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-hover);
+  }
+  .modes button {
+    flex: 1;
+    min-height: 2.5rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .modes button.on {
+    background: var(--surface-elevated);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .says {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.45;
   }
   .chips {
     display: flex;
