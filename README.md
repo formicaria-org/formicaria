@@ -33,7 +33,7 @@ The following require only a browser.
 | **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
 | **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
 | **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
-| **Food and fitness** | A food log against targets, recipes as notes, training sessions as sets and activities, routines for the days of your week, and your weight as a trend — kept as notes like everything else. Choose a diet or a training regime from a library of sourced options, or set your own, and see on the day's screen how you measure up to it. Plan the days ahead as a menu with a shopping list, write a packaged food down from its label or look it up by its barcode, keep a list of what is in your kitchen, cook from 54 public-domain recipes that come with the app, and see every vitamin and mineral beside its reference value. The food list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have none), each value under one international definition. |
+| **Food and fitness** | A food log against targets, recipes as notes, training sessions as sets and activities, routines for the days of your week, and your weight as a trend — kept as notes like everything else. Choose a diet or a training regime from a library of sourced options, or set your own, and see on the day's screen how you measure up to it. Plan the days ahead as a menu with a shopping list, write a packaged food down from its label or look it up by its barcode, keep a list of what is in your kitchen, cook from 54 public-domain recipes that come with the app, and see every vitamin and mineral beside its reference value. For training: a timetable of the week, 117 exercise cards in the words of the NHS and the U.S. Army's manual with films to watch, and regimes to follow by name. The food list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have none), each value under one international definition. |
 | **Timeline** | Notes ordered as a journal by day. |
 | **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
 | **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target in a pane alongside the source. |
@@ -250,7 +250,7 @@ what it reversed), and they are not a description of how to use the app. The man
 
 ## Project status
 
-**v0.7.4, and young.** The first commit is dated 2026-07-14; this is one person's project,
+**v0.7.5, and young.** The first commit is dated 2026-07-14; this is one person's project,
 built alongside their research rather than as a product. It is used daily on **Linux and
 Android**, the two platforms the author works on and the only two anything here is checked
 against.

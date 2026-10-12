@@ -120,3 +120,28 @@ with what is missing"*, *"tackle all the remaining open points"*, *"release 0.7.
   migration queued); three test locks over one environment failed one run in six (fixed); a
   test-runner teardown error seen once (open); and twice an edit step failed while its gate ran
   on — once into a commit whose message claimed docs it did not have.
+
+## And v0.7.5: when to do what, and how to do it
+
+The owner: a clear timetable for the week; how each exercise is done, with cards for tool-free
+options and for a gym; research for people who want less weight, more definition and long-term
+health; videos from well-known sources. Then, twice, a correction that changed the work.
+
+- **Built**: *Week* (a timetable, a session for any day, the CDC's example weeks); *Exercises*
+  (117 cards word for word — the NHS website's and the U.S. Army's manual — with 157 linked
+  films); three options to follow by name (Norwegian 4×4, interval walking, activity for losing
+  weight); *How* from a session's exercise to its card. Seven agents over three batches read
+  sources, built the exercise file and found the films (about 1.1 million tokens across the
+  three batches, each batch under the cap).
+- **"Why did you not find the Norwegian protocol?"** It was in the register as one unnamed trial.
+  Every brief had been framed by issuing body. Searches for what people follow now go both
+  ways, and the lesson is in memory.
+- **"I would avoid the army as the primary source."** The first film search fell back to
+  trainers only where no body had a film, so gym cards got Army clips. A second search found
+  trainers whose qualification could be read on their own site; they now come before the Army.
+  The *text* of the gym cards is still the Army's: nothing else may be carried.
+- **Slips**: an agent put the owner's email address in a request header twice (both requests
+  failed; later briefs forbid it). A gate was read as the result of an edit that had not applied,
+  again, and caught before the commit. A test run with a name filter hid the one test that
+  mattered. A weekly count had always summed the whole week, whatever the docs said.
+- **Not seen on a phone.** No film was watched.
