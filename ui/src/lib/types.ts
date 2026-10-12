@@ -570,7 +570,7 @@ export interface TotalsDef {
   /** Which of the closed set of add actions the group's add control opens. */
   add: 'food' | 'workout' | 'body';
   /** `plan` is the screen where a diet or a regime is chosen and followed. */
-  span: 'day' | 'range' | 'plan' | 'menu';
+  span: 'day' | 'range' | 'plan' | 'menu' | 'week';
   metrics: Metric[];
   slots: Slot[];
 }

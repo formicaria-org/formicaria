@@ -14,7 +14,7 @@ The views are gathered into four groups, and they are all ways of looking at the
 | **Library** | everything you have written, browsed by tag | Timeline, Search |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
-| **Fitness** | sessions, sets, activities, a regime to follow | Session, Volume, Regime |
+| **Fitness** | sessions, sets, activities, a regime to follow | Session, Week, Volume, Regime |
 
 - **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
   Food, *Day*, *Menu*, *Trends* and *Diet*.

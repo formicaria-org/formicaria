@@ -31,6 +31,10 @@
     onkeep?: () => void;
     /** Change a routine's name or days, or remove it. */
     onroutine?: (r: Routine) => void;
+    /** The day shown, in words, when it is not today. */
+    label?: string;
+    /** Go back to today's session. Offered only when another day is shown. */
+    ontoday?: () => void;
   }
   let {
     def,
@@ -45,6 +49,8 @@
     onplan,
     onkeep,
     onroutine,
+    label = '',
+    ontoday,
   }: Props = $props();
 
   const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -109,7 +115,10 @@
 
 <div class="session">
   <header class="head">
-    <h2>Today’s session</h2>
+    <h2>{label ? `Session · ${label}` : 'Today’s session'}</h2>
+    {#if ontoday}
+      <button type="button" class="quiet" onclick={ontoday}>Back to today</button>
+    {/if}
     <p>
       {finished} of {sets.length} sets
       {#if day}· {showWith(primary.key, day.sums[primary.key]?.sum ?? 0, 1000)}{/if}
@@ -121,7 +130,9 @@
 
   {#if day && sets.length === 0 && activities.length === 0}
     <p class="none">
-      {meant.length ? 'Nothing planned yet. Meant for today:' : 'Nothing planned for today.'}
+      {meant.length
+        ? `Nothing planned yet. Meant for ${label ? 'this day' : 'today'}:`
+        : `Nothing planned for ${label ? 'this day' : 'today'}.`}
     </p>
     <div class="start">
       {#each meant as r (r.id)}

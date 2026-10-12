@@ -162,6 +162,10 @@ pub enum Span {
     /// (`decisions.md#ui`, 2026-10-12, *a menu is the days ahead, filled*). It writes nothing of
     /// its own kind: its meals are the planned entries the day screen already confirms.
     Menu,
+    /// The seven days of a week of training: what is meant for each, what was done, and what the
+    /// regime followed still asks (`decisions.md#ui`, 2026-10-12, *a week of training is a
+    /// timetable*). Like [`Span::Menu`], it writes nothing of its own kind.
+    Week,
 }
 
 /// What a `totals` view is: which entries it totals and what it calls things. Everything a screen
@@ -902,6 +906,7 @@ const SHIPPED: &[(&str, &str)] = &[
     ("food-trends", include_str!("shipped/food-trends.view")),
     ("food-plan", include_str!("shipped/food-plan.view")),
     ("training-session", include_str!("shipped/training-session.view")),
+    ("training-week", include_str!("shipped/training-week.view")),
     ("training-volume", include_str!("shipped/training-volume.view")),
     ("training-plan", include_str!("shipped/training-plan.view")),
 ];

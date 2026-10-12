@@ -284,8 +284,8 @@ fn a_span_must_be_days_in_order_and_not_too_many() {
 #[test]
 fn every_shipped_view_parses_and_can_be_drawn() {
     let shipped = shipped_views();
-    // Day, Menu, Trends and Diet for food; Session, Volume and Regime for training.
-    assert_eq!(shipped.len(), 7);
+    // Day, Menu, Trends and Diet for food; Session, Week, Volume and Regime for training.
+    assert_eq!(shipped.len(), 8);
     for v in &shipped {
         assert!(v.shipped && v.error.is_none() && v.group.is_some(), "{v:?}");
         assert_eq!(v.renderer, Some(Renderer::Totals));

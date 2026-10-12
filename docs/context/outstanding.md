@@ -1112,6 +1112,35 @@ what each left open is said under it. The rest is neither built nor ruled. In th
 would); whether the camera permission is worth a changed *Take a photo* prompt; which recipe
 collections to carry; how directive a suggestion may sound.
 
+### 2.26 Fitness: when to do what, and how to do it (2026-10-12)
+
+The owner: a clear timetable for the week; a clear understanding of how each exercise is done;
+grounded research for healthy people who want less weight, more muscle definition and long-term
+health; cards for tool-free options and for people who go to a gym; and videos on YouTube "from
+well known sources and when not available from trainers that have high views".
+
+- **Built:** the *Week* view (`decisions.md#ui`, 2026-10-12), and a session for any day.
+- **Read so far:** the NHS's tool-free exercises — 39 with step-by-step text that may be carried
+  word for word under the Open Government Licence, with "Information from the NHS website", the
+  date copied and a link on each, and the licence stated in the app. Its pictures and videos may
+  not be carried. **Gaps:** no pulling exercise, no trunk strength, almost nothing for the back
+  of the legs, one wall press-up for pushing; gentle, about 5 repetitions each.
+- **Read, to be written into the register:** the evidence for the goal and for a week's layout
+  — no body defines "definition" or "toning"; no spot reduction; every rate of loss is written
+  for people above a healthy weight; strength kept on in a deficit keeps muscle; CDC publishes
+  three day-by-day example weeks, in the public domain.
+- **Being read:** a carriable source of gym and free-weight technique (US government manuals
+  first); and **protocols known by name**, the Norwegian 4×4 first.
+- **A blind spot the owner caught:** *"are you including the Norwegian protocol? Why did you not
+  find it?"* It was in the register as one unnamed trial (Helgerud 2007) under "one trial each".
+  The searches were framed by issuing body, so a protocol that comes from a research group and is
+  known by its name was neither named nor followed up. **A search for what people can follow is
+  made both ways: by body, and by the names people use.**
+- **To do after that:** exercise cards (no equipment / gym) with their source's own steps; a
+  regime for the goal as far as sources carry it; video links, a public body's first and a
+  trainer's only where none exists and said to be so; a suggested layout of the week if a source
+  gives one.
+
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
 `deny.toml` waives RUSTSEC-2024-0449 (`unsafe-libyaml`, under `serde_yaml_ng`) since 2026-10-12

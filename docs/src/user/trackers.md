@@ -227,6 +227,11 @@ beside it.
 - **Tick a set** when it is finished; a clock starts counting the time since. It does not tell
   you how long to rest.
 
+**Fitness → Week** is your timetable: Monday to Sunday, each day with the routines you meant for
+it, what you did, and — on a day still to come — a button to plan a routine there. At the top it
+shows the regime you follow and how the week stands against it. **Open** on a day shows that
+day's session; step to earlier or later weeks with the arrows.
+
 **Fitness → Volume** is the trend view over what you lifted. *Volume load* is repetitions ×
 load, added up over the sets you ticked — the usual meaning of the term in the training
 literature. It is a rough measure of work done, not a score.

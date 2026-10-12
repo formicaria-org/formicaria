@@ -479,3 +479,25 @@ test('a recipe carried in the app is shown as published and logged by its source
   expect(within(recipe).getByText(/National Heart, Lung, and Blood Institute/)).toBeTruthy();
   expect(within(recipe).getByRole('link', { name: "recipe's own page" })).toBeTruthy();
 });
+
+test('a week of training is a timetable: what is meant for each day, and a day opens its session', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  const bar = await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Week' }));
+  expect(await screen.findByRole('heading', { name: 'This week' })).toBeTruthy();
+  // Seven days, and with no routine yet the screen says where a timetable comes from.
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open' }).length).toBe(7));
+  expect(screen.getByText(/A timetable comes from routines/)).toBeTruthy();
+  expect(screen.getByText(/Nothing is followed/)).toBeTruthy();
+  // The week before has no "today"; its last day opens as a session of that day.
+  await fireEvent.click(screen.getByRole('button', { name: 'the week before' }));
+  await screen.findByRole('button', { name: 'Back to this week' });
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Open' }).length).toBe(7));
+  await fireEvent.click(screen.getAllByRole('button', { name: 'Open' })[6]);
+  expect(await screen.findByRole('heading', { name: /^Session · / })).toBeTruthy();
+  await fireEvent.click(screen.getByRole('button', { name: 'Back to today' }));
+  expect(await screen.findByRole('heading', { name: 'Today’s session' })).toBeTruthy();
+});

@@ -1,3 +1,16 @@
+<script lang="ts" module>
+  /// A day chosen in one view of a group, for the view that is about to show it.
+  const waiting = new Map<string, string>();
+  const carried = {
+    give: (pane: string, day: string) => void waiting.set(pane, day),
+    take: (pane: string) => {
+      const day = waiting.get(pane);
+      waiting.delete(pane);
+      return day;
+    },
+  };
+</script>
+
 <script lang="ts">
   // What a `totals` view is mounted in: it holds the chosen day, asks for that day's numbers, and
   // opens whichever add sheet the view's group names. The renderers under it stay pure.
@@ -21,7 +34,7 @@
   } from './ipc';
   import type { Dish } from './plan/measure';
   import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
-  import { addDays, clockOf, nowClock, today as todayNow } from './units';
+  import { addDays, clockOf, dayLabel, nowClock, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
   import type {
     DayTotals,
@@ -62,7 +75,11 @@
   const wanted = $derived(pane.viewName ?? view);
 
   const today = todayNow();
-  let selected = $state(today);
+  /// **The chosen day outlives a step to another of the group's views.** The pane is built anew
+  /// when its view changes, so a day chosen on one tab (a bar of the trend, a day of the week)
+  /// was lost on the way to the tab that shows it — and the day screen opened on today. It is
+  /// handed across here, once, by the pane's id.
+  let selected = $state(untrack(() => carried.take(pane.id)) ?? today);
   let span = $state(7);
 
   let day = $state<DayTotals | null>(null);
@@ -124,7 +141,7 @@
   let asked = 0;
   async function load() {
     // The plan screen asks for its own week (`plan/PlanScreen.svelte`).
-    if (!def || !view || def.span === 'plan' || def.span === 'menu') return;
+    if (!def || !view || def.span === 'plan' || def.span === 'menu' || def.span === 'week') return;
     const mine = ++asked;
     try {
       if (def.span === 'range') {
@@ -329,7 +346,7 @@
                 typeof e[1] === 'string' || typeof e[1] === 'number',
             ),
           );
-          return { title: r.title ?? '', start: today, props: { ...props, planned: 1 } };
+          return { title: r.title ?? '', start: selected, props: { ...props, planned: 1 } };
         });
       if (!drafts.length) {
         say('No earlier session to go by');
@@ -342,8 +359,8 @@
     await wrote();
   }
 
-  /// A routine's sets, planned for today.
-  async function planRoutine(r: Routine) {
+  /// A routine's sets, planned for a day: the one in front, unless the week screen names another.
+  async function planRoutine(r: Routine, on: string = selected) {
     const drafts: NoteDraft[] = r.sets.map((s) => {
       const { routine: _routine, ...keep } = s.props;
       const props = Object.fromEntries(
@@ -352,7 +369,7 @@
             typeof e[1] === 'string' || typeof e[1] === 'number',
         ),
       );
-      return { title: s.title ?? '', start: today, props: { ...props, planned: 1 } };
+      return { title: s.title ?? '', start: on, props: { ...props, planned: 1 } };
     });
     if (!drafts.length) {
       say(`“${r.title}” has no sets`);
@@ -389,10 +406,10 @@
   function openDay(d: string) {
     // Only where the group's first view is this log's own day screen.
     if (def?.add !== 'food') return;
-    selected = d;
-    day = null;
     const first = group?.views[0];
-    if (first && first !== view) onchange({ viewName: first });
+    if (!first || first === view) return;
+    carried.give(pane.id, d);
+    onchange({ viewName: first });
   }
 </script>
 
@@ -437,6 +454,21 @@
           {onsaved}
         />
       {/await}
+    {:else if def.span === 'week'}
+      {#await import('./training/WeekScreen.svelte') then { default: WeekScreen }}
+        <WeekScreen
+          {view}
+          {today}
+          signal={[feed, wrotes]}
+          onday={(d) => {
+            const first = group?.views[0];
+            if (!first || first === view) return;
+            carried.give(pane.id, d);
+            onchange({ viewName: first });
+          }}
+          onplan={(r, d) => planRoutine(r, d)}
+        />
+      {/await}
     {:else if def.span === 'range'}
       <Trends
         {def}
@@ -460,8 +492,10 @@
         onedit={(set) => (workout = { set })}
         onrepeat={repeatLast}
         {routines}
-        {today}
-        onplan={planRoutine}
+        today={selected}
+        label={selected === today ? '' : dayLabel(selected)}
+        ontoday={selected === today ? undefined : () => pick(today)}
+        onplan={(r) => planRoutine(r)}
         onkeep={() => (routineSheet = { routine: null })}
         onroutine={(routine) => (routineSheet = { routine })}
       />
@@ -498,7 +532,7 @@
     {#await import('./training/WorkoutSheet.svelte') then { default: WorkoutSheet }}
       <WorkoutSheet
         {def}
-        day={today}
+        day={selected}
         set={workout.set}
         {last}
         have={day?.rows ?? []}
