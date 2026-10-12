@@ -43,6 +43,25 @@
       {status.installed.attribution}
       {status.installed.licence}.
     </p>
+    <p class="muted">
+      Recipes that come with the app — source: National Heart, Lung, and Blood Institute; National
+      Institutes of Health; U.S. Department of Health and Human Services (<a
+        href="https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes"
+        target="_blank"
+        rel="noreferrer noopener">its recipes</a
+      >), carried word for word.
+    </p>
+    <p class="muted">
+      A packaged food you look up by its barcode contains data from
+      <a href="https://openfoodfacts.org" target="_blank" rel="noreferrer noopener"
+        >Open Food Facts</a
+      >, available under the
+      <a
+        href="https://opendatacommons.org/licenses/odbl/1-0/"
+        target="_blank"
+        rel="noreferrer noopener">Open Database License</a
+      >. It is asked only when you press for it, and is sent the barcode number alone.
+    </p>
   {:else if status?.error}
     <p class="muted err" role="alert">
       The food list could not be put in place, so foods can only be added by name. {status.error}

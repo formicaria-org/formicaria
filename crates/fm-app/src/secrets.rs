@@ -238,7 +238,7 @@ mod tests {
     /// Same reason and same shape as `fm-app/tests/backup_records_everything.rs`, which serialises
     /// on `FM_VAULTS`. `unwrap_or_else(|e| e.into_inner())` because a panic in one test must not
     /// poison the mutex and turn one failure into two.
-    static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use crate::vaults::ENV_LOCK as ENV;
 
     /// The file must never be group- or world-readable. Asserted on the mode rather than on the
     /// code that sets it, because the failure mode is silent and permanent.

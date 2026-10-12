@@ -4305,7 +4305,7 @@ mod tests {
     /// `secrets.rs`'s own `ENV` lock and `backup_records_everything.rs`'s.
     /// `unwrap_or_else(|e| e.into_inner())` so one panic does not poison the mutex and turn a
     /// single failure into every failure.
-    static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use crate::vaults::ENV_LOCK as ENV;
 
     struct NoHost;
     impl Host for NoHost {

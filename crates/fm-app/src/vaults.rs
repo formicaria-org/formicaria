@@ -521,8 +521,14 @@ pub fn expand_home(path: &str) -> String {
 /// `fm-core/tests/git_transport.rs` failed `pixi run ci` about 1 run in 8 until it was locked; this
 /// is the same fix applied before the flake rather than after. The repo's other instances of the
 /// idiom are `fm-app/tests/backup_records_everything.rs` and `fm-app/src/secrets.rs`.
+///
+/// **One lock for the whole crate's unit tests, since 2026-10-12.** `secrets.rs` and `dispatch.rs`
+/// each had a lock of their own for the same variables (`FM_CONFIG_DIR`, `XDG_CONFIG_HOME`, the
+/// restic password), so a test of one could move the config directory under a test of the other:
+/// about one run of the gate in six failed on it. Three locks over one process-wide thing is no
+/// lock; they all take this one now.
 #[cfg(test)]
-static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Hold [`ENV_LOCK`], set `FM_VAULT_ROOT`, and always unset it again — including on panic, which a
 /// bare `set_var`/`remove_var` pair wrapped around an assertion does not do. Poisoning is recovered

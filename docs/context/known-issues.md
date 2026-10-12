@@ -2269,3 +2269,12 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   a day with one reads "from n of m entries" for those.
 - **The file is made by `ci/pack-recipes.py`** (about 60 polite requests); the build only reads
   it. Regenerating it changes `seen` and nothing else unless the site changed.
+
+## A flaky gate: three locks over one environment (fixed 2026-10-12)
+
+`fm-app`'s unit tests in `secrets.rs`, `dispatch.rs` and `vaults.rs` each locked "the
+environment" with a mutex of their own, while setting the same process-wide variables. About one
+run in six, a secrets test and a backup-status test moved the config directory under each other.
+They share `vaults::ENV_LOCK` now (ten runs of ten clean). **A new test module that sets an
+environment variable takes that lock, not one of its own.** The owner had seen runners fail and
+pass on a re-run; this is one cause, and not necessarily the only one.

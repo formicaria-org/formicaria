@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   boundProps,
   dayAgainst,
+  dishesFor,
   gap,
   fraction,
   planBody,
@@ -13,6 +14,7 @@ import {
   verdict,
 } from './measure';
 import type { PlanCheck } from '../types';
+import type { Dish } from './measure';
 
 const fibre: PlanCheck = { id: 'fibre', label: 'Fibre', kind: 'sum', key: 'fiber_mg', basis: '' };
 const fat: PlanCheck = { id: 'fat', label: 'Fat', kind: 'share', key: 'fat_mg', basis: '' };
@@ -131,5 +133,32 @@ describe('a day against what is followed', () => {
       ['w'],
     ]);
     expect(dayAgainst([c({ state: 'none' })]).nothing).toBe(true);
+  });
+});
+
+describe('dishes for what a day is short of', () => {
+  const short = {
+    kind: 'sum' as const,
+    unit: 'fiber_mg',
+    state: 'under' as const,
+    min: 25_000,
+    value: 12_000,
+  };
+  const dishes: Dish[] = [
+    { title: 'Lentil soup', from: 'yours', per_serving: { kcal: 300, fiber_mg: 9_000 } },
+    { title: 'Bean chili', from: 'NHLBI', per_serving: { kcal: 700, fiber_mg: 12_000 } },
+    { title: 'Grilled fish', from: 'NHLBI', per_serving: { kcal: 200 } },
+  ];
+  it('ranks by how much of it a serving holds and says what the day would come to', () => {
+    const got = dishesFor(short, dishes, null);
+    expect(got.map((x) => [x.dish.title, x.reaches])).toEqual([
+      ['Bean chili', 24_000],
+      ['Lentil soup', 21_000],
+    ]);
+  });
+  it('offers only what still fits under the day’s energy, and nothing for a check that is over or met', () => {
+    expect(dishesFor(short, dishes, 400).map((x) => x.dish.title)).toEqual(['Lentil soup']);
+    expect(dishesFor({ ...short, state: 'met' as const }, dishes, null)).toEqual([]);
+    expect(dishesFor({ ...short, kind: 'share' as const }, dishes, null)).toEqual([]);
   });
 });

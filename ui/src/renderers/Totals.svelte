@@ -14,7 +14,8 @@
   import Icon from '../lib/Icon.svelte';
   import { dur, tween } from '../lib/charts/motion';
   import { clockOf, show, showWith, whole, dayLabel, dayLetter, dayNumber } from '../lib/units';
-  import { dayAgainst, gap, shownAsk, shownValue } from '../lib/plan/measure';
+  import { dayAgainst, dishesFor, gap, shownAsk, shownValue } from '../lib/plan/measure';
+  import type { Dish } from '../lib/plan/measure';
   import type {
     DayTotals,
     ObjectMeta,
@@ -46,6 +47,8 @@
     plan?: PlanProgress | null;
     /** Open every vitamin and mineral of the day. Offered only when its owner can show them. */
     onnutrients?: () => void;
+    /** Dishes a serving of which could be had: the person's recipes and the carried ones. */
+    dishes?: Dish[];
   }
   let {
     def,
@@ -62,6 +65,7 @@
     onconfirm,
     plan = null,
     onnutrients,
+    dishes = [],
   }: Props = $props();
 
   const against = $derived(plan?.plan ? dayAgainst(plan.checks) : null);
@@ -89,6 +93,8 @@
   const sumOf = (d: DayTotals | null, key: string) => d?.sums[key]?.sum ?? 0;
   const eaten = $derived(sumOf(day, primary.key));
   const target = $derived(day?.targets[primary.key] ?? 0);
+  /// The energy still under the day's ceiling, when it has one: a dish offered must fit in it.
+  const room = $derived(target > 0 ? Math.max(0, target - eaten) : null);
   /// What the middle of the ring says: what remains while there is a target and room under it, how
   /// far past it once there is not, and the plain total when there is no target at all.
   const hero = $derived(
@@ -300,6 +306,30 @@
                   {:else}
                     <p>It is worked out from the whole day, not from one value of each entry.</p>
                   {/if}
+                  {#each [dishesFor(c, dishes, room)] as ideas (c.id)}
+                    {#if ideas.length}
+                      <p>
+                        A serving of these has most of it{room !== null
+                          ? ', and fits what is left of your energy'
+                          : ''}:
+                      </p>
+                      <ul>
+                        {#each ideas as x (x.dish.from + x.dish.title)}
+                          <li>
+                            <span
+                              >{x.dish.title}
+                              <span class="sub"
+                                >· {x.dish.from}{x.dish.have
+                                  ? ` · you have ${x.dish.have.n} of its ${x.dish.have.of} ingredients`
+                                  : ''}</span
+                              ></span
+                            >
+                            <span>would bring you to {shownValue(c, x.reaches)}</span>
+                          </li>
+                        {/each}
+                      </ul>
+                    {/if}
+                  {/each}
                   <p class="basis">{c.basis}</p>
                 </div>
               {/if}

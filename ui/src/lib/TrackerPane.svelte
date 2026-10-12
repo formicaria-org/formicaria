@@ -10,7 +10,16 @@
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
   import * as nav from './nav.svelte';
-  import { logDays, logRecent, logRoutines, planProgress } from './ipc';
+  import {
+    logDays,
+    logKitchen,
+    logRecent,
+    logRecipes,
+    logRoutines,
+    planProgress,
+    recipeLibrary,
+  } from './ipc';
+  import type { Dish } from './plan/measure';
   import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
   import { addDays, clockOf, nowClock, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
@@ -64,6 +73,43 @@
   let routines = $state<Routine[]>([]);
   /// The chosen day against the diet the person follows, when they follow one.
   let followed = $state<PlanProgress | null>(null);
+  /// What could be had to close a gap: the person's recipes (a serving of each, and how much of
+  /// each is in the kitchen) and the recipes carried in the app. Asked for only when a diet is
+  /// followed and something is off, and never the reason a day fails to draw.
+  let dishes = $state<Dish[]>([]);
+  let dishesFor = '';
+  $effect(() => {
+    const off = followed?.checks.some((c) => c.per === 'day' && c.state === 'under');
+    if (!off || !view || dishesFor === view) return;
+    dishesFor = view;
+    void Promise.all([logRecipes(view), recipeLibrary(), logKitchen()])
+      .then(([own, lib, kitchen]) => {
+        const names = new Set(kitchen.map((k) => k.title.trim().toLowerCase()));
+        dishes = [
+          ...own.map((r) => ({
+            title: r.title,
+            from: 'yours',
+            per_serving: Object.fromEntries(
+              Object.entries(r.sums).map(([k, v]) => [
+                k,
+                Math.round(v.sum / Math.max(1, r.servings)),
+              ]),
+            ),
+            have: {
+              n: r.ingredients.filter((i) => names.has((i.title ?? '').trim().toLowerCase()))
+                .length,
+              of: r.ingredients.length,
+            },
+          })),
+          ...lib.recipes.map((r) => ({
+            title: r.title,
+            from: 'NHLBI',
+            per_serving: r.per_serving,
+          })),
+        ];
+      })
+      .catch(() => (dishes = []));
+  });
   let failed = $state('');
 
   /// The strip is a fortnight ending today, or around the chosen day once that is further back.
@@ -427,6 +473,7 @@
         ontargets={() => (targetsOpen = true)}
         onconfirm={confirm}
         plan={followed}
+        {dishes}
         onnutrients={def.add === 'food' ? () => (nutrientsOpen = true) : undefined}
       />
     {/if}

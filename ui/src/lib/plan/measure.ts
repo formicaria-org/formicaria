@@ -174,3 +174,34 @@ export function dayAgainst(checks: PlanCheckProgress[]): {
     nothing: daily.length > 0 && daily.every((c) => c.state === 'none'),
   };
 }
+
+/** A dish that could be had, with what a serving of it holds. */
+export interface Dish {
+  title: string;
+  /** Whose it is, in words: `yours`, or the collection's name. */
+  from: string;
+  per_serving: Record<string, number>;
+  /** For a person's own recipe: how many of its ingredients are in the kitchen, of how many. */
+  have?: { n: number; of: number };
+}
+
+/** Dishes a serving of which holds most of what a check is short of — and what the day would
+ *  then come to. **Arithmetic on the dishes' own figures, never advice**: only for a check that
+ *  is under a least amount of one value, only dishes that state that value, and — when the day
+ *  has an energy ceiling — only those a serving of which still fits under it. */
+export function dishesFor(
+  check: Pick<PlanCheckProgress, 'unit' | 'min' | 'value' | 'state' | 'kind'>,
+  dishes: Dish[],
+  room: number | null,
+  limit = 3,
+): { dish: Dish; adds: number; reaches: number }[] {
+  if (check.kind !== 'sum' || check.state !== 'under' || check.min === undefined) return [];
+  const now = check.value ?? 0;
+  return dishes
+    .map((dish) => ({ dish, adds: dish.per_serving[check.unit] ?? 0 }))
+    .filter((x) => x.adds > 0)
+    .filter((x) => room === null || (x.dish.per_serving.kcal ?? 0) <= room)
+    .sort((a, b) => b.adds - a.adds)
+    .slice(0, limit)
+    .map((x) => ({ ...x, reaches: now + x.adds }));
+}
