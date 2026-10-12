@@ -19,8 +19,8 @@ permission, deliberately: a field inside a file can be mistyped, and git history
 ### Blob
 
 The stored bytes of an asset, kept once under the SHA-256 of its own content — see
-*content-addressed*. Blobs live in `<vault>/blobs/` and are deliberately **not** carried by an
-ordinary git push, which is why the [snapshot tier](../user/backup.md) exists.
+*content-addressed*. Blobs live in `<vault>/blobs/` and are **not** sent with the notes unless the vault sets a
+size limit for attachments, which is why the [snapshot tier](../user/backup.md) exists.
 
 ### Content-addressed
 
@@ -77,8 +77,8 @@ the two are the same act. Sharing a vault means giving it a remote and giving pe
 ### Snapshot
 
 An encrypted, deduplicated backup of a vault's notes **and** its attachments, taken by
-[restic](https://restic.net). The other tier — git — carries the notes and their history but not
-the media, which is why both exist. See [Backup & versioning](../user/backup.md).
+[restic](https://restic.net). The other tier — git — carries the notes and their history, and the
+media only under a size limit a vault may set, which is why both exist. See [Backup & versioning](../user/backup.md).
 
 ### ULID
 

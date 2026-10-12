@@ -182,3 +182,22 @@ a deadline?"*, then *"go ahead and build it and then release, I am afk"*.
   iOS has the in-app line only.
 - **Checked**: the core by test; the page by test and in a headless browser; the Kotlin only
   by compiling. **Not seen on a phone.**
+
+### After 0.7.7: the computer stays for a reminder
+
+The owner: *"We can keep it running but we need to avoid to have also the AI models in the
+background, that is a heavier task."*
+
+- **Built**: the page hands the program the list it hands Android; when the last page leaves
+  and a reminder waits, the program rests instead of stopping, refuses the assistant (which
+  stops its model by the path it already had), says each reminder through the system's own
+  notification, and stops after the last. No second switch.
+- **A race found by running it**: the watchdog stopped the program at the reminder's moment,
+  two seconds before the thread that was to say it. Unit tests passed; only the end-to-end run
+  showed nothing had been said. Whoever says the last one now stops the program.
+- **The docs, read whole** on the owner's word that the README did not mention food or
+  fitness. It did, in one 190-word table cell eight rows down, which is the same as not. The
+  README now opens with it; the manual lost a sentence saying there was no barcode reading,
+  written two releases before there was. What is left is `outstanding.md` §2.28. Two agents,
+  about 215k tokens.
+

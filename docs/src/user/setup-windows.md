@@ -33,7 +33,7 @@ warning above appears, the first time only.)
 
 ## 4. Stop it, and start it again
 
-Close the browser tab. formicaria shuts down a few seconds later.
+Close the browser tab. formicaria shuts down about a minute and a half later (with reminders on and one waiting, it stays running quietly until that has been said).
 
 To come back — tomorrow, or in five minutes — double-click **`Start formicaria.vbs`** again. Your
 notes are still in the `vault` folder, exactly as you left them.
@@ -55,7 +55,7 @@ Only four things are for you:
 - **`Start formicaria.vbs`** — starts it.
 - **`Manual.html`** — this manual.
 - **`vault`** — your notes.
-- **`Update from an older folder.bat`** — run this only when you download a newer
+- **`Update from an older folder.bat`** — formicaria normally updates itself from Settings; run this only when you download a newer
   version; it copies your old notes across. See [Updating](./updating.md).
 
 There is also **`Start formicaria (show messages).bat`**, which starts it the same way but in a

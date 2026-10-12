@@ -2212,6 +2212,8 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
           },
         ],
       } as T;
+    case 'remind_set':
+      return undefined as T;
     case 'reminders': {
       // As `reminders.rs`, in small: unfinished notes with a date from that day on.
       const from = String(args.from ?? '');

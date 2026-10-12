@@ -87,7 +87,8 @@ window is narrow (a phone, or a split screen). Same buttons, same order, whereve
 
 ## Coming back tomorrow
 
-Closing the browser tab stops formicaria — that is how you quit it. To start again, double-click the
+Closing the browser tab stops formicaria — that is how you quit it. (If you have turned
+reminders on and one is waiting, it stays running quietly until that has been said.) To start again, double-click the
 same file you used the first time, in the folder you unpacked. Your notes are still in `vault`,
 exactly as you left them, and they are still there whether formicaria is running or not.
 
@@ -95,6 +96,9 @@ exactly as you left them, and they are still there whether formicaria is running
 
 - Working with more than plain notes — [Creating & organizing notes](./notes.md)
 - Boards, agendas, and arranging panes — [Views](./views.md)
+- Being told when a note's time comes — [Reminders](./notes.md#reminders)
+- A food log and a training log — [Food and training](./trackers.md)
+- Bringing notes from Logseq or Obsidian — [Importing](./import.md)
 - Images, PDFs, whiteboards — [Assets & media](./assets.md)
 - History, backup, another machine — [Backup & versioning](./backup.md)
 - Writing with someone else — [Collaboration](./collaboration.md)

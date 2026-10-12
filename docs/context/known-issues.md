@@ -1374,9 +1374,23 @@ Built in 0.7.7 (`reminders.rs`, `ui/src/lib/reminders.svelte.ts`, `Reminders.kt`
   the change. The agent's background service does not re-ask.
 - **A phone maker's battery manager can still stop them** (the known trouble with alarms on some
   makes). Not looked into.
-- **The desktop only reminds while a page is open**, and keeps timers for twelve hours ahead,
-  re-asking every six. A reminder that came due while it was closed is not shown afterwards.
-  Keeping the program running in the background is the owner's decision, not taken.
+- **On a computer the program rests for a waiting reminder** (`fm-serve/src/remind.rs`,
+  `decisions.md` 2026-10-13, the second entry). Run for real on Linux with a stand-in
+  `notify-send`: it rested, answered the assistant `503`, said two reminders and stopped.
+  **Not run**: the Windows toast and the macOS `osascript` (written from documentation, and
+  the Windows one compiles only on Windows — `cross` is the owner's to run); the assistant
+  actually stopping its model on the `503` (the path is the tested app-has-gone one, but the
+  two were not run together); a newer copy asking a resting one to leave.
+- **Nothing starts at login.** After a restart of the computer nothing reminds until the app
+  is opened once.
+- **A resting program holds the port.** A different build started meanwhile asks it to leave;
+  a copy from before 0.7.8 cannot rest, so there is nothing older to meet.
+- **The only way to stop a resting program from the app is to turn reminders off.**
+- **The 503 trusts the assistant's own header** from this machine: anything local sending
+  `X-Formicaria-Agent: 1` to a resting program releases the assistant's slot, so a second
+  assistant could be started on coming back while a first still ran. Only local software can.
+- **Mail and calendar reading continue while it rests**: they run on the program's clock.
+- **The open page keeps timers for twelve hours ahead**, re-asking every six.
 - **Browser notifications need the page to be allowed**, and Chrome on Android refuses
   `new Notification` outside a service worker — there the line in the app is all there is
   (the phone app does not go this way; it uses the alarm).

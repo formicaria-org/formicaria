@@ -8,7 +8,8 @@
 // Nothing is kept here but whether this device wants them: the moments are asked for again
 // whenever the app starts or something changes, so a date changed elsewhere is right at the
 // next ask.
-import { reminders as ask } from './ipc';
+import { remindSet, reminders as ask } from './ipc';
+import { isPhone } from './platform';
 import { today } from './units';
 import type { Reminder } from './types';
 
@@ -108,18 +109,26 @@ export function sync(): Promise<void> {
       for (const t of timers) clearTimeout(t);
       timers = [];
       const b = bridge();
+      // On a computer the program itself says a reminder when no page is open, and stays
+      // running for it; a browser reaching someone else's computer is refused, which is right.
+      const program = (items: { title: string; text: string; at: number }[]) => {
+        if (!b && !isPhone()) void remindSet(items).catch(() => {});
+      };
       if (!state.on) {
         b?.set('[]');
+        program([]);
         return done();
       }
       try {
         const list = await ask(today(), 14);
         const now = Date.now();
-        b?.set(
-          JSON.stringify(
-            list.map((r) => ({ title: r.title || 'A note', text: textOf(r), at: msOf(r.at) })),
-          ),
-        );
+        const items = list.map((r) => ({
+          title: r.title || 'A note',
+          text: textOf(r),
+          at: msOf(r.at),
+        }));
+        b?.set(JSON.stringify(items));
+        program(items.filter((i) => i.at > now));
         for (const r of list) {
           const wait = msOf(r.at) - now;
           if (wait > 0 && wait < AHEAD_MS) timers.push(setTimeout(() => fire(r), wait));

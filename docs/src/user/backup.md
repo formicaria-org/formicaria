@@ -47,9 +47,10 @@ which carries attachments of any size and has none of these problems.
 
 ## Setting up (once)
 
-Open the small **⌄** beside **Back up**, choose **Backup options…**, and paste your vault's git
+Press **Back up** and choose **Backup options…**, and paste your vault's git
 remote there — for example `git@github.com:you/notes.git`. That is the only setup the light tier
-needs. (Pressing **Back up** itself does not ask: it saves and sends straight away.)
+needs. (The button opens a short menu — *Back up notes*, *Get their changes*, *Backup options…*,
+*Attachment settings…* — so nothing is sent by pressing it once.)
 
 Your vault is its **own git repository**, independent of the app's source: its
 remote is yours to choose and has nothing to do with where formicaria's code
@@ -76,9 +77,9 @@ yourself. If two devices changed the same sentence, it says which notes to look 
 after a backup you pressed. **Settings → Notes & backup** has the switch if you would rather press.
 It works while the app is open; a device that is closed sends when you next open it.
 
-Click **Back up** — that is the whole action. It commits anything outstanding and pushes —
-and if someone else pushed while you were writing, it **pulls their work, merges it, and
-pushes once more**, rather than making you do that by hand. Exactly one retry: if the
+Press **Back up**, then **Back up notes** — that is the whole action. It saves anything
+outstanding, **gets the changes from your other devices and collaborators first, merges them**,
+and then sends yours, rather than making you do that by hand. If the
 merge turns up genuine conflicts it stops, names the notes, and does *not* push (publishing
 conflict markers as content would be worse than not publishing). It reports what happened
 either way — including whether your remote is genuinely off this

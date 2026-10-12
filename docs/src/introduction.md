@@ -1,6 +1,6 @@
 # formicaria
 
-formicaria is a notebook for research and writing that runs on your own computer.
+formicaria is a notebook for research, writing and daily life that runs on your own computer.
 
 Your notes are ordinary text files in a folder you own. You can read them in any editor, copy them
 to a USB stick, or open them in ten years on a computer that has never heard of this app. There is
@@ -16,6 +16,13 @@ works with the internet switched off.
   it.)
 - **Plan with them.** Give a note a status or a date and the same notes become a board or a
   calendar. Nothing is a separate kind of thing: a task is a note with a date on it.
+- **Be reminded.** A note with a date can tell you when its time comes. See
+  [Reminders](./user/notes.md#reminders).
+- **Keep a food log and a training log.** What you ate and what you trained are notes too, with
+  diets and training regimes from published sources to follow and be measured against. See
+  [Food and training](./user/trackers.md).
+- **Bring your notes with you.** A Logseq or Obsidian folder becomes notes, links kept. See
+  [Importing](./user/import.md).
 - **Keep pictures, PDFs and drawings** alongside the writing, including whiteboards you draw
   yourself.
 - **Go back in time.** formicaria keeps a history of every change, so you can
@@ -40,6 +47,7 @@ The name is the plural of *formicarium*, an ant colony's nest: a set of vaults, 
 
 1. [Set up formicaria](./user/setup.md) — unpack it, start it, and where your notes are kept.
 2. [Your first ten minutes](./user/first-note.md) — write a note, find it again, keep it safe.
+3. [Food and training](./user/trackers.md) — if a food log or a training log is what you came for.
 
 ---
 

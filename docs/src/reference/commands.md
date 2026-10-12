@@ -27,7 +27,7 @@ dispatch no longer has fails too.)
 | `agenda`         | —                            | `ObjectMeta[]`         | dated & not done, soonest first |
 | `reminders`      | `from` (`YYYY-MM-DD`), `days?` (default 14, at most 60) | `Reminder[]` | read-only: the moments at which an unfinished note is due to be said — per note and per date (`start`, `due`) its `at` (`YYYY-MM-DDTHH:MM`, the note's time or 09:00 of its day, less its `remind` minutes), `what`, `when` (the note's own time where the reminder is earlier) and `all_day`. `remind: off` leaves a note out. Nothing is stored: the page asks again and hands the list to whatever shows it |
 | `recent`         | —                            | `ObjectMeta[]`         | all notes, newest-created first |
-| `gallery`        | —                            | `ObjectMeta[]`         | assets, newest first. **No renderer draws it** — the Gallery view was removed and a `.view` asking for `gallery` renders as a timeline; the command stays because `fm-cli` and the asset pickers use it |
+| `gallery`        | —                            | `ObjectMeta[]`         | assets, newest first. **No renderer draws it** — the Gallery view was removed and a `.view` asking for `gallery` is listed as broken and says what to change it to; the command stays because `fm-cli` and the asset pickers use it |
 | `search`         | `query`                      | `ObjectMeta[]`         | FTS5; empty query → `[]` |
 | `get`            | `id`                         | `NoteDetail \| null`   | meta + full body |
 | `backlinks`      | `id`                         | `ObjectMeta[]`         | every note whose body carries a `note:` link to this one |
@@ -237,9 +237,9 @@ scene), against a save debounce that then writes and fsyncs that same body.
 An asset is referenced as `asset:sha256-<hex>` (canonical, in Markdown) or
 `sha256:<hex>`. `resolve_asset`/`asset_status` accept either, plus a bare hash.
 
-## Two routes that are not commands
+## Routes that are not commands
 
-A command answers with a value. These two cannot, so they live in the transport instead —
+A command answers with a value. These cannot, so they live in the transport instead —
 putting them in `dispatch` would push an HTTP concern into the shared surface.
 
 ### `POST /api/alive`
@@ -249,6 +249,16 @@ a tab is open. It takes no lock, reads no files, and never reaches `dispatch`. I
 separate from `ping` because a hidden tab must keep the app alive **without** making it
 reindex a vault nobody is looking at — and because the watchdog belongs to *this* server, so
 a frontend without one would never call it.
+
+### `POST /api/remind_set` and `POST /api/rest_end`
+
+The desktop program's side of reminders. `remind_set` takes `{ items: [{ title, text, at }] }`
+(`at` in milliseconds), the list the page worked out from `reminders`; the program keeps it in
+`<config>/formicaria/reminders.json` and says each through the system's notification when its
+moment comes and no page is open. While one is still waiting, the program **rests** instead of
+stopping when its last page closes: it answers `503` to the assistant, which then stops its
+model. `rest_end` is how a newer copy asks a resting one to make way; a program somebody is
+using answers `409`. Both are host-only, and neither is a command: they are about this process.
 
 ### `GET /api/blob/<reference>`
 

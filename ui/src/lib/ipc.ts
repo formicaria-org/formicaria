@@ -1224,6 +1224,9 @@ export const logNutrients = (view: string, day: string) =>
 export const productLookup = (code: string) =>
   invoke<ProductFound | null>('product_lookup', { code });
 export const recipeLibrary = () => invoke<RecipeLibrary>('recipe_library', {});
+/** Hand the computer's program the reminders it says itself when no page is open. */
+export const remindSet = (items: { title: string; text: string; at: number }[]) =>
+  invoke<void>('remind_set', { items });
 export const reminders = (from: string, days = 14) =>
   invoke<Reminder[]>('reminders', { from, days });
 export const exerciseLibrary = () => invoke<ExerciseLibrary>('exercise_library', {});

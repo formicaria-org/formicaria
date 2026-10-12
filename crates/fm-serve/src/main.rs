@@ -25,6 +25,7 @@ mod agent;
 #[cfg(feature = "agent")]
 mod agent_registry;
 mod blob;
+mod remind;
 mod share;
 #[cfg(feature = "tls")]
 mod tls;
@@ -96,6 +97,8 @@ struct AppState {
     /// Pairing codes, device tokens, and what the listener actually managed to do. See
     /// [`share`] — in particular why the *setting* and the *capability* are separate fields.
     share: share::ShareState,
+    /// The reminders the page handed over, and whether the program is resting for them.
+    remind: remind::RemindState,
 }
 
 impl AppState {
@@ -118,6 +121,7 @@ impl AppState {
             #[cfg(feature = "update")]
             update: std::sync::Arc::new(update::UpdateState::default()),
             share: share::ShareState::load(),
+            remind: remind::RemindState::load(),
         }
     }
 }
@@ -284,48 +288,63 @@ fn main() {
     // earlier instance. So the two cases are told apart and answered differently: ours is not an
     // error at all, and anything else cannot be fixed by opening a browser. The sharing listener
     // below already refuses gracefully; this is the same courtesy on the path everybody takes.
-    let listener = match TcpListener::bind(&addr) {
-        Ok(l) => l,
-        Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            match probe(&addr) {
-                // The same binary, already up. Hand over exactly as before — a second
-                // double-click should land in the running app, not fail.
-                Running::Ours(Some(id)) if id == build_id() => {
-                    println!("formicaria is already running — open http://{addr} in your browser");
-                    // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
-                    // so the double-click case lands the user in the running app, which is what
-                    // they were trying to do.
-                    if env_flag("FM_OPEN", true) {
-                        let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+    let mut asked = false;
+    let listener = loop {
+        match TcpListener::bind(&addr) {
+            Ok(l) => break l,
+            Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
+                match probe(&addr) {
+                    // The same binary, already up. Hand over exactly as before — a second
+                    // double-click should land in the running app, not fail.
+                    Running::Ours(Some(id)) if id == build_id() => {
+                        println!(
+                            "formicaria is already running — open http://{addr} in your browser"
+                        );
+                        // Only when asked, so a terminal launch stays quiet; the launcher sets FM_OPEN,
+                        // so the double-click case lands the user in the running app, which is what
+                        // they were trying to do.
+                        if env_flag("FM_OPEN", true) {
+                            let _ = open_native(std::ffi::OsStr::new(&format!("http://{addr}")));
+                        }
+                        return;
                     }
-                    return;
+                    // **A different build of ours — say so, and do not open a browser onto it.**
+                    //
+                    // This is the failure that cost an hour: the server keeps the port for up to 90
+                    // seconds after the last tab closes (the watchdog's throttle allowance), so
+                    // rebuilding and relaunching straight away met the *previous* binary. The old
+                    // code handed the browser to it and exited, and because a release binary serves
+                    // the UI compiled into it, what came up was the old app — indistinguishable from
+                    // a build that silently did nothing.
+                    Running::Ours(_) => {
+                        // An older copy that is only resting for a reminder makes way when asked
+                        // (`remind.rs`); one somebody is using does not.
+                        if !asked {
+                            asked = true;
+                            if remind::ask_to_leave(&addr) {
+                                continue;
+                            }
+                        }
+                        eprintln!("A different build of formicaria is already running on {addr}.");
+                        eprintln!(
+                            "It keeps the port for up to 90 seconds after its last tab closes."
+                        );
+                        eprintln!("Close that tab and wait a moment, or stop it now with:");
+                        eprintln!("    pkill -x fm-serve");
+                        eprintln!("then start this one again.");
+                        std::process::exit(1);
+                    }
+                    Running::NotOurs => {}
                 }
-                // **A different build of ours — say so, and do not open a browser onto it.**
-                //
-                // This is the failure that cost an hour: the server keeps the port for up to 90
-                // seconds after the last tab closes (the watchdog's throttle allowance), so
-                // rebuilding and relaunching straight away met the *previous* binary. The old
-                // code handed the browser to it and exited, and because a release binary serves
-                // the UI compiled into it, what came up was the old app — indistinguishable from
-                // a build that silently did nothing.
-                Running::Ours(_) => {
-                    eprintln!("A different build of formicaria is already running on {addr}.");
-                    eprintln!("It keeps the port for up to 90 seconds after its last tab closes.");
-                    eprintln!("Close that tab and wait a moment, or stop it now with:");
-                    eprintln!("    pkill -x fm-serve");
-                    eprintln!("then start this one again.");
-                    std::process::exit(1);
-                }
-                Running::NotOurs => {}
+                eprintln!("Something else on this machine is already using {addr},");
+                eprintln!("so formicaria cannot start. Close it, or pick another port:");
+                eprintln!("    FM_ADDR=127.0.0.1:8788");
+                std::process::exit(1);
             }
-            eprintln!("Something else on this machine is already using {addr},");
-            eprintln!("so formicaria cannot start. Close it, or pick another port:");
-            eprintln!("    FM_ADDR=127.0.0.1:8788");
-            std::process::exit(1);
-        }
-        Err(e) => {
-            eprintln!("formicaria could not listen on {addr}: {e}");
-            std::process::exit(1);
+            Err(e) => {
+                eprintln!("formicaria could not listen on {addr}: {e}");
+                std::process::exit(1);
+            }
         }
     };
     for v in &configs {
@@ -400,6 +419,7 @@ fn main() {
     }
     #[cfg(feature = "calendar")]
     calendar::check_in_background(Arc::clone(&state));
+    remind::run_in_background(Arc::clone(&state));
     #[cfg(feature = "mail")]
     mail::check_in_background(Arc::clone(&state));
 
@@ -467,6 +487,9 @@ const REMOTE_DENIED: &[&str] = &[
     "/api/oauth_google",
     // Spawns a process, or writes host-level state.
     "/api/set_agent",
+    // What this machine says aloud, and whether its program stays. A guest decides neither.
+    "/api/remind_set",
+    "/api/rest_end",
     // Deletes gigabytes from the host's disk and cannot be undone. Same class as `set_agent`
     // above: a paired tablet is a guest, and a guest does not free the host's storage.
     "/api/remove_agent_model",
@@ -782,8 +805,26 @@ fn spawn_watchdog(state: Arc<AppState>) {
     // silence, so it does not need that allowance. Still not instant: a reload fires `pagehide`
     // too, and this leaves room for the new page to arrive and cancel it.
     const GOODBYE: Duration = Duration::from_secs(8);
+    // **Leaving, or resting.** With a reminder still waiting the program stays instead of
+    // stopping: it keeps the port, and from here until somebody comes back it refuses the
+    // assistant, which stops its model as it does whenever the app goes away (`decisions.md`,
+    // 2026-10-13). With nothing waiting, this is the exit it always was.
+    let leave = |state: &AppState| {
+        if !state.remind.waiting() {
+            std::process::exit(0);
+        }
+        if let Ok(mut g) = state.goodbye.lock() {
+            *g = None;
+        }
+        state.remind.resting.store(true, Ordering::Relaxed);
+    };
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(2));
+        if state.remind.resting.load(Ordering::Relaxed) {
+            // Whoever says the last reminder stops the program (`remind.rs`): stopping it from
+            // here raced that, and won, so the reminder it had stayed for was never said.
+            continue;
+        }
         let idle = state.last_seen.lock().map(|t| t.elapsed()).unwrap_or_default();
         // A pending goodbye only counts while the set is still empty; a tab that arrived since
         // has already cleared it at the liveness refresh.
@@ -795,12 +836,13 @@ fn spawn_watchdog(state: Arc<AppState>) {
             .filter(|_| state.tabs.lock().map(|t| t.is_empty()).unwrap_or(false));
         if let Some(at) = left {
             if at.elapsed() > GOODBYE {
-                std::process::exit(0);
+                leave(&state);
+                continue;
             }
         }
         let limit = if state.connected.load(Ordering::Relaxed) { IDLE } else { STARTUP };
         if idle > limit {
-            std::process::exit(0);
+            leave(&state);
         }
     });
 }
@@ -987,7 +1029,29 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     //
     // The header needs no secrecy, because the only thing sending it can do is give up your own
     // claim on keeping the app open — which any client can already do by staying quiet.
+    //
+    // **And while the program rests for a reminder, the assistant is turned away.** Its liveness
+    // check fails, and it does what it does when the app has gone: stops the model and exits.
+    if agent_client && peer.loopback && state.remind.resting.load(Ordering::Relaxed) {
+        #[cfg(feature = "agent")]
+        if path == "/api/alive" {
+            // It has been told; the next person to come back may start a new one.
+            state.agent.running.store(false, Ordering::Relaxed);
+        }
+        return write_response(
+            reader.get_mut(),
+            "503 Service Unavailable",
+            "text/plain",
+            b"resting",
+        );
+    }
     if !agent_client {
+        // Somebody is back: the rest is over, and the assistant may start again if it is on.
+        // (Not for a newer copy asking this one to leave.)
+        if path != "/api/rest_end" && state.remind.resting.swap(false, Ordering::Relaxed) {
+            #[cfg(feature = "agent")]
+            agent::spawn_at_launch(Arc::clone(state));
+        }
         if let Ok(mut t) = state.last_seen.lock() {
             *t = Instant::now();
         }
@@ -1164,6 +1228,11 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Your own calendars. Every route here is in `REMOTE_DENIED`: the addresses are secrets.
     #[cfg(feature = "calendar")]
     if let Some(done) = calendar::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // Reminders the program says itself. Both routes are in `REMOTE_DENIED`.
+    if let Some(done) = remind::route(reader.get_mut(), &path, &body, state) {
         return done;
     }
 
@@ -1932,6 +2001,80 @@ mod tests {
 
         let refreshed = *state.last_seen.lock().unwrap() != long_ago;
         refreshed
+    }
+
+    /// One request against a server that is resting for a reminder: the status line it got, and
+    /// whether the server is still resting afterwards.
+    fn while_resting(raw: &str) -> (String, bool) {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("v");
+        std::fs::create_dir_all(vault.join("notes")).unwrap();
+        let store = fm_core::MultiStore::open(&[("v".to_string(), vault.clone())]).unwrap();
+        let cfg = fm_app::vaults::VaultConfig { name: "v".into(), path: vault, restic: None };
+        let state = Arc::new(AppState::new(
+            fm_app::App::new(store, vec![cfg], None, false),
+            None,
+            ours(),
+            0,
+        ));
+        state.remind.resting.store(true, Ordering::Relaxed);
+        // As if it were on, so that a refusal can be seen to release the slot.
+        #[cfg(feature = "agent")]
+        state.agent.running.store(true, Ordering::Relaxed);
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = {
+            let state = Arc::clone(&state);
+            std::thread::spawn(move || {
+                let (mut sock, _) = listener.accept().unwrap();
+                let _ = handle(&mut sock, Peer { loopback: true, tls: false }, &state);
+            })
+        };
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.write_all(raw.as_bytes()).unwrap();
+        let mut reply = Vec::new();
+        let _ = _Read::read_to_end(&mut client, &mut reply);
+        server.join().unwrap();
+        let status = String::from_utf8_lossy(&reply).lines().next().unwrap_or("").to_string();
+        #[cfg(feature = "agent")]
+        if status.contains("503") {
+            assert!(
+                !state.agent.running.load(Ordering::Relaxed),
+                "the refused assistant still holds the slot, so coming back could not start one"
+            );
+        }
+        (status, state.remind.resting.load(Ordering::Relaxed))
+    }
+
+    /// **The point of resting**: the program stays for a reminder and the model does not. The
+    /// assistant's liveness check is refused, which is what makes it stop its model.
+    #[test]
+    fn a_resting_program_turns_the_assistant_away() {
+        let (status, resting) = while_resting(
+            "POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\
+             X-Formicaria-Agent: 1\r\nContent-Length: 2\r\n\r\n{}",
+        );
+        assert_eq!(status, "HTTP/1.1 503 Service Unavailable");
+        assert!(resting, "the assistant asking ended the rest");
+    }
+
+    /// Somebody opening the app again is served, and the rest is over.
+    #[test]
+    fn a_person_coming_back_ends_the_rest() {
+        let (status, resting) =
+            while_resting("POST /api/alive HTTP/1.1\r\nHost: 127.0.0.1:8765\r\n\r\n");
+        assert_eq!(status, "HTTP/1.1 200 OK");
+        assert!(!resting);
+    }
+
+    /// What this machine says aloud, and whether its program stays, are the host's.
+    #[test]
+    fn a_paired_device_cannot_set_the_hosts_reminders_or_stop_it() {
+        for path in ["/api/remind_set", "/api/rest_end"] {
+            let (status, _) = remote(&rpost(path, Some(TOKEN)), Some(TOKEN));
+            assert_eq!(status, "HTTP/1.1 403 Forbidden", "{path} was reachable by a paired device");
+        }
     }
 
     /// A browser tab beating says a person is here, and the app must stay up.

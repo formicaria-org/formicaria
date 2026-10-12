@@ -30,15 +30,15 @@ offers the proposal path; it never forces it.
 
 ### The Collaboration view
 
-The **Collaboration** view (open it from the sidebar, or “Open Collaboration” in
-Settings) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
+The **Collaboration** view (open it from the sidebar) gathers the things that need a **person**: at the top, a **Needs resolution** panel of any
 notes still in conflict (both versions marked in their bodies after a merge), and below it the open
 **proposals** across your vaults, newest first. Open a conflict to merge the two versions by hand;
 open a proposal to read it and its discussion, and to take part.
 
 The conflict list is *derived* — a note is in it exactly while its body carries the merge markers, so
 resolving a note makes it drop off by itself (nothing to dismiss). It matters that it lives here and
-not only in a toast: an unresolved conflict blocks every commit, so it must stay **findable**.
+not only in a toast: a note in conflict is not saved to history, and the notebook cannot exchange changes with your
+other devices until it is settled, so it must stay **findable**.
 
 Proposals are kept out of the Board, Agenda and Timeline — like a discussion message, a proposal
 is not something you *plan* — but they remain fully searchable.

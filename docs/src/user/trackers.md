@@ -40,8 +40,9 @@ table it is from — two tables may both list a banana, and they are two measure
 A food from a European table is logged by weight. If you want to log "1 cup", pick the food from
 the U.S. table, which is offered when the European ones leave room in the results.
 
-There are no branded products and no barcode reading. Anything not in the list can still be
-logged by name — see *Quick add* below.
+Branded products are not in the list: a packaged food is written down from its label or looked up
+by its barcode (see *A packaged food* below). Anything else can still be logged by name — see
+*Quick add* below.
 
 ## Logging a food
 

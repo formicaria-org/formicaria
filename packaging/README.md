@@ -12,7 +12,7 @@ starts instantly. It always reflects the last build you made; to update what the
 icon runs, rebuild explicitly:
 
 ```sh
-pixi run build          # → target/release/fm-serve (2.7 MB) + ui/dist
+pixi run build          # → target/release/fm-serve (about 27 MB) + ui/dist
 ```
 
 The only time the launcher builds for you is the **first** launch (or the first
@@ -66,8 +66,9 @@ Clicking the icon runs `packaging/formicaria.sh`, which:
   browser tab (it does *not* start a second server).
 
 **Closing the tab closes the app.** The page sends a heartbeat while it's open;
-when you close the tab the heartbeat stops and the server exits on its own a few
-seconds later — nothing keeps running in the background. (A page *reload* is
+when you close the tab the heartbeat stops and the server exits on its own, up to
+ninety seconds later — nothing keeps running in the background, except that with
+reminders on and one waiting it stays, without the assistant, until that is said. (A page *reload* is
 covered by a short grace window, so refreshing doesn't kill it.) This
 auto-shutdown is on only for the launcher — `pixi run serve`/`serve-release` in a
 terminal stay up until Ctrl-C.

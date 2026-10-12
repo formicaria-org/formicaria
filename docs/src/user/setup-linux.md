@@ -26,7 +26,7 @@ Your browser opens by itself. That is the app — you are ready to write.
 
 ## 3. Stop it, and start it again
 
-Close the browser tab. formicaria shuts down a few seconds later.
+Close the browser tab. formicaria shuts down about a minute and a half later (with reminders on and one waiting, it stays running quietly until that has been said).
 
 To come back — tomorrow, or in five minutes — double-click **`Start formicaria.sh`** again. Your
 notes are still in the `vault` folder, exactly as you left them.
@@ -48,7 +48,7 @@ Only four things are for you:
 - **`Start formicaria.sh`** — starts it.
 - **`Manual.html`** — this manual.
 - **`vault`** — your notes.
-- **`Update from an older folder.sh`** — run this only when you download a newer
+- **`Update from an older folder.sh`** — formicaria normally updates itself from Settings; run this only when you download a newer
   version; it copies your old notes across. See [Updating](./updating.md).
 
 `program` holds the application itself and `manual` holds this manual's pages. You never need to

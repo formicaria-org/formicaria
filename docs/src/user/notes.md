@@ -132,14 +132,24 @@ the next fourteen days, fifty at most, each time the app is opened or something 
 the app now and then. A date that changed on another device is right once this one has got the
 change.
 
-**On a computer** a reminder arrives only while formicaria is open in your browser: as a line at
-the top of the app, and as a notification from the browser if you allowed it. One that came due
-while it was closed is not shown later.
+**On a computer**, while formicaria is open in your browser, a reminder shows as a line at the
+top of the app, and as a notification from the browser if you allowed it. When you close
+formicaria and a reminder is still waiting, it **stays running quietly** and tells you through
+your system's own notifications; once the last one has been said, it stops by itself.
+
+- The assistant does not stay: its model is stopped when you close the app and starts again
+  when you open it.
+- To stop formicaria staying, turn reminders off in Settings.
+- After the computer has been restarted, open formicaria once to be reminded again: it does not
+  start by itself.
+- A reminder that came due while the computer was asleep is said when it wakes, if that is
+  within twelve hours.
+- On Linux this uses the `notify-send` program, which most desktops have.
 
 **On an iPhone or iPad** a reminder shows as a line in the app while it is open; nothing arrives
 when it is closed.
 
-This is new in 0.7.7 and has not yet been tried on a phone.
+This is new, and has not yet been tried on a phone, on Windows or on a Mac.
 
 ## Ticking things off
 
@@ -236,8 +246,8 @@ disappearing.
 `[tap to open](geo:1.2807,103.8720)` (latitude, longitude). formicaria loads no
 map itself (nothing phones home — the app stays true to that); the link just hands
 the coordinates to Google Maps / OSMand / Apple Maps. Ordinary
-`https://openstreetmap.org/…` links work too and open in a browser. The **Place**
-template pairs both, so a saved spot is one tap from directions. An in-app
+`https://openstreetmap.org/…` links work too and open in a browser. Put both in a note and a saved
+spot is one tap from directions. An in-app
 interactive map is deliberately *not* provided: live tiles would mean the app
 reaching out to a server on every note you open, which is exactly what formicaria
 refuses to do.
@@ -259,10 +269,10 @@ note (never a fragment — the file is the unit), a missing target degrades to a
 placeholder, and a note that embeds itself (or a loop) stops with a small marker
 rather than recursing forever.
 
-**Click a chip** and that note opens in a pane to the right, with the note you
-came from still on screen — follow a chain and the whole trail stays visible, so
-you can see the path you took. Closing a pane also closes everything to its
-right (you reached those *through* it); closing the first closes the trail.
+**Click a chip** and that note opens; **Back** returns to the one you came from. In the
+*Tiled* layout it opens in a pane to the right instead, with the note you came from still on
+screen, so a chain you follow stays visible; closing a pane there also closes everything to
+its right (you reached those *through* it).
 
 Open a note and, below its content, a **Linked from** panel lists every note whose
 body references *this* one (a `note:` link or an embed) — the backlinks, so you can

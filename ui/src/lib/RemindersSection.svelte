@@ -34,7 +34,10 @@
       On this phone a reminder arrives even when the app is closed; it can be a few minutes late
       while the phone is asleep.
     {:else}
-      On a computer a reminder arrives while formicaria is open in your browser.
+      On a computer formicaria stays running quietly after you close it, for as long as a reminder
+      is waiting, and tells you through the system’s own notifications. The assistant is stopped
+      meanwhile and starts again when you open the app. After the computer restarts, open formicaria
+      once to be reminded again.
     {/if}
     {#if remindersOn() && !can}
       The system is not allowing notifications for it yet, so it will show only as a line in the

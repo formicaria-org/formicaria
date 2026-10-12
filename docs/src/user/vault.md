@@ -13,6 +13,7 @@ vault/
 ├── vault.json        # optional: what this vault is called and where
 │                     #           its notes live                    (git-tracked)
 ├── views/            # saved .view queries (YAML)                (git-tracked)
+├── themes/           # colours and type, as CSS                  (git-tracked)
 ├── .gitattributes    # routes *.md through the fm merge driver    (git-tracked)
 ├── index.sqlite      # disposable per-machine FTS index          (git-ignored)
 └── .gitignore

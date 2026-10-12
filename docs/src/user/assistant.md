@@ -20,7 +20,7 @@ Before anything else, the honest matrix.
 | **Windows**, from the download | yes\* | yes\* | yes\* |
 | **macOS**, from the download | yes\* | no — see below | yes\* |
 | **Linux**, from a checkout | yes | yes | yes |
-| **Android** | yes, bundled in the app | yes, bundled | yes, with the recommended model (since v0.6.4) |
+| **Android** | yes — the runtime is in the app, the model is downloaded when you turn it on | yes, in the app | yes, with the recommended model (since v0.6.4) |
 
 \* **Compiled and type-checked, never yet run.** Linux and Android are the two platforms this has
 actually been used on. The per-operating-system parts — chiefly the check that reads how much
@@ -65,7 +65,8 @@ There is nothing to install first, and no terminal involved.
    already arrived is kept — turning it on again continues rather than starting over.
 
 That is the whole of it. Afterwards the assistant starts with formicaria and stops when you close
-it: nothing runs in the background, and nothing is downloaded twice.
+it: nothing runs in the background, and nothing is downloaded twice. (With reminders on,
+formicaria itself may stay running for one that is waiting; the assistant and its model do not.)
 
 ### What it costs, and where it goes
 

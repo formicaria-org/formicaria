@@ -28,8 +28,8 @@ it, and it was missing from this list until 2026-09-05:
    ```rust
    "tagged" => json(commands::tagged(&lock()?.store(scope), &s("tag")).map_err(err)?),
    ```
-   `store(scope)`, not `store` — the scope decides which vaults this caller may read, and all
-   85 arms take it. This sample said `&lock()?.store` until 2026-09-05, which does not compile.
+   `store(scope)`, not `store` — the scope decides which vaults this caller may read, and every
+   arm takes it. This sample said `&lock()?.store` until 2026-09-05, which does not compile.
 
    **Not in `fm-serve`.** `dispatch` is the single command surface; the server is a
    transport shell over it, so an arm added here is reachable from every frontend rather
@@ -68,8 +68,8 @@ A view is "a query + a renderer".
    the build on a leaked status word — this keeps renderers reusable.
 3. Wire it into the **pane workspace**: add the kind to `PaneKind` and give it a
    `feedKey` in `ui/src/lib/panes.ts`, fetch that feed in `ui/src/App.svelte`, and render
-   it from `ui/src/lib/Pane.svelte`. There is no single global view any more — panes are
-   opened, arranged and resized, and N panes over M distinct feeds cost M fetches.
+   it from `ui/src/lib/Pane.svelte`. One view at a time is the default layout and the
+   tiled grid is a setting; either way N panes over M distinct feeds cost M fetches.
 
 ## Add a store
 

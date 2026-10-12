@@ -3,8 +3,9 @@
 Everything runs through pixi so the toolchain is reproducible. One gate:
 
 ```sh
-pixi run ci        # = test + test-agent-download + test-ui + check-ui
-                   #   + deny + checks + third-party-check + docs
+pixi run ci        # = fmt + fmt-ui + clippy + test + test-native-git + test-agent-download
+                   #   + test-ui + check-ui + deny + checks + third-party-check + docs
+                   #   (the list that is true is the `ci` task in pixi.toml)
 ```
 
 ## The suites
@@ -24,14 +25,13 @@ pixi run ci        # = test + test-agent-download + test-ui + check-ui
 
 ## Environments
 
-`pixi.toml` defines four, and a task belongs to exactly one. Running a task from the wrong one
+`pixi.toml` defines three, and a task belongs to exactly one. Running a task from the wrong one
 is a real hazard rather than a tidiness point: the environments resolve their own `nodejs`/`pnpm`,
 and a mobile CLI run from the wrong one has already re-resolved a dependency and broken a build.
 
 | Environment | For |
 |---|---|
-| `default` | everything above. |
-| `media` | the optional media tools (`pdftotext`, `vipsthumbnail`, `restic`) — so the tests that probe for them actually exercise them instead of skipping. |
+| `default` | everything above, and the optional media tools (`pdftotext`, `vipsthumbnail`, `restic`), so the tests that probe for them exercise them instead of skipping. |
 | `android` | the Android toolchain: `pixi run -e android android-release`, `android-smoke`. |
 | `cross` | the cross-compilation targets. `pixi run -e cross check-cross` type-checks `fm-agent` for Windows, macOS and both iOS targets. |
 
@@ -42,7 +42,6 @@ because they are slow, need a toolchain the gate does not, or are for one platfo
 
 | Task | Run it when |
 |---|---|
-| `pixi run test-native-git` | **Whenever `commit_all` or `git_native.rs` changes.** `cargo test --workspace` `cfg`s out `merge_differential`'s native gate and skips `merge_on_a_device_without_git` entirely, so the libgit2 backend — the one the phone uses — is *untested by the gate*. Nine test binaries. |
 | `pixi run -e cross check-cross` | after touching anything per-OS in `fm-agent`. It found a no-op `std::mem::forget` on a raw pointer and a deprecated `libc::mach_host_self` on its first run, in code that had shipped without ever being compiled for either target. |
 | `pixi run check-pins` | when a model or runtime pin moves. Downloads ~110 MB and checks every pinned runtime is really there. |
 | `pixi run -e android android-smoke` | after an Android change, with a device or emulator attached. |
@@ -61,7 +60,7 @@ because they are slow, need a toolchain the gate does not, or are for one platfo
 
 ## The architectural greps (`ci/checks.sh`)
 
-**Around forty-five** invariants are enforced as build-failing greps — run
+**Dozens of** invariants are enforced as build-failing greps — run
 `pixi run checks` and read the `[check]` lines, which are the list. (No number here on
 purpose: this page said "two" long after there were dozens. A count in prose is a claim
 nothing verifies.)

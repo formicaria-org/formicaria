@@ -2,8 +2,8 @@
   FORMICARIA - your notes, as plain files you own
 ==============================================================================
 
-A notebook for research and writing. Your notes are ordinary text files on
-your own computer. No account, no cloud, nothing is sent anywhere.
+A notebook for research, writing and daily life - notes, tasks, a food log
+and a training log. Your notes are ordinary text files on your own computer. No account, no cloud, nothing is sent anywhere.
 
 This folder contains the whole application. Nothing gets installed.
 
@@ -31,7 +31,9 @@ This folder contains the whole application. Nothing gets installed.
   at and where to click. It is an ordinary note - delete it when you are done
   with it, like any other.
 
-  TO STOP IT:  close the browser tab. It shuts down a few seconds later.
+  TO STOP IT:  close the browser tab. It shuts down about a minute and a half
+  later. (If you turned reminders on and one is waiting, it stays running
+  quietly until that has been said.)
 
   TO START IT AGAIN:  double-click the same file, any time. Your notes are
   still in the "vault" folder, exactly as you left them.
@@ -84,8 +86,8 @@ This folder contains the whole application. Nothing gets installed.
   It opens in your browser and explains how to use everything. It works
   offline - it is part of this folder, not a website.
 
-  The manual is also inside the app itself: click the "?" button in the top
-  right corner at any time.
+  The manual is also inside the app itself: click the "?" button in the bar
+  of buttons (at the side of a wide window, at the bottom of a narrow one).
 
   (The "manual" folder next to it holds the pages and pictures the manual is
   built from. You never need to open that folder - use Manual.html.)
@@ -109,6 +111,11 @@ This folder contains the whole application. Nothing gets installed.
 ------------------------------------------------------------------------------
   4. INSTALLING A NEW VERSION
 ------------------------------------------------------------------------------
+
+  THE EASY WAY: formicaria updates itself. Open Settings, choose "Check now",
+  then "Get", then "Restart". Your notes stay where they are and the version
+  you had is kept to go back to. The rest of this section is for when you
+  download a newer version by hand instead.
 
   *** YOUR NOTES ARE NOT IN THE NEW DOWNLOAD. THEY ARE STILL IN THIS FOLDER. ***
 
@@ -174,8 +181,8 @@ This folder contains the whole application. Nothing gets installed.
   6. OPTIONAL EXTRAS
 ------------------------------------------------------------------------------
 
-  Writing notes, tasks, dates, the board and search all work with nothing
-  else installed at all.
+  Writing notes, tasks, dates, the board, search, the food log, the training
+  log and reminders all work with nothing else installed at all.
 
   Four further things are possible. Three of them need a program your computer
   may already have; the fourth, the assistant, installs itself. Settings ->
@@ -208,7 +215,8 @@ This folder contains the whole application. Nothing gets installed.
       asks which model, says how big it is and under what licence, and
       downloads it - between 0.7 and 3.3 GB depending on what you pick, once,
       over your internet connection. You can stop part-way and what arrived is
-      kept. Works on Linux, macOS and Windows.
+      kept. Built for Linux, macOS and Windows; so far it has only been run on
+      Linux.
 
       Turning speech recordings into text is a further switch and a further
       ~170 MB, fetched the same way. On macOS that one is unavailable - the

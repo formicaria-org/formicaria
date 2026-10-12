@@ -35,8 +35,8 @@ slices** instead, so only one slice is in flight at a time and the file's own si
 mattering. Small files still go in one piece, which is quicker.
 
 **What has not changed is where those bytes live.** A phone vault is the app's private storage:
-Android erases it when the app is uninstalled, and a git push carries your notes but *not* their
-media. So a video attached on a phone has exactly one copy until it reaches a computer that can
+Android erases it when the app is uninstalled, and backing up your notes does *not* carry their
+media unless the vault sets a size limit for attachments (see [Backup](./backup.md)). So a video attached on a phone has exactly one copy until it reaches a computer that can
 snapshot it. The app says so in Settings, and it is worth believing before trusting a phone with
 the only copy of something.
 
@@ -63,6 +63,6 @@ note (in git), so a paper is searchable even before its blob arrives.
 
 ## Where blobs live
 
-Blobs are written under `vault/blobs/` and are **git-ignored** — they sync
-out-of-band (backup / a file-sync tool), keeping the notes repository small and
-clonable.
+Blobs are written under `vault/blobs/` and by default do **not** travel with the notes —
+they are backed up by the snapshot tier, keeping the notes repository small. A vault can let
+attachments under a size limit travel with the notes: *Send attachments under*, in Settings.

@@ -3,7 +3,8 @@
 Each note is Markdown with a YAML frontmatter header. Well-known fields are
 below; **any additional key you add is preserved** and immediately usable for
 grouping (e.g. `project: alpha`) — with the reserved exceptions noted in the
-table (`thread_of` / `reply_to`, and `proposes` / `base`), which mark a note as a
+table (`thread_of` / `reply_to`, `proposes` / `base`, and `log` with the keys of the food and
+training logs), the first of which mark a note as a
 [discussion message](../user/notes.md#discussion) or a
 [proposal](../user/collaboration.md#proposals) and are managed for you rather than
 set by hand.
@@ -27,6 +28,9 @@ set by hand.
 | `reply_to` | `note:<ULID>`      | **reserved.** The message (or note) this one answers, for indentation only. Same handling as `thread_of`. |
 | `proposes` | `branch:<name>`    | **reserved.** Marks this note as a [proposal](../user/collaboration.md#proposals) of a git branch. Like a message, a note carrying it is hidden from Board/Agenda/Timeline and gathered by the Collaboration view instead. See *Proposal semantics* below. |
 | `base`    | commit SHA          | **reserved.** The commit a proposal's branch is measured against (an immutable SHA, not a branch name). Used by the diff, not for grouping. |
+| `remind`  | minutes, or `off`   | when to be [reminded](../user/notes.md#reminders) of this note: that many minutes before its `start` or `due`; `off` leaves it out. Without it, at the time itself. |
+| `log`     | `food` \| `workout` \| `body` \| `kept` | **reserved.** Marks this note as a logged entry of the [food and training](../user/trackers.md) logs. A note carrying it is kept out of Board, Agenda, Timeline and search, and it is set by the logging sheets, not by hand. |
+| `product`, `kitchen`, `routine`, `weekdays`, `planned`, `program`, `plan`, `profile`, `kept` | various | used by the food and training logs (a packaged food, something in your kitchen, a routine and the days it repeats on, a planned entry, the diet or regime followed). Written by their own screens; not meant for grouping. |
 | *(custom)*| any                 | preserved verbatim; groupable with no code change.  |
 
 ## Proposal semantics

@@ -5,7 +5,7 @@
 <h1 align="center">formicaria</h1>
 
 <p align="center">
-  <em>A local-first research notebook: knowledge, task scheduling and collaboration over plain Markdown files.</em>
+  <em>A local-first notebook for research and daily life: notes, tasks, a food log and a training log, and collaboration, over plain Markdown files.</em>
 </p>
 
 ---
@@ -21,7 +21,42 @@ what the name refers to: a *formicarium* is one colony's nest, and *formicaria* 
 plural.
 
 Notes, tasks and shared documents are not separate systems. A task is a note with a `due`
-property; a shared note is a note in a different repository.
+property; a shared note is a note in a different repository. A meal you ate and a set you
+lifted are notes too, so a **food log** and a **training log** sit beside your writing, in the
+same files, and travel with it.
+
+The app gathers its views into four groups: **Library** (your notes), **Tasks** (board and
+agenda), **Food** and **Fitness**. The last two can be hidden in Settings if you want only a
+notebook.
+
+## Food and fitness
+
+Both are early, and neither has been checked by anyone but the author. Nothing here is advice:
+every figure names the body that published it. The manual's chapter is
+[Food and training](docs/src/user/trackers.md).
+
+**Food** — four views: *Day*, *Menu*, *Trends*, *Diet*.
+
+- **Log what you eat**, by weight or as a range when you only know it roughly, at the time you
+  ate it. The list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have
+  none) and is searched offline.
+- **Packaged food**: write it down from its label, or look it up by its barcode — typed, or
+  read from a photograph — at Open Food Facts, asked only when you press.
+- **Recipes** are notes: your own, and 54 public-domain ones carried word for word.
+- **A menu for the days ahead**, with a shopping list, and a list of what is in your kitchen.
+- **Follow a diet** from a library of sourced ones, or set your own targets, and see on the
+  day's screen how you measure up, with dishes for what the day is short of. Each diet comes
+  with an example day to start from.
+- **Every vitamin and mineral** beside its reference value, and your weight as a trend.
+
+**Fitness** — three views: *Week*, *Exercises*, *Regime*.
+
+- **A timetable for the week**: open a day and fill it by picking from a list, which arrives
+  with sourced numbers you can change. Routines repeat on the days you choose.
+- **117 exercise cards**, with and without equipment, in the words of the body that published
+  each (the NHS, the U.S. Army's manual), with films to watch.
+- **Follow a regime** from a library of sourced ones — among them the Norwegian 4×4 and
+  interval walking — each with a week to start from, and see what the week still lacks.
 
 ## Features
 
@@ -29,13 +64,17 @@ The following require only a browser.
 
 | Feature | Description |
 |---|---|
-| **Notes** | Markdown with YAML frontmatter, one note per file. Editing in the application or in an external editor round-trips byte for byte. |
+| **Notes** | Markdown with YAML frontmatter, one note per file. The editor renders as you write, and the text is still the file: editing in the application or in an external editor round-trips byte for byte. |
 | **Tasks and scheduling** | Any note accepts `start` and `due` properties, each with an optional time, so all-day deadlines and timed meetings use the same field. |
 | **Board** | Kanban grouped by any property, not only status. Dragging a card sets that property and its position in the column. |
 | **Agenda** | Month and week calendar drawing a bar from `start` to `due`, plus a list grouped by urgency. |
-| **Reminders** | A note with a start or a due date reminds you at its time, once you turn it on in Settings. On an Android phone it arrives with the app closed; on a computer, while formicaria is open in your browser. |
-| **Food and fitness** | A food log against targets, recipes as notes, training sessions as sets and activities, routines for the days of your week, and your weight as a trend — kept as notes like everything else. Choose a diet or a training regime from a library of sourced options, or set your own, and see on the day's screen how you measure up to it. Plan the days ahead as a menu with a shopping list, write a packaged food down from its label or look it up by its barcode, keep a list of what is in your kitchen, cook from 54 public-domain recipes that come with the app, and see every vitamin and mineral beside its reference value. For training, three views — the week, the exercises, the regime: a timetable whose days you open and fill by picking from 117 exercise cards (in the words of the NHS and the U.S. Army's manual, with films to watch), and regimes that each come with a week to start from. The food list of 16,000 foods comes with the app (Ciqual and BLS, USDA where they have none), each value under one international definition. |
+| **Reminders** | A note with a start or a due date reminds you at its time, once you turn it on in Settings. On an Android phone it arrives with the app closed; on a computer formicaria stays running quietly for it after you close the page, with the assistant's model stopped. |
+| **Food and fitness** | A food log and a training log kept as notes, with diets and regimes to follow: see [above](#food-and-fitness). |
 | **Timeline** | Notes ordered as a journal by day. |
+| **Import** | Point at a Logseq or Obsidian folder and it becomes notes, with links between them kept and tags lifted into properties. |
+| **Papers** | A paper is a note: made from a pasted BibTeX entry, a DOI or an arXiv link. |
+| **Themes** | Colours and type are a CSS file in the vault, so a theme travels with the notes; which one is on is chosen per device. |
+| **Updating** | The app says when a newer version exists, then gets it, checks it and installs it, from Settings. The previous version is kept to go back to. |
 | **Search** | Full-text search over all notes via SQLite FTS5, with case and accent folding. |
 | **Note references** | `[Title](note:…)` renders as a live title chip; following one opens the target in a pane alongside the source. |
 | **Whiteboards** | A note whose body is an Excalidraw scene. It remains a note, so it appears on the board and in the agenda like any other. |
@@ -102,7 +141,9 @@ Download the archive for your platform from
 [Releases](https://github.com/formicaria-org/formicaria/releases) and unpack it. Then
 double-click the launcher for your system — `Start formicaria.vbs` on Windows,
 `Start formicaria.command` on macOS, `Start formicaria.sh` on Linux. Your browser opens by
-itself; closing the tab stops the app.
+itself; closing the tab stops the app about a minute and a half later (unless a reminder is
+waiting: then it stays, quietly, until that has been said). Later versions are installed from
+inside the app: Settings, *Check now*.
 
 **On a phone**, the same page carries an Android `.apk` and an iPhone `.ipa`, built by the same
 release. Both need a little more than a double-click, and each has a chapter:
@@ -158,7 +199,7 @@ which the app prefers when it is there, so the dev loop needs no download.
 pixi run fetch-model lfm2.5-1.2b   # download a local model into agents/ (gitignored)
 pixi run fetch-whisper             # the audio runtime, staged by hand; the app fetches it itself
 pixi run search-proxy              # optional: a local proxy; the app itself searches in-process
-# then turn it on in Settings → Study assistant, and in any discussion:
+# then turn it on in Settings → Assistant → Study assistant, and in any discussion:
 #   @lfm2.5-1.2b summarize this in 3 bullets /search
 ```
 
@@ -213,7 +254,7 @@ own collaborators.
 | `FM_ADDR` | `127.0.0.1:8765` | Address to bind |
 | `FM_OPEN` | **on** | Open the browser on start. Set to `0` to keep it closed |
 | `FM_UI_DIST` | unset (uses the embedded interface) | Serve the interface from a directory instead |
-| `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app. Set to `0` to keep it running |
+| `FM_AUTO_SHUTDOWN` | on | Closing the browser tab stops the app, unless a reminder is still waiting: then it stays, without the assistant, until that has been said. Set to `0` to keep it running |
 | `FM_RESTIC_REPO` | unset | Restic repository for a single-vault install (a vault list uses its own `restic` field) |
 | `RESTIC_PASSWORD` | unset | Password for the restic repositories |
 | `FM_GIT_TOKEN` | unset | Git token, read only where there is no `git` binary and so no credential helper — the phone, and Windows without git installed |
@@ -237,6 +278,22 @@ a network.
 
 The manual is an mdBook under [`docs/`](docs/) — build with `pixi run docs`; start at
 `docs/src/introduction.md`. New to the code? [`docs/src/dev/getting-started.md`](docs/src/dev/getting-started.md).
+
+Its chapters for people using the app:
+[notes, and reminders](docs/src/user/notes.md) ·
+[views](docs/src/user/views.md) ·
+[food and training](docs/src/user/trackers.md) ·
+[importing from Logseq or Obsidian](docs/src/user/import.md) ·
+[meetings from your calendar](docs/src/user/calendars.md) ·
+[mail](docs/src/user/mail.md) ·
+[appearance](docs/src/user/appearance.md) ·
+[attachments](docs/src/user/assets.md) ·
+[backup](docs/src/user/backup.md) ·
+[installing a new version](docs/src/user/updating.md) ·
+[collaboration](docs/src/user/collaboration.md) ·
+[the study assistant](docs/src/user/assistant.md) ·
+[Android](docs/src/user/android.md) ·
+[iPhone](docs/src/user/iphone.md).
 
 [`formicaria/MASTERPLAN.md`](formicaria/MASTERPLAN.md) is the **design journal**: where the
 shape of the project was argued out, including options that were rejected and rulings that
@@ -270,6 +327,11 @@ releases rather than hand-built ones — so the current release is exactly as un
 the ones before it were. The builds are compiled and tested by CI and the archives
 are real; that is a different claim from someone having opened one.
 
+**The newest parts are the least proven.** Food and fitness (since 0.7.0) have been used by
+the author alone, and nothing added to them since 0.7.0 was looked at on a phone before its
+release. Reminders have never been seen to arrive on a phone, and their notifications on
+Windows and macOS have never been run.
+
 Treat the feature tables above as *what is implemented*, not as *what is proven on your
 machine*. The honest gap list is [`docs/context/known-issues.md`](docs/context/known-issues.md),
 kept as working notes rather than marketing; the current state of each feature is
@@ -297,6 +359,7 @@ is published are made by the same steps.
 
 ```text
 crates/  fm-model · fm-query · fm-core · fm-app · fm-serve · fm-cli
+         fm-fetch · fm-update      (downloads, and updating the app in place)
          fm-agent · fm-agent-run   (the study assistant; optional features)
 ui/      Svelte 5 + Vite, compiled into the binary at build time
 docs/    mdBook manual

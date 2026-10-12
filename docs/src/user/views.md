@@ -1,9 +1,9 @@
 # Views
 
 Every view is the same data seen a different way — "a query plus a renderer".
-Open a group into a **pane** from the sidebar — down the left of a wide window, along the bottom of
-a narrow one; each pane has its own picker, so several
-views can be on screen at once, side by side.
+Open a group from the sidebar — down the left of a wide window, along the bottom of a narrow one.
+One view is on screen at a time; a strip along the bottom moves between the ones you have open. If
+you would rather have several side by side, choose **Tiled** under *Layout* in Settings.
 
 ## The four groups
 
@@ -11,7 +11,7 @@ The views are gathered into four groups, and they are all ways of looking at the
 
 | Group | What it is for | Its views |
 |---|---|---|
-| **Library** | everything you have written, browsed by tag | Timeline, Search |
+| **Library** | everything you have written, browsed by tag | Timeline |
 | **Tasks** | notes with a status or a date | Board, Agenda |
 | **Food** | meals, recipes, targets, a menu for the days ahead, a diet to follow | Day, Menu, Trends, Diet |
 | **Fitness** | sessions, a week's timetable, how each exercise is done, a regime to follow | Week, Exercises, Regime |
@@ -64,8 +64,8 @@ date and who last touched it](../images/board.png)
   newest first.
 - **Collaboration** — the open [proposals](./collaboration.md#proposals) across
   your vaults: notes that propose a change to a git branch, newest first. Open one
-  to read it and its discussion. (Conflicts awaiting resolution are surfaced by the
-  backup panel, not here.)
+  to read it and its discussion. Notes still in conflict after a merge are listed at
+  its top, under *Needs resolution*.
 - **Discussions** — every discussion across your vaults in one place, so a thread
   you replied to last week is not lost inside the note it hangs off.
 
@@ -150,7 +150,7 @@ view for `reading`. `filter` is a list; a note must satisfy **every** entry. Eac
 | `any:` + a list of entries | at least one of them (an OR) |
 
 > **Use `board`, `agenda` or `timeline`.** Those are the three that draw differently. A view
-> asking for `search` or `gallery` is accepted but renders as a timeline. Full-text search is the
+> asking for `gallery` is listed as broken and says to change it to timeline or board. Full-text search is the
 > box at the top of the sidebar, and images are reached from the notes that use them.
 
 ```yaml
@@ -182,7 +182,7 @@ A view draws through the same renderer as the built-in it shadows: a `view: boar
 Board are the same screen. So a filter that removes a whole column removes it *silently* —
 and a missing column reads as missing notes.
 
-The pane header therefore shows what the view narrows to, in the words of the file itself —
+The view's menu therefore shows what the view narrows to, in the words of the file itself —
 **filtered: status is not done** — and clicking it opens the plain, unfiltered Board (or
 Agenda, or Timeline) with the same grouping, so the rest of your notes are one click away.
 The sidebar takes you back.
@@ -203,7 +203,7 @@ The timeline opens as a **feed**: each note as a post, with its picture, its fir
 notebook it belongs to and who last touched it. In a shared vault that is one stream of everything
 happening — your notes and your collaborators', newest first.
 
-Switch to **List** in the window's header for the original one line per note. That is the faster
+Switch to **List** in the view's menu for the original one line per note. That is the faster
 view when you are hunting for a note you half-remember rather than catching up. The choice is per
 window and is remembered, so you can keep one of each open.
 

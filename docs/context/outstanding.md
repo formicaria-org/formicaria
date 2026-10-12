@@ -1153,11 +1153,30 @@ Shipped in 0.7.7; limits in `known-issues.md`, *Reminders — where they stand*.
 
 1. **See one fire on the phone**: allow, a note due in five minutes, app closed; then after a
    restart of the phone. Nothing is proven until then.
-2. **Owner's decision: keep the desktop program running in the background** so a computer
-   reminds with no page open (a tray program or a user service; it widens what runs).
+2. **Done 2026-10-13**: the program on a computer rests for a waiting reminder, without the
+   assistant. Left: run the Windows and macOS notifications once; see the model actually stop;
+   and decide whether anything should start at login (a larger step: it widens what runs with
+   nobody having opened the app).
 3. A field for *remind me … before* in the note's panel, instead of a property typed by hand.
 4. Re-ask from the phone's background service after a backup brings changes.
 5. iOS local notifications (needs a Mac to build and a device to try).
+
+### 2.28 The docs after a full read (2026-10-13)
+
+The owner: *"the readme has no mention of the food and fitness logs"*. Two read-only reviews
+(README and packaged files; the manual) found about thirty stale statements; those that could
+be checked in code were corrected the same day. **Left**:
+
+1. `docs/src/user/backup.md` still speaks git's words throughout (push, pull, commit, squash);
+   the app does not. It wants rewriting as a whole, not patching.
+2. README *Project status* says nobody has downloaded anything newer than v0.5.x; `features.md`
+   says the updater was run on every desktop at v0.6.7 (by a workflow, not a person). The
+   owner knows which downloads are people.
+3. No picture of Food or Fitness anywhere in the README or the manual.
+4. The glossary has no entry for a logged entry, a group, a routine, a diet, a regime or a
+   reminder.
+5. `assistant.md` gives three different sizes for the phone's model.
+6. Whether a `.view` asking for `search` still draws as a timeline was not checked.
 
 ### 2.25 The YAML parser rests on unmaintained code (2026-10-12)
 
