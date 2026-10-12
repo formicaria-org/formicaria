@@ -10,11 +10,19 @@
   import Trends from '../renderers/Trends.svelte';
   import SessionScreen from './training/SessionScreen.svelte';
   import * as nav from './nav.svelte';
-  import { logDays, logRecent } from './ipc';
+  import { logDays, logRecent, logRoutines } from './ipc';
   import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
   import { addDays, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
-  import type { DayTotals, NoteDraft, ObjectMeta, RecentItem, TotalsDef, ViewGroup } from './types';
+  import type {
+    DayTotals,
+    NoteDraft,
+    ObjectMeta,
+    RecentItem,
+    Routine,
+    TotalsDef,
+    ViewGroup,
+  } from './types';
 
   interface Props {
     pane: Pane;
@@ -52,6 +60,7 @@
   let strip = $state<DayTotals[]>([]);
   let range = $state<DayTotals[]>([]);
   let last = $state<RecentItem[]>([]);
+  let routines = $state<Routine[]>([]);
   let failed = $state('');
 
   /// The strip is a fortnight ending today, or around the chosen day once that is further back.
@@ -74,15 +83,17 @@
       }
       // **One ask for the strip, the day and the day before it.** Each ask is a pass over the
       // whole vault on the other side, so the screen makes one (`crates/fm-app/tests/perf.rs`).
-      const [all, recent] = await Promise.all([
+      const [all, recent, kept] = await Promise.all([
         logDays(view, addDays(stripEnd, -14), stripEnd, true),
         def.add === 'workout' ? logRecent(view, { limit: 50 }) : Promise.resolve([]),
+        def.add === 'workout' ? logRoutines(view) : Promise.resolve([]),
       ]);
       if (mine !== asked) return; // a later ask has already answered
       strip = all.days.slice(1);
       before = all.days.find((d) => d.day === addDays(selected, -1)) ?? null;
       day = all.days.find((d) => d.day === selected) ?? null;
       last = recent;
+      routines = kept;
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);
@@ -128,14 +139,15 @@
     if (addSignal === seen) return;
     seen = addSignal;
     if (def?.add === 'food') sheet = { slot: null, entry: null };
-    else if (def?.add === 'body') measuring = true;
+    else if (def?.add === 'body') measuring = def;
     else if (def?.add === 'workout') workout = { set: null };
   });
 
   // ── writing down a measurement ─────────────────────────────────────────────────────────────────
-  let measuring = $state(false);
+  /// The values to write down, as a definition: the view's own, or one value kept in another log.
+  let measuring = $state<TotalsDef | null>(null);
   $effect(() => {
-    if (measuring) nav.openLayer('measure-sheet', () => (measuring = false));
+    if (measuring) nav.openLayer('measure-sheet', () => (measuring = null));
     else nav.closeLayer('measure-sheet');
   });
   $effect(() => () => nav.closeLayer('measure-sheet'));
@@ -254,6 +266,36 @@
     await wrote();
   }
 
+  /// A routine's sets, planned for today.
+  async function planRoutine(r: Routine) {
+    const drafts: NoteDraft[] = r.sets.map((s) => {
+      const { routine: _routine, ...keep } = s.props;
+      const props = Object.fromEntries(
+        Object.entries(keep).filter(
+          (e): e is [string, string | number] =>
+            typeof e[1] === 'string' || typeof e[1] === 'number',
+        ),
+      );
+      return { title: s.title ?? '', start: today, props: { ...props, planned: 1 } };
+    });
+    if (!drafts.length) {
+      say(`“${r.title}” has no sets`);
+      return;
+    }
+    try {
+      await createNotesUndoable(drafts, `planned “${r.title}”`);
+    } catch (e) {
+      failed = String(e);
+    }
+    await wrote();
+  }
+  let routineSheet = $state<{ routine: Routine | null } | null>(null);
+  $effect(() => {
+    if (routineSheet) nav.openLayer('routine-sheet', () => (routineSheet = null));
+    else nav.closeLayer('routine-sheet');
+  });
+  $effect(() => () => nav.closeLayer('routine-sheet'));
+
   async function finishSet(set: ObjectMeta, reps: number, load_g: number) {
     try {
       await setPropertiesUndoable(
@@ -308,7 +350,11 @@
         {span}
         onspan={(n) => (span = n)}
         onday={openDay}
-        onadd={def.add === 'body' ? () => (measuring = true) : undefined}
+        onadd={def.add === 'body' ? () => (measuring = def ?? null) : undefined}
+        onmeasure={(m) =>
+          def &&
+          m.log &&
+          (measuring = { ...def, log: m.log, metrics: [{ ...m, role: 'primary' }] })}
       />
     {:else if def.add === 'workout'}
       <SessionScreen
@@ -319,6 +365,11 @@
         onadd={() => (workout = { set: null })}
         onedit={(set) => (workout = { set })}
         onrepeat={repeatLast}
+        {routines}
+        {today}
+        onplan={planRoutine}
+        onkeep={() => (routineSheet = { routine: null })}
+        onroutine={(routine) => (routineSheet = { routine })}
       />
     {:else}
       <Totals
@@ -359,9 +410,23 @@
     {/await}
   {/if}
 
-  {#if measuring && def}
+  {#if routineSheet && def}
+    {@const which = routineSheet}
+    {#await import('./training/RoutineSheet.svelte') then { default: RoutineSheet }}
+      <RoutineSheet
+        {def}
+        routine={which.routine}
+        sets={(day?.rows ?? []).filter((r) => r.props.activity === undefined)}
+        {routines}
+        onclose={() => (routineSheet = null)}
+        onwrote={wrote}
+      />
+    {/await}
+  {/if}
+  {#if measuring}
+    {@const what = measuring}
     {#await import('./MeasureSheet.svelte') then { default: MeasureSheet }}
-      <MeasureSheet {def} day={today} onclose={() => (measuring = false)} onsaved={wrote} />
+      <MeasureSheet def={what} day={today} onclose={() => (measuring = null)} onsaved={wrote} />
     {/await}
   {/if}
 

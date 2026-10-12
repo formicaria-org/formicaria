@@ -41,6 +41,11 @@ fn is_planned(o: &Object) -> bool {
     )
 }
 
+/// A program note of this log: `program: food` is the food log's.
+fn is_log_of_program(o: &Object, kind: &str) -> bool {
+    matches!(o.get(PROGRAM), PropertyValue::Text(k) if k == kind)
+}
+
 fn is_log_of(o: &Object, kind: &str) -> bool {
     o.get(LOG) == PropertyValue::Text(kind.to_string())
 }
@@ -112,18 +117,33 @@ pub fn log_days(
     // **One pass over the vault for the entries and the targets both.** Each is a whole-corpus
     // read — only `Kind` and text reach the index — and a day screen asks for this on every
     // change, so two passes was twice the cost of the screen (`tests/perf.rs`).
+    // A value read from another log (a weight among the food trends) rides the same pass.
+    let mut logs: Vec<&str> = vec![&def.log];
+    for m in &def.metrics {
+        if let Some(l) = m.log.as_deref().filter(|l| !logs.contains(l)) {
+            logs.push(l);
+        }
+    }
     let q = Query {
-        filter: log_with_programs_base(&def.log, PROGRAM),
+        filter: if logs.len() == 1 {
+            log_with_programs_base(&def.log, PROGRAM)
+        } else {
+            crate::thread::plan_base(&logs, &[PROGRAM])
+        },
         sort: vec![SortKey::asc("created")],
         ..Default::default()
     };
     let mut by_day: BTreeMap<Date, Vec<Object>> = BTreeMap::new();
+    let mut beside: BTreeMap<Date, Vec<Object>> = BTreeMap::new();
     let mut programs = Vec::new();
     for o in store.query(&q)?.rows {
         if is_log(&o) {
             if let Some(s) = o.start.filter(|s| s.date >= from && s.date <= to) {
-                by_day.entry(s.date).or_default().push(o);
+                let own = is_log_of(&o, &def.log);
+                if own { &mut by_day } else { &mut beside }.entry(s.date).or_default().push(o);
             }
+        } else if !is_log_of_program(&o, &def.log) {
+            // Another group's program: its targets are not this log's.
         } else if !is_message(&o) && !is_proposal(&o) && !is_template(&o) {
             // A program is something you plan: an ordinary note, never a hidden one.
             programs.push(o);
@@ -147,13 +167,26 @@ pub fn log_days(
         all.sort_by_key(slot_at);
         let counted: Vec<Object> = all.iter().filter(|o| !is_planned(o)).cloned().collect();
         let tallied = fm_query::run(&Query { tally: keys.clone(), ..Default::default() }, &counted);
-        let sums = keys
+        let mut sums: BTreeMap<String, MetricSum> = keys
             .iter()
             .map(|k| {
                 let t = tallied.tallies.get(k).cloned().unwrap_or_default();
                 (k.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd })
             })
             .collect();
+        let others = beside.remove(&day).unwrap_or_default();
+        for m in &def.metrics {
+            let Some(l) = m.log.as_deref().filter(|l| *l != def.log) else { continue };
+            let theirs: Vec<Object> =
+                others.iter().filter(|o| is_log_of(o, l) && !is_planned(o)).cloned().collect();
+            let t =
+                fm_query::run(&Query { tally: vec![m.key.clone()], ..Default::default() }, &theirs)
+                    .tallies
+                    .get(&m.key)
+                    .cloned()
+                    .unwrap_or_default();
+            sums.insert(m.key.clone(), MetricSum { sum: t.sum, n: t.n, odd: t.odd });
+        }
         days.push(DayTotals {
             day: day_string(day),
             of: counted.len(),
@@ -370,6 +403,85 @@ pub fn log_recipes(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Recipe>, St
             ingredients: ingredients.iter().map(ObjectMeta::from).collect(),
         });
     }
+    out.sort_by_key(|r| r.title.to_lowercase());
+    Ok(out)
+}
+
+// ── routines ─────────────────────────────────────────────────────────────────────────────────────
+
+/// A routine's notes share one word under this key: the routine itself and each of its sets.
+pub const ROUTINE: &str = "routine";
+/// The days of the week a routine is meant for, on its own note: `mon,thu`.
+pub const WEEKDAYS: &str = "weekdays";
+
+/// A session kept under a name, to plan again on the days it is meant for.
+#[derive(Debug, Serialize)]
+pub struct Routine {
+    /// The word its notes share.
+    pub routine: String,
+    /// The routine's own note.
+    pub id: String,
+    pub title: String,
+    /// `mon` … `sun`, as written on the note; empty when it is meant for no day in particular.
+    pub weekdays: Vec<String>,
+    /// Its sets, in the order they were made.
+    pub sets: Vec<ObjectMeta>,
+}
+
+/// The routines kept in this log, by name.
+///
+/// **Stored as a recipe is** (`decisions.md#data`, 2026-10-12, *a routine is a session kept under
+/// a name*): the routine's own note is an ordinary note carrying a word under `routine` and the
+/// weekdays it is meant for; each of its sets is an entry of the log that names the routine by
+/// that word **instead of a day**, and so is in no day and counts towards nothing until it is
+/// planned onto one.
+pub fn log_routines(store: &dyn Store, def: &TotalsDef) -> Result<Vec<Routine>, StoreError> {
+    let query = Query {
+        filter: log_with_keyed_base(&def.log, ROUTINE),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    let mut heads: BTreeMap<String, Object> = BTreeMap::new();
+    let mut parts: BTreeMap<String, Vec<Object>> = BTreeMap::new();
+    for o in store.query(&query)?.rows {
+        if o.start.is_some() || is_template(&o) || is_message(&o) || is_proposal(&o) {
+            continue;
+        }
+        let PropertyValue::Text(word) = o.get(ROUTINE) else { continue };
+        if word.is_empty() {
+            continue;
+        }
+        if o.get(LOG).is_null() {
+            heads.insert(word, o);
+        } else if is_log_of(&o, &def.log) {
+            parts.entry(word).or_default().push(o);
+        }
+    }
+    let mut out: Vec<Routine> = heads
+        .into_iter()
+        .map(|(word, head)| {
+            let weekdays = match head.get(WEEKDAYS) {
+                PropertyValue::Text(s) => s
+                    .split(',')
+                    .map(|d| d.trim().to_lowercase())
+                    .filter(|d| !d.is_empty())
+                    .collect(),
+                _ => Vec::new(),
+            };
+            Routine {
+                sets: parts
+                    .remove(&word)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(ObjectMeta::from)
+                    .collect(),
+                routine: word,
+                id: head.id.to_string(),
+                title: head.title.clone().unwrap_or_default(),
+                weekdays,
+            }
+        })
+        .collect();
     out.sort_by_key(|r| r.title.to_lowercase());
     Ok(out)
 }

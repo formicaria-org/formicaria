@@ -13,6 +13,7 @@ metrics:
   - { key: calcium_ug, label: Calcium, role: detail }
   - { key: iron_ug, label: Iron, role: detail }
   - { key: vitamin_c_ug, label: Vitamin C, role: detail }
+  - { key: weight_g, label: Weight, role: detail, agg: mean, log: body }
 slots:
   - { value: breakfast, label: Breakfast }
   - { value: lunch, label: Lunch }

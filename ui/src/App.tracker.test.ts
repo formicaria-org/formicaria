@@ -256,3 +256,55 @@ test('a regime is chosen from the library, followed, measured, and stopped', asy
   await fireEvent.click(screen.getByRole('button', { name: 'Stop following' }));
   expect(await screen.findByRole('heading', { name: 'Choose a regime to follow' })).toBeTruthy();
 });
+
+test('a weight is written down from the trends, where it is one of the values to pick', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Trends' }));
+  const pick = (await screen.findByLabelText('what to show')) as HTMLSelectElement;
+  await fireEvent.change(pick, { target: { value: 'weight_g' } });
+  await fireEvent.click(await screen.findByRole('button', { name: 'add Weight' }));
+  const sheet = await screen.findByRole('dialog', { name: 'add a measurement' });
+  await fireEvent.input(within(sheet).getByLabelText('Weight (kg)'), { target: { value: '80.5' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
+  // Nothing was eaten, and the day still counts as one with a weight.
+  expect(await screen.findByText(/Logged 1 of 7 days/)).toBeTruthy();
+  expect(screen.getByText('80.5')).toBeTruthy();
+});
+
+test('a session is kept as a routine for some weekdays, and planned again from it', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
+  const add = await screen.findByRole('dialog', { name: 'add to the session' });
+  await fireEvent.input(within(add).getByLabelText('Exercise'), { target: { value: 'Lunge' } });
+  await fireEvent.input(within(add).getByLabelText('Reps'), { target: { value: '8' } });
+  await fireEvent.click(within(add).getByRole('button', { name: /^Add \d+ × 8$/ }));
+  await screen.findByText(/^0 of 1 sets/);
+
+  await fireEvent.click(screen.getByRole('button', { name: 'Keep this session as a routine' }));
+  const sheet = await screen.findByRole('dialog', { name: 'keep a routine' });
+  await fireEvent.input(within(sheet).getByLabelText('Name'), { target: { value: 'Legs' } });
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Mon' }));
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Keep it' }));
+  // It is listed with its days, and is in no day: today still has its one set.
+  expect(await screen.findByRole('button', { name: 'change the routine Legs' })).toHaveProperty(
+    'textContent',
+    expect.stringMatching(/Legs · Mon · 1\s+set/),
+  );
+  expect(screen.getByText(/^0 of 1 sets/)).toBeTruthy();
+
+  // Removing it is one press in its own sheet.
+  await fireEvent.click(screen.getByRole('button', { name: 'change the routine Legs' }));
+  const change = await screen.findByRole('dialog', { name: 'change a routine' });
+  await fireEvent.click(within(change).getByRole('button', { name: 'Remove this routine' }));
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: 'change the routine Legs' })).toBeNull(),
+  );
+});

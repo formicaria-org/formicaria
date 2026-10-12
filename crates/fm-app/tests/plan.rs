@@ -261,4 +261,17 @@ fn a_profile_is_a_note_and_a_preview_is_the_option_worked_out_for_it() {
     assert!(who.missing.is_empty() && who.energy.is_none());
     assert_eq!(who.bounds["minutes"].min, Some(150));
     assert!(plan_preview(&s, "no-such-plan", "2026-10-12").is_err());
+
+    // A weight written down since is the person's weight: the latest weighing, not the form.
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft("Weight", "2026-10-10", json!({ "log": "body", "weight_g": 79_000 })),
+            draft("Weight", "2026-10-11", json!({ "log": "body", "weight_g": 78_000 })),
+        ],
+    )
+    .unwrap();
+    assert_eq!(plan_profile(&s).unwrap().weight_g, Some(78_000));
+    assert_eq!(plan_profile(&s).unwrap().sex.as_deref(), Some("male"));
 }

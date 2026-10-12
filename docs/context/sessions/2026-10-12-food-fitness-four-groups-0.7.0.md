@@ -63,3 +63,17 @@ being monitored against whichever is picked; release 0.7.1 without the phone che
   cannot share a name (hence *Diet* and *Regime*); the register's WHO fat range was a different
   document from the fact sheet, which was re-read and used.
 - **Left**: routines on weekdays, weight over time — `outstanding.md` §2.23, item 10.
+
+## Later still: what 0.7.1 left open (v0.7.2)
+
+The owner: *"finish this without asking me, add anything you deem necessary for a full, seamless
+user experience"*, then *"I want the release and try it myself on the phone after it"*.
+
+- **Weight** is on the food Trends menu, written down from there, and is the weight every
+  estimate uses. **Routines** are kept from a session, meant for weekdays, and planned from the
+  session screen. Ruling: `decisions.md#data`, the last 2026-10-12 entry.
+- **Seen** in headless Chromium against the built program at 360 wide: a weight written down and
+  drawn; a session kept as *Legs* for Mon and Thu, today emptied, *Plan Legs* putting it back.
+  **Not seen on a phone.**
+- **Found on the way**: reading a second log in `log_days` pulled in other groups' program notes
+  as targets — caught by the new test before it shipped.

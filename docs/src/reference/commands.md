@@ -12,7 +12,7 @@ Every one of them is reached through **`fm_app::dispatch`**, the single command 
 `dispatch`, and frames the answer. Adding a frontend means writing a new shell, not a
 second copy of the table below.
 
-**All 110 of them are below**, grouped by what they are for. If you add an arm to
+**All 111 of them are below**, grouped by what they are for. If you add an arm to
 `dispatch_inner`, add its row here — `ci/checks.sh` counts the two and fails when they disagree,
 because a reference that is *nearly* complete is one a reader stops trusting. (That sentence was
 itself untrue until 2026-09-05: the check tested membership only, never counted, and this line
@@ -172,6 +172,7 @@ and so did their tests. See [Views](../user/views.md#saved-views).
 | `log_days`       | `view`, `from`, `to`, `rows` | `{ days }`             | a span of days of one log, asked for by the **name** of a `totals` view. Each day: `sums` (`{ sum, n }` per metric, `n` being how many entries carried it), `of` (entries that day), `targets`, and its entries when `rows` |
 | `log_recent`     | `view`, `slot`, `q`, `limit` | `RecentItem[]`         | what a log holds already, one line per distinct thing, most used in `slot` first, each with the values it had the last time |
 | `log_recipes`    | `view`                       | `Recipe[]`             | the recipes saved in a log, by name. Each: `servings`, its ingredient entries, `of` (how many), and `sums` — every whole-number value the ingredients carry, added up, with how many of them carried it. Nothing is adjusted for cooking |
+| `log_routines`   | `view`                       | `Routine[]`            | the sessions kept under a name in a log: each with the `weekdays` it is meant for (`mon` … `sun`) and its `sets` — entries that name the routine instead of a day, so they are in no day until planned onto one |
 | `plan_library`   | `group`                      | `{ plans, activities }` | the diets (`food`) or regimes (`fitness`) that can be followed, as carried in the app: each with what it rests on, its sources, its checks, what cannot be measured, and links to how it is done. `activities` (fitness only) are activities a named body counts, with what each counts as |
 | `plan_profile`   | —                            | `Profile`              | a person's own measurements — `sex`, `born`, `height_cm`, `weight_g`, `pal_x10` — from the note carrying a `profile` property, or all empty |
 | `plan_preview`   | `id`, `day`                  | `Preview`              | one option with its numbers worked out for this person: the bounds per check, the energy estimate when it uses one, and which measurements are still missing. Writes nothing |

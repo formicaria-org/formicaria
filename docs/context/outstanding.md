@@ -1026,9 +1026,9 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
 `known-issues.md`, *The four groups*, *Recipes*, *Trackers — where they stand*. Session:
 `sessions/2026-10-12-food-fitness-four-groups-0.7.0.md`.
 
-1. **Weight is to be one of the trends.** The *Weight* view was removed on the owner's word; until
-   it is a choice on the Trends menu, with somewhere to log one, a weight cannot be logged at
-   all. This is the first thing a person who used 0.6.9's dev builds will miss.
+1. **Weight is one of the trends** since v0.7.2 (`decisions.md#data`, 2026-10-12). Left: body
+   measurements other than weight have no line in any view; a weighing can be removed only from
+   the Library.
 2. **The Library as the first screen** is ruled and not done: `defaultWorkspace` still opens the
    board. It moves fifteen tests' starting point and what a new person sees first.
 3. **How a phone's layout should differ from a desktop's inside a view** is undecided. The rule so
@@ -1051,13 +1051,14 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
    record that it was set aside once, knowingly.
 10. **Following a diet or a regime is built** (v0.7.1; `decisions.md#data`, 2026-10-12;
    `known-issues.md`, *Following a diet or a regime*). What it left open:
-   - **Never seen on a phone.** v0.7.1 was tagged without the phone test, on the owner's word.
+   - **Never seen on a phone.** v0.7.1 and v0.7.2 were tagged without the phone test, on the
+     owner's word ("I want the release and try it myself on the phone after it").
      Ask: do the *Diet* and *Regime* tabs fit, does *About you* save, does a "How to do it" link
      open the phone's browser (never tried in the Android shell).
-   - **Routines**: a named session saved as notes and set on weekdays, for *My own* in Fitness.
-     The owner asked for "a weekly pattern of routines"; what ships counts a week, it does not
-     lay one out.
-   - **Weight over time.** The profile holds one current weight. Item 1 stands.
+   - **Routines** are built (v0.7.2): kept from a session, meant for weekdays, planned from the
+     session screen. Left: a routine's sets are changed by keeping a session under the same
+     name, not in place; nothing shows a week of routines against a regime's counts; deleting
+     a routine's note from the Library strands its sets, as with recipes.
    - **Hours of eating** cannot be measured (an entry has a day and no time); time-restricted
      eating is a daily *I kept to it*.
    - **Not offered**: Mediterranean, DASH, vegetarian, vegan, low-carbohydrate, Couch to 5K —

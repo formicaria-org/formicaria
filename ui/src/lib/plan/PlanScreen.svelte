@@ -191,6 +191,13 @@
           ],
           'wrote down your measurements',
         );
+      // A weight is also a weighing: an entry of today, so it is one of the trends, and so the
+      // latest weighing — which is what the numbers are worked out from — is this one.
+      if (typeof props.weight_g === 'number' && props.weight_g !== open.profile.weight_g)
+        await createNotesUndoable(
+          [{ title: 'Weight', start: today, props: { log: 'body', weight_g: props.weight_g } }],
+          'wrote down your weight',
+        );
       onsaved();
       // The numbers follow the measurements: work them out again.
       await look(open.plan.id);

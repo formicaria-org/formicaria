@@ -12,6 +12,7 @@ import type {
   LogDays,
   RecentItem,
   Recipe,
+  Routine,
   NoteDraft,
   FoodHit,
   FoodDetail,
@@ -66,7 +67,17 @@ const FITNESS_GROUP: ViewGroup = { name: 'Fitness', views: ['Session', 'Volume',
 
 const DEFS: Record<string, { totals: TotalsDef; group: ViewGroup }> = {
   Day: { totals: FOOD, group: FOOD_GROUP },
-  Trends: { totals: { ...FOOD, span: 'range' }, group: FOOD_GROUP },
+  Trends: {
+    totals: {
+      ...FOOD,
+      span: 'range',
+      metrics: [
+        ...FOOD.metrics,
+        { key: 'weight_g', label: 'Weight', role: 'detail', agg: 'mean', log: 'body' },
+      ],
+    },
+    group: FOOD_GROUP,
+  },
   Diet: { totals: { ...FOOD, span: 'plan' }, group: FOOD_GROUP },
   Session: { totals: TRAINING, group: FITNESS_GROUP },
   Volume: { totals: { ...TRAINING, span: 'range' }, group: FITNESS_GROUP },
@@ -436,7 +447,11 @@ export function logDays(
     for (const m of def.metrics) {
       let sum = 0;
       let carried = 0;
-      for (const x of counted) {
+      // A value kept in another log is read from that log's entries of the day.
+      const from = m.log
+        ? notes.filter((x) => isLog(x, m.log!) && x.start === day && !x.props.planned)
+        : counted;
+      for (const x of from) {
         const v = whole(x.props[m.key]);
         if (v === null) continue;
         sum += v;
@@ -492,6 +507,24 @@ export function logRecent(
     .map(({ inSlot: _inSlot, ...rest }) => rest);
 }
 
+export function logRoutines(notes: ObjectMeta[], args: { view: string }): Routine[] {
+  const def = trackerDef(args.view)?.totals;
+  if (!def) throw new Error(`no such view: ${args.view}`);
+  const named = notes.filter((x) => !x.start && x.props.routine && !x.tags.includes('template'));
+  return named
+    .filter((x) => !x.props.log)
+    .map((head) => ({
+      routine: String(head.props.routine),
+      id: head.id,
+      title: head.title ?? '',
+      weekdays: String(head.props.weekdays ?? '')
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .filter(Boolean),
+      sets: named.filter((x) => isLog(x, def.log) && x.props.routine === head.props.routine),
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+}
 export function logRecipes(notes: ObjectMeta[], args: { view: string }): Recipe[] {
   const def = trackerDef(args.view)?.totals;
   if (!def) throw new Error(`no such view: ${args.view}`);

@@ -112,9 +112,11 @@ day by day against its target; the averages of the others are listed below it. I
 those days have anything logged, because an average over three logged days is not a week's
 average.
 
-There is no screen for your weight at the moment: it is to become one more thing to pick on this
-menu, and until it is, the app has no way to log one. Weights you logged earlier are still in
-your notebook.
+**Weight** is the last thing on that menu. With it showing, the **+** beside the menu writes down
+today's weight, and the screen draws it as a line: where it is now, and how far it moved over the
+days shown. Two weighings in a day count as their average. The weight you give in *About you*
+(under **Diet**) is written down the same way, and the numbers worked out for you always use
+your latest weighing.
 
 ## Fitness
 
@@ -142,8 +144,21 @@ beside it.
 load, added up over the sets you ticked — the usual meaning of the term in the training
 literature. It is a rough measure of work done, not a score.
 
-There is no list of exercises to choose from, no best-lift history, and no way to keep a named
-session plan.
+### Routines
+
+A routine is a session kept under a name.
+
+- **Keep this session as a routine** — under today's sets. Give it a name and, if you like, the
+  days of the week it is meant for.
+- On a day with nothing planned, the routines meant for that day are offered first — **Plan
+  Legs** — and the others after them. Planning one puts its sets on today, ready to change and
+  tick.
+- **Routines**, at the bottom, lists them with their days. Press one to rename it, change its
+  days or remove it.
+- To change a routine's sets, plan it, change the session, and keep it again under the same name.
+
+There is no list of exercises to choose from and no best-lift history, and the app never
+suggests sets, reps or loads: a routine holds only what you put in it.
 
 ## Following a diet or a regime
 

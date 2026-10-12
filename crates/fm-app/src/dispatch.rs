@@ -559,6 +559,7 @@ const READ_ONLY: &[&str] = &[
     "log_days",
     "log_recent",
     "log_recipes",
+    "log_routines",
     // The library is carried in the app; a profile, a preview and a week's progress are read
     // from notes and change none.
     "plan_library",
@@ -2269,6 +2270,12 @@ fn dispatch_inner(
             let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
             let store = g.store(scope);
             json(crate::log::log_recipes(&store, &def).map_err(err)?)
+        }
+        "log_routines" => {
+            let mut g = lock()?;
+            let def = crate::views::totals_named(&view_paths(&g, scope), &s("view"))?;
+            let store = g.store(scope);
+            json(crate::log::log_routines(&store, &def).map_err(err)?)
         }
         // ── Diets and regimes to follow (`plan.rs`; `decisions.md#data`, 2026-10-12) ─────────────
         // The library needs no vault. The other three read notes: the person's measurements, an

@@ -5,7 +5,9 @@
 //! says how complete it is, and an entry never shows up among the things you plan.
 
 use fm_app::commands;
-use fm_app::log::{create_notes, log_days, log_recent, log_recipes, set_properties, NoteDraft};
+use fm_app::log::{
+    create_notes, log_days, log_recent, log_recipes, log_routines, set_properties, NoteDraft,
+};
 use fm_app::views::{group_of, run_shipped, shipped_views, totals_named, with_shipped, Renderer};
 use fm_core::MemoryStore;
 use serde_json::json;
@@ -520,4 +522,64 @@ fn the_front_end_names_the_shipped_groups_and_views_as_the_files_do() {
         .filter(|l| l.starts_with("  ") && !l.starts_with("   ") && l.contains(": {"))
         .count();
     assert_eq!(listed, shipped.len(), "the in-memory backend lists a view that is not shipped");
+}
+
+/// Weight is one of the food trends, and is an entry of another log: its value rides the same
+/// answer, and it is in no day's count of what was eaten.
+#[test]
+fn a_value_read_from_another_log_is_in_the_days_and_not_in_their_count() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            food("Oats", "2026-10-11", "breakfast", 228, 8_000),
+            draft("Weight", "2026-10-11", json!({ "log": "body", "weight_g": 80_000 })),
+            draft("Weight", "2026-10-11", json!({ "log": "body", "weight_g": 80_400 })),
+            // A training program's targets are not the food log's.
+            draft("Block", "2026-10-01", json!({ "program": "training", "kcal": 1 })),
+        ],
+    )
+    .unwrap();
+    let trends = totals_named(&[], "Trends").unwrap();
+    let r = log_days(&s, &trends, "2026-10-10", "2026-10-11", true).unwrap();
+    let day = &r.days[1];
+    assert_eq!((day.of, day.rows.as_ref().unwrap().len()), (1, 1));
+    assert_eq!((day.sums["weight_g"].sum, day.sums["weight_g"].n), (160_400, 2));
+    assert_eq!(day.sums["kcal"].sum, 228);
+    assert!(day.targets.is_empty(), "{:?}", day.targets);
+    assert_eq!(r.days[0].sums["weight_g"].n, 0);
+}
+
+/// A routine is a session kept under a name: its sets name it instead of a day, so they are in no
+/// day until they are planned onto one.
+#[test]
+fn a_routine_is_its_note_and_its_sets_and_is_in_no_day() {
+    let mut s = MemoryStore::new();
+    let set = |title: &str, n: i64| {
+        draft(
+            title,
+            "",
+            json!({ "log": "workout", "routine": "r1", "set": n, "reps": 8, "load_g": 40_000 }),
+        )
+    };
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft("Push day", "", json!({ "routine": "r1", "weekdays": "mon, Thu" })),
+            set("Bench press", 1),
+            set("Bench press", 2),
+            // Another log's entry under the same word is not this routine's.
+            draft("Oats", "", json!({ "log": "food", "routine": "r1", "kcal": 1 })),
+        ],
+    )
+    .unwrap();
+    let session = totals_named(&[], "Session").unwrap();
+    let routines = log_routines(&s, &session).unwrap();
+    assert_eq!(routines.len(), 1);
+    assert_eq!((routines[0].title.as_str(), routines[0].sets.len()), ("Push day", 2));
+    assert_eq!(routines[0].weekdays, ["mon", "thu"]);
+    let r = log_days(&s, &session, "2026-10-01", "2026-10-12", false).unwrap();
+    assert!(r.days.iter().all(|d| d.of == 0));
 }

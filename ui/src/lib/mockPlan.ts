@@ -162,7 +162,17 @@ export function planLibrary(args: { group: string }): PlanLibrary {
 export function planProfile(notes: ObjectMeta[]): PlanProfile {
   const n = notes.filter((x) => x.props.profile).at(-1);
   if (!n) return {};
-  const num = (k: string) => (typeof n.props[k] === 'number' ? (n.props[k] as number) : undefined);
+  // The weight is the last one written down, as in `plan.rs`.
+  const weighed = notes
+    .filter((x) => x.props.log === 'body' && typeof x.props.weight_g === 'number' && x.start)
+    .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''))
+    .at(-1);
+  const num = (k: string) =>
+    k === 'weight_g' && weighed
+      ? (weighed.props.weight_g as number)
+      : typeof n.props[k] === 'number'
+        ? (n.props[k] as number)
+        : undefined;
   return {
     id: n.id,
     sex: n.props.sex === 'female' || n.props.sex === 'male' ? n.props.sex : undefined,

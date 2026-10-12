@@ -2203,3 +2203,18 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   shell hands them to the browser has not been tried.
 - **Adding an option** is an entry in `plans.json` plus a row in `sources-2026-10-11.md`. A new
   *kind* of check is an arm of `measure` and a decision.
+
+## Weight and routines — traps (2026-10-12)
+
+- **A value with `log:` on it is not in `of` or `rows`.** A trends screen that asked "is anything
+  logged" by `of` alone said *nothing logged* over a week of weighings; it also asks whether the
+  picked value has any.
+- **`plan_base` matches every program note**, any group's. `log_days` uses it when a view reads a
+  second log, so it now drops programs that are not its own log's — without that, a training
+  program's numbers became food targets (pinned in `tests/log.rs`).
+- **The profile note's `weight_g` is stale by design** once a weighing exists; read the weight
+  from `plan_profile`, never from the note.
+- **A routine's sets have no `start`.** Anything that lists a log's entries without asking for a
+  day sees them: `log_recent` does, which is harmless (they are offered as things done before).
+- **The weekday is the device's**, worked out in the UI from today's date; the core stores the
+  three-letter English names and gives them back as written.

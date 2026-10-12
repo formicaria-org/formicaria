@@ -97,6 +97,11 @@ pub struct Metric {
     /// How a day's entries become the day's value. Left out for a sum, which is nearly all of them.
     #[serde(default, skip_serializing_if = "Agg::is_sum")]
     pub agg: Agg,
+    /// The log this value is read from, when it is not the view's own: a weight among the food
+    /// trends is an entry of the body log (`decisions.md#ui`, 2026-10-12, *weight is one of the
+    /// trends*). It is in no day's rows and no day's count; only its value is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log: Option<String>,
 }
 
 /// **Added up, or averaged.** Energy eaten in a day is the sum of its entries. A weight taken twice

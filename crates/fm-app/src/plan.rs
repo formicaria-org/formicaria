@@ -40,6 +40,8 @@ pub const PROFILE: &str = "profile";
 pub const PLAN: &str = "plan";
 /// A day the person says they kept to their plan is an entry of this log.
 pub const KEPT: &str = "kept";
+/// The log a weight is written down in.
+pub const BODY: &str = "body";
 /// What an activity entry counts as: `aerobic`, `strength`, `balance` or `flexibility`. Not
 /// `kind`, which every note already answers with what it is.
 pub const COUNTS_AS: &str = "counts_as";
@@ -250,16 +252,33 @@ impl Profile {
 }
 
 /// The person's measurements: the profile note changed most recently, or an empty profile.
+///
+/// **The weight is the last one written down.** A weight is logged as an entry of the body log, so
+/// it can be a trend; the latest of those is the person's weight, and the profile note's own
+/// figure stands only until there is one.
 pub fn plan_profile(store: &dyn Store) -> Result<Profile, StoreError> {
-    let q = Query { filter: plan_base(&[], &[PROFILE]), ..Default::default() };
-    Ok(store
-        .query(&q)?
-        .rows
+    let q = Query { filter: plan_base(&[BODY], &[PROFILE]), ..Default::default() };
+    let rows = store.query(&q)?.rows;
+    let weighed = |o: &&Object| matches!(o.get("log"), PropertyValue::Text(k) if k == BODY);
+    let mut profile = rows
         .iter()
+        .filter(|o| !weighed(o) && !o.get(PROFILE).is_null())
         .filter(|o| !is_template(o) && !is_message(o) && !is_proposal(o))
         .max_by_key(|o| o.updated)
         .map(Profile::of)
-        .unwrap_or_default())
+        .unwrap_or_default();
+    let last = rows
+        .iter()
+        .filter(weighed)
+        .filter_map(|o| match (o.start, o.get("weight_g")) {
+            (Some(s), PropertyValue::Int(g)) if g > 0 => Some(((s.date, o.updated), g)),
+            _ => None,
+        })
+        .max_by_key(|(at, _)| *at);
+    if let Some((_, g)) = last {
+        profile.weight_g = Some(g);
+    }
+    Ok(profile)
 }
 
 /// Basal metabolic rate in kcal a day, by Henry's equations for adults (Henry 2005, *Public Health

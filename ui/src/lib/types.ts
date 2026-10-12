@@ -556,6 +556,8 @@ export interface Metric {
   /** How a day's entries become the day's value: added up (the default), or averaged — a weight
    *  taken twice in a day is not two weights. */
   agg?: 'sum' | 'mean';
+  /** The log this value is read from, when it is not the view's own. */
+  log?: string;
 }
 /** A part of the day an entry belongs to — a meal, for a food log. */
 export interface Slot {
@@ -615,6 +617,16 @@ export interface Recipe {
   /** The whole recipe, per value: the sum, and how many ingredients carried it. */
   sums: Record<string, MetricSum>;
   ingredients: ObjectMeta[];
+}
+/** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
+export interface Routine {
+  /** The word its notes share. */
+  routine: string;
+  id: string;
+  title: string;
+  /** `mon` … `sun`; empty when it is meant for no day in particular. */
+  weekdays: string[];
+  sets: ObjectMeta[];
 }
 /** A note to create. Several are created in one write (`create_notes`). */
 export interface NoteDraft {

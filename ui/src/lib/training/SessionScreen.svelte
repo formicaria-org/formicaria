@@ -8,7 +8,7 @@
   // exercises are data and are never written in this file.
   import Icon from '../Icon.svelte';
   import { show, showWith, whole } from '../units';
-  import type { DayTotals, ObjectMeta, RecentItem, TotalsDef } from '../types';
+  import type { DayTotals, ObjectMeta, RecentItem, Routine, TotalsDef } from '../types';
 
   interface Props {
     def: TotalsDef;
@@ -21,8 +21,38 @@
     onedit: (set: ObjectMeta) => void;
     /** Plan today from the last session there was. */
     onrepeat: () => void;
+    /** Sessions kept under a name, and the weekdays each is meant for. */
+    routines?: Routine[];
+    /** `YYYY-MM-DD`, to know which routines are meant for today. */
+    today?: string;
+    /** Plan a routine's sets onto today. */
+    onplan?: (r: Routine) => void;
+    /** Keep today's sets as a routine. */
+    onkeep?: () => void;
+    /** Change a routine's name or days, or remove it. */
+    onroutine?: (r: Routine) => void;
   }
-  let { def, day, last, onfinish, onadd, onedit, onrepeat }: Props = $props();
+  let {
+    def,
+    day,
+    last,
+    onfinish,
+    onadd,
+    onedit,
+    onrepeat,
+    routines = [],
+    today = '',
+    onplan,
+    onkeep,
+    onroutine,
+  }: Props = $props();
+
+  const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const weekday = $derived(today ? WEEK[new Date(`${today}T12:00:00`).getDay()] : '');
+  const meant = $derived(routines.filter((r) => r.weekdays.includes(weekday)));
+  const rest = $derived(routines.filter((r) => !r.weekdays.includes(weekday)));
+  const daysOf = (r: Routine) =>
+    r.weekdays.map((d) => d.charAt(0).toUpperCase() + d.slice(1)).join(', ') || 'any day';
 
   const primary = $derived(def.metrics.find((m) => m.role === 'primary') ?? def.metrics[0]);
   /// A session holds two kinds of entry: a set of an exercise, ticked when done, and an activity
@@ -90,8 +120,16 @@
   </header>
 
   {#if day && sets.length === 0 && activities.length === 0}
-    <p class="none">Nothing planned for today.</p>
+    <p class="none">
+      {meant.length ? 'Nothing planned yet. Meant for today:' : 'Nothing planned for today.'}
+    </p>
     <div class="start">
+      {#each meant as r (r.id)}
+        <button type="button" class="go" onclick={() => onplan?.(r)}>Plan {r.title}</button>
+      {/each}
+      {#each rest as r (r.id)}
+        <button type="button" class="quiet" onclick={() => onplan?.(r)}>Plan {r.title}</button>
+      {/each}
       {#if last.length}
         <button type="button" class="go" onclick={onrepeat}>Same as last time</button>
       {/if}
@@ -154,6 +192,31 @@
 
   {#if sets.length || activities.length}
     <button type="button" class="quiet wide" onclick={onadd}>Add an exercise or an activity</button>
+  {/if}
+  {#if sets.length && onkeep}
+    <button type="button" class="quiet wide" onclick={onkeep}>Keep this session as a routine</button
+    >
+  {/if}
+
+  {#if routines.length}
+    <section class="exercise">
+      <h3>Routines</h3>
+      <ul>
+        {#each routines as r (r.id)}
+          <li class="finished">
+            <button
+              type="button"
+              class="what wide-what"
+              onclick={() => onroutine?.(r)}
+              aria-label={`change the routine ${r.title}`}
+            >
+              {r.title} · {daysOf(r)} · {r.sets.length}
+              {r.sets.length === 1 ? 'set' : 'sets'}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 
   {#if since !== null}

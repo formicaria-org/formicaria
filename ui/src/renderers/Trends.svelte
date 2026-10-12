@@ -26,6 +26,8 @@
     onday: (day: string) => void;
     /** Add an entry from here — for a view with no day screen of its own to add from. */
     onadd?: () => void;
+    /** Write down a value that is kept in a log of its own — a weight among the food trends. */
+    onmeasure?: (m: Metric) => void;
   }
   let {
     def,
@@ -39,6 +41,7 @@
     onspan,
     onday,
     onadd,
+    onmeasure,
   }: Props = $props();
 
   /// What is drawn: the value picked from the menu, the view's first until one is
@@ -100,14 +103,19 @@
         </select>
       </label>
     {/if}
-    {#if onadd}
-      <button type="button" class="add" onclick={onadd} aria-label={`add ${primary.label}`}>
+    {#if onadd || (onmeasure && primary.log)}
+      <button
+        type="button"
+        class="add"
+        onclick={() => (primary.log && onmeasure ? onmeasure(primary) : onadd?.())}
+        aria-label={`add ${primary.label}`}
+      >
         <Icon name="plus" size={18} />
       </button>
     {/if}
   </div>
 
-  {#if days.length && !logged.length}
+  {#if days.length && !logged.length && !known.length}
     <EmptyState icon="chart" title="Nothing logged in these days" />
   {:else}
     <section class="card">
@@ -152,7 +160,9 @@
           onpick={onday}
         />
       {/if}
-      <p class="honest">Logged {logged.length} of {days.length} days</p>
+      <p class="honest">
+        Logged {primary.log ? known.length : logged.length} of {days.length} days
+      </p>
     </section>
 
     {#if others.length}
@@ -176,12 +186,12 @@
                 label={`${m.label}: ${showWith(m.key, Math.round(a))} a day`}
               />
             {/if}
-            {#if c.n < c.of * 0.9}
+            {#if !m.log && c.n < c.of * 0.9}
               <span class="partial">from {c.n} of {c.of} entries</span>
             {/if}
           </div>
         {/each}
-        {#if others.some((m) => carried(m.key).n < carried(m.key).of)}
+        {#if others.some((m) => !m.log && carried(m.key).n < carried(m.key).of)}
           <p class="honest">Some entries carry only part of these, so they run a little low.</p>
         {/if}
       </section>
