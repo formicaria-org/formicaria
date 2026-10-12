@@ -304,6 +304,7 @@ ship inside the binary. Generated from the production dependency closure
 | @types/d3-timer | 3.0.2 | MIT |
 | @types/d3-transition | 3.0.9 | MIT |
 | @types/d3-zoom | 3.0.9 | MIT |
+| @types/emscripten | 1.41.6 | MIT |
 | @types/estree | 1.0.9 | MIT |
 | @types/geojson | 7946.0.16 | MIT |
 | @types/react | 19.2.17 | MIT |
@@ -440,10 +441,12 @@ ship inside the binary. Generated from the production dependency closure
 | style-mod | 4.1.4 | MIT |
 | stylis | 4.4.0 | MIT |
 | svelte | 5.57.2 | MIT |
+| tagged-tag | 1.0.0 | MIT |
 | tinyexec | 1.3.1 | MIT |
 | ts-dedent | 2.3.0 | MIT |
 | tslib | 2.8.1 | 0BSD |
 | tunnel-rat | 0.1.2 | MIT |
+| type-fest | 5.10.0 | (MIT OR CC0-1.0) |
 | use-callback-ref | 1.3.3 | MIT |
 | use-sidecar | 1.1.3 | MIT |
 | use-sync-external-store | 1.6.0 | MIT |
@@ -459,6 +462,7 @@ ship inside the binary. Generated from the production dependency closure
 | which | 2.0.2 | ISC |
 | zimmerframe | 1.1.5 | MIT |
 | zustand | 4.5.7 | MIT |
+| zxing-wasm | 3.1.5 | MIT |
 
 
 ## Fonts bundled with the whiteboard
@@ -520,7 +524,12 @@ Institutes of Health; U.S. Department of Health and Human Services —
 <https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes>.
 The Institute states that information on its website is in the public domain unless noted
 otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's
-tips and notes are on its own page and are not carried.
+tips and notes are carried with it.
+
+## The barcode reader
+
+`zxing-wasm` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:
+<https://github.com/zxing-cpp/zxing-cpp>, Apache-2.0.
 
 ## Data fetched when a person asks
 

@@ -196,7 +196,9 @@ export function dishesFor(
   dishes: Dish[],
   room: number | null,
   limit = 3,
-): { dish: Dish; adds: number; reaches: number }[] {
+  /** The day's other checks, to say when a serving would take one of them past its most. */
+  others: PlanCheckProgress[] = [],
+): { dish: Dish; adds: number; reaches: number; over: string[] }[] {
   if (check.kind !== 'sum' || check.state !== 'under' || check.min === undefined) return [];
   const now = check.value ?? 0;
   return dishes
@@ -205,5 +207,14 @@ export function dishesFor(
     .filter((x) => room === null || (x.dish.per_serving.kcal ?? 0) <= room)
     .sort((a, b) => b.adds - a.adds)
     .slice(0, limit)
-    .map((x) => ({ ...x, reaches: now + x.adds }));
+    .map((x) => ({
+      ...x,
+      reaches: now + x.adds,
+      // A limit on one value of a day that this serving would cross — or cross further.
+      over: others
+        .filter((o) => o.kind === 'sum' && o.per === 'day' && o.max !== undefined)
+        .filter((o) => (o.value ?? 0) + (x.dish.per_serving[o.unit] ?? 0) > o.max!)
+        .filter((o) => (x.dish.per_serving[o.unit] ?? 0) > 0)
+        .map((o) => o.label),
+    }));
 }

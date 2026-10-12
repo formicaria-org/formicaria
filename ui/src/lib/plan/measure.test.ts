@@ -171,4 +171,28 @@ describe('dishes for what a day is short of', () => {
     expect(dishesFor({ ...short, state: 'met' as const }, dishes, null)).toEqual([]);
     expect(dishesFor({ ...short, kind: 'share' as const }, dishes, null)).toEqual([]);
   });
+  it('says when a serving that closes one gap would take another value past its limit', () => {
+    const salty: Dish[] = [
+      {
+        title: 'Bean chili',
+        from: 'NHLBI',
+        ref: 'nhlbi/b',
+        per_serving: { fiber_mg: 12_000, sodium_ug: 900_000 },
+      },
+    ];
+    const sodium = {
+      id: 'sodium',
+      label: 'Sodium',
+      kind: 'sum' as const,
+      unit: 'sodium_ug',
+      per: 'day' as const,
+      max: 2_000_000,
+      value: 1_500_000,
+      state: 'met' as const,
+      days: [],
+      basis: '',
+    };
+    expect(dishesFor(short, salty, null, 3, [sodium])[0].over).toEqual(['Sodium']);
+    expect(dishesFor(short, salty, null, 3, [{ ...sodium, value: 100_000 }])[0].over).toEqual([]);
+  });
 });

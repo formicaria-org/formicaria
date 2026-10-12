@@ -33,6 +33,11 @@
   }
   let { view, def, today, signal, onadd, onedit, onsaved }: Props = $props();
 
+  /// The Monday of the week holding a day, and how many days one day is after another.
+  const daysApart = (from: string, to: string) =>
+    Math.round((Date.parse(`${to}T12:00:00`) - Date.parse(`${from}T12:00:00`)) / 86_400_000);
+  const mondayOf = (day: string) => addDays(day, -((new Date(`${day}T12:00:00`).getDay() + 6) % 7));
+
   const KEY = 'fm-menu-days';
   function stored(): number {
     try {
@@ -98,14 +103,43 @@
       days = d.days;
       recipes = r;
       kitchen = k;
-      // Each day that has anything on it, held against the diet as if what is planned had been
-      // had. One ask a day, so only for days with something to measure; never why the menu fails.
-      const withFood = d.days.filter((x) => (x.rows ?? []).length > 0).map((x) => x.day);
-      const got = await Promise.all(
-        withFood.map((day) => planProgress('food', day, true).catch(() => null)),
+      // Each day held against the diet as if what is planned had been had. **One ask a week**,
+      // not one a day: an answer carries its whole week, Monday to Sunday, a value a day — so a
+      // menu of 28 days is five asks. Never why the menu fails to draw.
+      const mondays = [...new Set(d.days.map((x) => mondayOf(x.day)))];
+      const weeks = await Promise.all(
+        mondays.map((m) => planProgress('food', m, true).catch(() => null)),
       );
       if (mine !== asked) return;
-      outlook = Object.fromEntries(withFood.map((day, i) => [day, got[i]]));
+      const out: Record<string, PlanProgress | null> = {};
+      for (const x of d.days) {
+        const week = weeks[mondays.indexOf(mondayOf(x.day))];
+        const at = daysApart(mondayOf(x.day), x.day);
+        // The week's answer, read for this one day: each daily check's value that day, and
+        // whether it is within what the note holds the person to.
+        out[x.day] =
+          week?.plan && (x.rows ?? []).length
+            ? {
+                ...week,
+                checks: week.checks
+                  .filter((c) => c.per === 'day')
+                  .map((c) => {
+                    const v = c.days[at];
+                    const value = v === null || v === undefined ? undefined : v;
+                    const state =
+                      value === undefined
+                        ? ('none' as const)
+                        : c.max !== undefined && value > c.max
+                          ? ('over' as const)
+                          : c.min !== undefined && value < c.min
+                            ? ('under' as const)
+                            : ('met' as const);
+                    return { ...c, value, state };
+                  }),
+              }
+            : null;
+      }
+      outlook = out;
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);

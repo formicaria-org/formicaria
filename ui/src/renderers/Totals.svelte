@@ -309,7 +309,7 @@
                   {:else}
                     <p>It is worked out from the whole day, not from one value of each entry.</p>
                   {/if}
-                  {#each [dishesFor(c, dishes, room)] as ideas (c.id)}
+                  {#each [dishesFor(c, dishes, room, 3, plan?.checks ?? [])] as ideas (c.id)}
                     {#if ideas.length}
                       <p>
                         A serving of these has most of it{room !== null
@@ -335,6 +335,12 @@
                               >
                               <span class="to">{shownValue(c, x.reaches)}</span>
                             </button>
+                            {#if x.over.length}
+                              <p class="but">
+                                but it would take {x.over.map((l) => l.toLowerCase()).join(' and ')} past
+                                {x.over.length === 1 ? 'its' : 'their'} limit
+                              </p>
+                            {/if}
                           </li>
                         {/each}
                       </ul>
@@ -819,6 +825,7 @@
   }
   .why ul li {
     display: flex;
+    flex-wrap: wrap;
     padding: 0;
     border: 0;
   }
@@ -879,6 +886,11 @@
     font: inherit;
     text-align: left;
     cursor: pointer;
+  }
+  .why .but {
+    margin: 0 0 var(--space-1) var(--space-2);
+    font-size: var(--text-xs);
+    color: var(--danger-fg);
   }
   .why .to {
     flex: none;

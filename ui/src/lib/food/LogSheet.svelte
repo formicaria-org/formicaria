@@ -164,6 +164,32 @@
     /** Where the figures were looked up, when they were. */
     page: string;
   } | null>(null);
+  /// Reading the number off a picture of the barcode. The same "take or choose a picture" the
+  /// note panel uses, so no camera permission is asked for; the picture is read here and kept
+  /// nowhere.
+  let reading2 = $state(false);
+  let photo = $state<HTMLInputElement | null>(null);
+  async function readPhoto() {
+    const l = labelling;
+    const file = photo?.files?.[0];
+    if (photo) photo.value = '';
+    if (!l || !file || reading2) return;
+    reading2 = true;
+    lookedUp = '';
+    try {
+      const { barcodeIn } = await import('./scan');
+      const code = await barcodeIn(file);
+      if (labelling !== l) return;
+      if (code) l.barcode = code;
+      else
+        lookedUp =
+          'No barcode could be read in that picture. Try again closer and in good light, or type the number.';
+    } catch {
+      lookedUp = 'The barcode reader could not start on this device. Type the number instead.';
+    } finally {
+      reading2 = false;
+    }
+  }
   /// Asking Open Food Facts for the product under a barcode: one request, on this press only
   /// (`decisions.md#data`, 2026-10-12). What comes back fills the form; the person saves it.
   let looking = $state(false);
@@ -1155,10 +1181,10 @@
         <ol class="asis">
           {#each reading.steps as step, i (i)}<li>{step}</li>{/each}
         </ol>
+        {#each reading.notes ?? [] as note, i (i)}<p class="hint">{note}</p>{/each}
         <p class="hint">
-          Source: {carried?.source ?? ''}. Ingredients and directions as published; the
-          <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a> has its
-          tips and notes.
+          Source: {carried?.source ?? ''}. As published, on the
+          <a href={reading.url} target="_blank" rel="noreferrer noopener">recipe's own page</a>.
         </p>
         <div class="pair">
           <button type="button" class="quiet" onclick={() => (reading = null)}>Back</button>
@@ -1184,6 +1210,18 @@
             autocomplete="off"
           />
         </label>
+        <input
+          bind:this={photo}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onchange={readPhoto}
+          aria-label="a picture of the barcode"
+        />
+        <button type="button" class="quiet" onclick={() => photo?.click()} disabled={reading2}>
+          {reading2 ? 'Reading…' : 'Photograph the barcode'}
+        </button>
         {#if badCode}
           <p class="hint">
             That is not a barcode number: its last digit does not check. Leave it empty if unsure.

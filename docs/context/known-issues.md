@@ -2286,3 +2286,24 @@ A step that edited the docs and then ran the gate in one background command fail
 assertion; the gate ran anyway, its result was read, and the commit message claimed docs that
 were not there. **An edit script's own exit is checked before anything is built on it**, and a
 commit message lists only what `git diff --stat` shows.
+
+## Reading a barcode from a photograph — traps (2026-10-12)
+
+- **No camera permission is declared, on purpose.** The picture comes from a file input with
+  `capture`, as *Take a photo* does; declaring CAMERA would make both prompt first
+  (`NotePanel.svelte`'s note says why).
+- **The reader's WebAssembly must come from the app** (`scan.ts` overrides `locateFile` with
+  Vite's `?url`). Its default is a CDN the phone's content policy blocks.
+- **Tested only with a drawn EAN-13** in headless Chromium against the built program. A real
+  photograph — skewed, blurred, on a curved pack — has not been tried, nor any phone.
+- `svelte-check` counts more files since the dependency came in (its type files); that is not a
+  regression.
+
+## A second flake, seen once: Vitest closing a worker while a console line was in flight (2026-10-12)
+
+One run of the gate ended `116 passed, 870 passed, Errors 1`: *"EnvironmentTeardownError: Closing
+rpc while onUserConsoleLog was pending"*, attributed to `App.features.test.ts`. No test failed;
+something wrote to the console as its worker was shut down, and Vitest counts that as an error.
+Three runs straight after were clean, and the whole gate passed on the next try. **Not
+diagnosed.** If it returns, look for work still running when a test ends (a timer or a request
+that logs on completion) before reaching for a retry.

@@ -1087,23 +1087,24 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    from the desktop build: a known product, a number that fails its check (refused unsent), an
    unknown one. **Left:** the phone shell's branch has never been compiled on this machine or
    run on a phone (it compiles for Android: `cargo check` in the android environment,
-   2026-10-12); the camera (`zxing-wasm`, its own decision, waiting for the owner's yes); OFF's
-   own page
+   2026-10-12); a barcode is read from a photograph (`decisions.md#ui`, 2026-10-12) — read from
+   a drawn EAN-13 in a browser, **never from a real photograph or on a phone**; a live
+   viewfinder is not built; OFF's own page
    on share-alike for one stored product is still unread; a product cannot be changed from the
    sheet once saved; a label's vitamins have no fields.
 6. **What is in the kitchen** — built as a list of names on the Menu (`decisions.md#data`,
    2026-10-12). Left: the match is by exact name; a ticked shopping list is not read back.
-7. **Recipes and suggestions** — the NHLBI's 54 are carried, searchable by dish or ingredient
-   and shown as published; a check that is short lists dishes with most of what is missing,
-   and one press opens a dish (`decisions.md`, 2026-10-12, two entries). **Left:** a dish is
-   ranked on one value at a time; nothing is proposed for a check that is over; the kitchen
-   count is by exact name and only for a person's own recipes; the carried recipes' tips and
-   notes and their "Recipe Source" lines; the Institute's no-endorsement condition should the
-   app ever be sold.
+7. **Recipes and suggestions** — the NHLBI's 54 are carried with their tips and notes,
+   searchable and shown as published; a check that is short lists dishes with most of what is
+   missing, says when one would push another value past its limit, and opens with one press
+   (`decisions.md`, 2026-10-12). **Left:** nothing is proposed for a check that is over; the
+   kitchen count is by exact name and only for a person's own recipes; each page's intro
+   sentence and "Recipe Source" line; the Institute's no-endorsement condition should the app
+   ever be sold.
 8. **A view to plan meals over several days** — built as *Menu*, with the kitchen and each day
    held against the diet as planned (`decisions.md#ui`, 2026-10-12). Left: filling a whole
    menu's gaps in one go; a source for how long a cooked dish keeps; the shopping list is a
-   snapshot; one ask a day for the outlook is unmeasured on a large vault.
+   snapshot.
 9. **An amount as a range** — built for a logged food. Left: a recipe's ingredients; a plan is
    measured on the middle of the range.
 

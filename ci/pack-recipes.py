@@ -52,6 +52,7 @@ nothing is written and the exit status is 1.
 Standard library only.
 """
 import html.parser
+import html
 import json
 import re
 import sys
@@ -286,6 +287,17 @@ def recipe(path, text):
 
     entry["ingredients"] = page.ingredients
     entry["steps"] = page.steps
+
+    # What the page prints under its directions — a tip, a note, a variation — is part of the
+    # recipe as published (some are about safety), so it is carried too, each paragraph whole.
+    after = re.search(r"Directions</h2>\s*<ol>.*?</ol>(.*?)</div>", text, re.S)
+    notes = [
+        tidy(html.unescape(re.sub(r"<[^>]+>", "", p)))
+        for p in re.findall(r"<p[^>]*>(.*?)</p>", after.group(1) if after else "", re.S)
+    ]
+    notes = [n for n in notes if n]
+    if notes:
+        entry["notes"] = notes
 
     per_serving = {}
     if re.fullmatch(r"\d+", page.fields.get("calories", "")):

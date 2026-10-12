@@ -250,7 +250,12 @@ npm_licences() {
     echo "<https://www.nhlbi.nih.gov/health/heart-healthy-living/healthy-foods/healthy-eating-recipes>."
     echo "The Institute states that information on its website is in the public domain unless noted"
     echo "otherwise, and asks that it not be changed nor used to endorse a product. Each recipe's"
-    echo "tips and notes are on its own page and are not carried."
+    echo "tips and notes are carried with it."
+    echo
+    echo "## The barcode reader"
+    echo
+    echo "\`zxing-wasm\` (MIT, listed above) carries ZXing-C++ compiled to WebAssembly:"
+    echo "<https://github.com/zxing-cpp/zxing-cpp>, Apache-2.0."
     echo
     echo "## Data fetched when a person asks"
     echo

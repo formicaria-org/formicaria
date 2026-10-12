@@ -2207,6 +2207,7 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
             servings: 8,
             ingredients: ['3 C water', '1 C diced tomatoes'],
             steps: ['Heat water in a large pot.', 'Serve hot.'],
+            notes: ['Tip: Good with bread.'],
             per_serving: { kcal: 119, fat_mg: 1000, sodium_ug: 196_000 },
           },
         ],

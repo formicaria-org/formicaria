@@ -90,7 +90,7 @@ An ingredient has to be a food from the list.
 Under your own recipes, **From the NHLBI** lists 54 recipes — search them by dish or by
 ingredient — from the U.S. National Heart, Lung,
 and Blood Institute, which publishes them in the public domain. Open one to read its ingredients
-and directions exactly as published, with a link to its own page for the tips and notes. **Add a
+directions, tips and notes exactly as published, with a link to its own page. **Add a
 serving** logs it — or plans it, from the Menu — with the Institute's own figures for a serving.
 
 Their amounts are in cups and spoons, so the app does not add their ingredients up: on the Menu
@@ -121,6 +121,10 @@ ingredient list as well.
 It is saved as a note of yours and found from then on by its name, or by its barcode number, in
 the same search. Logging some of it works like any other food.
 
+**Photograph the barcode** takes or chooses a picture and reads the number off it, so you need
+not type it. The picture is read on your device and is not kept. If nothing can be read, try
+again closer and in good light.
+
 **Looking it up.** Once the form has a barcode number, **Look it up at Open Food Facts** asks
 that public database for the product and fills the form with what it has. Check it against the
 pack before you save: volunteers typed it in, it can be wrong, and for many products — more so
@@ -147,7 +151,8 @@ of a day are met. Only the ones that are off are listed, each with how far: *13 
 over*. Press one to see which of today's foods put most into it. When you are short of
 something, it also lists up to three dishes — from your recipes and the ones that come with the
 app — a serving of which has most of it, and what your day would then come to; press a dish to
-open it. That is addition, not advice: it looks at one thing at a time.
+open it. If a serving would take something else past its limit, it says so. That is addition,
+not advice.
 
 ### All nutrients
 

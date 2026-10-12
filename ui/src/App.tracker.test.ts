@@ -475,6 +475,7 @@ test('a recipe carried in the app is shown as published and logged by its source
   const recipe = await within(sheet).findByRole('region', { name: 'a recipe, as published' });
   expect(within(recipe).getByText('3 C water')).toBeTruthy();
   expect(within(recipe).getByText('Heat water in a large pot.')).toBeTruthy();
+  expect(within(recipe).getByText('Tip: Good with bread.')).toBeTruthy();
   expect(within(recipe).getByText(/National Heart, Lung, and Blood Institute/)).toBeTruthy();
   expect(within(recipe).getByRole('link', { name: "recipe's own page" })).toBeTruthy();
 });

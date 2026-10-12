@@ -675,6 +675,8 @@ export interface CarriedRecipe {
   servings?: number;
   ingredients: string[];
   steps: string[];
+  /** What the page prints under its directions: a tip, a note, a variation. */
+  notes?: string[];
   /** The source's own values for a serving, by the keys every food uses. */
   per_serving: Record<string, number>;
 }
