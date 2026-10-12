@@ -1268,9 +1268,9 @@ view groups, the screens, a Settings switch, and the food list (`fm-core/src/pac
   value picked from its menu. **Taken out again:** the group's own bar, its list of groups and
   its add sheet (`GroupBar`, `SpacePicker`, `AddSheet`); *Everything* (with the `entries:` and `limit:`
   view keys), the *Weight* view, the ring over the board and the fortnight strips.
-  **Gaps this leaves.** **A weight cannot be logged**: `MeasureSheet.svelte`, `AddAction::Body`
-  and the mean aggregation are still there, reached by no shipped view — a vault's own `.view`
-  with `log: body` still works. The code that lets a shipped view join Library or Tasks
+  **Gaps this leaves.** A weight is written down from Food → Trends since v0.7.2 (a metric
+  with `log: body`, opening `MeasureSheet.svelte`); `AddAction::Body` itself is still reached
+  by no shipped view — a vault's own `.view` with `log: body` uses it. The code that lets a shipped view join Library or Tasks
   (`spaces` in `App.svelte`) now has nothing using it. A vault that already added the five
   earlier starters keeps them, bodies empty, the two program ones included.
   **Decided and not done: the Library as the first screen** — a fresh workspace still opens on the

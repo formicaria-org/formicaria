@@ -5,7 +5,8 @@ how a week went, and the sets of a session. What you log is
 kept as notes in your own notebook — plain files, like everything else.
 
 > **Early.** New in 0.7.0, and used so far by one person on Linux and on an Android phone. On an
-> iPhone, a Mac or a Windows computer it has not been tried.
+> iPhone, a Mac or a Windows computer it has not been tried. Following a diet or a regime (0.7.1),
+> weight as a trend and routines (0.7.2) were released before being tried on a phone.
 
 ## Hiding it
 

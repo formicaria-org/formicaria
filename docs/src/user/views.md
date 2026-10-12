@@ -13,17 +13,17 @@ The views are gathered into four groups, and they are all ways of looking at the
 |---|---|---|
 | **Library** | everything you have written, browsed by tag | Timeline, Search |
 | **Tasks** | notes with a status or a date | Board, Agenda |
-| **Food** | meals, recipes, targets | Day, Trends |
-| **Fitness** | sessions and sets | Session, Volume |
+| **Food** | meals, recipes, targets, a diet to follow | Day, Trends, Diet |
+| **Fitness** | sessions, sets, activities, a regime to follow | Session, Volume, Regime |
 
 - **A group's views are tabs** across the top of its window: in Tasks, *Board* and *Agenda*; in
-  Food, *Day* and *Trends*.
+  Food, *Day*, *Trends* and *Diet*.
 - **On a wide window** the groups head the sidebar.
 - **On a phone** the bar along the bottom is the same on every screen: the **＋**, search, the
   menu of views, your open windows, backing up, settings. The menu of views lists the same
   places, by the same names, as the sidebar of a wide window.
 - **The ＋ is one control, and what it makes follows what you are looking at.** In Food it logs a
-  food; in Fitness, an exercise; anywhere else it opens the list of things to make — a note, a
+  food; in Fitness, an exercise or an activity; anywhere else it opens the list of things to make — a note, a
   board, a discussion, a paper, and one entry for each of your
   [templates](./notes.md#templates).
 - **Back** returns to where you came from. Stepping between a group's own views does not add a
