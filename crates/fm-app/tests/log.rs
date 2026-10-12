@@ -6,8 +6,8 @@
 
 use fm_app::commands;
 use fm_app::log::{
-    create_notes, log_days, log_products, log_recent, log_recipes, log_routines, set_properties,
-    NoteDraft,
+    create_notes, log_days, log_kitchen, log_products, log_recent, log_recipes, log_routines,
+    set_properties, NoteDraft,
 };
 use fm_app::views::{group_of, run_shipped, shipped_views, totals_named, with_shipped, Renderer};
 use fm_core::MemoryStore;
@@ -716,4 +716,23 @@ fn a_packaged_food_is_a_note_with_what_its_label_says_per_100_g() {
     assert_eq!(p.per100.keys().collect::<Vec<_>>(), ["kcal", "protein_mg", "sodium_ug"]);
     let r = log_days(&s, &day_view(), "2026-10-01", "2026-10-12", false).unwrap();
     assert_eq!(r.days.iter().map(|d| d.of).sum::<usize>(), 1, "the product is in no day");
+}
+
+/// What is in the kitchen is a list of names: notes carrying `kitchen`, in no log and no day.
+#[test]
+fn the_kitchen_is_the_notes_that_say_so_by_name() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft("rice", "", json!({ "kitchen": 1 })),
+            draft("Olive oil", "", json!({ "kitchen": 1, "product": "label", "kcal": 884 })),
+            draft("Bread", "2026-10-11", json!({ "log": "food", "kitchen": 1, "kcal": 250 })),
+            draft("A note", "", json!({})),
+        ],
+    )
+    .unwrap();
+    let got: Vec<String> = log_kitchen(&s).unwrap().into_iter().map(|k| k.title).collect();
+    assert_eq!(got, ["Olive oil", "rice"]);
 }

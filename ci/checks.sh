@@ -2359,6 +2359,19 @@ if [ -f "$mail_rs" ]; then
     fi
 fi
 
+# **Open Food Facts is asked one thing only** (`decisions.md` 2026-10-12, *a barcode may be looked
+# up, once, when the person asks*): one product, read, by its barcode. Its terms allow that and
+# ask that nothing be scraped or searched as a person types; a second address here — search, a
+# write, an image — is a different decision.
+echo "[check] Open Food Facts is only ever asked for one product by its barcode..."
+off=$(grep -rnoE 'https://[a-z.]*openfoodfacts\.org[^"` )]*' crates mobile/src-tauri/src 2>/dev/null \
+    | grep -vE 'https://world\.openfoodfacts\.org/(api/v2/product|product)(/[0-9]+(\?fields=)?)?$' || true)
+if [ -n "$off" ]; then
+    echo "  FAIL: an Open Food Facts address other than the product read:"
+    echo "$off" | sed 's/^/    /'
+    fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
     echo "all architectural checks passed."
 fi

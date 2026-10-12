@@ -37,6 +37,9 @@ mod update;
 // `fm-app`, and because the addresses are a secret only this machine holds.
 #[cfg(feature = "calendar")]
 mod calendar;
+// A packaged food looked up by its barcode: one request, when a person asks.
+#[cfg(feature = "products")]
+mod products;
 // Gmail, read-only: the sign-in, and reading labelled mail into conversation notes.
 #[cfg(feature = "mail")]
 mod mail;
@@ -1161,6 +1164,12 @@ fn handle(conn: &mut dyn Conn, peer: Peer, state: &Arc<AppState>) -> std::io::Re
     // Your own calendars. Every route here is in `REMOTE_DENIED`: the addresses are secrets.
     #[cfg(feature = "calendar")]
     if let Some(done) = calendar::route(reader.get_mut(), &path, &body, state) {
+        return done;
+    }
+
+    // A packaged food by its barcode. One fixed address, nothing of this machine's in it.
+    #[cfg(feature = "products")]
+    if let Some(done) = products::route(reader.get_mut(), &path, &body) {
         return done;
     }
 

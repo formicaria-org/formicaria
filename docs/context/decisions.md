@@ -22,7 +22,7 @@ survives (the value of "we tried X, then Y" is the whole chain). Prune only exac
 The [overview.md](./overview.md) router sends you here by **subject**; find it below, then grep the
 heading. Retrieval is per-decision, never "load the whole 1,300-line log."
 
-- **`#seams`** (the compile-time invariants): ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
+- **`#seams`** (the compile-time invariants): ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A tool is a deterministic command in a non-agent crate*** and ***a logged entry is a note with a reserved `log` property*** (2026-10-11; read before adding a command the assistant will call, a tracker, or an exclusion from the planning views) · ***A poisoned lock is recovered, not propagated*** ·
   ***The vault lock is not held across a subprocess or a revwalk*** (read before adding a `dispatch`
   arm that shells out or walks git) · ***`Kind` is the second predicate that reaches SQL***
   (read before adding a pushdown — and before assuming `perf.rs` can see your change) ·
@@ -128,7 +128,7 @@ heading. Retrieval is per-decision, never "load the whole 1,300-line log."
   before proposing that restic snapshot the vault root — it also holds the git-lfs argument) ·
   ***Attachments in git have a ceiling, because there is no LFS*** (read before changing
   `git_assets_max`'s bounds, or before adding an "unlimited" option).
-- **`#data`**: ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
+- **`#data`**: ***The kitchen is a list of names*** (2026-10-12; read before giving a kitchen item an amount, or reading a shopping-list note back) · ***A barcode may be looked up, once, when the person asks*** (2026-10-12; read before adding any other request to Open Food Facts, sending anything back, or showing a score or a picture of theirs) · ***A packaged food is a note read off its label; nothing is looked up yet*** (2026-10-12; read before adding a barcode look-up, a camera reader, or a field to a product) · ***Food made easy to use: a time on every entry, the diet on the day, every nutrient, an amount as a range*** (2026-10-12; read before touching an entry's `start`, what counts as eating, a nutrient reference, or how an amount scales a value) · ***Weight is one of the trends, and a routine is a session kept under a name*** (2026-10-12; read before adding a value from another log to a view, changing where a weight comes from, or storing anything that is planned and not yet on a day) · ***A diet or a regime is chosen from a library and followed as a program note*** (2026-10-12; read before adding an option to `plans.json`, a kind of check, a property on an activity or a set, or anything that tells a person what to eat or do) · ***A recipe is the sum of what went in: a note with servings, a note per ingredient, nothing adjusted for cooking*** (2026-10-11; read before changing how a recipe is stored, adding a cooked weight or a retention factor, or logging anything that is not a weight of one food) · ***Every nutrient key has one international definition; a food group is the table's own name or nothing; international bodies before national ones*** (2026-10-11; read before adding a nutrient key, matching a table's column to one, grouping foods, or choosing between sources) · ***The food list is European; USDA fills only what Europe's tables lack; reference values are European and WHO's*** (2026-10-11; read before changing which tables the list is built from, attaching a portion to a food, or choosing whose reference value is shown) · ***Nothing is invented: every label, formula and suggested number names its source*** (2026-10-11; read before adding a diet label, a target the app suggests, a formula on a person's measurements, or any default that reads as advice — and `sources-2026-10-11.md` with it) · ***A measured value is a mean, a meal ahead is a plan, a program may end, and a session is planned as sets*** (2026-10-11; read before adding a metric that is not a sum, anything dated ahead, or a way to plan training) · ***A logged entry is a note with a reserved `log` property, whole numbers, and its unit in the key*** (2026-10-11; read before storing a number, a total, or a tracker entry) · ***The email exchange lives in the conversation note*** (2026-10-09; reverses "its text never enters a vault" — read before changing what `fm_core::mail` writes) · ***A repeating meeting is one note per occurrence, laid out two months ahead*** (read before touching `fm_core::recur` or `calendar::expand`) · ***An import converts; adoption renders*** (read before touching `import.rs`, before
   adding a `source_key` convention, and before assuming Track V4 covers this) ·
   ***A tag may contain a space, and both doors must agree what that means*** ·
   ***An anchored asset reference points at a place, and stays an ordinary link***
@@ -9331,6 +9331,9 @@ lives in `ui/src/lib`. A renderer in `ui/src/renderers` stays generic.
 **What prompted it.** Micronutrients cannot be typed by hand; the owner chose an offline pack of
 public-domain generic foods (USDA), without barcodes or branded products. **Ruled, not yet built.**
 
+> SUPERSEDED IN PART on 2026-10-12 by *a barcode may be looked up, once, when the person asks*:
+> "without barcodes or branded products" no longer holds. The pack itself is unchanged.
+
 **Decision.** A **reference pack** is a read-only, checksum-verified file a tool reads. It extends
 the fetched-artifact exception (2026-09-02) under the same terms as a model:
 - **never fetched unasked**; Settings states its name, size and licence first (2026-10-10);
@@ -10126,3 +10129,56 @@ code will not be fixed upstream, and the gate will no longer say so. **What ends
 replacing the YAML parser — a migration over the one format every file in every vault depends on,
 to be planned and run against real vaults (byte-identical round trips are the test), not done on
 a release day. It is in `outstanding.md` §2.25.
+
+## 2026-10-12 — a barcode may be looked up, once, when the person asks `#data` `#seams` `#toolchain`
+
+**Reverses** the 2026-10-11 line that left barcodes and branded products out ("one network
+request per scan, which is a different decision"). That decision is this one. **The owner**, asked
+whether a scan may reach the network and told it would be the first thing in food to do so:
+*"continue with the barcode lookup"*.
+
+**The four questions.** `#data`, `#seams`, `#toolchain`. Read: *no HTTP client may enter `fm-app`
+or `fm-core`* (the calendar entry of 2026-10-09); *a packaged food is a note read off its label*;
+the terms in `sources-2026-10-11.md` §6c. Verdict: **contradicts a standing decision — reversed
+here, first** — and **extends** the shells' network exception by one fixed address. No new
+dependency: `fm-fetch` is in both shells already.
+
+**Decision.**
+- **One request, to one address, only when the person presses for it**: `GET
+  https://world.openfoodfacts.org/api/v2/product/<digits>` with a `fields=` list. Version 2 because
+  version 3.6 answers an empty nutrition block. The digits are checked by GS1's rule first, so
+  nothing but a barcode is ever sent. Sent with a User-Agent naming the app, its version and the
+  project's address, as Open Food Facts asks; no account, no key.
+- **The shells fetch; `fm-app` only reads the answer** (`product.rs`: the address, and a pure
+  parser with tests). `fm-serve` answers `/api/product_lookup`; the phone shell answers the same
+  command. `ci/checks.sh` fails if any other Open Food Facts address appears.
+- **The answer fills the label form; the person saves it.** Nothing is written without that
+  press, so a wrong entry in a volunteer database is seen before it is kept. The note keeps the
+  product's page as `source_url` and says in its text where the figures came from.
+- **Shown where the product is**: "Contains data from Open Food Facts, available under the Open
+  Database License", with links, and their own caveat that the data "can contain errors".
+- **Not taken**: pictures (other rights may apply), Nutri-Score, NOVA, Green-Score (Nutri-Score
+  needs permission asked first), and nothing is sent back.
+
+**Costs, and what stays open.** A barcode sent is a fact about what someone bought, sent to a
+third party from their address; the screen says so before the press. Coverage where the owner
+lives is thin (11,883 products), so the typed label remains the other half. Open Food Facts' own
+reading of share-alike for one product kept in private notes was not readable; the licence text
+leaves insubstantial extraction free, and that is what this rests on. Not tried on a phone or
+without a network.
+
+## 2026-10-12 — the kitchen is a list of names `#data` `#ui`
+
+**The owner:** *"keep an updated list of ingredients one has"*. **The four questions.** `#data`,
+`#ui`; read *a menu is the days ahead, filled*. Verdict: **permitted** — one property, one read
+command.
+
+**Decision.** Something a person has at home is an ordinary note carrying `kitchen`; `log_kitchen`
+lists them by name. **Have or have not, and no amount**: an amount is true for a day and then a
+chore, and a list nobody keeps up is worse than none. It lives on the Menu: each thing the menu
+needs can be marked *have it*, what is had is left off the shopping list (and named at its
+foot), and the list can be added to and cleared by hand. Matching is by name, ignoring case.
+
+**Costs.** "Rice" and "Brown rice, cooked" are two names: the match is exact, so an item is best
+marked from the menu's own line. Ticking a box in a shopping-list note does not put the item in
+the kitchen — the note is a snapshot and the app does not read it back.

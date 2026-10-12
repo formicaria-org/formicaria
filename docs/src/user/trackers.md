@@ -110,7 +110,12 @@ ingredient list as well.
 It is saved as a note of yours and found from then on by its name, or by its barcode number, in
 the same search. Logging some of it works like any other food.
 
-The app does not look products up anywhere yet: nothing leaves your device.
+**Looking it up.** Once the form has a barcode number, **Look it up at Open Food Facts** asks
+that public database for the product and fills the form with what it has. Check it against the
+pack before you save: volunteers typed it in, it can be wrong, and for many products — more so
+outside Europe and North America — there is nothing. This is the one thing in Food that reaches
+the internet. It happens only when you press the button, and it sends the barcode number and
+nothing else. The saved note says where its figures came from.
 
 ### When you ate
 
@@ -157,8 +162,10 @@ Set how many days with the minus and plus at the top.
 - **Dishes on this menu** says, for each of your recipes on it, how many of the servings it makes
   you have planned.
 - **What it needs** adds up what the planned meals take: a recipe's ingredients for the servings
-  planned, and plain foods by their amount. **Make a shopping list** saves it as a note with a
-  box to tick on each line.
+  planned, and plain foods by their amount. Mark what you already have with **need it / have
+  it**. **Make a shopping list** saves the rest as a note with a box to tick on each line.
+- **In your kitchen** is the list of what you said you have — names only, no amounts to keep up.
+  Add to it by hand, or take something off when you run out.
 
 Each day shows what it would come to against your energy target. The app does not say how long a
 cooked dish keeps.

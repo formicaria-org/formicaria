@@ -11,7 +11,7 @@
   // where the food came from, or from the values as they were when this sheet opened.
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
-  import { logRecent, logRecipes, logProducts, foodSearch, foodGet } from '../ipc';
+  import { logRecent, logRecipes, logProducts, productLookup, foodSearch, foodGet } from '../ipc';
   import { digitsOf, isBarcode, sameCode } from './barcode';
   import {
     createNotesUndoable,
@@ -149,7 +149,43 @@
     serving: number | string | null;
     ingredients: string;
     values: Record<string, number | string | null | undefined>;
+    /** Where the figures were looked up, when they were. */
+    page: string;
   } | null>(null);
+  /// Asking Open Food Facts for the product under a barcode: one request, on this press only
+  /// (`decisions.md#data`, 2026-10-12). What comes back fills the form; the person saves it.
+  let looking = $state(false);
+  let lookedUp = $state('');
+  async function lookUp() {
+    const l = labelling;
+    if (!l || looking || !isBarcode(l.barcode)) return;
+    looking = true;
+    lookedUp = '';
+    try {
+      const found = await productLookup(digitsOf(l.barcode));
+      if (labelling !== l) return;
+      if (!found) {
+        lookedUp = 'Open Food Facts does not have this product. Type its label in below.';
+        return;
+      }
+      l.name = l.name.trim() || found.name;
+      l.serving = l.serving || (found.serving_g ?? null);
+      l.ingredients = l.ingredients.trim() || found.ingredients;
+      l.page = found.page;
+      for (const f of LABEL) {
+        const v = found.per100[f.key];
+        if (v !== undefined) l.values[f.key] = Math.round((v / f.per) * 100) / 100;
+      }
+      lookedUp =
+        found.per100.kcal === undefined
+          ? 'Found, but with no energy figure: copy it from the pack.'
+          : 'Found. Check it against the pack before you save: volunteers typed it in.';
+    } catch (e) {
+      lookedUp = String(e).replace(/^Error: /, '');
+    } finally {
+      looking = false;
+    }
+  }
   const startLabel = () =>
     (labelling = {
       name: /^[\d\s-]+$/.test(q.trim()) ? '' : q.trim(),
@@ -157,6 +193,7 @@
       serving: null,
       ingredients: '',
       values: {},
+      page: '',
     });
   const labelValues = $derived.by(() => {
     const out: Record<string, number> = {};
@@ -182,11 +219,17 @@
         [
           {
             title,
-            body: l.ingredients.trim()
-              ? `Ingredients, as on the pack:\n\n${l.ingredients.trim()}\n`
-              : '',
+            body:
+              (l.ingredients.trim()
+                ? `Ingredients, as on the pack:\n\n${l.ingredients.trim()}\n`
+                : '') +
+              (l.page
+                ? `\nLooked up at [Open Food Facts](${l.page}) and checked by you. Contains data ` +
+                  `from Open Food Facts, available under the Open Database License.\n`
+                : ''),
             props: {
               product: 'label',
+              ...(l.page ? { source_url: l.page } : {}),
               ...(l.barcode.trim() ? { barcode: digitsOf(l.barcode) } : {}),
               ...(serving > 0 ? { serving_g: serving } : {}),
               ...labelValues,
@@ -1050,7 +1093,22 @@
           <p class="hint">
             That is not a barcode number: its last digit does not check. Leave it empty if unsure.
           </p>
+        {:else if labelling.barcode.trim()}
+          <button type="button" class="quiet" onclick={lookUp} disabled={looking}>
+            {looking ? 'Asking…' : 'Look it up at Open Food Facts'}
+          </button>
+          <p class="hint">
+            This sends the barcode number, and nothing else, to
+            <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer noopener"
+              >Open Food Facts</a
+            >, a public database kept by volunteers (<a
+              href="https://opendatacommons.org/licenses/odbl/1-0/"
+              target="_blank"
+              rel="noreferrer noopener">Open Database License</a
+            >). Its data can contain errors and is not for medical use.
+          </p>
         {/if}
+        {#if lookedUp}<p class="hint" role="status">{lookedUp}</p>{/if}
         <p class="hint">
           Per 100 g, as the label prints it. Energy is needed; the rest as you like.
         </p>
@@ -1188,7 +1246,9 @@
           {/each}
         </ul>
         <button type="button" class="link" onclick={startLabel}>
-          A packaged food? Write it down from its label
+          {isBarcode(q) && mine.length === 0
+            ? 'A barcode you have not written down: add it'
+            : 'A packaged food? Write it down from its label'}
         </button>
       {:else if mode === 'recipes'}
         {#if recipes === null}

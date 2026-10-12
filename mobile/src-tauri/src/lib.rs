@@ -599,6 +599,31 @@ fn fm(
         })
         .to_string());
     }
+    // **A packaged food by its barcode** (`decisions.md` 2026-10-12): one request to one address,
+    // made here because no HTTP client may enter `fm-app`, which says which address and reads
+    // the answer. `fm-fetch` is in this build with the updater.
+    if cmd == "product_lookup" {
+        let code = args.get("code").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        #[cfg(feature = "update")]
+        {
+            let found = fm_app::product::lookup(&code, &|url, agent| {
+                fm_fetch::request(
+                    "GET",
+                    url,
+                    &[("User-Agent", agent)],
+                    None,
+                    fm_app::product::LIMIT,
+                )
+                .map_err(|e| e.to_string())
+            })?;
+            return serde_json::to_string(&found).map_err(|e| e.to_string());
+        }
+        #[cfg(not(feature = "update"))]
+        {
+            let _ = code;
+            return Err("This build of the app cannot look a product up. Type the label in.".into());
+        }
+    }
     // **Updating the app.** A transport concern, like the agent's rows above: fm-serve answers these on
     // the desktop and the core `dispatch` never has them. **Matched by exact name** — `update_body` is
     // a note being saved, and a prefix match would swallow every edit made on this phone.

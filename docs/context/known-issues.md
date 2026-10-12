@@ -2246,3 +2246,16 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
 - **A typed label states salt; the note keeps sodium** (÷ 2.5). Reading the note's `sodium_ug` as
   salt is off by that factor.
 - **A barcode of 12 digits and the same with a zero in front are one product** (`sameCode`).
+
+## The barcode look-up and the kitchen — traps (2026-10-12)
+
+- **The request is made by the shell, never by `fm-app`.** `product.rs` gives the address and
+  reads the answer; `fm-serve/src/products.rs` and a branch of the phone shell's `fm` command call
+  `fm_fetch::request`. The phone branch is behind `feature = "update"` because that is what
+  brings `fm-fetch` in; a build without it answers that it cannot look products up.
+- **The phone shell is not in the workspace**, so the gate does not compile that branch. It was
+  read, not built, before v0.7.4's release build.
+- **Version 3.6 of their API answers an empty nutrition block**; the address says `v2`. A guard in
+  `ci/checks.sh` fails on any other Open Food Facts address.
+- **They answer sodium in grams**; the note keeps micrograms and the form shows salt.
+- **A kitchen item is matched by its exact name**, case aside.

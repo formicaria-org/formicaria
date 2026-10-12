@@ -35,6 +35,7 @@ import type {
   RecentItem,
   Nutrients,
   Product,
+  ProductFound,
   Recipe,
   Routine,
   PlanLibrary,
@@ -1216,6 +1217,10 @@ export const logRecent = (view: string, opts: { slot?: string; q?: string; limit
 export const logRecipes = (view: string) => invoke<Recipe[]>('log_recipes', { view });
 export const logNutrients = (view: string, day: string) =>
   invoke<Nutrients>('log_nutrients', { view, day });
+/** One request to Open Food Facts, made by the shell. `null` when they have no such product. */
+export const productLookup = (code: string) =>
+  invoke<ProductFound | null>('product_lookup', { code });
+export const logKitchen = () => invoke<{ id: string; title: string }[]>('log_kitchen', {});
 export const logProducts = () => invoke<Product[]>('log_products', {});
 export const logRoutines = (view: string) => invoke<Routine[]>('log_routines', { view });
 

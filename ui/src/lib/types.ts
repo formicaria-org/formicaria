@@ -655,6 +655,16 @@ export interface Product {
   /** What a hundred grams hold, by the keys every food uses. */
   per100: Record<string, number>;
 }
+/** A product as Open Food Facts gave it, shaped as the label form's fields (`product_lookup`). */
+export interface ProductFound {
+  name: string;
+  barcode: string;
+  serving_g?: number;
+  per100: Record<string, number>;
+  ingredients: string;
+  /** The product's own page there, to link to and to credit. */
+  page: string;
+}
 /** A session kept under a name, to plan again on the days it is meant for (`log_routines`). */
 export interface Routine {
   /** The word its notes share. */

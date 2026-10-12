@@ -1082,15 +1082,16 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    sodium's EFSA figure (unread); a nutrient cannot be picked on Trends unless the view names it.
 4. **Feedback as counts** — built on Trends: times eaten a day, usual first and last. Left: days
    the diet was met, over more than the week the Diet tab shows.
-5. **Packaged food** — the half that needs no network is built: a label typed in once, a
-   barcode number checked and searchable (`decisions.md#data`, 2026-10-12). **Left, and waiting
-   for the owner's yes:** one request to Open Food Facts from the core when a barcode is not
-   known (terms read; it reverses the 2026-10-11 ruling, so the dated reversal is written
-   first; the fetch belongs in `fm-serve` and the phone shell behind their guards, with a pure
-   parser in `fm-app`). Then, separately, the camera with `zxing-wasm`. Also left: a product
-   cannot be changed from the sheet once saved (it is a note: edit it in the Library), and a
-   label's vitamins have no fields.
-6. **What is in the kitchen**: have or have not, on foods and products; no quantities.
+5. **Packaged food** — built both ways: a label typed in, and one look-up at Open Food Facts
+   when the person presses for it (`decisions.md#data`, 2026-10-12, two entries). Tried live
+   from the desktop build: a known product, a number that fails its check (refused unsent), an
+   unknown one. **Left:** the phone shell's branch has never been compiled on this machine or
+   run on a phone; the camera (`zxing-wasm`, its own decision); the credit line is on the form
+   and in the note but not in Settings, where Open Food Facts also asks for it; OFF's own page
+   on share-alike for one stored product is still unread; a product cannot be changed from the
+   sheet once saved; a label's vitamins have no fields.
+6. **What is in the kitchen** — built as a list of names on the Menu (`decisions.md#data`,
+   2026-10-12). Left: the match is by exact name; a ticked shopping list is not read back.
 7. **Recipes and suggestions.** The person's own recipes first; then NHLBI's 54 (public domain,
    its own values per serving) carried unchanged and named. Wikibooks and based.cooking may be
    carried but have no values and no grams. A suggestion says why — what it would bring the

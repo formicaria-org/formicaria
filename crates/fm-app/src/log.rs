@@ -553,6 +553,41 @@ pub fn log_products(store: &dyn Store) -> Result<Vec<Product>, StoreError> {
     Ok(out)
 }
 
+// ── what is in the kitchen ───────────────────────────────────────────────────────────────────────
+
+/// The note carrying this is something the person has at home.
+pub const KITCHEN: &str = "kitchen";
+
+#[derive(Debug, Serialize)]
+pub struct KitchenItem {
+    pub id: String,
+    pub title: String,
+}
+
+/// What the person says they have at home, by name.
+///
+/// **Have or have not, and no amount** (`decisions.md#data`, 2026-10-12, *the kitchen is a list of
+/// names*): an amount is true for a day and then a chore. An item is an ordinary note carrying
+/// `kitchen` — a packaged food's own note may carry it too — and is matched to what a menu needs
+/// by its name.
+pub fn log_kitchen(store: &dyn Store) -> Result<Vec<KitchenItem>, StoreError> {
+    let query = Query {
+        filter: crate::thread::plan_base(&[], &[KITCHEN]),
+        sort: vec![SortKey::asc("created")],
+        ..Default::default()
+    };
+    let mut out: Vec<KitchenItem> = store
+        .query(&query)?
+        .rows
+        .iter()
+        .filter(|o| o.get(LOG).is_null() && !o.get(KITCHEN).is_null())
+        .filter(|o| !is_template(o) && !is_message(o) && !is_proposal(o))
+        .map(|o| KitchenItem { id: o.id.to_string(), title: o.title.clone().unwrap_or_default() })
+        .collect();
+    out.sort_by_key(|k| k.title.to_lowercase());
+    Ok(out)
+}
+
 // ── routines ─────────────────────────────────────────────────────────────────────────────────────
 
 /// A routine's notes share one word under this key: the routine itself and each of its sets.

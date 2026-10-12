@@ -7,8 +7,8 @@
   // the day screen shows and confirms — put there with the same sheet. The shopping list is an
   // ordinary note with a box to tick on each line.
   import Icon from '../Icon.svelte';
-  import { logDays, logRecipes } from '../ipc';
-  import { createNotesUndoable } from '../undo.svelte';
+  import { logDays, logKitchen, logRecipes } from '../ipc';
+  import { createNotesUndoable, deleteNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, show, showWith, whole } from '../units';
   import type { DayTotals, NoteDraft, ObjectMeta, Recipe, TotalsDef } from '../types';
 
@@ -45,19 +45,48 @@
 
   let days = $state<DayTotals[]>([]);
   let recipes = $state<Recipe[]>([]);
+  /// What the person says they have at home: names, no amounts
+  /// (`decisions.md#data`, 2026-10-12, *the kitchen is a list of names*).
+  let kitchen = $state<{ id: string; title: string }[]>([]);
+  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+  const had = (title: string) => kitchen.find((k) => same(k.title, title));
+  let adding = $state('');
+  async function keep(title: string) {
+    const name = title.trim();
+    if (!name || had(name)) return;
+    try {
+      await createNotesUndoable([{ title: name, props: { kitchen: 1 } }], `have “${name}”`);
+      adding = '';
+      onsaved();
+      await load();
+    } catch (e) {
+      failed = String(e);
+    }
+  }
+  async function out(item: { id: string; title: string }) {
+    try {
+      await deleteNotesUndoable([item.id], `ran out of “${item.title}”`);
+      onsaved();
+      await load();
+    } catch (e) {
+      failed = String(e);
+    }
+  }
   let failed = $state('');
   let said = $state('');
   let asked = 0;
   async function load() {
     const mine = ++asked;
     try {
-      const [d, r] = await Promise.all([
+      const [d, r, k] = await Promise.all([
         logDays(view, today, addDays(today, span - 1), true),
         logRecipes(view),
+        logKitchen(),
       ]);
       if (mine !== asked) return;
       days = d.days;
       recipes = r;
+      kitchen = k;
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);
@@ -141,9 +170,12 @@
       .sort((a, b) => a.title.localeCompare(b.title));
   });
 
+  /// What is needed and not at home.
+  const toBuy = $derived(needs.filter((n) => !had(n.title)));
+
   let busy = $state(false);
   async function shoppingList() {
-    if (busy || !needs.length) return;
+    if (busy || !toBuy.length) return;
     busy = true;
     const from = dayLabel(today);
     const to = dayLabel(addDays(today, span - 1));
@@ -152,7 +184,13 @@
       body:
         `What the menu from ${from} to ${to} needs, added up from the planned meals and the ` +
         `recipes behind them. Tick what you have or have bought.\n\n` +
-        needs.map((n) => `- [ ] ${n.title} — ${showWith('amount_g', n.grams)}`).join('\n') +
+        toBuy.map((n) => `- [ ] ${n.title} — ${showWith('amount_g', n.grams)}`).join('\n') +
+        (needs.length > toBuy.length
+          ? `\n\nLeft off because you have them: ${needs
+              .filter((n) => had(n.title))
+              .map((n) => n.title)
+              .join(', ')}.`
+          : '') +
         '\n',
       props: {},
     };
@@ -266,13 +304,26 @@
   <section class="card">
     <h3>What it needs</h3>
     {#if needs.length}
-      <ul class="plain">
+      <ul class="plain needs">
         {#each needs as n (n.title)}
-          <li><span>{n.title}</span><span>{showWith('amount_g', n.grams)}</span></li>
+          {@const mine = had(n.title)}
+          <li class:have={!!mine}>
+            <span>{n.title}</span>
+            <span>{showWith('amount_g', n.grams)}</span>
+            <button
+              type="button"
+              class="have-it"
+              aria-pressed={!!mine}
+              onclick={() => (mine ? out(mine) : keep(n.title))}
+              aria-label={mine ? `no longer have ${n.title}` : `have ${n.title}`}
+            >
+              {mine ? 'have it' : 'need it'}
+            </button>
+          </li>
         {/each}
       </ul>
-      <button type="button" class="go" onclick={shoppingList} disabled={busy}>
-        Make a shopping list
+      <button type="button" class="go" onclick={shoppingList} disabled={busy || !toBuy.length}>
+        Make a shopping list{toBuy.length < needs.length ? ` of ${toBuy.length}` : ''}
       </button>
       {#if said}<p class="says" role="status">{said}</p>{/if}
     {:else}
@@ -280,6 +331,42 @@
         Plan a meal with the plus beside it. A dish from your recipes brings its ingredients here.
       </p>
     {/if}
+  </section>
+
+  <section class="card" aria-label="in your kitchen">
+    <h3>In your kitchen</h3>
+    {#if kitchen.length}
+      <ul class="chips">
+        {#each kitchen as k (k.id)}
+          <li>
+            <span>{k.title}</span>
+            <button type="button" onclick={() => out(k)} aria-label={`no longer have ${k.title}`}>
+              <Icon name="close" size={14} />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="says">
+        What you say you have is left off the shopping list. Names only: no amounts to keep up.
+      </p>
+    {/if}
+    <form
+      class="addrow"
+      onsubmit={(e) => {
+        e.preventDefault();
+        void keep(adding);
+      }}
+    >
+      <input
+        type="text"
+        bind:value={adding}
+        placeholder="Something you have"
+        aria-label="something you have"
+        autocomplete="off"
+      />
+      <button type="submit" class="quiet" disabled={!adding.trim()}>Add</button>
+    </form>
   </section>
 </div>
 
@@ -463,5 +550,78 @@
     margin: 0;
     font-size: var(--text-sm);
     color: var(--danger-fg);
+  }
+  .needs li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+  }
+  .needs li.have span {
+    color: var(--text-muted);
+    text-decoration: line-through;
+  }
+  .have-it {
+    min-height: 2.25rem;
+    min-width: 4.5rem;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: none;
+    font-size: var(--text-xs);
+    cursor: pointer;
+  }
+  .have-it[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+  .chips {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .chips li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-left: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    font-size: var(--text-sm);
+  }
+  .chips button {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .addrow {
+    display: flex;
+    gap: var(--space-2);
+  }
+  .addrow input {
+    flex: 1;
+    min-width: 0;
+    min-height: 2.75rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+  }
+  .quiet {
+    min-height: 2.75rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: none;
+    cursor: pointer;
+  }
+  .quiet:disabled {
+    opacity: 0.5;
   }
 </style>

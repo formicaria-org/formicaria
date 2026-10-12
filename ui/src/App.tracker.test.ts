@@ -406,3 +406,55 @@ test('a packaged food is written down once from its label, and is then one of yo
   expect(await within(sheet).findByRole('heading', { name: 'Penne' })).toBeTruthy();
   expect((within(sheet).getByLabelText('amount in grams') as HTMLInputElement).value).toBe('100');
 });
+
+test('a barcode is looked up only when asked, fills the label, and the note says where it came from', async () => {
+  showTrackers();
+  render(App);
+  await openFood();
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Food' }));
+  const sheet = await screen.findByRole('dialog');
+  await fireEvent.click(within(sheet).getByRole('button', { name: 'Search' }));
+  await fireEvent.input(within(sheet).getByLabelText('search foods'), {
+    target: { value: '3017624010701' },
+  });
+  await fireEvent.click(
+    await within(sheet).findByRole('button', {
+      name: 'A barcode you have not written down: add it',
+    }),
+  );
+  const form = await within(sheet).findByRole('region', {
+    name: 'a packaged food, from its label',
+  });
+  // Nothing is asked until the press; the notice says what is sent and to whom.
+  expect((within(form).getByLabelText('Energy (kcal)') as HTMLInputElement).value).toBe('');
+  expect(within(form).getByText(/sends the barcode number, and nothing else/)).toBeTruthy();
+  await fireEvent.click(
+    within(form).getByRole('button', { name: 'Look it up at Open Food Facts' }),
+  );
+  await waitFor(() =>
+    expect((within(form).getByLabelText('Energy (kcal)') as HTMLInputElement).value).toBe('539'),
+  );
+  expect((within(form).getByLabelText('Name') as HTMLInputElement).value).toBe('Nutella (Ferrero)');
+  // Sodium came back; the form shows it as the salt a label states.
+  expect((within(form).getByLabelText('Salt (g)') as HTMLInputElement).value).toBe('0.11');
+  expect(within(form).getByText(/Check it against the pack/)).toBeTruthy();
+  await fireEvent.click(within(form).getByRole('button', { name: 'Save it' }));
+  expect(await within(sheet).findByRole('heading', { name: 'Nutella (Ferrero)' })).toBeTruthy();
+});
+
+test('what you say you have in your kitchen is a list of names, kept from the menu', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Food' }));
+  const bar = await screen.findByRole('group', { name: 'Food' });
+  await fireEvent.click(within(bar).getByRole('button', { name: 'Menu' }));
+  const kitchen = await screen.findByRole('region', { name: 'in your kitchen' });
+  await fireEvent.input(within(kitchen).getByLabelText('something you have'), {
+    target: { value: 'Rice' },
+  });
+  await fireEvent.click(within(kitchen).getByRole('button', { name: 'Add' }));
+  expect(await within(kitchen).findByText('Rice')).toBeTruthy();
+  await fireEvent.click(within(kitchen).getByRole('button', { name: 'no longer have Rice' }));
+  await waitFor(() => expect(within(kitchen).queryByText('Rice')).toBeNull());
+});

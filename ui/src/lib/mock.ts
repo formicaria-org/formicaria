@@ -2178,6 +2178,25 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
       return tracker.logRecipes(notes, args as { view: string }) as T;
     case 'log_nutrients':
       return tracker.logNutrients(notes, args as { view: string; day: string }) as T;
+    case 'product_lookup':
+      // One product the stand-in knows, as their answer is read; anything else they do not have.
+      return (
+        String(args.code) === '3017624010701'
+          ? {
+              name: 'Nutella (Ferrero)',
+              barcode: '3017624010701',
+              serving_g: 15,
+              per100: { kcal: 539, fat_mg: 30_900, sodium_ug: 43_000 },
+              ingredients: 'sugar, palm oil, hazelnuts',
+              page: 'https://world.openfoodfacts.org/product/3017624010701',
+            }
+          : null
+      ) as T;
+    case 'log_kitchen':
+      return notes
+        .filter((x) => x.props.kitchen && !x.props.log)
+        .map((x) => ({ id: x.id, title: x.title ?? '' }))
+        .sort((a, b) => a.title.localeCompare(b.title)) as T;
     case 'log_products':
       return tracker.logProducts(notes) as T;
     case 'log_routines':
