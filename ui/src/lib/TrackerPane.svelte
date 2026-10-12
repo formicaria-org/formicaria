@@ -33,6 +33,7 @@
     recipeLibrary,
   } from './ipc';
   import type { Dish } from './plan/measure';
+  import { exercises } from './training/exercises';
   import { createNotesUndoable, setPropertiesUndoable, undo } from './undo.svelte';
   import { addDays, clockOf, dayLabel, nowClock, today as todayNow } from './units';
   import type { Feed, Pane } from './panes';
@@ -98,6 +99,22 @@
   let routines = $state<Routine[]>([]);
   /// The chosen day against the diet the person follows, when they follow one.
   let followed = $state<PlanProgress | null>(null);
+  /// The exercises that have a card, so a session can offer "How" beside the ones it knows.
+  /// Asked for once a session screen is in front. The card opens over the session, so the
+  /// session stays where it was.
+  let cardNames = $state<string[]>([]);
+  let how = $state<string | null>(null);
+  $effect(() => {
+    if (how) nav.openLayer('card-sheet', () => (how = null));
+    else nav.closeLayer('card-sheet');
+  });
+  $effect(() => () => nav.closeLayer('card-sheet'));
+  $effect(() => {
+    if (def?.add !== 'workout' || def.span !== 'day' || cardNames.length) return;
+    void exercises()
+      .then((l) => (cardNames = l.exercises.map((e) => e.name)))
+      .catch(() => undefined);
+  });
   /// What could be had to close a gap: the person's recipes (a serving of each, and how much of
   /// each is in the kitchen) and the recipes carried in the app. Asked for only when a diet is
   /// followed and something is off, and never the reason a day fails to draw.
@@ -512,6 +529,8 @@
         today={selected}
         label={selected === today ? '' : dayLabel(selected)}
         ontoday={selected === today ? undefined : () => pick(today)}
+        cards={cardNames}
+        onhow={(name) => (how = name)}
         onplan={(r) => planRoutine(r)}
         onkeep={() => (routineSheet = { routine: null })}
         onroutine={(routine) => (routineSheet = { routine })}
@@ -580,6 +599,17 @@
     {/await}
   {/if}
 
+  {#if how}
+    {@const name = how}
+    {#await import('./training/ExercisesScreen.svelte') then { default: ExercisesScreen }}
+      <div class="over" role="dialog" aria-modal="true" aria-label="how it is done">
+        <button type="button" class="shut" onclick={() => (how = null)} aria-label="close">
+          Back to the session
+        </button>
+        <ExercisesScreen show={name} onadd={() => (how = null)} adding={false} />
+      </div>
+    {/await}
+  {/if}
   {#if nutrientsOpen}
     {#await import('./food/NutrientsSheet.svelte') then { default: NutrientsSheet }}
       <NutrientsSheet {view} day={selected} onclose={() => (nutrientsOpen = false)} />
@@ -628,6 +658,31 @@
   }
   /* The group's views, on every width: a phone's bar is the app's own
      (`decisions.md#ui`, 2026-10-12), so this is where one steps from Day to Trends. */
+  /* A card opened from a session: over the whole pane, the session untouched beneath. */
+  .over {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg, var(--surface));
+  }
+  .over > :global(.cards) {
+    flex: 1;
+    min-height: 0;
+  }
+  .shut {
+    align-self: flex-start;
+    min-height: 2.75rem;
+    margin: var(--space-2) var(--space-3) 0;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
   .tabs {
     display: flex;
     align-self: center;

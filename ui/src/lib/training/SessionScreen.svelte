@@ -8,6 +8,7 @@
   // exercises are data and are never written in this file.
   import Icon from '../Icon.svelte';
   import { show, showWith, whole } from '../units';
+  import { sameName } from './exercises';
   import type { DayTotals, ObjectMeta, RecentItem, Routine, TotalsDef } from '../types';
 
   interface Props {
@@ -33,6 +34,10 @@
     onroutine?: (r: Routine) => void;
     /** The day shown, in words, when it is not today. */
     label?: string;
+    /** Show how an exercise is done. Offered beside those that have a card. */
+    onhow?: (name: string) => void;
+    /** The names of the exercises that have a card. */
+    cards?: string[];
     /** Go back to today's session. Offered only when another day is shown. */
     ontoday?: () => void;
   }
@@ -51,7 +56,10 @@
     onroutine,
     label = '',
     ontoday,
+    onhow,
+    cards = [],
   }: Props = $props();
+  const known = (name: string) => cards.some((c) => sameName(c, name));
 
   const WEEK = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const weekday = $derived(today ? WEEK[new Date(`${today}T12:00:00`).getDay()] : '');
@@ -172,7 +180,12 @@
 
   {#each groups as g (g.name)}
     <section class="exercise">
-      <h3>{g.name}</h3>
+      <h3>
+        {g.name}
+        {#if onhow && known(g.name)}
+          <button type="button" class="how" onclick={() => onhow(g.name)}>How</button>
+        {/if}
+      </h3>
       <ul>
         {#each g.list as s (s.id)}
           {@const open = !!s.props.planned}
@@ -387,5 +400,18 @@
   .wide-what {
     grid-column: 1 / -1;
     text-align: left;
+  }
+  .how {
+    margin-left: var(--space-2);
+    min-height: 2rem;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 400;
+    cursor: pointer;
   }
 </style>

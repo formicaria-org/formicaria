@@ -8,20 +8,27 @@
   // — and the card says whose every line is, as each source's terms ask. Videos are links: a
   // known body's own channel first, a trainer's only where none was found, and said to be so.
   import Icon from '../Icon.svelte';
-  import { exerciseLibrary } from '../ipc';
+  import { exercises, sameName } from './exercises';
   import type { ExerciseCard, ExerciseLibrary, ExerciseVideo } from '../types';
 
   interface Props {
     /** Add this exercise to the session in front. */
     onadd: (card: { name: string; region: string }) => void;
+    /** An exercise to open on, by its name — from a session that asked how it is done. */
+    show?: string;
+    /** Offer "Add to today's session". Off where the exercise is in the session already. */
+    adding?: boolean;
   }
-  let { onadd }: Props = $props();
+  let { onadd, show = '', adding = true }: Props = $props();
 
   let lib = $state<ExerciseLibrary | null>(null);
   let failed = $state('');
   $effect(() => {
-    exerciseLibrary()
-      .then((l) => (lib = l))
+    exercises()
+      .then((l) => {
+        lib = l;
+        if (show) open = l.exercises.find((e) => sameName(e.name, show)) ?? null;
+      })
       .catch((e) => (failed = String(e)));
   });
 
@@ -173,14 +180,16 @@
       </div>
 
       {#if card.source !== 'army'}{@render watch()}{/if}
-      <button
-        type="button"
-        class="go"
-        onclick={() =>
-          onadd({ name: card.name, region: REGIONS.includes(card.area) ? card.area : '' })}
-      >
-        Add to today’s session
-      </button>
+      {#if adding}
+        <button
+          type="button"
+          class="go"
+          onclick={() =>
+            onadd({ name: card.name, region: REGIONS.includes(card.area) ? card.area : '' })}
+        >
+          Add to today’s session
+        </button>
+      {/if}
     </article>
   {:else}
     <header class="head">
@@ -242,6 +251,10 @@
 </div>
 
 <style>
+  /* A link is the accent's colour: the browser's own blue cannot be read on a dark theme. */
+  a {
+    color: var(--accent);
+  }
   .cards {
     height: 100%;
     overflow-y: auto;

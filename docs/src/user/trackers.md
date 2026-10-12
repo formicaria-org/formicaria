@@ -249,6 +249,8 @@ part of the body, then open a card for its steps.
   confirmed, shown with it; the Army's own short clips last. Each says whose it is, and a
   trainer's says how many views it had. On the Army's cards the films come above the text.
 - **Add to today's session** starts the add sheet with that exercise.
+- In a session, an exercise that has a card shows **How** beside its name: it opens the card
+  over the session, and closing it puts you back where you were.
 - How many sets and repetitions is for the regime you follow to say, not the card: a card's own
   figure is its source's, for its own readers.
 

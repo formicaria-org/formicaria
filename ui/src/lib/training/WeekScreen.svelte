@@ -215,6 +215,10 @@
 </div>
 
 <style>
+  /* A link is the accent's colour: the browser's own blue cannot be read on a dark theme. */
+  a {
+    color: var(--accent);
+  }
   .week {
     height: 100%;
     overflow-y: auto;

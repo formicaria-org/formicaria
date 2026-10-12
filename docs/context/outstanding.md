@@ -1134,8 +1134,9 @@ well known sources and when not available from trainers that have high views".
   - The Army's text is a drill manual: "Soldiers", counts, commands, figure numbers that point at
     nothing, position names defined in a chapter not carried. It is shown as written, and says
     so. A plain-words version would be the app's wording and could not be credited to anyone.
-  - A card's exercise is added to a session by its name; a routine cannot be built by picking
-    cards in one go; a session's exercise does not link back to its card.
+  - A card's exercise is added to a session by its name, and a session's exercise opens its
+    card (*How*) when their names match, a plural or a hyphen aside. A routine cannot be built
+    by picking cards in one go.
   - Sets and repetitions on a card are its source's (five for the NHS's, a soldier's for the
     Army's); the regime followed is what says how many.
   - No pictures. The NHS's alternative text describes each pose and is text; not carried yet.

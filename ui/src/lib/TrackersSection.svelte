@@ -70,6 +70,10 @@
 </section>
 
 <style>
+  /* A link is the accent's colour: the browser's own blue cannot be read on a dark theme. */
+  a {
+    color: var(--accent);
+  }
   section {
     border-top: 1px solid var(--border);
     padding-top: var(--space-3);

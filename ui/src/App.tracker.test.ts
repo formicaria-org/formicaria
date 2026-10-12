@@ -541,3 +541,23 @@ test('with no timetable yet, the week shows example weeks as a public body publi
     within(examples).getByText(/Centers for Disease Control and Prevention \(seen/),
   ).toBeTruthy();
 });
+
+test('an exercise in a session that has a card says how it is done, over the session', async () => {
+  showTrackers();
+  render(App);
+  const rail = await screen.findByRole('navigation', { name: 'views' });
+  await fireEvent.click(await within(rail).findByRole('button', { name: 'open Fitness' }));
+  await screen.findByRole('group', { name: 'Fitness' });
+  await fireEvent.click(screen.getByRole('button', { name: 'add to Fitness' }));
+  const add = await screen.findByRole('dialog', { name: 'add to the session' });
+  await fireEvent.input(within(add).getByLabelText('Exercise'), { target: { value: 'deadlift' } });
+  await fireEvent.input(within(add).getByLabelText('Reps'), { target: { value: '5' } });
+  await fireEvent.click(within(add).getByRole('button', { name: /^Add \d+ × 5$/ }));
+  // Named as the card is, case aside: the session offers "How".
+  await fireEvent.click(await screen.findByRole('button', { name: 'How' }));
+  const over = await screen.findByRole('dialog', { name: 'how it is done' });
+  expect(await within(over).findByRole('article', { name: 'Deadlift' })).toBeTruthy();
+  expect(within(over).queryByRole('button', { name: 'Add to today’s session' })).toBeNull();
+  await fireEvent.click(within(over).getByRole('button', { name: 'close' }));
+  expect(await screen.findByText(/^0 of 1 sets/)).toBeTruthy();
+});
