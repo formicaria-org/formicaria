@@ -1066,6 +1066,63 @@ Rulings: `decisions.md`, the 2026-10-11 entries tagged `#data` and the 2026-10-1
    - **Vitamin A, thiamin, niacin** are left out of *European reference values* (units the list
      does not store, or values that scale with energy).
 
+### 2.24 Making food easy to use — the plan after three reviews of sources (2026-10-12)
+
+The owner's list: a packet with a barcode; the time of a meal, taken without asking; whether the
+day follows the diet and what to change; micronutrients; simple feedback; what is in the kitchen;
+recipes from known sources and suggestions that fit the diet. Sources: `sources-2026-10-11.md`
+§6c. **Nothing here is built or ruled.** In the order proposed:
+
+1. **A time on every entry**, the moment it is logged, changeable, never asked for. Then
+   time-restricted eating is measured (the hours between the last entry of a day and the first
+   of the next, against the definition's 14) and the *I kept to it* tick goes for that option.
+   The meal label stays the person's (the 2026-10-11 ruling: none is assigned from the clock).
+2. **The diet on the Day screen**: how many of its checks today meets, then only the ones that
+   are off, each with the amount to go or over. Pressing one shows which of today's entries
+   contributed most, and foods from the list with most of it per 100 g. No "rich in" label
+   unless the EU claim rule is adopted by name.
+3. **All the nutrients the list carries**, against EFSA's values (table read). Thiamin and niacin
+   need the day's energy; zinc is a range; sodium stays WHO's. Upper levels only where they
+   apply to food.
+4. **Feedback as counts**: days logged, eating occasions a day (15-minute rule, named), the usual
+   first and last time, days the diet was met. No number of meals to reach.
+5. **Packaged food.** First: type the barcode (GS1 check), one request to Open Food Facts from the
+   core, the product kept as the person's own food with its link, the attribution and the
+   caveat; **and a label typed in by hand**, per 100 g, because coverage is thin (Singapore:
+   11,883 products). Then, as its own decision: the camera, with `zxing-wasm`.
+   **Reverses** the 2026-10-11 ruling that left barcodes out — the dated reversal is written
+   first. Open: OFF's own reading of share-alike for one stored product (page not readable).
+6. **What is in the kitchen**: have or have not, on foods and products; no quantities.
+7. **Recipes and suggestions.** The person's own recipes first; then NHLBI's 54 (public domain,
+   its own values per serving) carried unchanged and named. Wikibooks and based.cooking may be
+   carried but have no values and no grams. A suggestion says why — what it would bring the
+   day to, how many ingredients are in the kitchen — and is arithmetic, not the assistant.
+
+8. **A view to plan meals over several days** (the owner, 2026-10-12: *"use the pantry, recipes
+   (both from outside and inside the notes) to plan meals for many days (user decides) … buying
+   appropriate stuff as well as maybe cooking things that can be consumed in the following
+   days … generate food plan notes with an easier interface"*). A fourth tab in Food; its name
+   must be unique among views (*Menu* proposed). Shape:
+   - **Days × meals**, for as many days as the person picks. A slot is filled from their
+     recipes, a carried recipe, or a food or product.
+   - **What it writes is what exists already**: entries with `planned: 1` on those days, which
+     the Day screen shows and confirms. No new kind of note. The Day strip's seven-day reach
+     ahead has to follow the plan's length.
+   - **Cook once, eat again**: a recipe makes its servings; placing it shows how many are left
+     and offers them to later slots. **How long a cooked dish keeps is advice and needs a
+     source** — none is read, so the app offers no limit of its own until one is.
+   - **A shopping list**: the planned recipes' ingredients added up, less what the kitchen has —
+     a note with tick boxes, so it is a file like the rest; ticking puts the item in the kitchen.
+   - **Each planned day against the diet**: the same checks, run over what is planned, so a day
+     shows what it would come to before it is eaten. *Fill the gaps* proposes recipes by that
+     arithmetic; the person accepts each.
+   Its first form needs only the person's own recipes and can come before items 5 to 7; the
+   shopping list waits for the kitchen (6), outside recipes for 7.
+
+**For the owner to decide:** whether a scan may reach the network (the first thing in food that
+would); whether the camera permission is worth a changed *Take a photo* prompt; which recipe
+collections to carry; how directive a suggestion may sound.
+
 ### 2.22 After v0.6.9 — releases and the version check (2026-10-11)
 
 1. **The next release is the first made docs-first** (the owner's standing instruction,
