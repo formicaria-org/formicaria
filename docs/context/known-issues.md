@@ -2253,8 +2253,9 @@ Seen in a browser against the real core at 1280 and 360 wide; **never on a phone
   reads the answer; `fm-serve/src/products.rs` and a branch of the phone shell's `fm` command call
   `fm_fetch::request`. The phone branch is behind `feature = "update"` because that is what
   brings `fm-fetch` in; a build without it answers that it cannot look products up.
-- **The phone shell is not in the workspace**, so the gate does not compile that branch. It was
-  read, not built, before v0.7.4's release build.
+- **The phone shell is not in the workspace**, so the gate does not compile that branch. Check
+  it by hand: `pixi run -e android sh -c 'cd mobile/src-tauri && cargo check --target
+  aarch64-linux-android'` (seconds once its target folder is warm). Passed 2026-10-12.
 - **Version 3.6 of their API answers an empty nutrition block**; the address says `v2`. A guard in
   `ci/checks.sh` fails on any other Open Food Facts address.
 - **They answer sodium in grams**; the note keeps micrograms and the form shows salt.
@@ -2278,3 +2279,10 @@ run in six, a secrets test and a backup-status test moved the config directory u
 They share `vaults::ENV_LOCK` now (ten runs of ten clean). **A new test module that sets an
 environment variable takes that lock, not one of its own.** The owner had seen runners fail and
 pass on a re-run; this is one cause, and not necessarily the only one.
+
+## A docs edit that failed unseen (2026-10-12)
+
+A step that edited the docs and then ran the gate in one background command failed at its first
+assertion; the gate ran anyway, its result was read, and the commit message claimed docs that
+were not there. **An edit script's own exit is checked before anything is built on it**, and a
+commit message lists only what `git diff --stat` shows.

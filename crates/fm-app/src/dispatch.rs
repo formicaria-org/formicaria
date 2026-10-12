@@ -2316,7 +2316,10 @@ fn dispatch_inner(
         "plan_progress" => {
             let mut g = lock()?;
             let store = g.store(scope);
-            json(crate::plan::plan_progress(&store, &s("group"), &s("day")).map_err(err)?)
+            // `planned: true` counts what is planned too: what a day on the menu would come to.
+            let planned = args.get("planned").and_then(Value::as_bool).unwrap_or(false);
+            let f = if planned { crate::plan::plan_outlook } else { crate::plan::plan_progress };
+            json(f(&store, &s("group"), &s("day")).map_err(err)?)
         }
         // ── The food list (`packs.rs`) — carried in the app and unpacked outside every vault, so
         // none of these takes the vault lock.

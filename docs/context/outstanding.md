@@ -1086,23 +1086,24 @@ what each left open is said under it. The rest is neither built nor ruled. In th
    when the person presses for it (`decisions.md#data`, 2026-10-12, two entries). Tried live
    from the desktop build: a known product, a number that fails its check (refused unsent), an
    unknown one. **Left:** the phone shell's branch has never been compiled on this machine or
-   run on a phone; the camera (`zxing-wasm`, its own decision); the credit line is on the form
-   and in the note but not in Settings, where Open Food Facts also asks for it; OFF's own page
+   run on a phone (it compiles for Android: `cargo check` in the android environment,
+   2026-10-12); the camera (`zxing-wasm`, its own decision, waiting for the owner's yes); OFF's
+   own page
    on share-alike for one stored product is still unread; a product cannot be changed from the
    sheet once saved; a label's vitamins have no fields.
 6. **What is in the kitchen** — built as a list of names on the Menu (`decisions.md#data`,
    2026-10-12). Left: the match is by exact name; a ticked shopping list is not read back.
-7. **Recipes and suggestions** — the NHLBI's 54 are carried and shown as published
-   (`decisions.md#data`, 2026-10-12). **Left:** proposing meals that fit the diet and the
-   kitchen, which needs recipes whose ingredients are foods by weight (the person's own are;
-   the carried ones are not) and a better match than an exact name; the recipes' tips and
-   notes; a search over the 54; the "Recipe Source" line of each page; the Institute's
-   no-endorsement condition should the app ever be sold.
-8. **A view to plan meals over several days** — built as *Menu* (`decisions.md#ui`, 2026-10-12).
-   Left: the kitchen taken off the shopping list (item 6); recipes from outside (item 7); each
-   planned day against the diet's checks; proposing meals to fill the gaps; a source for how
-   long a cooked dish keeps; the shopping list is written once and does not follow later
-   changes to the menu.
+7. **Recipes and suggestions** — the NHLBI's 54 are carried, searchable by dish or ingredient
+   and shown as published; a check that is short lists dishes with most of what is missing,
+   and one press opens a dish (`decisions.md`, 2026-10-12, two entries). **Left:** a dish is
+   ranked on one value at a time; nothing is proposed for a check that is over; the kitchen
+   count is by exact name and only for a person's own recipes; the carried recipes' tips and
+   notes and their "Recipe Source" lines; the Institute's no-endorsement condition should the
+   app ever be sold.
+8. **A view to plan meals over several days** — built as *Menu*, with the kitchen and each day
+   held against the diet as planned (`decisions.md#ui`, 2026-10-12). Left: filling a whole
+   menu's gaps in one go; a source for how long a cooked dish keeps; the shopping list is a
+   snapshot; one ask a day for the outlook is unmeasured on a large vault.
 9. **An amount as a range** — built for a logged food. Left: a recipe's ingredients; a plan is
    measured on the middle of the range.
 

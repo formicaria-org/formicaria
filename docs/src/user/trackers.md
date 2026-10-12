@@ -87,7 +87,8 @@ An ingredient has to be a food from the list.
 
 ### Recipes that come with the app
 
-Under your own recipes, **From the NHLBI** lists 54 recipes from the U.S. National Heart, Lung,
+Under your own recipes, **From the NHLBI** lists 54 recipes — search them by dish or by
+ingredient — from the U.S. National Heart, Lung,
 and Blood Institute, which publishes them in the public domain. Open one to read its ingredients
 and directions exactly as published, with a link to its own page for the tips and notes. **Add a
 serving** logs it — or plans it, from the Menu — with the Institute's own figures for a serving.
@@ -143,7 +144,10 @@ your best guess, and the day then also says the least and the most it could have
 
 If you follow a diet (see below), the Day screen names it and says how many of the things it asks
 of a day are met. Only the ones that are off are listed, each with how far: *13 g to go*, *4%
-over*. Press one to see which of today's foods put most into it.
+over*. Press one to see which of today's foods put most into it. When you are short of
+something, it also lists up to three dishes — from your recipes and the ones that come with the
+app — a serving of which has most of it, and what your day would then come to; press a dish to
+open it. That is addition, not advice: it looks at one thing at a time.
 
 ### All nutrients
 
@@ -177,7 +181,8 @@ Set how many days with the minus and plus at the top.
 - **In your kitchen** is the list of what you said you have — names only, no amounts to keep up.
   Add to it by hand, or take something off when you run out.
 
-Each day shows what it would come to against your energy target. The app does not say how long a
+Each day shows what it would come to against your energy target and, if you follow a diet, how
+many of the things it asks of a day the plan would meet and how far off the others are. The app does not say how long a
 cooked dish keeps.
 
 ## Trends

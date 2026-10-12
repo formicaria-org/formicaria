@@ -145,9 +145,19 @@ describe('dishes for what a day is short of', () => {
     value: 12_000,
   };
   const dishes: Dish[] = [
-    { title: 'Lentil soup', from: 'yours', per_serving: { kcal: 300, fiber_mg: 9_000 } },
-    { title: 'Bean chili', from: 'NHLBI', per_serving: { kcal: 700, fiber_mg: 12_000 } },
-    { title: 'Grilled fish', from: 'NHLBI', per_serving: { kcal: 200 } },
+    {
+      title: 'Lentil soup',
+      from: 'yours',
+      ref: 'recipe/a',
+      per_serving: { kcal: 300, fiber_mg: 9_000 },
+    },
+    {
+      title: 'Bean chili',
+      from: 'NHLBI',
+      ref: 'nhlbi/b',
+      per_serving: { kcal: 700, fiber_mg: 12_000 },
+    },
+    { title: 'Grilled fish', from: 'NHLBI', ref: 'nhlbi/c', per_serving: { kcal: 200 } },
   ];
   it('ranks by how much of it a serving holds and says what the day would come to', () => {
     const got = dishesFor(short, dishes, null);

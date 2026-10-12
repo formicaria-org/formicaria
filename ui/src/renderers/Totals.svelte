@@ -49,6 +49,8 @@
     onnutrients?: () => void;
     /** Dishes a serving of which could be had: the person's recipes and the carried ones. */
     dishes?: Dish[];
+    /** A dish offered was chosen: open it, to have or to plan. */
+    onidea?: (dish: Dish) => void;
   }
   let {
     def,
@@ -66,6 +68,7 @@
     plan = null,
     onnutrients,
     dishes = [],
+    onidea,
   }: Props = $props();
 
   const against = $derived(plan?.plan ? dayAgainst(plan.checks) : null);
@@ -311,20 +314,27 @@
                       <p>
                         A serving of these has most of it{room !== null
                           ? ', and fits what is left of your energy'
-                          : ''}:
+                          : ''}. It would bring you to:
                       </p>
                       <ul>
                         {#each ideas as x (x.dish.from + x.dish.title)}
                           <li>
-                            <span
-                              >{x.dish.title}
-                              <span class="sub"
-                                >· {x.dish.from}{x.dish.have
-                                  ? ` · you have ${x.dish.have.n} of its ${x.dish.have.of} ingredients`
-                                  : ''}</span
-                              ></span
+                            <button
+                              type="button"
+                              class="idea"
+                              onclick={() => onidea?.(x.dish)}
+                              aria-label={`open ${x.dish.title}`}
                             >
-                            <span>would bring you to {shownValue(c, x.reaches)}</span>
+                              <span
+                                >{x.dish.title}
+                                <span class="sub"
+                                  >· {x.dish.from}{x.dish.have
+                                    ? ` · you have ${x.dish.have.n} of its ${x.dish.have.of} ingredients`
+                                    : ''}</span
+                                ></span
+                              >
+                              <span class="to">{shownValue(c, x.reaches)}</span>
+                            </button>
                           </li>
                         {/each}
                       </ul>
@@ -852,6 +862,27 @@
   }
   .why p {
     margin: 0 0 var(--space-1);
+  }
+  .idea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .why .to {
+    flex: none;
+    font-variant-numeric: tabular-nums;
   }
   .why li {
     display: flex;

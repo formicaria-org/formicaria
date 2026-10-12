@@ -1234,8 +1234,9 @@ export const planProfile = () => invoke<PlanProfile>('plan_profile');
 export const planPreview = (id: string, day: string) =>
   invoke<PlanPreview>('plan_preview', { id, day });
 /** The week holding `day`, measured against the plan in force. */
-export const planProgress = (group: string, day: string) =>
-  invoke<PlanProgress>('plan_progress', { group, day });
+/** `planned` counts what is planned too: what a day on the menu would come to. */
+export const planProgress = (group: string, day: string, planned = false) =>
+  invoke<PlanProgress>('plan_progress', { group, day, planned });
 /** Create several notes in one write. */
 export const createNotes = (notes: NoteDraft[], vault = '') =>
   invoke<ObjectMeta[]>('create_notes', { notes, vault });

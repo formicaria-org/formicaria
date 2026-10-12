@@ -2227,7 +2227,10 @@ export async function handle<T>(cmd: string, args: Record<string, unknown>): Pro
     case 'plan_preview':
       return plan.planPreview(notes, args as { id: string }) as T;
     case 'plan_progress':
-      return plan.planProgress(notes, args as { group: string; day: string }) as T;
+      return plan.planProgress(
+        notes,
+        args as { group: string; day: string; planned?: boolean },
+      ) as T;
     case 'create_notes': {
       const drafts = (args.notes ?? []) as NoteDraft[];
       const made = tracker.createNotes(notes, drafts);

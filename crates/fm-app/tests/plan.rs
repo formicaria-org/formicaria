@@ -7,7 +7,7 @@
 //! sources count it.
 
 use fm_app::log::{create_notes, set_properties, NoteDraft};
-use fm_app::plan::{plan_preview, plan_profile, plan_progress, CheckProgress};
+use fm_app::plan::{plan_outlook, plan_preview, plan_profile, plan_progress, CheckProgress};
 use fm_core::MemoryStore;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -314,4 +314,39 @@ fn a_nights_fast_is_measured_from_the_times_of_what_was_logged() {
     let wed = plan_progress(&s, "food", "2026-10-14").unwrap();
     assert_eq!(check(&wed.checks, "fast").state, "none");
     assert_eq!(check(&wed.checks, "fast").days[..3], [Some(990), Some(720), None]);
+}
+
+/// A day on the menu is held against the diet too — when asked, and only then: what is planned is
+/// in no account of what a person did.
+#[test]
+fn what_is_planned_counts_only_when_the_outlook_is_asked_for() {
+    let mut s = MemoryStore::new();
+    create_notes(
+        &mut s,
+        "",
+        &[
+            draft(
+                "Fibre",
+                "2026-10-05",
+                json!({ "program": "food", "plan": "who-healthy-diet", "p_fibre_min": 25_000 }),
+            ),
+            draft("Oats", "2026-10-13", json!({ "log": "food", "kcal": 300, "fiber_mg": 8_000 })),
+            draft(
+                "Bean chili",
+                "2026-10-13",
+                json!({ "log": "food", "kcal": 500, "fiber_mg": 18_000, "planned": 1 }),
+            ),
+        ],
+    )
+    .unwrap();
+    let did = plan_progress(&s, "food", "2026-10-13").unwrap();
+    assert_eq!(
+        (check(&did.checks, "fibre").value, check(&did.checks, "fibre").state.as_str()),
+        (Some(8_000), "under")
+    );
+    let would = plan_outlook(&s, "food", "2026-10-13").unwrap();
+    assert_eq!(
+        (check(&would.checks, "fibre").value, check(&would.checks, "fibre").state.as_str()),
+        (Some(26_000), "met")
+    );
 }

@@ -201,7 +201,7 @@ export function planPreview(notes: ObjectMeta[], args: { id: string }): PlanPrev
 
 export function planProgress(
   notes: ObjectMeta[],
-  args: { group: string; day: string },
+  args: { group: string; day: string; planned?: boolean },
 ): PlanProgress {
   const program = args.group === 'fitness' ? 'training' : 'food';
   const log = args.group === 'fitness' ? 'workout' : 'food';
@@ -236,7 +236,9 @@ export function planProgress(
       per = 'day';
       unit = c.key;
       days = week.map((w) => {
-        const rows = notes.filter((n) => n.props.log === log && day(n) === w && !n.props.planned);
+        const rows = notes.filter(
+          (n) => n.props.log === log && day(n) === w && (args.planned || !n.props.planned),
+        );
         return rows.length
           ? rows.reduce(
               (t, n) => t + (typeof n.props[c.key!] === 'number' ? (n.props[c.key!] as number) : 0),

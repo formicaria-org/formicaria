@@ -7,7 +7,8 @@
   // the day screen shows and confirms — put there with the same sheet. The shopping list is an
   // ordinary note with a box to tick on each line.
   import Icon from '../Icon.svelte';
-  import { logDays, logKitchen, logRecipes, recipeLibrary } from '../ipc';
+  import { logDays, logKitchen, logRecipes, planProgress, recipeLibrary } from '../ipc';
+  import { dayAgainst, gap } from '../plan/measure';
   import { createNotesUndoable, deleteNotesUndoable } from '../undo.svelte';
   import { addDays, dayLabel, show, showWith, whole } from '../units';
   import type {
@@ -15,6 +16,7 @@
     DayTotals,
     NoteDraft,
     ObjectMeta,
+    PlanProgress,
     Recipe,
     TotalsDef,
   } from '../types';
@@ -52,6 +54,8 @@
 
   let days = $state<DayTotals[]>([]);
   let recipes = $state<Recipe[]>([]);
+  /// What each day would come to against the diet followed, counting what is planned.
+  let outlook = $state<Record<string, PlanProgress | null>>({});
   /// What the person says they have at home: names, no amounts
   /// (`decisions.md#data`, 2026-10-12, *the kitchen is a list of names*).
   let kitchen = $state<{ id: string; title: string }[]>([]);
@@ -94,6 +98,14 @@
       days = d.days;
       recipes = r;
       kitchen = k;
+      // Each day that has anything on it, held against the diet as if what is planned had been
+      // had. One ask a day, so only for days with something to measure; never why the menu fails.
+      const withFood = d.days.filter((x) => (x.rows ?? []).length > 0).map((x) => x.day);
+      const got = await Promise.all(
+        withFood.map((day) => planProgress('food', day, true).catch(() => null)),
+      );
+      if (mine !== asked) return;
+      outlook = Object.fromEntries(withFood.map((day, i) => [day, got[i]]));
       failed = '';
     } catch (e) {
       if (mine === asked) failed = String(e);
@@ -270,6 +282,17 @@
           {/if}
         </span>
       </header>
+      {#if outlook[d.day]?.plan}
+        {@const against = dayAgainst(outlook[d.day]!.checks)}
+        {#if against.daily && !against.nothing}
+          <p class="against">
+            As planned: {against.met} of {against.daily} of what {outlook[d.day]!.plan!.name} asks of
+            a day{against.off.length ? ' — ' : '.'}{against.off
+              .map((c) => `${c.label.toLowerCase()} ${gap(c)}`)
+              .join(', ')}
+          </p>
+        {/if}
+      {/if}
       {#each def.slots as s (s.value)}
         {@const list = rowsOf(d, s.value)}
         <div class="slot">
@@ -477,6 +500,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: var(--surface);
+  }
+  .against {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
   .sum,
   .says,

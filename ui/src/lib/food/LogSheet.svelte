@@ -51,11 +51,13 @@
     slot: string | null;
     /** An entry to change, instead of adding one. */
     entry?: ObjectMeta | null;
+    /** A recipe to open on: `recipe/<word>` (the person's own) or `nhlbi/<id>` (carried). */
+    open?: string;
     onclose: () => void;
     /** Something was written; `removed` names an entry that was taken away. */
     onwrote: (what?: { removed?: string }) => void;
   }
-  let { view, def, day, slot, entry = null, onclose, onwrote }: Props = $props();
+  let { view, def, day, slot, entry = null, open = '', onclose, onwrote }: Props = $props();
 
   const AMOUNT = 'amount_g';
   /// The food tables the list is made from, as a person would name them
@@ -276,6 +278,35 @@
       recipeLibrary()
         .then((r) => (carried = r))
         .catch(() => (carried = null));
+  });
+  /// Opened on a recipe — from a dish offered on the day screen.
+  onMount(() => {
+    if (open.startsWith('nhlbi/'))
+      void recipeLibrary()
+        .then((lib) => {
+          carried = lib;
+          reading = lib.recipes.find((r) => `nhlbi/${r.id}` === open) ?? null;
+        })
+        .catch(() => undefined);
+    else if (open.startsWith('recipe/'))
+      void logRecipes(view)
+        .then((own) => {
+          const r = own.find((x) => `recipe/${x.recipe}` === open);
+          if (r) openRecipe(r);
+        })
+        .catch(() => undefined);
+  });
+  /// The carried recipes that the words typed name, by title or by an ingredient.
+  let seek = $state('');
+  const found = $derived.by(() => {
+    const text = seek.trim().toLowerCase();
+    const all = carried?.recipes ?? [];
+    if (!text) return all;
+    return all.filter(
+      (r) =>
+        r.title.toLowerCase().includes(text) ||
+        r.ingredients.some((line) => line.toLowerCase().includes(text)),
+    );
   });
   const addCarried = () =>
     write(async () => {
@@ -1349,8 +1380,19 @@
           </button>
           {#if carried?.recipes.length}
             <h3 class="shelf">From the NHLBI ({carried.recipes.length})</h3>
+            <input
+              class="field"
+              type="search"
+              placeholder="A dish or an ingredient"
+              aria-label="search the recipes that come with the app"
+              bind:value={seek}
+              spellcheck="false"
+            />
+            {#if seek.trim() && found.length === 0}
+              <p class="hint">None of them names that.</p>
+            {/if}
             <ul class="rows">
-              {#each carried.recipes as r (r.id)}
+              {#each found as r (r.id)}
                 <li>
                   <button type="button" class="row" onclick={() => (reading = r)}>
                     <span class="t">{r.title}</span>

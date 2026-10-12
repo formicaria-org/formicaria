@@ -637,6 +637,22 @@ fn measure(check: &Check, bound: Bound, energy: Option<i64>, w: &Week) -> CheckP
 /// **A week is Monday to Sunday**, measured up to the day asked about. Planned entries are in
 /// none of it.
 pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progress, StoreError> {
+    progress(store, group, day, false)
+}
+
+/// The same, **counting what is planned as if it had happened** — what a day on the menu would
+/// come to (`decisions.md#ui`, 2026-10-12, *a planned day is held against the diet too*). Never
+/// what a person is told they did.
+pub fn plan_outlook(store: &dyn Store, group: &str, day: &str) -> Result<Progress, StoreError> {
+    progress(store, group, day, true)
+}
+
+fn progress(
+    store: &dyn Store,
+    group: &str,
+    day: &str,
+    with_planned: bool,
+) -> Result<Progress, StoreError> {
     let (log, program) = kinds_of(group)?;
     let day = parse_day("day", day)?;
     let monday = day - Duration::days(i64::from(day.weekday().number_days_from_monday()));
@@ -665,7 +681,10 @@ pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progre
             }
             continue;
         }
-        if o.start.is_some_and(|s| s.date == sunday_before) && kind == log && !is_planned(o) {
+        if o.start.is_some_and(|s| s.date == sunday_before)
+            && kind == log
+            && (with_planned || !is_planned(o))
+        {
             eve.push(o);
         }
         let Some(at) = o.start.map(|s| s.date).filter(|d| *d >= monday && *d <= sunday) else {
@@ -674,7 +693,7 @@ pub fn plan_progress(store: &dyn Store, group: &str, day: &str) -> Result<Progre
         let i = (at - monday).whole_days() as usize;
         if kind == KEPT {
             kept_notes.push(o);
-        } else if kind == log && !is_planned(o) {
+        } else if kind == log && (with_planned || !is_planned(o)) {
             entries[i].push(o);
         }
     }

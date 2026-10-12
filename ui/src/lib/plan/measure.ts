@@ -180,6 +180,8 @@ export interface Dish {
   title: string;
   /** Whose it is, in words: `yours`, or the collection's name. */
   from: string;
+  /** What a logged serving names as its source: `recipe/<word>` or `nhlbi/<id>`. */
+  ref: string;
   per_serving: Record<string, number>;
   /** For a person's own recipe: how many of its ingredients are in the kitchen, of how many. */
   have?: { n: number; of: number };

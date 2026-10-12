@@ -89,6 +89,7 @@
           ...own.map((r) => ({
             title: r.title,
             from: 'yours',
+            ref: `recipe/${r.recipe}`,
             per_serving: Object.fromEntries(
               Object.entries(r.sums).map(([k, v]) => [
                 k,
@@ -104,6 +105,7 @@
           ...lib.recipes.map((r) => ({
             title: r.title,
             from: 'NHLBI',
+            ref: `nhlbi/${r.id}`,
             per_serving: r.per_serving,
           })),
         ];
@@ -179,7 +181,12 @@
   });
 
   // ── the add sheet ──────────────────────────────────────────────────────────────────────────────
-  let sheet = $state<{ slot: string | null; entry: ObjectMeta | null } | null>(null);
+  let sheet = $state<{
+    slot: string | null;
+    entry: ObjectMeta | null;
+    /** A recipe to open the sheet on: `recipe/<word>` or `nhlbi/<id>`. */
+    open?: string;
+  } | null>(null);
   const closeSheet = () => (sheet = null);
   $effect(() => {
     // A layer, so Back closes the sheet before it leaves the view (`nav.svelte.ts`).
@@ -474,6 +481,7 @@
         onconfirm={confirm}
         plan={followed}
         {dishes}
+        onidea={(dish) => (sheet = { slot: null, entry: null, open: dish.ref })}
         onnutrients={def.add === 'food' ? () => (nutrientsOpen = true) : undefined}
       />
     {/if}
@@ -546,6 +554,7 @@
         day={selected}
         slot={sheet.slot}
         entry={sheet.entry}
+        open={sheet.open}
         onclose={closeSheet}
         onwrote={wrote}
       />
