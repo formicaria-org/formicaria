@@ -145,3 +145,26 @@ health; videos from well-known sources. Then, twice, a correction that changed t
   again, and caught before the commit. A test run with a name filter hid the one test that
   mattered. A weekly count had always summed the whole week, whatever the docs said.
 - **Not seen on a phone.** No film was watched.
+
+## And v0.7.6: a minimal set of views that make sense
+
+The owner, after using 0.7.5: nothing to see after following a regime; *"what is volume in
+fitness? and session? why are they there?"*; *"what are exercises there for if in the session I
+have to invent and fill all again"*; and, leaving: *"a cohesive minimal set of views that make
+sense and help a person build their routine based on established and clear research and practice,
+same for food."*
+
+- **Built**: Fitness is three views — Week, Exercises, Regime; a day opens in the week's place;
+  the add sheet is a list to pick from, arriving with sourced numbers to change; every regime
+  has a week to start from and every diet a day, each said to be a body's own or the app's
+  arrangement; "plan the days left as last week went". Two agents found the examples (about
+  340k tokens).
+- **The lesson**: 0.7.5 added views beside the ones that were there. Session and Volume had been
+  built first and were never questioned; the Week was put between them. The owner's test — *what
+  is this for?* — removed two of five. A view that exists because it was built first is not a
+  reason.
+- **What bent**: "the app suggests no number of its own" (2026-10-11). The add sheet and the
+  examples now do, on the owner's word, each number naming its source and each example saying it
+  is only an indication. Recorded as a contradiction, first.
+- **Slips**: a `git checkout` of one file to undo a failed insertion also undid an uncommitted
+  change in it (restored, caught by the next step). Not seen on a phone.

@@ -8,8 +8,8 @@ kept as notes in your own notebook — plain files, like everything else.
 > iPhone, a Mac or a Windows computer it has not been tried. Following a diet or a regime (0.7.1),
 > weight as a trend and routines (0.7.2), and meal times, the menu, packaged foods and the
 > nutrient list (0.7.3), and the barcode look-up, the kitchen and the recipes that come with the
-> app (0.7.4), and the week's timetable, the exercise cards and their films (0.7.5) were released
-> before being tried on a phone.
+> app (0.7.4), and the week's timetable, the exercise cards and their films (0.7.5), and the three-tab Fitness, the pick-from-a-list add sheet and the weeks and days to
+> start from (0.7.6) were released before being tried on a phone.
 
 ## Hiding it
 
